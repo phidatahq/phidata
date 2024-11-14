@@ -6,7 +6,7 @@ from phi.tools.yfinance import YFinanceTools
 web_agent = Agent(
     name="Web Agent",
     role="Search the web for information",
-    model=OllamaTools(id="llama3.2"),
+    model=OllamaTools(id="llama3.1:8b"),
     tools=[DuckDuckGo()],
     instructions=["Always include sources"],
     show_tool_calls=True,
@@ -16,7 +16,7 @@ web_agent = Agent(
 finance_agent = Agent(
     name="Finance Agent",
     role="Get financial data",
-    model=OllamaTools(id="llama3.2"),
+    model=OllamaTools(id="llama3.1:8b"),
     tools=[YFinanceTools(stock_price=True, analyst_recommendations=True, company_info=True)],
     instructions=["Use tables to display data"],
     show_tool_calls=True,

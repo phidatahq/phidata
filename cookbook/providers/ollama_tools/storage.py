@@ -8,7 +8,7 @@ from phi.storage.agent.postgres import PgAgentStorage
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 
 agent = Agent(
-    model=OllamaTools(id="llama3.2"),
+    model=OllamaTools(id="llama3.1:8b"),
     storage=PgAgentStorage(table_name="agent_sessions", db_url=db_url),
     tools=[DuckDuckGo()],
     add_history_to_messages=True,

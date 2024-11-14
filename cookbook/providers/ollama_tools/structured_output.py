@@ -18,7 +18,7 @@ class MovieScript(BaseModel):
 
 # Agent that uses JSON mode
 movie_agent = Agent(
-    model=OllamaTools(id="llama3.2"),
+    model=OllamaTools(id="llama3.1:8b"),
     description="You write movie scripts.",
     response_model=MovieScript,
 )

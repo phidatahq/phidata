@@ -11,7 +11,7 @@ duckdb_tools.create_table_from_path(
 )
 
 agent = Agent(
-    model=OllamaTools(id="llama3.2"),
+    model=OllamaTools(id="llama3.1:8b"),
     tools=[duckdb_tools],
     markdown=True,
     show_tool_calls=True,

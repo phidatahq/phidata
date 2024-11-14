@@ -489,7 +489,7 @@ MovieScript(
 
 </details>
 
-### Checkout the [cookbook](https://github.com/phidatahq/phidata/tree/main/cookbook) for more examples.
+### Check out the [cookbook](https://github.com/phidatahq/phidata/tree/main/cookbook) for more examples.
 
 ## Contributions
 

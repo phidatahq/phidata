@@ -51,7 +51,6 @@ coding_agent = Agent(
     model=Ollama(id="hhao/qwen2.5-coder-tools:32b"),
     reasoning=True,
     markdown=True,
-    debug_mode=True,
     add_history_to_messages=True,
     description="You are a coding agent",
     add_datetime_to_instructions=True,

@@ -218,23 +218,20 @@ class GenerateNewsReport(Workflow):
             "topic": topic,
             "articles": [v.model_dump() for v in scraped_articles.values()],
         }
-        writer_response_stream: Iterator[RunResponse] = self.writer.run(json.dumps(writer_input, indent=4), stream=True)
+        yield from self.writer.run(json.dumps(writer_input, indent=4), stream=True)
 
-        # 3.2: Yield and save the writer_response in the session state
-        writer_response = ""
-        for writer_response_chunk in writer_response_stream:
-            if writer_response_chunk.content is not None:
-                writer_response += writer_response_chunk.content
-                yield writer_response_chunk
-
+        # 3.2: Save the writer_response in the session state
         if "reports" not in self.session_state:
             self.session_state["reports"] = []
-        self.session_state["reports"].append({"topic": topic, "report": writer_response})
+        self.session_state["reports"].append({"topic": topic, "report": self.writer.run_response.content})
 
 
-# Create the workflow
+# The topic to generate a report on
+topic = "IBM Hashicorp Acquisition"
+
+# Instantiate the workflow
 generate_news_report = GenerateNewsReport(
-    session_id="generate-report-ibm-hashicorp-acquisition",
+    session_id=f"generate-report-on-{topic}",
     storage=SqlWorkflowStorage(
         table_name="generate_news_report_workflows",
         db_file="tmp/workflows.db",
@@ -243,7 +240,7 @@ generate_news_report = GenerateNewsReport(
 
 # Run workflow
 report_stream: Iterator[RunResponse] = generate_news_report.run(
-    topic="IBM Hashicorp Acquisition", use_search_cache=True, use_scrape_cache=True, use_cached_report=False
+    topic=topic, use_search_cache=True, use_scrape_cache=True, use_cached_report=False
 )
 
 # Print the response

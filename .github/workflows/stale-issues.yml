@@ -28,9 +28,5 @@ jobs:
           # Label to apply when marking issues as stale
           stale-issue-label: "stale"
 
-          # Only process issues, not PRs
-          days-before-pr-stale: -1
-          days-before-pr-close: -1
-
           # Remove stale label if an update is made
           remove-stale-when-updated: true

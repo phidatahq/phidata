@@ -25,6 +25,7 @@ agent = Agent(
     model=OpenAIChat(id="gpt-4o"),
     # Store agent sessions in MongoDB
     storage=MongoAgentStorage(collection_name="agent_sessions", db_url=db_url, db_name="phi"),
+    # Store memories in MongoDB
     memory=AgentMemory(
         db=MongoMemoryDb(collection_name="agent_sessions", db_url=db_url, db_name="phi"),
         create_user_memories=True,

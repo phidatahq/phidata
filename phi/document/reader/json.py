@@ -31,7 +31,7 @@ class JSONReader(Reader):
                 Document(
                     name=json_name,
                     id=f"{json_name}_{page_number}",
-                    meta_data={"page": page_number},
+                    meta_data={"page": page_number, "file_type": "json"},
                     content=json.dumps(content),
                 )
                 for page_number, content in enumerate(json_contents, start=1)

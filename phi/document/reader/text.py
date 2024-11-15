@@ -30,6 +30,7 @@ class TextReader(Reader):
                     name=file_name,
                     id=file_name,
                     content=file_contents,
+                    meta_data={"file": "text"},
                 )
             ]
             if self.chunk:

@@ -31,6 +31,7 @@ class DocxReader(Reader):
                     name=doc_name,
                     id=doc_name,
                     content=doc_content,
+                    meta_data={"file_type": "docx"},
                 )
             ]
             if self.chunk:

@@ -37,6 +37,7 @@ class CSVReader(Reader):
                     name=csv_name,
                     id=csv_name,
                     content=csv_content,
+                    meta_data={"file_type": "csv"},
                 )
             ]
             if self.chunk:

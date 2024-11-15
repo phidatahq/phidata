@@ -70,13 +70,14 @@ class PDFUrlReader(Reader):
         response = httpx.get(url)
 
         doc_name = url.split("/")[-1].split(".")[0].replace("/", "_").replace(" ", "_")
+        full_doc_name = url.split("/")[-1].replace("/", "_").replace(" ", "_")
         doc_reader = DocumentReader(BytesIO(response.content))
 
         documents = [
             Document(
                 name=doc_name,
                 id=f"{doc_name}_{page_number}",
-                meta_data={"page": page_number, "file_type": "pdf"},
+                meta_data={"page": page_number, "file_name": full_doc_name},
                 content=page.extract_text(),
             )
             for page_number, page in enumerate(doc_reader.pages, start=1)

@@ -4,6 +4,8 @@ from fastapi import FastAPI
 from fastapi.routing import APIRouter
 
 from phi.agent.agent import Agent
+from phi.playground.workflow_router import get_async_workflow_router, get_workflow_router
+from phi.workflow.workflow import Workflow
 from phi.api.playground import create_playground_endpoint, PlaygroundEndpointCreate
 from phi.playground.router import get_playground_router, get_async_playground_router
 from phi.playground.settings import PlaygroundSettings
@@ -13,22 +15,33 @@ from phi.utils.log import logger
 class Playground:
     def __init__(
         self,
-        agents: List[Agent],
+        agents: Optional[List[Agent]] = None,
+        workflow: Optional[Workflow] = None,
         settings: Optional[PlaygroundSettings] = None,
         api_app: Optional[FastAPI] = None,
         router: Optional[APIRouter] = None,
     ):
-        self.agents: List[Agent] = agents
+        if not agents and not workflow:
+            raise ValueError("Either agents or workflow must be provided.")
+
+        self.agents: Optional[List[Agent]] = agents
+        self.workflow: Optional[Workflow] = workflow
         self.settings: PlaygroundSettings = settings or PlaygroundSettings()
         self.api_app: Optional[FastAPI] = api_app
         self.router: Optional[APIRouter] = router
         self.endpoints_created: Set[str] = set()
 
     def get_router(self) -> APIRouter:
-        return get_playground_router(self.agents)
+        if self.agents:
+            return get_playground_router(self.agents)
+        elif self.workflow:
+            return get_workflow_router(self.workflow)
 
     def get_async_router(self) -> APIRouter:
-        return get_async_playground_router(self.agents)
+        if self.agents:
+            return get_async_playground_router(self.agents)
+        elif self.workflow:
+            return get_async_workflow_router(self.workflow)
 
     def get_app(self, use_async: bool = True, prefix: str = "/v1") -> FastAPI:
         from starlette.middleware.cors import CORSMiddleware

@@ -279,7 +279,9 @@ def get_async_playground_router(agents: List[Agent]) -> APIRouter:
         if body.image:
             base64_image = await process_image(body.image)
 
-        if body.stream:
+        # Streaming is not supported by pydantic models
+        stream = body.stream and new_agent_instance.response_model is None
+        if stream:
             return StreamingResponse(
                 chat_response_streamer(new_agent_instance, body.message, base64_image),
                 media_type="text/event-stream",
@@ -288,7 +290,7 @@ def get_async_playground_router(agents: List[Agent]) -> APIRouter:
             run_response = cast(
                 RunResponse, await new_agent_instance.arun(body.message, images=base64_image, stream=False)
             )
-            return run_response.model_dump_json()
+            return run_response.model_dump()
 
     @playground_router.post("/agent/sessions/all")
     async def get_agent_sessions(body: AgentSessionsRequest):

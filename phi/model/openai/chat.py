@@ -99,6 +99,8 @@ class OpenAIChat(Model):
         async_client (Optional[AsyncOpenAIClient]): The asynchronous OpenAI client instance.
         structured_outputs (bool): Whether to use the structured outputs from the Model. Default is False.
         supports_structured_outputs (bool): Whether the Model supports structured outputs. Default is True.
+        supports_json_output (bool): Whether the Model supports json_object output. Default is True.
+        add_images_to_message_content (bool): Whether to add images to the message content. Default is True.
     """
 
     id: str = "gpt-4o"
@@ -143,6 +145,8 @@ class OpenAIChat(Model):
     structured_outputs: bool = False
     # Whether the Model supports structured outputs.
     supports_structured_outputs: bool = True
+    # Whether the Model supports json_object output.
+    supports_json_output: bool = True
     # Whether to add images to the message content.
     add_images_to_message_content: bool = True
 

@@ -455,7 +455,7 @@ class Agent(BaseModel):
                 logger.debug("Setting Model.response_format to Agent.response_model")
                 self.model.response_format = self.response_model
                 self.model.structured_outputs = True
-            else:
+            elif self.model.supports_json_output:
                 self.model.response_format = {"type": "json_object"}
 
         # Add tools to the Model
@@ -1659,7 +1659,9 @@ class Agent(BaseModel):
             model_response = self.model.response(messages=messages_for_model)
             # Handle structured outputs
             if self.response_model is not None and self.structured_outputs:
-                self.run_response.content = model_response.parsed
+                # `parsed` can be None if the model does not support structured outputs
+                # We should fallback to the content, which is later parsed to `response_model`
+                self.run_response.content = model_response.parsed or model_response.content
                 self.run_response.content_type = self.response_model.__name__
             else:
                 self.run_response.content = model_response.content
@@ -2018,7 +2020,9 @@ class Agent(BaseModel):
             model_response = await self.model.aresponse(messages=messages_for_model)
             # Handle structured outputs
             if self.response_model is not None and self.structured_outputs:
-                self.run_response.content = model_response.parsed
+                # `parsed` can be None if the model does not support structured outputs
+                # We should fallback to the content, which is later parsed to `response_model`
+                self.run_response.content = model_response.parsed or model_response.content
                 self.run_response.content_type = self.response_model.__name__
             else:
                 self.run_response.content = model_response.content

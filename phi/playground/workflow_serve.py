@@ -14,11 +14,11 @@ from phi.cli.console import console
 from phi.utils.log import logger
 
 
-def serve_workflow_playground(app: Union[str, FastAPI],
+def serve_workflow_playground_app(app: Union[str, FastAPI],
     *,
     scheme: str = "http",
     host: str = "localhost",
-    port: int = 7777,
+    port: int = 1111,
     reload: bool = False,
     prefix="/v1",
     **kwargs,

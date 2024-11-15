@@ -58,6 +58,8 @@ class Model(BaseModel):
     structured_outputs: Optional[bool] = None
     # Whether the Model supports structured outputs.
     supports_structured_outputs: bool = False
+    # Whether the Model supports json_object output.
+    supports_json_output: bool = True
     # Whether to add images to the message content.
     add_images_to_message_content: bool = False
 

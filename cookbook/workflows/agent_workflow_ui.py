@@ -107,7 +107,7 @@ class BlogPostGenerator(Workflow):
 
 # Create the workflow
 generate_blog_post = BlogPostGenerator(
-    session_id=f"generate-blog-post",
+    session_id="generate-blog-post",
     storage=SqlWorkflowStorage(
         table_name="generate_blog_post_workflows",
         db_file="tmp/workflows.db",

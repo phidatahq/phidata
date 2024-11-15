@@ -23,7 +23,7 @@ class Playground:
     ):
         if not agents and not workflow:
             raise ValueError("Either agents or workflow must be provided.")
-        
+
         if agents and workflow:
             raise ValueError("Agents and workflow cannot both be provided.")
 

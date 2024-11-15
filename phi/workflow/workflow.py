@@ -309,10 +309,14 @@ class Workflow(BaseModel):
                 name: {
                     "default": param.default if param.default is not inspect.Parameter.empty else None,
                     "kind": str(param.kind),
-                    "annotation": param.annotation.__name__ if param.annotation is not inspect.Parameter.empty and hasattr(param.annotation, '__name__') else str(param.annotation) if param.annotation is not inspect.Parameter.empty else None
+                    "annotation": param.annotation.__name__
+                    if param.annotation is not inspect.Parameter.empty and hasattr(param.annotation, "__name__")
+                    else str(param.annotation)
+                    if param.annotation is not inspect.Parameter.empty
+                    else None,
                 }
                 for name, param in sig.parameters.items()
-                if name != 'self'
+                if name != "self"
             }
             # Replace the instance's run method with run_workflow
             object.__setattr__(self, "run", self.run_workflow.__get__(self))

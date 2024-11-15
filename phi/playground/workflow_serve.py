@@ -1,5 +1,3 @@
-
-
 from typing import Union
 from urllib.parse import quote
 
@@ -14,7 +12,8 @@ from phi.cli.console import console
 from phi.utils.log import logger
 
 
-def serve_workflow_playground_app(app: Union[str, FastAPI],
+def serve_workflow_playground_app(
+    app: Union[str, FastAPI],
     *,
     scheme: str = "http",
     host: str = "localhost",
@@ -35,7 +34,7 @@ def serve_workflow_playground_app(app: Union[str, FastAPI],
         logger.error(f"Could not create workflow playground endpoint: {e}")
         logger.error("Please try again.")
         return
-    
+
     logger.info(f"Starting workflow playground on {scheme}://{host}:{port}")
     encoded_endpoint = quote(f"{host}:{port}")
     url = f"{phi_cli_settings.playground_url}?endpoint={encoded_endpoint}"

@@ -1,4 +1,5 @@
 import collections.abc
+import inspect
 
 from os import getenv
 from uuid import uuid4
@@ -67,6 +68,8 @@ class Workflow(BaseModel):
 
     # The run function provided by the subclass
     _subclass_run: Callable = PrivateAttr()
+    # Parameters of the run function
+    _run_parameters: Dict[str, Any] = PrivateAttr()
 
     model_config = ConfigDict(arbitrary_types_allowed=True, populate_by_name=True)
 
@@ -299,11 +302,24 @@ class Workflow(BaseModel):
         if self.__class__.run is not Workflow.run:
             # Store the original run method bound to the instance
             self._subclass_run = self.__class__.run.__get__(self)
+            # Get the parameters of the run method
+            sig = inspect.signature(self.__class__.run)
+            # Convert parameters to a serializable format
+            self._run_parameters = {
+                name: {
+                    "default": param.default if param.default is not inspect.Parameter.empty else None,
+                    "kind": str(param.kind),
+                    "annotation": param.annotation.__name__ if param.annotation is not inspect.Parameter.empty and hasattr(param.annotation, '__name__') else str(param.annotation) if param.annotation is not inspect.Parameter.empty else None
+                }
+                for name, param in sig.parameters.items()
+                if name != 'self'
+            }
             # Replace the instance's run method with run_workflow
             object.__setattr__(self, "run", self.run_workflow.__get__(self))
         else:
             # This will log an error when called
             self._subclass_run = self.run
+            self._run_parameters = {}
 
     def log_workflow_session(self):
         logger.debug(f"*********** Logging WorkflowSession: {self.session_id} ***********")

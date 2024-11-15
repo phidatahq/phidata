@@ -1,27 +1,27 @@
+"""Run `pip install openai psycopg python-docx sqlalchemy` to install dependencies."""
+
+from phi.agent.agent import Agent
+from phi.knowledge.docx import DocxKnowledgeBase
+from phi.vectordb.pgvector import PgVector
 from pathlib import Path
 
-from phi.agent import Agent
-from phi.vectordb.pgvector import PgVector
-from phi.knowledge.docx import DocxKnowledgeBase
-
-db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
-
-# Create a knowledge base with the DOCX files from the data/docs directory
+# Create a knowledge base from Docs directory
 knowledge_base = DocxKnowledgeBase(
-    path=Path("data/docs"),
+    path=Path("Data/Docs"),
     vector_db=PgVector(
         table_name="docx_documents",
-        db_url=db_url,
+        db_url="postgresql+psycopg://ai:ai@localhost:5532/ai",
     ),
 )
-# Load the knowledge base
-knowledge_base.load(recreate=False)
 
-# Create an agent with the knowledge base
+
+knowledge_base.load()
+
 agent = Agent(
-    knowledge_base=knowledge_base,
-    add_references_to_prompt=True,
+    # Add the knowledge base to the agent
+    knowledge=knowledge_base,
+    markdown=True,
+    debug_mode=True,
 )
 
-# Ask the agent about the knowledge base
-agent.print_response("Ask me about something from the knowledge base", markdown=True)
+agent.print_response("Cann you tell a recepie of india dish?", stream=True)

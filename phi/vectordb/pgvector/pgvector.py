@@ -42,7 +42,7 @@ class PgVector(VectorDb):
         db_url: Optional[str] = None,
         db_engine: Optional[Engine] = None,
         embedder: Optional[Embedder] = None,
-        search_type: SearchType = SearchType.hybrid,
+        search_type: SearchType = SearchType.vector,
         vector_index: Union[Ivfflat, HNSW] = HNSW(),
         distance: Distance = Distance.cosine,
         prefix_match: bool = False,

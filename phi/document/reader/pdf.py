@@ -76,7 +76,7 @@ class PDFUrlReader(Reader):
             Document(
                 name=doc_name,
                 id=f"{doc_name}_{page_number}",
-                meta_data={"page": page_number},
+                meta_data={"page": page_number, "file_type": "pdf"},
                 content=page.extract_text(),
             )
             for page_number, page in enumerate(doc_reader.pages, start=1)
@@ -139,7 +139,7 @@ class PDFImageReader(Reader):
                 Document(
                     name=doc_name,
                     id=f"{doc_name}_{page_number}",
-                    meta_data={"page": page_number},
+                    meta_data={"page": page_number, "file_type": "pdf"},
                     content=content,
                 )
             )

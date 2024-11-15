@@ -42,7 +42,7 @@ class PgVector(VectorDb):
         db_url: Optional[str] = None,
         db_engine: Optional[Engine] = None,
         embedder: Optional[Embedder] = None,
-        search_type: SearchType = SearchType.vector,
+        search_type: SearchType = SearchType.hybrid,
         vector_index: Union[Ivfflat, HNSW] = HNSW(),
         distance: Distance = Distance.cosine,
         prefix_match: bool = False,
@@ -490,6 +490,7 @@ class PgVector(VectorDb):
             # Process the results and convert to Document objects
             search_results: List[Document] = []
             for result in results:
+                result.meta_data["search_type"] = self.search_type
                 search_results.append(
                     Document(
                         id=result.id,
@@ -583,6 +584,7 @@ class PgVector(VectorDb):
             # Process the results and convert to Document objects
             search_results: List[Document] = []
             for result in results:
+                result.meta_data["search_type"] = self.search_type
                 search_results.append(
                     Document(
                         id=result.id,
@@ -706,6 +708,7 @@ class PgVector(VectorDb):
             # Process the results and convert to Document objects
             search_results: List[Document] = []
             for result in results:
+                result.meta_data["search_type"] = self.search_type
                 search_results.append(
                     Document(
                         id=result.id,

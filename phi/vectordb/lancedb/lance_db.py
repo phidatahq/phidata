@@ -251,10 +251,12 @@ class LanceDb(VectorDb):
         try:
             for _, item in results.iterrows():
                 payload = json.loads(item["payload"])
+                meta_data = payload["meta_data"]
+                meta_data["search_type"] = self.search_type.value
                 search_results.append(
                     Document(
                         name=payload["name"],
-                        meta_data=payload["meta_data"],
+                        meta_data=meta_data,
                         content=payload["content"],
                         embedder=self.embedder,
                         embedding=item["vector"],

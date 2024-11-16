@@ -156,7 +156,7 @@ class WebsiteReader(Reader):
                         Document(
                             name=url,
                             id=str(crawled_url),
-                            meta_data={"url": str(crawled_url), "file_type": "website"},
+                            meta_data={"url": str(crawled_url)},
                             content=crawled_content,
                         )
                     )
@@ -166,7 +166,7 @@ class WebsiteReader(Reader):
                     Document(
                         name=url,
                         id=str(crawled_url),
-                        meta_data={"url": str(crawled_url), "file_type": "website"},
+                        meta_data={"url": str(crawled_url)},
                         content=crawled_content,
                     )
                 )

@@ -1338,12 +1338,13 @@ class Agent(BaseModel):
             logger.debug(f"==== Step {step_count} ====")
             try:
                 # -*- Run the reasoning agent
+                last_message: Optional[Message]
                 if len(user_messages) == 1:
                     messages_for_reasoning_agent = [system_message] if system_message is not None else []
-                    last_message: Message = user_messages[0]
+                    last_message = user_messages[0]
                 elif len(user_messages) > 1:
                     # If there are multiple messages, separate the last message to provide as input to the agent
-                    last_message: Message = user_messages[-1]
+                    last_message = user_messages[-1]
                     messages_for_reasoning_agent = (
                         [system_message] + user_messages[:-1] if system_message is not None else user_messages[:-1]
                     )

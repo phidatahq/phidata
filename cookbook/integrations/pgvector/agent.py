@@ -19,6 +19,6 @@ agent = Agent(
     read_chat_history=True,
 )
 # Comment out after first run
-agent.knowledge.load(recreate=True)  # type: ignore
+agent.knowledge.load(recreate=False)  # type: ignore
 
 agent.print_response("How do I make pad thai?", markdown=True)

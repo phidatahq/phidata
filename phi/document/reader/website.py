@@ -154,7 +154,10 @@ class WebsiteReader(Reader):
                 documents.extend(
                     self.chunk_document(
                         Document(
-                            name=url, id=str(crawled_url), meta_data={"url": str(crawled_url), "file_type": "website"}, content=crawled_content
+                            name=url,
+                            id=str(crawled_url),
+                            meta_data={"url": str(crawled_url), "file_type": "website"},
+                            content=crawled_content,
                         )
                     )
                 )

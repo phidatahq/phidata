@@ -43,7 +43,7 @@ class FirecrawlReader(Reader):
         if self.chunk and content:  # Only chunk if there's content
             documents.extend(self.chunk_document(Document(name=url, id=url, content=content)))
         else:
-            documents.append(Document(name=url, id=url, content=content, meta_data={"file_type": "website"}))
+            documents.append(Document(name=url, id=url, content=content))
         return documents
 
     def crawl(self, url: str) -> List[Document]:
@@ -70,7 +70,7 @@ class FirecrawlReader(Reader):
 
             if content:  # Only create document if content exists
                 if self.chunk:
-                    documents.extend(self.chunk_document(Document(name=url, id=url, content=content, meta_data={"file_type": "website"})))
+                    documents.extend(self.chunk_document(Document(name=url, id=url, content=content)))
                 else:
                     documents.append(Document(name=url, id=url, content=content))
 

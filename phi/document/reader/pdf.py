@@ -19,13 +19,16 @@ class PDFReader(Reader):
             raise ImportError("`pypdf` not installed")
 
         doc_name = ""
+        full_doc_name = ""
         try:
             if isinstance(pdf, str):
                 doc_name = pdf.split("/")[-1].split(".")[0].replace(" ", "_")
+                full_doc_name = pdf.split("/")[-1].replace(" ", "_")
             else:
                 doc_name = pdf.name.split(".")[0]
         except Exception:
             doc_name = "pdf"
+            full_doc_name = "data.pdf"
 
         logger.info(f"Reading: {doc_name}")
         doc_reader = DocumentReader(pdf)
@@ -34,7 +37,7 @@ class PDFReader(Reader):
             Document(
                 name=doc_name,
                 id=f"{doc_name}_{page_number}",
-                meta_data={"page": page_number},
+                meta_data={"page": page_number, "file_name": full_doc_name},
                 content=page.extract_text(),
             )
             for page_number, page in enumerate(doc_reader.pages, start=1)
@@ -104,13 +107,16 @@ class PDFImageReader(Reader):
             raise ImportError("`pypdf` or `rapidocr_onnxruntime` not installed")
 
         doc_name = ""
+        full_doc_name = ""
         try:
             if isinstance(pdf, str):
                 doc_name = pdf.split("/")[-1].split(".")[0].replace(" ", "_")
+                full_doc_name = pdf.split("/")[-1].replace(" ", "_")
             else:
                 doc_name = pdf.name.split(".")[0]
         except Exception:
             doc_name = "pdf"
+            full_doc_name = "data.pdf"
 
         logger.info(f"Reading: {doc_name}")
         doc_reader = DocumentReader(pdf)
@@ -140,7 +146,7 @@ class PDFImageReader(Reader):
                 Document(
                     name=doc_name,
                     id=f"{doc_name}_{page_number}",
-                    meta_data={"page": page_number, "file_type": "pdf"},
+                    meta_data={"page": page_number, "file_name": full_doc_name},
                     content=content,
                 )
             )
@@ -175,6 +181,7 @@ class PDFUrlImageReader(Reader):
         response = httpx.get(url)
 
         doc_name = url.split("/")[-1].split(".")[0].replace(" ", "_")
+        full_doc_name = url.split("/")[-1].replace(" ", "_")
         doc_reader = DocumentReader(BytesIO(response.content))
 
         # Initialize RapidOCR
@@ -205,7 +212,7 @@ class PDFUrlImageReader(Reader):
                 Document(
                     name=doc_name,
                     id=f"{doc_name}_{page_number}",
-                    meta_data={"page": page_number},
+                    meta_data={"page": page_number, "file_name": full_doc_name},
                     content=content,
                 )
             )

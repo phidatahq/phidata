@@ -19,10 +19,12 @@ class DocxReader(Reader):
                 logger.info(f"Reading: {file}")
                 docx_document = DocxDocument(file)
                 doc_name = file.stem
+                full_doc_name = file.name
             else:  # Handle file-like object from upload
                 logger.info(f"Reading uploaded file: {file.name}")
                 docx_document = DocxDocument(file)
                 doc_name = file.name.split(".")[0]
+                full_doc_name = file.name
 
             doc_content = "\n\n".join([para.text for para in docx_document.paragraphs])
 
@@ -31,7 +33,7 @@ class DocxReader(Reader):
                     name=doc_name,
                     id=doc_name,
                     content=doc_content,
-                    meta_data={"file_type": "docx"},
+                    meta_data={"file_name": full_doc_name},
                 )
             ]
             if self.chunk:

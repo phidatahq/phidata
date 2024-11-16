@@ -1,10 +1,11 @@
+import io
 import csv
 from pathlib import Path
 from typing import List, Union, IO, Any
+
 from phi.document.base import Document
 from phi.document.reader.base import Reader
 from phi.utils.log import logger
-import io
 
 
 class CSVReader(Reader):
@@ -26,6 +27,7 @@ class CSVReader(Reader):
                 file_content = io.StringIO(file.read().decode("utf-8"))
 
             csv_name = Path(file.name).stem if isinstance(file, Path) else file.name.split(".")[0]
+            full_csv_name = Path(file.name).name if isinstance(file, Path) else file.name
             csv_content = ""
             with file_content as csvfile:
                 csv_reader = csv.reader(csvfile, delimiter=delimiter, quotechar=quotechar)
@@ -37,7 +39,7 @@ class CSVReader(Reader):
                     name=csv_name,
                     id=csv_name,
                     content=csv_content,
-                    meta_data={"file_type": "csv"},
+                    meta_data={"file_name": full_csv_name},
                 )
             ]
             if self.chunk:

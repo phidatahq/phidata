@@ -33,7 +33,7 @@ class ArxivReader(Reader):
                 Document(
                     name=result.title,
                     id=result.title,
-                    meta_data={"pdf_url": str(result.pdf_url), "article_links": links, "file_type": "arxiv"},
+                    meta_data={"pdf_url": str(result.pdf_url), "article_links": links},
                     content=result.summary,
                 )
             )

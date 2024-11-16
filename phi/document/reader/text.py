@@ -18,10 +18,12 @@ class TextReader(Reader):
                     raise FileNotFoundError(f"Could not find file: {file}")
                 logger.info(f"Reading: {file}")
                 file_name = file.stem
+                full_file_name = file.name
                 file_contents = file.read_text()
             else:
                 logger.info(f"Reading uploaded file: {file.name}")
                 file_name = file.name.split(".")[0]
+                full_file_name = file.name
                 file.seek(0)
                 file_contents = file.read().decode("utf-8")
 
@@ -30,7 +32,7 @@ class TextReader(Reader):
                     name=file_name,
                     id=file_name,
                     content=file_contents,
-                    meta_data={"file": "text"},
+                    meta_data={"file_name": full_file_name},
                 )
             ]
             if self.chunk:

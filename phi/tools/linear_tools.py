@@ -163,7 +163,7 @@ class LinearTool(Toolkit):
         """
 
         query = """
-        mutation IssueCreate{
+        mutation IssueCreate ($title: String!, $description: String!, $teamId: String!){
           issueCreate(
             input: { title: $title, description: $description, teamId: $teamId }
           ) {
@@ -192,14 +192,13 @@ class LinearTool(Toolkit):
             logger.error(f"Error creating issue '{title}' for team ID {team_id}: {e}")
             raise
 
-    def update_issue(self, issue_id: str, title: Optional[str], state_id: Optional[str]) -> Optional[str]:
+    def update_issue(self, issue_id: str, title: Optional[str]) -> Optional[str]:
         """
         Update the title or state of a specific issue by issue ID.
 
         Args:
             issue_id (str): The unique identifier of the issue to update.
             title (str, optional): The new title for the issue. If None, the title remains unchanged.
-            state_id (str, optional): The new state identifier for the issue. If None, the state remains unchanged.
 
         Returns:
             str or None: A string containing the updated issue's details with issue id, issue title, and issue state (which includes `id` and `name`).
@@ -210,10 +209,10 @@ class LinearTool(Toolkit):
         """
 
         query = """
-        mutation IssueUpdate {
+        mutation IssueUpdate ($issueId: String!, $title: String!){
           issueUpdate(
             id: $issueId,
-            input: { title: $title, stateId: $stateId }
+            input: { title: $title}
           ) {
             success
             issue {
@@ -227,7 +226,7 @@ class LinearTool(Toolkit):
           }
         }
         """
-        variables = {"issueId": issue_id, "title": title, "stateId": state_id}
+        variables = {"issueId": issue_id, "title": title}
 
         try:
             response = self._execute_query(query, variables)

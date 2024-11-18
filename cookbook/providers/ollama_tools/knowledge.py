@@ -2,12 +2,12 @@
 Run `pip install duckduckgo-search sqlalchemy pgvector pypdf openai ollama` to install dependencies.
 
 Run Ollama Server: `ollama serve`
-Pull required models: 
+Pull required models:
 `ollama pull openhermes`
 `ollama pull llama3.1:8b`
 
 If you haven't deployed database yet, run:
-`docker run --rm -it -e POSTGRES_PASSWORD=ai -e POSTGRES_USER=ai -e POSTGRES_DB=ai -p 5532:5432 --name postgres pgvector/pgvector:pg17` 
+`docker run --rm -it -e POSTGRES_PASSWORD=ai -e POSTGRES_USER=ai -e POSTGRES_DB=ai -p 5532:5432 --name postgres pgvector/pgvector:pg17`
 to deploy a PostgreSQL database.
 
 """

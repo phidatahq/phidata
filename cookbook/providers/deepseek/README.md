@@ -61,14 +61,15 @@ python cookbook/providers/deepseek/finance_agent.py
 python cookbook/providers/deepseek/data_analyst.py
 ```
 
+- Web Search
+
+```shell
+python cookbook/providers/deepseek/web_search.py
+```
+
 ### 6. Run Agent that returns structured output
 
 ```shell
 python cookbook/providers/deepseek/structured_output.py
 ```
 
-### 7. Run Agent that uses web search
-
-```shell
-python cookbook/providers/deepseek/web_search.py
-```

@@ -1,13 +1,11 @@
 """Run `pip install duckdb` to install dependencies."""
 
 import json
-
 from phi.model.openai import OpenAIChat
 from phi.agent.duckdb import DuckDbAgent
 
 data_analyst = DuckDbAgent(
     model=OpenAIChat(model="gpt-4o"),
-    markdown=True,
     semantic_model=json.dumps(
         {
             "tables": [
@@ -17,9 +15,9 @@ data_analyst = DuckDbAgent(
                     "path": "https://phidata-public.s3.amazonaws.com/demo_data/IMDB-Movie-Data.csv",
                 }
             ]
-        },
-        indent=2,
+        }
     ),
+    markdown=True,
 )
 data_analyst.print_response(
     "Show me a histogram of ratings. "

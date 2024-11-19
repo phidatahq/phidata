@@ -497,6 +497,11 @@ class Gemini(Model):
         if assistant_message.content is not None:
             model_response.content = assistant_message.get_content_string()
 
+        # -*- Remove parts from messages
+        for m in messages:
+            if hasattr(m, "parts"):
+                m.parts = None
+
         logger.debug("---------- Gemini Response End ----------")
         return model_response
 
@@ -551,13 +556,14 @@ class Gemini(Model):
         for response in self.invoke_stream(messages=messages):
             message_data.response_block = response.candidates[0].content
             message_data.response_role = message_data.response_block.role
-            message_data.response_parts = message_data.response_block.parts
+            if message_data.response_block.parts:
+                message_data.response_parts = message_data.response_block.parts
 
             if message_data.response_parts is not None:
                 for part in message_data.response_parts:
                     part_dict = type(part).to_dict(part)
 
-                    # Yield text if present
+                    # -*- Yield text if present
                     if "text" in part_dict:
                         text = part_dict.get("text")
                         yield ModelResponse(content=text)
@@ -567,7 +573,10 @@ class Gemini(Model):
                             stream_usage_data.time_to_first_token = response_timer.elapsed
                             logger.debug(f"Time to first token: {stream_usage_data.time_to_first_token:.4f}s")
 
-                    # Parse function calls
+                    # -*- Skip function calls if there are no parts
+                    if not message_data.response_block.parts and message_data.response_parts:
+                        continue
+                    # -*- Parse function calls
                     if "function_call" in part_dict:
                         message_data.response_tool_calls.append(
                             {
@@ -610,4 +619,10 @@ class Gemini(Model):
         if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
             yield from self._handle_stream_tool_calls(assistant_message, messages)
             yield from self.response_stream(messages=messages)
+
+        # -*- Remove parts from messages
+        for m in messages:
+            if hasattr(m, "parts"):
+                m.parts = None
+
         logger.debug("---------- Gemini Response End ----------")

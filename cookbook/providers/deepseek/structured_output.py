@@ -17,7 +17,7 @@ class MovieScript(BaseModel):
 
 
 json_mode_agent = Agent(
-    model=DeepSeekChat(),
+    model=DeepSeekChat(id="deepseek-chat"),
     description="You help people write movie scripts.",
     response_model=MovieScript,
     # debug_mode=True,

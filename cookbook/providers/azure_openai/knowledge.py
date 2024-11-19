@@ -11,7 +11,7 @@ knowledge_base = PDFUrlKnowledgeBase(
     urls=["https://phi-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
     vector_db=PgVector(table_name="recipes", db_url=db_url),
 )
-knowledge_base.load(recreate=True)  # Comment out after first run
+knowledge_base.load(recreate=False)  # Comment out after first run
 
 agent = Agent(
     model=AzureOpenAIChat(id="gpt-4o"),

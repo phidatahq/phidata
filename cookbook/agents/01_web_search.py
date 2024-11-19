@@ -1,4 +1,4 @@
-"""Run `pip install openai duckduckgo-search` to install dependencies."""
+"""Run `pip install openai duckduckgo-search phidata` to install dependencies."""
 
 from phi.agent import Agent
 from phi.model.openai import OpenAIChat

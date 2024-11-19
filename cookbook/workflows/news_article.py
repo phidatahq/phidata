@@ -227,9 +227,12 @@ class GenerateNewsReport(Workflow):
         return writer_response
 
 
-# Create the workflow
+# The topic to generate a report on
+topic = "IBM Hashicorp Acquisition"
+
+# Instantiate the workflow
 generate_news_report = GenerateNewsReport(
-    session_id="generate-report-ibm-hashicorp-acquisition",
+    session_id=f"generate-report-on-{topic}",
     storage=SqlWorkflowStorage(
         table_name="generate_news_report_workflows",
         db_file="tmp/workflows.db",
@@ -238,7 +241,7 @@ generate_news_report = GenerateNewsReport(
 
 # Run workflow
 report: RunResponse = generate_news_report.run(
-    topic="IBM Hashicorp Acquisition", use_search_cache=True, use_scrape_cache=True, use_cached_report=False
+    topic=topic, use_search_cache=True, use_scrape_cache=True, use_cached_report=False
 )
 
 # Print the response

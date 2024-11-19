@@ -1,3 +1,5 @@
+"""Run `pip install openai yfinance duckduckgo-search phidata 'fastapi[standard]' sqlalchemy` to install dependencies."""
+
 from phi.agent import Agent
 from phi.model.openai import OpenAIChat
 from phi.storage.agent.sqlite import SqlAgentStorage
@@ -18,9 +20,11 @@ web_agent = Agent(
 finance_agent = Agent(
     name="Finance Agent",
     model=OpenAIChat(id="gpt-4o"),
-    tools=[YFinanceTools(stock_price=True, analyst_recommendations=True, company_info=True, company_news=True)],
+    tools=[YFinanceTools(enable_all=True)],
     instructions=["Use tables to display data"],
+    # Add long-term memory to the agent
     storage=SqlAgentStorage(table_name="finance_agent", db_file="agents.db"),
+    # Add history from long-term memory to the agent's messages
     add_history_to_messages=True,
     markdown=True,
 )

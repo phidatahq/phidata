@@ -8,7 +8,7 @@ db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 
 # Initialize the JSONKnowledgeBase
 knowledge_base = JSONKnowledgeBase(
-    path=Path("data/docs"),  # Table name: ai.json_documents
+    path=Path("data/json"),  # Table name: ai.json_documents
     vector_db=PgVector(
         table_name="json_documents",
         db_url=db_url,
@@ -18,7 +18,7 @@ knowledge_base = JSONKnowledgeBase(
 # Load the knowledge base
 knowledge_base.load(recreate=False)
 
-# Initialize the Assistant with the knowledge_base
+# Initialize the Agent with the knowledge_base
 agent = Agent(
     knowledge_base=knowledge_base,
     add_references_to_prompt=True,

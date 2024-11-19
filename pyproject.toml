@@ -1,6 +1,6 @@
 [project]
 name = "phidata"
-version = "2.5.30"
+version = "2.5.32"
 description = "Build AI Agents with memory, knowledge and tools."
 requires-python = ">=3.7"
 readme = "README.md"
@@ -142,6 +142,7 @@ module = [
   "pyarrow.*",
   "pycountry.*",
   "pypdf.*",
+  "pytz.*",
   "qdrant_client.*",
   "rapidocr_onnxruntime.*",
   "requests.*",

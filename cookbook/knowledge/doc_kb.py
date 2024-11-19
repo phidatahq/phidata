@@ -1,14 +1,3 @@
-"""
-This cookbook demonstrates how to use DocumentKnowledgeBase to create a knowledge base from PDF files
-and use it with an agent to answer questions.
-
-Requirements:
-- A PostgreSQL database with pgvector extension
-- PDF files in the data/docs directory
-"""
-
-from pathlib import Path
-
 from phi.agent import Agent
 from phi.document.base import Document
 from phi.knowledge.document import DocumentKnowledgeBase

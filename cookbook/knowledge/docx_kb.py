@@ -7,7 +7,7 @@ from pathlib import Path
 
 # Create a knowledge base from Docs directory
 knowledge_base = DocxKnowledgeBase(
-    path=Path("Data/Docs"),
+    path=Path("data/docs"),
     vector_db=PgVector(
         table_name="docx_documents",
         db_url="postgresql+psycopg://ai:ai@localhost:5532/ai",

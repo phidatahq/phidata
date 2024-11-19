@@ -10,9 +10,11 @@ TEXT_FIELD_NAME: str = "text"
 NODE_CONTENT_FIELD_NAME: str = "_node_content"
 VECTOR_FIELD_NAME: str = "vector"
 
+
 class Algorithm(Enum):
     FLAT = "flat"
     HSNW = "hsnw"
+
 
 class RedisIndexInfo(IndexInfo):
     """The default Redis Vector Store Index Info."""
@@ -25,6 +27,7 @@ class RedisIndexInfo(IndexInfo):
     """The separator character used in designing Redis keys."""
     storage_type: StorageType = StorageType.HASH
     """The storage type used in Redis (e.g., 'hash' or 'json')."""
+
 
 class RedisVectorStoreSchema(IndexSchema):
     """The default Redis Vector Store Schema."""

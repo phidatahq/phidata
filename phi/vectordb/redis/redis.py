@@ -1,7 +1,7 @@
 import os
 import json
 from hashlib import md5
-from typing import Optional, List, Union, Dict, Any, cast, ListOfDict
+from typing import Optional, List, Union, Dict, Any
 from pydantic import PrivateAttr
 
 try:
@@ -49,7 +49,7 @@ class Redis(VectorDB):
         redis_url: Optional[str] = None,
         redis_client: Optional[redis.Redis] = None,
         embedder:Optional[Embedder] = None,
-        index_schema: Optional[Union[Dict[str,ListOfDict],str,os.PathLike]] = None,
+        index_schema: Optional[Union[Dict[str,List[Dict]],str,os.PathLike]] = None,
         overwrite: bool = False,
         return_fields: Optional[List[str]] = None,
         **kwargs,

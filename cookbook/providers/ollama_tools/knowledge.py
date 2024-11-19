@@ -3,7 +3,7 @@ Run `pip install duckduckgo-search sqlalchemy pgvector pypdf openai ollama` to i
 
 Run Ollama Server: `ollama serve`
 Pull required models:
-`ollama pull openhermes`
+`ollama pull nomic-embed-text`
 `ollama pull llama3.1:8b`
 
 If you haven't deployed database yet, run:
@@ -25,7 +25,7 @@ knowledge_base = PDFUrlKnowledgeBase(
     vector_db=PgVector(
         table_name="recipes",
         db_url=db_url,
-        embedder=OllamaEmbedder(host="http://localhost:11434"),
+        embedder=OllamaEmbedder(model="nomic-embed-text", host="http://localhost:11434", dimensions=768),
     ),
 )
 knowledge_base.load(recreate=False)  # Comment out after first run

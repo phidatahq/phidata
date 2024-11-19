@@ -45,8 +45,7 @@ class CassandraDb(VectorDb):
     def create(self) -> None:
         """Create the table in Cassandra for storing vectors and metadata."""
         if not self.exists():
-            logger.debug(f"Cassandra VectorDB : Creating table {
-                         self.table_name}")
+            logger.debug(f"Cassandra VectorDB : Creating table {self.table_name}")
             self.initialize_table()
 
     def _row_to_document(self, row: Dict[str, Any]) -> Document:
@@ -80,8 +79,7 @@ class CassandraDb(VectorDb):
         return result[0].count > 0
 
     def insert(self, documents: List[Document], filters: Optional[Dict[str, Any]] = None) -> None:
-        logger.debug(f"Cassandra VectorDB : Inserting Documents to the table {
-                     self.table_name}")
+        logger.debug(f"Cassandra VectorDB : Inserting Documents to the table {self.table_name}")
         futures = []
         for doc in documents:
             doc.embed(embedder=self.embedder)
@@ -105,8 +103,7 @@ class CassandraDb(VectorDb):
 
     def search(self, query: str, limit: int = 5, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
         """Keyword-based search on document metadata."""
-        logger.debug(f"Cassandra VectorDB : Performing Vector Search on {
-                     self.table_name} with query {query}")
+        logger.debug(f"Cassandra VectorDB : Performing Vector Search on {self.table_name} with query {query}")
         return self.vector_search(query=query, limit=limit)
 
     def _search_to_documents(
@@ -146,7 +143,6 @@ class CassandraDb(VectorDb):
 
     def delete(self) -> bool:
         """Delete all documents in the table."""
-        logger.debug(f"Cassandra VectorDB : Clearing the table {
-                     self.table_name}")
+        logger.debug(f"Cassandra VectorDB : Clearing the table {self.table_name}")
         self.table.clear()
         return True

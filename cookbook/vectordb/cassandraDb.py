@@ -1,6 +1,7 @@
 from phi.agent import Agent
 from phi.knowledge.pdf import PDFUrlKnowledgeBase
 from phi.vectordb.cassandra.cassandra import CassandraDb
+import os
 
 try:
     from cassandra.cluster import Cluster  # type: ignore
@@ -23,7 +24,12 @@ knowledge_base = PDFUrlKnowledgeBase(
 
 knowledge_base.load(recreate=False)  # Comment out after first run
 
-agent = Agent(provider=MistralChat(), knowledge_base=knowledge_base, use_tools=True, show_tool_calls=True)
+agent = Agent(
+    provider=MistralChat(api_key=os.getenv("MISTRAL_API_KEY")),
+    knowledge_base=knowledge_base,
+    use_tools=True,
+    show_tool_calls=True,
+)
 
 agent.print_response(
     "what are the health benifits of Khao Niew Dam Piek Maphrao Awn ?", markdown=True, show_full_reasoning=True

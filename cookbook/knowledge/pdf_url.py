@@ -10,6 +10,9 @@ knowledge_base = PDFUrlKnowledgeBase(
 )
 knowledge_base.load(recreate=False)  # Comment out after first run
 
-agent = Agent(knowledge_base=knowledge_base, add_context=True)
+agent = Agent(
+    knowledge_base=knowledge_base,
+    search_knowledge=True,
+)
 
 agent.print_response("How to make Thai curry?", markdown=True)

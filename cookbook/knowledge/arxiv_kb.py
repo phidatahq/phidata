@@ -19,7 +19,7 @@ knowledge_base.load(recreate=False)
 # Create an agent with the knowledge base
 agent = Agent(
     knowledge=knowledge_base,
-    add_context=True,
+    search_knowledge=True,
 )
 
 # Ask the agent about the knowledge base

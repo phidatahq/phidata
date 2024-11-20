@@ -22,7 +22,7 @@ knowledge_base.load(recreate=False)
 # Initialize the Assistant with the knowledge_base
 agent = Agent(
     knowledge=knowledge_base,
-    add_context=True,
+    search_knowledge=True,
 )
 
 # Use the agent

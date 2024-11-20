@@ -63,7 +63,7 @@ knowledge_base = CombinedKnowledgeBase(
 # Initialize the Agent with the combined knowledge base
 agent = Agent(
     knowledge=knowledge_base,
-    add_context=True,
+    search_knowledge=True,
 )
 
 knowledge_base.load(recreate=False)

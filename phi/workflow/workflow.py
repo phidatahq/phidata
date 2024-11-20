@@ -72,6 +72,8 @@ class Workflow(BaseModel):
     _subclass_run: Callable = PrivateAttr()
     # Parameters of the run function
     _run_parameters: Dict[str, Any] = PrivateAttr()
+    # Return type of the run function
+    _run_return_type: Optional[str] = PrivateAttr()
 
     model_config = ConfigDict(arbitrary_types_allowed=True, populate_by_name=True)
 
@@ -321,12 +323,22 @@ class Workflow(BaseModel):
                 for name, param in sig.parameters.items()
                 if name != "self"
             }
+            # Determine the return type of the run method
+            return_annotation = sig.return_annotation
+            self._run_return_type = (
+                return_annotation.__name__
+                if return_annotation is not inspect.Signature.empty and hasattr(return_annotation, "__name__")
+                else str(return_annotation)
+                if return_annotation is not inspect.Signature.empty
+                else None
+            )
             # Replace the instance's run method with run_workflow
             object.__setattr__(self, "run", self.run_workflow.__get__(self))
         else:
             # This will log an error when called
             self._subclass_run = self.run
             self._run_parameters = {}
+            self._run_return_type = None
 
     def log_workflow_session(self):
         logger.debug(f"*********** Logging WorkflowSession: {self.session_id} ***********")

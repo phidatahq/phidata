@@ -1,7 +1,8 @@
-from typing import List
+from typing import List, Dict, Any
 
 from fastapi import HTTPException
 from fastapi.routing import APIRouter
+from fastapi.responses import StreamingResponse
 
 from phi.workflow.workflow import Workflow
 
@@ -37,6 +38,13 @@ def get_workflow_router(workflows: List[Workflow]) -> APIRouter:
                 }
         raise HTTPException(status_code=404, detail="Workflow not found")
 
+    @workflow_router.post("/run/{workflow_id}")
+    def run_workflow(workflow_id: str, input: Dict[str, Any]):
+        for workflow in workflows:
+            if workflow.workflow_id == workflow_id:
+                print(f"*********** Running workflow: {workflow._run_return_type} ***********")
+        raise HTTPException(status_code=404, detail="Workflow not found")
+
     return workflow_router
 
 
@@ -69,6 +77,19 @@ def get_async_workflow_router(workflows: List[Workflow]) -> APIRouter:
                     "memory": workflow.memory.__class__.__name__ if workflow.memory else None,
                     "storage": workflow.storage.__class__.__name__ if workflow.storage else None,
                 }
+        raise HTTPException(status_code=404, detail="Workflow not found")
+    
+    @workflow_router.post("/run/{workflow_id}")
+    async def run_workflow(workflow_id: str, input: Dict[str, Any]):
+        for workflow in workflows:
+            if workflow.workflow_id == workflow_id:
+                if workflow._run_return_type == "RunResponse":
+                    return workflow.run(**input)
+                else:
+                    return StreamingResponse(
+                        (r.model_dump_json() for r in workflow.run(**input)),
+                        media_type="text/event-stream"
+                    )
         raise HTTPException(status_code=404, detail="Workflow not found")
 
     return workflow_router

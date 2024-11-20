@@ -1,9 +1,11 @@
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 from fastapi import HTTPException
 from fastapi.routing import APIRouter
 from fastapi.responses import StreamingResponse
 
+from phi.playground.schemas import WorkflowSessionsRequest
+from phi.workflow.session import WorkflowSession
 from phi.workflow.workflow import Workflow
 
 
@@ -49,7 +51,29 @@ def get_workflow_router(workflows: List[Workflow]) -> APIRouter:
                         (r.model_dump_json() for r in workflow.run(**input)), media_type="text/event-stream"
                     )
         raise HTTPException(status_code=404, detail="Workflow not found")
+    
+    @workflow_router.post("/workflow/session/all/{workflow_id}")
+    def get_all_workflow_sessions(workflow_id: str, body: WorkflowSessionsRequest):
+        workflow = None
+        for _workflow in workflows:
+            if _workflow.workflow_id == workflow_id:
+                workflow = _workflow
+                break
 
+        if workflow is None:
+            raise HTTPException(status_code=404, detail="Workflow not found")
+        workflow_sessions: List[Dict[str, Any]] = []
+        all_workflow_sessions: List[WorkflowSession] = workflow.storage.get_all_sessions(
+            user_id=body.user_id
+        )
+        for session in all_workflow_sessions:
+            workflow_sessions.append({
+                "title": None,
+                "session_id": session.session_id,
+                "session_name": session.session_data.get("session_name") if session.session_data else None,
+                "created_at": session.created_at,
+            })
+        return workflow_sessions
     return workflow_router
 
 
@@ -95,5 +119,28 @@ def get_async_workflow_router(workflows: List[Workflow]) -> APIRouter:
                         (r.model_dump_json() for r in workflow.run(**input)), media_type="text/event-stream"
                     )
         raise HTTPException(status_code=404, detail="Workflow not found")
+
+    @workflow_router.post("/workflow/session/all/{workflow_id}")
+    async def get_all_workflow_sessions(workflow_id: str, body: WorkflowSessionsRequest):
+        workflow = None
+        for _workflow in workflows:
+            if _workflow.workflow_id == workflow_id:
+                workflow = _workflow
+                break
+
+        if workflow is None:
+            raise HTTPException(status_code=404, detail="Workflow not found")
+        workflow_sessions: List[Dict[str, Any]] = []
+        all_workflow_sessions: List[WorkflowSession] = workflow.storage.get_all_sessions(
+            user_id=body.user_id
+        )
+        for session in all_workflow_sessions:
+            workflow_sessions.append({
+                "title": None,
+                "session_id": session.session_id,
+                "session_name": session.session_data.get("session_name") if session.session_data else None,
+                "created_at": session.created_at,
+            })
+        return workflow_sessions
 
     return workflow_router

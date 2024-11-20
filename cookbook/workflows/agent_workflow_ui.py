@@ -7,6 +7,7 @@ import json
 from typing import Optional, Iterator
 
 from phi.playground.playground import Playground
+from phi.storage.workflow.postgres import PgWorkflowStorage
 from pydantic import BaseModel, Field
 
 from phi.agent import Agent
@@ -109,10 +110,9 @@ class BlogPostGenerator(Workflow):
 
 # Create the workflow
 generate_blog_post = BlogPostGenerator(
-    session_id="generate-blog-post",
-    storage=SqlWorkflowStorage(
+    storage=PgWorkflowStorage(
         table_name="generate_blog_post_workflows",
-        db_file="tmp/workflows.db",
+        db_url="postgresql+psycopg://ai:ai@localhost:5532/ai",
     ),
 )
 

@@ -3,6 +3,7 @@ from typing import List, Optional
 from phi.agent.agent import Agent, Tool, Toolkit, Function, AgentRun
 from phi.agent.session import AgentSession
 from phi.utils.log import logger
+from phi.workflow.session import WorkflowSession
 
 
 def format_tools(agent_tools):
@@ -55,3 +56,21 @@ def get_session_title(session: AgentSession) -> str:
                 except Exception as e:
                     logger.error(f"Error parsing chat: {e}")
     return "Unnamed session"
+
+
+# def get_session_title_from_workflow_session(workflow_session: WorkflowSession) -> str:
+#     if workflow_session is None:
+#         return "Unnamed session"
+#     session_name = workflow_session.session_data.get("session_name") if workflow_session.session_data is not None else None
+#     if session_name is not None:
+#         return session_name
+#     memory = workflow_session.memory
+#     if memory is not None:
+#         runs = memory.get("runs") or memory.get("chats")
+#         if isinstance(runs, list):
+#             for _run in runs:
+#                 try:
+                    
+#                 except Exception as e:
+#                     logger.error(f"Error parsing chat: {e}")
+#     return "Unnamed session"

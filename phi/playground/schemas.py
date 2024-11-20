@@ -55,3 +55,7 @@ class AgentSessionsResponse(BaseModel):
     session_id: Optional[str] = None
     session_name: Optional[str] = None
     created_at: Optional[int] = None
+
+
+class WorkflowSessionsRequest(BaseModel):
+    user_id: Optional[str] = None

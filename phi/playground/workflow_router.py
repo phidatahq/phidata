@@ -24,14 +24,14 @@ def get_workflow_router(workflows: List[Workflow]) -> APIRouter:
             for workflow in workflows
         ]
 
-    @workflow_router.get("/input_fields/{workflow_id}")
+    @workflow_router.get("/workflow/input_fields/{workflow_id}")
     def get_input_fields(workflow_id: str):
         for workflow in workflows:
             if workflow.workflow_id == workflow_id:
                 return workflow._run_parameters
         raise HTTPException(status_code=404, detail="Workflow not found")
 
-    @workflow_router.get("/config/{workflow_id}")
+    @workflow_router.get("/workflow/config/{workflow_id}")
     def get_config(workflow_id: str):
         for workflow in workflows:
             if workflow.workflow_id == workflow_id:
@@ -41,7 +41,7 @@ def get_workflow_router(workflows: List[Workflow]) -> APIRouter:
                 }
         raise HTTPException(status_code=404, detail="Workflow not found")
 
-    @workflow_router.post("/run/{workflow_id}")
+    @workflow_router.post("/workflow/run/{workflow_id}")
     def run_workflow(workflow_id: str, input: Dict[str, Any]):
         for workflow in workflows:
             if workflow.workflow_id == workflow_id:
@@ -63,6 +63,9 @@ def get_workflow_router(workflows: List[Workflow]) -> APIRouter:
 
         if workflow is None:
             raise HTTPException(status_code=404, detail="Workflow not found")
+        if workflow.storage is None:
+            raise HTTPException(status_code=404, detail="Workflow does not have storage enabled")
+
         workflow_sessions: List[Dict[str, Any]] = []
         all_workflow_sessions: List[WorkflowSession] = workflow.storage.get_all_sessions(
             user_id=body.user_id
@@ -77,6 +80,25 @@ def get_workflow_router(workflows: List[Workflow]) -> APIRouter:
                 }
             )
         return workflow_sessions
+    
+    @workflow_router.post("/workflow/{workflow_id}/session/{session_id}")
+    def get_workflow_session(workflow_id: str, session_id: str, body: WorkflowSessionsRequest):
+        workflow = None
+        for _workflow in workflows:
+            if _workflow.workflow_id == workflow_id:
+                workflow = _workflow
+                break
+
+        if workflow is None:
+            raise HTTPException(status_code=404, detail="Workflow not found")
+        if workflow.storage is None:
+            raise HTTPException(status_code=404, detail="Workflow does not have storage enabled")
+
+        workflow_session: Optional[WorkflowSession] = workflow.storage.read(session_id, body.user_id)
+        if workflow_session is None:
+            raise HTTPException(status_code=404, detail="Session not found")
+        return workflow_session
+    
     return workflow_router
 
 
@@ -94,14 +116,14 @@ def get_async_workflow_router(workflows: List[Workflow]) -> APIRouter:
             for workflow in workflows
         ]
 
-    @workflow_router.get("/input_fields/{workflow_id}")
+    @workflow_router.get("/workflow/input_fields/{workflow_id}")
     async def get_input_fields(workflow_id: str):
         for workflow in workflows:
             if workflow.workflow_id == workflow_id:
                 return workflow._run_parameters
         raise HTTPException(status_code=404, detail="Workflow not found")
 
-    @workflow_router.get("/config/{workflow_id}")
+    @workflow_router.get("/workflow/config/{workflow_id}")
     async def get_config(workflow_id: str):
         for workflow in workflows:
             if workflow.workflow_id == workflow_id:
@@ -111,7 +133,7 @@ def get_async_workflow_router(workflows: List[Workflow]) -> APIRouter:
                 }
         raise HTTPException(status_code=404, detail="Workflow not found")
 
-    @workflow_router.post("/run/{workflow_id}")
+    @workflow_router.post("/workflow/run/{workflow_id}")
     async def run_workflow(workflow_id: str, input: Dict[str, Any]):
         for workflow in workflows:
             if workflow.workflow_id == workflow_id:
@@ -133,6 +155,9 @@ def get_async_workflow_router(workflows: List[Workflow]) -> APIRouter:
 
         if workflow is None:
             raise HTTPException(status_code=404, detail="Workflow not found")
+        if workflow.storage is None:
+            raise HTTPException(status_code=404, detail="Workflow does not have storage enabled")
+
         workflow_sessions: List[Dict[str, Any]] = []
         all_workflow_sessions: List[WorkflowSession] = workflow.storage.get_all_sessions(
             user_id=body.user_id
@@ -147,5 +172,23 @@ def get_async_workflow_router(workflows: List[Workflow]) -> APIRouter:
                 }
             )
         return workflow_sessions
+
+    @workflow_router.post("/workflow/{workflow_id}/session/{session_id}")
+    async def get_workflow_session(workflow_id: str, session_id: str, body: WorkflowSessionsRequest):
+        workflow = None
+        for _workflow in workflows:
+            if _workflow.workflow_id == workflow_id:
+                workflow = _workflow
+                break
+
+        if workflow is None:
+            raise HTTPException(status_code=404, detail="Workflow not found")
+        if workflow.storage is None:
+            raise HTTPException(status_code=404, detail="Workflow does not have storage enabled")
+
+        workflow_session: Optional[WorkflowSession] = workflow.storage.read(session_id, body.user_id)
+        if workflow_session is None:
+            raise HTTPException(status_code=404, detail="Session not found")
+        return workflow_session
 
     return workflow_router

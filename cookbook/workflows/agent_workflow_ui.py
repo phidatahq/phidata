@@ -28,6 +28,8 @@ class SearchResults(BaseModel):
 
 
 class BlogPostGenerator(Workflow):
+    description: str = "Generate a blog post on a given topic."
+
     searcher: Agent = Agent(
         tools=[DuckDuckGo()],
         instructions=["Given a topic, search for 20 articles and return the 5 most relevant articles."],
@@ -114,7 +116,7 @@ generate_blog_post = BlogPostGenerator(
     ),
 )
 
-app = Playground(workflow=generate_blog_post).get_app()
+app = Playground(workflows=[generate_blog_post]).get_app()
 
 if __name__ == "__main__":
     serve_workflow_playground_app("agent_workflow_ui:app", reload=True)

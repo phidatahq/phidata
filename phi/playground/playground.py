@@ -16,19 +16,19 @@ class Playground:
     def __init__(
         self,
         agents: Optional[List[Agent]] = None,
-        workflow: Optional[Workflow] = None,
+        workflows: Optional[List[Workflow]] = None,
         settings: Optional[PlaygroundSettings] = None,
         api_app: Optional[FastAPI] = None,
         router: Optional[APIRouter] = None,
     ):
-        if not agents and not workflow:
-            raise ValueError("Either agents or workflow must be provided.")
+        if not agents and not workflows:
+            raise ValueError("Either agents or workflows must be provided.")
 
-        if agents and workflow:
-            raise ValueError("Agents and workflow cannot both be provided.")
+        if agents and workflows:
+            raise ValueError("Agents and workflows both cannot be provided.")
 
         self.agents: Optional[List[Agent]] = agents
-        self.workflow: Optional[Workflow] = workflow
+        self.workflows: Optional[List[Workflow]] = workflows
         self.settings: PlaygroundSettings = settings or PlaygroundSettings()
         self.api_app: Optional[FastAPI] = api_app
         self.router: Optional[APIRouter] = router
@@ -37,14 +37,14 @@ class Playground:
     def get_router(self) -> APIRouter:
         if self.agents:
             return get_playground_router(self.agents)
-        elif self.workflow:
-            return get_workflow_router(self.workflow)
+        elif self.workflows:
+            return get_workflow_router(self.workflows)
 
     def get_async_router(self) -> APIRouter:
         if self.agents:
             return get_async_playground_router(self.agents)
-        elif self.workflow:
-            return get_async_workflow_router(self.workflow)
+        elif self.workflows:
+            return get_async_workflow_router(self.workflows)
 
     def get_app(self, use_async: bool = True, prefix: str = "/v1") -> FastAPI:
         from starlette.middleware.cors import CORSMiddleware

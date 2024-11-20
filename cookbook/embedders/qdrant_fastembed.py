@@ -1,20 +1,19 @@
+from phi.agent import AgentKnowledge
+from phi.vectordb.pgvector import PgVector
 from phi.embedder.fastembed import FastEmbedEmbedder
-from typing import List
 
-documents: List[str] = [
-    "This classic spaghetti carbonara combines perfectly cooked al dente pasta",
-    "with crispy pancetta, which adds a savory crunch and depth of flavor,",
-    "creamy eggs that create a luscious sauce when mixed with the hot pasta,",
-    "and a generous sprinkle of freshly grated Parmesan cheese",
-    "for a comforting, flavorful dish that's sure to impress any pasta lover.",
-    "Finish with a dash of black pepper and a garnish of parsley for a touch of freshness.",
-]
+embeddings = FastEmbedEmbedder().get_embedding("The quick brown fox jumps over the lazy dog.")
 
-"""FastEmbed supported models can be found here: https://qdrant.github.io/fastembed/examples/Supported_Models/"""
+# Print the embeddings and their dimensions
+print(f"Embeddings: {embeddings[:5]}")
+print(f"Dimensions: {len(embeddings)}")
 
-embedder = FastEmbedEmbedder(
-    # model="BAAI/bge-small-en-v1.5"
+# Example usage:
+knowledge_base = AgentKnowledge(
+    vector_db=PgVector(
+        db_url="postgresql+psycopg://ai:ai@localhost:5532/ai",
+        table_name="qdrant_embeddings",
+        embedder=FastEmbedEmbedder(),
+    ),
+    num_documents=2,
 )
-
-embeddings = embedder.get_embedding("\n".join(documents))
-print(embeddings[0])

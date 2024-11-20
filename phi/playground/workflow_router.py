@@ -42,7 +42,12 @@ def get_workflow_router(workflows: List[Workflow]) -> APIRouter:
     def run_workflow(workflow_id: str, input: Dict[str, Any]):
         for workflow in workflows:
             if workflow.workflow_id == workflow_id:
-                print(f"*********** Running workflow: {workflow._run_return_type} ***********")
+                if workflow._run_return_type == "RunResponse":
+                    return workflow.run(**input)
+                else:
+                    return StreamingResponse(
+                        (r.model_dump_json() for r in workflow.run(**input)), media_type="text/event-stream"
+                    )
         raise HTTPException(status_code=404, detail="Workflow not found")
 
     return workflow_router

@@ -58,19 +58,21 @@ def get_session_title(session: AgentSession) -> str:
     return "Unnamed session"
 
 
-# def get_session_title_from_workflow_session(workflow_session: WorkflowSession) -> str:
-#     if workflow_session is None:
-#         return "Unnamed session"
-#     session_name = workflow_session.session_data.get("session_name") if workflow_session.session_data is not None else None
-#     if session_name is not None:
-#         return session_name
-#     memory = workflow_session.memory
-#     if memory is not None:
-#         runs = memory.get("runs") or memory.get("chats")
-#         if isinstance(runs, list):
-#             for _run in runs:
-#                 try:
-                    
-#                 except Exception as e:
-#                     logger.error(f"Error parsing chat: {e}")
-#     return "Unnamed session"
+def get_session_title_from_workflow_session(workflow_session: WorkflowSession) -> str:
+    if workflow_session is None:
+        return "Unnamed session"
+    session_name = workflow_session.session_data.get("session_name") if workflow_session.session_data is not None else None
+    if session_name is not None:
+        return session_name
+    memory = workflow_session.memory
+    if memory is not None:
+        runs = memory.get("runs")
+        if isinstance(runs, list):
+            for _run in runs:
+                try:
+                    response = _run.get("response")
+                    content = response.get("content") if response else None
+                    return content.split("\n")[0] if content else "No title"
+                except Exception as e:
+                    logger.error(f"Error parsing chat: {e}")
+    return "Unnamed session"

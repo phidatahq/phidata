@@ -4,6 +4,7 @@ from fastapi import HTTPException
 from fastapi.routing import APIRouter
 from fastapi.responses import StreamingResponse
 
+from phi.playground.operator import get_session_title_from_workflow_session
 from phi.playground.schemas import WorkflowSessionsRequest
 from phi.workflow.session import WorkflowSession
 from phi.workflow.workflow import Workflow
@@ -67,12 +68,14 @@ def get_workflow_router(workflows: List[Workflow]) -> APIRouter:
             user_id=body.user_id
         )
         for session in all_workflow_sessions:
-            workflow_sessions.append({
-                "title": None,
-                "session_id": session.session_id,
-                "session_name": session.session_data.get("session_name") if session.session_data else None,
-                "created_at": session.created_at,
-            })
+            workflow_sessions.append(
+                {
+                    "title": get_session_title_from_workflow_session(session),
+                    "session_id": session.session_id,
+                    "session_name": session.session_data.get("session_name") if session.session_data else None,
+                    "created_at": session.created_at,
+                }
+            )
         return workflow_sessions
     return workflow_router
 
@@ -135,12 +138,14 @@ def get_async_workflow_router(workflows: List[Workflow]) -> APIRouter:
             user_id=body.user_id
         )
         for session in all_workflow_sessions:
-            workflow_sessions.append({
-                "title": None,
-                "session_id": session.session_id,
-                "session_name": session.session_data.get("session_name") if session.session_data else None,
-                "created_at": session.created_at,
-            })
+            workflow_sessions.append(
+                {
+                    "title": get_session_title_from_workflow_session(session),
+                    "session_id": session.session_id,
+                    "session_name": session.session_data.get("session_name") if session.session_data else None,
+                    "created_at": session.created_at,
+                }
+            )
         return workflow_sessions
 
     return workflow_router

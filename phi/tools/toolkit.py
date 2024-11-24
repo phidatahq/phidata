@@ -1,31 +1,43 @@
-from collections import OrderedDict
-from typing import Callable, Dict
+from typing import Callable, List, TypeVar, Any
 
-from phi.tools.function import Function
 from phi.utils.log import logger
 
 
 class Toolkit:
     def __init__(self, name: str = "toolkit"):
-        self.name: str = name
-        self.functions: Dict[str, Function] = OrderedDict()
+        """Initialize a new Toolkit.
 
-    def register(self, function: Callable, sanitize_arguments: bool = True):
+        Args:
+            name: A descriptive name for the toolkit
+        """
+        self.name: str = name
+        self.functions: List[Callable] = []
+
+    def register(self, function: Callable[..., Any]):
+        """Register a function with the toolkit.
+
+        Args:
+            function: The callable to register
+
+        Returns:
+            The registered function
+        """
+        if not callable(function):
+            raise ValueError("Only callable functions can be registered")
+
         try:
-            f = Function.from_callable(function)
-            f.sanitize_arguments = sanitize_arguments
-            self.functions[f.name] = f
-            logger.debug(f"Function: {f.name} registered with {self.name}")
-            # logger.debug(f"Json Schema: {f.to_dict()}")
+            if function not in self.functions:
+                self.functions.append(function)
+                logger.debug(f"Function: {function.__name__} registered with {self.name}")
+            else:
+                logger.warning(f"Function: {function.__name__} already registered with {self.name}")
         except Exception as e:
-            logger.warning(f"Failed to create Function for: {function.__name__}")
+            logger.warning(f"Failed to register function: {function.__name__}")
             raise e
 
-    def instructions(self) -> str:
-        return ""
-
     def __repr__(self):
-        return f"<{self.__class__.__name__} name={self.name} functions={list(self.functions.keys())}>"
+        functions = [f.__name__ for f in self.functions]
+        return f"<{self.__class__.__name__} name={self.name} functions={functions}>"
 
     def __str__(self):
         return self.__repr__()

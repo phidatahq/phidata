@@ -81,14 +81,14 @@ class Agent(BaseModel):
     # -*- Agent Knowledge
     knowledge: Optional[AgentKnowledge] = Field(None, alias="knowledge_base")
     # Enable RAG by adding references from AgentKnowledge to the user prompt.
-    add_references: bool = Field(False, alias="add_context")
+    add_references: bool = Field(False)
     # Function to get references to add to the user_message
     # This function, if provided, is called when add_references is True
     # Signature:
     # def retriever(agent: Agent, query: str, num_documents: Optional[int], **kwargs) -> Optional[list[dict]]:
     #     ...
     retriever: Optional[Callable[..., Optional[list[dict]]]] = None
-    references_format: Literal["json", "yaml"] = Field("json", alias="context_format")
+    references_format: Literal["json", "yaml"] = Field("json")
 
     # -*- Agent Storage
     storage: Optional[AgentStorage] = None
@@ -111,6 +111,14 @@ class Agent(BaseModel):
     #   forces the model to call that tool.
     # "none" is the default when no tools are present. "auto" is the default if tools are present.
     tool_choice: Optional[Union[str, Dict[str, Any]]] = None
+
+    # -*- Agent Context
+    # Context available for tools and prompt functions
+    context: Optional[Dict[str, Any]] = None
+    # If True, add the context to the user prompt
+    add_context: bool = True
+    # If True, resolve the context before running the agent
+    resolve_context: bool = True
 
     # -*- Agent Reasoning
     # Enable reasoning by working through the problem step by step.
@@ -253,7 +261,7 @@ class Agent(BaseModel):
 
     @property
     def identifier(self) -> Optional[str]:
-        """Get a identifier for the agent"""
+        """Get an identifier for the agent"""
         return self.name or self.agent_id
 
     def deep_copy(self, *, update: Optional[Dict[str, Any]] = None) -> "Agent":
@@ -483,6 +491,29 @@ class Agent(BaseModel):
         # Add session_id to the Model
         if self.session_id is not None:
             self.model.session_id = self.session_id
+
+    def _resolve_context(self) -> None:
+        from inspect import signature
+        from functools import partial
+
+        logger.debug("Resolving context")
+        if self.context is not None:
+            for ctx_key, ctx_value in self.context.items():
+                if callable(ctx_value):
+                    try:
+                        sig = signature(ctx_value)
+                        resolved_ctx_value = None
+                        if "agent" in sig.parameters:
+                            ctx_value_partial = partial(ctx_value, agent=self)
+                            resolved_ctx_value = ctx_value_partial()
+                        else:
+                            resolved_ctx_value = ctx_value()
+                        if resolved_ctx_value is not None:
+                            self.context[ctx_key] = resolved_ctx_value
+                    except Exception as e:
+                        logger.warning(f"Failed to resolve context for {ctx_key}: {e}")
+                else:
+                    self.context[ctx_key] = ctx_value
 
     def load_user_memories(self) -> None:
         if self.memory.create_user_memories:
@@ -985,6 +1016,39 @@ class Agent(BaseModel):
 
         return json.dumps(docs, indent=2)
 
+    def convert_context_to_string(self, context: Dict[str, Any]) -> str:
+        """Convert the context dictionary to a string representation.
+
+        Args:
+            context: Dictionary containing context data
+
+        Returns:
+            String representation of the context, or empty string if conversion fails
+        """
+        if context is None:
+            return ""
+
+        try:
+            return json.dumps(context, indent=2, default=str)
+        except (TypeError, ValueError, OverflowError) as e:
+            logger.warning(f"Failed to convert context to JSON: {e}")
+            # Attempt a fallback conversion for non-serializable objects
+            sanitized_context = {}
+            for key, value in context.items():
+                try:
+                    # Try to serialize each value individually
+                    json.dumps({key: value}, default=str)
+                    sanitized_context[key] = value
+                except Exception:
+                    # If serialization fails, convert to string representation
+                    sanitized_context[key] = str(value)
+
+            try:
+                return json.dumps(sanitized_context, indent=2)
+            except Exception as e:
+                logger.error(f"Failed to convert sanitized context to JSON: {e}")
+                return str(context)
+
     def add_images_to_message_content(
         self, message_content: Union[List, Dict, str], images: Optional[Sequence[Union[str, Dict]]] = None
     ) -> Union[List, Dict, str]:
@@ -1073,23 +1137,21 @@ class Agent(BaseModel):
         if not self.use_default_user_message or not isinstance(message, str):
             return Message(role=self.user_message_role, content=message, **kwargs)
 
-        # 5. If add_references is False or references is None, return the message as is
-        if self.add_references is False or references is None:
-            return Message(
-                role=self.user_message_role,
-                content=self.add_images_to_message_content(message_content=message, images=images),
-                **kwargs,
-            )
-
-        # 6. Build the default user message for the Agent
+        # 5. Build the default user message for the Agent
         user_prompt = message
 
-        # 6.1 Add references to user message
-        if references and references.docs and len(references.docs) > 0:
+        # 5.1 Add references to user message
+        if self.add_references and references is not None and references.docs is not None and len(references.docs) > 0:
             user_prompt += "\n\nUse the following references from the knowledge base if it helps:\n"
             user_prompt += "<references>\n"
             user_prompt += self.convert_documents_to_string(references.docs) + "\n"
-            user_prompt += "</references>\n"
+            user_prompt += "</references>"
+
+        # 5.2 Add context to user message
+        if self.add_context and self.context is not None:
+            user_prompt += "\n\n<context>\n"
+            user_prompt += self.convert_context_to_string(self.context) + "\n"
+            user_prompt += "</context>"
 
         # Return the user message
         return Message(
@@ -1566,7 +1628,7 @@ class Agent(BaseModel):
         """Run the Agent with a message and return the response.
 
         Steps:
-        1. Update the Model (set defaults, add tools, etc.)
+        1. Setup: Update the model class and resolve context
         2. Read existing session from storage
         3. Prepare messages for this run
         4. Reason about the task if reasoning is enabled
@@ -1586,9 +1648,11 @@ class Agent(BaseModel):
 
         logger.debug(f"*********** Agent Run Start: {self.run_response.run_id} ***********")
 
-        # 1. Update the Model (set defaults, add tools, etc.)
+        # 1. Setup: Update the model class and resolve context
         self.update_model()
         self.run_response.model = self.model.id if self.model is not None else None
+        if self.context is not None and self.resolve_context:
+            self._resolve_context()
 
         # 2. Read existing session from storage
         self.read_from_storage()

@@ -1,12 +1,10 @@
 import json
 import httpx
-from typing import Optional
 
 from phi.agent import Agent
-from phi.utils.log import logger
 
 
-def get_top_hackernews_stories(agent: Agent, num_stories: Optional[int]) -> str:
+def get_top_hackernews_stories(num_stories: int = 5) -> str:
     """Use this function to get top stories from Hacker News.
 
     Args:
@@ -15,9 +13,6 @@ def get_top_hackernews_stories(agent: Agent, num_stories: Optional[int]) -> str:
     Returns:
         str: JSON string of top stories.
     """
-
-    logger.info(f"Agent context: {agent.context}")
-
     # Fetch top story IDs
     response = httpx.get("https://hacker-news.firebaseio.com/v0/topstories.json")
     story_ids = response.json()
@@ -35,8 +30,12 @@ def get_top_hackernews_stories(agent: Agent, num_stories: Optional[int]) -> str:
 
 agent = Agent(
     tools=[get_top_hackernews_stories],
-    show_tool_calls=True,
+    context={
+        "name": "John Doe",
+        "top_stories": lambda: get_top_hackernews_stories(3),
+    },
+    add_context=True,
     markdown=True,
-    context={"id": "123"},
+    show_tool_calls=True,
 )
-agent.print_response("Summarize the top story on hackernews?", stream=True)
+agent.print_response("Who am I and what are the top stories?", stream=True)

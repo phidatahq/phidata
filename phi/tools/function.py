@@ -41,7 +41,7 @@ class Function(BaseModel):
             sig = signature(c)
             type_hints = get_type_hints(c)
 
-            # If function accepts the agent parameter, create a partial with the agent
+            # If function has an the agent argument, create a partial with the agent
             # And remove the agent parameter from the type hints
             if agent is not None and "agent" in sig.parameters:
                 c = partial(c, agent=agent)
@@ -64,7 +64,7 @@ class Function(BaseModel):
                 if param.default == param.empty and name != "self" and name != "agent"
             ]
 
-            logger.debug(f"JSON schema for {function_name}: {parameters}")
+            # logger.debug(f"JSON schema for {function_name}: {parameters}")
         except Exception as e:
             logger.warning(f"Could not parse args for {function_name}: {e}", exc_info=True)
 

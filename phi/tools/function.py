@@ -1,7 +1,9 @@
-from typing import Any, Dict, Optional, Callable, get_type_hints
-from pydantic import BaseModel, validate_call
+from typing import Any, Dict, Optional, Callable, get_type_hints, Type, TypeVar
+from pydantic import BaseModel, Field, validate_call
 
 from phi.utils.log import logger
+
+T = TypeVar("T")
 
 
 class Function(BaseModel):
@@ -14,7 +16,10 @@ class Function(BaseModel):
     description: Optional[str] = None
     # The parameters the functions accepts, described as a JSON Schema object.
     # To describe a function that accepts no parameters, provide the value {"type": "object", "properties": {}}.
-    parameters: Dict[str, Any] = {"type": "object", "properties": {}}
+    parameters: Dict[str, Any] = Field(
+        default_factory=lambda: {"type": "object", "properties": {}},
+        description="JSON Schema object describing function parameters",
+    )
     entrypoint: Optional[Callable] = None
     strict: Optional[bool] = None
 
@@ -25,30 +30,52 @@ class Function(BaseModel):
         return self.model_dump(exclude_none=True, include={"name", "description", "parameters", "strict"})
 
     @classmethod
-    def from_callable(cls, c: Callable) -> "Function":
-        from inspect import getdoc
+    def from_callable(cls, c: Callable, agent: Optional[Any] = None) -> "Function":
+        from inspect import getdoc, signature
+        from functools import partial
         from phi.utils.json_schema import get_json_schema
 
+        function_name = c.__name__
         parameters = {"type": "object", "properties": {}, "required": []}
         try:
-            # logger.info(f"Getting type hints for {c}")
+            sig = signature(c)
             type_hints = get_type_hints(c)
-            # logger.info(f"Type hints for {c}: {type_hints}")
-            # logger.info(f"Getting JSON schema for {type_hints}")
-            parameters = get_json_schema(type_hints)
-            # logger.info(f"JSON schema for {c}: {parameters}")
-            # logger.debug(f"Type hints for {c.__name__}: {type_hints}")
+
+            # If function accepts the agent parameter, create a partial with the agent
+            # And remove the agent parameter from the type hints
+            if agent is not None and "agent" in sig.parameters:
+                c = partial(c, agent=agent)
+                del type_hints["agent"]
+            # logger.info(f"Type hints for {function_name}: {type_hints}")
+
+            # Filter out return type and only process parameters
+            param_type_hints = {
+                name: type_hints[name] for name in sig.parameters if name in type_hints and name != "return"
+            }
+            # logger.info(f"Arguments for {function_name}: {param_type_hints}")
+
+            # Get JSON schema for parameters only
+            parameters = get_json_schema(param_type_hints)
+
+            # Mark a field as required if it has no default value
+            parameters["required"] = [
+                name
+                for name, param in sig.parameters.items()
+                if param.default == param.empty and name != "self" and name != "agent"
+            ]
+
+            logger.debug(f"JSON schema for {function_name}: {parameters}")
         except Exception as e:
-            logger.warning(f"Could not parse args for {c.__name__}: {e}")
+            logger.warning(f"Could not parse args for {function_name}: {e}", exc_info=True)
 
         return cls(
-            name=c.__name__,
+            name=function_name,
             description=getdoc(c),
             parameters=parameters,
             entrypoint=validate_call(c),
         )
 
-    def get_type_name(self, t):
+    def get_type_name(self, t: Type[T]):
         name = str(t)
         if "list" in name or "dict" in name:
             return name

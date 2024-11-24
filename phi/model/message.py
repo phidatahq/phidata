@@ -6,14 +6,14 @@ from pydantic import BaseModel, ConfigDict, Field
 from phi.utils.log import logger
 
 
-class MessageContext(BaseModel):
-    """The context added to user message for RAG"""
+class MessageReferences(BaseModel):
+    """The references added to user message for RAG"""
 
-    # The query used to retrieve the context.
+    # The query used to retrieve the references.
     query: str
     # Documents from the vector database.
     docs: Optional[List[Dict[str, Any]]] = None
-    # Time taken to retrieve the context.
+    # Time taken to retrieve the references.
     time: Optional[float] = None
 
 
@@ -45,8 +45,8 @@ class Message(BaseModel):
     # Metrics for the message. This is not sent to the Model API.
     metrics: Dict[str, Any] = Field(default_factory=dict)
 
-    # The context added to the message for RAG
-    context: Optional[MessageContext] = None
+    # The references added to the message for RAG
+    references: Optional[MessageReferences] = None
 
     # The Unix timestamp the message was created.
     created_at: int = Field(default_factory=lambda: int(time()))

@@ -8,59 +8,93 @@ def get_json_type_for_py_type(arg: str) -> str:
     Get the JSON schema type for a given type.
     :param arg: The type to get the JSON schema type for.
     :return: The JSON schema type.
-
-    See: https://json-schema.org/understanding-json-schema/reference/type.html#type-specific-keywords
     """
     # logger.info(f"Getting JSON type for: {arg}")
-    if arg in ("int", "float"):
+    if arg in ("int", "float", "complex", "Decimal"):
         return "number"
-    elif arg == "str":
+    elif arg in ("str", "string"):
         return "string"
-    elif arg == "bool":
+    elif arg in ("bool", "boolean"):
         return "boolean"
     elif arg in ("NoneType", "None"):
         return "null"
-    return arg
+    elif arg in ("list", "tuple", "set", "frozenset"):
+        return "array"
+    elif arg in ("dict", "mapping"):
+        return "object"
+
+    # If the type is not recognized, return "object"
+    return "object"
 
 
-def get_json_schema_for_arg(t: Any) -> Optional[Any]:
+def get_json_schema_for_arg(t: Any) -> Optional[Dict[str, Any]]:
     # logger.info(f"Getting JSON schema for arg: {t}")
-    json_schema = None
     type_args = get_args(t)
     # logger.info(f"Type args: {type_args}")
     type_origin = get_origin(t)
     # logger.info(f"Type origin: {type_origin}")
+
     if type_origin is not None:
-        if type_origin is list:
-            json_schema_for_items = get_json_schema_for_arg(type_args[0])
-            json_schema = {"type": "array", "items": json_schema_for_items}
+        if type_origin in (list, tuple, set, frozenset):
+            json_schema_for_items = get_json_schema_for_arg(type_args[0]) if type_args else {"type": "string"}
+            return {"type": "array", "items": json_schema_for_items}
         elif type_origin is dict:
-            json_schema = {"type": "object", "properties": {}}
+            # Handle both key and value types for dictionaries
+            key_schema = get_json_schema_for_arg(type_args[0]) if type_args else {"type": "string"}
+            value_schema = get_json_schema_for_arg(type_args[1]) if len(type_args) > 1 else {"type": "string"}
+            return {"type": "object", "propertyNames": key_schema, "additionalProperties": value_schema}
         elif type_origin is Union:
-            json_schema = {"type": [get_json_type_for_py_type(arg.__name__) for arg in type_args]}
-    else:
-        json_schema = {"type": get_json_type_for_py_type(t.__name__)}
-    return json_schema
+            types = []
+            for arg in type_args:
+                if arg is not type(None):
+                    try:
+                        schema = get_json_schema_for_arg(arg)
+                        if schema:
+                            types.append(schema)
+                    except Exception:
+                        continue
+            return {"anyOf": types} if types else None
+
+    return {"type": get_json_type_for_py_type(t.__name__)}
 
 
 def get_json_schema(type_hints: Dict[str, Any]) -> Dict[str, Any]:
-    json_schema: Dict[str, Any] = {"type": "object", "properties": {}, "required": []}
+    json_schema: Dict[str, Any] = {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": False,  # Prevent additional properties by default
+    }
+
     for k, v in type_hints.items():
         # logger.info(f"Parsing arg: {k} | {v}")
         if k == "return":
             continue
 
-        # Check if type is Optional (Union with NoneType)
-        type_origin = get_origin(v)
-        type_args = get_args(v)
-        is_optional = type_origin is Union and len(type_args) == 2 and type(None) in type_args
-        if not is_optional:
-            json_schema["required"].append(k)
+        try:
+            # Check if type is Optional (Union with NoneType)
+            type_origin = get_origin(v)
+            type_args = get_args(v)
+            is_optional = type_origin is Union and len(type_args) == 2 and any(arg is type(None) for arg in type_args)
 
-        arg_json_schema = get_json_schema_for_arg(v)
-        if arg_json_schema is not None:
-            # logger.info(f"json_schema: {arg_json_schema}")
-            json_schema["properties"][k] = arg_json_schema
-        else:
-            logger.warning(f"Could not parse argument {k} of type {v}")
+            # Get the actual type if it's Optional
+            if is_optional:
+                v = next(arg for arg in type_args if arg is not type(None))
+
+            arg_json_schema = get_json_schema_for_arg(v)
+            if arg_json_schema is not None:
+                if is_optional:
+                    # Handle null type for optional fields
+                    if isinstance(arg_json_schema["type"], list):
+                        arg_json_schema["type"].append("null")
+                    else:
+                        arg_json_schema["type"] = [arg_json_schema["type"], "null"]
+
+                json_schema["properties"][k] = arg_json_schema
+
+            else:
+                logger.warning(f"Could not parse argument {k} of type {v}")
+        except Exception as e:
+            logger.error(f"Error processing argument {k}: {str(e)}")
+            continue
+
     return json_schema

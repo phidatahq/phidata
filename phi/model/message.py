@@ -41,6 +41,8 @@ class Message(BaseModel):
     tool_args: Optional[Any] = Field(None, alias="tool_call_arguments")
     # The error of the tool call
     tool_call_error: Optional[bool] = None
+    # If True, the model will continue after the tool call.
+    continue_after_tool_call: bool = True
 
     # Metrics for the message. This is not sent to the Model API.
     metrics: Dict[str, Any] = Field(default_factory=dict)

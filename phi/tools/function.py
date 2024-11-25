@@ -26,6 +26,8 @@ class Function(BaseModel):
     entrypoint: Optional[Callable] = None
     # If True, the arguments are sanitized before being passed to the function.
     sanitize_arguments: bool = True
+    # If True, the function call will show the result along with sending it to the model.
+    show_result: bool = False
 
     def to_dict(self) -> Dict[str, Any]:
         return self.model_dump(exclude_none=True, include={"name", "description", "parameters", "strict"})
@@ -190,7 +192,8 @@ class FunctionCall(BaseModel):
     def execute(self) -> bool:
         """Runs the function call.
 
-        @return: True if the function call was successful, False otherwise.
+        Returns True if the function call was successful, False otherwise.
+        The result of the function call is stored in self.result.
         """
         if self.function.entrypoint is None:
             return False

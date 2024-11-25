@@ -1,3 +1,6 @@
+import collections.abc
+
+from types import GeneratorType
 from typing import List, Iterator, Optional, Dict, Any, Callable, Union
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, ValidationInfo
@@ -186,8 +189,8 @@ class Model(BaseModel):
                 self.function_call_stack = []
 
             # -*- Start function call
-            _function_call_timer = Timer()
-            _function_call_timer.start()
+            function_call_timer = Timer()
+            function_call_timer.start()
             yield ModelResponse(
                 content=function_call.get_call_str(),
                 tool_call={
@@ -201,20 +204,58 @@ class Model(BaseModel):
 
             # -*- Run function call
             function_call_success = function_call.execute()
-            _function_call_timer.stop()
 
-            _function_call_result = Message(
-                role=tool_role,
-                content=function_call.result if function_call_success else function_call.error,
-                tool_call_id=function_call.call_id,
-                tool_name=function_call.function.name,
-                tool_args=function_call.arguments,
-                tool_call_error=not function_call_success,
-                metrics={"time": _function_call_timer.elapsed},
-            )
+            function_call_output = ""
+            if isinstance(function_call.result, (GeneratorType, collections.abc.Iterator)):
+                logger.debug(f"Function call result is of type: {type(function_call.result)}")
+                for item in function_call.result:
+                    function_call_output += item
+                    if function_call.function.show_result:
+                        yield ModelResponse(content=item)
+            else:
+                function_call_output = function_call.result
+                if function_call.function.show_result:
+                    yield ModelResponse(content=function_call_output)
+
+            # -*- Stop function call timer
+            function_call_timer.stop()
+
+            # -*- Create function call result message
+            function_call_result = None
+            if function_call.function.show_result:
+                content = ""
+                if function_call_success:
+                    content = "The task has been transferred and agent responded successfully.\n"
+                    content += f"The output of the agent is: {function_call_output}"
+                else:
+                    content = "The task has been transferred but agent failed to respond.\n"
+                    content += f"The error is: {function_call.error}"
+
+                function_call_result = Message(
+                    role=tool_role,
+                    content=content,
+                    tool_call_id=function_call.call_id,
+                    tool_name=function_call.function.name,
+                    tool_args=function_call.arguments,
+                    tool_call_error=not function_call_success,
+                    continue_after_tool_call=False,
+                    metrics={"time": function_call_timer.elapsed},
+                )
+            else:
+                function_call_result = Message(
+                    role=tool_role,
+                    content=function_call_output if function_call_success else function_call.error,
+                    tool_call_id=function_call.call_id,
+                    tool_name=function_call.function.name,
+                    tool_args=function_call.arguments,
+                    tool_call_error=not function_call_success,
+                    metrics={"time": function_call_timer.elapsed},
+                )
+
+            # -*- Yield function call result
             yield ModelResponse(
-                content=f"{function_call.get_call_str()} completed in {_function_call_timer.elapsed:.4f}s.",
-                tool_call=_function_call_result.model_dump(
+                content=f"{function_call.get_call_str()} completed in {function_call_timer.elapsed:.4f}s.",
+                tool_call=function_call_result.model_dump(
                     include={
                         "content",
                         "tool_call_id",
@@ -233,10 +274,10 @@ class Model(BaseModel):
                 self.metrics["tool_call_times"] = {}
             if function_call.function.name not in self.metrics["tool_call_times"]:
                 self.metrics["tool_call_times"][function_call.function.name] = []
-            self.metrics["tool_call_times"][function_call.function.name].append(_function_call_timer.elapsed)
+            self.metrics["tool_call_times"][function_call.function.name].append(function_call_timer.elapsed)
 
             # Add the function call result to the function call results
-            function_call_results.append(_function_call_result)
+            function_call_results.append(function_call_result)
             self.function_call_stack.append(function_call)
 
             # -*- Check function call limit

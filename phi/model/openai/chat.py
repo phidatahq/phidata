@@ -735,6 +735,7 @@ class OpenAIChat(Model):
         self,
         assistant_message: Message,
         messages: List[Message],
+        tool_role: str = "tool",
     ) -> Iterator[ModelResponse]:
         """
         Handle tool calls for response stream.
@@ -747,7 +748,6 @@ class OpenAIChat(Model):
             Iterator[ModelResponse]: An iterator of the model response.
         """
         if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
-            tool_role: str = "tool"
             function_calls_to_run: List[FunctionCall] = []
             function_call_results: List[Message] = []
             for tool_call in assistant_message.tool_calls:
@@ -849,8 +849,17 @@ class OpenAIChat(Model):
 
         # -*- Handle tool calls
         if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
-            yield from self._handle_stream_tool_calls(assistant_message, messages)
-            yield from self.response_stream(messages=messages)
+            tool_role = "tool"
+            yield from self._handle_stream_tool_calls(
+                assistant_message=assistant_message, messages=messages, tool_role=tool_role
+            )
+            last_message = messages[-1]
+            if last_message.role == tool_role and last_message.continue_after_tool_call:
+                yield from self.response_stream(messages=messages)
+            else:
+                logger.debug(
+                    "Stopping execution after tool call as continue_after_tool_call=False (probably because agent is set to respond directly)"
+                )
         logger.debug("---------- OpenAI Response End ----------")
 
     async def aresponse_stream(self, messages: List[Message]) -> Any:

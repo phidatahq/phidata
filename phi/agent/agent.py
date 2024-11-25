@@ -209,6 +209,8 @@ class Agent(BaseModel):
     team: Optional[List["Agent"]] = None
     # When the agent is part of a team, this is the role of the agent in the team
     role: Optional[str] = None
+    # If True, the member agent will respond directly to the user instead of passing the response to the leader agent
+    respond_directly: bool = False
     # Add instructions for transferring tasks to team members
     add_transfer_instructions: bool = True
 
@@ -331,7 +333,7 @@ class Agent(BaseModel):
     def get_transfer_function(self, member_agent: "Agent", index: int) -> Function:
         def _transfer_task_to_agent(
             task_description: str, expected_output: str, additional_information: Optional[str] = None
-        ) -> str:
+        ) -> Union[RunResponse, Iterator[RunResponse]]:
             # Update the member agent session_data to include leader_session_id, leader_agent_id and leader_run_id
             if member_agent.session_data is None:
                 member_agent.session_data = {}
@@ -343,39 +345,45 @@ class Agent(BaseModel):
             member_agent_messages = f"{task_description}\n\nThe expected output is: {expected_output}"
             if additional_information is not None:
                 member_agent_messages += f"\n\nAdditional information: {additional_information}"
-            member_agent_run_response: RunResponse = member_agent.run(member_agent_messages, stream=False)
-            # update the leader agent session_data to include member_session_id, member_agent_id
-            member_agent_info = {
-                "session_id": member_agent_run_response.session_id,
-                "agent_id": member_agent_run_response.agent_id,
-            }
-            # Update the leader agent session_data to include member_agent_info
-            if self.session_data is None:
-                self.session_data = {"members": [member_agent_info]}
-            else:
-                if "members" not in self.session_data:
-                    self.session_data["members"] = []
-                # Check if member_agent_info is already in the list
-                if member_agent_info not in self.session_data["members"]:
-                    self.session_data["members"].append(member_agent_info)
-            if member_agent_run_response.content is None:
-                return "No response from the member agent."
-            elif isinstance(member_agent_run_response.content, str):
-                return member_agent_run_response.content
-            elif issubclass(member_agent_run_response.content, BaseModel):
-                try:
-                    return member_agent_run_response.content.model_dump_json(indent=2)
-                except Exception as e:
-                    return str(e)
-            else:
-                try:
-                    return json.dumps(member_agent_run_response.content, indent=2)
-                except Exception as e:
-                    return str(e)
 
+            response_iterator = member_agent.run(member_agent_messages, stream=True)
+            for member_agent_run_response in response_iterator:
+                yield member_agent_run_response.content
+            # member_agent_run_response: RunResponse = member_agent.run(member_agent_messages, stream=False)
+            # # update the leader agent session_data to include member_session_id, member_agent_id
+            # member_agent_info = {
+            #     "session_id": member_agent_run_response.session_id,
+            #     "agent_id": member_agent_run_response.agent_id,
+            # }
+            # # Update the leader agent session_data to include member_agent_info
+            # if self.session_data is None:
+            #     self.session_data = {"members": [member_agent_info]}
+            # else:
+            #     if "members" not in self.session_data:
+            #         self.session_data["members"] = []
+            #     # Check if member_agent_info is already in the list
+            #     if member_agent_info not in self.session_data["members"]:
+            #         self.session_data["members"].append(member_agent_info)
+            # if member_agent_run_response.content is None:
+            #     return "No response from the member agent."
+            # elif isinstance(member_agent_run_response.content, str):
+            #     return member_agent_run_response.content
+            # elif issubclass(member_agent_run_response.content, BaseModel):
+            #     try:
+            #         return member_agent_run_response.content.model_dump_json(indent=2)
+            #     except Exception as e:
+            #         return str(e)
+            # else:
+            #     try:
+            #         return json.dumps(member_agent_run_response.content, indent=2)
+            #     except Exception as e:
+            #         return str(e)
+
+        # Give a name to the member agent
         agent_name = member_agent.name.replace(" ", "_").lower() if member_agent.name else f"agent_{index}"
         if member_agent.name is None:
             member_agent.name = agent_name
+
         transfer_function = Function.from_callable(_transfer_task_to_agent)
         transfer_function.name = f"transfer_task_to_{agent_name}"
         transfer_function.description = dedent(f"""\
@@ -388,6 +396,11 @@ class Agent(BaseModel):
         Returns:
             str: The result of the delegated task.
         """)
+
+        # If the member agent is set to respond directly, show the result of the function call
+        if member_agent.respond_directly:
+            transfer_function.show_result = True
+
         return transfer_function
 
     def get_transfer_prompt(self) -> str:

@@ -116,7 +116,7 @@ class Agent(BaseModel):
     # Context available for tools and prompt functions
     context: Optional[Dict[str, Any]] = None
     # If True, add the context to the user prompt
-    add_context: bool = True
+    add_context: bool = False
     # If True, resolve the context before running the agent
     resolve_context: bool = True
 

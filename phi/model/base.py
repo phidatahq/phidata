@@ -141,19 +141,16 @@ class Model(BaseModel):
                 self.functions = {}
 
             if isinstance(tool, Toolkit):
-                # Add each function in the toolkit to the Model
-                for func in tool.functions:
-                    try:
-                        function_name = func.__name__
-                        if function_name not in self.functions:
-                            func = Function.from_callable(tool, agent)
-                            if strict and self.supports_structured_outputs:
-                                func.strict = True
-                            self.functions[func.name] = func
-                            self.tools.append({"type": "function", "function": func.to_dict()})
-                            logger.debug(f"Function {func.name} from {tool.name} added to model.")
-                    except Exception as e:
-                        logger.warning(f"Could not add function {func}: {e}")
+                # For each function in the toolkit, process entrypoint and add to self.tools
+                for name, func in tool.functions.items():
+                    # If the function does not exist in self.functions, add to self.tools
+                    if name not in self.functions:
+                        func.process_entrypoint(agent)
+                        if strict and self.supports_structured_outputs:
+                            func.strict = True
+                        self.functions[name] = func
+                        self.tools.append({"type": "function", "function": func.to_dict()})
+                        logger.debug(f"Function {name} from {tool.name} added to model.")
 
             elif isinstance(tool, Function):
                 if tool.name not in self.functions:

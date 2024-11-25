@@ -183,7 +183,7 @@ class Gemini(Model):
         return formatted_params
 
     def add_tool(
-        self, tool: Union["Tool", "Toolkit", Callable, dict, "Function"], structured_outputs: bool = False
+        self, tool: Union["Tool", "Toolkit", Callable, dict, "Function"], strict: bool = False, agent: Optional[Any] = None
     ) -> None:
         """
         Adds tools to the model.
@@ -204,10 +204,11 @@ class Gemini(Model):
                 self.functions = {}
 
             if isinstance(tool, Toolkit):
-                # For each function in the toolkit
+                # For each function in the toolkit, process entrypoint and add to self.tools
                 for name, func in tool.functions.items():
                     # If the function does not exist in self.functions, add to self.tools
                     if name not in self.functions:
+                        func.process_entrypoint(agent)
                         self.functions[name] = func
                         function_declaration = FunctionDeclaration(
                             name=func.name,
@@ -232,7 +233,7 @@ class Gemini(Model):
                 try:
                     function_name = tool.__name__
                     if function_name not in self.functions:
-                        func = Function.from_callable(tool)
+                        func = Function.from_callable(tool, agent)
                         self.functions[func.name] = func
                         function_declaration = FunctionDeclaration(
                             name=func.name,

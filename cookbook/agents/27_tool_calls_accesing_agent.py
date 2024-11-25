@@ -6,7 +6,6 @@ from phi.utils.log import logger
 
 
 def get_top_hackernews_stories(agent: Agent, num_stories: int = 5) -> str:
-
     logger.info(f"Context: {agent.context}")
 
     # Fetch top story IDs

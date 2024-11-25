@@ -7,20 +7,19 @@ Build Agents with memory, knowledge, tools and reasoning
 </h3>
 
 <img
-  src="https://github.com/user-attachments/assets/21a0b5af-b458-4632-b09d-3cf29566890c"
+  src="https://github.com/user-attachments/assets/44739d09-2ec4-49b7-bea1-b275afccc592"
   style="border-radius: 8px;"
 />
 
-
 ## What is phidata?
 
-**Phidata is a framework for building agentic systems**, use phidata to:
+**Phidata is a framework for building agentic systems**, engineers use phidata to:
 
 - **Build Agents with memory, knowledge, tools and reasoning.** [examples](#web-search-agent)
 - **Build teams of Agents that can work together.** [example](#team-of-agents)
-- **Chat with your Agents using a beautiful Agent UI.** [example](#agent-ui)
-- **Monitor, evaluate and optimize your Agents.** [example](#monitoring)
-- **Build Agentic systems with an API, database and vectordb.**
+- **Chat with Agents using a beautiful Agent UI.** [example](#agent-ui)
+- **Monitor, evaluate and optimize Agents.** [example](#monitoring)
+- **Build agentic systems i.e. applications with an API, database and vectordb.**
 
 ## Install
 

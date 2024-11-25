@@ -893,7 +893,7 @@ class Agent(BaseModel):
         if self.role is not None:
             system_message_lines.append(f"Your role is: {self.role}\n")
         # 5.3 Then add instructions for transferring tasks to team members
-        if self.has_team():
+        if self.has_team() and self.add_transfer_instructions:
             system_message_lines.extend(
                 [
                     "## You are the leader of a team of AI Agents.",
@@ -936,7 +936,7 @@ class Agent(BaseModel):
             system_message_lines.append(f"{self.additional_context}\n")
 
         # 5.9 Then add information about the team members
-        if self.has_team():
+        if self.has_team() and self.add_transfer_instructions:
             system_message_lines.append(f"{self.get_transfer_prompt()}\n")
 
         # 5.10 Then add memories to the system prompt

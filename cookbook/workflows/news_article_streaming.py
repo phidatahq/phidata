@@ -202,11 +202,11 @@ class GenerateNewsReport(Workflow):
                 and article_scraper_response.content
                 and isinstance(article_scraper_response.content, ScrapedArticle)
             ):
-                scraped_articles[article_scraper_response.content.url] = article_scraper_response.content
+                scraped_articles[article_scraper_response.content.url] = article_scraper_response.content.model_dump()
                 logger.info(f"Scraped article: {article_scraper_response.content.url}")
 
         # 2.3: Save the scraped_articles in the session state
-        self.session_state["scraped_articles"] = {k: v.model_dump() for k, v in scraped_articles.items()}
+        self.session_state["scraped_articles"] = {k: v for k, v in scraped_articles.items()}
 
         ####################################################
         # Step 3: Write a report
@@ -218,20 +218,23 @@ class GenerateNewsReport(Workflow):
             "topic": topic,
             "articles": [v.model_dump() for v in scraped_articles.values()],
         }
-        yield from self.writer.run(json.dumps(writer_input, indent=4), stream=True)
+        writer_response_stream: Iterator[RunResponse] = self.writer.run(json.dumps(writer_input, indent=4), stream=True)
 
-        # 3.2: Save the writer_response in the session state
+        # 3.2: Yield and save the writer_response in the session state
+        writer_response = ""
+        for writer_response_chunk in writer_response_stream:
+            if writer_response_chunk.content is not None:
+                writer_response += writer_response_chunk.content
+                yield writer_response_chunk
+
         if "reports" not in self.session_state:
             self.session_state["reports"] = []
-        self.session_state["reports"].append({"topic": topic, "report": self.writer.run_response.content})
+        self.session_state["reports"].append({"topic": topic, "report": writer_response})
 
 
-# The topic to generate a report on
-topic = "IBM Hashicorp Acquisition"
-
-# Instantiate the workflow
+# Create the workflow
 generate_news_report = GenerateNewsReport(
-    session_id=f"generate-report-on-{topic}",
+    session_id="generate-report-ibm-hashicorp-acquisition",
     storage=SqlWorkflowStorage(
         table_name="generate_news_report_workflows",
         db_file="tmp/workflows.db",
@@ -240,7 +243,7 @@ generate_news_report = GenerateNewsReport(
 
 # Run workflow
 report_stream: Iterator[RunResponse] = generate_news_report.run(
-    topic=topic, use_search_cache=True, use_scrape_cache=True, use_cached_report=False
+    topic="IBM Hashicorp Acquisition", use_search_cache=True, use_scrape_cache=True, use_cached_report=False
 )
 
 # Print the response

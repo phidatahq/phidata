@@ -183,7 +183,10 @@ class Gemini(Model):
         return formatted_params
 
     def add_tool(
-        self, tool: Union["Tool", "Toolkit", Callable, dict, "Function"], strict: bool = False, agent: Optional[Any] = None
+        self,
+        tool: Union["Tool", "Toolkit", Callable, dict, "Function"],
+        strict: bool = False,
+        agent: Optional[Any] = None,
     ) -> None:
         """
         Adds tools to the model.

@@ -494,7 +494,6 @@ class Agent(BaseModel):
 
     def _resolve_context(self) -> None:
         from inspect import signature
-        from functools import partial
 
         logger.debug("Resolving context")
         if self.context is not None:
@@ -504,8 +503,7 @@ class Agent(BaseModel):
                         sig = signature(ctx_value)
                         resolved_ctx_value = None
                         if "agent" in sig.parameters:
-                            ctx_value_partial = partial(ctx_value, agent=self)
-                            resolved_ctx_value = ctx_value_partial()
+                            resolved_ctx_value = ctx_value(agent=self)
                         else:
                             resolved_ctx_value = ctx_value()
                         if resolved_ctx_value is not None:

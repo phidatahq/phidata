@@ -5,14 +5,6 @@ from phi.agent import Agent
 
 
 def get_top_hackernews_stories(num_stories: int = 5) -> str:
-    """Use this function to get top stories from Hacker News.
-
-    Args:
-        num_stories (int): Number of stories to return. Defaults to 10.
-
-    Returns:
-        str: JSON string of top stories.
-    """
     # Fetch top story IDs
     response = httpx.get("https://hacker-news.firebaseio.com/v0/topstories.json")
     story_ids = response.json()
@@ -29,7 +21,6 @@ def get_top_hackernews_stories(num_stories: int = 5) -> str:
 
 
 agent = Agent(
-    tools=[get_top_hackernews_stories],
     context={
         "name": "John Doe",
         "top_stories": lambda: get_top_hackernews_stories(3),

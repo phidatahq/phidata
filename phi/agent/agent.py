@@ -333,7 +333,7 @@ class Agent(BaseModel):
     def get_transfer_function(self, member_agent: "Agent", index: int) -> Function:
         def _transfer_task_to_agent(
             task_description: str, expected_output: str, additional_information: Optional[str] = None
-        ) -> Union[RunResponse, Iterator[RunResponse]]:
+        ) -> Union[str, Iterator[str]]:
             # Update the member agent session_data to include leader_session_id, leader_agent_id and leader_run_id
             if member_agent.session_data is None:
                 member_agent.session_data = {}

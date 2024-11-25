@@ -21,7 +21,6 @@ agent = Agent(
     # Add the knowledge base to the agent
     knowledge=knowledge_base,
     markdown=True,
-    debug_mode=True,
 )
 
-agent.print_response("Cann you tell a recepie of india dish?", stream=True)
+agent.print_response("Please tell me a recipe of an Indian dish", stream=True)

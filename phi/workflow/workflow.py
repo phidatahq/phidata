@@ -312,13 +312,20 @@ class Workflow(BaseModel):
             # Convert parameters to a serializable format
             self._run_parameters = {
                 name: {
+                    "name": name,
                     "default": param.default if param.default is not inspect.Parameter.empty else None,
-                    "kind": str(param.kind),
-                    "annotation": param.annotation.__name__
-                    if param.annotation is not inspect.Parameter.empty and hasattr(param.annotation, "__name__")
-                    else str(param.annotation)
+                    "annotation": (
+                        param.annotation.__name__ 
+                        if hasattr(param.annotation, "__name__")
+                        else (
+                            str(param.annotation).replace("typing.Optional[", "").replace("]", "")
+                            if "typing.Optional" in str(param.annotation)
+                            else str(param.annotation)
+                        )
+                    )
                     if param.annotation is not inspect.Parameter.empty
                     else None,
+                    "required": param.default is inspect.Parameter.empty,
                 }
                 for name, param in sig.parameters.items()
                 if name != "self"

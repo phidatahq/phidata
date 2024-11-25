@@ -330,7 +330,7 @@ class Agent(BaseModel):
 
     def get_transfer_function(self, member_agent: "Agent", index: int) -> Function:
         def _transfer_task_to_agent(
-            task_description: str, expected_output: str, extra_data: Optional[str] = None
+            task_description: str, expected_output: str, additional_information: Optional[str] = None
         ) -> str:
             # Update the member agent session_data to include leader_session_id, leader_agent_id and leader_run_id
             if member_agent.session_data is None:
@@ -340,7 +340,9 @@ class Agent(BaseModel):
             member_agent.session_data["leader_run_id"] = self.run_id
 
             # -*- Run the agent
-            member_agent_messages = f"{task_description}\n\nThe expected output is: {expected_output}\n\nAdditional information: {extra_data}"
+            member_agent_messages = f"{task_description}\n\nThe expected output is: {expected_output}"
+            if additional_information is not None:
+                member_agent_messages += f"\n\nAdditional information: {additional_information}"
             member_agent_run_response: RunResponse = member_agent.run(member_agent_messages, stream=False)
             # update the leader agent session_data to include member_session_id, member_agent_id
             member_agent_info = {
@@ -382,7 +384,7 @@ class Agent(BaseModel):
         Args:
             task_description (str): A clear and concise description of the task the agent should achieve.
             expected_output (str): The expected output from the agent.
-            extra_data (Optional[str]): Extra information to pass to the agent.
+            additional_information (Optional[str]): Additional information that will help the agent complete the task.
         Returns:
             str: The result of the delegated task.
         """)
@@ -898,7 +900,7 @@ class Agent(BaseModel):
                 [
                     "## You are the leader of a team of AI Agents.",
                     "  - You can either respond directly or transfer tasks to other Agents in your team depending on the tools available to them.",
-                    "  - If you transfer tasks, make sure to include a clear description of the task and the expected output.",
+                    "  - If you transfer a task to another Agent, make sure to include a clear description of the task and the expected output.",
                     "  - You must always validate the output of the other Agents before responding to the user, "
                     "you can re-assign the task if you are not satisfied with the result.",
                     "",

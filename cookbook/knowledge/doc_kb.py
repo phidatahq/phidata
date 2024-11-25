@@ -28,7 +28,7 @@ db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 knowledge_base = DocumentKnowledgeBase(
     documents=documents,
     vector_db=PgVector(
-        table_name="pdf_documents",
+        table_name="documents",
         db_url=db_url,
     ),
 )

@@ -858,7 +858,7 @@ class OpenAIChat(Model):
                 yield from self.response_stream(messages=messages)
             else:
                 logger.debug(
-                    "Stopping execution after tool call as continue_after_tool_call=False (probably because agent is set to respond directly)"
+                    "Stopping execution as continue_after_tool_call=False (probably because agent is set to respond directly)"
                 )
         logger.debug("---------- OpenAI Response End ----------")
 

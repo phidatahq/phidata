@@ -1,5 +1,7 @@
 from hashlib import md5
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
+
+from phi.vectordb.clickhouse.index import HNSW
 
 try:
     import clickhouse_connect
@@ -15,7 +17,6 @@ from phi.embedder import Embedder
 from phi.utils.log import logger
 from phi.vectordb.base import VectorDb
 from phi.vectordb.distance import Distance
-from phi.vectordb.pgvector.index import HNSW, Ivfflat
 
 
 class ClickhouseDb(VectorDb):
@@ -32,7 +33,7 @@ class ClickhouseDb(VectorDb):
         client: Optional[clickhouse_connect.driver.client.Client] = None,
         embedder: Optional[Embedder] = None,
         distance: Distance = Distance.cosine,
-        index: Optional[Union[Ivfflat, HNSW]] = HNSW(),
+        index: Optional[HNSW] = HNSW(),
     ):
         if not client:
             client = clickhouse_connect.get_client(
@@ -63,9 +64,9 @@ class ClickhouseDb(VectorDb):
         self.distance: Distance = distance
 
         # Index for the collection
-        self.index: Optional[Union[Ivfflat, HNSW]] = index
+        self.index: Optional[HNSW] = index
 
-    def _get_base_parameters(self) -> Dict[str, str]:
+    def _get_base_parameters(self) -> Dict[str, Any]:
         return {
             "table_name": self.table_name,
             "database_name": self.database_name,
@@ -95,7 +96,12 @@ class ClickhouseDb(VectorDb):
             )
 
             logger.debug(f"Creating table: {self.table_name}")
+            
             parameters = self._get_base_parameters()
+            
+            if isinstance(self.index, HNSW):
+                index = f"INDEX idx vectors TYPE vector_similarity('hnsw', L2Distance, {self.index.}) "
+            
             self.client.command(
                 """CREATE TABLE IF NOT EXISTS %(database_name).%(table_name)s 
                 (
@@ -108,7 +114,8 @@ class ClickhouseDb(VectorDb):
                     created_at DateTime('UTC') DEFAULT now(),
                     content_hash String,
                     PRIMARY KEY (id)
-                ) ENGINE = MergeTree() ORDER BY id""",
+                    INDEX idx vectors TYPE vector_similarity('hnsw', 'L2Distance') 
+                ) ENGINE = ReplacingMergeTree ORDER BY id""",
                 parameters=parameters,
             )
 
@@ -206,7 +213,6 @@ class ClickhouseDb(VectorDb):
         self,
         documents: List[Document],
         filters: Optional[Dict[str, Any]] = None,
-        batch_size: int = 20,
     ) -> None:
         """
         Upsert documents into the database.
@@ -216,50 +222,15 @@ class ClickhouseDb(VectorDb):
             filters (Optional[Dict[str, Any]]): Filters to apply while upserting documents
             batch_size (int): Batch size for upserting documents
         """
-        counter = 0
-        for document in documents:
-            document.embed(embedder=self.embedder)
-            cleaned_content = document.content.replace("\x00", "\ufffd")
-            content_hash = md5(cleaned_content.encode()).hexdigest()
-            _id = document.id or content_hash
-            parameters = self._get_base_parameters()
-            record = {}
+        # We are using ReplacingMergeTree engine in our table, so we need to insert the documents,
+        # then call SELECT with FINAL
+        self.insert(documents=documents, filters=filters)
 
-            stmt = postgresql.insert(self.table).values(
-                id=_id,
-                name=document.name,
-                meta_data=document.meta_data,
-                content=cleaned_content,
-                embedding=document.embedding,
-                usage=document.usage,
-                content_hash=content_hash,
-            )
-            # Update row when id matches but 'content_hash' is different
-            stmt = stmt.on_conflict_do_update(
-                index_elements=["id"],
-                set_=dict(
-                    name=stmt.excluded.name,
-                    meta_data=stmt.excluded.meta_data,
-                    content=stmt.excluded.content,
-                    embedding=stmt.excluded.embedding,
-                    usage=stmt.excluded.usage,
-                    content_hash=stmt.excluded.content_hash,
-                    updated_at=text("now()"),
-                ),
-            )
-            sess.execute(stmt)
-            counter += 1
-            logger.debug(
-                f"Upserted document: {document.id} | {document.name} | {document.meta_data}"
-            )
-
-            # Commit every `batch_size` documents
-            if counter >= batch_size:
-                sess.commit()
-                logger.info(f"Committed {counter} documents")
-                counter = 0
-
-        logger.info(f"Altered {counter} documents")
+        parameters = self._get_base_parameters()
+        self.client.query(
+            "SELECT id FROM %(database_name).%(table_name)s FINAL",
+            parameters=parameters,
+        )
 
     def search(
         self, query: str, limit: int = 5, filters: Optional[Dict[str, Any]] = None
@@ -269,36 +240,35 @@ class ClickhouseDb(VectorDb):
             logger.error(f"Error getting embedding for Query: {query}")
             return []
 
-        columns = [
-            self.table.c.name,
-            self.table.c.meta_data,
-            self.table.c.content,
-            self.table.c.embedding,
-            self.table.c.usage,
-        ]
+        parameters = self._get_base_parameters()
+        where_query = ""
+        if filters:
+            query_filters: List[str] = []
+            for key, value in filters.values():
+                query_filters.append(f"%({key}_key)s = %({key}_value)")
+                parameters[f"{key}_key"] = key
+                parameters[f"{key}_value"] = value
+            where_query = f"WHERE {' AND '.join(query_filters)}"
 
-        stmt = select(*columns)
-
-        if filters is not None:
-            for key, value in filters.items():
-                if hasattr(self.table.c, key):
-                    stmt = stmt.where(getattr(self.table.c, key) == value)
-
+        order_by_query = ""
         if self.distance == Distance.l2:
-            stmt = stmt.order_by(
-                self.table.c.embedding.max_inner_product(query_embedding)
-            )
+            order_by_query = "ORDER BY L2Distance(embedding, %(query_embedding)s)"
+            parameters["query_embedding"] = query_embedding
         if self.distance == Distance.cosine:
-            stmt = stmt.order_by(
-                self.table.c.embedding.cosine_distance(query_embedding)
-            )
-        if self.distance == Distance.max_inner_product:
-            stmt = stmt.order_by(
-                self.table.c.embedding.max_inner_product(query_embedding)
-            )
+            order_by_query = "ORDER BY cosineDistance(embedding, %(query_embedding)s)"
+            parameters["query_embedding"] = query_embedding
 
-        stmt = stmt.limit(limit=limit)
-        logger.debug(f"Query: {stmt}")
+        clickhouse_query = (
+            "SELECT name, meta_data, content, embedding, usage FROM %(database_name).%(table_name)s "
+            f"{where_query} {order_by_query} LIMIT {limit}"
+        )
+        logger.debug(f"Query: {clickhouse_query}")
+        logger.debug(f"Params: {parameters}")
+
+        result = self.client.query(
+            clickhouse_query,
+            parameters=parameters,
+        )
 
         # Get neighbors
         try:

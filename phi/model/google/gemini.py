@@ -481,7 +481,7 @@ class Gemini(Model):
         response_timer.stop()
         logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
 
-        # Create assistant message
+        # -*- Create assistant message
         assistant_message = self._create_assistant_message(response=response, response_timer=response_timer)
         messages.append(assistant_message)
         assistant_message.log()

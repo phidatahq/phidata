@@ -3,7 +3,7 @@ from pydantic import BaseModel
 
 
 class Tool(BaseModel):
-    """Model for Tools"""
+    """Model for Tools that can be used by an agent."""
 
     # The type of tool
     type: str

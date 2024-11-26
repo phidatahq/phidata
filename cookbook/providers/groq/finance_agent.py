@@ -12,4 +12,6 @@ agent = Agent(
     markdown=True,
 )
 
-agent.print_response("Summarize analyst recommendations and fundamentals for TSLA", stream=True)
+agent.print_response(
+    "Summarize and compare analyst recommendations and fundamentals for TSLA and NVDA. Show in tables.", stream=True
+)

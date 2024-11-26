@@ -5,7 +5,7 @@ from typing import Optional, Any, Dict, List
 from pydantic import BaseModel, ConfigDict, Field
 
 from phi.reasoning.step import ReasoningStep
-from phi.model.message import Message, MessageContext
+from phi.model.message import Message, MessageReferences
 
 
 class RunEvent(str, Enum):
@@ -25,7 +25,7 @@ class RunEvent(str, Enum):
 
 
 class RunResponseExtraData(BaseModel):
-    context: Optional[List[MessageContext]] = None
+    references: Optional[List[MessageReferences]] = None
     add_messages: Optional[List[Message]] = None
     history: Optional[List[Message]] = None
     reasoning_steps: Optional[List[ReasoningStep]] = None

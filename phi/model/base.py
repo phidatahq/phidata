@@ -123,7 +123,9 @@ class Model(BaseModel):
                 tools_for_api.append(tool)
         return tools_for_api
 
-    def add_tool(self, tool: Union[Tool, Toolkit, Callable, Dict, Function], structured_outputs: bool = False) -> None:
+    def add_tool(
+        self, tool: Union[Tool, Toolkit, Callable, Dict, Function], strict: bool = False, agent: Optional[Any] = None
+    ) -> None:
         if self.tools is None:
             self.tools = []
 
@@ -133,17 +135,18 @@ class Model(BaseModel):
                 self.tools.append(tool)
                 logger.debug(f"Added tool {tool} to model.")
 
-        # If the tool is a Callable or Toolkit, add its functions to the Model
+        # If the tool is a Callable or Toolkit, process and add to the Model
         elif callable(tool) or isinstance(tool, Toolkit) or isinstance(tool, Function):
             if self.functions is None:
                 self.functions = {}
 
             if isinstance(tool, Toolkit):
-                # For each function in the toolkit
+                # For each function in the toolkit, process entrypoint and add to self.tools
                 for name, func in tool.functions.items():
                     # If the function does not exist in self.functions, add to self.tools
                     if name not in self.functions:
-                        if structured_outputs and self.supports_structured_outputs:
+                        func.process_entrypoint(agent)
+                        if strict and self.supports_structured_outputs:
                             func.strict = True
                         self.functions[name] = func
                         self.tools.append({"type": "function", "function": func.to_dict()})
@@ -151,7 +154,7 @@ class Model(BaseModel):
 
             elif isinstance(tool, Function):
                 if tool.name not in self.functions:
-                    if structured_outputs and self.supports_structured_outputs:
+                    if strict and self.supports_structured_outputs:
                         tool.strict = True
                     self.functions[tool.name] = tool
                     self.tools.append({"type": "function", "function": tool.to_dict()})
@@ -161,12 +164,12 @@ class Model(BaseModel):
                 try:
                     function_name = tool.__name__
                     if function_name not in self.functions:
-                        func = Function.from_callable(tool)
-                        if structured_outputs and self.supports_structured_outputs:
+                        func = Function.from_callable(tool, agent)
+                        if strict and self.supports_structured_outputs:
                             func.strict = True
                         self.functions[func.name] = func
                         self.tools.append({"type": "function", "function": func.to_dict()})
-                        logger.debug(f"Function {func.name} added to Model.")
+                        logger.debug(f"Function {func.name} added to model.")
                 except Exception as e:
                     logger.warning(f"Could not add function {tool}: {e}")
 

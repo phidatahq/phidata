@@ -1,4 +1,4 @@
-"""Run `pip install duckduckgo-search sqlalchemy pgvector pypdf openai ollama` to install dependencies."""
+"""Run `pip install duckduckgo-search sqlalchemy pgvector pypdf openai ollama "psycopg[binary]"` to install dependencies."""
 
 from phi.agent import Agent
 from phi.model.ollama import OllamaTools

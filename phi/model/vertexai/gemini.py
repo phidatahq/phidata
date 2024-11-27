@@ -546,7 +546,6 @@ class Gemini(Model):
 
         metrics.response_timer.start()
         for response in self.invoke_stream(messages=messages):
-
             # -*- Parse response
             message_data.response_block = response.candidates[0].content
             if message_data.response_block is not None:

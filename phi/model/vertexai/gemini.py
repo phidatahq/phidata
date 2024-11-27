@@ -21,9 +21,6 @@ try:
         Content,
         Part,
     )
-    from google.cloud.aiplatform_v1beta1.types.prediction_service import GenerateContentResponse
-
-    UsageMetadata = GenerateContentResponse.UsageMetadata
 
 except ImportError:
     logger.error("`google-cloud-aiplatform` not installed")
@@ -38,7 +35,7 @@ class MessageData:
     response_role: Optional[str] = None
     response_parts: Optional[List] = None
     response_tool_calls: List[Dict[str, Any]] = field(default_factory=list)
-    response_usage: Optional[UsageMetadata] = None
+    response_usage: Optional[Dict[str, Any]] = None
     response_tool_call_block = None
 
 
@@ -271,7 +268,7 @@ class Gemini(Model):
         self,
         assistant_message: Message,
         metrics: Metrics,
-        usage: Optional[UsageMetadata] = None,
+        usage: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         Update usage metrics for the assistant message.
@@ -279,7 +276,7 @@ class Gemini(Model):
         Args:
             assistant_message: Message object containing the response content
             metrics: Metrics object containing the usage metrics
-            usage: UsageMetadata object containing the usage metrics
+            usage: Dict[str, Any object containing the usage metrics
         """
         assistant_message.metrics["time"] = metrics.response_timer.elapsed
         self.metrics.setdefault("response_times", []).append(metrics.response_timer.elapsed)

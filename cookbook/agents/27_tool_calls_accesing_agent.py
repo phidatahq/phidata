@@ -5,9 +5,8 @@ from phi.agent import Agent
 from phi.utils.log import logger
 
 
-def get_top_hackernews_stories(agent: Agent, num_stories: int = 5) -> str:
-
-    logger.info(f"Context: {agent.context}")
+def get_top_hackernews_stories(agent: Agent) -> str:
+    num_stories = agent.context.get("num_stories", 5)
 
     # Fetch top story IDs
     response = httpx.get("https://hacker-news.firebaseio.com/v0/topstories.json")

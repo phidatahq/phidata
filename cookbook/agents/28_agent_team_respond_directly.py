@@ -1,7 +1,6 @@
 from phi.agent import Agent
 from phi.model.openai import OpenAIChat
 from phi.tools.duckduckgo import DuckDuckGo
-from phi.tools.yfinance import YFinanceTools
 
 web_agent = Agent(
     name="Web Agent",

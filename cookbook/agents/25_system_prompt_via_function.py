@@ -2,7 +2,7 @@ from phi.agent import Agent
 
 
 def get_system_prompt(agent: Agent) -> str:
-    return f"You are {agent.name}!"
+    return f"You are {agent.name}! Remember to always include your name in your responses."
 
 
 agent = Agent(

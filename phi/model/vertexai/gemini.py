@@ -281,9 +281,9 @@ class Gemini(Model):
         assistant_message.metrics["time"] = metrics.response_timer.elapsed
         self.metrics.setdefault("response_times", []).append(metrics.response_timer.elapsed)
         if usage:
-            metrics.input_tokens = usage.prompt_token_count or 0
-            metrics.output_tokens = usage.candidates_token_count or 0
-            metrics.total_tokens = usage.total_token_count or 0
+            metrics.input_tokens = usage.prompt_token_count or 0 # type: ignore
+            metrics.output_tokens = usage.candidates_token_count or 0 # type: ignore
+            metrics.total_tokens = usage.total_token_count or 0 # type: ignore
 
             if metrics.input_tokens is not None:
                 assistant_message.metrics["input_tokens"] = metrics.input_tokens

@@ -1,3 +1,5 @@
+import json
+from os import getenv
 from typing import Any, Dict, List, Optional, Tuple
 
 from phi.embedder.base import Embedder
@@ -14,7 +16,7 @@ class HuggingfaceCustomEmbedder(Embedder):
     """Huggingface Custom Embedder"""
 
     model: str = "jinaai/jina-embeddings-v2-base-code"
-    api_key: Optional[str] = None
+    api_key: Optional[str] = getenv("HUGGINGFACE_API_KEY")
     client_params: Optional[Dict[str, Any]] = None
     huggingface_client: Optional[InferenceClient] = None
 
@@ -39,7 +41,9 @@ class HuggingfaceCustomEmbedder(Embedder):
     def get_embedding(self, text: str) -> List[float]:
         response = self._response(text=text)
         try:
-            return response
+            decoded_string = response.decode("utf-8")
+            return json.loads(decoded_string)
+
         except Exception as e:
             logger.warning(e)
             return []

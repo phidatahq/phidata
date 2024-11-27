@@ -21,7 +21,6 @@ try:
         Content,
         Part,
     )
-
 except ImportError:
     logger.error("`google-cloud-aiplatform` not installed")
     raise
@@ -36,7 +35,7 @@ class MessageData:
     response_parts: Optional[List] = None
     response_tool_calls: List[Dict[str, Any]] = field(default_factory=list)
     response_usage: Optional[Dict[str, Any]] = None
-    response_tool_call_block = None
+    response_tool_call_block: Content = None
 
 
 @dataclass
@@ -276,14 +275,14 @@ class Gemini(Model):
         Args:
             assistant_message: Message object containing the response content
             metrics: Metrics object containing the usage metrics
-            usage: Dict[str, Any object containing the usage metrics
+            usage: Dict[str, Any] object containing the usage metrics
         """
         assistant_message.metrics["time"] = metrics.response_timer.elapsed
         self.metrics.setdefault("response_times", []).append(metrics.response_timer.elapsed)
         if usage:
-            metrics.input_tokens = usage.prompt_token_count or 0 # type: ignore
-            metrics.output_tokens = usage.candidates_token_count or 0 # type: ignore
-            metrics.total_tokens = usage.total_token_count or 0 # type: ignore
+            metrics.input_tokens = usage.prompt_token_count or 0  # type: ignore
+            metrics.output_tokens = usage.candidates_token_count or 0  # type: ignore
+            metrics.total_tokens = usage.total_token_count or 0  # type: ignore
 
             if metrics.input_tokens is not None:
                 assistant_message.metrics["input_tokens"] = metrics.input_tokens
@@ -474,6 +473,7 @@ class Gemini(Model):
         assistant_message.log()
         metrics.log()
 
+        # -*- Handle tool calls
         if self._handle_tool_calls(assistant_message, messages, model_response):
             response_after_tool_calls = self.response(messages=messages)
             if response_after_tool_calls.content is not None:
@@ -482,6 +482,7 @@ class Gemini(Model):
                 model_response.content += response_after_tool_calls.content
             return model_response
 
+        # -*- Update model response
         if assistant_message.content is not None:
             model_response.content = assistant_message.get_content_string()
 
@@ -587,7 +588,7 @@ class Gemini(Model):
             response_tool_call_block=message_data.response_tool_call_block,
         )
 
-        # Update assistant message if tool calls are present
+        # -*-  Update assistant message if tool calls are present
         if len(message_data.response_tool_calls) > 0:
             assistant_message.tool_calls = message_data.response_tool_calls
 

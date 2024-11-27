@@ -1246,6 +1246,7 @@ class Agent(BaseModel):
             show_tool_calls=False,
             response_model=ReasoningSteps,
             structured_outputs=self.structured_outputs,
+            monitoring=self.monitoring,
         )
 
     def _update_run_response_with_reasoning(

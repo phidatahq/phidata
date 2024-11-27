@@ -1102,7 +1102,7 @@ class Agent(BaseModel):
             docs_from_knowledge = self.get_relevant_docs_from_knowledge(query=message, **kwargs)
             if docs_from_knowledge is not None:
                 references = MessageReferences(
-                    query=message, docs=docs_from_knowledge, time=round(retrieval_timer.elapsed, 4)
+                    query=message, references=docs_from_knowledge, time=round(retrieval_timer.elapsed, 4)
                 )
                 # Add the references to the run_response
                 if self.run_response.extra_data is None:
@@ -1154,10 +1154,15 @@ class Agent(BaseModel):
         user_prompt = message
 
         # 5.1 Add references to user message
-        if self.add_references and references is not None and references.docs is not None and len(references.docs) > 0:
+        if (
+            self.add_references
+            and references is not None
+            and references.references is not None
+            and len(references.references) > 0
+        ):
             user_prompt += "\n\nUse the following references from the knowledge base if it helps:\n"
             user_prompt += "<references>\n"
-            user_prompt += self.convert_documents_to_string(references.docs) + "\n"
+            user_prompt += self.convert_documents_to_string(references.references) + "\n"
             user_prompt += "</references>"
 
         # 5.2 Add context to user message
@@ -2475,7 +2480,7 @@ class Agent(BaseModel):
         docs_from_knowledge = self.get_relevant_docs_from_knowledge(query=query)
         if docs_from_knowledge is not None:
             references = MessageReferences(
-                query=query, docs=docs_from_knowledge, time=round(retrieval_timer.elapsed, 4)
+                query=query, references=docs_from_knowledge, time=round(retrieval_timer.elapsed, 4)
             )
             # Add the references to the run_response
             if self.run_response.extra_data is None:

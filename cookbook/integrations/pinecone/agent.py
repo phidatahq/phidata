@@ -1,13 +1,10 @@
-import os
-import typer
-from typing import Optional
-from rich.prompt import Prompt
+from os import getenv
 
 from phi.agent import Agent
 from phi.knowledge.pdf import PDFUrlKnowledgeBase
 from phi.vectordb.pineconedb import PineconeDB
 
-api_key = os.getenv("PINECONE_API_KEY")
+api_key = getenv("PINECONE_API_KEY")
 index_name = "thai-recipe-index"
 
 vector_db = PineconeDB(
@@ -24,35 +21,16 @@ knowledge_base = PDFUrlKnowledgeBase(
 )
 
 # Comment out after first run
-knowledge_base.load(recreate=False, upsert=True)
+knowledge_base.load(recreate=False)
 
+agent = Agent(
+    knowledge=knowledge_base,
+    # Show tool calls in the response
+    show_tool_calls=True,
+    # Enable the agent to search the knowledge base
+    search_knowledge=True,
+    # Enable the agent to read the chat history
+    read_chat_history=True,
+)
 
-def pinecone_agent(user: str = "user"):
-    run_id: Optional[str] = None
-
-    agent = Agent(
-        run_id=run_id,
-        user_id=user,
-        knowledge_base=knowledge_base,
-        use_tools=True,
-        show_tool_calls=True,
-        debug_mode=True,
-        # Uncomment the following line to use traditional RAG
-        # add_references_to_prompt=True,
-    )
-
-    if run_id is None:
-        run_id = agent.run_id
-        print(f"Started Run: {run_id}\n")
-    else:
-        print(f"Continuing Run: {run_id}\n")
-
-    while True:
-        message = Prompt.ask(f"[bold] :sunglasses: {user} [/bold]")
-        if message in ("exit", "bye"):
-            break
-        agent.print_response(message)
-
-
-if __name__ == "__main__":
-    typer.run(pinecone_agent)
+agent.print_response("How do I make pad thai?", markdown=True)

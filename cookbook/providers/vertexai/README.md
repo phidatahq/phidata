@@ -1,4 +1,4 @@
-# Google Gemini Cookbook
+# VertexAI Gemini Cookbook
 
 > Note: Fork and clone this repository if needed
 
@@ -9,16 +9,14 @@ python3 -m venv ~/.venvs/aienv
 source ~/.venvs/aienv/bin/activate
 ```
 
-### 2. Export `GOOGLE_API_KEY`
+### 2. Authenticate with Google Cloud
 
-```shell
-export GOOGLE_API_KEY=***
-```
+[Authenticate with Gcloud](https://cloud.google.com/vertex-ai/generative-ai/docs/start/quickstarts/quickstart-multimodal)
 
 ### 3. Install libraries
 
 ```shell
-pip install -U google-generativeai duckduckgo-search yfinance phidata
+pip install -U google-cloud-aiplatform duckduckgo-search yfinance phidata
 ```
 
 ### 4. Run Agent without Tools

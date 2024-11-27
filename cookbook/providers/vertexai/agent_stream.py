@@ -2,7 +2,7 @@
 
 from typing import Iterator  # noqa
 from phi.agent import Agent, RunResponse  # noqa
-from phi.model.google import Gemini
+from phi.model.vertexai import Gemini
 from phi.tools.yfinance import YFinanceTools
 
 agent = Agent(

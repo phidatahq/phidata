@@ -2,7 +2,7 @@ from typing import List
 from rich.pretty import pprint  # noqa
 from pydantic import BaseModel, Field
 from phi.agent import Agent, RunResponse  # noqa
-from phi.model.google import Gemini
+from phi.model.vertexai import Gemini
 
 
 class MovieScript(BaseModel):

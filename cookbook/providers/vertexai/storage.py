@@ -1,7 +1,7 @@
 """Run `pip install duckduckgo-search sqlalchemy google.generativeai` to install dependencies."""
 
 from phi.agent import Agent
-from phi.model.google import Gemini
+from phi.model.vertexai import Gemini
 from phi.tools.duckduckgo import DuckDuckGo
 from phi.storage.agent.postgres import PgAgentStorage
 

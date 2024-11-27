@@ -2,7 +2,7 @@
 
 from textwrap import dedent
 from phi.agent import Agent
-from phi.model.google import Gemini
+from phi.model.vertexai import Gemini
 from phi.tools.duckdb import DuckDbTools
 
 duckdb_tools = DuckDbTools(create_tables=False, export_tables=False, summarize_tables=False)

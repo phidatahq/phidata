@@ -2,7 +2,6 @@ import json
 import httpx
 
 from phi.agent import Agent
-from phi.utils.log import logger
 
 
 def get_top_hackernews_stories(agent: Agent) -> str:

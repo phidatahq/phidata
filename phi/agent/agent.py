@@ -230,6 +230,10 @@ class Agent(BaseModel):
     run_input: Optional[Union[str, List, Dict]] = None
     # Response from the Agent run: do not set manually
     run_response: RunResponse = Field(default_factory=RunResponse)
+    # If True, stream the response from the Agent
+    stream: Optional[bool] = None
+    # If True, stream the intermediate steps from the Agent
+    stream_intermediate_steps: bool = False
 
     model_config = ConfigDict(arbitrary_types_allowed=True, populate_by_name=True, extra="allow")
 
@@ -346,38 +350,45 @@ class Agent(BaseModel):
             if additional_information is not None:
                 member_agent_messages += f"\n\nAdditional information: {additional_information}"
 
-            response_iterator = member_agent.run(member_agent_messages, stream=True)
-            for member_agent_run_response in response_iterator:
-                yield member_agent_run_response.content
-            # member_agent_run_response: RunResponse = member_agent.run(member_agent_messages, stream=False)
-            # # update the leader agent session_data to include member_session_id, member_agent_id
-            # member_agent_info = {
-            #     "session_id": member_agent_run_response.session_id,
-            #     "agent_id": member_agent_run_response.agent_id,
-            # }
-            # # Update the leader agent session_data to include member_agent_info
-            # if self.session_data is None:
-            #     self.session_data = {"members": [member_agent_info]}
-            # else:
-            #     if "members" not in self.session_data:
-            #         self.session_data["members"] = []
-            #     # Check if member_agent_info is already in the list
-            #     if member_agent_info not in self.session_data["members"]:
-            #         self.session_data["members"].append(member_agent_info)
-            # if member_agent_run_response.content is None:
-            #     return "No response from the member agent."
-            # elif isinstance(member_agent_run_response.content, str):
-            #     return member_agent_run_response.content
-            # elif issubclass(member_agent_run_response.content, BaseModel):
-            #     try:
-            #         return member_agent_run_response.content.model_dump_json(indent=2)
-            #     except Exception as e:
-            #         return str(e)
-            # else:
-            #     try:
-            #         return json.dumps(member_agent_run_response.content, indent=2)
-            #     except Exception as e:
-            #         return str(e)
+            member_agent_session_id = member_agent.session_id
+            member_agent_agent_id = member_agent.agent_id
+
+            # Create a dictionary with member_session_id and member_agent_id
+            member_agent_info = {
+                "session_id": member_agent_session_id,
+                "agent_id": member_agent_agent_id,
+            }
+            # Update the leader agent session_data to include member_agent_info
+            if self.session_data is None:
+                self.session_data = {"members": [member_agent_info]}
+            else:
+                if "members" not in self.session_data:
+                    self.session_data["members"] = []
+                # Check if member_agent_info is already in the list
+                if member_agent_info not in self.session_data["members"]:
+                    self.session_data["members"].append(member_agent_info)
+
+            if self.stream and member_agent.streamable:
+                member_agent_run_response = member_agent.run(member_agent_messages, stream=True)
+                for member_agent_run_response_chunk in member_agent_run_response:
+                    # logger.debug(f"Member agent run response chunk: {member_agent_run_response_chunk}")
+                    yield member_agent_run_response_chunk.content
+            else:
+                member_agent_run_response: RunResponse = member_agent.run(member_agent_messages, stream=False)
+                if member_agent_run_response.content is None:
+                    return "No response from the member agent."
+                elif isinstance(member_agent_run_response.content, str):
+                    return member_agent_run_response.content
+                elif issubclass(member_agent_run_response.content, BaseModel):
+                    try:
+                        return member_agent_run_response.content.model_dump_json(indent=2)
+                    except Exception as e:
+                        return str(e)
+                else:
+                    try:
+                        return json.dumps(member_agent_run_response.content, indent=2)
+                    except Exception as e:
+                        return str(e)
 
         # Give a name to the member agent
         agent_name = member_agent.name.replace(" ", "_").lower() if member_agent.name else f"agent_{index}"
@@ -1657,9 +1668,9 @@ class Agent(BaseModel):
         9. Set the run_input
         """
         # Check if streaming is enabled
-        stream_agent_response = stream and self.streamable
+        self.stream = stream and self.streamable
         # Check if streaming intermediate steps is enabled
-        stream_intermediate_steps = stream_intermediate_steps and stream_agent_response
+        self.stream_intermediate_steps = stream_intermediate_steps and self.stream
         # Create the run_response object
         self.run_id = str(uuid4())
         self.run_response = RunResponse(run_id=self.run_id, session_id=self.session_id, agent_id=self.agent_id)
@@ -1686,10 +1697,10 @@ class Agent(BaseModel):
                 system_message=system_message,
                 user_messages=user_messages,
                 messages_for_model=messages_for_model,
-                stream_intermediate_steps=stream_intermediate_steps,
+                stream_intermediate_steps=self.stream_intermediate_steps,
             )
 
-            if stream_agent_response:
+            if self.stream:
                 yield from reason_generator
             else:
                 # Consume the generator without yielding
@@ -1700,7 +1711,7 @@ class Agent(BaseModel):
         num_input_messages = len(messages_for_model)
 
         # Yield a RunStarted event
-        if stream_intermediate_steps:
+        if self.stream_intermediate_steps:
             yield RunResponse(
                 run_id=self.run_id,
                 session_id=self.session_id,
@@ -1715,7 +1726,7 @@ class Agent(BaseModel):
         # 5. Generate a response from the Model (includes running function calls)
         model_response: ModelResponse
         self.model = cast(Model, self.model)
-        if stream_agent_response:
+        if self.stream:
             model_response = ModelResponse(content="")
             for model_response_chunk in self.model.response_stream(messages=messages_for_model):
                 if model_response_chunk.event == ModelResponseEvent.assistant_response.value:
@@ -1731,7 +1742,7 @@ class Agent(BaseModel):
                         if self.run_response.tools is None:
                             self.run_response.tools = []
                         self.run_response.tools.append(tool_call_dict)
-                    if stream_intermediate_steps:
+                    if self.stream_intermediate_steps:
                         yield RunResponse(
                             run_id=self.run_id,
                             session_id=self.session_id,
@@ -1753,7 +1764,7 @@ class Agent(BaseModel):
                         # Update the tool call if it exists
                         if tool_call_id_to_update in tool_call_index_map:
                             self.run_response.tools[tool_call_index_map[tool_call_id_to_update]] = tool_call_dict
-                    if stream_intermediate_steps:
+                    if self.stream_intermediate_steps:
                         yield RunResponse(
                             run_id=self.run_id,
                             session_id=self.session_id,
@@ -1784,11 +1795,11 @@ class Agent(BaseModel):
         self.run_response.messages = run_messages
         self.run_response.metrics = self._aggregate_metrics_from_run_messages(run_messages)
         # Update the run_response content if streaming as run_response will only contain the last chunk
-        if stream_agent_response:
+        if self.stream:
             self.run_response.content = model_response.content
 
         # 6. Update Memory
-        if stream_intermediate_steps:
+        if self.stream_intermediate_steps:
             yield RunResponse(
                 run_id=self.run_id,
                 session_id=self.session_id,
@@ -1869,7 +1880,7 @@ class Agent(BaseModel):
         self.log_agent_run()
 
         logger.debug(f"*********** Agent Run End: {self.run_response.run_id} ***********")
-        if stream_intermediate_steps:
+        if self.stream_intermediate_steps:
             yield RunResponse(
                 run_id=self.run_id,
                 session_id=self.session_id,
@@ -1881,7 +1892,7 @@ class Agent(BaseModel):
             )
 
         # -*- Yield final response if not streaming so that run() can get the response
-        if not stream_agent_response:
+        if not self.stream:
             yield self.run_response
 
     @overload
@@ -2015,9 +2026,9 @@ class Agent(BaseModel):
         8. Save output to file if save_output_to_file is set
         """
         # Check if streaming is enabled
-        stream_agent_response = stream and self.streamable
+        self.stream = stream and self.streamable
         # Check if streaming intermediate steps is enabled
-        stream_intermediate_steps = stream_intermediate_steps and stream_agent_response
+        self.stream_intermediate_steps = stream_intermediate_steps and self.stream
         # Create the run_response object
         self.run_id = str(uuid4())
         self.run_response = RunResponse(run_id=self.run_id, session_id=self.session_id, agent_id=self.agent_id)
@@ -2042,10 +2053,10 @@ class Agent(BaseModel):
                 system_message=system_message,
                 user_messages=user_messages,
                 messages_for_model=messages_for_model,
-                stream_intermediate_steps=stream_intermediate_steps,
+                stream_intermediate_steps=self.stream_intermediate_steps,
             )
 
-            if stream_agent_response:
+            if self.stream:
                 async for item in areason_generator:
                     yield item
             else:
@@ -2058,7 +2069,7 @@ class Agent(BaseModel):
         num_input_messages = len(messages_for_model)
 
         # Yield a RunStarted event
-        if stream_intermediate_steps:
+        if self.stream_intermediate_steps:
             yield RunResponse(
                 run_id=self.run_id,
                 session_id=self.session_id,
@@ -2090,7 +2101,7 @@ class Agent(BaseModel):
                         if self.run_response.tools is None:
                             self.run_response.tools = []
                         self.run_response.tools.append(tool_call_dict)
-                    if stream_intermediate_steps:
+                    if self.stream_intermediate_steps:
                         yield RunResponse(
                             run_id=self.run_id,
                             session_id=self.session_id,
@@ -2112,7 +2123,7 @@ class Agent(BaseModel):
                         # Update the tool call if it exists
                         if tool_call_id in tool_call_index_map:
                             self.run_response.tools[tool_call_index_map[tool_call_id]] = tool_call_dict
-                    if stream_intermediate_steps:
+                    if self.stream_intermediate_steps:
                         yield RunResponse(
                             run_id=self.run_id,
                             session_id=self.session_id,
@@ -2143,11 +2154,11 @@ class Agent(BaseModel):
         self.run_response.messages = run_messages
         self.run_response.metrics = self._aggregate_metrics_from_run_messages(run_messages)
         # Update the run_response content if streaming as run_response will only contain the last chunk
-        if stream_agent_response:
+        if self.stream:
             self.run_response.content = model_response.content
 
         # 6. Update Memory
-        if stream_intermediate_steps:
+        if self.stream_intermediate_steps:
             yield RunResponse(
                 run_id=self.run_id,
                 session_id=self.session_id,
@@ -2228,7 +2239,7 @@ class Agent(BaseModel):
         await self.alog_agent_run()
 
         logger.debug(f"*********** Async Agent Run End: {self.run_response.run_id} ***********")
-        if stream_intermediate_steps:
+        if self.stream_intermediate_steps:
             yield RunResponse(
                 run_id=self.run_id,
                 session_id=self.session_id,
@@ -2239,7 +2250,7 @@ class Agent(BaseModel):
             )
 
         # -*- Yield final response if not streaming so that run() can get the response
-        if not stream_agent_response:
+        if not self.stream:
             yield self.run_response
 
     async def arun(

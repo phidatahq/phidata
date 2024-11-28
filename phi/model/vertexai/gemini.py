@@ -12,140 +12,125 @@ from phi.utils.timer import Timer
 from phi.utils.tools import get_function_call_for_tool_call
 
 try:
-    import google.generativeai as genai
-    from google.generativeai import GenerativeModel
-    from google.generativeai.types.generation_types import GenerateContentResponse
-    from google.generativeai.types.content_types import FunctionDeclaration, Tool as GeminiTool
-    from google.ai.generativelanguage_v1beta.types.generative_service import (
-        GenerateContentResponse as ResultGenerateContentResponse,
+    from vertexai.generative_models import (
+        GenerativeModel,
+        GenerationResponse,
+        FunctionDeclaration,
+        Tool as GeminiTool,
+        Candidate,
+        Content,
+        Part,
     )
-    from google.protobuf.struct_pb2 import Struct
 except ImportError:
-    logger.error("`google-generativeai` not installed. Please install it using `pip install google-generativeai`")
+    logger.error("`google-cloud-aiplatform` not installed")
     raise
 
 
 @dataclass
 class MessageData:
     response_content: str = ""
-    response_block: Optional[GenerateContentResponse] = None
+    response_block: Content = None
+    response_candidates: Optional[List[Candidate]] = None
     response_role: Optional[str] = None
     response_parts: Optional[List] = None
     response_tool_calls: List[Dict[str, Any]] = field(default_factory=list)
-    response_usage: Optional[ResultGenerateContentResponse] = None
+    response_usage: Optional[Dict[str, Any]] = None
+    response_tool_call_block: Content = None
 
 
 @dataclass
-class UsageData:
-    input_tokens: Optional[int] = None
-    output_tokens: Optional[int] = None
-    total_tokens: Optional[int] = None
-
-
-@dataclass
-class StreamUsageData:
-    completion_tokens: int = 0
+class Metrics:
+    input_tokens: int = 0
+    output_tokens: int = 0
+    total_tokens: int = 0
     time_to_first_token: Optional[float] = None
-    tokens_per_second: Optional[float] = None
-    time_per_token: Optional[float] = None
+    response_timer: Timer = field(default_factory=Timer)
+
+    def log(self):
+        logger.debug("**************** METRICS START ****************")
+        if self.time_to_first_token is not None:
+            logger.debug(f"* Time to first token:         {self.time_to_first_token:.4f}s")
+        logger.debug(f"* Time to generate response:   {self.response_timer.elapsed:.4f}s")
+        logger.debug(f"* Tokens per second:           {self.output_tokens / self.response_timer.elapsed:.4f} tokens/s")
+        logger.debug(f"* Input tokens:                {self.input_tokens}")
+        logger.debug(f"* Output tokens:               {self.output_tokens}")
+        logger.debug(f"* Total tokens:                {self.total_tokens}")
+        logger.debug("**************** METRICS END ******************")
 
 
 class Gemini(Model):
-    """
-    Gemini model class for Google's Generative AI models.
-
-    Attributes:
-
-        id (str): Model ID. Default is `gemini-1.5-flash`.
-        name (str): The name of this chat model instance. Default is `Gemini`.
-        provider (str): Model provider. Default is `Google`.
-        function_declarations (List[FunctionDeclaration]): List of function declarations.
-        generation_config (Any): Generation configuration.
-        safety_settings (Any): Safety settings.
-        generative_model_kwargs (Dict[str, Any]): Generative model keyword arguments.
-        api_key (str): API key.
-        client (GenerativeModel): Generative model client.
-    """
-
-    id: str = "gemini-1.5-flash"
     name: str = "Gemini"
-    provider: str = "Google"
+    model: str = "gemini-1.5-flash-002"
+    provider: str = "VertexAI"
 
     # Request parameters
-    function_declarations: Optional[List[FunctionDeclaration]] = None
     generation_config: Optional[Any] = None
     safety_settings: Optional[Any] = None
-    generative_model_kwargs: Optional[Dict[str, Any]] = None
-
-    # Client parameters
-    api_key: Optional[str] = None
-    client_params: Optional[Dict[str, Any]] = None
+    generative_model_request_params: Optional[Dict[str, Any]] = None
+    function_declarations: Optional[List[FunctionDeclaration]] = None
 
     # Gemini client
     client: Optional[GenerativeModel] = None
 
     def get_client(self) -> GenerativeModel:
         """
-        Returns an instance of the GenerativeModel client.
+        Returns a GenerativeModel client.
 
         Returns:
-            GenerativeModel: The GenerativeModel client.
+            GenerativeModel: GenerativeModel client.
         """
-        if self.client:
-            return self.client
-
-        _client_params: Dict[str, Any] = {}
-        # Set client parameters if they are provided
-        if self.api_key:
-            _client_params["api_key"] = self.api_key
-        if self.client_params:
-            _client_params.update(self.client_params)
-        genai.configure(**_client_params)
-        return genai.GenerativeModel(model_name=self.id, **self.request_kwargs)
+        if self.client is None:
+            self.client = GenerativeModel(model_name=self.model, **self.request_kwargs)
+        return self.client
 
     @property
     def request_kwargs(self) -> Dict[str, Any]:
         """
-        Returns the request keyword arguments for the GenerativeModel client.
+        Returns the request parameters for the generative model.
 
         Returns:
-            Dict[str, Any]: The request keyword arguments.
+            Dict[str, Any]: Request parameters for the generative model.
         """
         _request_params: Dict[str, Any] = {}
         if self.generation_config:
             _request_params["generation_config"] = self.generation_config
         if self.safety_settings:
             _request_params["safety_settings"] = self.safety_settings
-        if self.generative_model_kwargs:
-            _request_params.update(self.generative_model_kwargs)
+        if self.generative_model_request_params:
+            _request_params.update(self.generative_model_request_params)
         if self.function_declarations:
             _request_params["tools"] = [GeminiTool(function_declarations=self.function_declarations)]
         return _request_params
 
-    def _format_messages(self, messages: List[Message]) -> List[Dict[str, Any]]:
+    def _format_messages(self, messages: List[Message]) -> List[Content]:
         """
-        Converts a list of Message objects to the Gemini-compatible format.
+        Converts a list of Message objects to Gemini-compatible Content objects.
 
         Args:
-            messages (List[Message]): The list of messages to convert.
+            messages: List of Message objects containing various types of content
 
         Returns:
-            List[Dict[str, Any]]: The formatted_messages list of messages.
+            List of Content objects formatted for Gemini's API
         """
-        formatted_messages: List = []
+        formatted_messages: List[Content] = []
+
         for msg in messages:
-            content = msg.content
-            role = "model" if msg.role == "system" else "user" if msg.role == "tool" else msg.role
-            if not content or msg.role == "tool":
-                parts = msg.parts  # type: ignore
+            if hasattr(msg, "response_tool_call_block"):
+                formatted_messages.append(Content(role=msg.role, parts=msg.response_tool_call_block.parts))
+                continue
+            if msg.role == "tool" and hasattr(msg, "tool_call_result"):
+                formatted_messages.append(msg.tool_call_result)
+                continue
+            if isinstance(msg.content, str):
+                parts = [Part.from_text(msg.content)]
+            elif isinstance(msg.content, list):
+                parts = [Part.from_text(part) for part in msg.content if isinstance(part, str)]
             else:
-                if isinstance(content, str):
-                    parts = [content]
-                elif isinstance(content, list):
-                    parts = content
-                else:
-                    parts = [" "]
-            formatted_messages.append({"role": role, "parts": parts})
+                parts = []
+            role = "model" if msg.role == "system" else "user" if msg.role == "tool" else msg.role
+
+            formatted_messages.append(Content(role=role, parts=parts))
+
         return formatted_messages
 
     def _format_functions(self, params: Dict[str, Any]) -> Dict[str, Any]:
@@ -153,7 +138,7 @@ class Gemini(Model):
         Converts function parameters to a Gemini-compatible format.
 
         Args:
-            params (Dict[str, Any]): The original parameters dictionary.
+            params (Dict[str, Any]): The original parameter's dictionary.
 
         Returns:
             Dict[str, Any]: The converted parameters dictionary compatible with Gemini.
@@ -244,27 +229,27 @@ class Gemini(Model):
                 except Exception as e:
                     logger.warning(f"Could not add function {tool}: {e}")
 
-    def invoke(self, messages: List[Message]):
+    def invoke(self, messages: List[Message]) -> GenerationResponse:
         """
-        Invokes the model with a list of messages and returns the response.
+        Send a generate content request to VertexAI and return the response.
 
         Args:
-            messages (List[Message]): The list of messages to send to the model.
+            messages: List of Message objects containing various types of content
 
         Returns:
-            GenerateContentResponse: The response from the model.
+            GenerationResponse object containing the response content
         """
         return self.get_client().generate_content(contents=self._format_messages(messages))
 
-    def invoke_stream(self, messages: List[Message]):
+    def invoke_stream(self, messages: List[Message]) -> Iterator[GenerationResponse]:
         """
-        Invokes the model with a list of messages and returns the response as a stream.
+        Send a generate content request to VertexAI and return the response.
 
         Args:
-            messages (List[Message]): The list of messages to send to the model.
+            messages: List of Message objects containing various types of content
 
         Returns:
-            Iterator[GenerateContentResponse]: The response from the model as a stream.
+            Iterator[GenerationResponse] object containing the response content
         """
         yield from self.get_client().generate_content(
             contents=self._format_messages(messages),
@@ -281,62 +266,57 @@ class Gemini(Model):
     def _update_usage_metrics(
         self,
         assistant_message: Message,
-        usage: Optional[ResultGenerateContentResponse] = None,
-        stream_usage: Optional[StreamUsageData] = None,
+        metrics: Metrics,
+        usage: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
-        Update the usage metrics.
+        Update usage metrics for the assistant message.
 
         Args:
-            assistant_message (Message): The assistant message.
-            usage (ResultGenerateContentResponse): The usage metrics.
-            stream_usage (Optional[StreamUsageData]): The stream usage metrics.
+            assistant_message: Message object containing the response content
+            metrics: Metrics object containing the usage metrics
+            usage: Dict[str, Any] object containing the usage metrics
         """
+        assistant_message.metrics["time"] = metrics.response_timer.elapsed
+        self.metrics.setdefault("response_times", []).append(metrics.response_timer.elapsed)
         if usage:
-            usage_data = UsageData()
-            usage_data.input_tokens = usage.prompt_token_count or 0
-            usage_data.output_tokens = usage.candidates_token_count or 0
-            usage_data.total_tokens = usage.total_token_count or 0
+            metrics.input_tokens = usage.prompt_token_count or 0  # type: ignore
+            metrics.output_tokens = usage.candidates_token_count or 0  # type: ignore
+            metrics.total_tokens = usage.total_token_count or 0  # type: ignore
 
-            if usage_data.input_tokens is not None:
-                assistant_message.metrics["input_tokens"] = usage_data.input_tokens
-                self.metrics["input_tokens"] = self.metrics.get("input_tokens", 0) + usage_data.input_tokens
-            if usage_data.output_tokens is not None:
-                assistant_message.metrics["output_tokens"] = usage_data.output_tokens
-                self.metrics["output_tokens"] = self.metrics.get("output_tokens", 0) + usage_data.output_tokens
-            if usage_data.total_tokens is not None:
-                assistant_message.metrics["total_tokens"] = usage_data.total_tokens
-                self.metrics["total_tokens"] = self.metrics.get("total_tokens", 0) + usage_data.total_tokens
+            if metrics.input_tokens is not None:
+                assistant_message.metrics["input_tokens"] = metrics.input_tokens
+                self.metrics["input_tokens"] = self.metrics.get("input_tokens", 0) + metrics.input_tokens
+            if metrics.output_tokens is not None:
+                assistant_message.metrics["output_tokens"] = metrics.output_tokens
+                self.metrics["output_tokens"] = self.metrics.get("output_tokens", 0) + metrics.output_tokens
+            if metrics.total_tokens is not None:
+                assistant_message.metrics["total_tokens"] = metrics.total_tokens
+                self.metrics["total_tokens"] = self.metrics.get("total_tokens", 0) + metrics.total_tokens
+            if metrics.time_to_first_token is not None:
+                assistant_message.metrics["time_to_first_token"] = metrics.time_to_first_token
+                self.metrics.setdefault("time_to_first_token", []).append(metrics.time_to_first_token)
 
-            if stream_usage:
-                if stream_usage.time_to_first_token is not None:
-                    assistant_message.metrics["time_to_first_token"] = stream_usage.time_to_first_token
-                    self.metrics.setdefault("time_to_first_token", []).append(stream_usage.time_to_first_token)
-                if stream_usage.tokens_per_second is not None:
-                    assistant_message.metrics["tokens_per_second"] = stream_usage.tokens_per_second
-                    self.metrics.setdefault("tokens_per_second", []).append(stream_usage.tokens_per_second)
-                if stream_usage.time_per_token is not None:
-                    assistant_message.metrics["time_per_token"] = stream_usage.time_per_token
-                    self.metrics.setdefault("time_per_token", []).append(stream_usage.time_per_token)
-
-    def _create_assistant_message(self, response: GenerateContentResponse, response_timer: Timer) -> Message:
+    def _create_assistant_message(self, response: GenerationResponse, metrics: Metrics) -> Message:
         """
-        Create an assistant message from the model response.
+        Create an assistant message from the GenerationResponse.
 
         Args:
-            response (GenerateContentResponse): The model response.
-            response_timer (Timer): The response timer.
+            response: GenerationResponse object containing the response content
+            metrics: Metrics object containing the usage metrics
 
         Returns:
-            Message: The assistant message.
+            Message object containing the assistant message
         """
         message_data = MessageData()
 
+        message_data.response_candidates = response.candidates
         message_data.response_block = response.candidates[0].content
         message_data.response_role = message_data.response_block.role
         message_data.response_parts = message_data.response_block.parts
         message_data.response_usage = response.usage_metadata
 
+        # -*- Parse response
         if message_data.response_parts is not None:
             for part in message_data.response_parts:
                 part_dict = type(part).to_dict(part)
@@ -347,6 +327,7 @@ class Gemini(Model):
 
                 # Parse function calls
                 if "function_call" in part_dict:
+                    message_data.response_tool_call_block = response.candidates[0].content
                     message_data.response_tool_calls.append(
                         {
                             "type": "function",
@@ -357,21 +338,21 @@ class Gemini(Model):
                         }
                     )
 
-        # Create assistant message
+        # -*- Create assistant message
         assistant_message = Message(
             role=message_data.response_role or "model",
             content=message_data.response_content,
-            parts=message_data.response_parts,
+            response_tool_call_block=message_data.response_tool_call_block,
         )
 
-        # Update assistant message if tool calls are present
+        # -*- Update assistant message if tool calls are present
         if len(message_data.response_tool_calls) > 0:
             assistant_message.tool_calls = message_data.response_tool_calls
 
-        # Update usage metrics
-        assistant_message.metrics["time"] = response_timer.elapsed
-        self.metrics.setdefault("response_times", []).append(response_timer.elapsed)
-        self._update_usage_metrics(assistant_message, message_data.response_usage)
+        # -*- Update usage metrics
+        self._update_usage_metrics(
+            assistant_message=assistant_message, metrics=metrics, usage=message_data.response_usage
+        )
 
         return assistant_message
 
@@ -416,13 +397,17 @@ class Gemini(Model):
             messages (List[Message]): The list of conversation messages.
         """
         if function_call_results:
-            for result in function_call_results:
-                s = Struct()
-                s.update({"result": [result.content]})
-                function_response = genai.protos.Part(
-                    function_response=genai.protos.FunctionResponse(name=result.tool_name, response=s)
-                )
-                messages.append(Message(role="tool", content=result.content, parts=[function_response]))
+            contents, parts = zip(
+                *[
+                    (
+                        result.content,
+                        Part.from_function_response(name=result.tool_name, response={"content": result.content}),
+                    )
+                    for result in function_call_results
+                ]
+            )
+
+            messages.append(Message(role="tool", content=list(contents), tool_call_result=Content(parts=list(parts))))
 
     def _handle_tool_calls(self, assistant_message: Message, messages: List[Message], model_response: ModelResponse):
         """
@@ -463,29 +448,32 @@ class Gemini(Model):
 
     def response(self, messages: List[Message]) -> ModelResponse:
         """
-        Send a generate cone content request to the model and return the response.
+        Send a generate content request to VertexAI and return the response.
 
         Args:
-            messages (List[Message]): The list of messages to send to the model.
+            messages: List of Message objects containing various types of content
 
         Returns:
-            ModelResponse: The model response.
+            ModelResponse object containing the response content
         """
-        logger.debug("---------- Gemini Response Start ----------")
+        logger.debug("---------- VertexAI Response Start ----------")
         self._log_messages(messages)
         model_response = ModelResponse()
+        metrics = Metrics()
 
-        response_timer = Timer()
-        response_timer.start()
-        response: GenerateContentResponse = self.invoke(messages=messages)
-        response_timer.stop()
-        logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
+        metrics.response_timer.start()
+        response: GenerationResponse = self.invoke(messages=messages)
+        metrics.response_timer.stop()
 
         # -*- Create assistant message
-        assistant_message = self._create_assistant_message(response=response, response_timer=response_timer)
+        assistant_message = self._create_assistant_message(response=response, metrics=metrics)
         messages.append(assistant_message)
-        assistant_message.log()
 
+        # -*- Log response and metrics
+        assistant_message.log()
+        metrics.log()
+
+        # -*- Handle tool calls
         if self._handle_tool_calls(assistant_message, messages, model_response):
             response_after_tool_calls = self.response(messages=messages)
             if response_after_tool_calls.content is not None:
@@ -494,15 +482,18 @@ class Gemini(Model):
                 model_response.content += response_after_tool_calls.content
             return model_response
 
+        # -*- Update model response
         if assistant_message.content is not None:
             model_response.content = assistant_message.get_content_string()
 
-        # -*- Remove parts from messages
+        # -*- Remove tool call blocks and tool call results from messages
         for m in messages:
-            if hasattr(m, "parts"):
-                m.parts = None
+            if hasattr(m, "response_tool_call_block"):
+                m.response_tool_call_block = None
+            if hasattr(m, "tool_call_result"):
+                m.tool_call_result = None
 
-        logger.debug("---------- Gemini Response End ----------")
+        logger.debug("---------- VertexAI Response End ----------")
         return model_response
 
     def _handle_stream_tool_calls(self, assistant_message: Message, messages: List[Message]):
@@ -538,23 +529,25 @@ class Gemini(Model):
 
     def response_stream(self, messages: List[Message]) -> Iterator[ModelResponse]:
         """
-        Send a generate content request to the model and return the response as a stream.
+        Send a generate content request to VertexAI and return the response.
 
         Args:
-            messages (List[Message]): The list of messages to send to the model.
+            messages: List of Message objects containing various types of content
 
         Yields:
-            Iterator[ModelResponse]: The model responses
+            Iterator[ModelResponse]: Yields model responses during function execution
         """
-        logger.debug("---------- Gemini Response Start ----------")
+        logger.debug("---------- VertexAI Response Start ----------")
         self._log_messages(messages)
         message_data = MessageData()
-        stream_usage_data = StreamUsageData()
+        metrics = Metrics()
 
-        response_timer = Timer()
-        response_timer.start()
+        metrics.response_timer.start()
         for response in self.invoke_stream(messages=messages):
+            # -*- Parse response
             message_data.response_block = response.candidates[0].content
+            if message_data.response_block is not None:
+                metrics.time_to_first_token = metrics.response_timer.elapsed
             message_data.response_role = message_data.response_block.role
             if message_data.response_block.parts:
                 message_data.response_parts = message_data.response_block.parts
@@ -568,16 +561,13 @@ class Gemini(Model):
                         text = part_dict.get("text")
                         yield ModelResponse(content=text)
                         message_data.response_content += text
-                        stream_usage_data.completion_tokens += 1
-                        if stream_usage_data.completion_tokens == 1:
-                            stream_usage_data.time_to_first_token = response_timer.elapsed
-                            logger.debug(f"Time to first token: {stream_usage_data.time_to_first_token:.4f}s")
 
                     # -*- Skip function calls if there are no parts
                     if not message_data.response_block.parts and message_data.response_parts:
                         continue
                     # -*- Parse function calls
                     if "function_call" in part_dict:
+                        message_data.response_tool_call_block = response.candidates[0].content
                         message_data.response_tool_calls.append(
                             {
                                 "type": "function",
@@ -589,40 +579,38 @@ class Gemini(Model):
                         )
             message_data.response_usage = response.usage_metadata
 
-        response_timer.stop()
-        logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
+        metrics.response_timer.stop()
 
-        if stream_usage_data.completion_tokens > 0:
-            stream_usage_data.tokens_per_second = stream_usage_data.completion_tokens / response_timer.elapsed
-            stream_usage_data.time_per_token = response_timer.elapsed / stream_usage_data.completion_tokens
-            logger.debug(f"Tokens per second: {stream_usage_data.tokens_per_second:.4f}")
-            logger.debug(f"Time per token: {stream_usage_data.time_per_token:.4f}s")
-
-        # Create assistant message
+        # -*- Create assistant message
         assistant_message = Message(
-            role=message_data.response_role or "model",
-            parts=message_data.response_parts,
+            role=message_data.response_role or "assistant",
             content=message_data.response_content,
+            response_tool_call_block=message_data.response_tool_call_block,
         )
 
-        # Update assistant message if tool calls are present
+        # -*-  Update assistant message if tool calls are present
         if len(message_data.response_tool_calls) > 0:
             assistant_message.tool_calls = message_data.response_tool_calls
 
-        assistant_message.metrics["time"] = response_timer.elapsed
-        self.metrics.setdefault("response_times", []).append(response_timer.elapsed)
-        self._update_usage_metrics(assistant_message, message_data.response_usage, stream_usage_data)
+        self._update_usage_metrics(
+            assistant_message=assistant_message, metrics=metrics, usage=message_data.response_usage
+        )
 
+        # -*- Add assistant message to messages
         messages.append(assistant_message)
+
+        # -*- Log response and metrics
         assistant_message.log()
+        metrics.log()
 
         if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
             yield from self._handle_stream_tool_calls(assistant_message, messages)
             yield from self.response_stream(messages=messages)
 
-        # -*- Remove parts from messages
+        # -*- Remove tool call blocks and tool call results from messages
         for m in messages:
-            if hasattr(m, "parts"):
-                m.parts = None
-
-        logger.debug("---------- Gemini Response End ----------")
+            if hasattr(m, "response_tool_call_block"):
+                m.response_tool_call_block = None
+            if hasattr(m, "tool_call_result"):
+                m.tool_call_result = None
+        logger.debug("---------- VertexAI Response End ----------")

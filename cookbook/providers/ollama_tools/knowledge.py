@@ -1,15 +1,32 @@
-"""Run `pip install duckduckgo-search sqlalchemy pgvector pypdf openai ollama "psycopg[binary]"` to install dependencies."""
+"""
+Run `pip install duckduckgo-search sqlalchemy pgvector pypdf openai ollama` to install dependencies.
+
+Run Ollama Server: `ollama serve`
+Pull required models:
+`ollama pull nomic-embed-text`
+`ollama pull llama3.1:8b`
+
+If you haven't deployed database yet, run:
+`docker run --rm -it -e POSTGRES_PASSWORD=ai -e POSTGRES_USER=ai -e POSTGRES_DB=ai -p 5532:5432 --name postgres pgvector/pgvector:pg17`
+to deploy a PostgreSQL database.
+
+"""
 
 from phi.agent import Agent
-from phi.model.ollama import OllamaTools
+from phi.embedder.ollama import OllamaEmbedder
 from phi.knowledge.pdf import PDFUrlKnowledgeBase
+from phi.model.ollama import OllamaTools
 from phi.vectordb.pgvector import PgVector
 
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 
 knowledge_base = PDFUrlKnowledgeBase(
     urls=["https://phi-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
-    vector_db=PgVector(table_name="recipes", db_url=db_url),
+    vector_db=PgVector(
+        table_name="recipes",
+        db_url=db_url,
+        embedder=OllamaEmbedder(model="nomic-embed-text", dimensions=768),
+    ),
 )
 knowledge_base.load(recreate=False)  # Comment out after first run
 

@@ -5,7 +5,7 @@ from fastapi.routing import APIRouter
 from fastapi.responses import StreamingResponse, JSONResponse
 
 from phi.playground.operator import get_session_title_from_workflow_session, get_workflow_by_id
-from phi.playground.schemas import WorkflowSessionsRequest, WorkflowRenameRequest
+from phi.playground.schemas import WorkflowRunRequest, WorkflowSessionsRequest, WorkflowRenameRequest
 from phi.workflow.session import WorkflowSession
 from phi.workflow.workflow import Workflow
 
@@ -45,13 +45,14 @@ def get_workflow_router(workflows: List[Workflow]) -> APIRouter:
         }
 
     @workflow_router.post("/workflow/{workflow_id}/run")
-    def run_workflow(workflow_id: str, input: Dict[str, Any]):
+    def run_workflow(workflow_id: str, body: WorkflowRunRequest):
         workflow = get_workflow_by_id(workflows, workflow_id)
         if workflow is None:
             raise HTTPException(status_code=404, detail="Workflow not found")
+        workflow.user_id = body.user_id
         if workflow._run_return_type == "RunResponse":
-            return workflow.run(**input)
-        return StreamingResponse((r.model_dump_json() for r in workflow.run(**input)), media_type="text/event-stream")
+            return workflow.run(**body.input)
+        return StreamingResponse((r.model_dump_json() for r in workflow.run(**body.input)), media_type="text/event-stream")
 
     @workflow_router.post("/workflow/{workflow_id}/session/all")
     def get_all_workflow_sessions(workflow_id: str, body: WorkflowSessionsRequest):
@@ -145,13 +146,14 @@ def get_async_workflow_router(workflows: List[Workflow]) -> APIRouter:
         }
 
     @workflow_router.post("/workflow/{workflow_id}/run")
-    async def run_workflow(workflow_id: str, input: Dict[str, Any]):
+    async def run_workflow(workflow_id: str, body: WorkflowRunRequest):
         workflow = get_workflow_by_id(workflows, workflow_id)
         if workflow is None:
             raise HTTPException(status_code=404, detail="Workflow not found")
+        workflow.user_id = body.user_id
         if workflow._run_return_type == "RunResponse":
-            return workflow.run(**input)
-        return StreamingResponse((r.model_dump_json() for r in workflow.run(**input)), media_type="text/event-stream")
+            return workflow.run(**body.input)
+        return StreamingResponse((r.model_dump_json() for r in workflow.run(**body.input)), media_type="text/event-stream")
 
     @workflow_router.post("/workflow/{workflow_id}/session/all")
     async def get_all_workflow_sessions(workflow_id: str, body: WorkflowSessionsRequest):

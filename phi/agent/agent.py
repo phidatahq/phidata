@@ -259,7 +259,7 @@ class Agent(BaseModel):
         return v
 
     @property
-    def streamable(self) -> bool:
+    def is_streamable(self) -> bool:
         """Determines if the response from the Model is streamable
         For structured outputs we disable streaming.
         """
@@ -337,7 +337,7 @@ class Agent(BaseModel):
     def get_transfer_function(self, member_agent: "Agent", index: int) -> Function:
         def _transfer_task_to_agent(
             task_description: str, expected_output: str, additional_information: Optional[str] = None
-        ) -> Union[str, Iterator[str]]:
+        ) -> Iterator[str]:
             # Update the member agent session_data to include leader_session_id, leader_agent_id and leader_run_id
             if member_agent.session_data is None:
                 member_agent.session_data = {}
@@ -368,27 +368,27 @@ class Agent(BaseModel):
                 if member_agent_info not in self.session_data["members"]:
                     self.session_data["members"].append(member_agent_info)
 
-            if self.stream and member_agent.streamable:
-                member_agent_run_response = member_agent.run(member_agent_messages, stream=True)
-                for member_agent_run_response_chunk in member_agent_run_response:
+            if self.stream and member_agent.is_streamable:
+                member_agent_run_response_stream = member_agent.run(member_agent_messages, stream=True)
+                for member_agent_run_response_chunk in member_agent_run_response_stream:
                     # logger.debug(f"Member agent run response chunk: {member_agent_run_response_chunk}")
-                    yield member_agent_run_response_chunk.content
+                    yield member_agent_run_response_chunk.content  # type: ignore
             else:
                 member_agent_run_response: RunResponse = member_agent.run(member_agent_messages, stream=False)
                 if member_agent_run_response.content is None:
-                    return "No response from the member agent."
+                    yield "No response from the member agent."
                 elif isinstance(member_agent_run_response.content, str):
-                    return member_agent_run_response.content
+                    yield member_agent_run_response.content
                 elif issubclass(member_agent_run_response.content, BaseModel):
                     try:
-                        return member_agent_run_response.content.model_dump_json(indent=2)
+                        yield member_agent_run_response.content.model_dump_json(indent=2)
                     except Exception as e:
-                        return str(e)
+                        yield str(e)
                 else:
                     try:
-                        return json.dumps(member_agent_run_response.content, indent=2)
+                        yield json.dumps(member_agent_run_response.content, indent=2)
                     except Exception as e:
-                        return str(e)
+                        yield str(e)
 
         # Give a name to the member agent
         agent_name = member_agent.name.replace(" ", "_").lower() if member_agent.name else f"agent_{index}"
@@ -408,9 +408,10 @@ class Agent(BaseModel):
             str: The result of the delegated task.
         """)
 
-        # If the member agent is set to respond directly, show the result of the function call
+        # If the member agent is set to respond directly, show the result of the function call and stop the model execution
         if member_agent.respond_directly:
             transfer_function.show_result = True
+            transfer_function.stop_after_call = True
 
         return transfer_function
 
@@ -1668,7 +1669,7 @@ class Agent(BaseModel):
         9. Set the run_input
         """
         # Check if streaming is enabled
-        self.stream = stream and self.streamable
+        self.stream = stream and self.is_streamable
         # Check if streaming intermediate steps is enabled
         self.stream_intermediate_steps = stream_intermediate_steps and self.stream
         # Create the run_response object
@@ -1982,7 +1983,7 @@ class Agent(BaseModel):
                 logger.warning("Something went wrong. Run response content is not a string")
             return run_response
         else:
-            if stream and self.streamable:
+            if stream and self.is_streamable:
                 resp = self._run(
                     message=message,
                     stream=True,
@@ -2026,7 +2027,7 @@ class Agent(BaseModel):
         8. Save output to file if save_output_to_file is set
         """
         # Check if streaming is enabled
-        self.stream = stream and self.streamable
+        self.stream = stream and self.is_streamable
         # Check if streaming intermediate steps is enabled
         self.stream_intermediate_steps = stream_intermediate_steps and self.stream
         # Create the run_response object
@@ -2084,7 +2085,7 @@ class Agent(BaseModel):
         # 5. Generate a response from the Model (includes running function calls)
         model_response: ModelResponse
         self.model = cast(Model, self.model)
-        if stream and self.streamable:
+        if stream and self.is_streamable:
             model_response = ModelResponse(content="")
             model_response_stream = self.model.aresponse_stream(messages=messages_for_model)
             async for model_response_chunk in model_response_stream:  # type: ignore
@@ -2313,7 +2314,7 @@ class Agent(BaseModel):
                 logger.warning("Something went wrong. Run response content is not a string")
             return run_response
         else:
-            if stream and self.streamable:
+            if stream and self.is_streamable:
                 resp = self._arun(
                     message=message,
                     stream=True,

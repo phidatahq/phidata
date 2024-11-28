@@ -25,7 +25,12 @@ class Toolkit:
             The registered function
         """
         try:
-            f = Function(name=function.__name__, entrypoint=function, sanitize_arguments=sanitize_arguments)
+            f = Function(
+                name=function.__name__,
+                entrypoint=function,
+                sanitize_arguments=sanitize_arguments,
+                update_entrypoint_before_use=True,
+            )
             self.functions[f.name] = f
             logger.debug(f"Function: {f.name} registered with {self.name}")
             # logger.debug(f"Json Schema: {f.to_dict()}")

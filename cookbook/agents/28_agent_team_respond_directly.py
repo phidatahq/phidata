@@ -21,5 +21,5 @@ agent_team = Agent(
     add_history_to_messages=True,
 )
 
-agent_team.print_response("Whats happening in the NY?", stream=True)
-agent_team.print_response("Now tell me about the stock market.", stream=True)
+agent_team.print_response("Show 1 top news item from NY?", stream=True)
+agent_team.print_response("Now show 1 top news item from the stock market.", stream=True)

@@ -28,6 +28,12 @@ class Function(BaseModel):
     sanitize_arguments: bool = True
     # If True, the function call will show the result along with sending it to the model.
     show_result: bool = False
+    # If True, the agent will stop after the function call.
+    stop_after_call: bool = False
+
+    # --*-- FOR INTERNAL USE ONLY --*--
+    # If the entrypoint should be updated before use
+    update_entrypoint_before_use: bool = False
 
     def to_dict(self) -> Dict[str, Any]:
         return self.model_dump(exclude_none=True, include={"name", "description", "parameters", "strict"})
@@ -78,7 +84,7 @@ class Function(BaseModel):
             entrypoint=validate_call(c),
         )
 
-    def process_entrypoint(self, agent: Optional[Any] = None):
+    def update_entrypoint(self, agent: Optional[Any] = None):
         """Process the entrypoint and make it ready for use by an agent."""
         from inspect import getdoc, signature
         from functools import partial

@@ -148,7 +148,8 @@ class Model(BaseModel):
                 for name, func in tool.functions.items():
                     # If the function does not exist in self.functions, add to self.tools
                     if name not in self.functions:
-                        func.process_entrypoint(agent)
+                        if func.update_entrypoint_before_use:
+                            func.update_entrypoint(agent)
                         if strict and self.supports_structured_outputs:
                             func.strict = True
                         self.functions[name] = func
@@ -157,6 +158,8 @@ class Model(BaseModel):
 
             elif isinstance(tool, Function):
                 if tool.name not in self.functions:
+                    if tool.update_entrypoint_before_use:
+                        tool.update_entrypoint(agent)
                     if strict and self.supports_structured_outputs:
                         tool.strict = True
                     self.functions[tool.name] = tool
@@ -205,9 +208,8 @@ class Model(BaseModel):
             # -*- Run function call
             function_call_success = function_call.execute()
 
-            function_call_output = ""
+            function_call_output: Optional[Union[List[Any], str]] = ""
             if isinstance(function_call.result, (GeneratorType, collections.abc.Iterator)):
-                logger.debug(f"Function call result is of type: {type(function_call.result)}")
                 for item in function_call.result:
                     function_call_output += item
                     if function_call.function.show_result:
@@ -221,36 +223,16 @@ class Model(BaseModel):
             function_call_timer.stop()
 
             # -*- Create function call result message
-            function_call_result = None
-            if function_call.function.show_result:
-                content = ""
-                if function_call_success:
-                    content = "The task has been transferred and agent responded successfully.\n"
-                    content += f"The output of the agent is: {function_call_output}"
-                else:
-                    content = "The task has been transferred but agent failed to respond.\n"
-                    content += f"The error is: {function_call.error}"
-
-                function_call_result = Message(
-                    role=tool_role,
-                    content=content,
-                    tool_call_id=function_call.call_id,
-                    tool_name=function_call.function.name,
-                    tool_args=function_call.arguments,
-                    tool_call_error=not function_call_success,
-                    continue_after_tool_call=False,
-                    metrics={"time": function_call_timer.elapsed},
-                )
-            else:
-                function_call_result = Message(
-                    role=tool_role,
-                    content=function_call_output if function_call_success else function_call.error,
-                    tool_call_id=function_call.call_id,
-                    tool_name=function_call.function.name,
-                    tool_args=function_call.arguments,
-                    tool_call_error=not function_call_success,
-                    metrics={"time": function_call_timer.elapsed},
-                )
+            function_call_result = Message(
+                role=tool_role,
+                content=function_call_output if function_call_success else function_call.error,
+                tool_call_id=function_call.call_id,
+                tool_name=function_call.function.name,
+                tool_args=function_call.arguments,
+                tool_call_error=not function_call_success,
+                stop_after_message=function_call.function.stop_after_call,
+                metrics={"time": function_call_timer.elapsed},
+            )
 
             # -*- Yield function call result
             yield ModelResponse(

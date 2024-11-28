@@ -1,7 +1,7 @@
 import json
 
 from dataclasses import dataclass, field
-from typing import Optional, List, Iterator, Dict, Any, Mapping, Union, Tuple
+from typing import Optional, List, Iterator, Dict, Any, Mapping, Union
 
 from phi.model.base import Model
 from phi.model.message import Message
@@ -549,7 +549,6 @@ class Ollama(Model):
         # -*- Generate response
         metrics.response_timer.start()
         for response in self.invoke_stream(messages=messages):
-            logger.debug(f"Response: {response}")
             message_data.response_message = response.get("message", {})
             if message_data.response_message:
                 metrics.output_tokens += 1
@@ -561,18 +560,18 @@ class Ollama(Model):
                 yield ModelResponse(content=message_data.response_content_chunk)
                 message_data.response_content += message_data.response_content_chunk
 
-            message_data.tool_call_blocks = message_data.response_message.get("tool_calls")
-            if message_data.tool_call_blocks is not None:
-                for block in message_data.tool_call_blocks:
-                    tool_call = block.get("function")
-                    tool_name = tool_call.get("name")
-                    tool_args = tool_call.get("arguments")
+                message_data.tool_call_blocks = message_data.response_message.get("tool_calls")  # type: ignore
+                if message_data.tool_call_blocks is not None:
+                    for block in message_data.tool_call_blocks:
+                        tool_call = block.get("function")
+                        tool_name = tool_call.get("name")
+                        tool_args = tool_call.get("arguments")
 
-                    function_def = {
-                        "name": tool_name,
-                        "arguments": json.dumps(tool_args) if tool_args is not None else None,
-                    }
-                    message_data.tool_calls.append({"type": "function", "function": function_def})
+                        function_def = {
+                            "name": tool_name,
+                            "arguments": json.dumps(tool_args) if tool_args is not None else None,
+                        }
+                        message_data.tool_calls.append({"type": "function", "function": function_def})
 
             if response.get("done"):
                 message_data.response_usage = response
@@ -615,7 +614,6 @@ class Ollama(Model):
         logger.debug("---------- Ollama Async Response Start ----------")
         self._log_messages(messages)
         message_data = MessageData()
-        ignored_content = frozenset(["json", "\n", ";", ";\n"])
         metrics: Metrics = Metrics()
 
         # -*- Generate response
@@ -627,22 +625,23 @@ class Ollama(Model):
                 if metrics.output_tokens == 1:
                     metrics.time_to_first_token = metrics.response_timer.elapsed
 
-                message_data.response_content_chunk = message_data.response_message.get("content", "").strip("`")
+                message_data.response_content_chunk = message_data.response_message.get("content", "")
 
-            if message_data.response_content_chunk:
-                if message_data.in_tool_call:
-                    message_data.tool_call_chunk, message_data.in_tool_call = self._handle_tool_call_chunk(
-                        message_data.response_content_chunk, message_data.tool_call_chunk, message_data
-                    )
-                elif message_data.response_content_chunk.strip().startswith("{"):
-                    message_data.in_tool_call = True
-                    message_data.tool_call_chunk, message_data.in_tool_call = self._handle_tool_call_chunk(
-                        message_data.response_content_chunk, message_data.tool_call_chunk, message_data
-                    )
-                else:
-                    if message_data.response_content_chunk not in ignored_content:
-                        yield ModelResponse(content=message_data.response_content_chunk)
-                        message_data.response_content += message_data.response_content_chunk
+                yield ModelResponse(content=message_data.response_content_chunk)
+                message_data.response_content += message_data.response_content_chunk
+
+                message_data.tool_call_blocks = message_data.response_message.get("tool_calls")
+                if message_data.tool_call_blocks is not None:
+                    for block in message_data.tool_call_blocks:
+                        tool_call = block.get("function")
+                        tool_name = tool_call.get("name")
+                        tool_args = tool_call.get("arguments")
+
+                        function_def = {
+                            "name": tool_name,
+                            "arguments": json.dumps(tool_args) if tool_args is not None else None,
+                        }
+                        message_data.tool_calls.append({"type": "function", "function": function_def})
 
             if response.get("done"):
                 message_data.response_usage = response

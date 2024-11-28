@@ -1,6 +1,5 @@
 # install lancedb - `pip install lancedb`
 
-import lancedb
 from phi.agent import Agent
 from phi.knowledge.pdf import PDFUrlKnowledgeBase
 from phi.vectordb.lancedb import LanceDb

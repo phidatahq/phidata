@@ -1013,7 +1013,7 @@ class Agent(BaseModel):
 
         # Get references from the knowledge base related to the user message
         context = None
-        if self.add_context and message and isinstance(message, str):
+        if self.add_context and message and isinstance(message, str) and self.knowledge:
             retrieval_timer = Timer()
             retrieval_timer.start()
             docs_from_knowledge = self.get_relevant_docs_from_knowledge(query=message, **kwargs)
@@ -1246,6 +1246,7 @@ class Agent(BaseModel):
             show_tool_calls=False,
             response_model=ReasoningSteps,
             structured_outputs=self.structured_outputs,
+            monitoring=self.monitoring,
         )
 
     def _update_run_response_with_reasoning(

@@ -38,6 +38,8 @@ class ScrapedArticle(BaseModel):
 
 
 class GenerateNewsReport(Workflow):
+    description: str = "Generate a comprehensive news report on a given topic."
+
     web_searcher: Agent = Agent(
         tools=[DuckDuckGo()],
         instructions=[

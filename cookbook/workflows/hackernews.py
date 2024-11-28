@@ -14,6 +14,8 @@ from phi.utils.log import logger
 
 
 class HackerNewsReporter(Workflow):
+    description: str = "Get the top stories from Hacker News and write a report on them."
+
     def get_top_hackernews_stories(self, num_stories: int = 10) -> str:
         """Use this function to get top stories from Hacker News.
 

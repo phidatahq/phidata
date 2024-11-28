@@ -315,7 +315,7 @@ class Workflow(BaseModel):
                     "name": name,
                     "default": param.default if param.default is not inspect.Parameter.empty else None,
                     "annotation": (
-                        param.annotation.__name__ 
+                        param.annotation.__name__
                         if hasattr(param.annotation, "__name__")
                         else (
                             str(param.annotation).replace("typing.Optional[", "").replace("]", "")

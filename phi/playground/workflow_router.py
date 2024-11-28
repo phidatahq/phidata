@@ -51,9 +51,7 @@ def get_workflow_router(workflows: List[Workflow]) -> APIRouter:
             raise HTTPException(status_code=404, detail="Workflow not found")
         if workflow._run_return_type == "RunResponse":
             return workflow.run(**input)
-        return StreamingResponse(
-            (r.model_dump_json() for r in workflow.run(**input)), media_type="text/event-stream"
-        )
+        return StreamingResponse((r.model_dump_json() for r in workflow.run(**input)), media_type="text/event-stream")
 
     @workflow_router.post("/workflow/session/all/{workflow_id}")
     def get_all_workflow_sessions(workflow_id: str, body: WorkflowSessionsRequest):
@@ -65,9 +63,7 @@ def get_workflow_router(workflows: List[Workflow]) -> APIRouter:
             raise HTTPException(status_code=404, detail="Workflow does not have storage enabled")
 
         workflow_sessions: List[Dict[str, Any]] = []
-        all_workflow_sessions: List[WorkflowSession] = workflow.storage.get_all_sessions(
-            user_id=body.user_id
-        )
+        all_workflow_sessions: List[WorkflowSession] = workflow.storage.get_all_sessions(user_id=body.user_id)
         for session in all_workflow_sessions:
             workflow_sessions.append(
                 {
@@ -78,7 +74,7 @@ def get_workflow_router(workflows: List[Workflow]) -> APIRouter:
                 }
             )
         return workflow_sessions
-    
+
     @workflow_router.post("/workflow/{workflow_id}/session/{session_id}")
     def get_workflow_session(workflow_id: str, session_id: str, body: WorkflowSessionsRequest):
         workflow = get_workflow_by_id(workflows, workflow_id)
@@ -92,7 +88,7 @@ def get_workflow_router(workflows: List[Workflow]) -> APIRouter:
         if workflow_session is None:
             raise HTTPException(status_code=404, detail="Session not found")
         return workflow_session
-    
+
     @workflow_router.post("/workflow/{workflow_id}/session/{session_id}/rename")
     def workflow_rename(workflow_id: str, session_id: str, body: WorkflowRenameRequest):
         workflow = get_workflow_by_id(workflows, workflow_id)
@@ -100,7 +96,7 @@ def get_workflow_router(workflows: List[Workflow]) -> APIRouter:
             raise HTTPException(status_code=404, detail="Workflow not found")
         workflow.rename_session(session_id, body.name)
         return JSONResponse(content={"message": f"successfully renamed workflow {workflow.name}"})
-    
+
     @workflow_router.post("/workflow/{workflow_id}/session/{session_id}/delete")
     def workflow_delete(workflow_id: str, session_id: str):
         workflow = get_workflow_by_id(workflows, workflow_id)
@@ -108,7 +104,7 @@ def get_workflow_router(workflows: List[Workflow]) -> APIRouter:
             raise HTTPException(status_code=404, detail="Workflow not found")
         workflow.delete_session(session_id)
         return JSONResponse(content={"message": f"successfully deleted workflow {workflow.name}"})
-    
+
     return workflow_router
 
 
@@ -153,9 +149,7 @@ def get_async_workflow_router(workflows: List[Workflow]) -> APIRouter:
             raise HTTPException(status_code=404, detail="Workflow not found")
         if workflow._run_return_type == "RunResponse":
             return workflow.run(**input)
-        return StreamingResponse(
-            (r.model_dump_json() for r in workflow.run(**input)), media_type="text/event-stream"
-        )
+        return StreamingResponse((r.model_dump_json() for r in workflow.run(**input)), media_type="text/event-stream")
 
     @workflow_router.post("/workflow/session/all/{workflow_id}")
     async def get_all_workflow_sessions(workflow_id: str, body: WorkflowSessionsRequest):
@@ -167,9 +161,7 @@ def get_async_workflow_router(workflows: List[Workflow]) -> APIRouter:
             raise HTTPException(status_code=404, detail="Workflow does not have storage enabled")
 
         workflow_sessions: List[Dict[str, Any]] = []
-        all_workflow_sessions: List[WorkflowSession] = workflow.storage.get_all_sessions(
-            user_id=body.user_id
-        )
+        all_workflow_sessions: List[WorkflowSession] = workflow.storage.get_all_sessions(user_id=body.user_id)
         for session in all_workflow_sessions:
             workflow_sessions.append(
                 {
@@ -194,7 +186,7 @@ def get_async_workflow_router(workflows: List[Workflow]) -> APIRouter:
         if workflow_session is None:
             raise HTTPException(status_code=404, detail="Session not found")
         return workflow_session
-    
+
     @workflow_router.post("/workflow/{workflow_id}/session/{session_id}/rename")
     async def workflow_rename(workflow_id: str, session_id: str, body: WorkflowRenameRequest):
         workflow = get_workflow_by_id(workflows, workflow_id)
@@ -202,7 +194,7 @@ def get_async_workflow_router(workflows: List[Workflow]) -> APIRouter:
             raise HTTPException(status_code=404, detail="Workflow not found")
         workflow.rename_session(session_id, body.name)
         return JSONResponse(content={"message": f"successfully renamed workflow {workflow.name}"})
-    
+
     @workflow_router.post("/workflow/{workflow_id}/session/{session_id}/delete")
     async def workflow_delete(workflow_id: str, session_id: str):
         workflow = get_workflow_by_id(workflows, workflow_id)

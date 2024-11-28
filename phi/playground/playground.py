@@ -37,13 +37,13 @@ class Playground:
     def get_router(self) -> APIRouter:
         if self.agents:
             return get_playground_router(self.agents)
-        elif self.workflows:
+        else:
             return get_workflow_router(self.workflows)
 
     def get_async_router(self) -> APIRouter:
         if self.agents:
             return get_async_playground_router(self.agents)
-        elif self.workflows:
+        else:
             return get_async_workflow_router(self.workflows)
 
     def get_app(self, use_async: bool = True, prefix: str = "/v1") -> FastAPI:

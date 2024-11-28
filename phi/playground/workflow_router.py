@@ -26,10 +26,17 @@ def get_workflow_router(workflows: List[Workflow]) -> APIRouter:
 
     @workflow_router.get("/workflow/input_fields/{workflow_id}")
     def get_input_fields(workflow_id: str):
+        response = None
         for workflow in workflows:
             if workflow.workflow_id == workflow_id:
-                return workflow._run_parameters
-        raise HTTPException(status_code=404, detail="Workflow not found")
+                response = workflow._run_parameters
+                response["workflow_id"] = workflow.workflow_id
+                response["name"] = workflow.name
+                response["description"] = workflow.description
+                break
+        if response is None:
+            raise HTTPException(status_code=404, detail="Workflow not found")
+        return response
 
     @workflow_router.get("/workflow/config/{workflow_id}")
     def get_config(workflow_id: str):
@@ -118,10 +125,17 @@ def get_async_workflow_router(workflows: List[Workflow]) -> APIRouter:
 
     @workflow_router.get("/workflow/input_fields/{workflow_id}")
     async def get_input_fields(workflow_id: str):
+        response = None
         for workflow in workflows:
             if workflow.workflow_id == workflow_id:
-                return workflow._run_parameters
-        raise HTTPException(status_code=404, detail="Workflow not found")
+                response = workflow._run_parameters
+                response["workflow_id"] = workflow.workflow_id
+                response["name"] = workflow.name
+                response["description"] = workflow.description
+                break
+        if response is None:
+            raise HTTPException(status_code=404, detail="Workflow not found")
+        return response
 
     @workflow_router.get("/workflow/config/{workflow_id}")
     async def get_config(workflow_id: str):

@@ -44,7 +44,7 @@ def get_workflow_router(workflows: List[Workflow]) -> APIRouter:
             "storage": workflow.storage.__class__.__name__ if workflow.storage else None,
         }
 
-    @workflow_router.post("/workflow/run/{workflow_id}")
+    @workflow_router.post("/workflow/{workflow_id}/run")
     def run_workflow(workflow_id: str, input: Dict[str, Any]):
         workflow = get_workflow_by_id(workflows, workflow_id)
         if workflow is None:
@@ -53,7 +53,7 @@ def get_workflow_router(workflows: List[Workflow]) -> APIRouter:
             return workflow.run(**input)
         return StreamingResponse((r.model_dump_json() for r in workflow.run(**input)), media_type="text/event-stream")
 
-    @workflow_router.post("/workflow/session/all/{workflow_id}")
+    @workflow_router.post("/workflow/{workflow_id}/session/all")
     def get_all_workflow_sessions(workflow_id: str, body: WorkflowSessionsRequest):
         workflow = get_workflow_by_id(workflows, workflow_id)
 
@@ -63,7 +63,9 @@ def get_workflow_router(workflows: List[Workflow]) -> APIRouter:
             raise HTTPException(status_code=404, detail="Workflow does not have storage enabled")
 
         workflow_sessions: List[Dict[str, Any]] = []
-        all_workflow_sessions: List[WorkflowSession] = workflow.storage.get_all_sessions(user_id=body.user_id)
+        all_workflow_sessions: List[WorkflowSession] = workflow.storage.get_all_sessions(
+            user_id=body.user_id, workflow_id=workflow_id
+        )
         for session in all_workflow_sessions:
             workflow_sessions.append(
                 {
@@ -142,7 +144,7 @@ def get_async_workflow_router(workflows: List[Workflow]) -> APIRouter:
             "storage": workflow.storage.__class__.__name__ if workflow.storage else None,
         }
 
-    @workflow_router.post("/workflow/run/{workflow_id}")
+    @workflow_router.post("/workflow/{workflow_id}/run")
     async def run_workflow(workflow_id: str, input: Dict[str, Any]):
         workflow = get_workflow_by_id(workflows, workflow_id)
         if workflow is None:
@@ -151,7 +153,7 @@ def get_async_workflow_router(workflows: List[Workflow]) -> APIRouter:
             return workflow.run(**input)
         return StreamingResponse((r.model_dump_json() for r in workflow.run(**input)), media_type="text/event-stream")
 
-    @workflow_router.post("/workflow/session/all/{workflow_id}")
+    @workflow_router.post("/workflow/{workflow_id}/session/all")
     async def get_all_workflow_sessions(workflow_id: str, body: WorkflowSessionsRequest):
         workflow = get_workflow_by_id(workflows, workflow_id)
 
@@ -161,7 +163,9 @@ def get_async_workflow_router(workflows: List[Workflow]) -> APIRouter:
             raise HTTPException(status_code=404, detail="Workflow does not have storage enabled")
 
         workflow_sessions: List[Dict[str, Any]] = []
-        all_workflow_sessions: List[WorkflowSession] = workflow.storage.get_all_sessions(user_id=body.user_id)
+        all_workflow_sessions: List[WorkflowSession] = workflow.storage.get_all_sessions(
+            user_id=body.user_id, workflow_id=workflow_id
+        )
         for session in all_workflow_sessions:
             workflow_sessions.append(
                 {

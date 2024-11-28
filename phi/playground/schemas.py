@@ -63,3 +63,8 @@ class WorkflowSessionsRequest(BaseModel):
 
 class WorkflowRenameRequest(BaseModel):
     name: str
+
+
+class WorkflowRunRequest(BaseModel):
+    input: Dict[str, Any]
+    user_id: Optional[str] = None

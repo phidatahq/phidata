@@ -109,7 +109,7 @@ class BlogPostGenerator(Workflow):
 # The topic to generate a blog post on
 topic = "US Elections 2024"
 
-# Create the workflow
+# Instantiate the workflow
 generate_blog_post = BlogPostGenerator(
     session_id=f"generate-blog-post-on-{topic}",
     storage=SqlWorkflowStorage(

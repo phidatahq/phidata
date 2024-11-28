@@ -62,7 +62,9 @@ def get_session_title(session: AgentSession) -> str:
 def get_session_title_from_workflow_session(workflow_session: WorkflowSession) -> str:
     if workflow_session is None:
         return "Unnamed session"
-    session_name = workflow_session.session_data.get("session_name") if workflow_session.session_data is not None else None
+    session_name = (
+        workflow_session.session_data.get("session_name") if workflow_session.session_data is not None else None
+    )
     if session_name is not None:
         return session_name
     memory = workflow_session.memory

@@ -27,6 +27,8 @@ class SearchResults(BaseModel):
 
 
 class BlogPostGenerator(Workflow):
+    description: str = "Generate a blog post on a given topic."
+
     searcher: Agent = Agent(
         tools=[DuckDuckGo()],
         instructions=["Given a topic, search for 20 articles and return the 5 most relevant articles."],

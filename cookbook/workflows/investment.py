@@ -23,6 +23,10 @@ investment_report = str(reports_dir.joinpath("investment_report.md"))
 
 
 class InvestmentAnalyst(Workflow):
+    description: str = (
+        "Produce a research report on a list of companies and then rank them based on investment potential."
+    )
+
     stock_analyst: Agent = Agent(
         tools=[YFinanceTools(company_info=True, analyst_recommendations=True, company_news=True)],
         description="You are a Senior Investment Analyst for Goldman Sachs tasked with producing a research report for a very important client.",

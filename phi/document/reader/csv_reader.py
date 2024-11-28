@@ -27,7 +27,6 @@ class CSVReader(Reader):
                 file_content = io.StringIO(file.read().decode("utf-8"))
 
             csv_name = Path(file.name).stem if isinstance(file, Path) else file.name.split(".")[0]
-            full_csv_name = Path(file.name).name if isinstance(file, Path) else file.name
             csv_content = ""
             with file_content as csvfile:
                 csv_reader = csv.reader(csvfile, delimiter=delimiter, quotechar=quotechar)
@@ -39,7 +38,6 @@ class CSVReader(Reader):
                     name=csv_name,
                     id=csv_name,
                     content=csv_content,
-                    meta_data={"file_name": full_csv_name},
                 )
             ]
             if self.chunk:

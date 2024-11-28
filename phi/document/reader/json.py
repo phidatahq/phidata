@@ -22,7 +22,6 @@ class JSONReader(Reader):
         try:
             logger.info(f"Reading: {path}")
             json_name = path.name.split(".")[0]
-            full_json_name = path.name
             json_contents = json.loads(path.read_text("utf-8"))
 
             if isinstance(json_contents, dict):
@@ -32,7 +31,7 @@ class JSONReader(Reader):
                 Document(
                     name=json_name,
                     id=f"{json_name}_{page_number}",
-                    meta_data={"page": page_number, "file_name": full_json_name},
+                    meta_data={"page": page_number},
                     content=json.dumps(content),
                 )
                 for page_number, content in enumerate(json_contents, start=1)

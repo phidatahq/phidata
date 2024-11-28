@@ -193,7 +193,7 @@ class PgWorkflowStorage(WorkflowStorage):
             with self.Session() as sess, sess.begin():
                 # get all session_ids
                 stmt = select(self.table.c.session_id)
-                if user_id is not None:
+                if user_id is not None or user_id != "":
                     stmt = stmt.where(self.table.c.user_id == user_id)
                 if workflow_id is not None:
                     stmt = stmt.where(self.table.c.workflow_id == workflow_id)
@@ -226,7 +226,7 @@ class PgWorkflowStorage(WorkflowStorage):
             with self.Session() as sess, sess.begin():
                 # get all sessions
                 stmt = select(self.table)
-                if user_id is not None:
+                if user_id is not None and user_id != "":
                     stmt = stmt.where(self.table.c.user_id == user_id)
                 if workflow_id is not None:
                     stmt = stmt.where(self.table.c.workflow_id == workflow_id)

@@ -349,3 +349,13 @@ class Workflow(BaseModel):
 
     def log_workflow_session(self):
         logger.debug(f"*********** Logging WorkflowSession: {self.session_id} ***********")
+
+    def rename_session(self, session_id: str, name: str):
+        workflow_session = self.storage.read(session_id)
+        if workflow_session is None:
+            raise Exception(f"WorkflowSession not found: {session_id}")
+        workflow_session.session_data["session_name"] = name
+        self.storage.upsert(workflow_session)
+
+    def delete_session(self, session_id: str):
+        self.storage.delete_session(session_id)

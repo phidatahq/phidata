@@ -29,7 +29,13 @@ class Function(BaseModel):
     # If True, the function call will show the result along with sending it to the model.
     show_result: bool = False
     # If True, the agent will stop after the function call.
-    stop_after_call: bool = False
+    stop_after_tool_call: bool = False
+    # Hook that runs before the function is executed.
+    # If defined, can accept the FunctionCall instance as a parameter.
+    pre_hook: Optional[Callable] = None
+    # Hook that runs after the function is executed, regardless of success/failure.
+    # If defined, can accept the FunctionCall instance as a parameter.
+    post_hook: Optional[Callable] = None
 
     # --*-- FOR INTERNAL USE ONLY --*--
     # If the entrypoint should be updated before use
@@ -206,22 +212,42 @@ class FunctionCall(BaseModel):
 
         logger.debug(f"Running: {self.get_call_str()}")
 
+        # Execute pre-hook if it exists
+        if self.function.pre_hook is not None:
+            try:
+                self.function.pre_hook(self)
+            except Exception as e:
+                logger.warning(f"Error in pre-hook callback: {e}")
+                logger.exception(e)
+
+        success = False
         # Call the function with no arguments if none are provided.
         if self.arguments is None:
             try:
                 self.result = self.function.entrypoint()
-                return True
+                success = True
+            except Exception as e:
+                logger.warning(f"Could not run function {self.get_call_str()}")
+                logger.exception(e)
+                self.error = str(e)
+                return False
+        else:
+            # Call the function with the provided arguments
+            try:
+                self.result = self.function.entrypoint(**self.arguments)
+                success = True
             except Exception as e:
                 logger.warning(f"Could not run function {self.get_call_str()}")
                 logger.exception(e)
                 self.error = str(e)
                 return False
 
-        try:
-            self.result = self.function.entrypoint(**self.arguments)
-            return True
-        except Exception as e:
-            logger.warning(f"Could not run function {self.get_call_str()}")
-            logger.exception(e)
-            self.error = str(e)
-            return False
+        # Execute post-hook if it exists
+        if self.function.post_hook is not None:
+            try:
+                self.function.post_hook(self)
+            except Exception as e:
+                logger.warning(f"Error in post-hook callback: {e}")
+                logger.exception(e)
+
+        return success

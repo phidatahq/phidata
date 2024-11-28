@@ -411,7 +411,7 @@ class Agent(BaseModel):
         # If the member agent is set to respond directly, show the result of the function call and stop the model execution
         if member_agent.respond_directly:
             transfer_function.show_result = True
-            transfer_function.stop_after_call = True
+            transfer_function.stop_after_tool_call = True
 
         return transfer_function
 

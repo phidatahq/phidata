@@ -3,10 +3,22 @@ from typing import Iterator
 
 import httpx
 from phi.agent import Agent
-from phi.tools import tool
+from phi.tools import tool, FunctionCall
 
 
-@tool(show_result=True)
+def pre_hook(function_call: FunctionCall):
+    print(f"Pre-hook: {function_call.function.name}")
+    print(f"Arguments: {function_call.arguments}")
+    print(f"Result: {function_call.result}")
+
+
+def post_hook(function_call: FunctionCall):
+    print(f"Post-hook: {function_call.function.name}")
+    print(f"Arguments: {function_call.arguments}")
+    print(f"Result: {function_call.result}")
+
+
+@tool(show_result=True, stop_after_call=True, pre_hook=pre_hook, post_hook=post_hook)
 def get_top_hackernews_stories(agent: Agent) -> Iterator[str]:
     num_stories = agent.context.get("num_stories", 5) if agent.context else 5
 

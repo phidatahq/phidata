@@ -603,8 +603,8 @@ class OpenAIChat(Model):
             is not None
         ):
             last_message = messages[-1]
-            if last_message.role == tool_role and last_message.stop_after_message:
-                logger.debug("Stopping execution as stop_after_message=True")
+            if last_message.role == tool_role and last_message.stop_after_tool_call:
+                logger.debug("Stopping execution as stop_after_tool_call=True")
             else:
                 response_after_tool_calls = self.response(messages=messages)
                 if response_after_tool_calls.content is not None:
@@ -685,8 +685,8 @@ class OpenAIChat(Model):
             is not None
         ):
             last_message = messages[-1]
-            if last_message.role == tool_role and last_message.stop_after_message:
-                logger.debug("Stopping execution as stop_after_message=True")
+            if last_message.role == tool_role and last_message.stop_after_tool_call:
+                logger.debug("Stopping execution as stop_after_tool_call=True")
             else:
                 response_after_tool_calls = await self.aresponse(messages=messages)
                 if response_after_tool_calls.content is not None:
@@ -889,8 +889,8 @@ class OpenAIChat(Model):
                 assistant_message=assistant_message, messages=messages, tool_role=tool_role
             )
             last_message = messages[-1]
-            if last_message.role == tool_role and last_message.stop_after_message:
-                logger.debug("Stopping execution as stop_after_message=True")
+            if last_message.role == tool_role and last_message.stop_after_tool_call:
+                logger.debug("Stopping execution as stop_after_tool_call=True")
             else:
                 yield from self.response_stream(messages=messages)
         logger.debug("---------- OpenAI Response End ----------")
@@ -962,8 +962,8 @@ class OpenAIChat(Model):
             ):
                 yield tool_call_response
             last_message = messages[-1]
-            if last_message.role == tool_role and last_message.stop_after_message:
-                logger.debug("Stopping execution as stop_after_message=True")
+            if last_message.role == tool_role and last_message.stop_after_tool_call:
+                logger.debug("Stopping execution as stop_after_tool_call=True")
             else:
                 async for model_response in self.aresponse_stream(messages=messages):
                     yield model_response

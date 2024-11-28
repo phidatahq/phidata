@@ -22,6 +22,8 @@ def tool(
     sanitize_arguments: Optional[bool] = None,
     show_result: Optional[bool] = None,
     stop_after_call: Optional[bool] = None,
+    pre_hook: Optional[Callable] = None,
+    post_hook: Optional[Callable] = None,
 ) -> Callable[[F], Function]: ...
 
 
@@ -39,6 +41,8 @@ def tool(*args, **kwargs) -> Union[Function, Callable[[F], Function]]:
         sanitize_arguments: Optional[bool] - If True, arguments are sanitized before passing to function
         show_result: Optional[bool] - If True, shows the result after function call
         stop_after_call: Optional[bool] - If True, the agent will stop after the function call.
+        pre_hook: Optional[Callable] - Hook that runs before the function is executed.
+        post_hook: Optional[Callable] - Hook that runs after the function is executed.
 
     Returns:
         Union[Function, Callable[[F], Function]]: Decorated function or decorator
@@ -53,7 +57,18 @@ def tool(*args, **kwargs) -> Union[Function, Callable[[F], Function]]:
             pass
     """
     # Move valid kwargs to a frozen set at module level
-    VALID_KWARGS = frozenset({"name", "description", "strict", "sanitize_arguments", "show_result", "stop_after_call"})
+    VALID_KWARGS = frozenset(
+        {
+            "name",
+            "description",
+            "strict",
+            "sanitize_arguments",
+            "show_result",
+            "stop_after_call",
+            "pre_hook",
+            "post_hook",
+        }
+    )
 
     # Improve error message with more context
     invalid_kwargs = set(kwargs.keys()) - VALID_KWARGS
@@ -83,8 +98,6 @@ def tool(*args, **kwargs) -> Union[Function, Callable[[F], Function]]:
             "entrypoint": wrapper,
             **{k: v for k, v in kwargs.items() if k != "name" and v is not None},
         }
-
-        logger.info(f"Creating tool: {tool_config}")
         return Function(**tool_config, update_entrypoint_before_use=True)
 
     # Handle both @tool and @tool() cases

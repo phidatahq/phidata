@@ -230,7 +230,7 @@ class Model(BaseModel):
                 tool_name=function_call.function.name,
                 tool_args=function_call.arguments,
                 tool_call_error=not function_call_success,
-                stop_after_message=function_call.function.stop_after_call,
+                stop_after_tool_call=function_call.function.stop_after_tool_call,
                 metrics={"time": function_call_timer.elapsed},
             )
 

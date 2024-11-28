@@ -41,8 +41,8 @@ class Message(BaseModel):
     tool_args: Optional[Any] = Field(None, alias="tool_call_arguments")
     # The error of the tool call
     tool_call_error: Optional[bool] = None
-    # If True, the agent will stop executing after this message.
-    stop_after_message: bool = False
+    # If True, the agent will stop executing after this tool call.
+    stop_after_tool_call: bool = False
 
     # Metrics for the message. This is not sent to the Model API.
     metrics: Dict[str, Any] = Field(default_factory=dict)

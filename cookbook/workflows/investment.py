@@ -23,6 +23,12 @@ investment_report = str(reports_dir.joinpath("investment_report.md"))
 
 
 class InvestmentAnalyst(Workflow):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.stock_analyst.session_id = self.session_id
+        self.research_analyst.session_id = self.session_id
+        self.investment_lead.session_id = self.session_id
+        
     stock_analyst: Agent = Agent(
         tools=[YFinanceTools(company_info=True, analyst_recommendations=True, company_news=True)],
         description="You are a Senior Investment Analyst for Goldman Sachs tasked with producing a research report for a very important client.",

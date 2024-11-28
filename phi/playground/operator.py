@@ -4,6 +4,7 @@ from phi.agent.agent import Agent, Tool, Toolkit, Function, AgentRun
 from phi.agent.session import AgentSession
 from phi.utils.log import logger
 from phi.workflow.session import WorkflowSession
+from phi.workflow.workflow import Workflow
 
 
 def format_tools(agent_tools):
@@ -76,3 +77,10 @@ def get_session_title_from_workflow_session(workflow_session: WorkflowSession) -
                 except Exception as e:
                     logger.error(f"Error parsing chat: {e}")
     return "Unnamed session"
+
+
+def get_workflow_by_id(workflows: List[Workflow], workflow_id: str) -> Optional[Workflow]:
+    for workflow in workflows:
+        if workflow.workflow_id == workflow_id:
+            return workflow
+    return None

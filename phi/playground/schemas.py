@@ -59,3 +59,7 @@ class AgentSessionsResponse(BaseModel):
 
 class WorkflowSessionsRequest(BaseModel):
     user_id: Optional[str] = None
+
+
+class WorkflowRenameRequest(BaseModel):
+    name: str

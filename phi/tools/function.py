@@ -6,6 +6,12 @@ from phi.utils.log import logger
 T = TypeVar("T")
 
 
+class AgentRetry(Exception):
+    """Exception raised when an agent should retry the function call."""
+
+    pass
+
+
 class Function(BaseModel):
     """Model for storing functions that can be called by an agent."""
 
@@ -216,6 +222,10 @@ class FunctionCall(BaseModel):
         if self.function.pre_hook is not None:
             try:
                 self.function.pre_hook(self)
+            except AgentRetry as e:
+                logger.debug(f"Agent retry requested: {e}")
+                self.error = str(e)
+                return False
             except Exception as e:
                 logger.warning(f"Error in pre-hook callback: {e}")
                 logger.exception(e)
@@ -246,6 +256,10 @@ class FunctionCall(BaseModel):
         if self.function.post_hook is not None:
             try:
                 self.function.post_hook(self)
+            except AgentRetry as e:
+                logger.debug(f"Agent retry requested: {e}")
+                self.error = str(e)
+                return False
             except Exception as e:
                 logger.warning(f"Error in post-hook callback: {e}")
                 logger.exception(e)

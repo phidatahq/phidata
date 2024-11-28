@@ -213,6 +213,8 @@ class Agent(BaseModel):
     respond_directly: bool = False
     # Add instructions for transferring tasks to team members
     add_transfer_instructions: bool = True
+    # Separator between responses from the team
+    team_response_separator: str = "\n"
 
     # debug_mode=True enables debug logs
     debug_mode: bool = Field(False, validate_default=True)
@@ -389,6 +391,7 @@ class Agent(BaseModel):
                         yield json.dumps(member_agent_run_response.content, indent=2)
                     except Exception as e:
                         yield str(e)
+            yield self.team_response_separator
 
         # Give a name to the member agent
         agent_name = member_agent.name.replace(" ", "_").lower() if member_agent.name else f"agent_{index}"

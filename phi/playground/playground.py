@@ -37,14 +37,18 @@ class Playground:
     def get_router(self) -> APIRouter:
         if self.agents:
             return get_playground_router(self.agents)
-        else:
+        elif self.workflows:
             return get_workflow_router(self.workflows)
+        else:
+            raise ValueError("Either agents or workflows must be provided.")
 
     def get_async_router(self) -> APIRouter:
         if self.agents:
             return get_async_playground_router(self.agents)
-        else:
+        elif self.workflows:
             return get_async_workflow_router(self.workflows)
+        else:
+            raise ValueError("Either agents or workflows must be provided.")
 
     def get_app(self, use_async: bool = True, prefix: str = "/v1") -> FastAPI:
         from starlette.middleware.cors import CORSMiddleware

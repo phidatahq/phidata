@@ -351,11 +351,18 @@ class Workflow(BaseModel):
         logger.debug(f"*********** Logging WorkflowSession: {self.session_id} ***********")
 
     def rename_session(self, session_id: str, name: str):
+        if self.storage is None:
+            raise ValueError("Storage is not set")
         workflow_session = self.storage.read(session_id)
         if workflow_session is None:
             raise Exception(f"WorkflowSession not found: {session_id}")
-        workflow_session.session_data["session_name"] = name
+        if workflow_session.session_data is not None:
+            workflow_session.session_data["session_name"] = name
+        else:
+            workflow_session.session_data = {"session_name": name}
         self.storage.upsert(workflow_session)
 
     def delete_session(self, session_id: str):
+        if self.storage is None:
+            raise ValueError("Storage is not set")
         self.storage.delete_session(session_id)

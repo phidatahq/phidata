@@ -52,7 +52,9 @@ def get_workflow_router(workflows: List[Workflow]) -> APIRouter:
         workflow.user_id = body.user_id
         if workflow._run_return_type == "RunResponse":
             return workflow.run(**body.input)
-        return StreamingResponse((r.model_dump_json() for r in workflow.run(**body.input)), media_type="text/event-stream")
+        return StreamingResponse(
+            (r.model_dump_json() for r in workflow.run(**body.input)), media_type="text/event-stream"
+        )
 
     @workflow_router.post("/workflow/{workflow_id}/session/all")
     def get_all_workflow_sessions(workflow_id: str, body: WorkflowSessionsRequest):
@@ -153,7 +155,9 @@ def get_async_workflow_router(workflows: List[Workflow]) -> APIRouter:
         workflow.user_id = body.user_id
         if workflow._run_return_type == "RunResponse":
             return workflow.run(**body.input)
-        return StreamingResponse((r.model_dump_json() for r in workflow.run(**body.input)), media_type="text/event-stream")
+        return StreamingResponse(
+            (r.model_dump_json() for r in workflow.run(**body.input)), media_type="text/event-stream"
+        )
 
     @workflow_router.post("/workflow/{workflow_id}/session/all")
     async def get_all_workflow_sessions(workflow_id: str, body: WorkflowSessionsRequest):

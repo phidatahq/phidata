@@ -59,7 +59,7 @@ class MeetingAssistantWorkflow(Workflow):
             "*Assignee*: <issue_assignee>",
             "*Issue Link*: <issue_link>",
         ],
-        tools=[SlackTools(token=os.getenv("SLACK_TOKEN"))],
+        tools=[SlackTools()],
     )
 
     def run(self, meeting_notes: str, linear_users: Dict[str, str], use_cache: bool = False) -> RunResponse:
@@ -110,13 +110,16 @@ class MeetingAssistantWorkflow(Workflow):
         linear_response: RunResponse = self.linear_agent.run(
             f"Create issues in Linear for project {project_id} and team {team_id}: {tasks.model_dump_json()} and here is the dictionary of users and their uuid: {linear_users}. If you fail to create an issue, try again."
         )
-        logger.info(f"Linear response: {linear_response}")
-        linear_issues = linear_response.content
+        linear_issues = None
+        if linear_response:
+            logger.info(f"Linear response: {linear_response}")
+            linear_issues = linear_response.content
 
         # Send slack notification with tasks
-        logger.info(f"Sending slack notification with tasks: {linear_issues.model_dump_json()}")
-        slack_response: RunResponse = self.slack_agent.run(linear_issues.model_dump_json())
-        logger.info(f"Slack response: {slack_response}")
+        if linear_issues:
+            logger.info(f"Sending slack notification with tasks: {linear_issues.model_dump_json()}")
+            slack_response: RunResponse = self.slack_agent.run(linear_issues.model_dump_json())
+            logger.info(f"Slack response: {slack_response}")
 
         return slack_response
 
@@ -135,10 +138,10 @@ meeting_notes = open(
 ).read()
 users_uuid = {
     "Sarah": "8d4e1c9a-b5f2-4e3d-9a76-f12d8e3b4c5a",
-    "Mike": "2f9b7d6c-e4a3-42f1-b890-1c5d4e8f9a3b", 
+    "Mike": "2f9b7d6c-e4a3-42f1-b890-1c5d4e8f9a3b",
     "Emma": "7a1b3c5d-9e8f-4d2c-a6b7-8c9d0e1f2a3b",
     "Alex": "4c5d6e7f-8a9b-0c1d-2e3f-4a5b6c7d8e9f",
-    "James": "1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d"
+    "James": "1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d",
 }
 
 # Run workflow

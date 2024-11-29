@@ -1,47 +1,58 @@
 from __future__ import annotations
 
+import base64
 import json
+import mimetypes
+import os
+from collections import defaultdict, deque
+from datetime import datetime
 from os import getenv
-from uuid import uuid4
 from pathlib import Path
 from textwrap import dedent
-from datetime import datetime
-from collections import defaultdict, deque
 from typing import (
     Any,
     AsyncIterator,
     Callable,
-    cast,
+    ClassVar,
     Dict,
     Iterator,
     List,
     Literal,
     Optional,
-    overload,
     Sequence,
+    Set,
     Tuple,
     Type,
     Union,
+    cast,
+    overload,
 )
+from urllib.parse import urlparse
+from uuid import uuid4
 
-from pydantic import BaseModel, ConfigDict, field_validator, Field, ValidationError
-
-from phi.document import Document
 from phi.agent.session import AgentSession
-from phi.reasoning.step import ReasoningStep, ReasoningSteps, NextAction
-from phi.run.response import RunEvent, RunResponse, RunResponseExtraData
+from phi.document import Document
 from phi.knowledge.agent import AgentKnowledge
+from phi.memory.agent import (  # noqa: F401
+    AgentMemory,
+    AgentRun,
+    Memory,
+    MemoryRetrieval,
+    SessionSummary,
+)
 from phi.model import Model
 from phi.model.message import Message, MessageContext
 from phi.model.response import ModelResponse, ModelResponseEvent
-from phi.memory.agent import AgentMemory, MemoryRetrieval, Memory, AgentRun, SessionSummary  # noqa: F401
 from phi.prompt.template import PromptTemplate
+from phi.reasoning.step import NextAction, ReasoningStep, ReasoningSteps
+from phi.run.response import RunEvent, RunResponse, RunResponseExtraData
 from phi.storage.agent import AgentStorage
-from phi.tools import Tool, Toolkit, Function
+from phi.tools import Function, Tool, Toolkit
 from phi.utils.log import logger, set_log_level_to_debug, set_log_level_to_info
-from phi.utils.message import get_text_from_message
 from phi.utils.merge_dict import merge_dictionaries
+from phi.utils.message import get_text_from_message
 from phi.utils.timer import Timer
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 
 class Agent(BaseModel):

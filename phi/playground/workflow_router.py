@@ -49,11 +49,12 @@ def get_workflow_router(workflows: List[Workflow]) -> APIRouter:
         workflow = get_workflow_by_id(workflows, workflow_id)
         if workflow is None:
             raise HTTPException(status_code=404, detail="Workflow not found")
-        workflow.user_id = body.user_id
-        if workflow._run_return_type == "RunResponse":
-            return workflow.run(**body.input)
+        workflow_copy = workflow.deep_copy(update={"workflow_id": workflow_id})
+        workflow_copy.user_id = body.user_id
+        if workflow_copy._run_return_type == "RunResponse":
+            return workflow_copy.run(**body.input)
         return StreamingResponse(
-            (r.model_dump_json() for r in workflow.run(**body.input)), media_type="text/event-stream"
+            (r.model_dump_json() for r in workflow_copy.run(**body.input)), media_type="text/event-stream"
         )
 
     @workflow_router.post("/workflow/{workflow_id}/session/all")

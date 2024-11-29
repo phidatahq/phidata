@@ -394,9 +394,11 @@ class Workflow(BaseModel):
 
         # Create a new Workflow
         new_workflow = self.__class__(**fields_for_new_workflow)
-        logger.debug(f"Created new Workflow: workflow_id: {new_workflow.workflow_id} | session_id: {new_workflow.session_id}")
+        logger.debug(
+            f"Created new Workflow: workflow_id: {new_workflow.workflow_id} | session_id: {new_workflow.session_id}"
+        )
         return new_workflow
-    
+
     def _deep_copy_field(self, field_name: str, field_value: Any) -> Any:
         """Helper method to deep copy a field based on its type."""
         from copy import copy, deepcopy

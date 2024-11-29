@@ -969,21 +969,91 @@ class Agent(BaseModel):
         return json.dumps(docs, indent=2)
 
     def add_images_to_message_content(
-        self, message_content: Union[List, Dict, str], images: Optional[Sequence[Union[str, Dict]]] = None
-    ) -> Union[List, Dict, str]:
-        # If images are provided, add them to the user message text
-        if images is not None and len(images) > 0 and self.model and self.model.add_images_to_message_content:
-            if isinstance(message_content, str):
-                message_content_with_image: List[Dict[str, Any]] = [{"type": "text", "text": message_content}]
-                for image in images:
-                    if isinstance(image, str):
-                        message_content_with_image.append({"type": "image_url", "image_url": {"url": image}})
-                    elif isinstance(image, dict):
-                        message_content_with_image.append({"type": "image_url", "image_url": image})
-                return message_content_with_image
-            else:
-                logger.warning(f"User Message type not supported with images: {type(message_content)}")
-        return message_content
+        self,
+        message_content: Union[List, Dict, str],
+        images: Optional[Sequence[Union[str, Dict, bytes]]] = None
+    ) -> Union[List[Dict[str, Any]], Dict, str]:
+        """
+        Add images to message content for multimodal models.
+        
+        Args:
+            message_content: The text message content
+            images: Sequence of images in various formats (base64, URL, file path, bytes, or dict)
+            
+        Returns:
+            Message content with images added in the format expected by the model
+        """
+        if not images or not self.model or not self.model.add_images_to_message_content:
+            return message_content
+
+        if not isinstance(message_content, str):
+            logger.warning(f"User Message type not supported with images: {type(message_content)}")
+            return message_content
+
+        message_content_with_image: List[Dict[str, Any]] = [
+            {"type": "text", "text": message_content}
+        ]
+
+        for image in images:
+            try:
+                if isinstance(image, str):
+                    if image.startswith('data:image'):
+                        # Base64 encoded image
+                        message_content_with_image.append({
+                            "type": "image_url",
+                            "image_url": {"url": image}
+                        })
+                    elif image.startswith(('http://', 'https://')):
+                        # URL validation
+                        parsed_url = urlparse(image)
+                        if not all([parsed_url.scheme, parsed_url.netloc]):
+                            raise ValueError(f"Invalid URL: {image}")
+                        message_content_with_image.append({
+                            "type": "image_url",
+                            "image_url": {"url": image}
+                        })
+                    else:
+                        # Local file
+                        if not os.path.exists(image):
+                            raise FileNotFoundError(f"Image file not found: {image}")
+                        
+                        # Validate file type
+                        file_ext = os.path.splitext(image)[1].lower()
+                        if file_ext not in self.SUPPORTED_IMAGE_TYPES:
+                            raise ValueError(f"Unsupported image type: {file_ext}")
+                        
+                        # Get correct mime type
+                        mime_type = mimetypes.guess_type(image)[0] or 'image/jpeg'
+                        
+                        with open(image, "rb") as image_file:
+                            base64_image = base64.b64encode(image_file.read()).decode('utf-8')
+                            image_url = f"data:{mime_type};base64,{base64_image}"
+                            message_content_with_image.append({
+                                "type": "image_url",
+                                "image_url": {"url": image_url}
+                            })
+                
+                elif isinstance(image, bytes):
+                    base64_image = base64.b64encode(image).decode('utf-8')
+                    image_url = f"data:image/jpeg;base64,{base64_image}"
+                    message_content_with_image.append({
+                        "type": "image_url",
+                        "image_url": {"url": image_url}
+                    })
+                
+                elif isinstance(image, dict):
+                    message_content_with_image.append({
+                        "type": "image_url",
+                        "image_url": image
+                    })
+                else:
+                    logger.warning(f"Unsupported image type: {type(image)}")
+                    
+            except Exception as e:
+                logger.error(f"Failed to process image: {str(e)}")
+                continue
+
+        return message_content_with_image
 
     def get_user_message(
         self,

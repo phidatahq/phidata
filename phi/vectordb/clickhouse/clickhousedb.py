@@ -7,10 +7,7 @@ try:
     import clickhouse_connect
     import clickhouse_connect.driver.client
 except ImportError:
-    raise ImportError(
-        "`clickhouse-connect` not installed. "
-        "Use `pip install 'clickhouse-connect'` to install it"
-    )
+    raise ImportError("`clickhouse-connect` not installed. " "Use `pip install 'clickhouse-connect'` to install it")
 
 from phi.document import Document
 from phi.embedder import Embedder
@@ -91,30 +88,35 @@ class ClickhouseDb(VectorDb):
             logger.debug(f"Creating Database: {self.database_name}")
             parameters = {"database_name": self.database_name}
             self.client.command(
-                f"CREATE DATABASE IF NOT EXISTS %(database_name)s",
+                "CREATE DATABASE IF NOT EXISTS %(database_name)s",
                 parameters=parameters,
             )
 
             logger.debug(f"Creating table: {self.table_name}")
-            
+
             parameters = self._get_base_parameters()
-            
+
             if isinstance(self.index, HNSW):
-                index = f"INDEX idx vectors TYPE vector_similarity('hnsw', L2Distance, {self.index.}) "
-            
+                index = (
+                    f"INDEX idx vectors TYPE vector_similarity('hnsw', 'L2Distance', {self.index.quantization}, "
+                    f"{self.index.hnsw_max_connections_per_layer}, {self.index.hnsw_candidate_list_size_for_construction})"
+                )
+            else:
+                raise NotImplementedError(f"Not implemented index {type(self.index)!r} is passed")
+
             self.client.command(
-                """CREATE TABLE IF NOT EXISTS %(database_name).%(table_name)s 
+                f"""CREATE TABLE IF NOT EXISTS %(database_name).%(table_name)s 
                 (
                     id String,
                     name String,
-                    meta_data JSON DEFAULT '{}',
+                    meta_data JSON DEFAULT '{{}}',
                     content String,
                     embedding Array(Float32),
                     usage JSON,
                     created_at DateTime('UTC') DEFAULT now(),
                     content_hash String,
                     PRIMARY KEY (id)
-                    INDEX idx vectors TYPE vector_similarity('hnsw', 'L2Distance') 
+                    {index} 
                 ) ENGINE = ReplacingMergeTree ORDER BY id""",
                 parameters=parameters,
             )
@@ -232,9 +234,7 @@ class ClickhouseDb(VectorDb):
             parameters=parameters,
         )
 
-    def search(
-        self, query: str, limit: int = 5, filters: Optional[Dict[str, Any]] = None
-    ) -> List[Document]:
+    def search(self, query: str, limit: int = 5, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
         query_embedding = self.embedder.get_embedding(query)
         if query_embedding is None:
             logger.error(f"Error getting embedding for Query: {query}")
@@ -251,7 +251,7 @@ class ClickhouseDb(VectorDb):
             where_query = f"WHERE {' AND '.join(query_filters)}"
 
         order_by_query = ""
-        if self.distance == Distance.l2:
+        if self.distance == Distance.l2 or self.distance == Distance.max_inner_product:
             order_by_query = "ORDER BY L2Distance(embedding, %(query_embedding)s)"
             parameters["query_embedding"] = query_embedding
         if self.distance == Distance.cosine:
@@ -265,27 +265,11 @@ class ClickhouseDb(VectorDb):
         logger.debug(f"Query: {clickhouse_query}")
         logger.debug(f"Params: {parameters}")
 
-        result = self.client.query(
-            clickhouse_query,
-            parameters=parameters,
-        )
-
-        # Get neighbors
         try:
-            with self.Session() as sess:
-                with sess.begin():
-                    if self.index is not None:
-                        if isinstance(self.index, Ivfflat):
-                            sess.execute(
-                                text(f"SET LOCAL ivfflat.probes = {self.index.probes}")
-                            )
-                        elif isinstance(self.index, HNSW):
-                            sess.execute(
-                                text(
-                                    f"SET LOCAL hnsw.ef_search  = {self.index.ef_search}"
-                                )
-                            )
-                    neighbors = sess.execute(stmt).fetchall() or []
+            results = self.client.query(
+                clickhouse_query,
+                parameters=parameters,
+            )
         except Exception as e:
             logger.error(f"Error searching for documents: {e}")
             logger.error("Table might not exist, creating for future use")
@@ -294,15 +278,15 @@ class ClickhouseDb(VectorDb):
 
         # Build search results
         search_results: List[Document] = []
-        for neighbor in neighbors:
+        for result in results.result_rows:
             search_results.append(
                 Document(
-                    name=neighbor.name,
-                    meta_data=neighbor.meta_data,
-                    content=neighbor.content,
+                    name=result[0],
+                    meta_data=result[1],
+                    content=result[2],
                     embedder=self.embedder,
-                    embedding=neighbor.embedding,
-                    usage=neighbor.usage,
+                    embedding=result[3],
+                    usage=result[4],
                 )
             )
 
@@ -310,122 +294,28 @@ class ClickhouseDb(VectorDb):
 
     def drop(self) -> None:
         if self.table_exists():
-            logger.debug(f"Deleting table: {self.collection}")
-            self.table.drop(self.db_engine)
+            logger.debug(f"Deleting table: {self.table_name}")
+            parameters = self._get_base_parameters()
+            self.client.command("DROP TABLE %(database_name).%(table_name)s", parameters=parameters)
 
     def exists(self) -> bool:
         return self.table_exists()
 
     def get_count(self) -> int:
-        with self.Session() as sess:
-            with sess.begin():
-                stmt = select(func.count(self.table.c.name)).select_from(self.table)
-                result = sess.execute(stmt).scalar()
-                if result is not None:
-                    return int(result)
-                return 0
+        parameters = self._get_base_parameters()
+        result = self.client.query(
+            "SELECT count(*) FROM %(database_name).%(table_name)s",
+            parameters=parameters,
+        )
+
+        if result.first_row:
+            return int(result.first_row[0])
+        return 0
 
     def optimize(self) -> None:
-        from math import sqrt
-
-        logger.debug("==== Optimizing Vector DB ====")
-        if self.index is None:
-            return
-
-        if self.index.name is None:
-            _type = "ivfflat" if isinstance(self.index, Ivfflat) else "hnsw"
-            self.index.name = f"{self.collection}_{_type}_index"
-
-        index_distance = "vector_cosine_ops"
-        if self.distance == Distance.l2:
-            index_distance = "vector_l2_ops"
-        if self.distance == Distance.max_inner_product:
-            index_distance = "vector_ip_ops"
-
-        if isinstance(self.index, Ivfflat):
-            num_lists = self.index.lists
-            if self.index.dynamic_lists:
-                total_records = self.get_count()
-                logger.debug(f"Number of records: {total_records}")
-                if total_records < 1000000:
-                    num_lists = int(total_records / 1000)
-                elif total_records > 1000000:
-                    num_lists = int(sqrt(total_records))
-
-            with self.Session() as sess:
-                with sess.begin():
-                    logger.debug(f"Setting configuration: {self.index.configuration}")
-                    for key, value in self.index.configuration.items():
-                        sess.execute(text(f"SET {key} = '{value}';"))
-                    logger.debug(
-                        f"Creating Ivfflat index with lists: {num_lists}, probes: {self.index.probes} "
-                        f"and distance metric: {index_distance}"
-                    )
-                    sess.execute(text(f"SET ivfflat.probes = {self.index.probes};"))
-                    sess.execute(
-                        text(
-                            f"CREATE INDEX IF NOT EXISTS {self.index.name} ON {self.table} "
-                            f"USING ivfflat (embedding {index_distance}) "
-                            f"WITH (lists = {num_lists});"
-                        )
-                    )
-        elif isinstance(self.index, HNSW):
-            with self.Session() as sess:
-                with sess.begin():
-                    logger.debug(f"Setting configuration: {self.index.configuration}")
-                    for key, value in self.index.configuration.items():
-                        sess.execute(text(f"SET {key} = '{value}';"))
-                    logger.debug(
-                        f"Creating HNSW index with m: {self.index.m}, ef_construction: {self.index.ef_construction} "
-                        f"and distance metric: {index_distance}"
-                    )
-                    sess.execute(
-                        text(
-                            f"CREATE INDEX IF NOT EXISTS {self.index.name} ON {self.table} "
-                            f"USING hnsw (embedding {index_distance}) "
-                            f"WITH (m = {self.index.m}, ef_construction = {self.index.ef_construction});"
-                        )
-                    )
-        logger.debug("==== Optimized Vector DB ====")
+        logger.debug("==== No need to optimize Clickhouse DB. Skipping this step ====")
 
     def delete(self) -> bool:
-        from sqlalchemy import delete
-
-        with self.Session() as sess:
-            with sess.begin():
-                stmt = delete(self.table)
-                sess.execute(stmt)
-                return True
-
-    def __deepcopy__(self, memo):
-        """
-        Create a deep copy of the PgVector instance, handling unpickleable attributes.
-
-        Args:
-            memo (dict): A dictionary of objects already copied during the current copying pass.
-
-        Returns:
-            PgVector: A deep-copied instance of PgVector.
-        """
-        from copy import deepcopy
-
-        # Create a new instance without calling __init__
-        cls = self.__class__
-        copied_obj = cls.__new__(cls)
-        memo[id(self)] = copied_obj
-
-        # Deep copy attributes
-        for k, v in self.__dict__.items():
-            if k in {"metadata", "table"}:
-                continue
-            # Reuse db_engine and Session without copying
-            elif k in {"db_engine", "Session", "embedder"}:
-                setattr(copied_obj, k, v)
-            else:
-                setattr(copied_obj, k, deepcopy(v, memo))
-
-        # Recreate metadata and table for the copied instance
-        copied_obj.metadata = MetaData(schema=copied_obj.schema)
-        copied_obj.table = copied_obj.get_table()
-
-        return copied_obj
+        parameters = self._get_base_parameters()
+        self.client.command("DELETE FROM %(database_name).%(table_name)s", parameters=parameters)
+        return True

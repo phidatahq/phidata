@@ -149,8 +149,18 @@ task = (
     "How can all six people get across the river safely? Provide a step-by-step solution and show the solutions as an ascii diagram"
 )
 
-reasoning_agent = Agent(model=OpenAIChat(id="gpt-4o"), reasoning=True, markdown=True, structured_outputs=True)
-reasoning_agent.print_response(task, stream=True, show_full_reasoning=True)
+reasoning_agent = Agent(
+    model=OpenAIChat(id="gpt-4o"), 
+    reasoning=True, 
+    markdown=True, 
+    structured_outputs=True
+)
+
+reasoning_agent.print_response(
+    task,
+    stream=True, 
+    show_full_reasoning=True
+)
 ```
 
 Run the Reasoning Agent:
@@ -267,7 +277,11 @@ phi auth
 Install dependencies and run the Agent Playground:
 
 ```
-pip install 'fastapi[standard]' sqlalchemy
+pip install \
+'fastapi[standard]' \
+sqlalchemy \
+duckduckgo-search \
+yfinance
 
 python playground.py
 ```

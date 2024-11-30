@@ -37,7 +37,7 @@ def serve_workflow_playground_app(
 
     logger.info(f"Starting workflow playground on {scheme}://{host}:{port}")
     encoded_endpoint = quote(f"{host}:{port}")
-    url = f"{phi_cli_settings.playground_url}?endpoint={encoded_endpoint}"
+    url = f"{phi_cli_settings.workflow_playground_url}?endpoint={encoded_endpoint}"
     panel = Panel(
         f"[bold green]URL:[/bold green] [link={url}]{url}[/link]",
         title="Agent Workflow Playground",

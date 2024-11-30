@@ -29,6 +29,7 @@ class PhiCliSettings(BaseSettings):
     api_url: str = Field("https://api.phidata.com", validate_default=True)
     signin_url: str = Field("https://phidata.app/login", validate_default=True)
     playground_url: str = Field("https://phidata.app/playground", validate_default=True)
+    workflow_playground_url: str = Field("https://phidata.app/workflows", validate_default=True)
 
     model_config = SettingsConfigDict(env_prefix="PHI_")
 
@@ -61,6 +62,17 @@ class PhiCliSettings(BaseSettings):
             return "https://stgphi.com/playground"
         else:
             return "https://phidata.app/playground"
+
+    @field_validator("workflow_playground_url", mode="before")
+    def update_workflow_playground_url(cls, v, info: ValidationInfo):
+        api_runtime = info.data["api_runtime"]
+        if api_runtime == "dev":
+            return "http://localhost:3000/workflows"
+        elif api_runtime == "stg":
+            return "https://stgphi.com/workflows"
+        else:
+            return "https://phidata.app/workflows"
+
 
     @field_validator("api_url", mode="before")
     def update_api_url(cls, v, info: ValidationInfo):

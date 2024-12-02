@@ -1,6 +1,6 @@
 """
 1. Install dependencies using: `pip install openai duckduckgo-search sqlalchemy phidata`
-2. Run the script using: `python cookbook/workflows/blog_post_streaming.py`
+2. Run the script using: `python cookbook/workflows/blog_post_generator.py`
 """
 
 import json
@@ -45,11 +45,9 @@ class BlogPostGenerator(Workflow):
 
     def get_cached_blog_post(self, topic: str) -> Optional[str]:
         logger.info("Checking if cached blog post exists")
-        if "blog_posts" in self.session_state:
-            for cached_blog_post in self.session_state["blog_posts"]:
-                if topic in cached_blog_post:
-                    logger.info("Found cached blog post")
-                    return cached_blog_post[topic]
+        if "blog_posts" in self.session_state and topic in self.session_state["blog_posts"]:
+            logger.info("Found cached blog post")
+            return self.session_state["blog_posts"][topic]
         return None
 
     def get_search_results(self, topic: str) -> Optional[SearchResults]:

@@ -75,7 +75,7 @@ class ClickhouseDb(VectorDb):
             parameters = self._get_base_parameters()
             return bool(
                 self.client.command(
-                    "EXISTS TABLE %(database_name).%(table_name)s",
+                    "EXISTS TABLE {database_name:Identifier}.{table_name:Identifier}",
                     parameters=parameters,
                 )
             )
@@ -88,7 +88,7 @@ class ClickhouseDb(VectorDb):
             logger.debug(f"Creating Database: {self.database_name}")
             parameters = {"database_name": self.database_name}
             self.client.command(
-                "CREATE DATABASE IF NOT EXISTS %(database_name)s",
+                "CREATE DATABASE IF NOT EXISTS {database_name:Identifier}",
                 parameters=parameters,
             )
 
@@ -98,14 +98,17 @@ class ClickhouseDb(VectorDb):
 
             if isinstance(self.index, HNSW):
                 index = (
-                    f"INDEX idx vectors TYPE vector_similarity('hnsw', 'L2Distance', {self.index.quantization}, "
+                    f"INDEX embedding_index embedding TYPE vector_similarity('hnsw', 'L2Distance', {self.index.quantization}, "
                     f"{self.index.hnsw_max_connections_per_layer}, {self.index.hnsw_candidate_list_size_for_construction})"
                 )
+                self.client.command("SET allow_experimental_vector_similarity_index = 1")
             else:
                 raise NotImplementedError(f"Not implemented index {type(self.index)!r} is passed")
 
+            self.client.command("SET enable_json_type = 1")
+
             self.client.command(
-                f"""CREATE TABLE IF NOT EXISTS %(database_name).%(table_name)s 
+                f"""CREATE TABLE IF NOT EXISTS {{database_name:Identifier}}.{{table_name:Identifier}}
                 (
                     id String,
                     name String,
@@ -115,8 +118,8 @@ class ClickhouseDb(VectorDb):
                     usage JSON,
                     created_at DateTime('UTC') DEFAULT now(),
                     content_hash String,
-                    PRIMARY KEY (id)
-                    {index} 
+                    PRIMARY KEY (id),
+                    {index}
                 ) ENGINE = ReplacingMergeTree ORDER BY id""",
                 parameters=parameters,
             )
@@ -133,7 +136,7 @@ class ClickhouseDb(VectorDb):
         parameters["content_hash"] = md5(cleaned_content.encode()).hexdigest()
 
         result = self.client.query(
-            "SELECT content_hash FROM %(database_name).%(table_name)s WHERE content_hash = %(content_hash)s",
+            "SELECT content_hash FROM {database_name:Identifier}.{table_name:Identifier} WHERE content_hash = {content_hash:String}",
             parameters=parameters,
         )
         return bool(result)
@@ -149,7 +152,7 @@ class ClickhouseDb(VectorDb):
         parameters["name"] = name
 
         result = self.client.query(
-            "SELECT name FROM %(database_name).%(table_name)s WHERE name = %(name)s",
+            "SELECT name FROM {database_name:Identifier}.{table_name:Identifier} WHERE name = {name:String}",
             parameters=parameters,
         )
         return bool(result)
@@ -165,7 +168,7 @@ class ClickhouseDb(VectorDb):
         parameters["id"] = id
 
         result = self.client.query(
-            "SELECT id FROM %(database_name).%(table_name)s WHERE id = %(id)s",
+            "SELECT id FROM {database_name:Identifier}.{table_name:Identifier} WHERE id = {id:String}",
             parameters=parameters,
         )
         return bool(result)
@@ -230,7 +233,7 @@ class ClickhouseDb(VectorDb):
 
         parameters = self._get_base_parameters()
         self.client.query(
-            "SELECT id FROM %(database_name).%(table_name)s FINAL",
+            "SELECT id FROM {database_name:Identifier}.{table_name:Identifier} FINAL",
             parameters=parameters,
         )
 
@@ -245,21 +248,22 @@ class ClickhouseDb(VectorDb):
         if filters:
             query_filters: List[str] = []
             for key, value in filters.values():
-                query_filters.append(f"%({key}_key)s = %({key}_value)")
+                query_filters.append(f"{{{key}_key:String}} = {{{key}_value:String}}")
                 parameters[f"{key}_key"] = key
                 parameters[f"{key}_value"] = value
             where_query = f"WHERE {' AND '.join(query_filters)}"
 
         order_by_query = ""
         if self.distance == Distance.l2 or self.distance == Distance.max_inner_product:
-            order_by_query = "ORDER BY L2Distance(embedding, %(query_embedding)s)"
+            order_by_query = "ORDER BY L2Distance(embedding, {query_embedding:Array(Float32)})"
             parameters["query_embedding"] = query_embedding
         if self.distance == Distance.cosine:
-            order_by_query = "ORDER BY cosineDistance(embedding, %(query_embedding)s)"
+            order_by_query = "ORDER BY cosineDistance(embedding, {query_embedding:Array(Float32)})"
             parameters["query_embedding"] = query_embedding
 
         clickhouse_query = (
-            "SELECT name, meta_data, content, embedding, usage FROM %(database_name).%(table_name)s "
+            "SELECT name, meta_data, content, embedding, usage FROM "
+            "{database_name:Identifier}.{table_name:Identifier} "
             f"{where_query} {order_by_query} LIMIT {limit}"
         )
         logger.debug(f"Query: {clickhouse_query}")
@@ -296,7 +300,10 @@ class ClickhouseDb(VectorDb):
         if self.table_exists():
             logger.debug(f"Deleting table: {self.table_name}")
             parameters = self._get_base_parameters()
-            self.client.command("DROP TABLE %(database_name).%(table_name)s", parameters=parameters)
+            self.client.command(
+                "DROP TABLE {database_name:Identifier}.{table_name:Identifier}",
+                parameters=parameters,
+            )
 
     def exists(self) -> bool:
         return self.table_exists()
@@ -304,7 +311,7 @@ class ClickhouseDb(VectorDb):
     def get_count(self) -> int:
         parameters = self._get_base_parameters()
         result = self.client.query(
-            "SELECT count(*) FROM %(database_name).%(table_name)s",
+            "SELECT count(*) FROM {database_name:Identifier}.{table_name:Identifier}",
             parameters=parameters,
         )
 
@@ -317,5 +324,8 @@ class ClickhouseDb(VectorDb):
 
     def delete(self) -> bool:
         parameters = self._get_base_parameters()
-        self.client.command("DELETE FROM %(database_name).%(table_name)s", parameters=parameters)
+        self.client.command(
+            "DELETE FROM {database_name:Identifier}.{table_name:Identifier}",
+            parameters=parameters,
+        )
         return True

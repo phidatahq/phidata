@@ -16,6 +16,28 @@ from phi.utils.log import logger
 class HackerNewsReporter(Workflow):
     description: str = "Get the top stories from Hacker News and write a report on them."
 
+    hn_agent: Agent = Agent(
+        description="Get the top stories from hackernews. "
+        "Share all possible information, including url, score, title and summary if available.",
+        show_tool_calls=True,
+    )
+
+    writer: Agent = Agent(
+        tools=[Newspaper4k()],
+        description="Write an engaging report on the top stories from hackernews.",
+        instructions=[
+            "You will be provided with top stories and their links.",
+            "Carefully read each article and think about the contents",
+            "Then generate a final New York Times worthy article",
+            "Break the article into sections and provide key takeaways at the end.",
+            "Make sure the title is catchy and engaging.",
+            "Share score, title, url and summary of every article.",
+            "Give the section relevant titles and provide details/facts/processes in each section."
+            "Ignore articles that you cannot read or understand.",
+            "REMEMBER: you are writing for the New York Times, so the quality of the article is important.",
+        ],
+    )
+
     def get_top_hackernews_stories(self, num_stories: int = 10) -> str:
         """Use this function to get top stories from Hacker News.
 
@@ -40,37 +62,17 @@ class HackerNewsReporter(Workflow):
         return json.dumps(stories)
 
     def run(self, num_stories: int = 5) -> Iterator[RunResponse]:
-        hn_agent = Agent(
-            tools=[self.get_top_hackernews_stories],
-            description=f"Get the top {num_stories} stories from hackernews. "
-            f"Share all possible information, including url, score, title and summary if available.",
-            show_tool_calls=True,
-        )
-
-        writer = Agent(
-            tools=[Newspaper4k()],
-            description=f"Write an engaging report on the top {num_stories} stories from hackernews.",
-            instructions=[
-                "You will be provided with top stories and their links.",
-                "Carefully read each article and think about the contents",
-                "Then generate a final New York Times worthy article",
-                "Break the article into sections and provide key takeaways at the end.",
-                "Make sure the title is catchy and engaging.",
-                "Share score, title, url and summary of every article.",
-                "Give the section relevant titles and provide details/facts/processes in each section."
-                "Ignore articles that you cannot read or understand.",
-                "REMEMBER: you are writing for the New York Times, so the quality of the article is important.",
-            ],
-        )
+        # Set the tools for hn_agent here to avoid circular reference
+        self.hn_agent.tools = [self.get_top_hackernews_stories]
 
         logger.info(f"Getting top {num_stories} stories from HackerNews.")
-        top_stories: RunResponse = hn_agent.run()
+        top_stories: RunResponse = self.hn_agent.run(num_stories=num_stories)
         if top_stories is None or not top_stories.content:
             yield RunResponse(run_id=self.run_id, content="Sorry, could not get the top stories.")
             return
 
         logger.info("Reading each story and writing a report.")
-        yield from writer.run(top_stories.content, stream=True)
+        yield from self.writer.run(top_stories.content, stream=True)
 
 
 # Run workflow

@@ -73,7 +73,6 @@ class PhiCliSettings(BaseSettings):
         else:
             return "https://phidata.app/workflows"
 
-
     @field_validator("api_url", mode="before")
     def update_api_url(cls, v, info: ValidationInfo):
         api_runtime = info.data["api_runtime"]

@@ -1,3 +1,6 @@
+import collections.abc
+
+from types import GeneratorType
 from typing import List, Iterator, Optional, Dict, Any, Callable, Union
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, ValidationInfo
@@ -123,7 +126,9 @@ class Model(BaseModel):
                 tools_for_api.append(tool)
         return tools_for_api
 
-    def add_tool(self, tool: Union[Tool, Toolkit, Callable, Dict, Function], structured_outputs: bool = False) -> None:
+    def add_tool(
+        self, tool: Union[Tool, Toolkit, Callable, Dict, Function], strict: bool = False, agent: Optional[Any] = None
+    ) -> None:
         if self.tools is None:
             self.tools = []
 
@@ -133,17 +138,19 @@ class Model(BaseModel):
                 self.tools.append(tool)
                 logger.debug(f"Added tool {tool} to model.")
 
-        # If the tool is a Callable or Toolkit, add its functions to the Model
+        # If the tool is a Callable or Toolkit, process and add to the Model
         elif callable(tool) or isinstance(tool, Toolkit) or isinstance(tool, Function):
             if self.functions is None:
                 self.functions = {}
 
             if isinstance(tool, Toolkit):
-                # For each function in the toolkit
+                # For each function in the toolkit, process entrypoint and add to self.tools
                 for name, func in tool.functions.items():
                     # If the function does not exist in self.functions, add to self.tools
                     if name not in self.functions:
-                        if structured_outputs and self.supports_structured_outputs:
+                        if func.update_entrypoint_before_use:
+                            func.update_entrypoint(agent)
+                        if strict and self.supports_structured_outputs:
                             func.strict = True
                         self.functions[name] = func
                         self.tools.append({"type": "function", "function": func.to_dict()})
@@ -151,7 +158,9 @@ class Model(BaseModel):
 
             elif isinstance(tool, Function):
                 if tool.name not in self.functions:
-                    if structured_outputs and self.supports_structured_outputs:
+                    if tool.update_entrypoint_before_use:
+                        tool.update_entrypoint(agent)
+                    if strict and self.supports_structured_outputs:
                         tool.strict = True
                     self.functions[tool.name] = tool
                     self.tools.append({"type": "function", "function": tool.to_dict()})
@@ -161,12 +170,12 @@ class Model(BaseModel):
                 try:
                     function_name = tool.__name__
                     if function_name not in self.functions:
-                        func = Function.from_callable(tool)
-                        if structured_outputs and self.supports_structured_outputs:
+                        func = Function.from_callable(tool, agent)
+                        if strict and self.supports_structured_outputs:
                             func.strict = True
                         self.functions[func.name] = func
                         self.tools.append({"type": "function", "function": func.to_dict()})
-                        logger.debug(f"Function {func.name} added to Model.")
+                        logger.debug(f"Function {func.name} added to model.")
                 except Exception as e:
                     logger.warning(f"Could not add function {tool}: {e}")
 
@@ -183,8 +192,8 @@ class Model(BaseModel):
                 self.function_call_stack = []
 
             # -*- Start function call
-            _function_call_timer = Timer()
-            _function_call_timer.start()
+            function_call_timer = Timer()
+            function_call_timer.start()
             yield ModelResponse(
                 content=function_call.get_call_str(),
                 tool_call={
@@ -198,20 +207,37 @@ class Model(BaseModel):
 
             # -*- Run function call
             function_call_success = function_call.execute()
-            _function_call_timer.stop()
 
-            _function_call_result = Message(
+            function_call_output: Optional[Union[List[Any], str]] = ""
+            if isinstance(function_call.result, (GeneratorType, collections.abc.Iterator)):
+                for item in function_call.result:
+                    function_call_output += item
+                    if function_call.function.show_result:
+                        yield ModelResponse(content=item)
+            else:
+                function_call_output = function_call.result
+                if function_call.function.show_result:
+                    yield ModelResponse(content=function_call_output)
+
+            # -*- Stop function call timer
+            function_call_timer.stop()
+
+            # -*- Create function call result message
+            function_call_result = Message(
                 role=tool_role,
-                content=function_call.result if function_call_success else function_call.error,
+                content=function_call_output if function_call_success else function_call.error,
                 tool_call_id=function_call.call_id,
                 tool_name=function_call.function.name,
                 tool_args=function_call.arguments,
                 tool_call_error=not function_call_success,
-                metrics={"time": _function_call_timer.elapsed},
+                stop_after_tool_call=function_call.function.stop_after_tool_call,
+                metrics={"time": function_call_timer.elapsed},
             )
+
+            # -*- Yield function call result
             yield ModelResponse(
-                content=f"{function_call.get_call_str()} completed in {_function_call_timer.elapsed:.4f}s.",
-                tool_call=_function_call_result.model_dump(
+                content=f"{function_call.get_call_str()} completed in {function_call_timer.elapsed:.4f}s.",
+                tool_call=function_call_result.model_dump(
                     include={
                         "content",
                         "tool_call_id",
@@ -230,10 +256,10 @@ class Model(BaseModel):
                 self.metrics["tool_call_times"] = {}
             if function_call.function.name not in self.metrics["tool_call_times"]:
                 self.metrics["tool_call_times"][function_call.function.name] = []
-            self.metrics["tool_call_times"][function_call.function.name].append(_function_call_timer.elapsed)
+            self.metrics["tool_call_times"][function_call.function.name].append(function_call_timer.elapsed)
 
             # Add the function call result to the function call results
-            function_call_results.append(_function_call_result)
+            function_call_results.append(function_call_result)
             self.function_call_stack.append(function_call)
 
             # -*- Check function call limit

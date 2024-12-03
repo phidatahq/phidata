@@ -6,14 +6,14 @@ from pydantic import BaseModel, ConfigDict, Field
 from phi.utils.log import logger
 
 
-class MessageContext(BaseModel):
-    """The context added to user message for RAG"""
+class MessageReferences(BaseModel):
+    """The references added to user message for RAG"""
 
-    # The query used to retrieve the context.
+    # The query used to retrieve the references.
     query: str
-    # Documents from the vector database.
-    docs: Optional[List[Dict[str, Any]]] = None
-    # Time taken to retrieve the context.
+    # References (from the vector database or function calls)
+    references: Optional[List[Dict[str, Any]]] = None
+    # Time taken to retrieve the references.
     time: Optional[float] = None
 
 
@@ -41,12 +41,14 @@ class Message(BaseModel):
     tool_args: Optional[Any] = Field(None, alias="tool_call_arguments")
     # The error of the tool call
     tool_call_error: Optional[bool] = None
+    # If True, the agent will stop executing after this tool call.
+    stop_after_tool_call: bool = False
 
     # Metrics for the message. This is not sent to the Model API.
     metrics: Dict[str, Any] = Field(default_factory=dict)
 
-    # The context added to the message for RAG
-    context: Optional[MessageContext] = None
+    # The references added to the message for RAG
+    references: Optional[MessageReferences] = None
 
     # The Unix timestamp the message was created.
     created_at: int = Field(default_factory=lambda: int(time()))

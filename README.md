@@ -119,6 +119,7 @@ finance_agent = Agent(
 
 agent_team = Agent(
     team=[web_agent, finance_agent],
+    model=OpenAIChat(id="gpt-4o"),
     instructions=["Always include sources", "Use tables to display data"],
     show_tool_calls=True,
     markdown=True,

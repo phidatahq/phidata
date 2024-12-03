@@ -1147,6 +1147,16 @@ class Agent(BaseModel):
                 **kwargs,
             )
 
+        # Get references from the knowledge base related to the user message
+        context = None
+        if self.add_context and message and isinstance(message, str) and self.knowledge:
+            retrieval_timer = Timer()
+            retrieval_timer.start()
+            docs_from_knowledge = self.get_relevant_docs_from_knowledge(query=message, **kwargs)
+            context = MessageContext(query=message, docs=docs_from_knowledge, time=round(retrieval_timer.elapsed, 4))
+            retrieval_timer.stop()
+            logger.debug(f"Time to get context: {retrieval_timer.elapsed:.4f}s")
+
         # 2. If the user_prompt_template is provided, build the user_message using the template.
         if self.user_prompt_template is not None:
             user_prompt_kwargs = {"agent": self, "message": message, "references": references}
@@ -1369,6 +1379,7 @@ class Agent(BaseModel):
             show_tool_calls=False,
             response_model=ReasoningSteps,
             structured_outputs=self.structured_outputs,
+            monitoring=self.monitoring,
         )
 
     def _update_run_response_with_reasoning(

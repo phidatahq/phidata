@@ -116,7 +116,9 @@ class BlogPostGenerator(Workflow):
         yield from self.writer.run(json.dumps(writer_input, indent=4), stream=True)
 
         # Save the blog post in the session state for future runs
-        self.add_cached_blog_post(topic, self.writer.run_response.content)
+        content: Optional[str] = self.writer.run_response.content
+        if content:
+            self.add_cached_blog_post(topic, content)
 
 
 # Create the workflow

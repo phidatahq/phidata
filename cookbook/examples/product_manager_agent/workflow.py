@@ -69,8 +69,9 @@ class ProductManagerWorkflow(Workflow):
                     return cached_tasks["tasks"]
         return None
 
-    def get_tasks_from_meeting_notes(self, tasks: Optional[TaskList], meeting_notes: str) -> Optional[TaskList]:
+    def get_tasks_from_meeting_notes(self, meeting_notes: str) -> Optional[TaskList]:
         num_tries = 0
+        tasks: Optional[TaskList] = None
         while tasks is None and num_tries < 3:
             num_tries += 1
             try:
@@ -108,12 +109,10 @@ class ProductManagerWorkflow(Workflow):
         logger.info(f"Generating tasks from meeting notes: {meeting_notes}")
         current_date = datetime.now().strftime("%Y-%m-%d")
 
-        tasks: Optional[TaskList] = None
-
         if use_cache:
             tasks: Optional[TaskList] = self.get_tasks_from_cache(current_date)
         else:
-            tasks = self.get_tasks_from_meeting_notes(tasks, meeting_notes)
+            tasks = self.get_tasks_from_meeting_notes(meeting_notes)
 
         if tasks is None or len(tasks.tasks) == 0:
             return RunResponse(
@@ -146,9 +145,7 @@ product_manager = ProductManagerWorkflow(
     ),
 )
 
-meeting_notes = open(
-    "cookbook/examples/product_manager_agent/meeting_notes.txt", "r"
-).read()
+meeting_notes = open("cookbook/examples/product_manager_agent/meeting_notes.txt", "r").read()
 users_uuid = {
     "Sarah": "8d4e1c9a-b5f2-4e3d-9a76-f12d8e3b4c5a",
     "Mike": "2f9b7d6c-e4a3-42f1-b890-1c5d4e8f9a3b",

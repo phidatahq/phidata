@@ -1,10 +1,8 @@
-import typer
-from typing import Optional
 from os import getenv
 
 from sqlalchemy.engine import create_engine
 
-from phi.assistant import Assistant
+from phi.agent import Agent
 from phi.knowledge.pdf import PDFUrlKnowledgeBase
 from phi.vectordb.singlestore import S2VectorDb
 
@@ -33,28 +31,12 @@ knowledge_base = PDFUrlKnowledgeBase(
 # Comment out after first run
 knowledge_base.load(recreate=False)
 
-
-def pdf_assistant(user: str = "user"):
-    run_id: Optional[str] = None
-
-    assistant = Assistant(
-        run_id=run_id,
-        user_id=user,
-        knowledge_base=knowledge_base,
-        use_tools=True,
-        show_tool_calls=True,
-        # Uncomment the following line to use traditional RAG
-        # add_references_to_prompt=True,
-    )
-    if run_id is None:
-        run_id = assistant.run_id
-        print(f"Started Run: {run_id}\n")
-    else:
-        print(f"Continuing Run: {run_id}\n")
-
-    while True:
-        assistant.cli_app(markdown=True)
-
-
-if __name__ == "__main__":
-    typer.run(pdf_assistant)
+agent = Agent(
+    knowledge_base=knowledge_base,
+    # Show tool calls in the response
+    show_tool_calls=True,
+    # Enable the agent to search the knowledge base
+    search_knowledge=True,
+    # Enable the agent to read the chat history
+    read_chat_history=True,
+)

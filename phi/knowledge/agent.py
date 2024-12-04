@@ -1,9 +1,11 @@
 from typing import List, Optional, Iterator, Dict, Any
 
-from pydantic import ConfigDict
+from pydantic import ConfigDict, Field, field_validator
 
 from phi.document import Document
 from phi.document.reader.base import Reader
+from phi.document.chunking.strategy import ChunkingStrategy
+from phi.document.chunking.fixed import FixedSizeChunking
 from phi.knowledge.base import AssistantKnowledge
 from phi.vectordb import VectorDb
 from phi.utils.log import logger
@@ -25,7 +27,13 @@ class AgentKnowledge(AssistantKnowledge):
     # Number of documents to optimize the vector db on
     optimize_on: Optional[int] = 1000
 
+    chunking_strategy: Optional[ChunkingStrategy] = Field(None, validate_default=True)
+
     model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    @field_validator("chunking_strategy", mode="before")
+    def set_chunking_strategy(cls, v: Optional[ChunkingStrategy]) -> ChunkingStrategy:
+        return v or FixedSizeChunking()
 
     @property
     def document_lists(self) -> Iterator[List[Document]]:

@@ -1,5 +1,6 @@
-from typing import List, Optional
+from typing import List, Optional, Union, Dict, Any
 
+from phi.embedder.openai import OpenAIEmbedder
 from phi.document.chunking.base import ChunkingStrategy
 from phi.document.base import Document
 from phi.embedder.base import Embedder
@@ -9,26 +10,30 @@ from phi.utils.log import logger
 try:
     from chonkie import SemanticChunker
 except ImportError:
-    logger.warning("chonkie not installed, semantic chunking will not be available. Install with `pip install chonkie`")
+    logger.warning("`chonkie` is required for semantic chunking, please install using `pip install chonkie`")
 
 
 class SemanticChunking(ChunkingStrategy):
     def __init__(
         self,
-        embedding_model: Optional[Embedder] = None,
-        chunk_size: int = 5000,
+        embedder: Optional[Embedder] = None,
         similarity_threshold: Optional[float] = 0.5,
+        chunk_size: int = 5000,
         **kwargs,
     ):
         super().__init__(**kwargs)
-        self.embedding_model = embedding_model or OpenAIEmbedder(model="text-embedding-3-small")
-        self.chunk_size = chunk_size
+        self.embedder = embedder or OpenAIEmbedder(model="text-embedding-3-small")
         self.similarity_threshold = similarity_threshold
-        self.chunker = SemanticChunker(
-            embedding_model=self.embedding_model,
-            max_chunk_size=self.chunk_size,
-            similarity_threshold=self.similarity_threshold,
-        )
+        self.chunk_size = chunk_size
+
+        # Initialize the chunker
+        chunker_kwargs: Dict[str, Any] = {
+            "chunk_size": self.chunk_size,
+            "similarity_threshold": self.similarity_threshold,
+        }
+        if self.embedder is not None:
+            chunker_kwargs["embedding_model"] = self.embedder.model
+        self.chunker = SemanticChunker(**chunker_kwargs)
 
     def chunk(self, document: Document) -> List[Document]:
         """Split document into semantic chunks using chokie"""

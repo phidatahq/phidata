@@ -17,6 +17,7 @@ from phi.embedder.openai import OpenAIEmbedder
 from phi.vectordb.base import VectorDb
 from phi.vectordb.distance import Distance
 from phi.utils.log import logger
+from phi.reranker.base import Reranker
 
 
 class ChromaDb(VectorDb):
@@ -27,6 +28,7 @@ class ChromaDb(VectorDb):
         distance: Distance = Distance.cosine,
         path: str = "tmp/chromadb",
         persistent_client: bool = False,
+        reranker: Optional[Reranker] = None,
         **kwargs,
     ):
         # Collection attributes
@@ -47,6 +49,9 @@ class ChromaDb(VectorDb):
         # Persistent Chroma client instance
         self.persistent_client: bool = persistent_client
         self.path: str = path
+
+        # Reranker instance
+        self.reranker: Optional[Reranker] = reranker
 
         # Chroma client kwargs
         self.kwargs = kwargs
@@ -217,6 +222,9 @@ class ChromaDb(VectorDb):
                 )
         except Exception as e:
             logger.error(f"Error building search results: {e}")
+
+        if self.reranker:
+            search_results = self.reranker.rerank(query=query, documents=search_results)
 
         return search_results
 

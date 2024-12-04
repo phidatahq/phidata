@@ -9,6 +9,7 @@ from typing import Any, Optional, Callable, Dict
 from phi.agent.agent import Agent
 from pydantic import BaseModel, Field, ConfigDict, field_validator, PrivateAttr
 
+from phi.agent import Agent
 from phi.run.response import RunResponse, RunEvent  # noqa: F401
 from phi.memory.workflow import WorkflowMemory, WorkflowRun
 from phi.storage.workflow import WorkflowStorage
@@ -356,6 +357,13 @@ class Workflow(BaseModel):
             self._subclass_run = self.run
             self._run_parameters = {}
             self._run_return_type = None
+
+    def model_post_init(self, __context: Any) -> None:
+        super().model_post_init(__context)
+        for field_name, field in self.__fields__.items():
+            value = getattr(self, field_name)
+            if isinstance(value, Agent):
+                value.session_id = self.session_id
 
     def log_workflow_session(self):
         logger.debug(f"*********** Logging WorkflowSession: {self.session_id} ***********")

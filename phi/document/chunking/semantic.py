@@ -4,8 +4,12 @@ from phi.document.chunking.base import ChunkingStrategy
 from phi.document.base import Document
 from phi.embedder.base import Embedder
 from phi.embedder.openai import OpenAIEmbedder
+from phi.utils.log import logger
 
-from chokie import SemanticChunker
+try:
+    from chonkie import SemanticChunker
+except ImportError:
+    logger.warning("chonkie not installed, semantic chunking will not be available. Install with `pip install chonkie`")
 
 
 class SemanticChunking(ChunkingStrategy):

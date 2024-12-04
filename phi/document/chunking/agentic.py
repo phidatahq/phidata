@@ -4,6 +4,7 @@ from phi.document.chunking.base import ChunkingStrategy
 from phi.document.base import Document
 from phi.model.openai import OpenAIChat
 from phi.model.base import Model
+from phi.model.message import Message
 
 
 class AgenticChunking(ChunkingStrategy):
@@ -31,9 +32,12 @@ class AgenticChunking(ChunkingStrategy):
             {remaining_text[:self.max_chunk_size]}"""
 
             try:
-                response = self.model.response(prompt)
-                break_point = min(int(response.strip()), self.max_chunk_size)
-            except:
+                response = self.model.response([Message(role="user", content=prompt)])
+                if response and response.content:
+                    break_point = min(int(response.content.strip()), self.max_chunk_size)
+                else:
+                    break_point = self.max_chunk_size
+            except Exception:
                 # Fallback to max size if model fails
                 break_point = self.max_chunk_size
 

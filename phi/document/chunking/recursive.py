@@ -5,7 +5,6 @@ from phi.document.chunking.base import ChunkingStrategy
 
 
 class RecursiveChunking(ChunkingStrategy):
-
     def __init__(self, chunk_size: int = 5000, overlap: int = 0, **kwargs):
         super().__init__(**kwargs)
         self.chunk_size = chunk_size

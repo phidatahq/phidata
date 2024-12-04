@@ -204,6 +204,136 @@ def get_playground_router(
 
         return JSONResponse(status_code=404, content="Session not found.")
 
+    @playground_router.get("/workflows/get")
+    def get_workflows():
+        if workflows is None:
+            return []
+
+        return [
+            {"id": workflow.workflow_id, "name": workflow.name, "description": workflow.description}
+            for workflow in workflows
+        ]
+
+    @playground_router.get("/workflow/inputs/{workflow_id}")
+    def get_workflow_inputs(workflow_id: str):
+        workflow = get_workflow_by_id(workflow_id, workflows)
+        if workflow is None:
+            raise HTTPException(status_code=404, detail="Workflow not found")
+
+        return {
+            "workflow_id": workflow.workflow_id,
+            "name": workflow.name,
+            "description": workflow.description,
+            "parameters": workflow._run_parameters or {},
+        }
+
+    @playground_router.get("/workflow/config/{workflow_id}")
+    def get_workflow_config(workflow_id: str):
+        workflow = get_workflow_by_id(workflow_id, workflows)
+        if workflow is None:
+            raise HTTPException(status_code=404, detail="Workflow not found")
+
+        return {
+            "storage": workflow.storage.__class__.__name__ if workflow.storage else None,
+        }
+
+    @playground_router.post("/workflow/{workflow_id}/run")
+    def run_workflow(workflow_id: str, body: WorkflowRunRequest):
+        # Retrieve the workflow by ID
+        workflow = get_workflow_by_id(workflow_id, workflows)
+        if workflow is None:
+            raise HTTPException(status_code=404, detail="Workflow not found")
+
+        # Create a new instance of this workflow
+        new_workflow_instance = workflow.deep_copy(update={"workflow_id": workflow_id})
+        new_workflow_instance.user_id = body.user_id
+
+        # Return based on the response type
+        try:
+            if new_workflow_instance._run_return_type == "RunResponse":
+                # Return as a normal response
+                return new_workflow_instance.run(**body.input)
+            else:
+                # Return as a streaming response
+                return StreamingResponse(
+                    (result.model_dump_json() for result in new_workflow_instance.run(**body.input)),
+                    media_type="text/event-stream",
+                )
+        except Exception as e:
+            # Handle unexpected runtime errors
+            raise HTTPException(status_code=500, detail=f"Error running workflow: {str(e)}")
+
+    @playground_router.post("/workflow/{workflow_id}/session/all")
+    def get_all_workflow_sessions(workflow_id: str, body: WorkflowSessionsRequest):
+        # Retrieve the workflow by ID
+        workflow = get_workflow_by_id(workflow_id, workflows)
+        if not workflow:
+            raise HTTPException(status_code=404, detail="Workflow not found")
+
+        # Ensure storage is enabled for the workflow
+        if not workflow.storage:
+            raise HTTPException(status_code=404, detail="Workflow does not have storage enabled")
+
+        # Retrieve all sessions for the given workflow and user
+        try:
+            all_workflow_sessions: List[WorkflowSession] = workflow.storage.get_all_sessions(
+                user_id=body.user_id, workflow_id=workflow_id
+            )
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Error retrieving sessions: {str(e)}")
+
+        # Return the sessions
+        return [
+            {
+                "title": get_session_title_from_workflow_session(session),
+                "session_id": session.session_id,
+                "session_name": session.session_data.get("session_name") if session.session_data else None,
+                "created_at": session.created_at,
+            }
+            for session in all_workflow_sessions
+        ]
+
+    @playground_router.post("/workflow/{workflow_id}/session/{session_id}")
+    def get_workflow_session(workflow_id: str, session_id: str, body: WorkflowSessionsRequest):
+        # Retrieve the workflow by ID
+        workflow = get_workflow_by_id(workflow_id, workflows)
+        if not workflow:
+            raise HTTPException(status_code=404, detail="Workflow not found")
+
+        # Ensure storage is enabled for the workflow
+        if not workflow.storage:
+            raise HTTPException(status_code=404, detail="Workflow does not have storage enabled")
+
+        # Retrieve the specific session
+        try:
+            workflow_session: Optional[WorkflowSession] = workflow.storage.read(session_id, body.user_id)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Error retrieving session: {str(e)}")
+
+        if not workflow_session:
+            raise HTTPException(status_code=404, detail="Session not found")
+
+        # Return the session
+        return workflow_session
+
+    @playground_router.post("/workflow/{workflow_id}/session/{session_id}/rename")
+    def workflow_rename(workflow_id: str, session_id: str, body: WorkflowRenameRequest):
+        workflow = get_workflow_by_id(workflow_id, workflows)
+        if workflow is None:
+            raise HTTPException(status_code=404, detail="Workflow not found")
+
+        workflow.rename_session(session_id, body.name)
+        return JSONResponse(content={"message": f"successfully renamed workflow {workflow.name}"})
+
+    @playground_router.post("/workflow/{workflow_id}/session/{session_id}/delete")
+    def workflow_delete(workflow_id: str, session_id: str):
+        workflow = get_workflow_by_id(workflow_id, workflows)
+        if workflow is None:
+            raise HTTPException(status_code=404, detail="Workflow not found")
+
+        workflow.delete_session(session_id)
+        return JSONResponse(content={"message": f"successfully deleted workflow {workflow.name}"})
+
     return playground_router
 
 

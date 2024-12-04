@@ -117,7 +117,7 @@ generate_blog_post = BlogPostGenerator(
     ),
 )
 
-app = Playground(workflows=[generate_blog_post]).get_app()
+app = Playground(workflows=[generate_blog_post]).get_app(use_async=False)
 
 if __name__ == "__main__":
     serve_playground_app("05_playground:app", reload=True)

@@ -1,10 +1,7 @@
-from dataclasses import Field
 from pathlib import Path
-from typing import List, Optional, Union, IO, Any
+from typing import List, Union, IO, Any
 
 from phi.document.base import Document
-from phi.document.chunking.base import ChunkingStrategy
-from phi.document.chunking.fixed import FixedChunking
 from phi.document.reader.base import Reader
 from phi.utils.log import logger
 

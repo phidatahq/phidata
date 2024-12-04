@@ -5,7 +5,6 @@ from pydantic import ConfigDict
 from phi.document import Document
 from phi.document.reader.base import Reader
 from phi.knowledge.base import AssistantKnowledge
-from phi.knowledge.chunks import CharacterChunks, ChunkingStrategy
 from phi.vectordb import VectorDb
 from phi.utils.log import logger
 
@@ -25,8 +24,6 @@ class AgentKnowledge(AssistantKnowledge):
     num_documents: int = 5
     # Number of documents to optimize the vector db on
     optimize_on: Optional[int] = 1000
-    # ChunkingStrategy to chunk documents into smaller documents before storing in vector db
-    chunking_strategy: ChunkingStrategy = CharacterChunks()
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 

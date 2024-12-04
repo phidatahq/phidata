@@ -1,12 +1,13 @@
 from typing import List
 
 from phi.document.base import Document
-from phi.document.chunking.base import ChunkingStrategy
+from phi.document.chunking.strategy import ChunkingStrategy
 
 
 class RecursiveChunking(ChunkingStrategy):
-    def __init__(self, chunk_size: int = 5000, overlap: int = 0, **kwargs):
-        super().__init__(**kwargs)
+    """Chunking strategy that recursively splits text into chunks by finding natural break points"""
+
+    def __init__(self, chunk_size: int = 5000, overlap: int = 0):
         self.chunk_size = chunk_size
         self.overlap = overlap
 
@@ -19,7 +20,7 @@ class RecursiveChunking(ChunkingStrategy):
         start = 0
         chunk_meta_data = document.meta_data
         chunk_number = 1
-        content = document.content
+        content = self.clean_text(document.content)
 
         while start < len(content):
             end = min(start + self.chunk_size, len(content))

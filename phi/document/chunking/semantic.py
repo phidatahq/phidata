@@ -1,7 +1,6 @@
-from typing import List, Optional, Union, Dict, Any
+from typing import List, Optional
 
-from phi.embedder.openai import OpenAIEmbedder
-from phi.document.chunking.base import ChunkingStrategy
+from phi.document.chunking.strategy import ChunkingStrategy
 from phi.document.base import Document
 from phi.embedder.base import Embedder
 from phi.embedder.openai import OpenAIEmbedder
@@ -14,34 +13,25 @@ except ImportError:
 
 
 class SemanticChunking(ChunkingStrategy):
-    def __init__(
-        self,
-        embedder: Optional[Embedder] = None,
-        similarity_threshold: Optional[float] = 0.5,
-        chunk_size: int = 5000,
-        **kwargs,
-    ):
-        super().__init__(**kwargs)
-        self.embedder = embedder or OpenAIEmbedder(model="text-embedding-3-small")
-        self.similarity_threshold = similarity_threshold
-        self.chunk_size = chunk_size
+    """Chunking strategy that splits text into semantic chunks using chonkie"""
 
-        # Initialize the chunker
-        chunker_kwargs: Dict[str, Any] = {
-            "chunk_size": self.chunk_size,
-            "similarity_threshold": self.similarity_threshold,
-        }
-        if self.embedder is not None:
-            chunker_kwargs["embedding_model"] = self.embedder.model
-        self.chunker = SemanticChunker(**chunker_kwargs)
+    embedder: Embedder = OpenAIEmbedder(model="text-embedding-3-small")
+    chunk_size: int = 5000
+    similarity_threshold: Optional[float] = 0.5
 
     def chunk(self, document: Document) -> List[Document]:
         """Split document into semantic chunks using chokie"""
         if not document.content:
             return [document]
 
-        # Use chokie to split into semantic chunks
-        chunks = self.chunker.chunk(document.content)
+        self.chunker = SemanticChunker(
+            embedding_model=self.embedder.model,  # type: ignore
+            chunk_size=self.chunk_size,
+            similarity_threshold=self.similarity_threshold,
+        )
+
+        # Use chonkie to split into semantic chunks
+        chunks = self.chunker.chunk(self.clean_text(document.content))
 
         # Convert chunks to Documents
         chunked_documents: List[Document] = []

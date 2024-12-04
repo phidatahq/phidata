@@ -1,4 +1,12 @@
-from pydantic import BaseModel
+from abc import ABC, abstractmethod
+from typing import List
 
-class ChunkingStrategy(BaseModel):
-    pass
+from phi.document.base import Document
+
+
+class ChunkingStrategy(ABC):
+    """Base class for chunking strategies"""
+
+    @abstractmethod
+    def chunk(self, document: Document) -> List[Document]:
+        raise NotImplementedError

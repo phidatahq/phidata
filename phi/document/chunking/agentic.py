@@ -1,23 +1,26 @@
 from typing import List, Optional
+
 from phi.document.chunking.base import ChunkingStrategy
+from phi.document.base import Document
 from phi.model.openai import OpenAIChat
 from phi.model.base import Model
 
 
 class AgenticChunking(ChunkingStrategy):
-
     def __init__(self, model: Optional[Model] = None, max_chunk_size: int = 5000, **kwargs):
         super().__init__(**kwargs)
         self.model = model or OpenAIChat()
         self.max_chunk_size = max_chunk_size
 
-    def chunk(self, text: str) -> List[str]:
+    def chunk(self, document: Document) -> List[Document]:
         """Split text into chunks using LLM to determine natural breakpoints based on context"""
-        if len(text) <= self.max_chunk_size:
-            return [text]
+        if len(document.content) <= self.max_chunk_size:
+            return [document]
 
-        chunks = []
-        remaining_text = text
+        chunks: List[Document] = []
+        remaining_text = document.content
+        chunk_meta_data = document.meta_data
+        chunk_number = 1
 
         while remaining_text:
             # Ask model to find a good breakpoint within max_chunk_size
@@ -26,7 +29,7 @@ class AgenticChunking(ChunkingStrategy):
             Return only the character position number of where to break the text:
             
             {remaining_text[:self.max_chunk_size]}"""
-            
+
             try:
                 response = self.model.response(prompt)
                 break_point = min(int(response.strip()), self.max_chunk_size)
@@ -36,11 +39,26 @@ class AgenticChunking(ChunkingStrategy):
 
             # Extract chunk and update remaining text
             chunk = remaining_text[:break_point].strip()
-            if chunk:
-                chunks.append(chunk)
-            
+            meta_data = chunk_meta_data.copy()
+            meta_data["chunk"] = chunk_number
+            chunk_id = None
+            if document.id:
+                chunk_id = f"{document.id}_{chunk_number}"
+            elif document.name:
+                chunk_id = f"{document.name}_{chunk_number}"
+            meta_data["chunk_size"] = len(chunk)
+            chunks.append(
+                Document(
+                    id=chunk_id,
+                    name=document.name,
+                    meta_data=meta_data,
+                    content=chunk,
+                )
+            )
+            chunk_number += 1
+
             remaining_text = remaining_text[break_point:].strip()
-            
+
             if not remaining_text:
                 break
 

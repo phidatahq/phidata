@@ -1,8 +1,6 @@
 import os
 from phi.agent import Agent
 from phi.model.openai import OpenAIChat
-from phi.tools.firecrawl import FirecrawlTools
-from phi.tools.google import GoogleTools
 from phi.tools.youtube_tools import YouTubeTools
 from phi.tools.apify import ApifyTools
 from phi.tools.exa import ExaTools

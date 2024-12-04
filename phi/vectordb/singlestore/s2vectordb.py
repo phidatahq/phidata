@@ -21,6 +21,7 @@ from phi.vectordb.distance import Distance
 
 # from phi.vectordb.singlestore.index import Ivfflat, HNSWFlat
 from phi.utils.log import logger
+from phi.reranker.base import Reranker
 
 
 class S2VectorDb(VectorDb):
@@ -32,6 +33,7 @@ class S2VectorDb(VectorDb):
         db_engine: Optional[Engine] = None,
         embedder: Embedder = OpenAIEmbedder(),
         distance: Distance = Distance.cosine,
+        reranker: Optional[Reranker] = None,
         # index: Optional[Union[Ivfflat, HNSW]] = HNSW(),
     ):
         _engine: Optional[Engine] = db_engine
@@ -51,6 +53,7 @@ class S2VectorDb(VectorDb):
         self.distance: Distance = distance
         # self.index: Optional[Union[Ivfflat, HNSW]] = index
         self.Session: sessionmaker[Session] = sessionmaker(bind=self.db_engine)
+        self.reranker: Optional[Reranker] = reranker
         self.table: Table = self.get_table()
 
     def get_table(self) -> Table:
@@ -332,6 +335,9 @@ class S2VectorDb(VectorDb):
                     usage=usage_dict,
                 )
             )
+
+        if self.reranker:
+            search_results = self.reranker.rerank(query=query, documents=search_results)
 
         return search_results
 

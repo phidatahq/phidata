@@ -15,6 +15,7 @@ from phi.embedder.openai import OpenAIEmbedder
 from phi.vectordb.base import VectorDb
 from phi.vectordb.distance import Distance
 from phi.utils.log import logger
+from phi.reranker.base import Reranker
 
 
 class Qdrant(VectorDb):
@@ -34,6 +35,7 @@ class Qdrant(VectorDb):
         timeout: Optional[float] = None,
         host: Optional[str] = None,
         path: Optional[str] = None,
+        reranker: Optional[Reranker] = None,
         **kwargs,
     ):
         # Collection attributes
@@ -61,6 +63,9 @@ class Qdrant(VectorDb):
         self.timeout: Optional[float] = timeout
         self.host: Optional[str] = host
         self.path: Optional[str] = path
+
+        # Reranker instance
+        self.reranker: Optional[Reranker] = reranker
 
         # Qdrant client kwargs
         self.kwargs = kwargs
@@ -218,6 +223,9 @@ class Qdrant(VectorDb):
                     usage=result.payload["usage"],
                 )
             )
+
+        if self.reranker:
+            search_results = self.reranker.rerank(query=query, documents=search_results)
 
         return search_results
 

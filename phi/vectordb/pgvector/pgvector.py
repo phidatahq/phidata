@@ -25,6 +25,7 @@ from phi.vectordb.distance import Distance
 from phi.vectordb.search import SearchType
 from phi.vectordb.pgvector.index import Ivfflat, HNSW
 from phi.utils.log import logger
+from phi.reranker.base import Reranker
 
 
 class PgVector(VectorDb):
@@ -50,6 +51,7 @@ class PgVector(VectorDb):
         content_language: str = "english",
         schema_version: int = 1,
         auto_upgrade_schema: bool = False,
+        reranker: Optional[Reranker] = None,
     ):
         """
         Initialize the PgVector instance.
@@ -119,6 +121,9 @@ class PgVector(VectorDb):
         self.schema_version: int = schema_version
         # Automatically upgrade schema if True
         self.auto_upgrade_schema: bool = auto_upgrade_schema
+
+        # Reranker instance
+        self.reranker: Optional[Reranker] = reranker
 
         # Database session
         self.Session: scoped_session = scoped_session(sessionmaker(bind=self.db_engine))
@@ -503,6 +508,9 @@ class PgVector(VectorDb):
                         usage=result.usage,
                     )
                 )
+
+            if self.reranker:
+                search_results = self.reranker.rerank(query=query, documents=search_results)
 
             return search_results
         except Exception as e:

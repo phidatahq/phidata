@@ -6,7 +6,7 @@ from phi.document.chunking.base import ChunkingStrategy
 
 class FixedChunking(ChunkingStrategy):
     """Chunking strategy that splits text into fixed-size chunks with optional overlap"""
-    
+
     def __init__(self, chunk_size: int = 5000, overlap: int = 0):
         self.chunk_size = chunk_size
         self.overlap = overlap

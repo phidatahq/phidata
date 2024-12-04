@@ -9,7 +9,7 @@ from phi.model.message import Message
 
 class AgenticChunking(ChunkingStrategy):
     """Chunking strategy that uses an LLM to determine natural breakpoints in the text"""
-    
+
     def __init__(self, model: Optional[Model] = None, max_chunk_size: int = 5000):
         self.model = model or OpenAIChat()
         self.max_chunk_size = max_chunk_size

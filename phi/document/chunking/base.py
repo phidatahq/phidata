@@ -10,7 +10,7 @@ class ChunkingStrategy(ABC):
     @abstractmethod
     def chunk(self, document: Document) -> List[Document]:
         raise NotImplementedError
-    
+
     def clean_text(self, text: str) -> str:
         """Clean the text by replacing multiple newlines with a single newline"""
         import re

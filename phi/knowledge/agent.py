@@ -5,7 +5,6 @@ from pydantic import ConfigDict
 from phi.document import Document
 from phi.document.reader.base import Reader
 from phi.knowledge.base import AssistantKnowledge
-from phi.knowledge.chunks import CharacterChunks, ChunkingStrategy
 from phi.vectordb import VectorDb
 from phi.utils.log import logger
 

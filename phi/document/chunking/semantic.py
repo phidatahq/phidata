@@ -39,8 +39,8 @@ class SemanticChunking(ChunkingStrategy):
             meta_data = document.meta_data.copy()
             meta_data["chunk"] = i
             chunk_id = f"{document.id}_{i}" if document.id else None
-            meta_data["chunk_size"] = len(chunk)
+            meta_data["chunk_size"] = len(chunk.text)
 
-            chunked_documents.append(Document(id=chunk_id, name=document.name, meta_data=meta_data, content=chunk))
+            chunked_documents.append(Document(id=chunk_id, name=document.name, meta_data=meta_data, content=chunk.text))
 
         return chunked_documents

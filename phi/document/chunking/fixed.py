@@ -5,13 +5,15 @@ from phi.document.chunking.base import ChunkingStrategy
 
 
 class FixedChunking(ChunkingStrategy):
+    """Chunking strategy that splits text into fixed-size chunks with optional overlap"""
+    
     def __init__(self, chunk_size: int = 5000, overlap: int = 0):
         self.chunk_size = chunk_size
         self.overlap = overlap
 
     def chunk(self, document: Document) -> List[Document]:
         """Split document into fixed-size chunks with optional overlap"""
-        content = document.content
+        content = self.clean_text(document.content)
         content_length = len(content)
         chunked_documents: List[Document] = []
         chunk_number = 1

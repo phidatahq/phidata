@@ -8,8 +8,9 @@ from phi.model.message import Message
 
 
 class AgenticChunking(ChunkingStrategy):
-    def __init__(self, model: Optional[Model] = None, max_chunk_size: int = 5000, **kwargs):
-        super().__init__(**kwargs)
+    """Chunking strategy that uses an LLM to determine natural breakpoints in the text"""
+    
+    def __init__(self, model: Optional[Model] = None, max_chunk_size: int = 5000):
         self.model = model or OpenAIChat()
         self.max_chunk_size = max_chunk_size
 
@@ -19,7 +20,7 @@ class AgenticChunking(ChunkingStrategy):
             return [document]
 
         chunks: List[Document] = []
-        remaining_text = document.content
+        remaining_text = self.clean_text(document.content)
         chunk_meta_data = document.meta_data
         chunk_number = 1
 

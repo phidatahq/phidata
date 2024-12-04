@@ -7,8 +7,7 @@ from phi.document.base import Document
 class DocumentChunking(ChunkingStrategy):
     """A chunking strategy that splits text based on document structure like paragraphs and sections"""
 
-    def __init__(self, chunk_size: int = 5000, overlap: int = 0, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, chunk_size: int = 5000, overlap: int = 0):
         self.chunk_size = chunk_size
         self.overlap = overlap
 
@@ -18,7 +17,7 @@ class DocumentChunking(ChunkingStrategy):
             return [document]
 
         # Split on double newlines first (paragraphs)
-        paragraphs = document.content.split("\n\n")
+        paragraphs = self.clean_text(document.content).split("\n\n")
         chunks: List[Document] = []
         current_chunk = []
         current_size = 0

@@ -1,6 +1,6 @@
 from typing import List, Optional
 
-from phi.document.chunking.base import ChunkingStrategy
+from phi.document.chunking.strategy import ChunkingStrategy
 from phi.document.base import Document
 from phi.model.openai import OpenAIChat
 from phi.model.base import Model

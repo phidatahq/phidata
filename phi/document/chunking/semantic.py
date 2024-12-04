@@ -1,6 +1,8 @@
 from typing import List, Optional
 
-from phi.document.chunking.base import ChunkingStrategy
+from pydantic import Field
+
+from phi.document.chunking.strategy import ChunkingStrategy
 from phi.document.base import Document
 from phi.embedder.base import Embedder
 from phi.embedder.openai import OpenAIEmbedder
@@ -15,25 +17,20 @@ except ImportError:
 class SemanticChunking(ChunkingStrategy):
     """Chunking strategy that splits text into semantic chunks using chonkie"""
 
-    def __init__(
-        self,
-        embedding_model: Optional[Embedder] = None,
-        chunk_size: int = 5000,
-        similarity_threshold: Optional[float] = 0.5,
-    ):
-        self.embedding_model = embedding_model or OpenAIEmbedder(model="text-embedding-3-small")
-        self.chunk_size = chunk_size
-        self.similarity_threshold = similarity_threshold
-        self.chunker = SemanticChunker(
-            embedding_model=self.embedding_model,
-            max_chunk_size=self.chunk_size,
-            similarity_threshold=self.similarity_threshold,
-        )
+    embedding_model: Embedder = Field(default_factory=OpenAIEmbedder(model="text-embedding-3-small"))
+    chunk_size: int = 5000
+    similarity_threshold: Optional[float] = 0.5
 
     def chunk(self, document: Document) -> List[Document]:
         """Split document into semantic chunks using chokie"""
         if not document.content:
             return [document]
+
+        self.chunker = SemanticChunker(
+            embedding_model=self.embedding_model,
+            chunk_size=self.chunk_size,
+            similarity_threshold=self.similarity_threshold,
+        )
 
         # Use chokie to split into semantic chunks
         chunks = self.chunker.chunk(self.clean_text(document.content))

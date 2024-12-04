@@ -1,7 +1,7 @@
 from typing import List
 
 from phi.document.base import Document
-from phi.document.chunking.base import ChunkingStrategy
+from phi.document.chunking.strategy import ChunkingStrategy
 
 
 class RecursiveChunking(ChunkingStrategy):

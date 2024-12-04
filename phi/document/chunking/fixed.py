@@ -1,10 +1,10 @@
 from typing import List
 
 from phi.document.base import Document
-from phi.document.chunking.base import ChunkingStrategy
+from phi.document.chunking.strategy import ChunkingStrategy
 
 
-class FixedChunking(ChunkingStrategy):
+class FixedSizeChunking(ChunkingStrategy):
     """Chunking strategy that splits text into fixed-size chunks with optional overlap"""
 
     def __init__(self, chunk_size: int = 5000, overlap: int = 0):

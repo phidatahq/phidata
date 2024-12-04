@@ -1,6 +1,6 @@
 from typing import List
 
-from phi.document.chunking.base import ChunkingStrategy
+from phi.document.chunking.strategy import ChunkingStrategy
 from phi.document.base import Document
 
 

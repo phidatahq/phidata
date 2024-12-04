@@ -120,15 +120,6 @@ generate_blog_post = BlogPostGenerator(
     ),
 )
 
-class NewsArticle(BaseModel):
-    title: str = Field(..., description="Title of the article.")
-    url: str = Field(..., description="Link to the article.")
-    summary: Optional[str] = Field(..., description="Summary of the article if available.")
-
-
-class SearchResults(BaseModel):
-    articles: list[NewsArticle]
-
 
 class ScrapedArticle(BaseModel):
     title: str = Field(..., description="Title of the article.")
@@ -339,6 +330,7 @@ class GenerateNewsReport(Workflow):
             self.session_state["reports"] = []
         self.session_state["reports"].append({"topic": topic, "report": self.writer.run_response.content})
 
+
 # Instantiate the workflow
 generate_news_report = GenerateNewsReport(
     storage=SqlWorkflowStorage(
@@ -404,6 +396,7 @@ class InvestmentAnalyst(Workflow):
 
         logger.info("Reviewing the research report and producing an investment proposal.")
         yield from self.investment_lead.run(ranked_companies.content, stream=True)
+
 
 investment_analyst = InvestmentAnalyst(
     storage=SqlWorkflowStorage(

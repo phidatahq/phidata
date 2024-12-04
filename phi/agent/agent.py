@@ -24,7 +24,7 @@ from typing import (
     Union,
 )
 
-from pydantic import BaseModel, ConfigDict, field_validator, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, field_validator, Field, ValidationError, PrivateAttr
 
 from phi.document import Document
 from phi.agent.session import AgentSession
@@ -68,8 +68,8 @@ class Agent(BaseModel):
     session_id: Optional[str] = Field(None, validate_default=True)
     # Session name
     session_name: Optional[str] = None
-    # Metadata associated with this session
-    session_data: Optional[Dict[str, Any]] = None
+    # Session state stored in the session_data
+    session_state: Dict[str, Any] = Field(default_factory=dict)
 
     # -*- Agent Memory
     memory: AgentMemory = AgentMemory()
@@ -237,6 +237,9 @@ class Agent(BaseModel):
     # If True, stream the intermediate steps from the Agent
     stream_intermediate_steps: bool = False
 
+    # Metadata associated with this session: DO NOT SET MANUALLY
+    _session_data: Optional[Dict[str, Any]] = PrivateAttr()
+
     model_config = ConfigDict(arbitrary_types_allowed=True, populate_by_name=True, extra="allow")
 
     @field_validator("agent_id", mode="before")
@@ -341,11 +344,11 @@ class Agent(BaseModel):
             task_description: str, expected_output: str, additional_information: Optional[str] = None
         ) -> Iterator[str]:
             # Update the member agent session_data to include leader_session_id, leader_agent_id and leader_run_id
-            if member_agent.session_data is None:
-                member_agent.session_data = {}
-            member_agent.session_data["leader_session_id"] = self.session_id
-            member_agent.session_data["leader_agent_id"] = self.agent_id
-            member_agent.session_data["leader_run_id"] = self.run_id
+            if member_agent._session_data is None:
+                member_agent._session_data = {}
+            member_agent._session_data["leader_session_id"] = self.session_id
+            member_agent._session_data["leader_agent_id"] = self.agent_id
+            member_agent._session_data["leader_run_id"] = self.run_id
 
             # -*- Run the agent
             member_agent_messages = f"{task_description}\n\nThe expected output is: {expected_output}"
@@ -361,14 +364,14 @@ class Agent(BaseModel):
                 "agent_id": member_agent_agent_id,
             }
             # Update the leader agent session_data to include member_agent_info
-            if self.session_data is None:
-                self.session_data = {"members": [member_agent_info]}
+            if self._session_data is None:
+                self._session_data = {"members": [member_agent_info]}
             else:
-                if "members" not in self.session_data:
-                    self.session_data["members"] = []
+                if "members" not in self._session_data:
+                    self._session_data["members"] = []
                 # Check if member_agent_info is already in the list
-                if member_agent_info not in self.session_data["members"]:
-                    self.session_data["members"].append(member_agent_info)
+                if member_agent_info not in self._session_data["members"]:
+                    self._session_data["members"].append(member_agent_info)
 
             if self.stream and member_agent.is_streamable:
                 member_agent_run_response_stream = member_agent.run(member_agent_messages, stream=True)
@@ -563,9 +566,11 @@ class Agent(BaseModel):
         return agent_data
 
     def get_session_data(self) -> Dict[str, Any]:
-        session_data = self.session_data or {}
+        session_data = self._session_data or {}
         if self.session_name is not None:
             session_data["session_name"] = self.session_name
+        if len(self.session_state) > 0:
+            session_data["session_state"] = self.session_state
         return session_data
 
     def get_agent_session(self) -> AgentSession:
@@ -630,11 +635,26 @@ class Agent(BaseModel):
             if self.session_name is None and "session_name" in session.session_data:
                 self.session_name = session.session_data.get("session_name")
 
+            # Get the session_state from database and update the current session_state
+            if "session_state" in session.session_data:
+                session_state_from_db = session.session_data.get("session_state")
+                if (
+                    session_state_from_db is not None
+                    and isinstance(session_state_from_db, dict)
+                    and len(session_state_from_db) > 0
+                ):
+                    # If the session_state is already set, merge the session_state from the database with the current session_state
+                    if len(self.session_state) > 0:
+                        # This updates session_state_from_db
+                        merge_dictionaries(session_state_from_db, self.session_state)
+                    # Update the current session_state
+                    self.session_state = session_state_from_db
+
             # If session_data is set in the agent, update the database session_data with the agent's session_data
-            if self.session_data is not None:
+            if self._session_data is not None:
                 # Updates agent_session.session_data in place
-                merge_dictionaries(session.session_data, self.session_data)
-            self.session_data = session.session_data
+                merge_dictionaries(session.session_data, self._session_data)
+            self._session_data = session.session_data
 
         # Update memory from the AgentSession
         if session.memory is not None:

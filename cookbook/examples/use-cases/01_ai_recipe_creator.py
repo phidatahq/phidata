@@ -12,7 +12,7 @@ ai_recipe_agent = Agent(
         YouTubeTools()
     ],
     model=OpenAIChat(id="gpt-4o"),
-    description="You are a recipe suggestor. Suggest recipes based on input ingredients by doing Google Search and summarizing YouTube videos.",
+    description="You are a recipe suggestor. Suggest recipes based on input ingredients by doing exa Search and summarizing from YouTube videos.",
     instructions=[
         "Search exa for recipes",
         "Then scrape the website https://www.allrecipes.com/ for therecipe",

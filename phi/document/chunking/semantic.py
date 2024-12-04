@@ -15,20 +15,22 @@ except ImportError:
 class SemanticChunking(ChunkingStrategy):
     """Chunking strategy that splits text into semantic chunks using chonkie"""
 
-    embedder: Embedder = OpenAIEmbedder(model="text-embedding-3-small")
-    chunk_size: int = 5000
-    similarity_threshold: Optional[float] = 0.5
-
-    def chunk(self, document: Document) -> List[Document]:
-        """Split document into semantic chunks using chokie"""
-        if not document.content:
-            return [document]
-
+    def __init__(
+        self, embedder: Optional[Embedder] = None, chunk_size: int = 5000, similarity_threshold: Optional[float] = 0.5
+    ):
+        self.embedder = embedder or OpenAIEmbedder(model="text-embedding-3-small")
+        self.chunk_size = chunk_size
+        self.similarity_threshold = similarity_threshold
         self.chunker = SemanticChunker(
             embedding_model=self.embedder.model,  # type: ignore
             chunk_size=self.chunk_size,
             similarity_threshold=self.similarity_threshold,
         )
+
+    def chunk(self, document: Document) -> List[Document]:
+        """Split document into semantic chunks using chokie"""
+        if not document.content:
+            return [document]
 
         # Use chonkie to split into semantic chunks
         chunks = self.chunker.chunk(self.clean_text(document.content))

@@ -39,8 +39,6 @@ class Workflow(BaseModel):
     session_id: Optional[str] = Field(None, validate_default=True)
     # Session name
     session_name: Optional[str] = None
-    # Metadata associated with this session
-    session_data: Optional[Dict[str, Any]] = None
     # Session state stored in the database
     session_state: Dict[str, Any] = Field(default_factory=dict)
 
@@ -76,6 +74,9 @@ class Workflow(BaseModel):
     # Return type of the run function
     _run_return_type: Optional[str] = PrivateAttr()
 
+    # Metadata associated with this session: DO NOT SET MANUALLY
+    _session_data: Optional[Dict[str, Any]] = PrivateAttr()
+
     model_config = ConfigDict(arbitrary_types_allowed=True, populate_by_name=True)
 
     @field_validator("workflow_id", mode="before")
@@ -106,9 +107,11 @@ class Workflow(BaseModel):
         return workflow_data
 
     def get_session_data(self) -> Dict[str, Any]:
-        session_data = self.session_data or {}
+        session_data = self._session_data or {}
         if self.session_name is not None:
             session_data["session_name"] = self.session_name
+        if len(self.session_state) > 0:
+            session_data["session_state"] = self.session_state
         return session_data
 
     def get_workflow_session(self) -> WorkflowSession:
@@ -122,7 +125,6 @@ class Workflow(BaseModel):
             workflow_data=self.get_workflow_data(),
             user_data=self.user_data,
             session_data=self.get_session_data(),
-            session_state=self.session_state,
         )
 
     def from_workflow_session(self, session: WorkflowSession):
@@ -162,19 +164,26 @@ class Workflow(BaseModel):
             if self.session_name is None and "session_name" in session.session_data:
                 self.session_name = session.session_data.get("session_name")
 
-            # If session_data is set in the workflow, update the database session_data with the workflow's session_data
-            if self.session_data is not None:
-                # Updates workflow_session.session_data in place
-                merge_dictionaries(session.session_data, self.session_data)
-            self.session_data = session.session_data
+            # Get the session_state from database and update the current session_state
+            if "session_state" in session.session_data:
+                session_state_from_db = session.session_data.get("session_state")
+                if (
+                    session_state_from_db is not None
+                    and isinstance(session_state_from_db, dict)
+                    and len(session_state_from_db) > 0
+                ):
+                    # If the session_state is already set, merge the session_state from the database with the current session_state
+                    if len(self.session_state) > 0:
+                        # This updates session_state_from_db
+                        merge_dictionaries(session_state_from_db, self.session_state)
+                    # Update the current session_state
+                    self.session_state = session_state_from_db
 
-        # Read session_state from the database
-        if session.session_state is not None:
-            # The workflow's session_state takes precedence
-            if self.session_state is not None:
-                # Updates workflow_session.session_state in place
-                merge_dictionaries(session.session_state, self.session_state)
-            self.session_state = session.session_state
+            # If _session_data is set in the workflow, update the database session_data with the workflow's session_data
+            if self._session_data is not None:
+                # Updates workflow_session.session_data in place
+                merge_dictionaries(session.session_data, self._session_data)
+            self._session_data = session.session_data
 
         # Read memory from the database
         if session.memory is not None:

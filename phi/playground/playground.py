@@ -23,9 +23,6 @@ class Playground:
         if not agents and not workflows:
             raise ValueError("Either agents or workflows must be provided.")
 
-        if agents and workflows:
-            raise ValueError("Agents and workflows both cannot be provided.")
-
         self.agents: Optional[List[Agent]] = agents
         self.workflows: Optional[List[Workflow]] = workflows
         self.settings: PlaygroundSettings = settings or PlaygroundSettings()

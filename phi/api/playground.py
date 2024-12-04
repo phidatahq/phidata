@@ -9,7 +9,7 @@ from phi.cli.settings import phi_cli_settings
 from phi.cli.credentials import read_auth_token
 from phi.api.api import api, invalid_response
 from phi.api.routes import ApiRoutes
-from phi.api.schemas.playground import PlaygroundEndpointCreate, WorkflowPlaygroundEndpointCreate
+from phi.api.schemas.playground import PlaygroundEndpointCreate
 from phi.utils.log import logger
 
 
@@ -32,27 +32,6 @@ def create_playground_endpoint(playground: PlaygroundEndpointCreate) -> bool:
             return True
         except Exception as e:
             logger.debug(f"Could not create Playground Endpoint: {e}")
-    return False
-
-
-def create_workflow_playground_endpoint(playground: WorkflowPlaygroundEndpointCreate) -> bool:
-    logger.debug("--**-- Creating Workflow Playground Endpoint")
-    with api.AuthenticatedClient() as api_client:
-        try:
-            r: Response = api_client.post(
-                ApiRoutes.WORKFLOW_PLAYGROUND_ENDPOINT_CREATE,
-                json={"workflow_playground": playground.model_dump(exclude_none=True)},
-            )
-            if invalid_response(r):
-                return False
-
-            response_json: Union[Dict, List] = r.json()
-            if response_json is None:
-                return False
-
-            return True
-        except Exception as e:
-            logger.debug(f"Could not create Workflow Playground Endpoint: {e}")
     return False
 
 

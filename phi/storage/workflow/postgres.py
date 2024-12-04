@@ -93,8 +93,6 @@ class PgWorkflowStorage(WorkflowStorage):
             Column("user_data", postgresql.JSONB),
             # Session Metadata
             Column("session_data", postgresql.JSONB),
-            # Session state stored in the database
-            Column("session_state", postgresql.JSONB),
             # The Unix timestamp of when this session was created.
             Column("created_at", BigInteger, default=lambda: int(time.time())),
             # The Unix timestamp of when this session was last updated.
@@ -264,7 +262,6 @@ class PgWorkflowStorage(WorkflowStorage):
                     workflow_data=session.workflow_data,
                     user_data=session.user_data,
                     session_data=session.session_data,
-                    session_state=session.session_state,
                 )
 
                 # Define the upsert if the session_id already exists
@@ -278,7 +275,6 @@ class PgWorkflowStorage(WorkflowStorage):
                         workflow_data=session.workflow_data,
                         user_data=session.user_data,
                         session_data=session.session_data,
-                        session_state=session.session_state,
                         updated_at=int(time.time()),
                     ),  # The updated value for each column
                 )

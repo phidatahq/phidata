@@ -19,21 +19,3 @@ class PlaygroundEndpointSchema(BaseModel):
     playground_data: Optional[Dict[str, Any]] = None
 
     model_config = ConfigDict(from_attributes=True)
-
-
-class WorkflowPlaygroundEndpointCreate(BaseModel):
-    """Data sent to API to create a workflow playground endpoint"""
-
-    endpoint: str
-    workflow_playground_data: Optional[Dict[str, Any]] = None
-
-
-class WorkflowPlaygroundEndpointSchema(PlaygroundEndpointSchema):
-    """Schema for a workflow playground endpoint returned by API"""
-
-    id_workspace: Optional[UUID] = None
-    id_workflow_playground_endpoint: Optional[UUID] = None
-    endpoint: str
-    workflow_playground_data: Optional[Dict[str, Any]] = None
-
-    model_config = ConfigDict(from_attributes=True)

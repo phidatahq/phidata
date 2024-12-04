@@ -28,7 +28,10 @@ def format_tools(agent_tools):
     return formatted_tools
 
 
-def get_agent_by_id(agents: List[Agent], agent_id: str) -> Optional[Agent]:
+def get_agent_by_id(agent_id: str, agents: Optional[List[Agent]] = None) -> Optional[Agent]:
+    if agent_id is None or agents is None:
+        return None
+
     for agent in agents:
         if agent.agent_id == agent_id:
             return agent
@@ -81,7 +84,10 @@ def get_session_title_from_workflow_session(workflow_session: WorkflowSession) -
     return "Unnamed session"
 
 
-def get_workflow_by_id(workflows: List[Workflow], workflow_id: str) -> Optional[Workflow]:
+def get_workflow_by_id(workflow_id: str, workflows: Optional[List[Workflow]] = None) -> Optional[Workflow]:
+    if workflows is None or workflow_id is None:
+        return None
+
     for workflow in workflows:
         if workflow.workflow_id == workflow_id:
             return workflow

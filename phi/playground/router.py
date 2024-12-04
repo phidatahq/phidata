@@ -6,7 +6,15 @@ from fastapi.responses import StreamingResponse, JSONResponse
 
 from phi.agent.agent import Agent, RunResponse
 from phi.agent.session import AgentSession
-from phi.playground.operator import format_tools, get_agent_by_id, get_session_title
+from phi.workflow.workflow import Workflow
+from phi.workflow.session import WorkflowSession
+from phi.playground.operator import (
+    format_tools,
+    get_agent_by_id,
+    get_session_title,
+    get_session_title_from_workflow_session,
+    get_workflow_by_id,
+)
 from phi.utils.log import logger
 
 from phi.playground.schemas import (
@@ -17,11 +25,18 @@ from phi.playground.schemas import (
     AgentRenameRequest,
     AgentModel,
     AgentSessionDeleteRequest,
+    WorkflowRunRequest,
+    WorkflowSessionsRequest,
+    WorkflowRenameRequest,
 )
 
 
-def get_playground_router(agents: List[Agent]) -> APIRouter:
+def get_playground_router(
+    agents: Optional[List[Agent]] = None, workflows: Optional[List[Workflow]] = None
+) -> APIRouter:
     playground_router = APIRouter(prefix="/playground", tags=["Playground"])
+    if agents is None and workflows is None:
+        raise ValueError("Either agents or workflows must be provided.")
 
     @playground_router.get("/status")
     def playground_status():
@@ -29,7 +44,10 @@ def get_playground_router(agents: List[Agent]) -> APIRouter:
 
     @playground_router.get("/agent/get", response_model=List[AgentGetResponse])
     def agent_get():
-        agent_list = []
+        agent_list: List[AgentGetResponse] = []
+        if agents is None:
+            return agent_list
+
         for agent in agents:
             agent_tools = agent.get_tools()
             formatted_tools = format_tools(agent_tools)
@@ -87,7 +105,7 @@ def get_playground_router(agents: List[Agent]) -> APIRouter:
     @playground_router.post("/agent/run")
     def agent_run(body: AgentRunRequest):
         logger.debug(f"AgentRunRequest: {body}")
-        agent = get_agent_by_id(agents, body.agent_id)
+        agent = get_agent_by_id(body.agent_id, agents)
         if agent is None:
             raise HTTPException(status_code=404, detail="Agent not found")
 
@@ -122,7 +140,7 @@ def get_playground_router(agents: List[Agent]) -> APIRouter:
     @playground_router.post("/agent/sessions/all")
     def get_agent_sessions(body: AgentSessionsRequest):
         logger.debug(f"AgentSessionsRequest: {body}")
-        agent = get_agent_by_id(agents, body.agent_id)
+        agent = get_agent_by_id(body.agent_id, agents)
         if agent is None:
             return JSONResponse(status_code=404, content="Agent not found.")
 
@@ -146,7 +164,7 @@ def get_playground_router(agents: List[Agent]) -> APIRouter:
     @playground_router.post("/agent/sessions/{session_id}")
     def get_agent_session(session_id: str, body: AgentSessionsRequest):
         logger.debug(f"AgentSessionsRequest: {body}")
-        agent = get_agent_by_id(agents, body.agent_id)
+        agent = get_agent_by_id(body.agent_id, agents)
         if agent is None:
             return JSONResponse(status_code=404, content="Agent not found.")
 
@@ -161,7 +179,7 @@ def get_playground_router(agents: List[Agent]) -> APIRouter:
 
     @playground_router.post("/agent/session/rename")
     def agent_rename(body: AgentRenameRequest):
-        agent = get_agent_by_id(agents, body.agent_id)
+        agent = get_agent_by_id(body.agent_id, agents)
         if agent is None:
             return JSONResponse(status_code=404, content=f"couldn't find agent with {body.agent_id}")
 
@@ -171,7 +189,7 @@ def get_playground_router(agents: List[Agent]) -> APIRouter:
 
     @playground_router.post("/agent/session/delete")
     def agent_session_delete(body: AgentSessionDeleteRequest):
-        agent = get_agent_by_id(agents, body.agent_id)
+        agent = get_agent_by_id(body.agent_id, agents)
         if agent is None:
             return JSONResponse(status_code=404, content="Agent not found.")
 
@@ -189,8 +207,13 @@ def get_playground_router(agents: List[Agent]) -> APIRouter:
     return playground_router
 
 
-def get_async_playground_router(agents: List[Agent]) -> APIRouter:
+def get_async_playground_router(
+    agents: Optional[List[Agent]] = None, workflows: Optional[List[Workflow]] = None
+) -> APIRouter:
     playground_router = APIRouter(prefix="/playground", tags=["Playground"])
+
+    if agents is None and workflows is None:
+        raise ValueError("Either agents or workflows must be provided.")
 
     @playground_router.get("/status")
     async def playground_status():
@@ -198,7 +221,10 @@ def get_async_playground_router(agents: List[Agent]) -> APIRouter:
 
     @playground_router.get("/agent/get", response_model=List[AgentGetResponse])
     async def agent_get():
-        agent_list = []
+        agent_list: List[AgentGetResponse] = []
+        if agents is None:
+            return agent_list
+
         for agent in agents:
             agent_tools = agent.get_tools()
             formatted_tools = format_tools(agent_tools)
@@ -256,7 +282,7 @@ def get_async_playground_router(agents: List[Agent]) -> APIRouter:
     @playground_router.post("/agent/run")
     async def agent_run(body: AgentRunRequest):
         logger.debug(f"AgentRunRequest: {body}")
-        agent = get_agent_by_id(agents, body.agent_id)
+        agent = get_agent_by_id(body.agent_id, agents)
         if agent is None:
             raise HTTPException(status_code=404, detail="Agent not found")
 
@@ -293,7 +319,7 @@ def get_async_playground_router(agents: List[Agent]) -> APIRouter:
     @playground_router.post("/agent/sessions/all")
     async def get_agent_sessions(body: AgentSessionsRequest):
         logger.debug(f"AgentSessionsRequest: {body}")
-        agent = get_agent_by_id(agents, body.agent_id)
+        agent = get_agent_by_id(body.agent_id, agents)
         if agent is None:
             return JSONResponse(status_code=404, content="Agent not found.")
 
@@ -317,7 +343,7 @@ def get_async_playground_router(agents: List[Agent]) -> APIRouter:
     @playground_router.post("/agent/sessions/{session_id}")
     async def get_agent_session(session_id: str, body: AgentSessionsRequest):
         logger.debug(f"AgentSessionsRequest: {body}")
-        agent = get_agent_by_id(agents, body.agent_id)
+        agent = get_agent_by_id(body.agent_id, agents)
         if agent is None:
             return JSONResponse(status_code=404, content="Agent not found.")
 
@@ -332,7 +358,7 @@ def get_async_playground_router(agents: List[Agent]) -> APIRouter:
 
     @playground_router.post("/agent/session/rename")
     async def agent_rename(body: AgentRenameRequest):
-        agent = get_agent_by_id(agents, body.agent_id)
+        agent = get_agent_by_id(body.agent_id, agents)
         if agent is None:
             return JSONResponse(status_code=404, content=f"couldn't find agent with {body.agent_id}")
 
@@ -342,7 +368,7 @@ def get_async_playground_router(agents: List[Agent]) -> APIRouter:
 
     @playground_router.post("/agent/session/delete")
     async def agent_session_delete(body: AgentSessionDeleteRequest):
-        agent = get_agent_by_id(agents, body.agent_id)
+        agent = get_agent_by_id(body.agent_id, agents)
         if agent is None:
             return JSONResponse(status_code=404, content="Agent not found.")
 
@@ -356,5 +382,135 @@ def get_async_playground_router(agents: List[Agent]) -> APIRouter:
                 return JSONResponse(content={"message": f"successfully deleted agent {agent.name}"})
 
         return JSONResponse(status_code=404, content="Session not found.")
+
+    @playground_router.get("/workflows/get")
+    async def get_workflows():
+        if workflows is None:
+            return []
+
+        return [
+            {"id": workflow.workflow_id, "name": workflow.name, "description": workflow.description}
+            for workflow in workflows
+        ]
+
+    @playground_router.get("/workflow/inputs/{workflow_id}")
+    async def get_workflow_inputs(workflow_id: str):
+        workflow = get_workflow_by_id(workflow_id, workflows)
+        if workflow is None:
+            raise HTTPException(status_code=404, detail="Workflow not found")
+
+        return {
+            "workflow_id": workflow.workflow_id,
+            "name": workflow.name,
+            "description": workflow.description,
+            "parameters": workflow._run_parameters or {},
+        }
+
+    @playground_router.get("/workflow/config/{workflow_id}")
+    async def get_workflow_config(workflow_id: str):
+        workflow = get_workflow_by_id(workflow_id, workflows)
+        if workflow is None:
+            raise HTTPException(status_code=404, detail="Workflow not found")
+
+        return {
+            "storage": workflow.storage.__class__.__name__ if workflow.storage else None,
+        }
+
+    @playground_router.post("/workflow/{workflow_id}/run")
+    async def run_workflow(workflow_id: str, body: WorkflowRunRequest):
+        # Retrieve the workflow by ID
+        workflow = get_workflow_by_id(workflow_id, workflows)
+        if workflow is None:
+            raise HTTPException(status_code=404, detail="Workflow not found")
+
+        # Create a new instance of this workflow
+        new_workflow_instance = workflow.deep_copy(update={"workflow_id": workflow_id})
+        new_workflow_instance.user_id = body.user_id
+
+        # Return based on the response type
+        try:
+            if new_workflow_instance._run_return_type == "RunResponse":
+                # Return as a normal response
+                return new_workflow_instance.run(**body.input)
+            else:
+                # Return as a streaming response
+                return StreamingResponse(
+                    (result.model_dump_json() for result in new_workflow_instance.run(**body.input)),
+                    media_type="text/event-stream",
+                )
+        except Exception as e:
+            # Handle unexpected runtime errors
+            raise HTTPException(status_code=500, detail=f"Error running workflow: {str(e)}")
+
+    @playground_router.post("/workflow/{workflow_id}/session/all")
+    async def get_all_workflow_sessions(workflow_id: str, body: WorkflowSessionsRequest):
+        # Retrieve the workflow by ID
+        workflow = get_workflow_by_id(workflow_id, workflows)
+        if not workflow:
+            raise HTTPException(status_code=404, detail="Workflow not found")
+
+        # Ensure storage is enabled for the workflow
+        if not workflow.storage:
+            raise HTTPException(status_code=404, detail="Workflow does not have storage enabled")
+
+        # Retrieve all sessions for the given workflow and user
+        try:
+            all_workflow_sessions: List[WorkflowSession] = workflow.storage.get_all_sessions(
+                user_id=body.user_id, workflow_id=workflow_id
+            )
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Error retrieving sessions: {str(e)}")
+
+        # Return the sessions
+        return [
+            {
+                "title": get_session_title_from_workflow_session(session),
+                "session_id": session.session_id,
+                "session_name": session.session_data.get("session_name") if session.session_data else None,
+                "created_at": session.created_at,
+            }
+            for session in all_workflow_sessions
+        ]
+
+    @playground_router.post("/workflow/{workflow_id}/session/{session_id}")
+    async def get_workflow_session(workflow_id: str, session_id: str, body: WorkflowSessionsRequest):
+        # Retrieve the workflow by ID
+        workflow = get_workflow_by_id(workflow_id, workflows)
+        if not workflow:
+            raise HTTPException(status_code=404, detail="Workflow not found")
+
+        # Ensure storage is enabled for the workflow
+        if not workflow.storage:
+            raise HTTPException(status_code=404, detail="Workflow does not have storage enabled")
+
+        # Retrieve the specific session
+        try:
+            workflow_session: Optional[WorkflowSession] = workflow.storage.read(session_id, body.user_id)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Error retrieving session: {str(e)}")
+
+        if not workflow_session:
+            raise HTTPException(status_code=404, detail="Session not found")
+
+        # Return the session
+        return workflow_session
+
+    @playground_router.post("/workflow/{workflow_id}/session/{session_id}/rename")
+    async def workflow_rename(workflow_id: str, session_id: str, body: WorkflowRenameRequest):
+        workflow = get_workflow_by_id(workflow_id, workflows)
+        if workflow is None:
+            raise HTTPException(status_code=404, detail="Workflow not found")
+
+        workflow.rename_session(session_id, body.name)
+        return JSONResponse(content={"message": f"successfully renamed workflow {workflow.name}"})
+
+    @playground_router.post("/workflow/{workflow_id}/session/{session_id}/delete")
+    async def workflow_delete(workflow_id: str, session_id: str):
+        workflow = get_workflow_by_id(workflow_id, workflows)
+        if workflow is None:
+            raise HTTPException(status_code=404, detail="Workflow not found")
+
+        workflow.delete_session(session_id)
+        return JSONResponse(content={"message": f"successfully deleted workflow {workflow.name}"})
 
     return playground_router

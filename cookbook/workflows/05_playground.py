@@ -1,18 +1,17 @@
 """
-1. Install dependencies using: `pip install openai duckduckgo-search sqlalchemy phidata`
-2. Run the script using: `python cookbook/workflows/blog_post_streaming.py`
+1. Install dependencies using: `pip install openai duckduckgo-search sqlalchemy 'fastapi[standard]' phidata`
+2. Run the script using: `python cookbook/workflows/05_playground.py`
 """
 
 import json
 from typing import Optional, Iterator
 
-from phi.playground.playground import Playground
-from phi.storage.workflow.postgres import PgWorkflowStorage
 from pydantic import BaseModel, Field
 
 from phi.agent import Agent
 from phi.workflow import Workflow, RunResponse, RunEvent
-from phi.playground import serve_workflow_playground_app
+from phi.playground import Playground, serve_playground_app
+from phi.storage.workflow.sqlite import SqlWorkflowStorage
 from phi.tools.duckduckgo import DuckDuckGo
 from phi.utils.log import logger
 
@@ -46,22 +45,17 @@ class BlogPostGenerator(Workflow):
         ],
     )
 
-    def get_cached_blog_post(self, topic: str) -> Optional[dict]:
-        if "blog_posts" in self.session_state:
-            for cached_blog_post in self.session_state["blog_posts"]:
-                if cached_blog_post["topic"] == topic:
-                    return cached_blog_post
+    def get_cached_blog_post(self, topic: str) -> Optional[str]:
+        logger.info("Checking if cached blog post exists")
+        if "blog_posts" in self.session_state and topic in self.session_state["blog_posts"]:
+            logger.info("Found cached blog post")
+            return self.session_state["blog_posts"][topic]
         return None
 
-    def add_cached_blog_post(self, topic: str, blog_post: str):
-        if "blog_posts" not in self.session_state:
-            self.session_state["blog_posts"] = []
-        self.session_state["blog_posts"].append({"topic": topic, "blog_post": blog_post})
-
-    def search_web(self, topic: str) -> Optional[SearchResults]:
-        search_results: Optional[SearchResults] = None
+    def get_search_results(self, topic: str) -> Optional[SearchResults]:
         num_tries = 0
-
+        search_results: Optional[SearchResults] = None
+        # Run until we get a valid search results
         while search_results is None and num_tries < 3:
             try:
                 num_tries += 1
@@ -77,59 +71,53 @@ class BlogPostGenerator(Workflow):
                     logger.warning("Searcher response invalid, trying again...")
             except Exception as e:
                 logger.warning(f"Error running searcher: {e}")
-
         return search_results
+
+    def write_blog_post(self, topic: str, search_results: SearchResults) -> Iterator[RunResponse]:
+        logger.info("Writing blog post")
+        # Prepare the input for the writer
+        writer_input = {"topic": topic, "articles": [v.model_dump() for v in search_results.articles]}
+        # Run the writer and yield the response
+        yield from self.writer.run(json.dumps(writer_input, indent=4), stream=True)
+        # Save the blog post in the session state for future runs
+        if "blog_posts" not in self.session_state:
+            self.session_state["blog_posts"] = {}
+        logger.info(f"Saving blog post for topic: {topic}")
+        self.session_state["blog_posts"][topic] = self.writer.run_response.content
 
     def run(self, topic: str, use_cache: bool = True) -> Iterator[RunResponse]:
         logger.info(f"Generating a blog post on: {topic}")
 
         # Use the cached blog post if use_cache is True
-        if use_cache and (cached_blog_post := self.get_cached_blog_post(topic)):
-            logger.info("Found cached blog post")
-            yield RunResponse(
-                run_id=self.run_id,
-                event=RunEvent.workflow_completed,
-                content=cached_blog_post["blog_post"],
-            )
-            return
+        if use_cache:
+            cached_blog_post = self.get_cached_blog_post(topic)
+            if cached_blog_post:
+                yield RunResponse(content=cached_blog_post, event=RunEvent.workflow_completed)
+                return
 
-        # Step 1: Search the web for articles on the topic
-        search_results = self.search_web(topic)
-
+        # Search the web for articles on the topic
+        search_results: Optional[SearchResults] = self.get_search_results(topic)
         # If no search_results are found for the topic, end the workflow
         if search_results is None or len(search_results.articles) == 0:
             yield RunResponse(
-                run_id=self.run_id,
                 event=RunEvent.workflow_completed,
                 content=f"Sorry, could not find any articles on the topic: {topic}",
             )
             return
 
-        # Step 2: Write a blog post
-        logger.info("Writing blog post")
-        # Prepare the input for the writer
-        writer_input = {
-            "topic": topic,
-            "articles": [v.model_dump() for v in search_results.articles],
-        }
-        # Run the writer and yield the response
-        yield from self.writer.run(json.dumps(writer_input, indent=4), stream=True)
-
-        # Save the blog post in the session state for future runs
-        content: Optional[str] = self.writer.run_response.content
-        if content:
-            self.add_cached_blog_post(topic, content)
+        # Write a blog post
+        yield from self.write_blog_post(topic, search_results)
 
 
-# Create the workflow
+# Instantiate the workflow
 generate_blog_post = BlogPostGenerator(
-    storage=PgWorkflowStorage(
+    storage=SqlWorkflowStorage(
         table_name="generate_blog_post_workflows",
-        db_url="postgresql+psycopg://ai:ai@localhost:5532/ai",
+        db_file="tmp/workflows.db",
     ),
 )
 
 app = Playground(workflows=[generate_blog_post]).get_app()
 
 if __name__ == "__main__":
-    serve_workflow_playground_app("agent_workflow_ui:app", reload=True)
+    serve_playground_app("05_playground:app", reload=True)

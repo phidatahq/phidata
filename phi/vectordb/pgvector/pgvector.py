@@ -283,9 +283,10 @@ class PgVector(VectorDb):
             batch_size (int): Number of documents to insert in each batch.
         """
         try:
-            with self.Session() as sess, sess.begin():
+            with self.Session() as sess:
                 for i in range(0, len(documents), batch_size):
                     batch_docs = documents[i : i + batch_size]
+                    logger.debug(f"Processing batch starting at index {i}, size: {len(batch_docs)}")
                     try:
                         # Prepare documents for insertion
                         batch_records = []
@@ -312,11 +313,11 @@ class PgVector(VectorDb):
                         # Insert the batch of records
                         insert_stmt = postgresql.insert(self.table)
                         sess.execute(insert_stmt, batch_records)
-                        sess.commit()
+                        sess.commit()  # Commit batch independently
                         logger.info(f"Inserted batch of {len(batch_records)} documents.")
                     except Exception as e:
-                        logger.error(f"Error with batch {i}: {e}")
-                        sess.rollback()
+                        logger.error(f"Error with batch starting at index {i}: {e}")
+                        sess.rollback()  # Rollback the current batch if there's an error
                         raise
         except Exception as e:
             logger.error(f"Error inserting documents: {e}")
@@ -346,9 +347,10 @@ class PgVector(VectorDb):
             batch_size (int): Number of documents to upsert in each batch.
         """
         try:
-            with self.Session() as sess, sess.begin():
+            with self.Session() as sess:
                 for i in range(0, len(documents), batch_size):
                     batch_docs = documents[i : i + batch_size]
+                    logger.debug(f"Processing batch starting at index {i}, size: {len(batch_docs)}")
                     try:
                         # Prepare documents for upserting
                         batch_records = []
@@ -387,11 +389,11 @@ class PgVector(VectorDb):
                             ),
                         )
                         sess.execute(upsert_stmt)
-                        sess.commit()
+                        sess.commit()  # Commit batch independently
                         logger.info(f"Upserted batch of {len(batch_records)} documents.")
                     except Exception as e:
-                        logger.error(f"Error with batch {i}: {e}")
-                        sess.rollback()
+                        logger.error(f"Error with batch starting at index {i}: {e}")
+                        sess.rollback()  # Rollback the current batch if there's an error
                         raise
         except Exception as e:
             logger.error(f"Error upserting documents: {e}")

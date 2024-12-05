@@ -1,12 +1,14 @@
 from os import getenv
-from typing import Optional, Literal
+from typing import Optional, Literal, List
 
+from phi.agent import Agent
 from phi.tools import Toolkit
 from phi.utils.log import logger
 
-
 try:
     from openai import OpenAI
+    from openai.types.image import Image
+    from openai.types.images_response import ImagesResponse
 except ImportError:
     raise ImportError("`openai` not installed. Please install using `pip install openai`")
 
@@ -29,13 +31,32 @@ class Dalle(Toolkit):
         self.quality = quality
         self.style = style
         self.api_key = api_key or getenv("OPENAI_API_KEY")
+
+        # Validations
+        if model not in ["dall-e-3", "dall-e-2"]:
+            raise ValueError("Invalid model. Please choose from 'dall-e-3' or 'dall-e-2'.")
+        if size not in ["256x256", "512x512", "1024x1024", "1792x1024", "1024x1792"]:
+            raise ValueError(
+                "Invalid size. Please choose from '256x256', '512x512', '1024x1024', '1792x1024', '1024x1792'."
+            )
+        if quality not in ["standard", "hd"]:
+            raise ValueError("Invalid quality. Please choose from 'standard' or 'hd'.")
+        if not isinstance(n, int) or n <= 0:
+            raise ValueError("Invalid number of images. Please provide a positive integer.")
+        if model == "dall-e-3" and n > 1:
+            raise ValueError("Dall-e-3 only supports a single image generation.")
+
         if not self.api_key:
             logger.error("OPENAI_API_KEY not set. Please set the OPENAI_API_KEY environment variable.")
 
         self.register(self.generate_image)
+        # TODO:
+        # - Add support for response_format
+        # - Add support for saving images
+        # - Add support for editing images
 
-    def generate_image(self, prompt: str) -> str:
-        """Use this function to generate an image given a prompt.
+    def generate_image(self, agent: Agent, prompt: str) -> str:
+        """Use this function to generate an image for a prompt.
 
         Args:
             prompt (str): A text description of the desired image.
@@ -49,7 +70,7 @@ class Dalle(Toolkit):
         try:
             client = OpenAI(api_key=self.api_key)
             logger.info(f"Generating image for prompt: {prompt}")
-            response = client.images.generate(
+            response: ImagesResponse = client.images.generate(
                 prompt=prompt,
                 model=self.model,
                 n=self.n,
@@ -57,7 +78,14 @@ class Dalle(Toolkit):
                 size=self.size,
                 style=self.style,
             )
-            return response.data[0].url or "Error: No image URL returned"
+
+            # TODO: add validations
+            data: List[Image] = response.data
+            logger.info(f"Images Generated: {len(data)}")
+
+            # Update the run response with the image URLs
+            agent.run_response.images = response.model_dump()
+            return response.model_dump_json()
         except Exception as e:
             logger.error(f"Failed to generate image: {e}")
             return f"Error: {e}"

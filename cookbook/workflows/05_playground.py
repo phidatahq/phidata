@@ -14,18 +14,21 @@ from investment_report_generator import InvestmentReportGenerator  # type: ignor
 # Initialize the workflows with SQLite storage
 
 blog_post_generator = BlogPostGenerator(
+    workflow_id="generate-blog-post",
     storage=SqlWorkflowStorage(
         table_name="generate_blog_post_workflows",
         db_file="tmp/workflows.db",
     ),
 )
 news_report_generator = NewsReportGenerator(
+    workflow_id="generate-news-report",
     storage=SqlWorkflowStorage(
         table_name="generate_news_report_workflows",
         db_file="tmp/workflows.db",
     ),
 )
 investment_report_generator = InvestmentReportGenerator(
+    workflow_id="generate-investment-report",
     storage=SqlWorkflowStorage(
         table_name="investment_report_workflows",
         db_file="tmp/workflows.db",

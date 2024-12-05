@@ -312,7 +312,7 @@ class OpenAIChat(Model):
                 if isinstance(self.response_format, type) and issubclass(self.response_format, BaseModel):
                     return self.get_client().beta.chat.completions.parse(
                         model=self.id,
-                        messages=[self.process_(m) for m in messages],  # type: ignore
+                        messages=[self.process_message(m) for m in messages],  # type: ignore
                         **self.request_kwargs,
                     )
                 else:

@@ -1,6 +1,6 @@
 from time import time
 from enum import Enum
-from typing import Optional, Any, Dict, List
+from typing import Optional, Any, Dict, List, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -39,6 +39,7 @@ class RunResponse(BaseModel):
 
     content: Optional[Any] = None
     content_type: str = "str"
+    images: Optional[List[Union[str, Dict[str, Any]]]] = None
     audio: Optional[Dict[str, Any]] = None
     event: str = RunEvent.run_response.value
     messages: Optional[List[Message]] = None

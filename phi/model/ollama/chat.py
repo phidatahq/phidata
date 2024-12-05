@@ -161,7 +161,7 @@ class Ollama(Model):
             _dict["request_params"] = self.request_params
         return _dict
 
-    def _format_message(self, message: Message) -> Dict[str, Any]:
+    def process_message(self, message: Message) -> Dict[str, Any]:
         """
         Format a message into the format expected by Ollama.
 
@@ -171,12 +171,12 @@ class Ollama(Model):
         Returns:
             Dict[str, Any]: The formatted message.
         """
-        _formatted_message = {
+        _formatted_message: Dict[str, Any] = {
             "role": message.role,
             "content": message.content,
         }
-        if isinstance(message.model_extra, dict) and "images" in message.model_extra:
-            _formatted_message["images"] = message.model_extra["images"]
+        if message.images is not None:
+            _formatted_message["images"] = message.images
         return _formatted_message
 
     def invoke(self, messages: List[Message]) -> Mapping[str, Any]:
@@ -191,7 +191,7 @@ class Ollama(Model):
         """
         return self.get_client().chat(
             model=self.id,
-            messages=[self._format_message(m) for m in messages],  # type: ignore
+            messages=[self.process_message(m) for m in messages],  # type: ignore
             **self.request_kwargs,
         )  # type: ignore
 
@@ -207,7 +207,7 @@ class Ollama(Model):
         """
         return await self.get_async_client().chat(
             model=self.id,
-            messages=[self._format_message(m) for m in messages],  # type: ignore
+            messages=[self.process_message(m) for m in messages],  # type: ignore
             **self.request_kwargs,
         )  # type: ignore
 
@@ -223,7 +223,7 @@ class Ollama(Model):
         """
         yield from self.get_client().chat(
             model=self.id,
-            messages=[self._format_message(m) for m in messages],  # type: ignore
+            messages=[self.process_message(m) for m in messages],  # type: ignore
             stream=True,
             **self.request_kwargs,
         )  # type: ignore
@@ -240,7 +240,7 @@ class Ollama(Model):
         """
         async_stream = await self.get_async_client().chat(
             model=self.id,
-            messages=[self._format_message(m) for m in messages],  # type: ignore
+            messages=[self.process_message(m) for m in messages],  # type: ignore
             stream=True,
             **self.request_kwargs,
         )

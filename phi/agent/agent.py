@@ -1097,8 +1097,9 @@ class Agent(BaseModel):
 
     def get_user_message(
         self,
-        message: Optional[Union[str, List, Dict, Message]],
+        message: Optional[Union[str, List]],
         images: Optional[Sequence[Union[str, Dict]]] = None,
+        audio: Optional[Dict] = None,
         **kwargs: Any,
     ) -> Optional[Message]:
         """Return the user message for the Agent.
@@ -1140,43 +1141,33 @@ class Agent(BaseModel):
 
             # Cast the user message to the correct type for the add_images_to_message_content function
             user_prompt_content = cast(Union[List, Dict, str], user_prompt_content)
-            _user_message = Message(
+            return Message(
                 role=self.user_message_role,
                 content=user_prompt_content,
-                # This is OK because we will add the images to the message content later
-                # But technically we should remove this field, it is only used for Ollama
                 images=images,
+                audio=audio,
                 **kwargs,
             )
-            # Add images to the user message if the model supports images
-            if self.model and images is not None:
-                _user_message = self.model.add_images_to_message(message=_user_message, images=images)
-            return _user_message
 
         # 2. If the user_prompt_template is provided, build the user_message using the template.
         if self.user_prompt_template is not None:
             user_prompt_kwargs = {"agent": self, "message": message, "references": references}
             user_prompt_from_template = self.user_prompt_template.get_prompt(**user_prompt_kwargs)
-            _user_message = Message(
+            return Message(
                 role=self.user_message_role,
                 content=user_prompt_from_template,
-                # This is OK because we will add the images to the message content later
-                # But technically we should remove this field, it is only used for Ollama
                 images=images,
+                audio=audio,
                 **kwargs,
             )
-            # Add images to the user message if the model supports images
-            if self.model and images is not None:
-                _user_message = self.model.add_images_to_message(message=_user_message, images=images)
-            return _user_message
 
         # 3. If the message is None, return None
         if message is None:
             return None
 
-        # 4. If use_default_user_message is False or If the message is not a string, return the message as is.
-        if not self.use_default_user_message or not isinstance(message, str):
-            return Message(role=self.user_message_role, content=message, **kwargs)
+        # 4. If use_default_user_message is False, return the message as is.
+        if not self.use_default_user_message or isinstance(message, list):
+            return Message(role=self.user_message_role, content=message, images=images, audio=audio, **kwargs)
 
         # 5. Build the default user message for the Agent
         user_prompt = message
@@ -1200,24 +1191,20 @@ class Agent(BaseModel):
             user_prompt += "</context>"
 
         # Return the user message
-        _user_message = Message(
+        return Message(
             role=self.user_message_role,
             content=user_prompt,
-            # This is OK because we will add the images to the message content later
-            # But technically we should remove this field, it is only used for Ollama
             images=images,
+            audio=audio,
             **kwargs,
         )
-        # Add images to the user message if the model supports images
-        if self.model and images is not None:
-            _user_message = self.model.add_images_to_message(message=_user_message, images=images)
-        return _user_message
 
     def get_messages_for_run(
         self,
         *,
         message: Optional[Union[str, List, Dict, Message]] = None,
         images: Optional[Sequence[Union[str, Dict]]] = None,
+        audio: Optional[Dict] = None,
         messages: Optional[Sequence[Union[Dict, Message]]] = None,
         **kwargs: Any,
     ) -> Tuple[Optional[Message], List[Message], List[Message]]:
@@ -1295,13 +1282,21 @@ class Agent(BaseModel):
             # If message is provided as a Message, use it directly
             if isinstance(message, Message):
                 user_messages.append(message)
-            # If message is provided as a str, build the user message
-            elif isinstance(message, str) or isinstance(message, list) or isinstance(message, dict):
+            # If message is provided as a str or list, build the Message object
+            elif isinstance(message, str) or isinstance(message, list):
                 # Get the user message
-                user_message: Optional[Message] = self.get_user_message(message=message, images=images, **kwargs)
+                user_message: Optional[Message] = self.get_user_message(
+                    message=message, images=images, audio=audio, **kwargs
+                )
                 # Add user message to the messages list
                 if user_message is not None:
                     user_messages.append(user_message)
+            # If message is provided as a dict, try to validate it as a Message
+            elif isinstance(message, dict):
+                try:
+                    user_messages.append(Message.model_validate(message))
+                except Exception as e:
+                    logger.warning(f"Failed to validate message: {e}")
         # 3.4.2 Build user messages from messages list if provided
         elif messages is not None and len(messages) > 0:
             for _m in messages:
@@ -1673,6 +1668,7 @@ class Agent(BaseModel):
         message: Optional[Union[str, List, Dict, Message]] = None,
         *,
         stream: bool = False,
+        audio: Optional[Dict] = None,
         images: Optional[Sequence[Union[str, Dict]]] = None,
         messages: Optional[Sequence[Union[Dict, Message]]] = None,
         stream_intermediate_steps: bool = False,
@@ -1712,7 +1708,7 @@ class Agent(BaseModel):
 
         # 3. Prepare messages for this run
         system_message, user_messages, messages_for_model = self.get_messages_for_run(
-            message=message, images=images, messages=messages, **kwargs
+            message=message, images=images, audio=audio, messages=messages, **kwargs
         )
 
         # 4. Reason about the task if reasoning is enabled
@@ -1808,6 +1804,8 @@ class Agent(BaseModel):
                 self.run_response.content_type = self.response_model.__name__
             else:
                 self.run_response.content = model_response.content
+            if model_response.audio is not None:
+                self.run_response.audio = model_response.audio
             self.run_response.messages = messages_for_model
             self.run_response.created_at = model_response.created_at
 
@@ -1922,10 +1920,11 @@ class Agent(BaseModel):
     @overload
     def run(
         self,
-        message: Optional[Union[List, Dict, str]] = None,
+        message: Optional[Union[str, List, Dict, Message]] = None,
         *,
         stream: Literal[False] = False,
         images: Optional[Sequence[Union[str, Dict]]] = None,
+        audio: Optional[Dict] = None,
         messages: Optional[Sequence[Union[Dict, Message]]] = None,
         **kwargs: Any,
     ) -> RunResponse: ...
@@ -1933,10 +1932,11 @@ class Agent(BaseModel):
     @overload
     def run(
         self,
-        message: Optional[Union[List, Dict, str]] = None,
+        message: Optional[Union[str, List, Dict, Message]] = None,
         *,
         stream: Literal[True] = True,
         images: Optional[Sequence[Union[str, Dict]]] = None,
+        audio: Optional[Dict] = None,
         messages: Optional[Sequence[Union[Dict, Message]]] = None,
         stream_intermediate_steps: bool = False,
         **kwargs: Any,
@@ -1944,10 +1944,11 @@ class Agent(BaseModel):
 
     def run(
         self,
-        message: Optional[Union[List, Dict, str]] = None,
+        message: Optional[Union[str, List, Dict, Message]] = None,
         *,
         stream: bool = False,
         images: Optional[Sequence[Union[str, Dict]]] = None,
+        audio: Optional[Dict] = None,
         messages: Optional[Sequence[Union[Dict, Message]]] = None,
         stream_intermediate_steps: bool = False,
         **kwargs: Any,
@@ -1963,6 +1964,7 @@ class Agent(BaseModel):
                     message=message,
                     stream=False,
                     images=images,
+                    audio=audio,
                     messages=messages,
                     stream_intermediate_steps=stream_intermediate_steps,
                     **kwargs,
@@ -2011,6 +2013,7 @@ class Agent(BaseModel):
                     message=message,
                     stream=True,
                     images=images,
+                    audio=audio,
                     messages=messages,
                     stream_intermediate_steps=stream_intermediate_steps,
                     **kwargs,
@@ -2021,6 +2024,7 @@ class Agent(BaseModel):
                     message=message,
                     stream=False,
                     images=images,
+                    audio=audio,
                     messages=messages,
                     stream_intermediate_steps=stream_intermediate_steps,
                     **kwargs,
@@ -2029,10 +2033,11 @@ class Agent(BaseModel):
 
     async def _arun(
         self,
-        message: Optional[Union[List, Dict, str]] = None,
+        message: Optional[Union[str, List, Dict, Message]] = None,
         *,
         stream: bool = False,
         images: Optional[Sequence[Union[str, Dict]]] = None,
+        audio: Optional[Dict] = None,
         messages: Optional[Sequence[Union[Dict, Message]]] = None,
         stream_intermediate_steps: bool = False,
         **kwargs: Any,
@@ -2068,7 +2073,7 @@ class Agent(BaseModel):
 
         # 3. Prepare messages for this run
         system_message, user_messages, messages_for_model = self.get_messages_for_run(
-            message=message, images=images, messages=messages, **kwargs
+            message=message, images=images, audio=audio, messages=messages, **kwargs
         )
 
         # 4. Reason about the task if reasoning is enabled
@@ -2279,10 +2284,11 @@ class Agent(BaseModel):
 
     async def arun(
         self,
-        message: Optional[Union[List, Dict, str]] = None,
+        message: Optional[Union[str, List, Dict, Message]] = None,
         *,
         stream: bool = False,
         images: Optional[Sequence[Union[str, Dict]]] = None,
+        audio: Optional[Dict] = None,
         messages: Optional[Sequence[Union[Dict, Message]]] = None,
         stream_intermediate_steps: bool = False,
         **kwargs: Any,
@@ -2297,6 +2303,7 @@ class Agent(BaseModel):
                 message=message,
                 stream=False,
                 images=images,
+                audio=audio,
                 messages=messages,
                 stream_intermediate_steps=stream_intermediate_steps,
                 **kwargs,
@@ -2342,6 +2349,7 @@ class Agent(BaseModel):
                     message=message,
                     stream=True,
                     images=images,
+                    audio=audio,
                     messages=messages,
                     stream_intermediate_steps=stream_intermediate_steps,
                     **kwargs,
@@ -2352,6 +2360,7 @@ class Agent(BaseModel):
                     message=message,
                     stream=False,
                     images=images,
+                    audio=audio,
                     messages=messages,
                     stream_intermediate_steps=stream_intermediate_steps,
                     **kwargs,
@@ -2697,7 +2706,7 @@ class Agent(BaseModel):
 
     def print_response(
         self,
-        message: Optional[Union[List, Dict, str]] = None,
+        message: Optional[Union[List, Dict, str, Message]] = None,
         *,
         messages: Optional[List[Union[Dict, Message]]] = None,
         stream: bool = False,
@@ -2915,7 +2924,7 @@ class Agent(BaseModel):
 
     async def aprint_response(
         self,
-        message: Optional[Union[List, Dict, str]] = None,
+        message: Optional[Union[List, Dict, str, Message]] = None,
         *,
         messages: Optional[List[Union[Dict, Message]]] = None,
         stream: bool = False,

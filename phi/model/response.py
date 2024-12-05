@@ -19,6 +19,7 @@ class ModelResponse:
 
     content: Optional[str] = None
     parsed: Optional[Any] = None
+    audio: Optional[Dict[str, Any]] = None
     tool_call: Optional[Dict[str, Any]] = None
     event: str = ModelResponseEvent.assistant_response.value
     created_at: int = int(time())

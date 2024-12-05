@@ -23,6 +23,8 @@ investment_report = str(reports_dir.joinpath("investment_report.md"))
 
 
 class InvestmentAnalyst(Workflow):
+    description: str = "This workflow is used to research and invest in stocks."
+
     stock_analyst: Agent = Agent(
         tools=[YFinanceTools(company_info=True, analyst_recommendations=True, company_news=True)],
         description="You are a Senior Investment Analyst for Goldman Sachs tasked with producing a research report for a very important client.",
@@ -80,6 +82,15 @@ class InvestmentAnalyst(Workflow):
 
 
 # Run workflow
-report: Iterator[RunResponse] = InvestmentAnalyst(debug_mode=False).run(companies="NVDA, TSLA")
+# report: Iterator[RunResponse] = InvestmentAnalyst(debug_mode=False).run(companies="NVDA, TSLA")
 # Print the report
-pprint_run_response(report, markdown=True, show_time=True)
+# pprint_run_response(report, markdown=True, show_time=True)
+
+agent = Agent(
+    name="Investment Analyst",
+    workflows=[InvestmentAnalyst(debug_mode=True)],
+    debug_mode=True,
+    show_tool_calls=True,
+)
+
+agent.print_response("I want to invest in NVDA and TSLA. So give me a report on NVDA and TSLA.", stream=True)

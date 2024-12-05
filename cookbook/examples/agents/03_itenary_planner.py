@@ -6,7 +6,7 @@ from phi.tools.apify import ApifyTools
 itenary_agent = Agent(
     name="GlobeHopper",
     model=OpenAIChat(id="gpt-4o"),
-    tools=[ExaTools(), ApifyTools(web_scraper=True)],
+    tools=[ExaTools(), ApifyTools()],
     show_tool_calls=True,
     markdown=True,
     debug_mode=True,
@@ -19,5 +19,5 @@ itenary_agent = Agent(
     ],
 )
 
-itenary_agent.print_response("I want to go to Bombay,with four members please make an itenary")
+itenary_agent.print_response("I want to go to Bombay,with four members please make an itenary", stream=True)
 

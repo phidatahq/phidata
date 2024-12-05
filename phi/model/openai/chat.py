@@ -59,6 +59,7 @@ class Metrics:
 @dataclass
 class StreamData:
     response_content: str = ""
+    response_audio: Optional[Dict[str, Any]] = None
     response_tool_calls: Optional[List[ChoiceDeltaToolCall]] = None
 
 
@@ -535,9 +536,15 @@ class OpenAIChat(Model):
             content=response_message.content,
         )
         if response_message.tool_calls is not None and len(response_message.tool_calls) > 0:
-            assistant_message.tool_calls = [t.model_dump() for t in response_message.tool_calls]
+            try:
+                assistant_message.tool_calls = [t.model_dump() for t in response_message.tool_calls]
+            except Exception as e:
+                logger.warning(f"Error processing tool calls: {e}")
         if response_message.audio is not None:
-            assistant_message.audio = response_message.audio.model_dump()
+            try:
+                assistant_message.audio = response_message.audio.model_dump()
+            except Exception as e:
+                logger.warning(f"Error processing audio: {e}")
 
         # Update metrics
         self.update_usage_metrics(assistant_message, metrics, response_usage)
@@ -617,13 +624,17 @@ class OpenAIChat(Model):
                     # that is visible to the agent
                     model_response.parsed = response_after_tool_calls.parsed
                 if response_after_tool_calls.audio is not None:
+                    # bubble up the audio, so that the final response has the audio
+                    # that is visible to the agent
                     model_response.audio = response_after_tool_calls.audio
             return model_response
 
         # -*- Update model response
         if assistant_message.content is not None:
+            # add the content to the model response
             model_response.content = assistant_message.get_content_string()
         if assistant_message.audio is not None:
+            # add the audio to the model response
             model_response.audio = assistant_message.audio
 
         logger.debug("---------- OpenAI Response End ----------")
@@ -703,13 +714,17 @@ class OpenAIChat(Model):
                     # that is visible to the agent
                     model_response.parsed = response_after_tool_calls.parsed
                 if response_after_tool_calls.audio is not None:
+                    # bubble up the audio, so that the final response has the audio
+                    # that is visible to the agent
                     model_response.audio = response_after_tool_calls.audio
             return model_response
 
         # -*- Update model response
         if assistant_message.content is not None:
+            # add the content to the model response
             model_response.content = assistant_message.get_content_string()
         if assistant_message.audio is not None:
+            # add the audio to the model response
             model_response.audio = assistant_message.audio
 
         logger.debug("---------- OpenAI Async Response End ----------")

@@ -1,7 +1,7 @@
 import json
 
 from dataclasses import dataclass, field
-from typing import Optional, List, Iterator, Dict, Any, Mapping, Union
+from typing import Optional, List, Iterator, Dict, Any, Mapping, Union, Tuple
 
 from phi.model.base import Model
 from phi.model.message import Message
@@ -171,13 +171,13 @@ class Ollama(Model):
         Returns:
             Dict[str, Any]: The formatted message.
         """
-        _formatted_message: Dict[str, Any] = {
+        _message: Dict[str, Any] = {
             "role": message.role,
             "content": message.content,
         }
         if message.images is not None:
-            _formatted_message["images"] = message.images
-        return _formatted_message
+            _message["images"] = message.images
+        return _message
 
     def invoke(self, messages: List[Message]) -> Mapping[str, Any]:
         """
@@ -531,6 +531,31 @@ class Ollama(Model):
 
             self._format_function_call_results(function_call_results, messages)
 
+    def _handle_tool_call_chunk(self, content, tool_call_buffer, message_data) -> Tuple[str, bool]:
+        """
+        Handle a tool call chunk for response stream.
+
+        Args:
+            content: The content of the tool call.
+            tool_call_buffer: The tool call buffer.
+            message_data: The message data.
+
+        Returns:
+            Tuple[str, bool]: The tool call buffer and a boolean indicating if the tool call is complete.
+        """
+        tool_call_buffer += content
+        brace_count = tool_call_buffer.count("{") - tool_call_buffer.count("}")
+
+        if brace_count == 0:
+            try:
+                tool_call_data = json.loads(tool_call_buffer)
+                message_data.tool_call_blocks.append(tool_call_data)
+            except json.JSONDecodeError:
+                logger.error("Failed to parse tool call JSON.")
+            return "", False
+
+        return tool_call_buffer, True
+
     def response_stream(self, messages: List[Message]) -> Iterator[ModelResponse]:
         """
         Generate a streaming response from Ollama.
@@ -544,38 +569,51 @@ class Ollama(Model):
         logger.debug("---------- Ollama Response Start ----------")
         self._log_messages(messages)
         message_data = MessageData()
+        ignored_content = frozenset(["json", "\n", ";", ";\n"])
         metrics: Metrics = Metrics()
 
         # -*- Generate response
         metrics.response_timer.start()
         for response in self.invoke_stream(messages=messages):
+            # logger.debug(f"Response: {response.get('message', {}).get('content', '')}")
             message_data.response_message = response.get("message", {})
             if message_data.response_message:
                 metrics.output_tokens += 1
                 if metrics.output_tokens == 1:
                     metrics.time_to_first_token = metrics.response_timer.elapsed
 
-                message_data.response_content_chunk = message_data.response_message.get("content", "")
+                message_data.response_content_chunk = message_data.response_message.get("content", "").strip("`")
 
-                yield ModelResponse(content=message_data.response_content_chunk)
-                message_data.response_content += message_data.response_content_chunk
-
-                message_data.tool_call_blocks = message_data.response_message.get("tool_calls")  # type: ignore
-                if message_data.tool_call_blocks is not None:
-                    for block in message_data.tool_call_blocks:
-                        tool_call = block.get("function")
-                        tool_name = tool_call.get("name")
-                        tool_args = tool_call.get("arguments")
-
-                        function_def = {
-                            "name": tool_name,
-                            "arguments": json.dumps(tool_args) if tool_args is not None else None,
-                        }
-                        message_data.tool_calls.append({"type": "function", "function": function_def})
+            if message_data.response_content_chunk:
+                if message_data.in_tool_call:
+                    message_data.tool_call_chunk, message_data.in_tool_call = self._handle_tool_call_chunk(
+                        message_data.response_content_chunk, message_data.tool_call_chunk, message_data
+                    )
+                elif message_data.response_content_chunk.strip().startswith("{"):
+                    message_data.in_tool_call = True
+                    message_data.tool_call_chunk, message_data.in_tool_call = self._handle_tool_call_chunk(
+                        message_data.response_content_chunk, message_data.tool_call_chunk, message_data
+                    )
+                else:
+                    if message_data.response_content_chunk not in ignored_content:
+                        yield ModelResponse(content=message_data.response_content_chunk)
+                        message_data.response_content += message_data.response_content_chunk
 
             if response.get("done"):
                 message_data.response_usage = response
         metrics.response_timer.stop()
+
+        # Format tool calls
+        if message_data.tool_call_blocks is not None:
+            for block in message_data.tool_call_blocks:
+                tool_name = block.get("name")
+                tool_args = block.get("parameters")
+
+                function_def = {
+                    "name": tool_name,
+                    "arguments": json.dumps(tool_args) if tool_args is not None else None,
+                }
+                message_data.tool_calls.append({"type": "function", "function": function_def})
 
         # -*- Create assistant message
         assistant_message = Message(role="assistant", content=message_data.response_content)
@@ -614,6 +652,7 @@ class Ollama(Model):
         logger.debug("---------- Ollama Async Response Start ----------")
         self._log_messages(messages)
         message_data = MessageData()
+        ignored_content = frozenset(["json", "\n", ";", ";\n"])
         metrics: Metrics = Metrics()
 
         # -*- Generate response
@@ -625,23 +664,22 @@ class Ollama(Model):
                 if metrics.output_tokens == 1:
                     metrics.time_to_first_token = metrics.response_timer.elapsed
 
-                message_data.response_content_chunk = message_data.response_message.get("content", "")
+                message_data.response_content_chunk = message_data.response_message.get("content", "").strip("`")
 
-                yield ModelResponse(content=message_data.response_content_chunk)
-                message_data.response_content += message_data.response_content_chunk
-
-                message_data.tool_call_blocks = message_data.response_message.get("tool_calls")
-                if message_data.tool_call_blocks is not None:
-                    for block in message_data.tool_call_blocks:
-                        tool_call = block.get("function")
-                        tool_name = tool_call.get("name")
-                        tool_args = tool_call.get("arguments")
-
-                        function_def = {
-                            "name": tool_name,
-                            "arguments": json.dumps(tool_args) if tool_args is not None else None,
-                        }
-                        message_data.tool_calls.append({"type": "function", "function": function_def})
+            if message_data.response_content_chunk:
+                if message_data.in_tool_call:
+                    message_data.tool_call_chunk, message_data.in_tool_call = self._handle_tool_call_chunk(
+                        message_data.response_content_chunk, message_data.tool_call_chunk, message_data
+                    )
+                elif message_data.response_content_chunk.strip().startswith("{"):
+                    message_data.in_tool_call = True
+                    message_data.tool_call_chunk, message_data.in_tool_call = self._handle_tool_call_chunk(
+                        message_data.response_content_chunk, message_data.tool_call_chunk, message_data
+                    )
+                else:
+                    if message_data.response_content_chunk not in ignored_content:
+                        yield ModelResponse(content=message_data.response_content_chunk)
+                        message_data.response_content += message_data.response_content_chunk
 
             if response.get("done"):
                 message_data.response_usage = response

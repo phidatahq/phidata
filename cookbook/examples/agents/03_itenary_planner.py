@@ -3,7 +3,7 @@ from phi.agent import Agent
 from phi.tools.exa import ExaTools
 from phi.tools.apify import ApifyTools
 
-agent = Agent(
+itenary_agent = Agent(
     name="GlobeHopper",
     model=OpenAIChat(id="gpt-4o"),
     tools=[ExaTools(), ApifyTools(web_scraper=True)],
@@ -19,5 +19,5 @@ agent = Agent(
     ],
 )
 
-agent.print_response("I want to go to Bombay,with four members please make an itenary")
+itenary_agent.print_response("I want to go to Bombay,with four members please make an itenary")
 

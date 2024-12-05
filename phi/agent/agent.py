@@ -1095,23 +1095,6 @@ class Agent(BaseModel):
                 logger.error(f"Failed to convert sanitized context to JSON: {e}")
                 return str(context)
 
-    def add_images_to_message_content(
-        self, message_content: Union[List, Dict, str], images: Optional[Sequence[Union[str, Dict]]] = None
-    ) -> Union[List, Dict, str]:
-        # If images are provided, add them to the user message text
-        if images is not None and len(images) > 0 and self.model and self.model.add_images_to_message_content:
-            if isinstance(message_content, str):
-                message_content_with_image: List[Dict[str, Any]] = [{"type": "text", "text": message_content}]
-                for image in images:
-                    if isinstance(image, str):
-                        message_content_with_image.append({"type": "image_url", "image_url": {"url": image}})
-                    elif isinstance(image, dict):
-                        message_content_with_image.append({"type": "image_url", "image_url": image})
-                return message_content_with_image
-            else:
-                logger.warning(f"User Message type not supported with images: {type(message_content)}")
-        return message_content
-
     def get_user_message(
         self,
         message: Optional[Union[str, List, Dict, Message]],
@@ -1148,32 +1131,44 @@ class Agent(BaseModel):
 
         # 1. If the user_prompt is provided, use that.
         if self.user_prompt is not None:
-            user_message = self.user_prompt
+            user_prompt_content = self.user_prompt
             if callable(self.user_prompt):
                 user_prompt_kwargs = {"agent": self, "message": message, "references": references}
-                user_message = self.user_prompt(**user_prompt_kwargs)
-                if not isinstance(user_message, str):
+                user_prompt_content = self.user_prompt(**user_prompt_kwargs)
+                if not isinstance(user_prompt_content, str):
                     raise Exception("User prompt must return a string")
 
             # Cast the user message to the correct type for the add_images_to_message_content function
-            user_message = cast(Union[List, Dict, str], user_message)
-
-            return Message(
+            user_prompt_content = cast(Union[List, Dict, str], user_prompt_content)
+            _user_message = Message(
                 role=self.user_message_role,
-                content=self.add_images_to_message_content(message_content=user_message, images=images),
+                content=user_prompt_content,
+                # This is OK because we will add the images to the message content later
+                # But technically we should remove this field, it is only used for Ollama
                 images=images,
                 **kwargs,
             )
+            # Add images to the user message if the model supports images
+            if self.model and images is not None:
+                _user_message = self.model.add_images_to_message(message=_user_message, images=images)
+            return _user_message
 
         # 2. If the user_prompt_template is provided, build the user_message using the template.
         if self.user_prompt_template is not None:
             user_prompt_kwargs = {"agent": self, "message": message, "references": references}
             user_prompt_from_template = self.user_prompt_template.get_prompt(**user_prompt_kwargs)
-            return Message(
+            _user_message = Message(
                 role=self.user_message_role,
-                content=self.add_images_to_message_content(message_content=user_prompt_from_template, images=images),
+                content=user_prompt_from_template,
+                # This is OK because we will add the images to the message content later
+                # But technically we should remove this field, it is only used for Ollama
+                images=images,
                 **kwargs,
             )
+            # Add images to the user message if the model supports images
+            if self.model and images is not None:
+                _user_message = self.model.add_images_to_message(message=_user_message, images=images)
+            return _user_message
 
         # 3. If the message is None, return None
         if message is None:
@@ -1205,12 +1200,18 @@ class Agent(BaseModel):
             user_prompt += "</context>"
 
         # Return the user message
-        return Message(
+        _user_message = Message(
             role=self.user_message_role,
-            content=self.add_images_to_message_content(message_content=user_prompt, images=images),
-            references=references,
+            content=user_prompt,
+            # This is OK because we will add the images to the message content later
+            # But technically we should remove this field, it is only used for Ollama
+            images=images,
             **kwargs,
         )
+        # Add images to the user message if the model supports images
+        if self.model and images is not None:
+            _user_message = self.model.add_images_to_message(message=_user_message, images=images)
+        return _user_message
 
     def get_messages_for_run(
         self,
@@ -1295,7 +1296,7 @@ class Agent(BaseModel):
             if isinstance(message, Message):
                 user_messages.append(message)
             # If message is provided as a str, build the user message
-            elif isinstance(message, str):
+            elif isinstance(message, str) or isinstance(message, list) or isinstance(message, dict):
                 # Get the user message
                 user_message: Optional[Message] = self.get_user_message(message=message, images=images, **kwargs)
                 # Add user message to the messages list

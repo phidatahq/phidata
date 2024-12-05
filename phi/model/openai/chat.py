@@ -143,8 +143,8 @@ class OpenAIChat(Model):
     structured_outputs: bool = False
     # Whether the Model supports structured outputs.
     supports_structured_outputs: bool = True
-    # Whether to add images to the message content.
-    add_images_to_message_content: bool = True
+    # Whether the Model supports images.
+    supports_images: bool = True
 
     def get_client_params(self) -> Dict[str, Any]:
         client_params: Dict[str, Any] = {}

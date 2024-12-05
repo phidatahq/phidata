@@ -1,7 +1,7 @@
 import collections.abc
 
 from types import GeneratorType
-from typing import List, Iterator, Optional, Dict, Any, Callable, Union
+from typing import List, Iterator, Optional, Dict, Any, Callable, Union, Sequence
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, ValidationInfo
 
@@ -61,8 +61,8 @@ class Model(BaseModel):
     structured_outputs: Optional[bool] = None
     # Whether the Model supports structured outputs.
     supports_structured_outputs: bool = False
-    # Whether to add images to the message content.
-    add_images_to_message_content: bool = False
+    # Whether the Model supports images.
+    supports_images: bool = False
 
     model_config = ConfigDict(arbitrary_types_allowed=True, populate_by_name=True)
 
@@ -178,6 +178,96 @@ class Model(BaseModel):
                         logger.debug(f"Function {func.name} added to model.")
                 except Exception as e:
                     logger.warning(f"Could not add function {tool}: {e}")
+
+    def _process_string_image(self, image: str) -> Dict[str, Any]:
+        """Process string-based image (base64, URL, or file path)."""
+
+        # Process Base64 encoded image
+        if image.startswith("data:image"):
+            return {"type": "image_url", "image_url": {"url": image}}
+
+        # Process URL image
+        if image.startswith(("http://", "https://")):
+            return {"type": "image_url", "image_url": {"url": image}}
+
+        # Process local file image
+        import base64
+        import mimetypes
+        from pathlib import Path
+
+        path = Path(image)
+        if not path.exists():
+            raise FileNotFoundError(f"Image file not found: {image}")
+
+        mime_type = mimetypes.guess_type(image)[0] or "image/jpeg"
+        with open(path, "rb") as image_file:
+            base64_image = base64.b64encode(image_file.read()).decode("utf-8")
+            image_url = f"data:{mime_type};base64,{base64_image}"
+            return {"type": "image_url", "image_url": {"url": image_url}}
+
+    def _process_bytes_image(self, image: bytes) -> Dict[str, Any]:
+        """Process bytes image data."""
+        import base64
+
+        base64_image = base64.b64encode(image).decode("utf-8")
+        image_url = f"data:image/jpeg;base64,{base64_image}"
+        return {"type": "image_url", "image_url": {"url": image_url}}
+
+    def _process_image(self, image: Union[str, Dict, bytes]) -> Optional[Dict[str, Any]]:
+        """Process an image based on the format."""
+
+        if isinstance(image, dict):
+            return {"type": "image_url", "image_url": image}
+
+        if isinstance(image, str):
+            return self._process_string_image(image)
+
+        if isinstance(image, bytes):
+            return self._process_bytes_image(image)
+
+        logger.warning(f"Unsupported image type: {type(image)}")
+        return None
+
+    def add_images_to_message(
+        self, message: Message, images: Optional[Sequence[Union[str, Dict, bytes]]] = None
+    ) -> Message:
+        """
+        Add images to a message for the model. By default, we use the OpenAI image format but the Models
+        can override this method to use a different image format.
+        Args:
+            message: The message for the Model
+            images: Sequence of images in various formats:
+                - str: base64 encoded image, URL, or file path
+                - Dict: pre-formatted image data
+                - bytes: raw image data
+
+        Returns:
+            Message content with images added in the format expected by the model
+        """
+        if images is None or not self.supports_images:
+            return message
+
+        # Ignore non-string message content
+        if not isinstance(message.content, str):
+            logger.warning(f"Message type not supported with images: {type(message.content)}")
+            return message
+
+        # Create a default message content with text
+        message_content_with_image: List[Dict[str, Any]] = [{"type": "text", "text": message.content}]
+
+        # Add images to the message content
+        for image in images:
+            try:
+                image_data = self._process_image(image)
+                if image_data:
+                    message_content_with_image.append(image_data)
+            except Exception as e:
+                logger.error(f"Failed to process image: {str(e)}")
+                continue
+
+        # Update the message content with the images
+        message.content = message_content_with_image
+        return message
 
     def deactivate_function_calls(self) -> None:
         # Deactivate tool calls by setting future tool calls to "none"

@@ -59,6 +59,22 @@ class Metrics:
 
 
 class Gemini(Model):
+    """
+
+    Class for interacting with the VertexAI Gemini API.
+
+    Attributes:
+
+        name (str): The name of the API. Default is "Gemini".
+        model (str): The model name. Default is "gemini-1.5-flash-002".
+        provider (str): The provider of the API. Default is "VertexAI".
+        generation_config (Optional[Any]): The generation configuration.
+        safety_settings (Optional[Any]): The safety settings.
+        generative_model_request_params (Optional[Dict[str, Any]]): The generative model request parameters.
+        function_declarations (Optional[List[FunctionDeclaration]]): The function declarations.
+        client (Optional[GenerativeModel]): The GenerativeModel client.
+    """
+
     name: str = "Gemini"
     model: str = "gemini-1.5-flash-002"
     provider: str = "VertexAI"

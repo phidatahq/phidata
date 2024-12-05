@@ -21,9 +21,6 @@ main() {
 
   print_heading "Installing phidata with [all] extras"
   pip install --editable "${REPO_ROOT}[all]"
-
-  print_heading "Install development requirements"
-  pip install ruff mypy
 }
 
 main "$@"

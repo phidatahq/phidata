@@ -107,6 +107,13 @@ class Message(BaseModel):
                 _logger(json.dumps(self.content, indent=2))
         if self.tool_calls:
             _logger(f"Tool Calls: {json.dumps(self.tool_calls, indent=2)}")
+        if self.images:
+            _logger(f"Number of Images: {len(self.images)}")
+        if self.audio:
+            if "id" in self.audio:
+                _logger(f"Audio ID: {self.audio['id']}")
+            elif "data" in self.audio:
+                _logger("Message contains raw audio data")
         # if self.model_extra and "images" in self.model_extra:
         #     _logger("images: {}".format(self.model_extra["images"]))
 

@@ -372,19 +372,19 @@ class Model(BaseModel):
         if audio is None:
             return message
 
-        # Ignore non-string message content
-        if not isinstance(message.content, str):
-            logger.warning(f"Message type not supported with audio: {type(message.content)}")
-            return message
-
-        # Create a default message content with text
-        message_content_with_audio: List[Dict[str, Any]] = [
-            {"type": "text", "text": message.content},
-            {"type": "input_audio", "input_audio": audio},
-        ]
-
-        # Update the message content with the audio
-        message.content = message_content_with_audio
+        # If `id` is in the audio, this means the audio is already processed
+        # This is used in multi-turn conversations
+        if "id" in audio:
+            message.content = ""
+            message.audio = {"id": audio["id"]}
+        # If `data` is in the audio, this means the audio is raw data
+        # And an input audio
+        elif "data" in audio:
+            # Create a message with audio
+            message.content = [
+                {"type": "text", "text": message.content},
+                {"type": "input_audio", "input_audio": audio},
+            ]
         return message
 
     def get_system_message_for_model(self) -> Optional[str]:

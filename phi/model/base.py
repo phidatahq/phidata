@@ -169,6 +169,7 @@ class Model(BaseModel):
                     function_name = tool.__name__
                     if function_name not in self.functions:
                         func = Function.from_callable(tool, strict=strict)
+                        func._agent = agent
                         if strict and self.supports_structured_outputs:
                             func.strict = True
                         self.functions[func.name] = func

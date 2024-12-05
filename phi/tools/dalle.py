@@ -48,13 +48,13 @@ class Dalle(Toolkit):
         if not self.api_key:
             logger.error("OPENAI_API_KEY not set. Please set the OPENAI_API_KEY environment variable.")
 
-        self.register(self.generate_image)
+        self.register(self.create_image)
         # TODO:
         # - Add support for response_format
         # - Add support for saving images
         # - Add support for editing images
 
-    def generate_image(self, agent: Agent, prompt: str) -> str:
+    def create_image(self, agent: Agent, prompt: str) -> str:
         """Use this function to generate an image for a prompt.
 
         Args:

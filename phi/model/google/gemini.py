@@ -216,8 +216,8 @@ class Gemini(Model):
                 for name, func in tool.functions.items():
                     # If the function does not exist in self.functions, add to self.tools
                     if name not in self.functions:
-                        if func.update_entrypoint_before_use:
-                            func.update_entrypoint(agent)
+                        func._agent = agent
+                        func.process_entrypoint()
                         self.functions[name] = func
                         function_declaration = FunctionDeclaration(
                             name=func.name,
@@ -229,8 +229,8 @@ class Gemini(Model):
 
             elif isinstance(tool, Function):
                 if tool.name not in self.functions:
-                    if tool.update_entrypoint_before_use:
-                        tool.update_entrypoint(agent)
+                    tool._agent = agent
+                    tool.process_entrypoint()
                     self.functions[tool.name] = tool
                     function_declaration = FunctionDeclaration(
                         name=tool.name,
@@ -244,7 +244,7 @@ class Gemini(Model):
                 try:
                     function_name = tool.__name__
                     if function_name not in self.functions:
-                        func = Function.from_callable(tool, agent)
+                        func = Function.from_callable(tool)
                         self.functions[func.name] = func
                         function_declaration = FunctionDeclaration(
                             name=func.name,

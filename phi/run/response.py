@@ -39,8 +39,6 @@ class RunResponse(BaseModel):
 
     content: Optional[Any] = None
     content_type: str = "str"
-    images: Optional[List[Union[str, Dict[str, Any]]]] = None
-    audio: Optional[Dict[str, Any]] = None
     event: str = RunEvent.run_response.value
     messages: Optional[List[Message]] = None
     metrics: Optional[Dict[str, Any]] = None
@@ -50,6 +48,9 @@ class RunResponse(BaseModel):
     session_id: Optional[str] = None
     workflow_id: Optional[str] = None
     tools: Optional[List[Dict[str, Any]]] = None
+    images: Optional[List[Union[str, Dict[str, Any]]]] = None
+    videos: Optional[List[Union[str, Dict[str, Any]]]] = None
+    audio: Optional[Dict] = None
     extra_data: Optional[RunResponseExtraData] = None
     created_at: int = Field(default_factory=lambda: int(time()))
 

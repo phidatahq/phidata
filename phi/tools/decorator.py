@@ -98,7 +98,7 @@ def tool(*args, **kwargs) -> Union[Function, Callable[[F], Function]]:
             "entrypoint": wrapper,
             **{k: v for k, v in kwargs.items() if k != "name" and v is not None},
         }
-        return Function(**tool_config, update_entrypoint_before_use=True)
+        return Function(**tool_config)
 
     # Handle both @tool and @tool() cases
     if len(args) == 1 and callable(args[0]) and not kwargs:

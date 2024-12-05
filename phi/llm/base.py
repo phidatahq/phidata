@@ -127,16 +127,14 @@ class LLM(BaseModel):
                 for name, func in tool.functions.items():
                     # If the function does not exist in self.functions, add to self.tools
                     if name not in self.functions:
-                        if func.update_entrypoint_before_use:
-                            func.update_entrypoint()
+                        func.process_entrypoint()
                         self.functions[name] = func
                         self.tools.append({"type": "function", "function": func.to_dict()})
                         logger.debug(f"Function {name} from {tool.name} added to LLM.")
 
             elif isinstance(tool, Function):
                 if tool.name not in self.functions:
-                    if tool.update_entrypoint_before_use:
-                        tool.update_entrypoint()
+                    tool.process_entrypoint()
                     self.functions[tool.name] = tool
                     self.tools.append({"type": "function", "function": tool.to_dict()})
                     logger.debug(f"Function {tool.name} added to LLM.")

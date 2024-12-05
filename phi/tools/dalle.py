@@ -1,5 +1,5 @@
 from os import getenv
-from typing import Optional, Literal, List
+from typing import Optional, Literal
 
 from phi.agent import Agent
 from phi.tools import Toolkit
@@ -7,7 +7,6 @@ from phi.utils.log import logger
 
 try:
     from openai import OpenAI
-    from openai.types.image import Image
     from openai.types.images_response import ImagesResponse
 except ImportError:
     raise ImportError("`openai` not installed. Please install using `pip install openai`")
@@ -69,7 +68,7 @@ class Dalle(Toolkit):
 
         try:
             client = OpenAI(api_key=self.api_key)
-            logger.info(f"Generating image for prompt: {prompt}")
+            logger.debug(f"Generating image using prompt: {prompt}")
             response: ImagesResponse = client.images.generate(
                 prompt=prompt,
                 model=self.model,
@@ -78,13 +77,10 @@ class Dalle(Toolkit):
                 size=self.size,
                 style=self.style,
             )
-
-            # TODO: add validations
-            data: List[Image] = response.data
-            logger.info(f"Images Generated: {len(data)}")
+            logger.debug("Image generated successfully")
 
             # Update the run response with the image URLs
-            agent.run_response.images = response.model_dump()
+            agent.add_image(response.model_dump())
             return response.model_dump_json()
         except Exception as e:
             logger.error(f"Failed to generate image: {e}")

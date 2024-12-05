@@ -1,4 +1,6 @@
-from phi.agent import Agent
+from typing import Iterator
+from rich.pretty import pprint
+from phi.agent import Agent, RunResponse
 from phi.model.openai import OpenAIChat
 from phi.tools.dalle import Dalle
 
@@ -15,4 +17,11 @@ image_agent = Agent(
     debug_mode=True,
 )
 
-image_agent.print_response("Generate an image of a white siamese cat")
+run_stream: Iterator[RunResponse] = image_agent.run(
+    "Generate an image of a yellow siamese cat",
+    stream=True,
+    stream_intermediate_steps=True,
+)
+for chunk in run_stream:
+    pprint(chunk.model_dump(exclude={"messages"}))
+    print("---" * 20)

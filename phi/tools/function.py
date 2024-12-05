@@ -44,16 +44,15 @@ class Function(BaseModel):
     post_hook: Optional[Callable] = None
 
     # --*-- FOR INTERNAL USE ONLY --*--
-    # If the entrypoint should be updated before use
-    update_entrypoint_before_use: bool = False
+    # The agent that the function is associated with
+    _agent: Optional[Any] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return self.model_dump(exclude_none=True, include={"name", "description", "parameters", "strict"})
 
     @classmethod
-    def from_callable(cls, c: Callable, agent: Optional[Any] = None, strict: bool = False) -> "Function":
+    def from_callable(cls, c: Callable, strict: bool = False) -> "Function":
         from inspect import getdoc, signature
-        from functools import partial
         from phi.utils.json_schema import get_json_schema
 
         function_name = c.__name__
@@ -62,16 +61,16 @@ class Function(BaseModel):
             sig = signature(c)
             type_hints = get_type_hints(c)
 
-            # If function has an the agent argument, create a partial with the agent
-            # And remove the agent parameter from the type hints
-            if agent is not None and "agent" in sig.parameters:
-                c = partial(c, agent=agent)
+            # If function has an the agent argument, remove the agent parameter from the type hints
+            if "agent" in sig.parameters:
                 del type_hints["agent"]
             # logger.info(f"Type hints for {function_name}: {type_hints}")
 
             # Filter out return type and only process parameters
             param_type_hints = {
-                name: type_hints[name] for name in sig.parameters if name in type_hints and name != "return"
+                name: type_hints[name]
+                for name in sig.parameters
+                if name in type_hints and name != "return" and name != "agent"
             }
             # logger.info(f"Arguments for {function_name}: {param_type_hints}")
 
@@ -81,7 +80,7 @@ class Function(BaseModel):
             # If strict=True mark all fields as required
             # See: https://platform.openai.com/docs/guides/structured-outputs/supported-schemas#all-fields-must-be-required
             if strict:
-                parameters["required"] = [name for name in parameters["properties"]]
+                parameters["required"] = [name for name in parameters["properties"] if name != "agent"]
             else:
                 # Mark a field as required if it has no default value
                 parameters["required"] = [
@@ -101,10 +100,9 @@ class Function(BaseModel):
             entrypoint=validate_call(c),
         )
 
-    def update_entrypoint(self, agent: Optional[Any] = None, strict: bool = False):
+    def process_entrypoint(self, strict: bool = False):
         """Process the entrypoint and make it ready for use by an agent."""
         from inspect import getdoc, signature
-        from functools import partial
         from phi.utils.json_schema import get_json_schema
 
         if self.entrypoint is None:
@@ -115,16 +113,16 @@ class Function(BaseModel):
             sig = signature(self.entrypoint)
             type_hints = get_type_hints(self.entrypoint)
 
-            # If function has an the agent argument, create a partial with the agent
-            # And remove the agent parameter from the type hints
-            if agent is not None and "agent" in sig.parameters:
-                self.entrypoint = partial(self.entrypoint, agent=agent)
+            # If function has an the agent argument, remove the agent parameter from the type hints
+            if "agent" in sig.parameters:
                 del type_hints["agent"]
             # logger.info(f"Type hints for {self.name}: {type_hints}")
 
             # Filter out return type and only process parameters
             param_type_hints = {
-                name: type_hints[name] for name in sig.parameters if name in type_hints and name != "return"
+                name: type_hints[name]
+                for name in sig.parameters
+                if name in type_hints and name != "return" and name != "agent"
             }
             # logger.info(f"Arguments for {self.name}: {param_type_hints}")
 
@@ -134,7 +132,7 @@ class Function(BaseModel):
             # If strict=True mark all fields as required
             # See: https://platform.openai.com/docs/guides/structured-outputs/supported-schemas#all-fields-must-be-required
             if strict:
-                parameters["required"] = [name for name in parameters["properties"]]
+                parameters["required"] = [name for name in parameters["properties"] if name != "agent"]
             else:
                 # Mark a field as required if it has no default value
                 parameters["required"] = [
@@ -223,6 +221,8 @@ class FunctionCall(BaseModel):
         Returns True if the function call was successful, False otherwise.
         The result of the function call is stored in self.result.
         """
+        from inspect import signature
+
         if self.function.entrypoint is None:
             return False
 
@@ -231,7 +231,11 @@ class FunctionCall(BaseModel):
         # Execute pre-hook if it exists
         if self.function.pre_hook is not None:
             try:
-                self.function.pre_hook(self)
+                # Check if the pre-hook has and agent argument
+                if "agent" in signature(self.function.pre_hook).parameters:
+                    self.function.pre_hook(self, agent=self.function._agent)
+                else:
+                    self.function.pre_hook(self)
             except AgentRetry as e:
                 logger.debug(f"Agent retry requested: {e}")
                 self.error = str(e)
@@ -244,7 +248,11 @@ class FunctionCall(BaseModel):
         # Call the function with no arguments if none are provided.
         if self.arguments is None:
             try:
-                self.result = self.function.entrypoint()
+                # Check if the function has an agent argument
+                if "agent" in signature(self.function.entrypoint).parameters:
+                    self.result = self.function.entrypoint(agent=self.function._agent)
+                else:
+                    self.result = self.function.entrypoint()
                 success = True
             except Exception as e:
                 logger.warning(f"Could not run function {self.get_call_str()}")
@@ -254,7 +262,11 @@ class FunctionCall(BaseModel):
         else:
             # Call the function with the provided arguments
             try:
-                self.result = self.function.entrypoint(**self.arguments)
+                # Check if the function has an agent argument
+                if "agent" in signature(self.function.entrypoint).parameters:
+                    self.result = self.function.entrypoint(**self.arguments, agent=self.function._agent)
+                else:
+                    self.result = self.function.entrypoint(**self.arguments)
                 success = True
             except Exception as e:
                 logger.warning(f"Could not run function {self.get_call_str()}")
@@ -265,7 +277,11 @@ class FunctionCall(BaseModel):
         # Execute post-hook if it exists
         if self.function.post_hook is not None:
             try:
-                self.function.post_hook(self)
+                # Check if the post-hook has an agent argument
+                if "agent" in signature(self.function.post_hook).parameters:
+                    self.function.post_hook(self, agent=self.function._agent)
+                else:
+                    self.function.post_hook(self)
             except AgentRetry as e:
                 logger.debug(f"Agent retry requested: {e}")
                 self.error = str(e)

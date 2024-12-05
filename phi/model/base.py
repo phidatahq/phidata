@@ -149,7 +149,7 @@ class Model(BaseModel):
                     # If the function does not exist in self.functions, add to self.tools
                     if name not in self.functions:
                         if func.update_entrypoint_before_use:
-                            func.update_entrypoint(agent)
+                            func.update_entrypoint(agent=agent, strict=strict)
                         if strict and self.supports_structured_outputs:
                             func.strict = True
                         self.functions[name] = func
@@ -159,7 +159,7 @@ class Model(BaseModel):
             elif isinstance(tool, Function):
                 if tool.name not in self.functions:
                     if tool.update_entrypoint_before_use:
-                        tool.update_entrypoint(agent)
+                        tool.update_entrypoint(agent=agent, strict=strict)
                     if strict and self.supports_structured_outputs:
                         tool.strict = True
                     self.functions[tool.name] = tool

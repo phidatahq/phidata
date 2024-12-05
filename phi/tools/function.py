@@ -51,7 +51,7 @@ class Function(BaseModel):
         return self.model_dump(exclude_none=True, include={"name", "description", "parameters", "strict"})
 
     @classmethod
-    def from_callable(cls, c: Callable, agent: Optional[Any] = None) -> "Function":
+    def from_callable(cls, c: Callable, agent: Optional[Any] = None, strict: bool = False) -> "Function":
         from inspect import getdoc, signature
         from functools import partial
         from phi.utils.json_schema import get_json_schema
@@ -78,12 +78,17 @@ class Function(BaseModel):
             # Get JSON schema for parameters only
             parameters = get_json_schema(param_type_hints)
 
-            # Mark a field as required if it has no default value
-            parameters["required"] = [
-                name
-                for name, param in sig.parameters.items()
-                if param.default == param.empty and name != "self" and name != "agent"
-            ]
+            # If strict=True mark all fields as required
+            # See: https://platform.openai.com/docs/guides/structured-outputs/supported-schemas#all-fields-must-be-required
+            if strict:
+                parameters["required"] = [name for name in parameters["properties"]]
+            else:
+                # Mark a field as required if it has no default value
+                parameters["required"] = [
+                    name
+                    for name, param in sig.parameters.items()
+                    if param.default == param.empty and name != "self" and name != "agent"
+                ]
 
             # logger.debug(f"JSON schema for {function_name}: {parameters}")
         except Exception as e:
@@ -96,7 +101,7 @@ class Function(BaseModel):
             entrypoint=validate_call(c),
         )
 
-    def update_entrypoint(self, agent: Optional[Any] = None):
+    def update_entrypoint(self, agent: Optional[Any] = None, strict: bool = False):
         """Process the entrypoint and make it ready for use by an agent."""
         from inspect import getdoc, signature
         from functools import partial
@@ -115,25 +120,30 @@ class Function(BaseModel):
             if agent is not None and "agent" in sig.parameters:
                 self.entrypoint = partial(self.entrypoint, agent=agent)
                 del type_hints["agent"]
-            # logger.info(f"Type hints for {function_name}: {type_hints}")
+            # logger.info(f"Type hints for {self.name}: {type_hints}")
 
             # Filter out return type and only process parameters
             param_type_hints = {
                 name: type_hints[name] for name in sig.parameters if name in type_hints and name != "return"
             }
-            # logger.info(f"Arguments for {function_name}: {param_type_hints}")
+            # logger.info(f"Arguments for {self.name}: {param_type_hints}")
 
             # Get JSON schema for parameters only
             parameters = get_json_schema(param_type_hints)
 
-            # Mark a field as required if it has no default value
-            parameters["required"] = [
-                name
-                for name, param in sig.parameters.items()
-                if param.default == param.empty and name != "self" and name != "agent"
-            ]
+            # If strict=True mark all fields as required
+            # See: https://platform.openai.com/docs/guides/structured-outputs/supported-schemas#all-fields-must-be-required
+            if strict:
+                parameters["required"] = [name for name in parameters["properties"]]
+            else:
+                # Mark a field as required if it has no default value
+                parameters["required"] = [
+                    name
+                    for name, param in sig.parameters.items()
+                    if param.default == param.empty and name != "self" and name != "agent"
+                ]
 
-            # logger.debug(f"JSON schema for {function_name}: {parameters}")
+            # logger.debug(f"JSON schema for {self.name}: {parameters}")
         except Exception as e:
             logger.warning(f"Could not parse args for {self.name}: {e}", exc_info=True)
 

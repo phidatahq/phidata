@@ -59,13 +59,14 @@ class Workflow(BaseModel):
     telemetry: bool = getenv("PHI_TELEMETRY", "true").lower() == "true"
 
     # DO NOT SET THE FOLLOWING FIELDS MANUALLY
-    # -*- Workflow run details
-    # Run ID: do not set manually
+    # Run ID: DO NOT SET MANUALLY
     run_id: Optional[str] = None
-    # Input to the Workflow run: do not set manually
+    # Input to the Workflow run: DO NOT SET MANUALLY
     run_input: Optional[Dict[str, Any]] = None
-    # Response from the Workflow run: do not set manually
+    # Response from the Workflow run: DO NOT SET MANUALLY
     run_response: RunResponse = Field(default_factory=RunResponse)
+    # Metadata associated with this session: DO NOT SET MANUALLY
+    session_data: Optional[Dict[str, Any]] = None
 
     # The run function provided by the subclass
     _subclass_run: Callable = PrivateAttr()
@@ -73,9 +74,6 @@ class Workflow(BaseModel):
     _run_parameters: Dict[str, Any] = PrivateAttr()
     # Return type of the run function
     _run_return_type: Optional[str] = PrivateAttr()
-
-    # Metadata associated with this session: DO NOT SET MANUALLY
-    _session_data: Optional[Dict[str, Any]] = PrivateAttr()
 
     model_config = ConfigDict(arbitrary_types_allowed=True, populate_by_name=True)
 
@@ -107,7 +105,7 @@ class Workflow(BaseModel):
         return workflow_data
 
     def get_session_data(self) -> Dict[str, Any]:
-        session_data = self._session_data or {}
+        session_data = self.session_data or {}
         if self.session_name is not None:
             session_data["session_name"] = self.session_name
         if len(self.session_state) > 0:
@@ -179,11 +177,11 @@ class Workflow(BaseModel):
                     # Update the current session_state
                     self.session_state = session_state_from_db
 
-            # If _session_data is set in the workflow, update the database session_data with the workflow's session_data
-            if self._session_data is not None:
+            # If session_data is set in the workflow, update the database session_data with the workflow's session_data
+            if self.session_data is not None:
                 # Updates workflow_session.session_data in place
-                merge_dictionaries(session.session_data, self._session_data)
-            self._session_data = session.session_data
+                merge_dictionaries(session.session_data, self.session_data)
+            self.session_data = session.session_data
 
         # Read memory from the database
         if session.memory is not None:

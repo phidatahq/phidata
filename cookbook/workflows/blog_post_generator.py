@@ -1,17 +1,18 @@
 """
-1. Install dependencies using: `pip install openai duckduckgo-search sqlalchemy phidata`
+1. Install dependencies using: `pip install openai exa_py sqlalchemy phidata`
 2. Run the script using: `python cookbook/workflows/blog_post_generator.py`
 """
 
 import json
-from typing import Optional, Iterator, List
+from typing import Optional, Iterator
 
 from pydantic import BaseModel, Field
 
 from phi.agent import Agent
+from phi.model.openai import OpenAIChat
 from phi.workflow import Workflow, RunResponse, RunEvent
 from phi.storage.workflow.sqlite import SqlWorkflowStorage
-from phi.tools.duckduckgo import DuckDuckGo
+from phi.tools.exa import ExaTools
 from phi.utils.pprint import pprint_run_response
 from phi.utils.log import logger
 
@@ -23,17 +24,23 @@ class NewsArticle(BaseModel):
 
 
 class SearchResults(BaseModel):
-    articles: List[NewsArticle]
+    articles: list[NewsArticle]
 
 
 class BlogPostGenerator(Workflow):
+    # This description is only used in the workflow UI
+    description: str = "Generate a blog post on a given topic."
+
     searcher: Agent = Agent(
-        tools=[DuckDuckGo()],
-        instructions=["Given a topic, search for 20 articles and return the 5 most relevant articles."],
+        model=OpenAIChat(id="gpt-4o-mini"),
+        tools=[ExaTools(type="keyword")],
+        instructions=["Given a topic, search for the top 5 articles."],
         response_model=SearchResults,
+        structured_outputs=True,
     )
 
     writer: Agent = Agent(
+        model=OpenAIChat(id="gpt-4o"),
         instructions=[
             "You will be provided with a topic and a list of top articles on that topic.",
             "Carefully read each article and generate a New York Times worthy blog post on that topic.",
@@ -41,35 +48,43 @@ class BlogPostGenerator(Workflow):
             "Make sure the title is catchy and engaging.",
             "Always provide sources, do not make up information or sources.",
         ],
+        markdown=True,
     )
 
     def get_cached_blog_post(self, topic: str) -> Optional[str]:
         logger.info("Checking if cached blog post exists")
-        if "blog_posts" in self.session_state and topic in self.session_state["blog_posts"]:
-            logger.info("Found cached blog post")
-            return self.session_state["blog_posts"][topic]
-        return None
+        return self.session_state.get("blog_posts", {}).get(topic)
+
+    def add_blog_post_to_cache(self, topic: str, blog_post: Optional[str]):
+        logger.info(f"Saving blog post for topic: {topic}")
+        self.session_state.setdefault("blog_posts", {})
+        self.session_state["blog_posts"][topic] = blog_post
 
     def get_search_results(self, topic: str) -> Optional[SearchResults]:
-        num_tries = 0
-        search_results: Optional[SearchResults] = None
-        # Run until we get a valid search results
-        while search_results is None and num_tries < 3:
+        MAX_ATTEMPTS = 3
+
+        for attempt in range(MAX_ATTEMPTS):
             try:
-                num_tries += 1
                 searcher_response: RunResponse = self.searcher.run(topic)
-                if (
-                    searcher_response
-                    and searcher_response.content
-                    and isinstance(searcher_response.content, SearchResults)
-                ):
-                    logger.info(f"Searcher found {len(searcher_response.content.articles)} articles.")
-                    search_results = searcher_response.content
-                else:
-                    logger.warning("Searcher response invalid, trying again...")
+
+                # Check if we got a valid response
+                if not searcher_response or not searcher_response.content:
+                    logger.warning(f"Attempt {attempt + 1}/{MAX_ATTEMPTS}: Empty searcher response")
+                    continue
+                # Check if the response is of the expected SearchResults type
+                if not isinstance(searcher_response.content, SearchResults):
+                    logger.warning(f"Attempt {attempt + 1}/{MAX_ATTEMPTS}: Invalid response type")
+                    continue
+
+                article_count = len(searcher_response.content.articles)
+                logger.info(f"Found {article_count} articles on attempt {attempt + 1}")
+                return searcher_response.content
+
             except Exception as e:
-                logger.warning(f"Error running searcher: {e}")
-        return search_results
+                logger.warning(f"Attempt {attempt + 1}/{MAX_ATTEMPTS} failed: {str(e)}")
+
+        logger.error(f"Failed to get search results after {MAX_ATTEMPTS} attempts")
+        return None
 
     def write_blog_post(self, topic: str, search_results: SearchResults) -> Iterator[RunResponse]:
         logger.info("Writing blog post")
@@ -77,11 +92,8 @@ class BlogPostGenerator(Workflow):
         writer_input = {"topic": topic, "articles": [v.model_dump() for v in search_results.articles]}
         # Run the writer and yield the response
         yield from self.writer.run(json.dumps(writer_input, indent=4), stream=True)
-        # Save the blog post in the session state for future runs
-        if "blog_posts" not in self.session_state:
-            self.session_state["blog_posts"] = {}
-        logger.info(f"Saving blog post for topic: {topic}")
-        self.session_state["blog_posts"][topic] = self.writer.run_response.content
+        # Save the blog post in the cache
+        self.add_blog_post_to_cache(topic, self.writer.run_response.content)
 
     def run(self, topic: str, use_cache: bool = True) -> Iterator[RunResponse]:
         logger.info(f"Generating a blog post on: {topic}")
@@ -107,20 +119,33 @@ class BlogPostGenerator(Workflow):
         yield from self.write_blog_post(topic, search_results)
 
 
-# The topic to generate a blog post on
-topic = "US Elections 2024"
+# Run the workflow if the script is executed directly
+if __name__ == "__main__":
+    from rich.prompt import Prompt
 
-# Instantiate the workflow
-generate_blog_post = BlogPostGenerator(
-    session_id=f"generate-blog-post-on-{topic}",
-    storage=SqlWorkflowStorage(
-        table_name="generate_blog_post_workflows",
-        db_file="tmp/workflows.db",
-    ),
-)
+    # Get topic from user
+    topic = Prompt.ask(
+        "[bold]Enter a blog post topic[/bold]\n✨",
+        default="Why Cats Secretly Run the Internet",
+    )
 
-# Run workflow
-blog_post: Iterator[RunResponse] = generate_blog_post.run(topic=topic, use_cache=True)
+    # Convert the topic to a URL-safe string for use in session_id
+    url_safe_topic = topic.lower().replace(" ", "-")
 
-# Print the response
-pprint_run_response(blog_post, markdown=True)
+    # Initialize the blog post generator workflow
+    # - Creates a unique session ID based on the topic
+    # - Sets up SQLite storage for caching results
+    generate_blog_post = BlogPostGenerator(
+        session_id=f"generate-blog-post-on-{url_safe_topic}",
+        storage=SqlWorkflowStorage(
+            table_name="generate_blog_post_workflows",
+            db_file="tmp/workflows.db",
+        ),
+    )
+
+    # Execute the workflow with caching enabled
+    # Returns an iterator of RunResponse objects containing the generated content
+    blog_post: Iterator[RunResponse] = generate_blog_post.run(topic=topic, use_cache=True)
+
+    # Print the response
+    pprint_run_response(blog_post, markdown=True)

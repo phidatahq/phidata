@@ -1,5 +1,6 @@
-"""Please install dependencies using:
-pip install openai yfinance phidata
+"""
+1. Install dependencies using: `pip install openai yfinance phidata`
+2. Run the script using: `python cookbook/workflows/investment_report_generator.py`
 """
 
 from typing import Iterator
@@ -7,10 +8,11 @@ from pathlib import Path
 from shutil import rmtree
 
 from phi.agent import Agent, RunResponse
-from phi.workflow import Workflow
+from phi.storage.workflow.sqlite import SqlWorkflowStorage
 from phi.tools.yfinance import YFinanceTools
-from phi.utils.pprint import pprint_run_response
 from phi.utils.log import logger
+from phi.utils.pprint import pprint_run_response
+from phi.workflow import Workflow
 
 
 reports_dir = Path(__file__).parent.joinpath("reports", "investment")
@@ -22,7 +24,8 @@ research_analyst_report = str(reports_dir.joinpath("research_analyst_report.md")
 investment_report = str(reports_dir.joinpath("investment_report.md"))
 
 
-class InvestmentAnalyst(Workflow):
+class InvestmentReportGenerator(Workflow):
+    # This description is only used in the workflow UI
     description: str = (
         "Produce a research report on a list of companies and then rank them based on investment potential."
     )
@@ -83,7 +86,30 @@ class InvestmentAnalyst(Workflow):
         yield from self.investment_lead.run(ranked_companies.content, stream=True)
 
 
-# Run workflow
-report: Iterator[RunResponse] = InvestmentAnalyst(debug_mode=False).run(companies="NVDA, TSLA")
-# Print the report
-pprint_run_response(report, markdown=True, show_time=True)
+# Run the workflow if the script is executed directly
+if __name__ == "__main__":
+    from rich.prompt import Prompt
+
+    # Get companies from user
+    companies = Prompt.ask(
+        "[bold]Enter company symbols (comma-separated)[/bold]\n✨",
+        default="NVDA, TSLA",
+    )
+
+    # Convert companies to URL-safe string for session_id
+    url_safe_companies = companies.lower().replace(" ", "-").replace(",", "")
+
+    # Initialize the investment analyst workflow
+    investment_report_generator = InvestmentReportGenerator(
+        session_id=f"investment-report-{url_safe_companies}",
+        storage=SqlWorkflowStorage(
+            table_name="investment_report_workflows",
+            db_file="tmp/workflows.db",
+        ),
+    )
+
+    # Execute the workflow
+    report: Iterator[RunResponse] = investment_report_generator.run(companies=companies)
+
+    # Print the report
+    pprint_run_response(report, markdown=True)

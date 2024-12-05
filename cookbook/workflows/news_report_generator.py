@@ -1,5 +1,6 @@
-"""Please install dependencies using:
-pip install openai duckduckgo-search newspaper4k lxml_html_clean phidata
+"""
+1. Install dependencies using: `pip install openai duckduckgo-search newspaper4k lxml_html_clean sqlalchemy phidata`
+2. Run the script using: `python cookbook/workflows/news_article_generator.py`
 """
 
 import json
@@ -9,6 +10,7 @@ from typing import Optional, Dict, Iterator
 from pydantic import BaseModel, Field
 
 from phi.agent import Agent
+from phi.model.openai import OpenAIChat
 from phi.workflow import Workflow, RunResponse, RunEvent
 from phi.storage.workflow.sqlite import SqlWorkflowStorage
 from phi.tools.duckduckgo import DuckDuckGo
@@ -37,10 +39,12 @@ class ScrapedArticle(BaseModel):
     )
 
 
-class GenerateNewsReport(Workflow):
+class NewsReportGenerator(Workflow):
+    # This description is only used in the workflow UI
     description: str = "Generate a comprehensive news report on a given topic."
 
     web_searcher: Agent = Agent(
+        model=OpenAIChat(id="gpt-4o-mini"),
         tools=[DuckDuckGo()],
         instructions=[
             "Given a topic, search for 10 articles and return the 5 most relevant articles.",
@@ -49,6 +53,7 @@ class GenerateNewsReport(Workflow):
     )
 
     article_scraper: Agent = Agent(
+        model=OpenAIChat(id="gpt-4o-mini"),
         tools=[Newspaper4k()],
         instructions=[
             "Given a url, scrape the article and return the title, url, and markdown formatted content.",
@@ -58,6 +63,7 @@ class GenerateNewsReport(Workflow):
     )
 
     writer: Agent = Agent(
+        model=OpenAIChat(id="gpt-4o"),
         description="You are a Senior NYT Editor and your task is to write a new york times worthy cover story.",
         instructions=[
             "You will be provided with news articles and their contents.",
@@ -94,28 +100,31 @@ class GenerateNewsReport(Workflow):
         """),
     )
 
-    def get_report_from_cache(self, use_cached_report: bool, topic: str) -> Iterator[RunResponse]:
-        if use_cached_report and "reports" in self.session_state:
-            logger.info("Checking if cached report exists")
-            for cached_report in self.session_state["reports"]:
-                if cached_report["topic"] == topic:
-                    yield RunResponse(
-                        run_id=self.run_id,
-                        event=RunEvent.workflow_completed,
-                        content=cached_report["report"],
-                    )
-                    return
+    def get_report_from_cache(self, topic: str) -> Optional[str]:
+        logger.info("Checking if cached report exists")
+        return self.session_state.get("reports", {}).get(topic)
 
-    def search_web(self, use_search_cache: bool, topic: str) -> Optional[SearchResults]:
+    def add_report_to_cache(self, topic: str, report: Optional[str]):
+        logger.info(f"Saving report for topic: {topic}")
+        self.session_state.setdefault("reports", {})
+        self.session_state["reports"][topic] = report
+
+    def get_search_results(self, topic: str, use_search_cache: bool) -> Optional[SearchResults]:
         search_results: Optional[SearchResults] = None
-        try:
-            if use_search_cache and "search_results" in self.session_state:
-                search_results = SearchResults.model_validate(self.session_state["search_results"])
-                logger.info(f"Found {len(search_results.articles)} articles in cache.")
-        except Exception as e:
-            logger.warning(f"Could not read search results from cache: {e}")
 
-        # 1.2: If there are no cached search_results, ask the web_searcher to find the latest articles
+        # Get cached search_results from the session state if use_search_cache is True
+        if (
+            use_search_cache
+            and "search_results" in self.session_state
+            and topic in self.session_state["search_results"]
+        ):
+            try:
+                search_results = SearchResults.model_validate(self.session_state["search_results"][topic])
+                logger.info(f"Found {len(search_results.articles)} articles in cache.")
+            except Exception as e:
+                logger.warning(f"Could not read search results from cache: {e}")
+
+        # If there are no cached search_results, ask the web_searcher to find the latest articles
         if search_results is None:
             web_searcher_response: RunResponse = self.web_searcher.run(topic)
             if (
@@ -125,14 +134,20 @@ class GenerateNewsReport(Workflow):
             ):
                 logger.info(f"WebSearcher identified {len(web_searcher_response.content.articles)} articles.")
                 search_results = web_searcher_response.content
-                # Save the search_results in the session state
-                self.session_state["search_results"] = search_results.model_dump()
+
+        if search_results is not None:
+            # Initialize search_results dict if it doesn't exist
+            if "search_results" not in self.session_state:
+                self.session_state["search_results"] = {}
+            # Cache the search results
+            self.session_state["search_results"][topic] = search_results.model_dump()
 
         return search_results
 
-    def scrape_articles(self, use_scrape_cache: bool, search_results: SearchResults) -> Dict[str, ScrapedArticle]:
-        # 2.1: Get cached scraped_articles from the session state if use_scrape_cache is True
+    def scrape_articles(self, search_results: SearchResults, use_scrape_cache: bool) -> Dict[str, ScrapedArticle]:
         scraped_articles: Dict[str, ScrapedArticle] = {}
+
+        # Get cached scraped_articles from the session state if use_scrape_cache is True
         if (
             use_scrape_cache
             and "scraped_articles" in self.session_state
@@ -146,7 +161,7 @@ class GenerateNewsReport(Workflow):
                     logger.warning(f"Could not read scraped article from cache: {e}")
             logger.info(f"Found {len(scraped_articles)} scraped articles in cache.")
 
-        # 2.2: Scrape the articles that are not in the cache
+        # Scrape the articles that are not in the cache
         for article in search_results.articles:
             if article.url in scraped_articles:
                 logger.info(f"Found scraped article in cache: {article.url}")
@@ -161,10 +176,25 @@ class GenerateNewsReport(Workflow):
                 scraped_articles[article_scraper_response.content.url] = article_scraper_response.content
                 logger.info(f"Scraped article: {article_scraper_response.content.url}")
 
+        # Save the scraped articles in the session state
+        if "scraped_articles" not in self.session_state:
+            self.session_state["scraped_articles"] = {}
+        for url, scraped_article in scraped_articles.items():
+            self.session_state["scraped_articles"][url] = scraped_article.model_dump()
+
         return scraped_articles
 
+    def write_news_report(self, topic: str, scraped_articles: Dict[str, ScrapedArticle]) -> Iterator[RunResponse]:
+        logger.info("Writing news report")
+        # Prepare the input for the writer
+        writer_input = {"topic": topic, "articles": [v.model_dump() for v in scraped_articles.values()]}
+        # Run the writer and yield the response
+        yield from self.writer.run(json.dumps(writer_input, indent=4), stream=True)
+        # Save the blog post in the cache
+        self.add_report_to_cache(topic, self.writer.run_response.content)
+
     def run(
-        self, topic: str, use_search_cache: bool = True, use_scrape_cache: bool = True, use_cached_report: bool = False
+        self, topic: str, use_search_cache: bool = True, use_scrape_cache: bool = True, use_cached_report: bool = True
     ) -> Iterator[RunResponse]:
         """
         Generate a comprehensive news report on a given topic.
@@ -196,63 +226,55 @@ class GenerateNewsReport(Workflow):
         logger.info(f"Generating a report on: {topic}")
 
         # Use the cached report if use_cached_report is True
-        yield from self.get_report_from_cache(use_cached_report, topic)
+        if use_cached_report:
+            cached_report = self.get_report_from_cache(topic)
+            if cached_report:
+                yield RunResponse(content=cached_report, event=RunEvent.workflow_completed)
+                return
 
-        ####################################################
-        # Step 1: Search the web for articles on the topic
-        ####################################################
-
-        search_results: Optional[SearchResults] = self.search_web(use_search_cache, topic)
-        if search_results is None:
+        # Search the web for articles on the topic
+        search_results: Optional[SearchResults] = self.get_search_results(topic, use_search_cache)
+        # If no search_results are found for the topic, end the workflow
+        if search_results is None or len(search_results.articles) == 0:
             yield RunResponse(
-                run_id=self.run_id,
                 event=RunEvent.workflow_completed,
                 content=f"Sorry, could not find any articles on the topic: {topic}",
             )
             return
 
-        ####################################################
-        # Step 2: Scrape each article
-        ####################################################
+        # Scrape the search results
+        scraped_articles: Dict[str, ScrapedArticle] = self.scrape_articles(search_results, use_scrape_cache)
 
-        scraped_articles: Dict[str, ScrapedArticle] = self.scrape_articles(use_scrape_cache, search_results)
-
-        self.session_state["scraped_articles"] = {k: v.model_dump() for k, v in scraped_articles.items()}
-
-        ####################################################
-        # Step 3: Write a report
-        ####################################################
-
-        # 3.1: Generate the final report
-        logger.info("Generating final report")
-        writer_input = {
-            "topic": topic,
-            "articles": [v.model_dump() for v in scraped_articles.values()],
-        }
-        yield from self.writer.run(json.dumps(writer_input, indent=4), stream=True)
-
-        # 3.2: Save the writer_response in the session state
-        if "reports" not in self.session_state:
-            self.session_state["reports"] = []
-        self.session_state["reports"].append({"topic": topic, "report": self.writer.run_response.content})
+        # Write a news report
+        yield from self.write_news_report(topic, scraped_articles)
 
 
-# The topic to generate a report on
-topic = "IBM Hashicorp Acquisition"
+# Run the workflow if the script is executed directly
+if __name__ == "__main__":
+    from rich.prompt import Prompt
 
-# Instantiate the workflow
-generate_news_report = GenerateNewsReport(
-    session_id=f"generate-report-on-{topic}",
-    storage=SqlWorkflowStorage(
-        table_name="generate_news_report_workflows",
-        db_file="tmp/workflows.db",
-    ),
-)
+    # Get topic from user
+    topic = Prompt.ask(
+        "[bold]Enter a news report topic[/bold]\n✨",
+        default="IBM Hashicorp Acquisition",
+    )
 
-# Run workflow
-report_stream: Iterator[RunResponse] = generate_news_report.run(
-    topic=topic, use_search_cache=True, use_scrape_cache=True, use_cached_report=False
-)
+    # Convert the topic to a URL-safe string for use in session_id
+    url_safe_topic = topic.lower().replace(" ", "-")
 
-# Print the response
-pprint_run_response(report_stream, markdown=True)
+    # Initialize the news report generator workflow
+    generate_news_report = NewsReportGenerator(
+        session_id=f"generate-report-on-{url_safe_topic}",
+        storage=SqlWorkflowStorage(
+            table_name="generate_news_report_workflows",
+            db_file="tmp/workflows.db",
+        ),
+    )
+
+    # Execute the workflow with caching enabled
+    report_stream: Iterator[RunResponse] = generate_news_report.run(
+        topic=topic, use_search_cache=True, use_scrape_cache=True, use_cached_report=True
+    )
+
+    # Print the response
+    pprint_run_response(report_stream, markdown=True)

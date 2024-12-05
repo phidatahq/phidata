@@ -4,7 +4,7 @@ from phi.tools.exa import ExaTools
 from phi.tools.apify import ApifyTools
 
 agent = Agent(
-    name="Travel Buddy",
+    name="GlobeHopper",
     model=OpenAIChat(id="gpt-4o"),
     tools=[ExaTools(), ApifyTools(web_scraper=True)],
     show_tool_calls=True,

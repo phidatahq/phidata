@@ -19,7 +19,6 @@ movie_recommedation_agent = Agent(
     ],
     show_tool_calls=True,
     debug_mode=False,      
-    markdown=True,         
-    stream=True 
+    markdown=True,
 )
-movie_recommedation_agent.print_response("Suggest some indian romantic movie")
+movie_recommedation_agent.print_response("Suggest some indian romantic movie", stream=True)

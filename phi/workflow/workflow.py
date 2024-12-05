@@ -6,7 +6,6 @@ from uuid import uuid4
 from types import GeneratorType
 from typing import Any, Optional, Callable, Dict
 
-from phi.agent.agent import Agent
 from pydantic import BaseModel, Field, ConfigDict, field_validator, PrivateAttr
 
 from phi.agent import Agent

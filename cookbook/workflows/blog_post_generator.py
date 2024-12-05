@@ -12,7 +12,7 @@ from phi.agent import Agent
 from phi.model.openai import OpenAIChat
 from phi.workflow import Workflow, RunResponse, RunEvent
 from phi.storage.workflow.sqlite import SqlWorkflowStorage
-from phi.tools.exa import ExaTools
+from phi.tools.duckduckgo import DuckDuckGo
 from phi.utils.pprint import pprint_run_response
 from phi.utils.log import logger
 
@@ -33,7 +33,7 @@ class BlogPostGenerator(Workflow):
 
     searcher: Agent = Agent(
         model=OpenAIChat(id="gpt-4o-mini"),
-        tools=[ExaTools(type="keyword")],
+        tools=[DuckDuckGo()],
         instructions=["Given a topic, search for the top 5 articles."],
         response_model=SearchResults,
         structured_outputs=True,

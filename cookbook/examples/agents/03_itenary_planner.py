@@ -19,5 +19,5 @@ agent = Agent(
     ],
 )
 
-agent.print_response("I want to go to Goa,with four members please make an itinerary")
+agent.print_response("I want to go to Bombay,with four members please make an itenary")
 

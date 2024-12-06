@@ -16,9 +16,9 @@ image_agent = Agent(
     tools=[Dalle()],
     description="You are an AI agent that can generate images using DALL-E.",
     instructions=[
-        "When the user asks you to generate an image, use the DALL-E tool to generate an image.",
-        "The DALL-E tool will return an image URL.",
-        "Return the image URL in your response in the following format: `![image description](image URL)`",
+        "When the user asks you to create an image, use the `create_image` tool to create the image.",
+        "The image will be displayed in the UI automatically below your response, so you don't need to show the image URL in your response.",
+        "Politely and courteously let the user know that the image has been generated and will be displayed below as soon as its ready.",
     ],
     markdown=True,
     debug_mode=True,

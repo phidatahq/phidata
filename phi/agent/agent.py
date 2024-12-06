@@ -1818,7 +1818,7 @@ class Agent(BaseModel):
         else:
             model_response = self.model.response(messages=messages_for_model)
             # Handle structured outputs
-            if self.response_model is not None and self.structured_outputs:
+            if self.response_model is not None and self.structured_outputs and model_response.parsed is not None:
                 self.run_response.content = model_response.parsed
                 self.run_response.content_type = self.response_model.__name__
             else:
@@ -2151,7 +2151,7 @@ class Agent(BaseModel):
         else:
             model_response = await self.model.aresponse(messages=messages_for_model)
             # Handle structured outputs
-            if self.response_model is not None and self.structured_outputs:
+            if self.response_model is not None and self.structured_outputs and model_response.parsed is not None:
                 self.run_response.content = model_response.parsed
                 self.run_response.content_type = self.response_model.__name__
             else:

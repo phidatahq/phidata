@@ -2,9 +2,7 @@ from phi.agent import AgentKnowledge
 from phi.vectordb.pgvector import PgVector
 from phi.embedder.google import GeminiEmbedder
 
-embeddings = GeminiEmbedder().get_embedding(
-    "The quick brown fox jumps over the lazy dog."
-)
+embeddings = GeminiEmbedder().get_embedding("The quick brown fox jumps over the lazy dog.")
 
 # Print the embeddings and their dimensions
 print(f"Embeddings: {embeddings[:5]}")

@@ -59,7 +59,6 @@ class Metrics:
 @dataclass
 class StreamData:
     response_content: str = ""
-    response_audio: Optional[Dict[str, Any]] = None
     response_tool_calls: Optional[List[ChoiceDeltaToolCall]] = None
 
 
@@ -836,7 +835,6 @@ class OpenAIChat(Model):
                     metrics.time_to_first_token = metrics.response_timer.elapsed
 
                 response_delta: ChoiceDelta = response.choices[0].delta
-                # logger.debug(f"Response delta: {response_delta}")
                 response_content: Optional[str] = response_delta.content
                 response_tool_calls: Optional[List[ChoiceDeltaToolCall]] = response_delta.tool_calls
 

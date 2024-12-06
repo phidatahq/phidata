@@ -383,7 +383,6 @@ class Agent(BaseModel):
             if self.stream and member_agent.is_streamable:
                 member_agent_run_response_stream = member_agent.run(member_agent_messages, stream=True)
                 for member_agent_run_response_chunk in member_agent_run_response_stream:
-                    # logger.debug(f"Member agent run response chunk: {member_agent_run_response_chunk}")
                     yield member_agent_run_response_chunk.content  # type: ignore
             else:
                 member_agent_run_response: RunResponse = member_agent.run(member_agent_messages, stream=False)
@@ -1165,9 +1164,6 @@ class Agent(BaseModel):
                 user_prompt_content = self.user_prompt(**user_prompt_kwargs)
                 if not isinstance(user_prompt_content, str):
                     raise Exception("User prompt must return a string")
-
-            # Cast the user message to the correct type for the add_images_to_message_content function
-            user_prompt_content = cast(Union[List, Dict, str], user_prompt_content)
             return Message(
                 role=self.user_message_role,
                 content=user_prompt_content,
@@ -1324,6 +1320,8 @@ class Agent(BaseModel):
                     user_messages.append(Message.model_validate(message))
                 except Exception as e:
                     logger.warning(f"Failed to validate message: {e}")
+            else:
+                logger.warning(f"Invalid message type: {type(message)}")
         # 3.4.2 Build user messages from messages list if provided
         elif messages is not None and len(messages) > 0:
             for _m in messages:
@@ -1784,8 +1782,6 @@ class Agent(BaseModel):
         if self.stream:
             model_response = ModelResponse(content="")
             for model_response_chunk in self.model.response_stream(messages=messages_for_model):
-                self.run_response.images = self.images
-                self.run_response.videos = self.videos
                 if model_response_chunk.event == ModelResponseEvent.assistant_response.value:
                     if model_response_chunk.content is not None and model_response.content is not None:
                         model_response.content += model_response_chunk.content

@@ -58,15 +58,30 @@ class ModelsLabs(Toolkit):
             )
 
             headers = {"Content-Type": "application/json"}
-            logger.info(f"Generating video for prompt: {prompt}")
+            logger.debug(f"Generating video for prompt: {prompt}")
             response = requests.request("POST", self.url, data=payload, headers=headers)
-            logger.info(f"Response - {response.text}")
             response.raise_for_status()
 
             result = response.json()
             if "error" in result:
                 logger.error(f"Failed to generate video: {result['error']}")
                 return f"Error: {result['error']}"
+
+            eta = result["eta"]
+            video_url_links = result["future_links"]
+            logger.info(f"Video will be ready in {eta} seconds")
+            logger.info(f"Video URLs: {video_url_links}")
+
+            video_data = []
+            for video_url in video_url_links:
+                video_data.append(
+                    {
+                        "eta": eta,
+                        "url": video_url,
+                    }
+                )
+            result["data"] = video_data
+            logger.debug(f"Result: {result}")
 
             # Update the run response with the image URLs
             agent.add_video(json.dumps(result))

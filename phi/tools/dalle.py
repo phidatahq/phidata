@@ -61,7 +61,7 @@ class Dalle(Toolkit):
             prompt (str): A text description of the desired image.
 
         Returns:
-            str: The URL of the generated image, or an error message.
+            str: str: A message indicating if the image has been generated successfully or an error message.
         """
         if not self.api_key:
             return "Please set the OPENAI_API_KEY"
@@ -81,7 +81,7 @@ class Dalle(Toolkit):
 
             # Update the run response with the image URLs
             agent.add_image(response.model_dump())
-            return response.model_dump_json()
+            return "Image has been generated successfully and will be displayed below"
         except Exception as e:
             logger.error(f"Failed to generate image: {e}")
             return f"Error: {e}"

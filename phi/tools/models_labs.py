@@ -2,13 +2,14 @@ import json
 from os import getenv
 from typing import Optional
 
+from phi.agent import Agent
+from phi.tools import Toolkit
+from phi.utils.log import logger
+
 try:
     import requests
 except ImportError:
     raise ImportError("`requests` not installed. Please install using `pip install requests`")
-
-from phi.tools import Toolkit
-from phi.utils.log import logger
 
 
 class ModelsLabs(Toolkit):
@@ -27,14 +28,14 @@ class ModelsLabs(Toolkit):
 
         self.register(self.generate_video)
 
-    def generate_video(self, prompt: str) -> str:
+    def generate_video(self, agent: Agent, prompt: str) -> str:
         """Use this function to generate a video given a prompt.
 
         Args:
             prompt (str): A text description of the desired video.
 
         Returns:
-            str: The generated video information in JSON format.
+            str: A message indicating if the video has been generated successfully or an error message.
         """
         if not self.api_key:
             return "Please set the MODELS_LAB_API_KEY"
@@ -51,13 +52,12 @@ class ModelsLabs(Toolkit):
                     "output_type": "gif",
                     "track_id": None,
                     "negative_prompt": "low quality",
-                    "model_id": "zeroscope",
+                    "model_id": "cogvideox",
                     "instant_response": False,
                 }
             )
 
             headers = {"Content-Type": "application/json"}
-
             logger.info(f"Generating video for prompt: {prompt}")
             response = requests.request("POST", self.url, data=payload, headers=headers)
             logger.info(f"Response - {response.text}")
@@ -68,9 +68,9 @@ class ModelsLabs(Toolkit):
                 logger.error(f"Failed to generate video: {result['error']}")
                 return f"Error: {result['error']}"
 
-            parsed_result = json.dumps(result, indent=4)
-            logger.info(f"Video generated successfully: {parsed_result}")
-            return parsed_result
+            # Update the run response with the image URLs
+            agent.add_video(json.dumps(result))
+            return "Video has been generated successfully and will be displayed below"
         except Exception as e:
             logger.error(f"Failed to generate video: {e}")
             return f"Error: {e}"

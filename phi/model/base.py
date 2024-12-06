@@ -1,7 +1,7 @@
 import collections.abc
 
 from types import GeneratorType
-from typing import List, Iterator, Optional, Dict, Any, Callable, Union, Sequence, AsyncIterator
+from typing import List, Iterator, Optional, Dict, Any, Callable, Union, Sequence
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, ValidationInfo
 

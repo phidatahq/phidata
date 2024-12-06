@@ -350,7 +350,7 @@ class Ollama(LLM):
                 tool_calls_result: MessageToolCallExtractionResult = extract_tool_calls(_tool_call_content)
 
                 # it is a tool call?
-                if tool_calls_result.tool_calls is None and not tool_calls_result.invalid_json_format:
+                if tool_calls_result.tool_calls is not None and not tool_calls_result.invalid_json_format:
                     if tool_calls_result.invalid_json_format:
                         assistant_message.tool_call_error = True
 

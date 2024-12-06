@@ -2,11 +2,11 @@
 
 from typing import Iterator  # noqa
 from phi.agent import Agent, RunResponse  # noqa
-from phi.model.ollama import Ollama
+from phi.model.ollama import OllamaTools
 from phi.tools.yfinance import YFinanceTools
 
 agent = Agent(
-    model=Ollama(id="llama3.1:8b"),
+    model=OllamaTools(id="llama3.1:8b"),
     tools=[YFinanceTools(stock_price=True)],
     instructions=["Use tables where possible."],
     markdown=True,
@@ -19,4 +19,4 @@ agent = Agent(
 #     print(chunk.content)
 
 # Print the response in the terminal
-agent.print_response("What is the stock price of NVDA and TSLA", stream=True)
+agent.print_response("What is the stock price of NVDA", stream=True)

@@ -1,10 +1,11 @@
+import io
 import csv
 from pathlib import Path
 from typing import List, Union, IO, Any
+
 from phi.document.base import Document
 from phi.document.reader.base import Reader
 from phi.utils.log import logger
-import io
 
 
 class CSVReader(Reader):

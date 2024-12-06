@@ -1,7 +1,7 @@
 from phi.agent import Agent
 from phi.storage.agent.postgres import PgAgentStorage
 from phi.knowledge.pdf import PDFUrlKnowledgeBase
-from phi.vectordb.pgvector import PgVector2
+from phi.vectordb.pgvector import PgVector
 
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 
@@ -9,7 +9,7 @@ agent = Agent(
     storage=PgAgentStorage(table_name="recipe_agent", db_url=db_url),
     knowledge=PDFUrlKnowledgeBase(
         urls=["https://phi-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
-        vector_db=PgVector2(collection="recipe_documents", db_url=db_url),
+        vector_db=PgVector(table_name="recipe_documents", db_url=db_url),
     ),
     # Show tool calls in the response
     show_tool_calls=True,

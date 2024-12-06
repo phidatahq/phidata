@@ -2,6 +2,7 @@ import json
 
 from dataclasses import dataclass, field
 from typing import Optional, List, Iterator, Dict, Any, Mapping, Union, Tuple
+from pydantic import BaseModel
 
 from phi.model.base import Model
 from phi.model.message import Message
@@ -74,7 +75,7 @@ class Ollama(Model):
     provider: str = "Ollama"
 
     # Request parameters
-    format: Optional[str] = None
+    format: Optional[Any] = None
     options: Optional[Any] = None
     keep_alive: Optional[Union[float, str]] = None
     request_params: Optional[Dict[str, Any]] = None

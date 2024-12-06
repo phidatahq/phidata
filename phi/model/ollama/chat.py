@@ -2,7 +2,6 @@ import json
 
 from dataclasses import dataclass, field
 from typing import Optional, List, Iterator, Dict, Any, Mapping, Union, Tuple
-from pydantic import BaseModel
 
 from phi.model.base import Model
 from phi.model.message import Message

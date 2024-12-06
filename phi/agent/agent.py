@@ -2719,6 +2719,7 @@ class Agent(BaseModel):
         show_message: bool = True,
         show_reasoning: bool = True,
         show_full_reasoning: bool = False,
+        console: Optional[Any] = None,
         **kwargs: Any,
     ) -> None:
         from rich.live import Live
@@ -2727,7 +2728,6 @@ class Agent(BaseModel):
         from rich.json import JSON
         from rich.text import Text
         from rich.console import Group
-        from phi.cli.console import console
 
         if markdown:
             self.markdown = True
@@ -2938,6 +2938,7 @@ class Agent(BaseModel):
         show_message: bool = True,
         show_reasoning: bool = True,
         show_full_reasoning: bool = False,
+        console: Optional[Any] = None,
         **kwargs: Any,
     ) -> None:
         from rich.live import Live
@@ -2946,7 +2947,6 @@ class Agent(BaseModel):
         from rich.json import JSON
         from rich.text import Text
         from rich.console import Group
-        from phi.cli.console import console
 
         if markdown:
             self.markdown = True

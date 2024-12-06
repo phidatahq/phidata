@@ -2,78 +2,42 @@ import json
 from typing import Iterator
 
 import httpx
+from rich.console import Console
 from rich.prompt import Prompt
 from rich.pretty import pprint
 
-from phi.agent import Agent, Message
-from phi.tools import tool, FunctionCall, StopAgentRun, RetryAgentRun
+from phi.agent import Agent
+from phi.tools import tool, FunctionCall, StopAgentRun, RetryAgentRun  # noqa
 
-# This is the console instance used by phi
+# This is the console instance used by the print_response method
 # We can use this to stop and restart the live display and ask for user confirmation
-from phi.cli.console import console
+console = Console()
 
 
-def pre_hook():
-    raise RetryAgentRun(
-        "Tool call cancelled by user.",
-        user_message="You must apologize for this mistake and stop any further execution, no more tool calls.",
-    )
-    # raise RetryAgentRun(
-    #     "Tool call cancelled by user, you must apologize for this mistake and stop any further execution, no more tool calls.",
-    # )
-    # raise StopAgentRun(
-    #     "Tool call cancelled by user, you must apologize for this mistake.",
-    #     agent_message="Hi, I'm sorry you don't want to continue. Is there anything else I can help you with?",
-    # )
-    # raise StopAgentRun(
-    #     "Tool call cancelled by user, you must apologize for this mistake.",
-    #     messages=[
-    #         Message(
-    #             role="assistant",
-    #             content="Hi, I'm sorry you don't want to continue. Is there anything else I can help you with?",
-    #         )
-    #     ],
-    # )
+def pre_hook(fc: FunctionCall):
+    # Get the live display instance from the console
+    live = console._live
 
-    # # Get the live display instance from the console
-    # live = console._live
+    # Stop the live display temporarily so we can ask for user confirmation
+    live.stop()  # type: ignore
 
-    # # Stop the live display temporarily so we can ask for user confirmation
-    # live.stop()
+    # Ask for confirmation
+    console.print(f"\nAbout to run [bold blue]{fc.function.name}[/]")
+    message = Prompt.ask("Do you want to continue?", choices=["y", "n"], default="y").strip().lower()
 
-    # # Ask for confirmation
-    # console.print(f"\nAbout to run [bold blue]{function_call.function.name}[/]")
-    # message = Prompt.ask("Do you want to continue?", choices=["y", "n"], default="y").strip().lower()
+    # Restart the live display
+    live.start()  # type: ignore
 
-    # # Clear the console
-    # console.clear()
-
-    # # Restart the live display
-    # live.start()
-
-    # # If the user does not want to continue, raise a StopExecution exception
-    # if message != "y":
-    #     raise StopAgentRun(
-    #         "Tool call cancelled by user, you must apologize for this mistake.",
-    #         messages=[
-    #             Message(
-    #                 role="assistant",
-    #                 content="Hi, I'm sorry you don't want to continue. Is there anything else I can help you with?",
-    #             )
-    #         ],
-    #     )
+    # If the user does not want to continue, raise a StopExecution exception
+    if message != "y":
+        raise StopAgentRun(
+            "Tool call cancelled by user",
+            agent_message="Stopping execution as permission was not granted.",
+        )
 
 
-def post_hook(function_call: FunctionCall):
-    print(f"Post-hook: {function_call.function.name}")
-    print(f"Arguments: {function_call.arguments}")
-    print(f"Result: {function_call.result}")
-
-
-@tool(pre_hook=pre_hook, post_hook=post_hook)
-def get_top_hackernews_stories(agent: Agent) -> Iterator[str]:
-    num_stories = agent.context.get("num_stories", 5) if agent.context else 5
-
+@tool(pre_hook=pre_hook)
+def get_top_hackernews_stories(num_stories: int) -> Iterator[str]:
     # Fetch top story IDs
     response = httpx.get("https://hacker-news.firebaseio.com/v0/topstories.json")
     story_ids = response.json()
@@ -88,18 +52,10 @@ def get_top_hackernews_stories(agent: Agent) -> Iterator[str]:
 
 
 # Initialize the agent
-agent = Agent(
-    context={
-        "num_stories": 2,
-    },
-    tools=[get_top_hackernews_stories],
-    markdown=True,
-    show_tool_calls=True,
-)
+agent = Agent(tools=[get_top_hackernews_stories], markdown=True, show_tool_calls=True)
 
 # Run the agent
-agent.print_response("What are the top hackernews stories?", stream=True)
+agent.print_response("What are the top 2 hackernews stories?", stream=True, console=console)
 
-# Print the metrics
-print("---" * 5, "Aggregated Metrics", "---" * 5)
+# View all messages
 pprint(agent.run_response.messages)

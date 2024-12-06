@@ -610,32 +610,7 @@ class OpenAIChat(Model):
             )
             is not None
         ):
-            last_message = messages[-1]
-            if last_message.stop_after_tool_call:
-                logger.debug("Stopping execution as stop_after_tool_call=True")
-                if (
-                    last_message.role == "assistant"
-                    and last_message.content is not None
-                    and isinstance(last_message.content, str)
-                ):
-                    if model_response.content is None:
-                        model_response.content = ""
-                    model_response.content += last_message.content
-            else:
-                response_after_tool_calls = self.response(messages=messages)
-                if response_after_tool_calls.content is not None:
-                    if model_response.content is None:
-                        model_response.content = ""
-                    model_response.content += response_after_tool_calls.content
-                if response_after_tool_calls.parsed is not None:
-                    # bubble up the parsed object, so that the final response has the parsed object
-                    # that is visible to the agent
-                    model_response.parsed = response_after_tool_calls.parsed
-                if response_after_tool_calls.audio is not None:
-                    # bubble up the audio, so that the final response has the audio
-                    # that is visible to the agent
-                    model_response.audio = response_after_tool_calls.audio
-            return model_response
+            return self.handle_post_tool_call_messages(messages=messages, model_response=model_response)
 
         # -*- Update model response
         if assistant_message.content is not None:
@@ -708,32 +683,7 @@ class OpenAIChat(Model):
             )
             is not None
         ):
-            last_message = messages[-1]
-            if last_message.stop_after_tool_call:
-                logger.debug("Stopping execution as stop_after_tool_call=True")
-                if (
-                    last_message.role == "assistant"
-                    and last_message.content is not None
-                    and isinstance(last_message.content, str)
-                ):
-                    if model_response.content is None:
-                        model_response.content = ""
-                    model_response.content += last_message.content
-            else:
-                response_after_tool_calls = await self.aresponse(messages=messages)
-                if response_after_tool_calls.content is not None:
-                    if model_response.content is None:
-                        model_response.content = ""
-                    model_response.content += response_after_tool_calls.content
-                if response_after_tool_calls.parsed is not None:
-                    # bubble up the parsed object, so that the final response has the parsed object
-                    # that is visible to the agent
-                    model_response.parsed = response_after_tool_calls.parsed
-                if response_after_tool_calls.audio is not None:
-                    # bubble up the audio, so that the final response has the audio
-                    # that is visible to the agent
-                    model_response.audio = response_after_tool_calls.audio
-            return model_response
+            return await self.ahandle_post_tool_call_messages(messages=messages, model_response=model_response)
 
         # -*- Update model response
         if assistant_message.content is not None:
@@ -929,17 +879,7 @@ class OpenAIChat(Model):
             yield from self.handle_stream_tool_calls(
                 assistant_message=assistant_message, messages=messages, tool_role=tool_role
             )
-            last_message = messages[-1]
-            if last_message.stop_after_tool_call:
-                logger.debug("Stopping execution as stop_after_tool_call=True")
-                if (
-                    last_message.role == "assistant"
-                    and last_message.content is not None
-                    and isinstance(last_message.content, str)
-                ):
-                    yield ModelResponse(content=last_message.content)
-            else:
-                yield from self.response_stream(messages=messages)
+            yield from self.handle_post_tool_call_messages_stream(messages=messages)
         logger.debug("---------- OpenAI Response End ----------")
 
     async def aresponse_stream(self, messages: List[Message]) -> Any:
@@ -1008,18 +948,8 @@ class OpenAIChat(Model):
                 assistant_message=assistant_message, messages=messages, tool_role=tool_role
             ):
                 yield tool_call_response
-            last_message = messages[-1]
-            if last_message.stop_after_tool_call:
-                logger.debug("Stopping execution as stop_after_tool_call=True")
-                if (
-                    last_message.role == "assistant"
-                    and last_message.content is not None
-                    and isinstance(last_message.content, str)
-                ):
-                    yield ModelResponse(content=last_message.content)
-            else:
-                async for model_response in self.aresponse_stream(messages=messages):
-                    yield model_response
+            async for post_tool_call_response in self.ahandle_post_tool_call_messages_stream(messages=messages):
+                yield post_tool_call_response
         logger.debug("---------- OpenAI Async Response End ----------")
 
     def build_tool_calls(self, tool_calls_data: List[ChoiceDeltaToolCall]) -> List[Dict[str, Any]]:

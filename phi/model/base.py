@@ -1,7 +1,7 @@
 import collections.abc
 
 from types import GeneratorType
-from typing import List, Iterator, Optional, Dict, Any, Callable, Union, Sequence
+from typing import List, Iterator, Optional, Dict, Any, Callable, Union, Sequence, AsyncIterator
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, ValidationInfo
 
@@ -102,7 +102,7 @@ class Model(BaseModel):
     def response_stream(self, messages: List[Message]) -> Iterator[ModelResponse]:
         raise NotImplementedError
 
-    async def aresponse_stream(self, messages: List[Message]) -> Any:
+    async def aresponse_stream(self, messages: List[Message]) -> AsyncIterator[ModelResponse]:
         raise NotImplementedError
 
     def _log_messages(self, messages: List[Message]) -> None:
@@ -303,6 +303,64 @@ class Model(BaseModel):
                 self.deactivate_function_calls()
                 break  # Exit early if we reach the function call limit
 
+    def handle_post_tool_call_messages(self, messages: List[Message], model_response: ModelResponse) -> ModelResponse:
+        last_message = messages[-1]
+        if last_message.stop_after_tool_call:
+            logger.debug("Stopping execution as stop_after_tool_call=True")
+            if (
+                last_message.role == "assistant"
+                and last_message.content is not None
+                and isinstance(last_message.content, str)
+            ):
+                if model_response.content is None:
+                    model_response.content = ""
+                model_response.content += last_message.content
+        else:
+            response_after_tool_calls = self.response(messages=messages)
+            if response_after_tool_calls.content is not None:
+                if model_response.content is None:
+                    model_response.content = ""
+                model_response.content += response_after_tool_calls.content
+            if response_after_tool_calls.parsed is not None:
+                # bubble up the parsed object, so that the final response has the parsed object
+                # that is visible to the agent
+                model_response.parsed = response_after_tool_calls.parsed
+            if response_after_tool_calls.audio is not None:
+                # bubble up the audio, so that the final response has the audio
+                # that is visible to the agent
+                model_response.audio = response_after_tool_calls.audio
+        return model_response
+
+    async def ahandle_post_tool_call_messages(
+        self, messages: List[Message], model_response: ModelResponse
+    ) -> ModelResponse:
+        last_message = messages[-1]
+        if last_message.stop_after_tool_call:
+            logger.debug("Stopping execution as stop_after_tool_call=True")
+            if (
+                last_message.role == "assistant"
+                and last_message.content is not None
+                and isinstance(last_message.content, str)
+            ):
+                if model_response.content is None:
+                    model_response.content = ""
+                model_response.content += last_message.content
+        else:
+            response_after_tool_calls = await self.aresponse(messages=messages)
+            if response_after_tool_calls.content is not None:
+                if model_response.content is None:
+                    model_response.content = ""
+                model_response.content += response_after_tool_calls.content
+            if response_after_tool_calls.parsed is not None:
+                # bubble up the parsed object, so that the final response has the parsed object
+                # that is visible to the agent
+                model_response.parsed = response_after_tool_calls.parsed
+            if response_after_tool_calls.audio is not None:
+                # bubble up the audio, so that the final response has the audio
+                # that is visible to the agent
+                model_response.audio = response_after_tool_calls.audio
+        return model_response
+
     def handle_post_tool_call_messages_stream(self, messages: List[Message]) -> Iterator[ModelResponse]:
         last_message = messages[-1]
         if last_message.stop_after_tool_call:
@@ -315,6 +373,20 @@ class Model(BaseModel):
                 yield ModelResponse(content=last_message.content)
         else:
             yield from self.response_stream(messages=messages)
+
+    async def ahandle_post_tool_call_messages_stream(self, messages: List[Message]) -> Any:
+        last_message = messages[-1]
+        if last_message.stop_after_tool_call:
+            logger.debug("Stopping execution as stop_after_tool_call=True")
+            if (
+                last_message.role == "assistant"
+                and last_message.content is not None
+                and isinstance(last_message.content, str)
+            ):
+                yield ModelResponse(content=last_message.content)
+        else:
+            async for model_response in self.aresponse_stream(messages=messages):  # type: ignore
+                yield model_response
 
     def _process_string_image(self, image: str) -> Dict[str, Any]:
         """Process string-based image (base64, URL, or file path)."""

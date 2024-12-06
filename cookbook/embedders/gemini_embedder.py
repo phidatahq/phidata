@@ -2,7 +2,9 @@ from phi.agent import AgentKnowledge
 from phi.vectordb.pgvector import PgVector
 from phi.embedder.google import GeminiEmbedder
 
-embeddings = GeminiEmbedder().get_embedding("The quick brown fox jumps over the lazy dog.")
+embeddings = GeminiEmbedder().get_embedding(
+    "The quick brown fox jumps over the lazy dog."
+)
 
 # Print the embeddings and their dimensions
 print(f"Embeddings: {embeddings[:5]}")
@@ -13,7 +15,7 @@ knowledge_base = AgentKnowledge(
     vector_db=PgVector(
         db_url="postgresql+psycopg://ai:ai@localhost:5532/ai",
         table_name="gemini_embeddings",
-        embedder=GeminiEmbedder(),
+        embedder=GeminiEmbedder(dimensions=1536),
     ),
     num_documents=2,
 )

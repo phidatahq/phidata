@@ -1,3 +1,4 @@
+import time
 import json
 from os import getenv
 from typing import Optional
@@ -17,11 +18,12 @@ class ModelsLabs(Toolkit):
         self,
         api_key: Optional[str] = None,
         url: str = "https://modelslab.com/api/v6/video/text2video",
+        wait_for_completion: bool = False,
     ):
         super().__init__(name="models_labs")
 
         self.url = url
-
+        self.wait_for_completion = wait_for_completion
         self.api_key = api_key or getenv("MODELS_LAB_API_KEY")
         if not self.api_key:
             logger.error("MODELS_LAB_API_KEY not set. Please set the MODELS_LAB_API_KEY environment variable.")
@@ -85,7 +87,12 @@ class ModelsLabs(Toolkit):
 
             # Update the run response with the image URLs
             agent.add_video(json.dumps(result))
-            return "Video has been generated successfully and will be displayed below"
+
+            if self.wait_for_completion and isinstance(eta, int):
+                logger.info(f"Waiting for {eta} seconds for video to be ready")
+                time.sleep(eta)
+
+            return f"Video has been generated successfully and will be ready in {eta} seconds"
         except Exception as e:
             logger.error(f"Failed to generate video: {e}")
             return f"Error: {e}"

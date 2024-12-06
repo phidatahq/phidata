@@ -74,7 +74,7 @@ class Ollama(Model):
     provider: str = "Ollama"
 
     # Request parameters
-    format: Optional[str] = None
+    format: Optional[Any] = None
     options: Optional[Any] = None
     keep_alive: Optional[Union[float, str]] = None
     request_params: Optional[Dict[str, Any]] = None

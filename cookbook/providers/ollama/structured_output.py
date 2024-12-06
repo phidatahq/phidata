@@ -16,11 +16,10 @@ class MovieScript(BaseModel):
     storyline: str = Field(..., description="3 sentence storyline for the movie. Make it exciting!")
 
 
-# Agent that uses JSON mode
+# Agent that uses Ollama structured output
 movie_agent = Agent(
-    model=Ollama(id="llama3.1:8b"),
+    model=Ollama(id="llama3.2", format=MovieScript.model_json_schema()),
     description="You write movie scripts.",
-    response_model=MovieScript,
 )
 
 # Get the response in a variable

@@ -11,7 +11,7 @@ duckdb_tools.create_table_from_path(
 )
 
 agent = Agent(
-    model=Groq(id="llama-3.2-90b-text-preview"),
+    model=Groq(id="llama3-groq-70b-8192-tool-use-preview"),
     tools=[duckdb_tools],
     markdown=True,
     show_tool_calls=True,

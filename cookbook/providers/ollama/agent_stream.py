@@ -2,11 +2,11 @@
 
 from typing import Iterator  # noqa
 from phi.agent import Agent, RunResponse  # noqa
-from phi.model.ollama import OllamaTools
+from phi.model.ollama import Ollama
 from phi.tools.yfinance import YFinanceTools
 
 agent = Agent(
-    model=OllamaTools(id="llama3.1:8b"),
+    model=Ollama(id="llama3.1:8b"),
     tools=[YFinanceTools(stock_price=True)],
     instructions=["Use tables where possible."],
     markdown=True,

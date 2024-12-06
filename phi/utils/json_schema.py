@@ -62,7 +62,6 @@ def get_json_schema(type_hints: Dict[str, Any]) -> Dict[str, Any]:
     json_schema: Dict[str, Any] = {
         "type": "object",
         "properties": {},
-        "additionalProperties": False,  # Prevent additional properties by default
     }
 
     for k, v in type_hints.items():

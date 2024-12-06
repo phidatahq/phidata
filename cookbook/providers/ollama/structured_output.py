@@ -27,6 +27,7 @@ structured_output_agent = Agent(
 # Run the agent synchronously
 structured_output_agent.print_response("Llamas ruling the world")
 
+
 # Run the agent asynchronously
 async def run_agents_async():
     await structured_output_agent.aprint_response("Llamas ruling the world")

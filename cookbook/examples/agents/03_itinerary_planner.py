@@ -13,8 +13,9 @@ itinerary_agent = Agent(
         "Gather information on flights, accommodations, local attractions, and approximate costs from these platforms.",
         "Ensure that the collected data is accurate and aligns with the user's preferences and requirements, such as the destination, group size, and budget constraints.",
         "Structure a clear, concise itinerary that includes recommendations for transportation, stay, and activities without providing exact reservation numbers or bookings.",
-        "If a specific website or travel option is unavailable, suggest alternatives from other reliable sources."
+        "If a specific website or travel option is unavailable, suggest alternatives from other reliable sources",
+        "Please do not give links to external websites or booking platforms directly.",
     ],
 )
 
-itinerary_agent.print_response("I want to plan an offsite for 14 people in a place like London. Please suggest options for places to stay, activities, and other recommendations", stream=True)
+itinerary_agent.print_response("I want to plan an offsite for 14 people in a place like London within 250 dollars. Please suggest options for places to stay, activities, and co working spaces ", stream=True)

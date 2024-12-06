@@ -36,7 +36,7 @@ from phi.model.message import Message, MessageReferences
 from phi.model.response import ModelResponse, ModelResponseEvent
 from phi.memory.agent import AgentMemory, MemoryRetrieval, Memory, AgentRun, SessionSummary  # noqa: F401
 from phi.prompt.template import PromptTemplate
-from phi.storage.agent import AgentStorage
+from phi.storage.agent.base import AgentStorage
 from phi.tools import Tool, Toolkit, Function
 from phi.utils.log import logger, set_log_level_to_debug, set_log_level_to_info
 from phi.utils.message import get_text_from_message

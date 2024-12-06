@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field, ConfigDict, field_validator, PrivateAttr
 from phi.agent import Agent
 from phi.run.response import RunResponse, RunEvent  # noqa: F401
 from phi.memory.workflow import WorkflowMemory, WorkflowRun
-from phi.storage.workflow import WorkflowStorage
+from phi.storage.workflow.base import WorkflowStorage
 from phi.utils.log import logger, set_log_level_to_debug, set_log_level_to_info
 from phi.utils.merge_dict import merge_dictionaries
 from phi.workflow.session import WorkflowSession

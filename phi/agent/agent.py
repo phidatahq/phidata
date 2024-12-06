@@ -2727,6 +2727,7 @@ class Agent(BaseModel):
         from rich.json import JSON
         from rich.text import Text
         from rich.console import Group
+        from phi.cli.console import console
 
         if markdown:
             self.markdown = True
@@ -2739,7 +2740,7 @@ class Agent(BaseModel):
         if stream:
             _response_content: str = ""
             reasoning_steps: List[ReasoningStep] = []
-            with Live() as live_log:
+            with Live(console=console) as live_log:
                 status = Status("Thinking...", spinner="aesthetic", speed=2.0, refresh_per_second=10)
                 live_log.update(status)
                 response_timer = Timer()
@@ -2831,7 +2832,7 @@ class Agent(BaseModel):
                 panels = [p for p in panels if not isinstance(p, Status)]
                 live_log.update(Group(*panels))
         else:
-            with Live() as live_log:
+            with Live(console=console) as live_log:
                 status = Status("Thinking...", spinner="aesthetic", speed=2.0, refresh_per_second=10)
                 live_log.update(status)
                 response_timer = Timer()
@@ -2945,6 +2946,7 @@ class Agent(BaseModel):
         from rich.json import JSON
         from rich.text import Text
         from rich.console import Group
+        from phi.cli.console import console
 
         if markdown:
             self.markdown = True
@@ -2957,7 +2959,7 @@ class Agent(BaseModel):
         if stream:
             _response_content: str = ""
             reasoning_steps: List[ReasoningStep] = []
-            with Live() as live_log:
+            with Live(console=console) as live_log:
                 status = Status("Thinking...", spinner="aesthetic", speed=2.0, refresh_per_second=10)
                 live_log.update(status)
                 response_timer = Timer()
@@ -3049,7 +3051,7 @@ class Agent(BaseModel):
                 panels = [p for p in panels if not isinstance(p, Status)]
                 live_log.update(Group(*panels))
         else:
-            with Live() as live_log:
+            with Live(console=console) as live_log:
                 status = Status("Thinking...", spinner="aesthetic", speed=2.0, refresh_per_second=10)
                 live_log.update(status)
                 response_timer = Timer()

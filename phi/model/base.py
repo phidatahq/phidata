@@ -8,7 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, ValidationIn
 from phi.model.message import Message
 from phi.model.response import ModelResponse, ModelResponseEvent
 from phi.tools import Tool, Toolkit
-from phi.tools.function import Function, FunctionCall
+from phi.tools.function import Function, FunctionCall, ToolCallException
 from phi.utils.log import logger
 from phi.utils.timer import Timer
 
@@ -204,8 +204,43 @@ class Model(BaseModel):
                 event=ModelResponseEvent.tool_call_started.value,
             )
 
+            # Track if the function call was successful
+            function_call_success = False
+            # If True, stop execution after this function call
+            stop_execution_after_tool_call = False
+            # Additional messages from the function call that will be added to the function call results
+            additional_messages_from_function_call = []
+
             # -*- Run function call
-            function_call_success = function_call.execute()
+            try:
+                function_call_success = function_call.execute()
+            except ToolCallException as tce:
+                if tce.user_message is not None:
+                    if isinstance(tce.user_message, str):
+                        additional_messages_from_function_call.append(Message(role="user", content=tce.user_message))
+                    else:
+                        additional_messages_from_function_call.append(tce.user_message)
+                if tce.agent_message is not None:
+                    if isinstance(tce.agent_message, str):
+                        additional_messages_from_function_call.append(
+                            Message(role="assistant", content=tce.agent_message)
+                        )
+                    else:
+                        additional_messages_from_function_call.append(tce.agent_message)
+                if tce.messages is not None and len(tce.messages) > 0:
+                    for m in tce.messages:
+                        if isinstance(m, Message):
+                            additional_messages_from_function_call.append(m)
+                        elif isinstance(m, dict):
+                            try:
+                                additional_messages_from_function_call.append(Message(**m))
+                            except Exception as e:
+                                logger.warning(f"Failed to convert dict to Message: {e}")
+                if tce.stop_execution:
+                    stop_execution_after_tool_call = True
+                    if len(additional_messages_from_function_call) > 0:
+                        for m in additional_messages_from_function_call:
+                            m.stop_after_tool_call = True
 
             function_call_output: Optional[Union[List[Any], str]] = ""
             if isinstance(function_call.result, (GeneratorType, collections.abc.Iterator)):
@@ -229,7 +264,7 @@ class Model(BaseModel):
                 tool_name=function_call.function.name,
                 tool_args=function_call.arguments,
                 tool_call_error=not function_call_success,
-                stop_after_tool_call=function_call.function.stop_after_tool_call,
+                stop_after_tool_call=function_call.function.stop_after_tool_call or stop_execution_after_tool_call,
                 metrics={"time": function_call_timer.elapsed},
             )
 
@@ -259,12 +294,27 @@ class Model(BaseModel):
 
             # Add the function call result to the function call results
             function_call_results.append(function_call_result)
+            if len(additional_messages_from_function_call) > 0:
+                function_call_results.extend(additional_messages_from_function_call)
             self.function_call_stack.append(function_call)
 
             # -*- Check function call limit
             if self.tool_call_limit and len(self.function_call_stack) >= self.tool_call_limit:
                 self.deactivate_function_calls()
                 break  # Exit early if we reach the function call limit
+
+    def handle_post_tool_call_messages_stream(self, messages: List[Message]) -> Iterator[ModelResponse]:
+        last_message = messages[-1]
+        if last_message.stop_after_tool_call:
+            logger.debug("Stopping execution as stop_after_tool_call=True")
+            if (
+                last_message.role == "assistant"
+                and last_message.content is not None
+                and isinstance(last_message.content, str)
+            ):
+                yield ModelResponse(content=last_message.content)
+        else:
+            yield from self.response_stream(messages=messages)
 
     def _process_string_image(self, image: str) -> Dict[str, Any]:
         """Process string-based image (base64, URL, or file path)."""

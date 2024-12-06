@@ -611,8 +611,16 @@ class OpenAIChat(Model):
             is not None
         ):
             last_message = messages[-1]
-            if last_message.role == tool_role and last_message.stop_after_tool_call:
+            if last_message.stop_after_tool_call:
                 logger.debug("Stopping execution as stop_after_tool_call=True")
+                if (
+                    last_message.role == "assistant"
+                    and last_message.content is not None
+                    and isinstance(last_message.content, str)
+                ):
+                    if model_response.content is None:
+                        model_response.content = ""
+                    model_response.content += last_message.content
             else:
                 response_after_tool_calls = self.response(messages=messages)
                 if response_after_tool_calls.content is not None:
@@ -701,8 +709,16 @@ class OpenAIChat(Model):
             is not None
         ):
             last_message = messages[-1]
-            if last_message.role == tool_role and last_message.stop_after_tool_call:
+            if last_message.stop_after_tool_call:
                 logger.debug("Stopping execution as stop_after_tool_call=True")
+                if (
+                    last_message.role == "assistant"
+                    and last_message.content is not None
+                    and isinstance(last_message.content, str)
+                ):
+                    if model_response.content is None:
+                        model_response.content = ""
+                    model_response.content += last_message.content
             else:
                 response_after_tool_calls = await self.aresponse(messages=messages)
                 if response_after_tool_calls.content is not None:
@@ -838,10 +854,10 @@ class OpenAIChat(Model):
                     yield ModelResponse(content=f"\n - {_f.get_call_str()}")
                 yield ModelResponse(content="\n\n")
 
-            for function_call_resopnse in self.run_function_calls(
+            for function_call_response in self.run_function_calls(
                 function_calls=function_calls_to_run, function_call_results=function_call_results, tool_role=tool_role
             ):
-                yield function_call_resopnse
+                yield function_call_response
 
             if len(function_call_results) > 0:
                 messages.extend(function_call_results)
@@ -914,8 +930,14 @@ class OpenAIChat(Model):
                 assistant_message=assistant_message, messages=messages, tool_role=tool_role
             )
             last_message = messages[-1]
-            if last_message.role == tool_role and last_message.stop_after_tool_call:
+            if last_message.stop_after_tool_call:
                 logger.debug("Stopping execution as stop_after_tool_call=True")
+                if (
+                    last_message.role == "assistant"
+                    and last_message.content is not None
+                    and isinstance(last_message.content, str)
+                ):
+                    yield ModelResponse(content=last_message.content)
             else:
                 yield from self.response_stream(messages=messages)
         logger.debug("---------- OpenAI Response End ----------")
@@ -987,8 +1009,14 @@ class OpenAIChat(Model):
             ):
                 yield tool_call_response
             last_message = messages[-1]
-            if last_message.role == tool_role and last_message.stop_after_tool_call:
+            if last_message.stop_after_tool_call:
                 logger.debug("Stopping execution as stop_after_tool_call=True")
+                if (
+                    last_message.role == "assistant"
+                    and last_message.content is not None
+                    and isinstance(last_message.content, str)
+                ):
+                    yield ModelResponse(content=last_message.content)
             else:
                 async for model_response in self.aresponse_stream(messages=messages):
                     yield model_response

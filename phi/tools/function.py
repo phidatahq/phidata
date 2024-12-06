@@ -1,15 +1,45 @@
-from typing import Any, Dict, Optional, Callable, get_type_hints, Type, TypeVar
+from typing import Any, Dict, Optional, Callable, get_type_hints, Type, TypeVar, Union, List
 from pydantic import BaseModel, Field, validate_call
 
+from phi.model.message import Message
 from phi.utils.log import logger
 
 T = TypeVar("T")
 
 
-class AgentRetry(Exception):
-    """Exception raised when an agent should retry the function call."""
+class ToolCallException(Exception):
+    def __init__(
+        self,
+        exc,
+        user_message: Optional[Union[str, Message]] = None,
+        agent_message: Optional[Union[str, Message]] = None,
+        messages: Optional[List[Union[dict, Message]]] = None,
+        stop_execution: bool = False,
+    ):
+        super().__init__(exc)
+        self.user_message = user_message
+        self.agent_message = agent_message
+        self.messages = messages
+        self.stop_execution = stop_execution
 
-    pass
+
+class RetryAgentRun(ToolCallException):
+    """Exception raised when a tool call should be retried."""
+
+
+class StopAgentRun(ToolCallException):
+    """Exception raised when an agent should stop executing entirely."""
+
+    def __init__(
+        self,
+        exc,
+        user_message: Optional[Union[str, Message]] = None,
+        agent_message: Optional[Union[str, Message]] = None,
+        messages: Optional[List[Union[dict, Message]]] = None,
+    ):
+        super().__init__(
+            exc, user_message=user_message, agent_message=agent_message, messages=messages, stop_execution=True
+        )
 
 
 class Function(BaseModel):
@@ -227,67 +257,88 @@ class FunctionCall(BaseModel):
             return False
 
         logger.debug(f"Running: {self.get_call_str()}")
+        function_call_success = False
 
         # Execute pre-hook if it exists
         if self.function.pre_hook is not None:
             try:
+                pre_hook_args = {}
                 # Check if the pre-hook has and agent argument
                 if "agent" in signature(self.function.pre_hook).parameters:
-                    self.function.pre_hook(self, agent=self.function._agent)
-                else:
-                    self.function.pre_hook(self)
-            except AgentRetry as e:
-                logger.debug(f"Agent retry requested: {e}")
+                    pre_hook_args["agent"] = self.function._agent
+                # Check if the pre-hook has an fc argument
+                if "fc" in signature(self.function.pre_hook).parameters:
+                    pre_hook_args["fc"] = self
+                self.function.pre_hook(**pre_hook_args)
+            except ToolCallException as e:
+                logger.debug(f"{e.__class__.__name__}: {e}")
                 self.error = str(e)
-                return False
+                raise
             except Exception as e:
                 logger.warning(f"Error in pre-hook callback: {e}")
                 logger.exception(e)
 
-        success = False
         # Call the function with no arguments if none are provided.
         if self.arguments is None:
             try:
-                # Check if the function has an agent argument
+                entrypoint_args = {}
+                # Check if the entrypoint has and agent argument
                 if "agent" in signature(self.function.entrypoint).parameters:
-                    self.result = self.function.entrypoint(agent=self.function._agent)
-                else:
-                    self.result = self.function.entrypoint()
-                success = True
+                    entrypoint_args["agent"] = self.function._agent
+                # Check if the entrypoint has an fc argument
+                if "fc" in signature(self.function.entrypoint).parameters:
+                    entrypoint_args["fc"] = self
+
+                self.result = self.function.entrypoint(**entrypoint_args)
+                function_call_success = True
+            except ToolCallException as e:
+                logger.debug(f"{e.__class__.__name__}: {e}")
+                self.error = str(e)
+                raise
             except Exception as e:
                 logger.warning(f"Could not run function {self.get_call_str()}")
                 logger.exception(e)
                 self.error = str(e)
-                return False
+                return function_call_success
         else:
-            # Call the function with the provided arguments
             try:
-                # Check if the function has an agent argument
+                entrypoint_args = {}
+                # Check if the entrypoint has and agent argument
                 if "agent" in signature(self.function.entrypoint).parameters:
-                    self.result = self.function.entrypoint(**self.arguments, agent=self.function._agent)
-                else:
-                    self.result = self.function.entrypoint(**self.arguments)
-                success = True
+                    entrypoint_args["agent"] = self.function._agent
+                # Check if the entrypoint has an fc argument
+                if "fc" in signature(self.function.entrypoint).parameters:
+                    entrypoint_args["fc"] = self
+
+                self.result = self.function.entrypoint(**entrypoint_args, **self.arguments)
+                function_call_success = True
+            except ToolCallException as e:
+                logger.debug(f"{e.__class__.__name__}: {e}")
+                self.error = str(e)
+                raise
             except Exception as e:
                 logger.warning(f"Could not run function {self.get_call_str()}")
                 logger.exception(e)
                 self.error = str(e)
-                return False
+                return function_call_success
 
         # Execute post-hook if it exists
         if self.function.post_hook is not None:
             try:
-                # Check if the post-hook has an agent argument
+                post_hook_args = {}
+                # Check if the post-hook has and agent argument
                 if "agent" in signature(self.function.post_hook).parameters:
-                    self.function.post_hook(self, agent=self.function._agent)
-                else:
-                    self.function.post_hook(self)
-            except AgentRetry as e:
-                logger.debug(f"Agent retry requested: {e}")
+                    post_hook_args["agent"] = self.function._agent
+                # Check if the post-hook has an fc argument
+                if "fc" in signature(self.function.post_hook).parameters:
+                    post_hook_args["fc"] = self
+                self.function.post_hook(**post_hook_args)
+            except ToolCallException as e:
+                logger.debug(f"{e.__class__.__name__}: {e}")
                 self.error = str(e)
-                return False
+                raise
             except Exception as e:
                 logger.warning(f"Error in post-hook callback: {e}")
                 logger.exception(e)
 
-        return success
+        return function_call_success

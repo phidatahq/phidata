@@ -1,25 +1,30 @@
 from phi.agent import Agent
 from phi.model.openai import OpenAIChat
 from phi.tools.firecrawl import FirecrawlTools
-from phi.tools.exa import ExaTools
 
-movie_recommedation_agent = Agent(
+movie_recommendation_agent = Agent(
     name="PopcornPal",
     tools=[
-        ExaTools(),
         FirecrawlTools(scrape=True, crawl=False), 
     ],
     model=OpenAIChat(id="gpt-4o"),
-    description="You are a movie recommendation agent. You search movies by doing Exa search then scraping through a website.",
+    description=(
+        "You are PopcornPal, a movie recommendation agent that searches and scrapes movie websites to provide detailed recommendations, "
+        "including ratings, genres, descriptions, trailers, and upcoming releases."
+    ),
     instructions=[
-        "Scrape the website https://www.themoviedb.org/ or https://www.imdb.com/",
-        "Give a result with rating of the movie, it's genre, description, recommended age to watch,language, similar trailers like of recommended one and upcoming movies, best movies to watch for that particular year, remember to give the output in this format",
-        "Do not give the link to the movie",
-        "Use tables to give the result"
-        "You should give the upcoming trailers, that are expected to come after the ones you have recommended"
+        "Search and scrape information from https://www.themoviedb.org/ or https://www.imdb.com/ based on the given query.",
+        "Provide results with the following details: movie title, genre, rating, description, recommended viewing age, primary language, "
+        "and release date.",
+        "Include trailers for movies similar to the recommendations and upcoming movies of the same genre or from related directors/actors.",
+        "Present the output in a well-structured markdown table for readability.",
+        "Avoid sharing direct links to movies or websites in the response.",
+        "Ensure all movie data is current, especially for recent or upcoming releases."
     ],
-    show_tool_calls=True,
-    debug_mode=True,      
     markdown=True,
 )
-movie_recommedation_agent.print_response("Suggest four latest indian romantic movie released in 2024", stream=True)
+
+movie_recommendation_agent.print_response(
+    "Suggest four of the latest thriller movies released in 2024, including their ratings, genres, descriptions, and trailers for similar and upcoming movies.",
+    stream=True
+)

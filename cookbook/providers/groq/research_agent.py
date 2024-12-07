@@ -9,7 +9,7 @@ from phi.model.groq import Groq
 from phi.tools.exa import ExaTools
 
 cwd = Path(__file__).parent.resolve()
-tmp = cwd.joinpath("tmpcookbook/agents/.gitignore")
+tmp = cwd.joinpath("tmp")
 if not tmp.exists():
     tmp.mkdir(exist_ok=True, parents=True)
 

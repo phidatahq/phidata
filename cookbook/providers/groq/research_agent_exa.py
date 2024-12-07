@@ -15,8 +15,8 @@ if not tmp.exists():
 
 today = datetime.now().strftime("%Y-%m-%d")
 
-assistant = Agent(
-    llm=Groq(model="llama-3.3-70b-versatile"),
+agent = Agent(
+    model=Groq(id="llama-3.3-70b-versatile"),
     tools=[ExaTools(start_published_date=today, type="keyword")],
     description="You are an advanced AI researcher writing a report on a topic.",
     instructions=[
@@ -58,4 +58,4 @@ assistant = Agent(
     save_response_to_file=str(tmp.joinpath("{message}.md")),
     # debug_mode=True,
 )
-assistant.print_response("Llama 3.3 running on Groq", stream=True)
+agent.print_response("Llama 3.3 running on Groq", stream=True)

@@ -189,4 +189,5 @@ class SqliteMemoryDb(MemoryDb):
         return True
 
     def __del__(self):
-        self.Session.remove()
+        # self.Session.remove()
+        pass

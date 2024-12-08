@@ -16,10 +16,11 @@ recipe_agent = Agent(
     knowledge_base=knowledge_base,
     search_knowledge=True,
     tools=[ExaTools()],
+    markdown=True,
     instructions=["Search for recipes based on the ingredients and time available from the knowledge base.",
                   "Include the nutritional information, prep time, cooking instructions for the recommended recipes.",
                   "Search exa for recipe links or tips related to the recipes.",
                   "Provide a list of recipes that match the user's requirements and preferences."],
 )
 
-recipe_agent.print_response("I have milk and butter, please suggest me a recipe for 10g protein ", markdown=True)
+recipe_agent.print_response("I have milk and butter, please suggest me a recipe for 10g protein ", stream=True)

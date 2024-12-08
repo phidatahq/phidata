@@ -11,7 +11,7 @@ from phi.tools.duckduckgo import DuckDuckGo
 from phi.tools.yfinance import YFinanceTools
 from phi.tools.youtube_tools import YouTubeTools
 
-groq_agent_storage: str = "tmp/groq_agents.db"
+ollama_agents_storage: str = "tmp/ollama_agents.db"
 common_instructions = [
     "If the user about you or your skills, tell them your name and role.",
 ]
@@ -27,7 +27,7 @@ web_agent = Agent(
         "Always include sources you used to generate the answer.",
     ]
     + common_instructions,
-    storage=SqlAgentStorage(table_name="web_agent", db_file=groq_agent_storage),
+    storage=SqlAgentStorage(table_name="web_agent", db_file=ollama_agents_storage),
     show_tool_calls=True,
     add_history_to_messages=True,
     num_history_responses=2,
@@ -44,7 +44,7 @@ finance_agent = Agent(
     tools=[YFinanceTools(stock_price=True, analyst_recommendations=True, company_info=True, company_news=True)],
     description="You are an investment analyst that researches stocks and helps users make informed decisions.",
     instructions=["Always use tables to display data"] + common_instructions,
-    storage=SqlAgentStorage(table_name="finance_agent", db_file=groq_agent_storage),
+    storage=SqlAgentStorage(table_name="finance_agent", db_file=ollama_agents_storage),
     show_tool_calls=True,
     add_history_to_messages=True,
     num_history_responses=5,
@@ -69,7 +69,7 @@ youtube_agent = Agent(
         "If the user just provides a URL, summarize the video and answer questions about it.",
     ]
     + common_instructions,
-    storage=SqlAgentStorage(table_name="youtube_agent", db_file=groq_agent_storage),
+    storage=SqlAgentStorage(table_name="youtube_agent", db_file=ollama_agents_storage),
     show_tool_calls=True,
     add_history_to_messages=True,
     num_history_responses=5,

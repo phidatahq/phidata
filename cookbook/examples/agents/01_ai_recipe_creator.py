@@ -1,6 +1,7 @@
 from phi.agent import Agent
 from phi.knowledge.pdf import PDFUrlKnowledgeBase
 from phi.vectordb.pgvector import PgVector
+from phi.tools.exa import ExaTools
 
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 
@@ -14,9 +15,11 @@ recipe_agent = Agent(
     name="RecipeGenie",
     knowledge_base=knowledge_base,
     search_knowledge=True,
+    tools=[ExaTools()],
     instructions=["Search for recipes based on the ingredients and time available from the knowledge base.",
-                  "Additionally, include the nutritional information and cooking instructions for the recommended recipes.",
-                  "You can alternatively search Youtube for video links related to the recommended recipes (as given from the knowledge base) from famous chefs with most subscribers and include them in the response."],
+                  "Include the nutritional information, prep time, cooking instructions for the recommended recipes.",
+                  "Search exa for recipe links or tips related to the recipes.",
+                  "Provide a list of recipes that match the user's requirements and preferences."],
 )
 
-recipe_agent.print_response("I have milk and butter, please suggest me a recipe with 500g protein", markdown=True)
+recipe_agent.print_response("I have milk and butter, please suggest me a recipe for 10g protein ", markdown=True)

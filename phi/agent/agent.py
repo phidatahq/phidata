@@ -348,7 +348,7 @@ class Agent(BaseModel):
 
     def get_transfer_function(self, member_agent: "Agent", index: int) -> Function:
         def _transfer_task_to_agent(
-            task_description: str, expected_output: str, additional_information: Optional[str] = None
+            task_description: str, expected_output: str, additional_information: str
         ) -> Iterator[str]:
             # Update the member agent session_data to include leader_session_id, leader_agent_id and leader_run_id
             if member_agent.session_data is None:
@@ -359,8 +359,11 @@ class Agent(BaseModel):
 
             # -*- Run the agent
             member_agent_messages = f"{task_description}\n\nThe expected output is: {expected_output}"
-            if additional_information is not None:
-                member_agent_messages += f"\n\nAdditional information: {additional_information}"
+            try:
+                if additional_information is not None and additional_information.strip() != "":
+                    member_agent_messages += f"\n\nAdditional information: {additional_information}"
+            except Exception as e:
+                logger.warning(f"Failed to add additional information to the member agent: {e}")
 
             member_agent_session_id = member_agent.session_id
             member_agent_agent_id = member_agent.agent_id

@@ -4,12 +4,12 @@ from phi.agent import Agent
 from phi.model.ollama import Ollama
 
 agent = Agent(
-    model=Ollama(id="llava"),
+    model=Ollama(id="llama3.2-vision"),
     markdown=True,
 )
 
-image_path = Path(__file__).parent.joinpath("test-image.jpg")
+image_path = Path(__file__).parent.joinpath("super-agents.png")
 agent.print_response(
-    "What's in this image, describe in 1 sentence",
+    "Write a 3 sentence fiction story about the image",
     images=[str(image_path)],
 )

@@ -7,10 +7,10 @@ from phi.tools.yfinance import YFinanceTools
 
 agent = Agent(
     model=Ollama(id="llama3.1:8b"),
-    tools=[YFinanceTools(stock_price=True)],
-    instructions=["Use tables where possible."],
-    markdown=True,
+    tools=[YFinanceTools(stock_price=True, analyst_recommendations=True)],
+    instructions="Use tables to display data.",
     show_tool_calls=True,
+    markdown=True,
 )
 
 # Get the response in a variable
@@ -19,4 +19,4 @@ agent = Agent(
 #     print(chunk.content)
 
 # Print the response in the terminal
-agent.print_response("What is the stock price of NVDA", stream=True)
+agent.print_response("What are analyst recommendations for NVDA and TSLA", stream=True)

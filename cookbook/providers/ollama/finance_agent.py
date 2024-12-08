@@ -7,8 +7,8 @@ from phi.tools.yfinance import YFinanceTools
 agent = Agent(
     model=Ollama(id="llama3.1:8b"),
     tools=[YFinanceTools(stock_price=True, analyst_recommendations=True, stock_fundamentals=True)],
+    instructions="Use tables to display data.",
     show_tool_calls=True,
-    instructions="Use tables to display data",
     markdown=True,
 )
 

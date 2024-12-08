@@ -43,7 +43,7 @@ finance_agent = Agent(
     model=Ollama(id="llama3.1:8b"),
     tools=[YFinanceTools(stock_price=True, analyst_recommendations=True, company_info=True, company_news=True)],
     description="You are an investment analyst that researches stocks and helps users make informed decisions.",
-    instructions=["Always use tables to display data"] + common_instructions,
+    instructions=["Use tables to display data"] + common_instructions,
     storage=SqlAgentStorage(table_name="finance_agent", db_file=ollama_agents_storage),
     show_tool_calls=True,
     add_history_to_messages=True,

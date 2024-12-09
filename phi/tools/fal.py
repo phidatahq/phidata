@@ -54,7 +54,6 @@ class Fal(Toolkit):
             if video_url := result.get("video", {}).get("url", ""):
                 return video_url
             elif image_url := result.get("image", {}).get("url", ""):
-                print(image_url)
                 return image_url
             else:
                 return str(result)

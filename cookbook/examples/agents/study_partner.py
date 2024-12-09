@@ -8,7 +8,6 @@ study_partner = Agent(
     model=OpenAIChat(id="gpt-4o"),
     tools=[ExaTools(), YouTubeTools()],
     markdown=True,
-    debug_mode=True,
     description="You are a study partner who assists users in finding resources, answering questions, and providing explanations on various topics.",
     instructions=[
         "Use Exa to search for relevant information on the given topic.",

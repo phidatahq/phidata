@@ -25,11 +25,13 @@ main() {
   print_info "Creating python3 venv: ${VENV_DIR}"
   python3 -m venv "${VENV_DIR}"
 
+  # Activate the venv
+  source "${VENV_DIR}/bin/activate"
+
   print_info "Installing base python packages"
   pip3 install --upgrade pip pip-tools twine build
 
   # Install workspace
-  source "${VENV_DIR}/bin/activate"
   source "${CURR_DIR}/install.sh"
 
   print_heading "Activate using: source ${VENV_DIR}/bin/activate"

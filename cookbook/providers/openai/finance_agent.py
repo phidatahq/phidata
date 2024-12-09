@@ -14,4 +14,6 @@ agent = Agent(
 )
 
 # agent.print_response("Share the NVDA stock price and analyst recommendations", stream=True)
-agent.print_response("Summarize fundamentals for TSLA", stream=True)
+agent.print_response(
+    "Summarize and compare analyst recommendations and fundamentals for TSLA and NVDA. Show in tables.", stream=True
+)

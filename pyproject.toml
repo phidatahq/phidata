@@ -1,6 +1,6 @@
 [project]
 name = "phidata"
-version = "2.5.33"
+version = "2.6.2"
 description = "Build AI Agents with memory, knowledge and tools."
 requires-python = ">=3.7"
 readme = "README.md"
@@ -166,5 +166,6 @@ module = [
   "wikipedia.*",
   "yfinance.*",
   "youtube_transcript_api.*",
+  "chonkie.*",
 ]
 ignore_missing_imports = true

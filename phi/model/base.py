@@ -1,11 +1,14 @@
-from typing import List, Iterator, Optional, Dict, Any, Callable, Union
+import collections.abc
+
+from types import GeneratorType
+from typing import List, Iterator, Optional, Dict, Any, Callable, Union, Sequence
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, ValidationInfo
 
 from phi.model.message import Message
 from phi.model.response import ModelResponse, ModelResponseEvent
 from phi.tools import Tool, Toolkit
-from phi.tools.function import Function, FunctionCall
+from phi.tools.function import Function, FunctionCall, ToolCallException
 from phi.utils.log import logger
 from phi.utils.timer import Timer
 
@@ -58,8 +61,6 @@ class Model(BaseModel):
     structured_outputs: Optional[bool] = None
     # Whether the Model supports structured outputs.
     supports_structured_outputs: bool = False
-    # Whether to add images to the message content.
-    add_images_to_message_content: bool = False
 
     model_config = ConfigDict(arbitrary_types_allowed=True, populate_by_name=True)
 
@@ -123,7 +124,9 @@ class Model(BaseModel):
                 tools_for_api.append(tool)
         return tools_for_api
 
-    def add_tool(self, tool: Union[Tool, Toolkit, Callable, Dict, Function], structured_outputs: bool = False) -> None:
+    def add_tool(
+        self, tool: Union[Tool, Toolkit, Callable, Dict, Function], strict: bool = False, agent: Optional[Any] = None
+    ) -> None:
         if self.tools is None:
             self.tools = []
 
@@ -133,17 +136,19 @@ class Model(BaseModel):
                 self.tools.append(tool)
                 logger.debug(f"Added tool {tool} to model.")
 
-        # If the tool is a Callable or Toolkit, add its functions to the Model
+        # If the tool is a Callable or Toolkit, process and add to the Model
         elif callable(tool) or isinstance(tool, Toolkit) or isinstance(tool, Function):
             if self.functions is None:
                 self.functions = {}
 
             if isinstance(tool, Toolkit):
-                # For each function in the toolkit
+                # For each function in the toolkit, process entrypoint and add to self.tools
                 for name, func in tool.functions.items():
                     # If the function does not exist in self.functions, add to self.tools
                     if name not in self.functions:
-                        if structured_outputs and self.supports_structured_outputs:
+                        func._agent = agent
+                        func.process_entrypoint(strict=strict)
+                        if strict and self.supports_structured_outputs:
                             func.strict = True
                         self.functions[name] = func
                         self.tools.append({"type": "function", "function": func.to_dict()})
@@ -151,7 +156,9 @@ class Model(BaseModel):
 
             elif isinstance(tool, Function):
                 if tool.name not in self.functions:
-                    if structured_outputs and self.supports_structured_outputs:
+                    tool._agent = agent
+                    tool.process_entrypoint(strict=strict)
+                    if strict and self.supports_structured_outputs:
                         tool.strict = True
                     self.functions[tool.name] = tool
                     self.tools.append({"type": "function", "function": tool.to_dict()})
@@ -161,12 +168,13 @@ class Model(BaseModel):
                 try:
                     function_name = tool.__name__
                     if function_name not in self.functions:
-                        func = Function.from_callable(tool)
-                        if structured_outputs and self.supports_structured_outputs:
+                        func = Function.from_callable(tool, strict=strict)
+                        func._agent = agent
+                        if strict and self.supports_structured_outputs:
                             func.strict = True
                         self.functions[func.name] = func
                         self.tools.append({"type": "function", "function": func.to_dict()})
-                        logger.debug(f"Function {func.name} added to Model.")
+                        logger.debug(f"Function {func.name} added to model.")
                 except Exception as e:
                     logger.warning(f"Could not add function {tool}: {e}")
 
@@ -183,8 +191,8 @@ class Model(BaseModel):
                 self.function_call_stack = []
 
             # -*- Start function call
-            _function_call_timer = Timer()
-            _function_call_timer.start()
+            function_call_timer = Timer()
+            function_call_timer.start()
             yield ModelResponse(
                 content=function_call.get_call_str(),
                 tool_call={
@@ -196,22 +204,74 @@ class Model(BaseModel):
                 event=ModelResponseEvent.tool_call_started.value,
             )
 
-            # -*- Run function call
-            function_call_success = function_call.execute()
-            _function_call_timer.stop()
+            # Track if the function call was successful
+            function_call_success = False
+            # If True, stop execution after this function call
+            stop_execution_after_tool_call = False
+            # Additional messages from the function call that will be added to the function call results
+            additional_messages_from_function_call = []
 
-            _function_call_result = Message(
+            # -*- Run function call
+            try:
+                function_call_success = function_call.execute()
+            except ToolCallException as tce:
+                if tce.user_message is not None:
+                    if isinstance(tce.user_message, str):
+                        additional_messages_from_function_call.append(Message(role="user", content=tce.user_message))
+                    else:
+                        additional_messages_from_function_call.append(tce.user_message)
+                if tce.agent_message is not None:
+                    if isinstance(tce.agent_message, str):
+                        additional_messages_from_function_call.append(
+                            Message(role="assistant", content=tce.agent_message)
+                        )
+                    else:
+                        additional_messages_from_function_call.append(tce.agent_message)
+                if tce.messages is not None and len(tce.messages) > 0:
+                    for m in tce.messages:
+                        if isinstance(m, Message):
+                            additional_messages_from_function_call.append(m)
+                        elif isinstance(m, dict):
+                            try:
+                                additional_messages_from_function_call.append(Message(**m))
+                            except Exception as e:
+                                logger.warning(f"Failed to convert dict to Message: {e}")
+                if tce.stop_execution:
+                    stop_execution_after_tool_call = True
+                    if len(additional_messages_from_function_call) > 0:
+                        for m in additional_messages_from_function_call:
+                            m.stop_after_tool_call = True
+
+            function_call_output: Optional[Union[List[Any], str]] = ""
+            if isinstance(function_call.result, (GeneratorType, collections.abc.Iterator)):
+                for item in function_call.result:
+                    function_call_output += item
+                    if function_call.function.show_result:
+                        yield ModelResponse(content=item)
+            else:
+                function_call_output = function_call.result
+                if function_call.function.show_result:
+                    yield ModelResponse(content=function_call_output)
+
+            # -*- Stop function call timer
+            function_call_timer.stop()
+
+            # -*- Create function call result message
+            function_call_result = Message(
                 role=tool_role,
-                content=function_call.result if function_call_success else function_call.error,
+                content=function_call_output if function_call_success else function_call.error,
                 tool_call_id=function_call.call_id,
                 tool_name=function_call.function.name,
                 tool_args=function_call.arguments,
                 tool_call_error=not function_call_success,
-                metrics={"time": _function_call_timer.elapsed},
+                stop_after_tool_call=function_call.function.stop_after_tool_call or stop_execution_after_tool_call,
+                metrics={"time": function_call_timer.elapsed},
             )
+
+            # -*- Yield function call result
             yield ModelResponse(
-                content=f"{function_call.get_call_str()} completed in {_function_call_timer.elapsed:.4f}s.",
-                tool_call=_function_call_result.model_dump(
+                content=f"{function_call.get_call_str()} completed in {function_call_timer.elapsed:.4f}s.",
+                tool_call=function_call_result.model_dump(
                     include={
                         "content",
                         "tool_call_id",
@@ -230,16 +290,225 @@ class Model(BaseModel):
                 self.metrics["tool_call_times"] = {}
             if function_call.function.name not in self.metrics["tool_call_times"]:
                 self.metrics["tool_call_times"][function_call.function.name] = []
-            self.metrics["tool_call_times"][function_call.function.name].append(_function_call_timer.elapsed)
+            self.metrics["tool_call_times"][function_call.function.name].append(function_call_timer.elapsed)
 
             # Add the function call result to the function call results
-            function_call_results.append(_function_call_result)
+            function_call_results.append(function_call_result)
+            if len(additional_messages_from_function_call) > 0:
+                function_call_results.extend(additional_messages_from_function_call)
             self.function_call_stack.append(function_call)
 
             # -*- Check function call limit
             if self.tool_call_limit and len(self.function_call_stack) >= self.tool_call_limit:
                 self.deactivate_function_calls()
                 break  # Exit early if we reach the function call limit
+
+    def handle_post_tool_call_messages(self, messages: List[Message], model_response: ModelResponse) -> ModelResponse:
+        last_message = messages[-1]
+        if last_message.stop_after_tool_call:
+            logger.debug("Stopping execution as stop_after_tool_call=True")
+            if (
+                last_message.role == "assistant"
+                and last_message.content is not None
+                and isinstance(last_message.content, str)
+            ):
+                if model_response.content is None:
+                    model_response.content = ""
+                model_response.content += last_message.content
+        else:
+            response_after_tool_calls = self.response(messages=messages)
+            if response_after_tool_calls.content is not None:
+                if model_response.content is None:
+                    model_response.content = ""
+                model_response.content += response_after_tool_calls.content
+            if response_after_tool_calls.parsed is not None:
+                # bubble up the parsed object, so that the final response has the parsed object
+                # that is visible to the agent
+                model_response.parsed = response_after_tool_calls.parsed
+            if response_after_tool_calls.audio is not None:
+                # bubble up the audio, so that the final response has the audio
+                # that is visible to the agent
+                model_response.audio = response_after_tool_calls.audio
+        return model_response
+
+    async def ahandle_post_tool_call_messages(
+        self, messages: List[Message], model_response: ModelResponse
+    ) -> ModelResponse:
+        last_message = messages[-1]
+        if last_message.stop_after_tool_call:
+            logger.debug("Stopping execution as stop_after_tool_call=True")
+            if (
+                last_message.role == "assistant"
+                and last_message.content is not None
+                and isinstance(last_message.content, str)
+            ):
+                if model_response.content is None:
+                    model_response.content = ""
+                model_response.content += last_message.content
+        else:
+            response_after_tool_calls = await self.aresponse(messages=messages)
+            if response_after_tool_calls.content is not None:
+                if model_response.content is None:
+                    model_response.content = ""
+                model_response.content += response_after_tool_calls.content
+            if response_after_tool_calls.parsed is not None:
+                # bubble up the parsed object, so that the final response has the parsed object
+                # that is visible to the agent
+                model_response.parsed = response_after_tool_calls.parsed
+            if response_after_tool_calls.audio is not None:
+                # bubble up the audio, so that the final response has the audio
+                # that is visible to the agent
+                model_response.audio = response_after_tool_calls.audio
+        return model_response
+
+    def handle_post_tool_call_messages_stream(self, messages: List[Message]) -> Iterator[ModelResponse]:
+        last_message = messages[-1]
+        if last_message.stop_after_tool_call:
+            logger.debug("Stopping execution as stop_after_tool_call=True")
+            if (
+                last_message.role == "assistant"
+                and last_message.content is not None
+                and isinstance(last_message.content, str)
+            ):
+                yield ModelResponse(content=last_message.content)
+        else:
+            yield from self.response_stream(messages=messages)
+
+    async def ahandle_post_tool_call_messages_stream(self, messages: List[Message]) -> Any:
+        last_message = messages[-1]
+        if last_message.stop_after_tool_call:
+            logger.debug("Stopping execution as stop_after_tool_call=True")
+            if (
+                last_message.role == "assistant"
+                and last_message.content is not None
+                and isinstance(last_message.content, str)
+            ):
+                yield ModelResponse(content=last_message.content)
+        else:
+            async for model_response in self.aresponse_stream(messages=messages):  # type: ignore
+                yield model_response
+
+    def _process_string_image(self, image: str) -> Dict[str, Any]:
+        """Process string-based image (base64, URL, or file path)."""
+
+        # Process Base64 encoded image
+        if image.startswith("data:image"):
+            return {"type": "image_url", "image_url": {"url": image}}
+
+        # Process URL image
+        if image.startswith(("http://", "https://")):
+            return {"type": "image_url", "image_url": {"url": image}}
+
+        # Process local file image
+        import base64
+        import mimetypes
+        from pathlib import Path
+
+        path = Path(image)
+        if not path.exists():
+            raise FileNotFoundError(f"Image file not found: {image}")
+
+        mime_type = mimetypes.guess_type(image)[0] or "image/jpeg"
+        with open(path, "rb") as image_file:
+            base64_image = base64.b64encode(image_file.read()).decode("utf-8")
+            image_url = f"data:{mime_type};base64,{base64_image}"
+            return {"type": "image_url", "image_url": {"url": image_url}}
+
+    def _process_bytes_image(self, image: bytes) -> Dict[str, Any]:
+        """Process bytes image data."""
+        import base64
+
+        base64_image = base64.b64encode(image).decode("utf-8")
+        image_url = f"data:image/jpeg;base64,{base64_image}"
+        return {"type": "image_url", "image_url": {"url": image_url}}
+
+    def _process_image(self, image: Union[str, Dict, bytes]) -> Optional[Dict[str, Any]]:
+        """Process an image based on the format."""
+
+        if isinstance(image, dict):
+            return {"type": "image_url", "image_url": image}
+
+        if isinstance(image, str):
+            return self._process_string_image(image)
+
+        if isinstance(image, bytes):
+            return self._process_bytes_image(image)
+
+        logger.warning(f"Unsupported image type: {type(image)}")
+        return None
+
+    def add_images_to_message(
+        self, message: Message, images: Optional[Sequence[Union[str, Dict, bytes]]] = None
+    ) -> Message:
+        """
+        Add images to a message for the model. By default, we use the OpenAI image format but other Models
+        can override this method to use a different image format.
+        Args:
+            message: The message for the Model
+            images: Sequence of images in various formats:
+                - str: base64 encoded image, URL, or file path
+                - Dict: pre-formatted image data
+                - bytes: raw image data
+
+        Returns:
+            Message content with images added in the format expected by the model
+        """
+        if images is None or len(images) == 0:
+            return message
+
+        # Ignore non-string message content
+        if not isinstance(message.content, str):
+            logger.warning(f"Message type not supported with images: {type(message.content)}")
+            return message
+
+        # Create a default message content with text
+        message_content_with_image: List[Dict[str, Any]] = [{"type": "text", "text": message.content}]
+
+        # Add images to the message content
+        for image in images:
+            try:
+                image_data = self._process_image(image)
+                if image_data:
+                    message_content_with_image.append(image_data)
+            except Exception as e:
+                logger.error(f"Failed to process image: {str(e)}")
+                continue
+
+        # Update the message content with the images
+        message.content = message_content_with_image
+        return message
+
+    def add_audio_to_message(self, message: Message, audio: Optional[Dict] = None) -> Message:
+        """
+        Add audio to a message for the model. By default, we use the OpenAI audio format but other Models
+        can override this method to use a different audio format.
+        Args:
+            message: The message for the Model
+            audio: Pre-formatted audio data like {
+                        "data": encoded_string,
+                        "format": "wav"
+                    }
+
+        Returns:
+            Message content with audio added in the format expected by the model
+        """
+        if audio is None:
+            return message
+
+        # If `id` is in the audio, this means the audio is already processed
+        # This is used in multi-turn conversations
+        if "id" in audio:
+            message.content = ""
+            message.audio = {"id": audio["id"]}
+        # If `data` is in the audio, this means the audio is raw data
+        # And an input audio
+        elif "data" in audio:
+            # Create a message with audio
+            message.content = [
+                {"type": "text", "text": message.content},
+                {"type": "input_audio", "input_audio": audio},
+            ]
+        return message
 
     def get_system_message_for_model(self) -> Optional[str]:
         return self.system_prompt

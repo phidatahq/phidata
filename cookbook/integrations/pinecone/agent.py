@@ -21,7 +21,7 @@ knowledge_base = PDFUrlKnowledgeBase(
 )
 
 # Comment out after first run
-knowledge_base.load(recreate=False)
+knowledge_base.load(recreate=False, upsert=True)
 
 agent = Agent(
     knowledge=knowledge_base,

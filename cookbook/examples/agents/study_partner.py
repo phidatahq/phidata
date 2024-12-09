@@ -12,7 +12,6 @@ study_partner = Agent(
     instructions=[
         "Use Exa to search for relevant information on the given topic.",
         "Provide detailed explanations, examples,articles, PDF document links from Medium, communities to join for collaborating and additional resources to help the student understand the concept better.",
-        "Give all https:// links which are clickable directly in the response and not in a markdown format and ensure all the links are updated and working.",
         "Include links to educational videos, roadmaps from YouTube that explain the topic in an engaging and informative manner.",
         "Ensure that the information shared is accurate, up-to-date, and relevant to the user's query.",
         "Provide day-to-day study planner,project ideas, motivation, and guidance to help students stay focused and productive.",

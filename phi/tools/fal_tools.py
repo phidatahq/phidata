@@ -66,9 +66,13 @@ class FalTools(Toolkit):
                 on_queue_update=self.on_queue_update,
             )
             if type == ModelType.VIDEO:
-                return result.get("video", {}).get("url", "")
+                video_url = result.get("video", {}).get("url", "")
+                agent.add_video(video_url)
+                return f"Video URL: {video_url}"
             elif type == ModelType.IMAGE:
-                return result.get("image", {}).get("url", "")
+                image_url = result.get("image", {}).get("url", "")
+                agent.add_image(image_url)
+                return f"Image URL: {image_url}"
             else:
                 return str(result)
         except Exception as e:

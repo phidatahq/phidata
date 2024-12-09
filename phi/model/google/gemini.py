@@ -31,6 +31,7 @@ class MessageData:
     response_block: Optional[GenerateContentResponse] = None
     response_role: Optional[str] = None
     response_parts: Optional[List] = None
+    valid_response_parts: Optional[List] = None
     response_tool_calls: List[Dict[str, Any]] = field(default_factory=list)
     response_usage: Optional[ResultGenerateContentResponse] = None
 
@@ -561,8 +562,7 @@ class Gemini(Model):
         for response in self.invoke_stream(messages=messages):
             message_data.response_block = response.candidates[0].content
             message_data.response_role = message_data.response_block.role
-            if message_data.response_block.parts:
-                message_data.response_parts = message_data.response_block.parts
+            message_data.response_parts = message_data.response_block.parts
 
             if message_data.response_parts is not None:
                 for part in message_data.response_parts:
@@ -576,6 +576,8 @@ class Gemini(Model):
                         metrics.output_tokens += 1
                         if metrics.output_tokens == 1:
                             metrics.time_to_first_token = metrics.response_timer.elapsed
+                    else:
+                        message_data.valid_response_parts = message_data.response_parts
 
                     # -*- Skip function calls if there are no parts
                     if not message_data.response_block.parts and message_data.response_parts:
@@ -598,7 +600,7 @@ class Gemini(Model):
         # -*- Create assistant message
         assistant_message = Message(
             role=message_data.response_role or "model",
-            parts=message_data.response_parts,
+            parts=message_data.valid_response_parts,
             content=message_data.response_content,
         )
 

@@ -16,7 +16,7 @@ except ImportError:
     raise ImportError("`fal_client` not installed. Please install using `pip install fal-client`")
 
 
-class ModelType(Enum):
+class ModelType(str, Enum):
     IMAGE = "image"
     VIDEO = "video"
     TEXT = "text"

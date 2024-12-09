@@ -32,7 +32,7 @@ video_agent = Agent(
     name="Video Agent",
     agent_id="video_agent",
     model=OpenAIChat(id="gpt-4o"),
-    tools=[ModelsLabs()],
+    tools=[ModelsLabs(wait_for_completion=True)],
     description="You are an AI agent that can generate videos using the ModelsLabs API.",
     instructions=[
         "When the user asks you to create a video, use the `create_video` tool to create the video.",

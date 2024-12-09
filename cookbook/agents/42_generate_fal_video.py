@@ -5,7 +5,7 @@ from phi.tools.fal import Fal
 fal_agent = Agent(
     model=OpenAIChat(id="gpt-4o"),
     tools=[Fal()],
-    description="You are an AI agent that can generate videos using the Fal API.",
+    description="You are an AI agent that can generate videos using the 'fal' API.",
     instructions=[
         "When the user asks you to create a video, use the `run` tool to create the video.",
         "Return the URL as raw to the user.",

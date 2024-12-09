@@ -70,12 +70,14 @@ class FalTools(Toolkit):
             if type == ModelType.VIDEO:
                 video_url = result.get("video", {}).get("url", "")
                 data.append({"url": video_url})
-                agent.add_video(json.dumps(data))
+                result["data"] = data
+                agent.add_video(json.dumps(result))
                 return f"Video URL: {video_url}"
             elif type == ModelType.IMAGE:
                 image_url = result.get("image", {}).get("url", "")
                 data.append({"url": image_url})
-                agent.add_image(json.dumps(data))
+                result["data"] = data
+                agent.add_image(json.dumps(result))
                 return f"Image URL: {image_url}"
             else:
                 return str(result)

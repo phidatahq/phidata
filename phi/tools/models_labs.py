@@ -60,7 +60,7 @@ class ModelsLabs(Toolkit):
                     "width": 512,
                     "num_frames": 25,
                     "webhook": None,
-                    "output_type": "gif",
+                    "output_type": "mp4",
                     "track_id": None,
                     "negative_prompt": "low quality",
                     "model_id": "cogvideox",

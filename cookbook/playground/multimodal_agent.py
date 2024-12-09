@@ -1,4 +1,10 @@
-"""Run `pip install openai sqlalchemy 'fastapi[standard]' phidata` to install dependencies."""
+"""
+1. Install dependencies: `pip install openai sqlalchemy 'fastapi[standard]' phidata requests`
+2. Authenticate with phidata: `phi auth`
+3. Run the agent: `python cookbook/playground/multimodal_agent.py`
+
+Docs on Agent UI: https://docs.phidata.com/agent-ui
+"""
 
 from phi.agent import Agent
 from phi.model.openai import OpenAIChat
@@ -6,7 +12,6 @@ from phi.tools.dalle import Dalle
 from phi.tools.models_labs import ModelsLabs
 from phi.playground import Playground, serve_playground_app
 from phi.storage.agent.sqlite import SqlAgentStorage
-
 
 image_agent_storage_file: str = "tmp/image_agent.db"
 

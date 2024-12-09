@@ -1,6 +1,4 @@
-import json
 from os import getenv
-from typing import Optional
 
 from phi.agent import Agent
 from phi.tools import Toolkit
@@ -15,7 +13,7 @@ except ImportError:
 class ReplicateToolKit(Toolkit):
     def __init__(
         self,
-        model: str = "tencent/hunyuan-video",
+        model: str = "minimax/video-01",
     ):
         super().__init__(name="replicate_toolkit")
         self.api_key = getenv("REPLICATE_API_TOKEN")
@@ -23,21 +21,15 @@ class ReplicateToolKit(Toolkit):
             logger.error("REPLICATE_API_TOKEN not set. Please set the REPLICATE_API_TOKEN environment variable.")
         self.model = model
 
-        self.register(self.generate_video)
+        self.register(self.generate_content)
 
-    def generate_video(self, agent: Agent, prompt: str) -> str:
+    def generate_content(self, agent: Agent, prompt: str) -> str:
         """
-        Use this function to generate a video.
+        Use this function to generate an image or a video using a replicate model.
         Args:
-            prompt (str): A text description of the task.
+            prompt (str): A text description of the content.
         Returns:
-            str: Return a URI to the generated video.
+            str: Return a URI to the generated video or image.
         """
-        output = replicate.run(
-            ref=self.model,
-            input={
-                "prompt": prompt
-            }
-        )
+        output = replicate.run(ref=self.model, input={"prompt": prompt})
         return output
-

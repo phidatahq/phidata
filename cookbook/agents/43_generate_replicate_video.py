@@ -6,15 +6,13 @@ video_agent = Agent(
     name="Video Generator Agent",
     model=OpenAIChat(id="gpt-4o"),
     tools=[
-        ReplicateToolKit(
-            model="tencent/hunyuan-video:847dfa8b01e739637fc76f480ede0c1d76408e1d694b830b5dfb8e547bf98405"
-        )
+        ReplicateToolKit(model="tencent/hunyuan-video:847dfa8b01e739637fc76f480ede0c1d76408e1d694b830b5dfb8e547bf98405")
     ],
     description="You are an AI agent that can generate videos using the Replicate API.",
     instructions=[
-        "When the user asks you to create a video, use the `generate_video` tool to create the video.",
+        "When the user asks you to create a video, use the `generate_content` tool to create the video.",
         "Return the URL as raw to the user.",
-        "Don't convert video URL to markdown or anything else."
+        "Don't convert video URL to markdown or anything else.",
     ],
     markdown=True,
     debug_mode=True,

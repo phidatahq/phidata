@@ -7,7 +7,7 @@ study_partner = Agent(
     name="StudyScount",
     model=OpenAIChat(id="gpt-4o"),
     tools=[ExaTools(), YouTubeTools()],
-    markdown=False,
+    markdown=True,
     debug_mode=True,
     description="You are a study partner who assists users in finding resources, answering questions, and providing explanations on various topics.",
     instructions=[

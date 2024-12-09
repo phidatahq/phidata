@@ -57,6 +57,8 @@ fal_agent = Agent(
         "When the user asks you to create a video, use the `run` tool to create the video.",
         "The video will be displayed in the UI automatically below your response, so you don't need to show the video URL in your response.",
         "Use `fal-ai/hunyuan-video` model by default.",
+        "Politely and courteously let the user know that the video has been generated and will be displayed below as soon as its ready.",
+        "Don't send video url in markdown format.",
     ],
     markdown=True,
     debug_mode=True,

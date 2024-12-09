@@ -14,11 +14,10 @@ movie_recommendation_agent = Agent(
     ),
     instructions=[
         "Use Exa to search for the movies.",
-        "Provide results with the following details: movie title, genre, good ratings, description, recommended viewing age, primary language, "
-        "and release date.",
+        "Provide results with the following details: movie title, genre, movies with good ratings, description, recommended viewing age, primary language,runtime, imdb rating and release date.",
         "Include trailers for movies similar to the recommendations and upcoming movies of the same genre or from related directors/actors.",
+        "Give atleast 5 movie recommendations for each query",
         "Present the output in a well-structured markdown table for readability.",
-        "Avoid sharing direct links to movies or websites in the response.",
         "Ensure all movie data is correct, especially for recent or upcoming releases."
     ],
     markdown=True,

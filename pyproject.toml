@@ -1,7 +1,7 @@
 [project]
 name = "phidata"
-version = "2.6.2"
-description = "Build AI Agents with memory, knowledge and tools."
+version = "2.6.3"
+description = "Build multi-modal Agents with memory, knowledge and tools."
 requires-python = ">=3.7"
 readme = "README.md"
 authors = [

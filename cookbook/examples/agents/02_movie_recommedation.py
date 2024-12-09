@@ -25,6 +25,6 @@ movie_recommendation_agent = Agent(
 )
 
 movie_recommendation_agent.print_response(
-    "Suggest four of the latest thriller movies released in 2024, including their ratings, genres, descriptions, and trailers for similar and upcoming movies.",
+    "Suggest some thriller movies to watch.",
     stream=True
 )

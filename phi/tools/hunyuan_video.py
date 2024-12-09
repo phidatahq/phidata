@@ -10,7 +10,7 @@ from phi.tools import Toolkit
 from phi.utils.log import logger
 
 try:
-    import fal_client
+    import fal_client  # type: ignore
 except ImportError:
     raise ImportError("`fal_client` not installed. Please install using `pip install fal-client`")
 

@@ -9,6 +9,7 @@ from phi.agent import Agent
 from phi.tools import Toolkit
 from phi.utils.log import logger
 from enum import Enum
+import json
 
 try:
     import fal_client  # type: ignore
@@ -59,6 +60,7 @@ class FalTools(Toolkit):
             str: Return the result of the model.
         """
         try:
+            data = []
             result = fal_client.subscribe(
                 model or self.model,
                 arguments={"prompt": prompt},
@@ -67,11 +69,13 @@ class FalTools(Toolkit):
             )
             if type == ModelType.VIDEO:
                 video_url = result.get("video", {}).get("url", "")
-                agent.add_video(video_url)
+                data.append({"url": video_url})
+                agent.add_video(json.dumps(data))
                 return f"Video URL: {video_url}"
             elif type == ModelType.IMAGE:
                 image_url = result.get("image", {}).get("url", "")
-                agent.add_image(image_url)
+                data.append({"url": image_url})
+                agent.add_image(json.dumps(data))
                 return f"Image URL: {image_url}"
             else:
                 return str(result)

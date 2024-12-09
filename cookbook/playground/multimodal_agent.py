@@ -6,6 +6,7 @@ from phi.tools.dalle import Dalle
 from phi.tools.models_labs import ModelsLabs
 from phi.playground import Playground, serve_playground_app
 from phi.storage.agent.sqlite import SqlAgentStorage
+from phi.tools.fal_tools import FalTools
 
 
 image_agent_storage_file: str = "tmp/image_agent.db"
@@ -46,7 +47,24 @@ video_agent = Agent(
     storage=SqlAgentStorage(table_name="video_agent", db_file="tmp/video_agent.db"),
 )
 
-app = Playground(agents=[image_agent, video_agent]).get_app()
+fal_agent = Agent(
+    name="Fal Video Generator Agent",
+    agent_id="fal_agent",
+    model=OpenAIChat(id="gpt-4o"),
+    tools=[FalTools()],
+    description="You are an AI agent that can generate videos using the Fal API.",
+    instructions=[
+        "When the user asks you to create a video, use the `run` tool to create the video.",
+        "The video will be displayed in the UI automatically below your response, so you don't need to show the video URL in your response.",
+    ],
+    markdown=True,
+    debug_mode=True,
+    add_history_to_messages=True,
+    add_datetime_to_instructions=True,
+    storage=SqlAgentStorage(table_name="fal_agent", db_file="tmp/fal_agent.db"),
+)
+
+app = Playground(agents=[image_agent, video_agent, fal_agent]).get_app()
 
 if __name__ == "__main__":
     serve_playground_app("multimodal_agent:app", reload=True)

@@ -6,11 +6,17 @@ from typing import Optional
 from phi.agent import Agent
 from phi.tools import Toolkit
 from phi.utils.log import logger
+from enum import Enum
 
 try:
     import requests
 except ImportError:
     raise ImportError("`requests` not installed. Please install using `pip install requests`")
+
+
+class FileType(str, Enum):
+    MP4 = "mp4"
+    GIF = "gif"
 
 
 class ModelsLabs(Toolkit):
@@ -25,6 +31,7 @@ class ModelsLabs(Toolkit):
         add_to_eta: int = 15,
         # Maximum time to wait for the video to be ready
         max_wait_time: int = 60,
+        file_type: FileType = FileType.MP4,
     ):
         super().__init__(name="models_labs")
 
@@ -33,6 +40,7 @@ class ModelsLabs(Toolkit):
         self.wait_for_completion = wait_for_completion
         self.add_to_eta = add_to_eta
         self.max_wait_time = max_wait_time
+        self.file_type = file_type
         self.api_key = api_key or getenv("MODELS_LAB_API_KEY")
         if not self.api_key:
             logger.error("MODELS_LAB_API_KEY not set. Please set the MODELS_LAB_API_KEY environment variable.")
@@ -60,7 +68,7 @@ class ModelsLabs(Toolkit):
                     "width": 512,
                     "num_frames": 25,
                     "webhook": None,
-                    "output_type": "mp4",
+                    "output_type": self.file_type.value,
                     "track_id": None,
                     "negative_prompt": "low quality",
                     "model_id": "cogvideox",

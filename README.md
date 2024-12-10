@@ -9,7 +9,7 @@
 </p>
 
 <h3 align="center">
-Build multi-modal Agents with memory, knowledge and tools
+Build multi-modal Agents with memory, knowledge, tools and reasoning
 </h3>
 
 <img

@@ -31,7 +31,7 @@ Build multi-modal Agents with memory, knowledge, tools and reasoning.
 pip install -U phidata
 ```
 
-## Key Features
+## Examples & Key Features
 
 - [Simple & Elegant](#simple--elegant)
 - [Powerful & Flexible](#powerful--flexible)
@@ -46,7 +46,9 @@ pip install -U phidata
 
 ## Simple & Elegant
 
-Phidata Agents are simple and elegant, resulting in minimal, beautiful code. For example, you can create a web search agent using 10 lines of code, create a file `web_search.py`
+Phidata Agents are simple and elegant, resulting in minimal, beautiful code.
+
+For example, you can create a web search agent in 10 lines of code, create a file `web_search.py`
 
 ```python
 from phi.agent import Agent
@@ -75,7 +77,9 @@ python web_search.py
 
 ## Powerful & Flexible
 
-Phidata agents can use multiple tools and follow instructions to achieve complex tasks. For example, you can create a finance agent that can query financial data, create a file `finance_agent.py`
+Phidata agents can use multiple tools and follow instructions to achieve complex tasks.
+
+For example, you can create a finance agent with tools to query financial data, create a file `finance_agent.py`
 
 ```python
 from phi.agent import Agent
@@ -103,7 +107,9 @@ python finance_agent.py
 
 ## Multi-Modal by default
 
-Phidata agents support text, images, audio and video. For example, you can create an image agent that can understand images and make tool calls as needed, create a file `image_agent.py`
+Phidata agents support text, images, audio and video.
+
+For example, you can create an image agent that can understand images and make tool calls as needed, create a file `image_agent.py`
 
 ```python
 from phi.agent import Agent

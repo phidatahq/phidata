@@ -169,4 +169,3 @@ module = [
   "youtube_transcript_api.*",
   "chonkie.*",
 ]
-ignore_missing_imports = true

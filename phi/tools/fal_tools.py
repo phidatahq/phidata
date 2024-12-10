@@ -30,13 +30,11 @@ class FalTools(Toolkit):
         self,
         api_key: Optional[str] = None,
         model: str = "fal-ai/hunyuan-video",
-        type: ModelType = ModelType.VIDEO,
     ):
         super().__init__(name="fal")
 
         self.api_key = api_key or getenv("FAL_API_KEY")
         self.model = model
-        self.type = type
         if not self.api_key:
             logger.error("FAL_API_KEY not set. Please set the FAL_API_KEY environment variable.")
         self.seen_logs: set[str] = set()
@@ -51,38 +49,50 @@ class FalTools(Toolkit):
                     self.seen_logs.add(message)
 
     def generate_media(
-        self, agent: Agent, prompt: str, model: Optional[str] = None, type: Optional[ModelType] = None
+        self, agent: Agent, prompt: str
     ) -> str:
         """
         Use this function to run a model with a given prompt.
 
         Args:
             prompt (str): A text description of the task.
-            model (str): The model to use.
-            type (ModelType): The type of the model to use. It can be either `image` or `video` or `text`.
         Returns:
             str: Return the result of the model.
         """
         try:
-            data = []
+
             result = fal_client.subscribe(
-                model or self.model,
+                self.model,
                 arguments={"prompt": prompt},
                 with_logs=True,
                 on_queue_update=self.on_queue_update,
             )
-            if type == ModelType.VIDEO:
-                video_url = result.get("video", {}).get("url", "")
-                data.append({"url": video_url})
-                agent.add_video(Video(id=str(uuid4()), url=video_url))
-                return f"Media generated successfully at {video_url}"
-            elif type == ModelType.IMAGE:
-                image_url = result.get("image", {}).get("url", "")
-                data.append({"url": image_url})
-                agent.add_image(Image(id=str(uuid4()), url=image_url))
-                return f"Media generated successfully at {image_url}"
+
+            media_id = str(uuid4())
+
+            if "image" in result:
+                url = result.get("image", {}).get("url", "")
+                agent.add_image(
+                    Image(
+                        id=media_id,
+                        url=url,
+                    )
+                )
+                media_type = "image"
+            elif "video" in result:
+                url = result.get("video", {}).get("url", "")
+                agent.add_video(
+                    Video(
+                        id=media_id,
+                        url=url,
+                    )
+                )
+                media_type = "video"
             else:
-                raise Exception("Model not supported")
+                logger.error(f"Unsupported type in result: {result}")
+                return f"Unsupported type in result: {result}"
+
+            return f"{media_type.capitalize()} generated successfully at {url}"
         except Exception as e:
             logger.error(f"Failed to run model: {e}")
             return f"Error: {e}"

@@ -2,6 +2,7 @@ import time
 import json
 from os import getenv
 from typing import Optional
+from uuid import uuid4
 
 from phi.agent import Agent
 from phi.model.content import Video
@@ -89,15 +90,16 @@ class ModelsLabs(Toolkit):
 
             eta = result["eta"]
             video_url_links = result["future_links"]
-            video_id = result["id"]
             logger.info(f"Video will be ready in {eta} seconds")
             logger.info(f"Video URLs: {video_url_links}")
+
+            video_id = str(uuid4())
 
             logger.debug(f"Result: {result}")
             for video_url in video_url_links:
 
                 # Update the run response with the video URLs
-                agent.add_video(Video(id=str(video_id), url=video_url, eta=str(eta)))
+                agent.add_video(Video(id=video_id, url=video_url, eta=str(eta)))
 
             if self.wait_for_completion and isinstance(eta, int):
                 video_ready = False

@@ -19,13 +19,7 @@ Build multi-modal Agents with memory, knowledge, tools and reasoning
 
 # What is phidata?
 
-**Phidata is a framework for building multi-modal agents**, use phidata to:
-
-- **Build multi-modal agents with memory, knowledge, tools and reasoning.**
-- **Build teams of agents that can work together to solve problems.**
-- **Chat with your agents using a beautiful Agent UI.**
-- **Monitor, evaluate and optimize your agents.**
-- **Build agentic systems i.e. applications with an API, database and vectordb.**
+**Phidata is a framework for building multi-modal agents with memory, knowledge, tools and reasoning.**
 
 # Install
 

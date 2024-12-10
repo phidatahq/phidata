@@ -93,19 +93,11 @@ class ModelsLabs(Toolkit):
             logger.info(f"Video will be ready in {eta} seconds")
             logger.info(f"Video URLs: {video_url_links}")
 
-            video_data = []
             logger.debug(f"Result: {result}")
             for video_url in video_url_links:
-                video_data.append(
-                    {
-                        "eta": eta,
-                        "video_id": video_id,
-                        "url": video_url,
-                    }
-                )
 
                 # Update the run response with the video URLs
-                agent.add_video(Video(id=video_id, url=video_url, eta=eta))
+                agent.add_video(Video(id=str(video_id), url=video_url, eta=str(eta)))
 
             if self.wait_for_completion and isinstance(eta, int):
                 video_ready = False

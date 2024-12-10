@@ -9,13 +9,21 @@
 </p>
 
 <h3 align="center">
-Building multi-modal Agents with memory, knowledge, tools and reasoning.
+Build multi-modal Agents with memory, knowledge, tools and reasoning.
 </h3>
 
 <img
   src="https://github.com/user-attachments/assets/44739d09-2ec4-49b7-bea1-b275afccc592"
   style="border-radius: 8px;"
 />
+
+## What is phidata?
+
+**Phidata is a framework for building multi-modal agents**, use phidata to:
+
+- **Build multi-modal agents with memory, knowledge, tools and reasoning.**
+- **Build teams of agents that can work together to solve problems.**
+- **Chat with your agents using a beautiful Agent UI.**
 
 ## Install
 

@@ -162,7 +162,6 @@ class OpenAIChat(Model):
             return self.async_client
 
         client_params: Dict[str, Any] = self.get_client_params()
-
         if self.http_client:
             client_params["http_client"] = self.http_client
         else:
@@ -289,10 +288,11 @@ class OpenAIChat(Model):
         Returns:
             Dict[str, Any]: The formatted message.
         """
-        if message.images is not None:
-            message = self.add_images_to_message(message=message, images=message.images)
-        if message.audio is not None:
-            message = self.add_audio_to_message(message=message, audio=message.audio)
+        if message.role == "user":
+            if message.images is not None:
+                message = self.add_images_to_message(message=message, images=message.images)
+            if message.audio is not None:
+                message = self.add_audio_to_message(message=message, audio=message.audio)
 
         return message.to_dict()
 
@@ -412,9 +412,10 @@ class OpenAIChat(Model):
             Optional[ModelResponse]: The model response after handling tool calls.
         """
         if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
-            model_response.content = ""
-            function_calls_to_run: List[FunctionCall] = []
+            if model_response.content is None:
+                model_response.content = ""
             function_call_results: List[Message] = []
+            function_calls_to_run: List[FunctionCall] = []
             for tool_call in assistant_message.tool_calls:
                 _tool_call_id = tool_call.get("id")
                 _function_call = get_function_call_for_tool_call(tool_call, self.functions)
@@ -598,6 +599,14 @@ class OpenAIChat(Model):
         assistant_message.log()
         metrics.log()
 
+        # -*- Update model response with assistant message content and audio
+        if assistant_message.content is not None:
+            # add the content to the model response
+            model_response.content = assistant_message.get_content_string()
+        if assistant_message.audio is not None:
+            # add the audio to the model response
+            model_response.audio = assistant_message.audio
+
         # -*- Handle tool calls
         tool_role = "tool"
         if (
@@ -610,15 +619,6 @@ class OpenAIChat(Model):
             is not None
         ):
             return self.handle_post_tool_call_messages(messages=messages, model_response=model_response)
-
-        # -*- Update model response
-        if assistant_message.content is not None:
-            # add the content to the model response
-            model_response.content = assistant_message.get_content_string()
-        if assistant_message.audio is not None:
-            # add the audio to the model response
-            model_response.audio = assistant_message.audio
-
         logger.debug("---------- OpenAI Response End ----------")
         return model_response
 
@@ -671,6 +671,14 @@ class OpenAIChat(Model):
         assistant_message.log()
         metrics.log()
 
+        # -*- Update model response with assistant message content and audio
+        if assistant_message.content is not None:
+            # add the content to the model response
+            model_response.content = assistant_message.get_content_string()
+        if assistant_message.audio is not None:
+            # add the audio to the model response
+            model_response.audio = assistant_message.audio
+
         # -*- Handle tool calls
         tool_role = "tool"
         if (
@@ -683,14 +691,6 @@ class OpenAIChat(Model):
             is not None
         ):
             return await self.ahandle_post_tool_call_messages(messages=messages, model_response=model_response)
-
-        # -*- Update model response
-        if assistant_message.content is not None:
-            # add the content to the model response
-            model_response.content = assistant_message.get_content_string()
-        if assistant_message.audio is not None:
-            # add the audio to the model response
-            model_response.audio = assistant_message.audio
 
         logger.debug("---------- OpenAI Async Response End ----------")
         return model_response
@@ -740,6 +740,7 @@ class OpenAIChat(Model):
         metrics.prompt_tokens = response_usage.prompt_tokens
         metrics.output_tokens = response_usage.completion_tokens
         metrics.completion_tokens = response_usage.completion_tokens
+        metrics.total_tokens = response_usage.total_tokens
         if response_usage.prompt_tokens_details is not None:
             if isinstance(response_usage.prompt_tokens_details, dict):
                 metrics.prompt_tokens_details = response_usage.prompt_tokens_details
@@ -752,7 +753,6 @@ class OpenAIChat(Model):
                 metrics.completion_tokens_details = response_usage.completion_tokens_details.model_dump(
                     exclude_none=True
                 )
-        metrics.total_tokens = response_usage.total_tokens
 
     def handle_stream_tool_calls(
         self,

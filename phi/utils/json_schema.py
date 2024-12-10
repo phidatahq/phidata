@@ -58,11 +58,13 @@ def get_json_schema_for_arg(t: Any) -> Optional[Dict[str, Any]]:
     return {"type": get_json_type_for_py_type(t.__name__)}
 
 
-def get_json_schema(type_hints: Dict[str, Any]) -> Dict[str, Any]:
+def get_json_schema(type_hints: Dict[str, Any], strict: bool = False) -> Dict[str, Any]:
     json_schema: Dict[str, Any] = {
         "type": "object",
         "properties": {},
     }
+    if strict:
+        json_schema["additionalProperties"] = False
 
     for k, v in type_hints.items():
         # logger.info(f"Parsing arg: {k} | {v}")

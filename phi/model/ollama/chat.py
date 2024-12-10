@@ -458,6 +458,14 @@ class Ollama(Model):
         assistant_message.log()
         metrics.log()
 
+        # -*- Update model response with assistant message content and audio
+        if assistant_message.content is not None:
+            # add the content to the model response
+            model_response.content = assistant_message.get_content_string()
+        if assistant_message.audio is not None:
+            # add the audio to the model response
+            model_response.audio = assistant_message.audio
+
         # -*- Handle tool calls
         if (
             self.handle_tool_calls(
@@ -466,14 +474,6 @@ class Ollama(Model):
             is not None
         ):
             return self.handle_post_tool_call_messages(messages=messages, model_response=model_response)
-
-        # -*- Update model response
-        if assistant_message.content is not None:
-            # add the content to the model response
-            model_response.content = assistant_message.get_content_string()
-        if assistant_message.audio is not None:
-            # add the audio to the model response
-            model_response.audio = assistant_message.audio
 
         logger.debug("---------- Ollama Response End ----------")
         return model_response
@@ -521,6 +521,14 @@ class Ollama(Model):
         assistant_message.log()
         metrics.log()
 
+        # -*- Update model response with assistant message content and audio
+        if assistant_message.content is not None:
+            # add the content to the model response
+            model_response.content = assistant_message.get_content_string()
+        if assistant_message.audio is not None:
+            # add the audio to the model response
+            model_response.audio = assistant_message.audio
+
         # -*- Handle tool calls
         if (
             self.handle_tool_calls(
@@ -529,14 +537,6 @@ class Ollama(Model):
             is not None
         ):
             return await self.ahandle_post_tool_call_messages(messages=messages, model_response=model_response)
-
-        # -*- Update model response
-        if assistant_message.content is not None:
-            # add the content to the model response
-            model_response.content = assistant_message.get_content_string()
-        if assistant_message.audio is not None:
-            # add the audio to the model response
-            model_response.audio = assistant_message.audio
 
         logger.debug("---------- Ollama Async Response End ----------")
         return model_response

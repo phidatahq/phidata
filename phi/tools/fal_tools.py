@@ -9,7 +9,6 @@ from phi.agent import Agent
 from phi.tools import Toolkit
 from phi.utils.log import logger
 from phi.model.content import Video, Image
-from enum import Enum
 from uuid import uuid4
 
 
@@ -42,9 +41,7 @@ class FalTools(Toolkit):
                     logger.info(message)
                     self.seen_logs.add(message)
 
-    def generate_media(
-        self, agent: Agent, prompt: str
-    ) -> str:
+    def generate_media(self, agent: Agent, prompt: str) -> str:
         """
         Use this function to run a model with a given prompt.
 
@@ -54,7 +51,6 @@ class FalTools(Toolkit):
             str: Return the result of the model.
         """
         try:
-
             result = fal_client.subscribe(
                 self.model,
                 arguments={"prompt": prompt},

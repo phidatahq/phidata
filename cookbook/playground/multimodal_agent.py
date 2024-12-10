@@ -91,7 +91,6 @@ fal_agent = Agent(
 )
 
 
-
 app = Playground(agents=[image_agent, ml_gif_agent, ml_video_agent, fal_agent]).get_app()
 
 if __name__ == "__main__":

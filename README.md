@@ -9,7 +9,7 @@
 </p>
 
 <h3 align="center">
-A framework for building multi-modal Agents with memory, knowledge, tools and reasoning
+Building multi-modal Agents with memory, knowledge, tools and reasoning. Chat with them using a beautiful Agent UI.
 </h3>
 
 <img

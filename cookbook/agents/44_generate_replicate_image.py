@@ -1,6 +1,6 @@
 from phi.agent import Agent
 from phi.model.openai import OpenAIChat
-from phi.tools.replicate import ReplicateToolkit
+from phi.tools.replicate import ReplicateTools
 
 """Create an agent specialized for Replicate AI content generation"""
 
@@ -8,7 +8,7 @@ video_agent = Agent(
     name="Image Generator Agent",
     model=OpenAIChat(id="gpt-4o"),
     tools=[
-        ReplicateToolkit(model="luma/photon-flash")
+        ReplicateTools(model="luma/photon-flash")
     ],
     description="You are an AI agent that can generate images using the Replicate API.",
     instructions=[

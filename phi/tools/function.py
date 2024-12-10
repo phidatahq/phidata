@@ -105,7 +105,7 @@ class Function(BaseModel):
             # logger.info(f"Arguments for {function_name}: {param_type_hints}")
 
             # Get JSON schema for parameters only
-            parameters = get_json_schema(param_type_hints)
+            parameters = get_json_schema(type_hints=param_type_hints, strict=strict)
 
             # If strict=True mark all fields as required
             # See: https://platform.openai.com/docs/guides/structured-outputs/supported-schemas#all-fields-must-be-required
@@ -157,7 +157,7 @@ class Function(BaseModel):
             # logger.info(f"Arguments for {self.name}: {param_type_hints}")
 
             # Get JSON schema for parameters only
-            parameters = get_json_schema(param_type_hints)
+            parameters = get_json_schema(type_hints=param_type_hints, strict=strict)
 
             # If strict=True mark all fields as required
             # See: https://platform.openai.com/docs/guides/structured-outputs/supported-schemas#all-fields-must-be-required

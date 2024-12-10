@@ -21,7 +21,7 @@ Build multi-modal Agents with memory, knowledge, tools and reasoning
 
 **Phidata is a framework for building multi-modal agents with memory, knowledge, tools and reasoning.**
 
-# Install
+## Install
 
 ```shell
 pip install -U phidata
@@ -33,8 +33,8 @@ pip install -U phidata
 - [Powerful & Flexible](#powerful--flexible)
 - [Multi-Modal by default](#multi-modal-by-default)
 - [Multi-Agent orchestration](#multi-agent-orchestration)
-- [Agentic RAG built-in](#agentic-rag)
 - [A beautiful Agent UI to chat with your agents](#a-beautiful-agent-ui-to-chat-with-your-agents)
+- [Agentic RAG built-in](#agentic-rag)
 - [Structured Outputs](#structured-outputs)
 - [Reasoning Agents](#reasoning-agents-experimental)
 - [Monitoring & Debugging built-in](#monitoring--debugging)
@@ -172,51 +172,6 @@ Run the Agent team:
 python agent_team.py
 ```
 
-## Agentic RAG
-
-We were the first to pioneer Agentic RAG using our Auto-RAG paradigm. With Agentic RAG (or auto-rag), the Agent can search its knowledge base (vector db) for the specific information it needs to achieve its task, instead of always inserting the "context" into the prompt.
-
-This saves tokens and improves response quality. Create a file `rag_agent.py`
-
-```python
-from phi.agent import Agent
-from phi.model.openai import OpenAIChat
-from phi.embedder.openai import OpenAIEmbedder
-from phi.knowledge.pdf import PDFUrlKnowledgeBase
-from phi.vectordb.lancedb import LanceDb, SearchType
-
-# Create a knowledge base from a PDF
-knowledge_base = PDFUrlKnowledgeBase(
-    urls=["https://phi-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
-    # Use LanceDB as the vector database
-    vector_db=LanceDb(
-        table_name="recipes",
-        uri="tmp/lancedb",
-        search_type=SearchType.vector,
-        embedder=OpenAIEmbedder(model="text-embedding-3-small"),
-    ),
-)
-# Comment out after first run as the knowledge base is loaded
-knowledge_base.load()
-
-agent = Agent(
-    model=OpenAIChat(id="gpt-4o"),
-    # Add the knowledge base to the agent
-    knowledge=knowledge_base,
-    show_tool_calls=True,
-    markdown=True,
-)
-agent.print_response("How do I make chicken and galangal in coconut milk soup", stream=True)
-```
-
-Install libraries and run the Agent:
-
-```shell
-pip install lancedb tantivy pypdf sqlalchemy
-
-python rag_agent.py
-```
-
 ## A beautiful Agent UI to chat with your agents
 
 Phidata provides a beautiful UI for interacting with your agents. Let's take it for a spin, create a file `playground.py`
@@ -284,6 +239,51 @@ python playground.py
   src="https://github.com/user-attachments/assets/3a2ff93c-3d2d-4f1a-9573-eee25542e5c4"
   style="border-radius: 8px;"
 />
+
+## Agentic RAG
+
+We were the first to pioneer Agentic RAG using our Auto-RAG paradigm. With Agentic RAG (or auto-rag), the Agent can search its knowledge base (vector db) for the specific information it needs to achieve its task, instead of always inserting the "context" into the prompt.
+
+This saves tokens and improves response quality. Create a file `rag_agent.py`
+
+```python
+from phi.agent import Agent
+from phi.model.openai import OpenAIChat
+from phi.embedder.openai import OpenAIEmbedder
+from phi.knowledge.pdf import PDFUrlKnowledgeBase
+from phi.vectordb.lancedb import LanceDb, SearchType
+
+# Create a knowledge base from a PDF
+knowledge_base = PDFUrlKnowledgeBase(
+    urls=["https://phi-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
+    # Use LanceDB as the vector database
+    vector_db=LanceDb(
+        table_name="recipes",
+        uri="tmp/lancedb",
+        search_type=SearchType.vector,
+        embedder=OpenAIEmbedder(model="text-embedding-3-small"),
+    ),
+)
+# Comment out after first run as the knowledge base is loaded
+knowledge_base.load()
+
+agent = Agent(
+    model=OpenAIChat(id="gpt-4o"),
+    # Add the knowledge base to the agent
+    knowledge=knowledge_base,
+    show_tool_calls=True,
+    markdown=True,
+)
+agent.print_response("How do I make chicken and galangal in coconut milk soup", stream=True)
+```
+
+Install libraries and run the Agent:
+
+```shell
+pip install lancedb tantivy pypdf sqlalchemy
+
+python rag_agent.py
+```
 
 ## Structured Outputs
 

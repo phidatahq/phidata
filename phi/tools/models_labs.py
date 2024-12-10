@@ -5,7 +5,7 @@ from typing import Optional
 from uuid import uuid4
 
 from phi.agent import Agent
-from phi.model.content import Video
+from phi.model.content import Video, Image
 from phi.tools import Toolkit
 from phi.utils.log import logger
 from enum import Enum
@@ -47,9 +47,9 @@ class ModelsLabs(Toolkit):
         if not self.api_key:
             logger.error("MODELS_LAB_API_KEY not set. Please set the MODELS_LAB_API_KEY environment variable.")
 
-        self.register(self.generate_video)
+        self.register(self.generate_media)
 
-    def generate_video(self, agent: Agent, prompt: str) -> str:
+    def generate_media(self, agent: Agent, prompt: str) -> str:
         """Use this function to generate a video given a prompt.
 
         Args:
@@ -89,17 +89,18 @@ class ModelsLabs(Toolkit):
                 return f"Error: {result['error']}"
 
             eta = result["eta"]
-            video_url_links = result["future_links"]
-            logger.info(f"Video will be ready in {eta} seconds")
-            logger.info(f"Video URLs: {video_url_links}")
+            url_links = result["future_links"]
+            logger.info(f"Media will be ready in {eta} seconds")
+            logger.info(f"Media URLs: {url_links}")
 
             video_id = str(uuid4())
 
             logger.debug(f"Result: {result}")
-            for video_url in video_url_links:
-
-                # Update the run response with the video URLs
-                agent.add_video(Video(id=video_id, url=video_url, eta=str(eta)))
+            for media_url in url_links:
+                if self.file_type == FileType.MP4:
+                    agent.add_video(Video(id=str(video_id), url=media_url, eta=str(eta)))
+                elif self.file_type == FileType.GIF:
+                    agent.add_image(Image(id=str(video_id), url=media_url))
 
             if self.wait_for_completion and isinstance(eta, int):
                 video_ready = False

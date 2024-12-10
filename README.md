@@ -17,8 +17,6 @@ Build multi-modal Agents with memory, knowledge, tools and reasoning
   style="border-radius: 8px;"
 />
 
-# What is phidata?
-
 **Phidata is a framework for building multi-modal agents with memory, knowledge, tools and reasoning.**
 
 ## Install
@@ -27,7 +25,7 @@ Build multi-modal Agents with memory, knowledge, tools and reasoning
 pip install -U phidata
 ```
 
-# Key Features
+## Key Features
 
 - [Simple & Elegant](#simple--elegant)
 - [Powerful & Flexible](#powerful--flexible)

@@ -35,14 +35,15 @@ pip install -U phidata
 
 # Examples & Key Features
 
-- [Simple & Elegant](#simple-elegant)
-- [Powerful & Flexible](#powerful-flexible)
+- [Simple & Elegant](#simple--elegant)
+- [Powerful & Flexible](#powerful--flexible)
 - [Multi-Modal by default](#multi-modal-by-default)
 - [Multi-Agent orchestration](#multi-agent-orchestration)
 - [Agentic RAG](#agentic-rag)
-- [A beautiful Agent UI](#a-beautiful-agent-ui)
-- [Reasoning Agents](#reasoning-agents)
-- [Monitoring & Debugging built-in](#monitoring-debugging)
+- [A beautiful Agent UI](#a-beautiful-agent-ui-to-chat-with-your-agents)
+- [Structured Outputs](#structured-outputs)
+- [Reasoning Agents](#reasoning-agents-experimental)
+- [Monitoring & Debugging built-in](#monitoring--debugging)
 - [Demo Agents](#demo-agents)
 
 ## Simple & Elegant
@@ -290,6 +291,64 @@ python playground.py
   style="border-radius: 8px;"
 />
 
+## Structured Outputs
+
+Agents can return their output in a structured format as a Pydantic model.
+
+Create a file `structured_output.py`
+
+```python
+from typing import List
+from pydantic import BaseModel, Field
+from phi.agent import Agent
+from phi.model.openai import OpenAIChat
+
+# Define a Pydantic model to enforce the structure of the output
+class MovieScript(BaseModel):
+    setting: str = Field(..., description="Provide a nice setting for a blockbuster movie.")
+    ending: str = Field(..., description="Ending of the movie. If not available, provide a happy ending.")
+    genre: str = Field(..., description="Genre of the movie. If not available, select action, thriller or romantic comedy.")
+    name: str = Field(..., description="Give a name to this movie")
+    characters: List[str] = Field(..., description="Name of characters for this movie.")
+    storyline: str = Field(..., description="3 sentence storyline for the movie. Make it exciting!")
+
+# Agent that uses JSON mode
+json_mode_agent = Agent(
+    model=OpenAIChat(id="gpt-4o"),
+    description="You write movie scripts.",
+    response_model=MovieScript,
+)
+# Agent that uses structured outputs
+structured_output_agent = Agent(
+    model=OpenAIChat(id="gpt-4o"),
+    description="You write movie scripts.",
+    response_model=MovieScript,
+    structured_outputs=True,
+)
+
+json_mode_agent.print_response("New York")
+structured_output_agent.print_response("New York")
+```
+
+- Run the `structured_output.py` file
+
+```shell
+python structured_output.py
+```
+
+- The output is an object of the `MovieScript` class, here's how it looks:
+
+```shell
+MovieScript(
+│   setting='A bustling and vibrant New York City',
+│   ending='The protagonist saves the city and reconciles with their estranged family.',
+│   genre='action',
+│   name='City Pulse',
+│   characters=['Alex Mercer', 'Nina Castillo', 'Detective Mike Johnson'],
+│   storyline='In the heart of New York City, a former cop turned vigilante, Alex Mercer, teams up with a street-smart activist, Nina Castillo, to take down a corrupt political figure who threatens to destroy the city. As they navigate through the intricate web of power and deception, they uncover shocking truths that push them to the brink of their abilities. With time running out, they must race against the clock to save New York and confront their own demons.'
+)
+```
+
 ## Reasoning Agents (experimental)
 
 Reasoning helps agents work through a problem step-by-step, backtracking and correcting as needed. Create a file `reasoning_agent.py`.
@@ -464,70 +523,6 @@ data_analyst.print_response(
 pip install duckdb
 
 python data_analyst.py
-```
-
-</details>
-
-### Agent that can generate structured outputs
-
-<details>
-
-<summary>Show code</summary>
-
-One of our favorite LLM features is generating structured data (i.e. a pydantic model) from text. Use this feature to extract features, generate data etc.
-
-Let's create a Movie Agent to write a `MovieScript` for us, create a file `structured_output.py`
-
-```python
-from typing import List
-from pydantic import BaseModel, Field
-from phi.agent import Agent
-from phi.model.openai import OpenAIChat
-
-# Define a Pydantic model to enforce the structure of the output
-class MovieScript(BaseModel):
-    setting: str = Field(..., description="Provide a nice setting for a blockbuster movie.")
-    ending: str = Field(..., description="Ending of the movie. If not available, provide a happy ending.")
-    genre: str = Field(..., description="Genre of the movie. If not available, select action, thriller or romantic comedy.")
-    name: str = Field(..., description="Give a name to this movie")
-    characters: List[str] = Field(..., description="Name of characters for this movie.")
-    storyline: str = Field(..., description="3 sentence storyline for the movie. Make it exciting!")
-
-# Agent that uses JSON mode
-json_mode_agent = Agent(
-    model=OpenAIChat(id="gpt-4o"),
-    description="You write movie scripts.",
-    response_model=MovieScript,
-)
-# Agent that uses structured outputs
-structured_output_agent = Agent(
-    model=OpenAIChat(id="gpt-4o-2024-08-06"),
-    description="You write movie scripts.",
-    response_model=MovieScript,
-    structured_outputs=True,
-)
-
-json_mode_agent.print_response("New York")
-structured_output_agent.print_response("New York")
-```
-
-- Run the `structured_output.py` file
-
-```shell
-python structured_output.py
-```
-
-- The output is an object of the `MovieScript` class, here's how it looks:
-
-```shell
-MovieScript(
-│   setting='A bustling and vibrant New York City',
-│   ending='The protagonist saves the city and reconciles with their estranged family.',
-│   genre='action',
-│   name='City Pulse',
-│   characters=['Alex Mercer', 'Nina Castillo', 'Detective Mike Johnson'],
-│   storyline='In the heart of New York City, a former cop turned vigilante, Alex Mercer, teams up with a street-smart activist, Nina Castillo, to take down a corrupt political figure who threatens to destroy the city. As they navigate through the intricate web of power and deception, they uncover shocking truths that push them to the brink of their abilities. With time running out, they must race against the clock to save New York and confront their own demons.'
-)
 ```
 
 </details>

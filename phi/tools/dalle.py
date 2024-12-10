@@ -1,7 +1,9 @@
 from os import getenv
 from typing import Optional, Literal
+from uuid import uuid4
 
 from phi.agent import Agent
+from phi.model.content import Image
 from phi.tools import Toolkit
 from phi.utils.log import logger
 
@@ -80,7 +82,10 @@ class Dalle(Toolkit):
             logger.debug("Image generated successfully")
 
             # Update the run response with the image URLs
-            agent.add_image(response.model_dump())
+            for img in response.data:
+                agent.add_image(
+                    Image(id=str(uuid4()), url=img.url, original_prompt=prompt, revised_prompt=img.revised_prompt)
+                )
             return "Image has been generated successfully and will be displayed below"
         except Exception as e:
             logger.error(f"Failed to generate image: {e}")

@@ -4,6 +4,7 @@ from os import getenv
 from typing import Optional
 
 from phi.agent import Agent
+from phi.model.content import Video
 from phi.tools import Toolkit
 from phi.utils.log import logger
 
@@ -85,6 +86,7 @@ class ModelsLabs(Toolkit):
             logger.info(f"Video URLs: {video_url_links}")
 
             video_data = []
+            logger.debug(f"Result: {result}")
             for video_url in video_url_links:
                 video_data.append(
                     {
@@ -93,11 +95,9 @@ class ModelsLabs(Toolkit):
                         "url": video_url,
                     }
                 )
-            result["data"] = video_data
-            logger.debug(f"Result: {result}")
 
-            # Update the run response with the image URLs
-            agent.add_video(json.dumps(result))
+                # Update the run response with the video URLs
+                agent.add_video(Video(id=video_id, url=video_url, eta=eta))
 
             if self.wait_for_completion and isinstance(eta, int):
                 video_ready = False

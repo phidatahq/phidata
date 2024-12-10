@@ -453,12 +453,13 @@ class Model(BaseModel):
         Returns:
             Message content with images added in the format expected by the model
         """
+        # If no images are provided, return the message as is
         if images is None or len(images) == 0:
             return message
 
         # Ignore non-string message content
+        # because we assume that the images/audio are already added to the message
         if not isinstance(message.content, str):
-            logger.warning(f"Message type not supported with images: {type(message.content)}")
             return message
 
         # Create a default message content with text

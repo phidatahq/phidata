@@ -1,15 +1,17 @@
 from phi.agent import Agent
 from phi.model.openai import OpenAIChat
+from phi.tools.duckduckgo import DuckDuckGo
 
 agent = Agent(
     model=OpenAIChat(id="gpt-4o"),
+    tools=[DuckDuckGo()],
     markdown=True,
 )
 
 agent.print_response(
-    "What are in these images? Is there any difference between them?",
+    "Tell me about this image and give me the latest news about it.",
     images=[
-        "https://upload.wikimedia.org/wikipedia/commons/thumb/d/dd/Gfp-wisconsin-madison-the-nature-boardwalk.jpg/2560px-Gfp-wisconsin-madison-the-nature-boardwalk.jpg",
-        "https://upload.wikimedia.org/wikipedia/commons/thumb/d/dd/Gfp-wisconsin-madison-the-nature-boardwalk.jpg/2560px-Gfp-wisconsin-madison-the-nature-boardwalk.jpg",
+        "https://upload.wikimedia.org/wikipedia/commons/b/bf/Krakow_-_Kosciol_Mariacki.jpg",
     ],
+    stream=True,
 )

@@ -1,6 +1,7 @@
 from mem0 import MemoryClient
-from phi.agent import Agent
+from phi.agent import Agent, RunResponse
 from phi.model.openai import OpenAIChat
+from phi.utils.pprint import pprint_run_response
 
 client = MemoryClient()
 
@@ -14,4 +15,10 @@ messages = [
 client.add(messages, user_id=user_id)
 
 agent = Agent(model=OpenAIChat(), context={"memory": client.get_all(user_id=user_id)}, add_context=True)
-agent.print_response("What do you know about me?", stream=True, markdown=True)
+run: RunResponse = agent.run("What do you know about me?")
+
+pprint_run_response(run)
+
+messages = [{"role": i.role, "content": i.content} for i in run.messages]
+client.add(messages, user_id=user_id)
+

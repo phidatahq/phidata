@@ -94,7 +94,7 @@ python finance_agent.py
 
 ## Multi-Modal by default
 
-Phidata agents support text, images, audio, video and more. For example, you can create an image agent that can understand images and make tool calls as needed, create a file `image_agent.py`
+Phidata agents support text, images, audio and video. For example, you can create an image agent that can understand images and make tool calls as needed, create a file `image_agent.py`
 
 ```python
 from phi.agent import Agent

@@ -17,7 +17,7 @@ from phi.tools.fal_tools import FalTools
 image_agent_storage_file: str = "tmp/image_agent.db"
 
 image_agent = Agent(
-    name="Image Agent",
+    name="DALL-E Image Agent",
     agent_id="image_agent",
     model=OpenAIChat(id="gpt-4o"),
     tools=[Dalle()],
@@ -35,7 +35,7 @@ image_agent = Agent(
 )
 
 video_agent = Agent(
-    name="Video Agent",
+    name="ModelsLab Video Agent",
     agent_id="video_agent",
     model=OpenAIChat(id="gpt-4o"),
     tools=[ModelsLabs(wait_for_completion=True)],
@@ -53,7 +53,7 @@ video_agent = Agent(
 )
 
 fal_agent = Agent(
-    name="Fal Video Generator Agent",
+    name="Fal Video Agent",
     agent_id="fal_agent",
     model=OpenAIChat(id="gpt-4o"),
     tools=[FalTools("fal-ai/hunyuan-video")],

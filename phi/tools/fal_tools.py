@@ -19,12 +19,6 @@ except ImportError:
     raise ImportError("`fal_client` not installed. Please install using `pip install fal-client`")
 
 
-class ModelType(str, Enum):
-    IMAGE = "image"
-    VIDEO = "video"
-    TEXT = "text"
-
-
 class FalTools(Toolkit):
     def __init__(
         self,
@@ -33,10 +27,10 @@ class FalTools(Toolkit):
     ):
         super().__init__(name="fal")
 
-        self.api_key = api_key or getenv("FAL_API_KEY")
+        self.api_key = api_key or getenv("FAL_KEY")
         self.model = model
         if not self.api_key:
-            logger.error("FAL_API_KEY not set. Please set the FAL_API_KEY environment variable.")
+            logger.error("FAL_KEY not set. Please set the FAL_KEY environment variable.")
         self.seen_logs: set[str] = set()
         self.register(self.generate_media)
 

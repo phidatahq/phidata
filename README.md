@@ -9,15 +9,13 @@
 </p>
 
 <h3 align="center">
-Build multi-modal Agents with memory, knowledge, tools and reasoning
+A framework for building multi-modal Agents with memory, knowledge, tools and reasoning
 </h3>
 
 <img
   src="https://github.com/user-attachments/assets/44739d09-2ec4-49b7-bea1-b275afccc592"
   style="border-radius: 8px;"
 />
-
-**Phidata is a framework for building multi-modal agents with memory, knowledge, tools and reasoning.**
 
 ## Install
 

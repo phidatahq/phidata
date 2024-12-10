@@ -574,9 +574,9 @@ class Agent(BaseModel):
         if self.model is not None:
             agent_data["model"] = self.model.to_dict()
         if self.images is not None:
-            agent_data["images"] = self.images
+            agent_data["images"] = [img.model_dump() for img in self.images]
         if self.videos is not None:
-            agent_data["videos"] = self.videos
+            agent_data["videos"] = [vid.model_dump() for vid in self.videos]
         return agent_data
 
     def get_session_data(self) -> Dict[str, Any]:

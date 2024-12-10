@@ -6,19 +6,14 @@ from uuid import uuid4
 
 from phi.agent import Agent
 from phi.model.content import Video, Image
+from phi.model.response import FileType
 from phi.tools import Toolkit
 from phi.utils.log import logger
-from enum import Enum
 
 try:
     import requests
 except ImportError:
     raise ImportError("`requests` not installed. Please install using `pip install requests`")
-
-
-class FileType(str, Enum):
-    MP4 = "mp4"
-    GIF = "gif"
 
 
 class ModelsLabs(Toolkit):

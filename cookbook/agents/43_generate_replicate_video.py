@@ -10,7 +10,7 @@ video_agent = Agent(
     tools=[
         ReplicateToolkit(model="tencent/hunyuan-video:847dfa8b01e739637fc76f480ede0c1d76408e1d694b830b5dfb8e547bf98405")
     ],
-    description="You are an AI agent that can generate images and videos using the Replicate API.",
+    description="You are an AI agent that can generate videos using the Replicate API.",
     instructions=[
         "When the user asks you to create a video, use the `generate_media` tool to create the video.",
         "Return the URL as raw to the user.",

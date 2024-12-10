@@ -1,8 +1,10 @@
+import os
 from os import getenv
+from urllib.parse import urlparse
 from uuid import uuid4
 
 from phi.agent import Agent
-from phi.model.content import Video
+from phi.model.content import Video, Image
 from phi.tools import Toolkit
 from phi.utils.log import logger
 
@@ -17,8 +19,6 @@ class ReplicateToolkit(Toolkit):
     def __init__(
         self,
         model: str = "minimax/video-01",
-        wait_for_completion: bool = True,
-        max_wait_time: int = 300,  # 5 minutes
     ):
         super().__init__(name="replicate_toolkit")
         self.api_key = getenv("REPLICATE_API_TOKEN")
@@ -38,12 +38,36 @@ class ReplicateToolkit(Toolkit):
         """
         output: FileOutput = replicate.run(ref=self.model, input={"prompt": prompt})
 
-        # Update the run response with the video URLs
-        agent.add_video(
-            Video(
-                id=str(uuid4()),
-                url=output.url,
-            )
-        )
+        # Parse the URL to extract the file extension
+        parsed_url = urlparse(output.url)
+        path = parsed_url.path
+        _, ext = os.path.splitext(path)
+        ext = ext.lower()
 
-        return f"Media generated successfully at {output.url}"
+        # Define supported extensions
+        image_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff', '.webp'}
+        video_extensions = {'.mp4', '.mov', '.avi', '.mkv', '.flv', '.wmv', '.webm'}
+
+        media_id = str(uuid4())
+
+        if ext in image_extensions:
+            agent.add_image(
+                Image(
+                    id=media_id,
+                    url=output.url,
+                )
+            )
+            media_type = "image"
+        elif ext in video_extensions:
+            agent.add_video(
+                Video(
+                    id=media_id,
+                    url=output.url,
+                )
+            )
+            media_type = "video"
+        else:
+            logger.error(f"Unsupported media type with extension '{ext}' for URL: {output.url}")
+            return f"Unsupported media type with extension '{ext}'."
+
+        return f"{media_type.capitalize()} generated successfully at {output.url}"

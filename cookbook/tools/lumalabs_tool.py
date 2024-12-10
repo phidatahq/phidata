@@ -1,6 +1,6 @@
 from phi.agent import Agent
 from phi.llm.openai import OpenAIChat
-from phi.tools.lumalab import LumaLab
+from phi.tools.lumalab import LumaLabToolkit
 
 """Create an agent specialized for Luma AI video generation"""
 
@@ -8,7 +8,7 @@ luma_agent = Agent(
     name="Luma Video Agent",
     agent_id="luma-video-agent",
     llm=OpenAIChat(model="gpt-4o"),
-    tools=[LumaLab()],  # Using the LumaLab tool we created
+    tools=[LumaLabToolkit()],  # Using the LumaLab tool we created
     markdown=True,
     debug_mode=True,
     show_tool_calls=True,
@@ -20,7 +20,7 @@ luma_agent = Agent(
         "   - Default parameters: loop=False, aspect_ratio='16:9', keyframes=None",
         "2. Image-to-Video Generation:",
         "   - Use the image_to_video function when starting from one or two images",
-        "   - Required parameters: prompt, image_url",
+        "   - Required parameters: prompt, start_image_url",
         "   - Optional parameters: end_image_url, loop=False, aspect_ratio='16:9'",
         "   - The image URLs must be publicly accessible",
         "After generating any video:",
@@ -36,11 +36,11 @@ luma_agent = Agent(
     ),
 )
 
-# luma_agent.run("Generate a video of a car in a city")
+luma_agent.run("Generate a video of a car in a sky")
 # luma_agent.run("Transform this image into a video of a tiger walking: https://upload.wikimedia.org/wikipedia/commons/thumb/3/3f/Walking_tiger_female.jpg/1920px-Walking_tiger_female.jpg")
-luma_agent.run("""
-Create a transition video between these two images:
-Start: https://img.freepik.com/premium-photo/car-driving-dark-forest-generative-ai_634053-6661.jpg?w=1380
-End: https://img.freepik.com/free-photo/front-view-black-luxury-sedan-road_114579-5030.jpg?t=st=1733821884~exp=1733825484~hmac=735ca584a9b985c53875fc1ad343c3fd394e1de4db49e5ab1a9ab37ac5f91a36&w=1380
-Make it a smooth, natural movement
-""")
+# luma_agent.run("""
+# Create a transition video between these two images:
+# Start: https://img.freepik.com/premium-photo/car-driving-dark-forest-generative-ai_634053-6661.jpg?w=1380
+# End: https://img.freepik.com/free-photo/front-view-black-luxury-sedan-road_114579-5030.jpg?t=st=1733821884~exp=1733825484~hmac=735ca584a9b985c53875fc1ad343c3fd394e1de4db49e5ab1a9ab37ac5f91a36&w=1380
+# Make it a smooth, natural movement
+# """)

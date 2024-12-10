@@ -1,11 +1,11 @@
 import time
-import json
 from os import getenv
 from typing import Optional, Dict, Any, Literal, TypedDict
 
 from phi.agent import Agent
 from phi.tools import Toolkit
 from phi.utils.log import logger
+from phi.model.content import Video
 
 try:
     from lumaai import LumaAI  # type: ignore
@@ -22,7 +22,7 @@ class KeyframeImage(TypedDict):
 Keyframes = Dict[str, KeyframeImage]
 
 
-class LumaLab(Toolkit):
+class LumaLabToolkit(Toolkit):
     def __init__(
         self,
         api_key: Optional[str] = None,
@@ -48,7 +48,7 @@ class LumaLab(Toolkit):
         self,
         agent: Agent,
         prompt: str,
-        image_url: str,
+        start_image_url: str,
         end_image_url: Optional[str] = None,
         loop: bool = False,
         aspect_ratio: Literal["1:1", "16:9", "9:16", "4:3", "3:4", "21:9", "9:21"] = "16:9",
@@ -58,7 +58,7 @@ class LumaLab(Toolkit):
         Args:
             agent: The agent instance
             prompt: Text description of the desired video
-            image_url: URL of the starting image
+            start_image_url: URL of the starting image
             end_image_url: Optional URL of the ending image
             loop: Whether the video should loop
             aspect_ratio: Aspect ratio of the output video
@@ -66,12 +66,10 @@ class LumaLab(Toolkit):
         Returns:
             str: Status message or error
         """
-        if not self.api_key:
-            return "Please set the LUMAAI_API_KEY"
 
         try:
             # Construct keyframes
-            keyframes: Dict[str, Dict[str, str]] = {"frame0": {"type": "image", "url": image_url}}
+            keyframes: Dict[str, Dict[str, str]] = {"frame0": {"type": "image", "url": start_image_url}}
 
             # Add end image if provided
             if end_image_url:
@@ -87,7 +85,7 @@ class LumaLab(Toolkit):
 
             if not self.wait_for_completion:
                 if generation and generation.id:
-                    agent.add_video(json.dumps({"id": generation.id}))
+                    agent.add_video(Video(id=generation.id))
                     return f"Video generation started with ID: {generation.id}"
                 return "Failed to start video generation: No generation ID received"
 
@@ -102,7 +100,7 @@ class LumaLab(Toolkit):
                 if generation.state == "completed" and generation.assets:
                     video_url = generation.assets.video
                     if video_url:
-                        agent.add_video(json.dumps({"id": generation.id, "url": video_url, "state": "completed"}))
+                        agent.add_video(Video(id=generation.id, url=video_url, eta="completed"))
                         return f"Video generated successfully: {video_url}"
                 elif generation.state == "failed":
                     return f"Generation failed: {generation.failure_reason}"
@@ -126,8 +124,6 @@ class LumaLab(Toolkit):
         keyframes: Optional[Dict[str, Dict[str, str]]] = None,
     ) -> str:
         """Use this function to generate a video given a prompt."""
-        if not self.api_key:
-            return "Please set the LUMAAI_API_KEY"
 
         try:
             generation_params: Dict[str, Any] = {
@@ -143,7 +139,7 @@ class LumaLab(Toolkit):
 
             if not self.wait_for_completion:
                 if generation and generation.id:
-                    agent.add_video(json.dumps({"id": generation.id}))
+                    agent.add_video(Video(id=generation.id))
                     return f"Video generation started with ID: {generation.id}"
                 return "Failed to start video generation: No generation ID received"
 
@@ -158,7 +154,7 @@ class LumaLab(Toolkit):
                 if generation.state == "completed" and generation.assets:
                     video_url = generation.assets.video
                     if video_url:
-                        agent.add_video(json.dumps({"id": generation.id, "url": video_url, "state": "completed"}))
+                        agent.add_video(Video(id=generation.id, url=video_url, state="completed"))
                         return f"Video generated successfully: {video_url}"
                 elif generation.state == "failed":
                     return f"Generation failed: {generation.failure_reason}"

@@ -319,7 +319,7 @@ class OpenAIChat(Model):
                     raise ValueError("response_format must be a subclass of BaseModel if structured_outputs=True")
             except Exception as e:
                 logger.error(f"Error from OpenAI API: {e}")
-
+        print("request_kwargs", self.request_kwargs)
         return self.get_client().chat.completions.create(
             model=self.id,
             messages=[m.to_dict() for m in messages],  # type: ignore

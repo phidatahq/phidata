@@ -1,4 +1,6 @@
 import collections.abc
+from functools import wraps
+import inspect
 
 from os import getenv
 from uuid import uuid4
@@ -69,6 +71,12 @@ class Workflow(BaseModel):
 
     # The run function provided by the subclass
     _subclass_run: Callable = PrivateAttr()
+    # Parameters of the run function
+    _run_parameters: Dict[str, Any] = PrivateAttr()
+    # Return type of the run function
+    _run_return_type: Optional[str] = PrivateAttr()
+    # Registered functions
+    _registered_functions: Dict[str, Any] = PrivateAttr(default_factory=dict)
 
     model_config = ConfigDict(arbitrary_types_allowed=True, populate_by_name=True)
 
@@ -297,6 +305,9 @@ class Workflow(BaseModel):
 
     def __init__(self, **data):
         super().__init__(**data)
+        self.name = self.name or self.__class__.__name__
+        # Initialize _registered_functions as an empty dictionary
+        self._registered_functions = {}
         # Check if 'run' is provided by the subclass
         if self.__class__.run is not Workflow.run:
             # Store the original run method bound to the instance
@@ -309,3 +320,125 @@ class Workflow(BaseModel):
 
     def log_workflow_session(self):
         logger.debug(f"*********** Logging WorkflowSession: {self.session_id} ***********")
+
+    def rename_session(self, session_id: str, name: str):
+        if self.storage is None:
+            raise ValueError("Storage is not set")
+        workflow_session = self.storage.read(session_id)
+        if workflow_session is None:
+            raise Exception(f"WorkflowSession not found: {session_id}")
+        if workflow_session.session_data is not None:
+            workflow_session.session_data["session_name"] = name
+        else:
+            workflow_session.session_data = {"session_name": name}
+        self.storage.upsert(workflow_session)
+
+    def delete_session(self, session_id: str):
+        if self.storage is None:
+            raise ValueError("Storage is not set")
+        self.storage.delete_session(session_id)
+
+    def deep_copy(self, *, update: Optional[Dict[str, Any]] = None) -> "Workflow":
+        from phi.agent.agent import Agent
+        """Create and return a deep copy of this Workflow, optionally updating fields.
+
+        Args:
+            update (Optional[Dict[str, Any]]): Optional dictionary of fields for the new Workflow.
+
+        Returns:
+            Workflow: A new Workflow instance.
+        """
+        # Extract the fields to set for the new Workflow
+        fields_for_new_workflow = {}
+
+        for field_name in self.model_fields_set:
+            field_value = getattr(self, field_name)
+            if field_value is not None:
+                if isinstance(field_value, Agent):
+                    fields_for_new_workflow[field_name] = field_value.deep_copy()
+                else:
+                    fields_for_new_workflow[field_name] = self._deep_copy_field(field_name, field_value)
+
+        # Update fields if provided
+        if update:
+            fields_for_new_workflow.update(update)
+
+        # Create a new Workflow
+        new_workflow = self.__class__(**fields_for_new_workflow)
+        logger.debug(
+            f"Created new Workflow: workflow_id: {new_workflow.workflow_id} | session_id: {new_workflow.session_id}"
+        )
+        return new_workflow
+
+    def _deep_copy_field(self, field_name: str, field_value: Any) -> Any:
+        """Helper method to deep copy a field based on its type."""
+        from copy import copy, deepcopy
+
+        # For memory, use its deep_copy method
+        if field_name == "memory":
+            return field_value.deep_copy()
+
+        # For compound types, attempt a deep copy
+        if isinstance(field_value, (list, dict, set, WorkflowStorage)):
+            try:
+                return deepcopy(field_value)
+            except Exception as e:
+                logger.warning(f"Failed to deepcopy field: {field_name} - {e}")
+                try:
+                    return copy(field_value)
+                except Exception as e:
+                    logger.warning(f"Failed to copy field: {field_name} - {e}")
+                    return field_value
+
+        # For pydantic models, attempt a deep copy
+        if isinstance(field_value, BaseModel):
+            try:
+                return field_value.model_copy(deep=True)
+            except Exception as e:
+                logger.warning(f"Failed to deepcopy field: {field_name} - {e}")
+                try:
+                    return field_value.model_copy(deep=False)
+                except Exception as e:
+                    logger.warning(f"Failed to copy field: {field_name} - {e}")
+                    return field_value
+
+        # For other types, return as is
+        return field_value
+    
+    @classmethod
+    def register(cls, description: Optional[str] = None) -> Callable:
+        """
+        Decorator to register functions within the workflow.
+        
+        Args:
+            description: Optional description of what the function does
+        """
+        def decorator(func: Callable) -> Callable:
+            @wraps(func)
+            def wrapper(*args, **kwargs):
+                return func(*args, **kwargs)
+            
+            # Get function signature parameters
+            sig = inspect.signature(func)
+            params = {
+                name: {
+                    'type': param.annotation.__name__ if param.annotation != inspect.Parameter.empty else None,
+                    'default': param.default if param.default != inspect.Parameter.empty else None,
+                    'kind': str(param.kind)
+                }
+                for name, param in sig.parameters.items()
+            }
+            
+            # Ensure _registered_functions is initialized as a dictionary
+            if not hasattr(cls, '_registered_functions') or not isinstance(cls._registered_functions, dict):
+                cls._registered_functions = {}
+            
+            # Update function metadata
+            cls._registered_functions[func.__name__] = {
+                'function': wrapper,
+                'description': description or func.__doc__ or "No description provided",
+                'parameters': params
+            }
+            
+            return wrapper
+        return decorator

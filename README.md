@@ -22,7 +22,7 @@ Build multi-modal Agents with memory, knowledge, tools and reasoning
 **Phidata is a framework for building multi-modal agents**, use phidata to:
 
 - **Build multi-modal agents with memory, knowledge, tools and reasoning.** [examples](#web-search-agent)
-- **Build teams of agents that can work together to solve complex problems.** [example](#team-of-agents)
+- **Build teams of agents that can work together to solve problems.** [example](#team-of-agents)
 - **Chat with your agents using a beautiful Agent UI.** [example](#agent-ui)
 - **Monitor, evaluate and optimize your agents.** [example](#monitoring)
 - **Build agentic systems i.e. applications with an API, database and vectordb.**
@@ -66,7 +66,7 @@ python web_search.py
 
 ## Powerful & Flexible
 
-Phidata agents can use many tools and follow instructions to achieve complex tasks. For example, you can create a finance agent that can query financial data, create a file `finance_agent.py`
+Phidata agents can use multiple tools and follow instructions to achieve complex tasks. For example, you can create a finance agent that can query financial data, create a file `finance_agent.py`
 
 ```python
 from phi.agent import Agent
@@ -122,9 +122,9 @@ Run the Agent:
 python image_agent.py
 ```
 
-## Native support for Multi-Agent orchestration
+## Multi-Agent orchestration
 
-Phidata agents can work together to achieve complex tasks. For example, you can create a team of agents that can work together to achieve a task, create a file `agent_team.py`
+Phidata agents can work together as a team to achieve complex tasks, create a file `agent_team.py`
 
 ```python
 from phi.agent import Agent
@@ -169,7 +169,7 @@ Run the Agent team:
 python agent_team.py
 ```
 
-## Agentic RAG is the future
+## Agentic RAG
 
 We were the first to pioneer Agentic RAG using our Auto-RAG paradigm. With Agentic RAG (or auto-rag), the Agent can search its knowledge base (vector db) for the specific information it needs to achieve its task, instead of always inserting the "context" into the prompt.
 

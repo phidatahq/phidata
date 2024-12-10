@@ -37,7 +37,7 @@ pip install -U phidata
 
 ### Simple & Elegant
 
-Phidata Agents are simple and elegant, resulting in extraordinarily beautiful code. For example, you can create a web search agent using 10 lines of code, create a file `web_search.py`
+Phidata Agents are simple and elegant, resulting in minimal, beautiful code. For example, you can create a web search agent using 10 lines of code, create a file `web_search.py`
 
 ```python
 from phi.agent import Agent

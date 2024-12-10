@@ -2,8 +2,14 @@
   phidata
 </h1>
 
+<p align="center">
+  <a href="https://docs.phidata.com">
+    <img src="https://img.shields.io/badge/Read%20the%20Documentation-Click%20Here-green?style=for-the-badge&logo=read-the-docs" alt="Read the Docs">
+  </a>
+</p>
+
 <h3 align="center">
-Build Agents with memory, knowledge, tools and reasoning
+Build multi-modal Agents with memory, knowledge and tools
 </h3>
 
 <img
@@ -13,12 +19,12 @@ Build Agents with memory, knowledge, tools and reasoning
 
 ## What is phidata?
 
-**Phidata is a framework for building agentic systems**, engineers use phidata to:
+**Phidata is a framework for building multi-modal agents**, use phidata to:
 
-- **Build Agents with memory, knowledge, tools and reasoning.** [examples](#web-search-agent)
-- **Build teams of Agents that can work together.** [example](#team-of-agents)
-- **Chat with Agents using a beautiful Agent UI.** [example](#agent-ui)
-- **Monitor, evaluate and optimize Agents.** [example](#monitoring)
+- **Build multi-modal agents with memory, knowledge and tools.** [examples](#web-search-agent)
+- **Build teams of agents that can work together to solve complex problems.** [example](#team-of-agents)
+- **Chat with your agents using a beautiful Agent UI.** [example](#agent-ui)
+- **Monitor, evaluate and optimize your agents.** [example](#monitoring)
 - **Build agentic systems i.e. applications with an API, database and vectordb.**
 
 ## Install
@@ -31,7 +37,7 @@ pip install -U phidata
 
 ### Web Search Agent
 
-Let's start by building a simple agent that can search the web, create a file `web_search.py`
+Let's start by building a simple agent that can search the web using DuckDuckGo, create a file `web_search.py`
 
 ```python
 from phi.agent import Agent
@@ -46,7 +52,7 @@ web_agent = Agent(
     show_tool_calls=True,
     markdown=True,
 )
-web_agent.print_response("Whats happening in France?", stream=True)
+web_agent.print_response("Tell me about OpenAI Sora?", stream=True)
 ```
 
 Install libraries, export your `OPENAI_API_KEY` and run the Agent:
@@ -85,6 +91,36 @@ Install libraries and run the Agent:
 pip install yfinance
 
 python finance_agent.py
+```
+
+### Image Agent
+
+Lets create another agent that can understand images and make tool calls as needed, create a file `image_agent.py`
+
+```python
+from phi.agent import Agent
+from phi.model.openai import OpenAIChat
+from phi.tools.duckduckgo import DuckDuckGo
+
+agent = Agent(
+    model=OpenAIChat(id="gpt-4o"),
+    tools=[DuckDuckGo()],
+    markdown=True,
+)
+
+agent.print_response(
+    "Tell me about this image and give me the latest news about it.",
+    images=[
+        "https://upload.wikimedia.org/wikipedia/commons/b/bf/Krakow_-_Kosciol_Mariacki.jpg",
+    ],
+    stream=True,
+)
+```
+
+Run the Agent:
+
+```shell
+python image_agent.py
 ```
 
 ## Team of Agents
@@ -134,40 +170,7 @@ Run the Agent team:
 python agent_team.py
 ```
 
-## Reasoning Agents
-
-Reasoning is an experimental feature that helps agents work through a problem step-by-step, backtracking and correcting as needed. Create a file `reasoning_agent.py`.
-
-```python
-from phi.agent import Agent
-from phi.model.openai import OpenAIChat
-
-task = (
-    "Three missionaries and three cannibals need to cross a river. "
-    "They have a boat that can carry up to two people at a time. "
-    "If, at any time, the cannibals outnumber the missionaries on either side of the river, the cannibals will eat the missionaries. "
-    "How can all six people get across the river safely? Provide a step-by-step solution and show the solutions as an ascii diagram"
-)
-
-reasoning_agent = Agent(model=OpenAIChat(id="gpt-4o"), reasoning=True, markdown=True, structured_outputs=True)
-reasoning_agent.print_response(task, stream=True, show_full_reasoning=True)
-```
-
-Run the Reasoning Agent:
-
-```shell
-python reasoning_agent.py
-```
-
-> [!WARNING]
-> Reasoning is an experimental feature and will break ~20% of the time. **It is not a replacement for o1.**
->
-> It is an experiment fueled by curiosity, combining COT and tool use. Set your expectations very low for this initial release. For example: It will not be able to count ‘r’s in ‘strawberry’.
-
-> [!TIP]
-> If using tools with `reasoning=True`, set `structured_outputs=False` because gpt-4o doesnt support tools with structured outputs.
-
-## RAG Agent
+## Agentic RAG
 
 Instead of always inserting the "context" into the prompt, the RAG Agent can search its knowledge base (vector db) for the specific information it needs to achieve its task.
 

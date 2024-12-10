@@ -12,63 +12,67 @@ from phi.utils.timer import Timer
 from phi.utils.tools import get_function_call_for_tool_call
 
 try:
-    from groq import Groq as GroqClient
-    from groq.types.chat.chat_completion_chunk import ChoiceDeltaToolCall
+    from groq import Groq as GroqClient, AsyncGroq as AsyncGroqClient
+    from groq.types.chat import ChatCompletion, ChatCompletionMessage
+    from groq.types.chat.chat_completion_chunk import ChatCompletionChunk, ChoiceDeltaToolCall, ChoiceDelta
+    from groq.types.completion_usage import CompletionUsage
 except ImportError:
     logger.error("`groq` not installed")
     raise
 
 
 @dataclass
+class Metrics:
+    input_tokens: int = 0
+    output_tokens: int = 0
+    total_tokens: int = 0
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    completion_time: Optional[float] = None
+    prompt_time: Optional[float] = None
+    queue_time: Optional[float] = None
+    total_time: Optional[float] = None
+    time_to_first_token: Optional[float] = None
+    response_timer: Timer = field(default_factory=Timer)
+
+    def log(self):
+        logger.debug("**************** METRICS START ****************")
+        if self.time_to_first_token is not None:
+            logger.debug(f"* Time to first token:         {self.time_to_first_token:.4f}s")
+        logger.debug(f"* Time to generate response:   {self.response_timer.elapsed:.4f}s")
+        logger.debug(f"* Tokens per second:           {self.output_tokens / self.response_timer.elapsed:.4f} tokens/s")
+        logger.debug(f"* Input tokens:                {self.input_tokens or self.prompt_tokens}")
+        logger.debug(f"* Output tokens:               {self.output_tokens or self.completion_tokens}")
+        logger.debug(f"* Total tokens:                {self.total_tokens}")
+        if self.completion_time is not None:
+            logger.debug(f"* Completion time:             {self.completion_time:.4f}s")
+        if self.prompt_time is not None:
+            logger.debug(f"* Prompt time:                 {self.prompt_time:.4f}s")
+        if self.queue_time is not None:
+            logger.debug(f"* Queue time:                  {self.queue_time:.4f}s")
+        if self.total_time is not None:
+            logger.debug(f"* Total time:                  {self.total_time:.4f}s")
+        logger.debug("**************** METRICS END ******************")
+
+
+@dataclass
 class StreamData:
     response_content: str = ""
     response_tool_calls: Optional[List[ChoiceDeltaToolCall]] = None
-    completion_tokens: int = 0
-    response_prompt_tokens: int = 0
-    response_completion_tokens: int = 0
-    response_total_tokens: int = 0
-    time_to_first_token: Optional[float] = None
-    response_timer: Timer = field(default_factory=Timer)
 
 
 class Groq(Model):
     """
-    Groq model class.
+    A class for interacting with Groq models.
 
-    Args:
-        id (str): The model ID.
-        name (str): The model name.
-        provider (str): The model provider.
-        frequency_penalty (float): The frequency penalty.
-        logit_bias (dict): The logit bias.
-        logprobs (bool): The logprobs.
-        max_tokens (int): The maximum tokens.
-        presence_penalty (float): The presence penalty.
-        response_format (dict): The response format.
-        seed (int): The seed.
-        stop (str or list): The stop.
-        temperature (float): The temperature.
-        top_logprobs (int): The top logprobs.
-        top_p (float): The top p.
-        user (str): The user.
-        extra_headers (dict): The extra headers.
-        extra_query (dict): The extra query.
-        request_params (dict): The request parameters.
-        api_key (str): The API key.
-        base_url (str): The base URL.
-        timeout (int): The timeout.
-        max_retries (int): The maximum retries.
-        default_headers (dict): The default headers.
-        default_query (dict): The default query.
-        client_params (dict): The client parameters.
-        groq_client (GroqClient): The Groq client.
+    For more information, see: https://console.groq.com/docs/libraries
     """
 
     id: str = "llama3-groq-70b-8192-tool-use-preview"
     name: str = "Groq"
     provider: str = "Groq"
 
-    # -*- Request parameters
+    # Request parameters
     frequency_penalty: Optional[float] = None
     logit_bias: Optional[Any] = None
     logprobs: Optional[bool] = None
@@ -84,244 +88,273 @@ class Groq(Model):
     extra_headers: Optional[Any] = None
     extra_query: Optional[Any] = None
     request_params: Optional[Dict[str, Any]] = None
-    # -*- Client parameters
+
+    # Client parameters
     api_key: Optional[str] = None
     base_url: Optional[Union[str, httpx.URL]] = None
     timeout: Optional[int] = None
     max_retries: Optional[int] = None
     default_headers: Optional[Any] = None
     default_query: Optional[Any] = None
+    http_client: Optional[httpx.Client] = None
     client_params: Optional[Dict[str, Any]] = None
-    # -*- Provide the Groq manually
-    groq_client: Optional[GroqClient] = None
 
-    @property
-    def client(self) -> GroqClient:
-        """
-        Get the Groq client.
+    # Groq clients
+    client: Optional[GroqClient] = None
+    async_client: Optional[AsyncGroqClient] = None
 
-        Returns:
-            GroqClient: The Groq client.
-        """
-        if self.groq_client:
-            return self.groq_client
-
-        _client_params: Dict[str, Any] = {}
+    def get_client_params(self) -> Dict[str, Any]:
+        client_params: Dict[str, Any] = {}
         if self.api_key:
-            _client_params["api_key"] = self.api_key
+            client_params["api_key"] = self.api_key
         if self.base_url:
-            _client_params["base_url"] = self.base_url
+            client_params["base_url"] = self.base_url
         if self.timeout:
-            _client_params["timeout"] = self.timeout
+            client_params["timeout"] = self.timeout
         if self.max_retries:
-            _client_params["max_retries"] = self.max_retries
+            client_params["max_retries"] = self.max_retries
         if self.default_headers:
-            _client_params["default_headers"] = self.default_headers
+            client_params["default_headers"] = self.default_headers
         if self.default_query:
-            _client_params["default_query"] = self.default_query
+            client_params["default_query"] = self.default_query
         if self.client_params:
-            _client_params.update(self.client_params)
-        return GroqClient(**_client_params)
+            client_params.update(self.client_params)
+        return client_params
 
-    @property
-    def api_kwargs(self) -> Dict[str, Any]:
+    def get_client(self) -> GroqClient:
         """
-        Get the API kwargs.
+        Returns a Groq client.
 
         Returns:
-            Dict[str, Any]: The API kwargs.
+            GroqClient: An instance of the Groq client.
         """
-        _request_params: Dict[str, Any] = {}
+        if self.client:
+            return self.client
+
+        client_params: Dict[str, Any] = self.get_client_params()
+        if self.http_client is not None:
+            client_params["http_client"] = self.http_client
+        return GroqClient(**client_params)
+
+    def get_async_client(self) -> AsyncGroqClient:
+        """
+        Returns an asynchronous Groq client.
+
+        Returns:
+            AsyncGroqClient: An instance of the asynchronous Groq client.
+        """
+        if self.async_client:
+            return self.async_client
+
+        client_params: Dict[str, Any] = self.get_client_params()
+        if self.http_client:
+            client_params["http_client"] = self.http_client
+        else:
+            # Create a new async HTTP client with custom limits
+            client_params["http_client"] = httpx.AsyncClient(
+                limits=httpx.Limits(max_connections=1000, max_keepalive_connections=100)
+            )
+        return AsyncGroqClient(**client_params)
+
+    @property
+    def request_kwargs(self) -> Dict[str, Any]:
+        """
+        Returns keyword arguments for API requests.
+
+        Returns:
+            Dict[str, Any]: A dictionary of keyword arguments for API requests.
+        """
+        request_params: Dict[str, Any] = {}
         if self.frequency_penalty:
-            _request_params["frequency_penalty"] = self.frequency_penalty
+            request_params["frequency_penalty"] = self.frequency_penalty
         if self.logit_bias:
-            _request_params["logit_bias"] = self.logit_bias
+            request_params["logit_bias"] = self.logit_bias
         if self.logprobs:
-            _request_params["logprobs"] = self.logprobs
+            request_params["logprobs"] = self.logprobs
         if self.max_tokens:
-            _request_params["max_tokens"] = self.max_tokens
+            request_params["max_tokens"] = self.max_tokens
         if self.presence_penalty:
-            _request_params["presence_penalty"] = self.presence_penalty
+            request_params["presence_penalty"] = self.presence_penalty
         if self.response_format:
-            _request_params["response_format"] = self.response_format
+            request_params["response_format"] = self.response_format
         if self.seed:
-            _request_params["seed"] = self.seed
+            request_params["seed"] = self.seed
         if self.stop:
-            _request_params["stop"] = self.stop
+            request_params["stop"] = self.stop
         if self.temperature:
-            _request_params["temperature"] = self.temperature
+            request_params["temperature"] = self.temperature
         if self.top_logprobs:
-            _request_params["top_logprobs"] = self.top_logprobs
+            request_params["top_logprobs"] = self.top_logprobs
         if self.top_p:
-            _request_params["top_p"] = self.top_p
+            request_params["top_p"] = self.top_p
         if self.user:
-            _request_params["user"] = self.user
+            request_params["user"] = self.user
         if self.extra_headers:
-            _request_params["extra_headers"] = self.extra_headers
+            request_params["extra_headers"] = self.extra_headers
         if self.extra_query:
-            _request_params["extra_query"] = self.extra_query
+            request_params["extra_query"] = self.extra_query
         if self.tools:
-            _request_params["tools"] = self.get_tools_for_api()
+            request_params["tools"] = self.get_tools_for_api()
             if self.tool_choice is None:
-                _request_params["tool_choice"] = "auto"
+                request_params["tool_choice"] = "auto"
             else:
-                _request_params["tool_choice"] = self.tool_choice
+                request_params["tool_choice"] = self.tool_choice
         if self.request_params:
-            _request_params.update(self.request_params)
-        return _request_params
+            request_params.update(self.request_params)
+        return request_params
 
     def to_dict(self) -> Dict[str, Any]:
         """
-        Get the dictionary representation of the model.
+        Convert the model to a dictionary.
 
         Returns:
             Dict[str, Any]: The dictionary representation of the model.
         """
-        _dict = super().to_dict()
+        model_dict = super().to_dict()
         if self.frequency_penalty:
-            _dict["frequency_penalty"] = self.frequency_penalty
+            model_dict["frequency_penalty"] = self.frequency_penalty
         if self.logit_bias:
-            _dict["logit_bias"] = self.logit_bias
+            model_dict["logit_bias"] = self.logit_bias
         if self.logprobs:
-            _dict["logprobs"] = self.logprobs
+            model_dict["logprobs"] = self.logprobs
         if self.max_tokens:
-            _dict["max_tokens"] = self.max_tokens
+            model_dict["max_tokens"] = self.max_tokens
         if self.presence_penalty:
-            _dict["presence_penalty"] = self.presence_penalty
+            model_dict["presence_penalty"] = self.presence_penalty
         if self.response_format:
-            _dict["response_format"] = self.response_format
+            model_dict["response_format"] = self.response_format
         if self.seed:
-            _dict["seed"] = self.seed
+            model_dict["seed"] = self.seed
         if self.stop:
-            _dict["stop"] = self.stop
+            model_dict["stop"] = self.stop
         if self.temperature:
-            _dict["temperature"] = self.temperature
+            model_dict["temperature"] = self.temperature
         if self.top_logprobs:
-            _dict["top_logprobs"] = self.top_logprobs
+            model_dict["top_logprobs"] = self.top_logprobs
         if self.top_p:
-            _dict["top_p"] = self.top_p
+            model_dict["top_p"] = self.top_p
         if self.user:
-            _dict["user"] = self.user
+            model_dict["user"] = self.user
         if self.extra_headers:
-            _dict["extra_headers"] = self.extra_headers
+            model_dict["extra_headers"] = self.extra_headers
         if self.extra_query:
-            _dict["extra_query"] = self.extra_query
+            model_dict["extra_query"] = self.extra_query
         if self.tools:
-            _dict["tools"] = self.get_tools_for_api()
+            model_dict["tools"] = self.get_tools_for_api()
             if self.tool_choice is None:
-                _dict["tool_choice"] = "auto"
+                model_dict["tool_choice"] = "auto"
             else:
-                _dict["tool_choice"] = self.tool_choice
-        return _dict
+                model_dict["tool_choice"] = self.tool_choice
+        return model_dict
 
-    def invoke(self, messages: List[Message]) -> Any:
+    def process_message(self, message: Message) -> Dict[str, Any]:
         """
-        Invoke the Groq model.
+        Format a message into the format expected by OpenAI.
 
         Args:
-            messages (List[Message]): The messages.
+            message (Message): The message to format.
 
         Returns:
-            Any: The response.
+            Dict[str, Any]: The formatted message.
         """
-        if self.tools and self.response_format:
-            logger.warning(
-                f"Response format is not supported for Groq when specifying tools. Ignoring response_format: {self.response_format}"
-            )
-            self.response_format = {"type": "text"}
-        return self.client.chat.completions.create(
+        if message.role == "user":
+            if message.images is not None:
+                message = self.add_images_to_message(message=message, images=message.images)
+            if message.audio is not None:
+                message = self.add_audio_to_message(message=message, audio=message.audio)
+
+        return message.to_dict()
+
+    def invoke(self, messages: List[Message]) -> ChatCompletion:
+        """
+        Send a chat completion request to the Groq API.
+
+        Args:
+            messages (List[Message]): A list of messages to send to the model.
+
+        Returns:
+            ChatCompletion: The chat completion response from the API.
+        """
+        return self.get_client().chat.completions.create(
             model=self.id,
-            messages=[m.to_dict() for m in messages],  # type: ignore
-            **self.api_kwargs,
+            messages=[self.process_message(m) for m in messages],  # type: ignore
+            **self.request_kwargs,
         )
 
-    def invoke_stream(self, messages: List[Message]) -> Iterator[Any]:
+    async def ainvoke(self, messages: List[Message]) -> ChatCompletion:
         """
-        Invoke the Groq model stream.
+        Sends an asynchronous chat completion request to the Groq API.
 
         Args:
-            messages (List[Message]): The messages.
+            messages (List[Message]): A list of messages to send to the model.
 
         Returns:
-            Iterator[Any]: The response.
+            ChatCompletion: The chat completion response from the API.
         """
-        yield from self.client.chat.completions.create(
+        return await self.get_async_client().chat.completions.create(
             model=self.id,
-            messages=[m.to_dict() for m in messages],  # type: ignore
+            messages=[self.process_message(m) for m in messages],  # type: ignore
+            **self.request_kwargs,
+        )
+
+    def invoke_stream(self, messages: List[Message]) -> Iterator[ChatCompletionChunk]:
+        """
+        Send a streaming chat completion request to the Groq API.
+
+        Args:
+            messages (List[Message]): A list of messages to send to the model.
+
+        Returns:
+            Iterator[ChatCompletionChunk]: An iterator of chat completion chunks.
+        """
+        yield from self.get_client().chat.completions.create(
+            model=self.id,
+            messages=[self.process_message(m) for m in messages],  # type: ignore
             stream=True,
-            **self.api_kwargs,
+            **self.request_kwargs,
         )
 
-    def _log_messages(self, messages: List[Message]) -> None:
+    async def ainvoke_stream(self, messages: List[Message]) -> Any:
         """
-        Log the messages.
+        Sends an asynchronous streaming chat completion request to the Groq API.
 
         Args:
-            messages (List[Message]): The messages.
-        """
-        for m in messages:
-            m.log()
-
-    def _create_assistant_message(self, response: Any) -> Message:
-        """
-        Create the assistant message.
-
-        Args:
-            response (Any): The response.
+            messages (List[Message]): A list of messages to send to the model.
 
         Returns:
-            Message: The assistant message.
+            Any: An asynchronous iterator of chat completion chunks.
         """
-        response_message = response.choices[0].message
-        assistant_message = Message(
-            role=response_message.role or "assistant",
-            content=response_message.content,
+        async_stream = await self.get_async_client().chat.completions.create(
+            model=self.id,
+            messages=[self.process_message(m) for m in messages],  # type: ignore
+            stream=True,
+            **self.request_kwargs,
         )
-        if response_message.tool_calls is not None and len(response_message.tool_calls) > 0:
-            assistant_message.tool_calls = [t.model_dump() for t in response_message.tool_calls]
-        return assistant_message
+        async for chunk in async_stream:  # type: ignore
+            yield chunk
 
-    def _update_usage_metrics(
-        self,
-        assistant_message: Message,
-        response_timer_elapsed: float,
-        response_usage: Any,
-    ) -> None:
-        """
-        Update the usage metrics.
-
-        Args:
-            assistant_message (Message): The assistant message.
-            response_timer_elapsed (float): The response timer elapsed.
-            response_usage (Any): The response usage.
-        """
-        assistant_message.metrics["time"] = response_timer_elapsed
-        if "response_times" not in self.metrics:
-            self.metrics["response_times"] = []
-        self.metrics["response_times"].append(response_timer_elapsed)
-        if response_usage is not None:
-            self.metrics.update(response_usage.model_dump())
-
-    def _handle_tool_calls(
+    def handle_tool_calls(
         self,
         assistant_message: Message,
         messages: List[Message],
         model_response: ModelResponse,
+        tool_role: str = "tool",
     ) -> Optional[ModelResponse]:
         """
-        Handle the tool calls.
+        Handle tool calls in the assistant message.
 
         Args:
             assistant_message (Message): The assistant message.
-            messages (List[Message]): The messages.
+            messages (List[Message]): The list of messages.
             model_response (ModelResponse): The model response.
+            tool_role (str): The role of the tool call. Defaults to "tool".
 
         Returns:
-            Optional[ModelResponse]: The model response.
+            Optional[ModelResponse]: The model response after handling tool calls.
         """
-        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
-            model_response.content = ""
-            tool_role: str = "tool"
+        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
+            if model_response.content is None:
+                model_response.content = ""
             function_call_results: List[Message] = []
             function_calls_to_run: List[FunctionCall] = []
             for tool_call in assistant_message.tool_calls:
@@ -354,9 +387,7 @@ class Groq(Model):
                 model_response.content += "\n\n"
 
             for _ in self.run_function_calls(
-                function_calls=function_calls_to_run,
-                function_call_results=function_call_results,
-                tool_role=tool_role,
+                function_calls=function_calls_to_run, function_call_results=function_call_results, tool_role=tool_role
             ):
                 pass
 
@@ -366,12 +397,99 @@ class Groq(Model):
             return model_response
         return None
 
-    def response(self, messages: List[Message]) -> ModelResponse:
+    def update_usage_metrics(
+        self, assistant_message: Message, metrics: Metrics, response_usage: Optional[CompletionUsage]
+    ) -> None:
         """
-        Response the Groq model.
+        Update the usage metrics for the assistant message and the model.
 
         Args:
-            messages (List[Message]): The messages.
+            assistant_message (Message): The assistant message.
+            metrics (Metrics): The metrics.
+            response_usage (Optional[CompletionUsage]): The response usage.
+        """
+        # Update time taken to generate response
+        assistant_message.metrics["time"] = metrics.response_timer.elapsed
+        self.metrics.setdefault("response_times", []).append(metrics.response_timer.elapsed)
+        if response_usage:
+            prompt_tokens = response_usage.prompt_tokens
+            completion_tokens = response_usage.completion_tokens
+            total_tokens = response_usage.total_tokens
+
+            if prompt_tokens is not None:
+                metrics.input_tokens = prompt_tokens
+                metrics.prompt_tokens = prompt_tokens
+                assistant_message.metrics["input_tokens"] = prompt_tokens
+                assistant_message.metrics["prompt_tokens"] = prompt_tokens
+                self.metrics["input_tokens"] = self.metrics.get("input_tokens", 0) + prompt_tokens
+                self.metrics["prompt_tokens"] = self.metrics.get("prompt_tokens", 0) + prompt_tokens
+            if completion_tokens is not None:
+                metrics.output_tokens = completion_tokens
+                metrics.completion_tokens = completion_tokens
+                assistant_message.metrics["output_tokens"] = completion_tokens
+                assistant_message.metrics["completion_tokens"] = completion_tokens
+                self.metrics["output_tokens"] = self.metrics.get("output_tokens", 0) + completion_tokens
+                self.metrics["completion_tokens"] = self.metrics.get("completion_tokens", 0) + completion_tokens
+            if total_tokens is not None:
+                metrics.total_tokens = total_tokens
+                assistant_message.metrics["total_tokens"] = total_tokens
+                self.metrics["total_tokens"] = self.metrics.get("total_tokens", 0) + total_tokens
+            if response_usage.completion_time is not None:
+                metrics.completion_time = response_usage.completion_time
+                assistant_message.metrics["completion_time"] = response_usage.completion_time
+                self.metrics["completion_time"] = (
+                    self.metrics.get("completion_time", 0) + response_usage.completion_time
+                )
+            if response_usage.prompt_time is not None:
+                metrics.prompt_time = response_usage.prompt_time
+                assistant_message.metrics["prompt_time"] = response_usage.prompt_time
+                self.metrics["prompt_time"] = self.metrics.get("prompt_time", 0) + response_usage.prompt_time
+            if response_usage.queue_time is not None:
+                metrics.queue_time = response_usage.queue_time
+                assistant_message.metrics["queue_time"] = response_usage.queue_time
+                self.metrics["queue_time"] = self.metrics.get("queue_time", 0) + response_usage.queue_time
+            if response_usage.total_time is not None:
+                metrics.total_time = response_usage.total_time
+                assistant_message.metrics["total_time"] = response_usage.total_time
+                self.metrics["total_time"] = self.metrics.get("total_time", 0) + response_usage.total_time
+
+    def create_assistant_message(
+        self,
+        response_message: ChatCompletionMessage,
+        metrics: Metrics,
+        response_usage: Optional[CompletionUsage],
+    ) -> Message:
+        """
+        Create an assistant message from the response.
+
+        Args:
+            response_message (ChatCompletionMessage): The response message.
+            metrics (Metrics): The metrics.
+            response_usage (Optional[CompletionUsage]): The response usage.
+
+        Returns:
+            Message: The assistant message.
+        """
+        assistant_message = Message(
+            role=response_message.role or "assistant",
+            content=response_message.content,
+        )
+        if response_message.tool_calls is not None and len(response_message.tool_calls) > 0:
+            try:
+                assistant_message.tool_calls = [t.model_dump() for t in response_message.tool_calls]
+            except Exception as e:
+                logger.warning(f"Error processing tool calls: {e}")
+
+        # Update metrics
+        self.update_usage_metrics(assistant_message, metrics, response_usage)
+        return assistant_message
+
+    def response(self, messages: List[Message]) -> ModelResponse:
+        """
+        Generate a response from Groq.
+
+        Args:
+            messages (List[Message]): A list of messages.
 
         Returns:
             ModelResponse: The model response.
@@ -379,144 +497,179 @@ class Groq(Model):
         logger.debug("---------- Groq Response Start ----------")
         self._log_messages(messages)
         model_response = ModelResponse()
+        metrics = Metrics()
 
-        response_timer = Timer()
-        response_timer.start()
-        response = self.invoke(messages=messages)
-        response_timer.stop()
-        logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
+        # -*- Generate response
+        metrics.response_timer.start()
+        response: ChatCompletion = self.invoke(messages=messages)
+        metrics.response_timer.stop()
 
-        assistant_message = self._create_assistant_message(response)
-        self._update_usage_metrics(assistant_message, response_timer.elapsed, response.usage)
-
-        messages.append(assistant_message)
-        assistant_message.log()
-
-        if self._handle_tool_calls(assistant_message, messages, model_response):
-            response_after_tool_calls = self.response(messages=messages)
-            if response_after_tool_calls.content is not None:
-                if model_response.content is None:
-                    model_response.content = ""
-                model_response.content += response_after_tool_calls.content
-            return model_response
-
-        logger.debug("---------- Groq Response End ----------")
-        if assistant_message.content is not None:
-            model_response.content = assistant_message.get_content_string()
-
-        return model_response
-
-    def _update_stream_metrics(self, stream_data: StreamData, assistant_message: Message):
-        """
-        Update the metrics for the streaming response.
-
-        Args:
-            stream_data (StreamData): The streaming data
-            assistant_message (Message): The assistant message.
-        """
-        assistant_message.metrics["time"] = stream_data.response_timer.elapsed
-        if stream_data.time_to_first_token is not None:
-            assistant_message.metrics["time_to_first_token"] = stream_data.time_to_first_token
-
-        if "response_times" not in self.metrics:
-            self.metrics["response_times"] = []
-        self.metrics["response_times"].append(stream_data.response_timer.elapsed)
-        if stream_data.time_to_first_token is not None:
-            if "time_to_first_token" not in self.metrics:
-                self.metrics["time_to_first_token"] = []
-            self.metrics["time_to_first_token"].append(stream_data.time_to_first_token)
-        if stream_data.completion_tokens > 0:
-            if "tokens_per_second" not in self.metrics:
-                self.metrics["tokens_per_second"] = []
-            self.metrics["tokens_per_second"].append(
-                f"{stream_data.completion_tokens / stream_data.response_timer.elapsed:.4f}"
-            )
-
-        assistant_message.metrics["prompt_tokens"] = stream_data.response_prompt_tokens
-        assistant_message.metrics["input_tokens"] = stream_data.response_prompt_tokens
-        self.metrics["prompt_tokens"] = self.metrics.get("prompt_tokens", 0) + stream_data.response_prompt_tokens
-        self.metrics["input_tokens"] = self.metrics.get("input_tokens", 0) + stream_data.response_prompt_tokens
-
-        assistant_message.metrics["completion_tokens"] = stream_data.response_completion_tokens
-        assistant_message.metrics["output_tokens"] = stream_data.response_completion_tokens
-        self.metrics["completion_tokens"] = (
-            self.metrics.get("completion_tokens", 0) + stream_data.response_completion_tokens
-        )
-        self.metrics["output_tokens"] = self.metrics.get("output_tokens", 0) + stream_data.response_completion_tokens
-
-        assistant_message.metrics["total_tokens"] = stream_data.response_total_tokens
-        self.metrics["total_tokens"] = self.metrics.get("total_tokens", 0) + stream_data.response_total_tokens
-
-    def response_stream(self, messages: List[Message]) -> Iterator[ModelResponse]:
-        """
-        Response the Groq model stream.
-
-        Args:
-            messages (List[Message]): The messages.
-
-        Returns:
-            Iterator[ModelResponse]: The model response.
-        """
-        logger.debug("---------- Groq Response Start ----------")
-        # -*- Log messages for debugging
-        for m in messages:
-            m.log()
-
-        stream_data: StreamData = StreamData()
-        stream_data.response_timer.start()
-
-        for response in self.invoke_stream(messages=messages):
-            # -*- Parse response
-            response_delta = response.choices[0].delta
-            response_content: Optional[str] = response_delta.content
-            response_tool_calls: Optional[List[Any]] = response_delta.tool_calls
-
-            # -*- Return content if present, otherwise get tool call
-            if response_content is not None:
-                stream_data.response_content += response_content
-                stream_data.completion_tokens += 1
-                if stream_data.completion_tokens == 1:
-                    stream_data.time_to_first_token = stream_data.response_timer.elapsed
-                    logger.debug(f"Time to first token: {stream_data.time_to_first_token:.4f}s")
-                yield ModelResponse(content=response_content)
-
-            # -*- Parse tool calls
-            if response_tool_calls is not None:
-                if stream_data.response_tool_calls is None:
-                    stream_data.response_tool_calls = []
-                stream_data.response_tool_calls.extend(response_tool_calls)
-
-            if response.usage:
-                response_usage: Optional[Any] = response.usage
-                if response_usage:
-                    stream_data.response_prompt_tokens = response_usage.prompt_tokens
-                    stream_data.response_completion_tokens = response_usage.completion_tokens
-                    stream_data.response_total_tokens = response_usage.total_tokens
-
-        stream_data.response_timer.stop()
-        completion_tokens = stream_data.completion_tokens
-        if completion_tokens > 0:
-            logger.debug(f"Time per output token: {stream_data.response_timer.elapsed / completion_tokens:.4f}s")
-            logger.debug(f"Throughput: {completion_tokens / stream_data.response_timer.elapsed:.4f} tokens/s")
+        # -*- Parse response
+        response_message: ChatCompletionMessage = response.choices[0].message
+        response_usage: Optional[CompletionUsage] = response.usage
 
         # -*- Create assistant message
-        assistant_message = Message(role="assistant")
-        if stream_data.response_content != "":
-            assistant_message.content = stream_data.response_content
+        assistant_message = self.create_assistant_message(
+            response_message=response_message, metrics=metrics, response_usage=response_usage
+        )
 
-        # -*- Add tool calls to assistant message
-        if stream_data.response_tool_calls is not None:
-            assistant_message.tool_calls = [t.model_dump() for t in stream_data.response_tool_calls]
-
-        # -*- Update usage metrics
-        # Add response time to metrics
-        self._update_stream_metrics(stream_data=stream_data, assistant_message=assistant_message)
+        # -*- Add assistant message to messages
         messages.append(assistant_message)
-        assistant_message.log()
 
-        # -*- Parse and run tool calls
+        # -*- Log response and metrics
+        assistant_message.log()
+        metrics.log()
+
+        # -*- Update model response with assistant message content and audio
+        if assistant_message.content is not None:
+            # add the content to the model response
+            model_response.content = assistant_message.get_content_string()
+
+        # -*- Handle tool calls
+        tool_role = "tool"
+        if (
+            self.handle_tool_calls(
+                assistant_message=assistant_message,
+                messages=messages,
+                model_response=model_response,
+                tool_role=tool_role,
+            )
+            is not None
+        ):
+            return self.handle_post_tool_call_messages(messages=messages, model_response=model_response)
+        logger.debug("---------- Groq Response End ----------")
+        return model_response
+
+    async def aresponse(self, messages: List[Message]) -> ModelResponse:
+        """
+        Generate an asynchronous response from Groq.
+
+        Args:
+            messages (List[Message]): A list of messages.
+
+        Returns:
+            ModelResponse: The model response from the API.
+        """
+        logger.debug("---------- Groq Async Response Start ----------")
+        self._log_messages(messages)
+        model_response = ModelResponse()
+        metrics = Metrics()
+
+        # -*- Generate response
+        metrics.response_timer.start()
+        response: ChatCompletion = await self.ainvoke(messages=messages)
+        metrics.response_timer.stop()
+
+        # -*- Parse response
+        response_message: ChatCompletionMessage = response.choices[0].message
+        response_usage: Optional[CompletionUsage] = response.usage
+
+        # -*- Create assistant message
+        assistant_message = self.create_assistant_message(
+            response_message=response_message, metrics=metrics, response_usage=response_usage
+        )
+
+        # -*- Add assistant message to messages
+        messages.append(assistant_message)
+
+        # -*- Log response and metrics
+        assistant_message.log()
+        metrics.log()
+
+        # -*- Update model response with assistant message content and audio
+        if assistant_message.content is not None:
+            # add the content to the model response
+            model_response.content = assistant_message.get_content_string()
+
+        # -*- Handle tool calls
+        tool_role = "tool"
+        if (
+            self.handle_tool_calls(
+                assistant_message=assistant_message,
+                messages=messages,
+                model_response=model_response,
+                tool_role=tool_role,
+            )
+            is not None
+        ):
+            return await self.ahandle_post_tool_call_messages(messages=messages, model_response=model_response)
+
+        logger.debug("---------- Groq Async Response End ----------")
+        return model_response
+
+    def update_stream_metrics(self, assistant_message: Message, metrics: Metrics):
+        """
+        Update the usage metrics for the assistant message and the model.
+
+        Args:
+            assistant_message (Message): The assistant message.
+            metrics (Metrics): The metrics.
+        """
+        # Update time taken to generate response
+        assistant_message.metrics["time"] = metrics.response_timer.elapsed
+        self.metrics.setdefault("response_times", []).append(metrics.response_timer.elapsed)
+
+        if metrics.time_to_first_token is not None:
+            assistant_message.metrics["time_to_first_token"] = metrics.time_to_first_token
+            self.metrics.setdefault("time_to_first_token", []).append(metrics.time_to_first_token)
+
+        if metrics.input_tokens is not None:
+            assistant_message.metrics["input_tokens"] = metrics.input_tokens
+            self.metrics["input_tokens"] = self.metrics.get("input_tokens", 0) + metrics.input_tokens
+        if metrics.output_tokens is not None:
+            assistant_message.metrics["output_tokens"] = metrics.output_tokens
+            self.metrics["output_tokens"] = self.metrics.get("output_tokens", 0) + metrics.output_tokens
+        if metrics.prompt_tokens is not None:
+            assistant_message.metrics["prompt_tokens"] = metrics.prompt_tokens
+            self.metrics["prompt_tokens"] = self.metrics.get("prompt_tokens", 0) + metrics.prompt_tokens
+        if metrics.completion_tokens is not None:
+            assistant_message.metrics["completion_tokens"] = metrics.completion_tokens
+            self.metrics["completion_tokens"] = self.metrics.get("completion_tokens", 0) + metrics.completion_tokens
+        if metrics.total_tokens is not None:
+            assistant_message.metrics["total_tokens"] = metrics.total_tokens
+            self.metrics["total_tokens"] = self.metrics.get("total_tokens", 0) + metrics.total_tokens
+        if metrics.completion_time is not None:
+            assistant_message.metrics["completion_time"] = metrics.completion_time
+            self.metrics["completion_time"] = self.metrics.get("completion_time", 0) + metrics.completion_time
+        if metrics.prompt_time is not None:
+            assistant_message.metrics["prompt_time"] = metrics.prompt_time
+            self.metrics["prompt_time"] = self.metrics.get("prompt_time", 0) + metrics.prompt_time
+        if metrics.queue_time is not None:
+            assistant_message.metrics["queue_time"] = metrics.queue_time
+            self.metrics["queue_time"] = self.metrics.get("queue_time", 0) + metrics.queue_time
+        if metrics.total_time is not None:
+            assistant_message.metrics["total_time"] = metrics.total_time
+            self.metrics["total_time"] = self.metrics.get("total_time", 0) + metrics.total_time
+
+    def add_response_usage_to_metrics(self, metrics: Metrics, response_usage: CompletionUsage):
+        metrics.input_tokens = response_usage.prompt_tokens
+        metrics.prompt_tokens = response_usage.prompt_tokens
+        metrics.output_tokens = response_usage.completion_tokens
+        metrics.completion_tokens = response_usage.completion_tokens
+        metrics.total_tokens = response_usage.total_tokens
+        metrics.completion_time = response_usage.completion_time
+        metrics.prompt_time = response_usage.prompt_time
+        metrics.queue_time = response_usage.queue_time
+        metrics.total_time = response_usage.total_time
+
+    def handle_stream_tool_calls(
+        self,
+        assistant_message: Message,
+        messages: List[Message],
+        tool_role: str = "tool",
+    ) -> Iterator[ModelResponse]:
+        """
+        Handle tool calls for response stream.
+
+        Args:
+            assistant_message (Message): The assistant message.
+            messages (List[Message]): The list of messages.
+            tool_role (str): The role of the tool call. Defaults to "tool".
+
+        Returns:
+            Iterator[ModelResponse]: An iterator of the model response.
+        """
         if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
-            tool_role: str = "tool"
             function_calls_to_run: List[FunctionCall] = []
             function_call_results: List[Message] = []
             for tool_call in assistant_message.tool_calls:
@@ -548,13 +701,188 @@ class Groq(Model):
                     yield ModelResponse(content=f"\n - {_f.get_call_str()}")
                 yield ModelResponse(content="\n\n")
 
-            for intermediate_model_response in self.run_function_calls(
+            for function_call_response in self.run_function_calls(
                 function_calls=function_calls_to_run, function_call_results=function_call_results, tool_role=tool_role
             ):
-                yield intermediate_model_response
+                yield function_call_response
 
             if len(function_call_results) > 0:
                 messages.extend(function_call_results)
 
-            yield from self.response_stream(messages=messages)
+    def response_stream(self, messages: List[Message]) -> Iterator[ModelResponse]:
+        """
+        Generate a streaming response from Groq.
+
+        Args:
+            messages (List[Message]): A list of messages.
+
+        Returns:
+            Iterator[ModelResponse]: An iterator of model responses.
+        """
+        logger.debug("---------- Groq Response Start ----------")
+        self._log_messages(messages)
+        stream_data: StreamData = StreamData()
+        metrics: Metrics = Metrics()
+
+        # -*- Generate response
+        metrics.response_timer.start()
+        for response in self.invoke_stream(messages=messages):
+            if len(response.choices) > 0:
+                metrics.completion_tokens += 1
+                if metrics.completion_tokens == 1:
+                    metrics.time_to_first_token = metrics.response_timer.elapsed
+
+                response_delta: ChoiceDelta = response.choices[0].delta
+                response_content: Optional[str] = response_delta.content
+                response_tool_calls: Optional[List[ChoiceDeltaToolCall]] = response_delta.tool_calls
+
+                if response_content is not None:
+                    stream_data.response_content += response_content
+                    yield ModelResponse(content=response_content)
+
+                if response_tool_calls is not None:
+                    if stream_data.response_tool_calls is None:
+                        stream_data.response_tool_calls = []
+                    stream_data.response_tool_calls.extend(response_tool_calls)
+
+            if response.usage is not None:
+                self.add_response_usage_to_metrics(metrics=metrics, response_usage=response.usage)
+        metrics.response_timer.stop()
+
+        # -*- Create assistant message
+        assistant_message = Message(role="assistant")
+        if stream_data.response_content != "":
+            assistant_message.content = stream_data.response_content
+
+        if stream_data.response_tool_calls is not None:
+            _tool_calls = self.build_tool_calls(stream_data.response_tool_calls)
+            if len(_tool_calls) > 0:
+                assistant_message.tool_calls = _tool_calls
+
+        # -*- Update usage metrics
+        self.update_stream_metrics(assistant_message=assistant_message, metrics=metrics)
+
+        # -*- Add assistant message to messages
+        messages.append(assistant_message)
+
+        # -*- Log response and metrics
+        assistant_message.log()
+        metrics.log()
+
+        # -*- Handle tool calls
+        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
+            tool_role = "tool"
+            yield from self.handle_stream_tool_calls(
+                assistant_message=assistant_message, messages=messages, tool_role=tool_role
+            )
+            yield from self.handle_post_tool_call_messages_stream(messages=messages)
         logger.debug("---------- Groq Response End ----------")
+
+    async def aresponse_stream(self, messages: List[Message]) -> Any:
+        """
+        Generate an asynchronous streaming response from Groq.
+
+        Args:
+            messages (List[Message]): A list of messages.
+
+        Returns:
+            Any: An asynchronous iterator of model responses.
+        """
+        logger.debug("---------- Groq Async Response Start ----------")
+        self._log_messages(messages)
+        stream_data: StreamData = StreamData()
+        metrics: Metrics = Metrics()
+
+        # -*- Generate response
+        metrics.response_timer.start()
+        async for response in self.ainvoke_stream(messages=messages):
+            if len(response.choices) > 0:
+                metrics.completion_tokens += 1
+                if metrics.completion_tokens == 1:
+                    metrics.time_to_first_token = metrics.response_timer.elapsed
+
+                response_delta: ChoiceDelta = response.choices[0].delta
+                response_content = response_delta.content
+                response_tool_calls = response_delta.tool_calls
+
+                if response_content is not None:
+                    stream_data.response_content += response_content
+                    yield ModelResponse(content=response_content)
+
+                if response_tool_calls is not None:
+                    if stream_data.response_tool_calls is None:
+                        stream_data.response_tool_calls = []
+                    stream_data.response_tool_calls.extend(response_tool_calls)
+
+            if response.usage is not None:
+                self.add_response_usage_to_metrics(metrics=metrics, response_usage=response.usage)
+        metrics.response_timer.stop()
+
+        # -*- Create assistant message
+        assistant_message = Message(role="assistant")
+        if stream_data.response_content != "":
+            assistant_message.content = stream_data.response_content
+
+        if stream_data.response_tool_calls is not None:
+            _tool_calls = self.build_tool_calls(stream_data.response_tool_calls)
+            if len(_tool_calls) > 0:
+                assistant_message.tool_calls = _tool_calls
+
+        self.update_stream_metrics(assistant_message=assistant_message, metrics=metrics)
+
+        # -*- Add assistant message to messages
+        messages.append(assistant_message)
+
+        # -*- Log response and metrics
+        assistant_message.log()
+        metrics.log()
+
+        # -*- Handle tool calls
+        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
+            tool_role = "tool"
+            for tool_call_response in self.handle_stream_tool_calls(
+                assistant_message=assistant_message, messages=messages, tool_role=tool_role
+            ):
+                yield tool_call_response
+            async for post_tool_call_response in self.ahandle_post_tool_call_messages_stream(messages=messages):
+                yield post_tool_call_response
+        logger.debug("---------- Groq Async Response End ----------")
+
+    def build_tool_calls(self, tool_calls_data: List[ChoiceDeltaToolCall]) -> List[Dict[str, Any]]:
+        """
+        Build tool calls from tool call data.
+
+        Args:
+            tool_calls_data (List[ChoiceDeltaToolCall]): The tool call data to build from.
+
+        Returns:
+            List[Dict[str, Any]]: The built tool calls.
+        """
+        tool_calls: List[Dict[str, Any]] = []
+        for _tool_call in tool_calls_data:
+            _index = _tool_call.index
+            _tool_call_id = _tool_call.id
+            _tool_call_type = _tool_call.type
+            _function_name = _tool_call.function.name if _tool_call.function else None
+            _function_arguments = _tool_call.function.arguments if _tool_call.function else None
+
+            if len(tool_calls) <= _index:
+                tool_calls.extend([{}] * (_index - len(tool_calls) + 1))
+            tool_call_entry = tool_calls[_index]
+            if not tool_call_entry:
+                tool_call_entry["id"] = _tool_call_id
+                tool_call_entry["type"] = _tool_call_type
+                tool_call_entry["function"] = {
+                    "name": _function_name or "",
+                    "arguments": _function_arguments or "",
+                }
+            else:
+                if _function_name:
+                    tool_call_entry["function"]["name"] += _function_name
+                if _function_arguments:
+                    tool_call_entry["function"]["arguments"] += _function_arguments
+                if _tool_call_id:
+                    tool_call_entry["id"] = _tool_call_id
+                if _tool_call_type:
+                    tool_call_entry["type"] = _tool_call_type
+        return tool_calls

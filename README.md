@@ -225,14 +225,18 @@ if __name__ == "__main__":
     serve_playground_app("playground:app", reload=True)
 ```
 
-Authenticate with phidata:
 
-```
+Authenticate with phidata by running the following command:
+
+```shell
 phi auth
 ```
 
-> [!NOTE]
-> If `phi auth` fails, you can set the `PHI_API_KEY` environment variable by copying it from [phidata.app](https://www.phidata.app)
+or by exporting the `PHI_API_KEY` for your workspace from [phidata.app](https://www.phidata.app)
+
+```bash
+export PHI_API_KEY=phi-***
+```
 
 Install dependencies and run the Agent Playground:
 
@@ -382,9 +386,6 @@ python reasoning_agent.py
 > Reasoning is an experimental feature and will break ~20% of the time. **It is not a replacement for o1.**
 >
 > It is an experiment fueled by curiosity, combining COT and tool use. Set your expectations very low for this initial release. For example: It will not be able to count ‘r’s in ‘strawberry’.
-
-> [!TIP]
-> If using tools with `reasoning=True`, set `structured_outputs=False` because gpt-4o doesnt support tools with structured outputs.
 
 ## Demo Agents
 

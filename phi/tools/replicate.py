@@ -1,4 +1,3 @@
-import json
 from os import getenv
 from uuid import uuid4
 
@@ -40,9 +39,11 @@ class ReplicateToolKit(Toolkit):
         output: FileOutput = replicate.run(ref=self.model, input={"prompt": prompt})
 
         # Update the run response with the video URLs
-        agent.add_video(Video(
-            id=str(uuid4()),
-            url=output.url,
-        ))
+        agent.add_video(
+            Video(
+                id=str(uuid4()),
+                url=output.url,
+            )
+        )
 
         return f"Media generated successfully at {output.url}"

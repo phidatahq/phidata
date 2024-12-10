@@ -97,11 +97,7 @@ class ModelsLabs(Toolkit):
                 )
 
                 # Update the run response with the video URLs
-                agent.add_video(Video(
-                    id=video_id,
-                    url=video_url,
-                    eta=eta
-                ))
+                agent.add_video(Video(id=video_id, url=video_url, eta=eta))
 
             if self.wait_for_completion and isinstance(eta, int):
                 video_ready = False

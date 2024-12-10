@@ -633,13 +633,13 @@ class Agent(BaseModel):
             if "images" in session.agent_data:
                 images_from_db = session.agent_data.get("images")
                 if self.images is not None and isinstance(self.images, list):
-                    self.images.extend([Image.model_validate(img) for img in images_from_db])
+                    self.images.extend([Image.model_validate(img) for img in self.images])
                 else:
                     self.images = images_from_db
             if "videos" in session.agent_data:
                 videos_from_db = session.agent_data.get("videos")
                 if self.videos is not None and isinstance(self.videos, list):
-                    self.videos.extend([Video.model_validate(vid) for vid in videos_from_db])
+                    self.videos.extend([Video.model_validate(vid) for vid in self.videos])
                 else:
                     self.videos = videos_from_db
 

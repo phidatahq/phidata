@@ -11,7 +11,7 @@ def generate(project: Optional[str], location: Optional[str]) -> None:
     # Load the model
     model = GenerativeModel("gemini-1.0-pro-vision")
     # Query the model
-    responses: Iterable[GenerationResponse] = model.generate_content("Who are you?", stream=True)
+    responses: Iterable[GenerationResponse] = model.generate_media("Who are you?", stream=True)
     # Process the response
     for response in responses:
         print(response.text, end="")

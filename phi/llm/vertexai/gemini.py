@@ -130,10 +130,10 @@ class Gemini(LLM):
         return _contents
 
     def invoke(self, messages: List[Message]) -> GenerationResponse:
-        return self.client.generate_content(contents=self.convert_messages_to_contents(messages))
+        return self.client.generate_media(contents=self.convert_messages_to_contents(messages))
 
     def invoke_stream(self, messages: List[Message]) -> Iterator[GenerationResponse]:
-        yield from self.client.generate_content(
+        yield from self.client.generate_media(
             contents=self.convert_messages_to_contents(messages),
             stream=True,
         )

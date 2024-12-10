@@ -25,7 +25,6 @@ class ReplicateToolkit(Toolkit):
         if not self.api_key:
             logger.error("REPLICATE_API_TOKEN not set. Please set the REPLICATE_API_TOKEN environment variable.")
         self.model = model
-
         self.register(self.generate_media)
 
     def generate_media(self, agent: Agent, prompt: str) -> str:

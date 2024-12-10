@@ -8,7 +8,7 @@ fal_agent = Agent(
     tools=[FalTools()],
     description="You are an AI agent that can generate videos using the Fal API.",
     instructions=[
-        "When the user asks you to create a video, use the `run` tool to create the video.",
+        "When the user asks you to create a video, use the `generate_media` tool to create the video.",
         "Return the URL as raw to the user.",
         "Don't convert video URL to markdown or anything else.",
         "Also pass the type of model of the tool, it can be either `image` or `video`.",

@@ -8,8 +8,10 @@ from typing import Optional
 from phi.agent import Agent
 from phi.tools import Toolkit
 from phi.utils.log import logger
+from phi.model.content import Video, Image
 from enum import Enum
-import json
+from uuid import uuid4
+
 
 try:
     import fal_client  # type: ignore
@@ -38,7 +40,7 @@ class FalTools(Toolkit):
         if not self.api_key:
             logger.error("FAL_API_KEY not set. Please set the FAL_API_KEY environment variable.")
         self.seen_logs: set[str] = set()
-        self.register(self.run)
+        self.register(self.generate_media)
 
     def on_queue_update(self, update):
         if isinstance(update, fal_client.InProgress) and update.logs:
@@ -48,7 +50,9 @@ class FalTools(Toolkit):
                     logger.info(message)
                     self.seen_logs.add(message)
 
-    def run(self, agent: Agent, prompt: str, model: Optional[str] = None, type: Optional[ModelType] = None) -> str:
+    def generate_media(
+        self, agent: Agent, prompt: str, model: Optional[str] = None, type: Optional[ModelType] = None
+    ) -> str:
         """
         Use this function to run a model with a given prompt.
 
@@ -70,17 +74,15 @@ class FalTools(Toolkit):
             if type == ModelType.VIDEO:
                 video_url = result.get("video", {}).get("url", "")
                 data.append({"url": video_url})
-                result["data"] = data
-                agent.add_video(json.dumps(result))
-                return f"Video URL: {video_url}"
+                agent.add_video(Video(id=str(uuid4()), url=video_url))
+                return f"Media generated successfully at {video_url}"
             elif type == ModelType.IMAGE:
                 image_url = result.get("image", {}).get("url", "")
                 data.append({"url": image_url})
-                result["data"] = data
-                agent.add_image(json.dumps(result))
-                return f"Image URL: {image_url}"
+                agent.add_image(Image(id=str(uuid4()), url=image_url))
+                return f"Media generated successfully at {image_url}"
             else:
-                return str(result)
+                raise Exception("Model not supported")
         except Exception as e:
             logger.error(f"Failed to run model: {e}")
             return f"Error: {e}"

@@ -1,6 +1,6 @@
 from phi.agent import Agent
 from phi.llm.openai import OpenAIChat
-from phi.tools.lumalab import LumaLabToolkit
+from phi.tools.lumalab import LumaLabTools
 
 """Create an agent specialized for Luma AI video generation"""
 
@@ -8,7 +8,7 @@ luma_agent = Agent(
     name="Luma Video Agent",
     agent_id="luma-video-agent",
     llm=OpenAIChat(model="gpt-4o"),
-    tools=[LumaLabToolkit()],  # Using the LumaLab tool we created
+    tools=[LumaLabTools()],  # Using the LumaLab tool we created
     markdown=True,
     debug_mode=True,
     show_tool_calls=True,
@@ -23,11 +23,10 @@ luma_agent = Agent(
         "   - Required parameters: prompt, start_image_url",
         "   - Optional parameters: end_image_url, loop=False, aspect_ratio='16:9'",
         "   - The image URLs must be publicly accessible",
-        "After generating any video:",
-        "- Display the video URL in markdown format",
-        "- If generation is async (wait_for_completion=False), inform about the generation ID",
-        "- Clearly communicate any errors that occur",
         "Choose the appropriate function based on whether the user provides image URLs or just a text prompt.",
+        "The video will be displayed in the UI automatically below your response, so you don't need to show the video URL in your response.",
+        "Politely and courteously let the user know that the video has been generated and will be displayed below as soon as its ready.",
+        "After generating any video, if generation is async (wait_for_completion=False), inform about the generation ID",
     ],
     system_message=(
         "Use generate_video for text-to-video requests and image_to_video for image-based "

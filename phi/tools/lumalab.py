@@ -1,4 +1,5 @@
 import time
+import uuid
 from os import getenv
 from typing import Optional, Dict, Any, Literal, TypedDict
 
@@ -22,7 +23,7 @@ class KeyframeImage(TypedDict):
 Keyframes = Dict[str, KeyframeImage]
 
 
-class LumaLabToolkit(Toolkit):
+class LumaLabTools(Toolkit):
     def __init__(
         self,
         api_key: Optional[str] = None,
@@ -83,11 +84,10 @@ class LumaLabToolkit(Toolkit):
                 keyframes=keyframes,  # type: ignore
             )
 
+            video_id = str(uuid.uuid4())
+
             if not self.wait_for_completion:
-                if generation and generation.id:
-                    agent.add_video(Video(id=generation.id, url=None))
-                    return f"Video generation started with ID: {generation.id}"
-                return "Failed to start video generation: No generation ID received"
+                return "Async generation unsupported"
 
             # Poll for completion
             seconds_waited = 0
@@ -100,7 +100,7 @@ class LumaLabToolkit(Toolkit):
                 if generation.state == "completed" and generation.assets:
                     video_url = generation.assets.video
                     if video_url:
-                        agent.add_video(Video(id=generation.id, url=video_url, eta="completed"))
+                        agent.add_video(Video(id=video_id, url=video_url, eta="completed"))
                         return f"Video generated successfully: {video_url}"
                 elif generation.state == "failed":
                     return f"Generation failed: {generation.failure_reason}"
@@ -137,11 +137,9 @@ class LumaLabToolkit(Toolkit):
 
             generation = self.client.generations.create(**generation_params)  # type: ignore
 
+            video_id = str(uuid.uuid4())
             if not self.wait_for_completion:
-                if generation and generation.id:
-                    agent.add_video(Video(id=generation.id, url=None))
-                    return f"Video generation started with ID: {generation.id}"
-                return "Failed to start video generation: No generation ID received"
+                return "Async generation unsupported"
 
             # Poll for completion
             seconds_waited = 0
@@ -154,7 +152,7 @@ class LumaLabToolkit(Toolkit):
                 if generation.state == "completed" and generation.assets:
                     video_url = generation.assets.video
                     if video_url:
-                        agent.add_video(Video(id=generation.id, url=video_url, state="completed"))
+                        agent.add_video(Video(id=video_id, url=video_url, state="completed"))
                         return f"Video generated successfully: {video_url}"
                 elif generation.state == "failed":
                     return f"Generation failed: {generation.failure_reason}"

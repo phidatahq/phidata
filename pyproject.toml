@@ -145,6 +145,7 @@ module = [
   "pytz.*",
   "qdrant_client.*",
   "rapidocr_onnxruntime.*",
+  "replicate.*",
   "requests.*",
   "sentence_transformers.*",
   "serpapi.*",
@@ -168,3 +169,4 @@ module = [
   "youtube_transcript_api.*",
   "chonkie.*",
 ]
+ignore_missing_imports = true

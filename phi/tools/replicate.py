@@ -13,7 +13,7 @@ except ImportError:
     raise ImportError("`replicate` not installed. Please install using `pip install replicate`.")
 
 
-class ReplicateToolKit(Toolkit):
+class ReplicateToolkit(Toolkit):
     def __init__(
         self,
         model: str = "minimax/video-01",

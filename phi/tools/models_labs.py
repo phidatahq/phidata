@@ -4,7 +4,7 @@ from os import getenv
 from typing import Optional
 
 from phi.agent import Agent
-from phi.model.content import Video
+from phi.model.content import Video, Image
 from phi.tools import Toolkit
 from phi.utils.log import logger
 from enum import Enum
@@ -96,8 +96,10 @@ class ModelsLabs(Toolkit):
             logger.debug(f"Result: {result}")
             for video_url in video_url_links:
 
-                # Update the run response with the video URLs
-                agent.add_video(Video(id=str(video_id), url=video_url, eta=str(eta)))
+                if self.file_type == FileType.MP4:
+                    agent.add_video(Video(id=str(video_id), url=video_url, eta=str(eta)))
+                elif self.file_type == FileType.GIF:
+                    agent.add_image(Image(id=str(video_id), url=video_url, eta=str(eta)))
 
             if self.wait_for_completion and isinstance(eta, int):
                 video_ready = False

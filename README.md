@@ -21,7 +21,7 @@ Build multi-modal Agents with memory, knowledge and tools
 
 **Phidata is a framework for building multi-modal agents**, use phidata to:
 
-- **Build multi-modal agents with memory, knowledge and tools.** [examples](#web-search-agent)
+- **Build multi-modal agents with memory, knowledge, tools and reasoning.** [examples](#web-search-agent)
 - **Build teams of agents that can work together to solve complex problems.** [example](#team-of-agents)
 - **Chat with your agents using a beautiful Agent UI.** [example](#agent-ui)
 - **Monitor, evaluate and optimize your agents.** [example](#monitoring)
@@ -33,11 +33,11 @@ Build multi-modal Agents with memory, knowledge and tools
 pip install -U phidata
 ```
 
-## Agents
+## Examples & Key Features
 
-### Web Search Agent
+### Simple & Elegant
 
-Let's start by building a simple agent that can search the web using DuckDuckGo, create a file `web_search.py`
+Phidata Agents are simple and elegant, resulting in extraordinarily beautiful code. For example, you can create a web search agent using 10 lines of code, create a file `web_search.py`
 
 ```python
 from phi.agent import Agent
@@ -45,7 +45,6 @@ from phi.model.openai import OpenAIChat
 from phi.tools.duckduckgo import DuckDuckGo
 
 web_agent = Agent(
-    name="Web Agent",
     model=OpenAIChat(id="gpt-4o"),
     tools=[DuckDuckGo()],
     instructions=["Always include sources"],
@@ -65,9 +64,9 @@ export OPENAI_API_KEY=sk-xxxx
 python web_search.py
 ```
 
-### Finance Agent
+### Powerful & Flexible
 
-Lets create another agent that can query financial data, create a file `finance_agent.py`
+Phidata agents can use many tools and follow instructions to achieve complex tasks. For example, you can create a finance agent that can query financial data, create a file `finance_agent.py`
 
 ```python
 from phi.agent import Agent
@@ -93,9 +92,9 @@ pip install yfinance
 python finance_agent.py
 ```
 
-### Image Agent
+### Multi-Modal by default
 
-Lets create another agent that can understand images and make tool calls as needed, create a file `image_agent.py`
+Phidata agents support text, images, audio, video and more. For example, you can create an image agent that can understand images and make tool calls as needed, create a file `image_agent.py`
 
 ```python
 from phi.agent import Agent
@@ -123,9 +122,9 @@ Run the Agent:
 python image_agent.py
 ```
 
-## Team of Agents
+### Native support for Multi-Agent orchestration
 
-Now lets create a team of agents using the agents above, create a file `agent_team.py`
+Phidata agents can work together to achieve complex tasks. For example, you can create a team of agents that can work together to achieve a task, create a file `agent_team.py`
 
 ```python
 from phi.agent import Agent
@@ -170,9 +169,9 @@ Run the Agent team:
 python agent_team.py
 ```
 
-## Agentic RAG
+### Agentic RAG is the future
 
-Instead of always inserting the "context" into the prompt, the RAG Agent can search its knowledge base (vector db) for the specific information it needs to achieve its task.
+We were the first to pioneer Agentic RAG using our Auto-RAG paradigm. With Agentic RAG (or auto-rag), the Agent can search its knowledge base (vector db) for the specific information it needs to achieve its task, instead of always inserting the "context" into the prompt.
 
 This saves tokens and improves response quality. Create a file `rag_agent.py`
 
@@ -215,7 +214,7 @@ pip install lancedb tantivy pypdf sqlalchemy
 python rag_agent.py
 ```
 
-## Agent UI
+### A beautiful Agent UI to chat with your agents
 
 Phidata provides a beautiful UI for interacting with your agents. Let's take it for a spin, create a file `playground.py`
 
@@ -282,6 +281,39 @@ python playground.py
   src="https://github.com/user-attachments/assets/3a2ff93c-3d2d-4f1a-9573-eee25542e5c4"
   style="border-radius: 8px;"
 />
+
+### Reasoning Agents (experimental)
+
+Reasoning helps agents work through a problem step-by-step, backtracking and correcting as needed. Create a file `reasoning_agent.py`.
+
+```python
+from phi.agent import Agent
+from phi.model.openai import OpenAIChat
+
+task = (
+    "Three missionaries and three cannibals need to cross a river. "
+    "They have a boat that can carry up to two people at a time. "
+    "If, at any time, the cannibals outnumber the missionaries on either side of the river, the cannibals will eat the missionaries. "
+    "How can all six people get across the river safely? Provide a step-by-step solution and show the solutions as an ascii diagram"
+)
+
+reasoning_agent = Agent(model=OpenAIChat(id="gpt-4o"), reasoning=True, markdown=True, structured_outputs=True)
+reasoning_agent.print_response(task, stream=True, show_full_reasoning=True)
+```
+
+Run the Reasoning Agent:
+
+```shell
+python reasoning_agent.py
+```
+
+> [!WARNING]
+> Reasoning is an experimental feature and will break ~20% of the time. **It is not a replacement for o1.**
+>
+> It is an experiment fueled by curiosity, combining COT and tool use. Set your expectations very low for this initial release. For example: It will not be able to count ‘r’s in ‘strawberry’.
+
+> [!TIP]
+> If using tools with `reasoning=True`, set `structured_outputs=False` because gpt-4o doesnt support tools with structured outputs.
 
 ## Demo Agents
 

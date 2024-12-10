@@ -35,6 +35,16 @@ pip install -U phidata
 
 # Examples & Key Features
 
+- [Simple & Elegant](#simple-elegant)
+- [Powerful & Flexible](#powerful-flexible)
+- [Multi-Modal by default](#multi-modal-by-default)
+- [Multi-Agent orchestration](#multi-agent-orchestration)
+- [Agentic RAG](#agentic-rag)
+- [A beautiful Agent UI](#a-beautiful-agent-ui)
+- [Reasoning Agents](#reasoning-agents)
+- [Monitoring & Debugging built-in](#monitoring-debugging)
+- [Demo Agents](#demo-agents)
+
 ## Simple & Elegant
 
 Phidata Agents are simple and elegant, resulting in minimal, beautiful code. For example, you can create a web search agent using 10 lines of code, create a file `web_search.py`

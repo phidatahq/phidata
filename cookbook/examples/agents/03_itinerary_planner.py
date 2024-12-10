@@ -18,4 +18,4 @@ itinerary_agent = Agent(
     ],
 )
 
-itinerary_agent.print_response("I want to plan an offsite for 14 people in a place like London within 250 dollars. Please suggest options for places to stay, activities, and co working spaces ", stream=True)
+itinerary_agent.print_response("I want to plan an offsite for 14 people for 3 days (28th-30th March) in London within 10k dollars. Please suggest options for places to stay, activities, and co working spaces and a detailed itinerary for the 3 days with transportation and activities", stream=True)

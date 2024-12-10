@@ -17,7 +17,7 @@ Build multi-modal Agents with memory, knowledge, tools and reasoning
   style="border-radius: 8px;"
 />
 
-## What is phidata?
+# What is phidata?
 
 **Phidata is a framework for building multi-modal agents**, use phidata to:
 
@@ -27,15 +27,15 @@ Build multi-modal Agents with memory, knowledge, tools and reasoning
 - **Monitor, evaluate and optimize your agents.** [example](#monitoring)
 - **Build agentic systems i.e. applications with an API, database and vectordb.**
 
-## Install
+# Install
 
 ```shell
 pip install -U phidata
 ```
 
-## Examples & Key Features
+# Examples & Key Features
 
-### Simple & Elegant
+## Simple & Elegant
 
 Phidata Agents are simple and elegant, resulting in minimal, beautiful code. For example, you can create a web search agent using 10 lines of code, create a file `web_search.py`
 
@@ -64,7 +64,7 @@ export OPENAI_API_KEY=sk-xxxx
 python web_search.py
 ```
 
-### Powerful & Flexible
+## Powerful & Flexible
 
 Phidata agents can use many tools and follow instructions to achieve complex tasks. For example, you can create a finance agent that can query financial data, create a file `finance_agent.py`
 
@@ -92,7 +92,7 @@ pip install yfinance
 python finance_agent.py
 ```
 
-### Multi-Modal by default
+## Multi-Modal by default
 
 Phidata agents support text, images, audio, video and more. For example, you can create an image agent that can understand images and make tool calls as needed, create a file `image_agent.py`
 
@@ -122,7 +122,7 @@ Run the Agent:
 python image_agent.py
 ```
 
-### Native support for Multi-Agent orchestration
+## Native support for Multi-Agent orchestration
 
 Phidata agents can work together to achieve complex tasks. For example, you can create a team of agents that can work together to achieve a task, create a file `agent_team.py`
 
@@ -169,7 +169,7 @@ Run the Agent team:
 python agent_team.py
 ```
 
-### Agentic RAG is the future
+## Agentic RAG is the future
 
 We were the first to pioneer Agentic RAG using our Auto-RAG paradigm. With Agentic RAG (or auto-rag), the Agent can search its knowledge base (vector db) for the specific information it needs to achieve its task, instead of always inserting the "context" into the prompt.
 
@@ -214,7 +214,7 @@ pip install lancedb tantivy pypdf sqlalchemy
 python rag_agent.py
 ```
 
-### A beautiful Agent UI to chat with your agents
+## A beautiful Agent UI to chat with your agents
 
 Phidata provides a beautiful UI for interacting with your agents. Let's take it for a spin, create a file `playground.py`
 
@@ -282,7 +282,7 @@ python playground.py
   style="border-radius: 8px;"
 />
 
-### Reasoning Agents (experimental)
+## Reasoning Agents (experimental)
 
 Reasoning helps agents work through a problem step-by-step, backtracking and correcting as needed. Create a file `reasoning_agent.py`.
 

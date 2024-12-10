@@ -31,7 +31,7 @@ Build multi-modal Agents with memory, knowledge, tools and reasoning.
 pip install -U phidata
 ```
 
-## Examples & Key Features
+## Key Features
 
 - [Simple & Elegant](#simple--elegant)
 - [Powerful & Flexible](#powerful--flexible)

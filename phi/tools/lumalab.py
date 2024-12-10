@@ -85,7 +85,7 @@ class LumaLabToolkit(Toolkit):
 
             if not self.wait_for_completion:
                 if generation and generation.id:
-                    agent.add_video(Video(id=generation.id))
+                    agent.add_video(Video(id=generation.id, url=None))
                     return f"Video generation started with ID: {generation.id}"
                 return "Failed to start video generation: No generation ID received"
 
@@ -139,7 +139,7 @@ class LumaLabToolkit(Toolkit):
 
             if not self.wait_for_completion:
                 if generation and generation.id:
-                    agent.add_video(Video(id=generation.id))
+                    agent.add_video(Video(id=generation.id, url=None))
                     return f"Video generation started with ID: {generation.id}"
                 return "Failed to start video generation: No generation ID received"
 

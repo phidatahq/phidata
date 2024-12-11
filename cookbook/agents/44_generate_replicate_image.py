@@ -4,7 +4,7 @@ from phi.tools.replicate import ReplicateTools
 
 """Create an agent specialized for Replicate AI content generation"""
 
-video_agent = Agent(
+image_agent = Agent(
     name="Image Generator Agent",
     model=OpenAIChat(id="gpt-4o"),
     tools=[ReplicateTools(model="luma/photon-flash")],
@@ -19,4 +19,4 @@ video_agent = Agent(
     show_tool_calls=True,
 )
 
-video_agent.print_response("Generate an image of a horse in the dessert.")
+image_agent.print_response("Generate an image of a horse in the dessert.")

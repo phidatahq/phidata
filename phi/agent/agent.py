@@ -589,7 +589,6 @@ class Agent(BaseModel):
 
     def get_agent_session(self) -> AgentSession:
         """Get an AgentSession object, which can be saved to the database"""
-
         return AgentSession(
             session_id=self.session_id,
             agent_id=self.agent_id,

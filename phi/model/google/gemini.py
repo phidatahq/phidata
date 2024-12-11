@@ -426,7 +426,14 @@ class Gemini(Model):
                 function_response = genai.protos.Part(
                     function_response=genai.protos.FunctionResponse(name=result.tool_name, response=s)
                 )
+<<<<<<< Updated upstream
                 messages.append(Message(role="tool", content=result.content, parts=[function_response]))
+=======
+                combined_content.append(result.content)
+                combined_parts.append(function_response)
+
+            messages.append(Message(role="tool", content="\n".join(combined_content), parts=combined_parts))  # type: ignore
+>>>>>>> Stashed changes
 
     def _handle_tool_calls(self, assistant_message: Message, messages: List[Message], model_response: ModelResponse):
         """

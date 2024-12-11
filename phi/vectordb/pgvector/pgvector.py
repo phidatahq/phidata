@@ -497,6 +497,7 @@ class PgVector(VectorDb):
             # Process the results and convert to Document objects
             search_results: List[Document] = []
             for result in results:
+                result.meta_data["search_type"] = self.search_type
                 search_results.append(
                     Document(
                         id=result.id,
@@ -593,6 +594,7 @@ class PgVector(VectorDb):
             # Process the results and convert to Document objects
             search_results: List[Document] = []
             for result in results:
+                result.meta_data["search_type"] = self.search_type
                 search_results.append(
                     Document(
                         id=result.id,
@@ -716,6 +718,7 @@ class PgVector(VectorDb):
             # Process the results and convert to Document objects
             search_results: List[Document] = []
             for result in results:
+                result.meta_data["search_type"] = self.search_type
                 search_results.append(
                     Document(
                         id=result.id,

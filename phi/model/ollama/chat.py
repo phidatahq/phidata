@@ -445,7 +445,7 @@ class Ollama(Model):
             ):
                 parsed_object = self.response_format.model_validate_json(response.get("message", {}).get("content", ""))
                 if parsed_object is not None:
-                    model_response.parsed = parsed_object
+                    model_response.parsed = parsed_object.model_dump_json()
         except Exception as e:
             logger.warning(f"Error parsing structured outputs: {e}")
 
@@ -508,7 +508,7 @@ class Ollama(Model):
             ):
                 parsed_object = self.response_format.model_validate_json(response.get("message", {}).get("content", ""))
                 if parsed_object is not None:
-                    model_response.parsed = parsed_object
+                    model_response.parsed = parsed_object.model_dump_json()
         except Exception as e:
             logger.warning(f"Error parsing structured outputs: {e}")
 

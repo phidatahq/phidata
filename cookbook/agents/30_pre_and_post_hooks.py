@@ -6,16 +6,16 @@ from phi.agent import Agent
 from phi.tools import tool, FunctionCall
 
 
-def pre_hook(function_call: FunctionCall):
-    print(f"Pre-hook: {function_call.function.name}")
-    print(f"Arguments: {function_call.arguments}")
-    print(f"Result: {function_call.result}")
+def pre_hook(fc: FunctionCall):
+    print(f"Pre-hook: {fc.function.name}")
+    print(f"Arguments: {fc.arguments}")
+    print(f"Result: {fc.result}")
 
 
-def post_hook(function_call: FunctionCall):
-    print(f"Post-hook: {function_call.function.name}")
-    print(f"Arguments: {function_call.arguments}")
-    print(f"Result: {function_call.result}")
+def post_hook(fc: FunctionCall):
+    print(f"Post-hook: {fc.function.name}")
+    print(f"Arguments: {fc.arguments}")
+    print(f"Result: {fc.result}")
 
 
 @tool(pre_hook=pre_hook, post_hook=post_hook)

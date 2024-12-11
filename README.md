@@ -9,7 +9,7 @@
 </p>
 
 <h3 align="center">
-Build multi-modal Agents with memory, knowledge, tools and reasoning
+Build multi-modal Agents with memory, knowledge, tools and reasoning.
 </h3>
 
 <img
@@ -17,9 +17,13 @@ Build multi-modal Agents with memory, knowledge, tools and reasoning
   style="border-radius: 8px;"
 />
 
-# What is phidata?
+## What is phidata?
 
-**Phidata is a framework for building multi-modal agents with memory, knowledge, tools and reasoning.**
+**Phidata is a framework for building multi-modal agents**, use phidata to:
+
+- **Build multi-modal agents with memory, knowledge, tools and reasoning.**
+- **Build teams of agents that can work together to solve problems.**
+- **Chat with your agents using a beautiful Agent UI.**
 
 ## Install
 
@@ -27,7 +31,7 @@ Build multi-modal Agents with memory, knowledge, tools and reasoning
 pip install -U phidata
 ```
 
-# Key Features
+## Key Features
 
 - [Simple & Elegant](#simple--elegant)
 - [Powerful & Flexible](#powerful--flexible)
@@ -42,7 +46,9 @@ pip install -U phidata
 
 ## Simple & Elegant
 
-Phidata Agents are simple and elegant, resulting in minimal, beautiful code. For example, you can create a web search agent using 10 lines of code, create a file `web_search.py`
+Phidata Agents are simple and elegant, resulting in minimal, beautiful code.
+
+For example, you can create a web search agent in 10 lines of code, create a file `web_search.py`
 
 ```python
 from phi.agent import Agent
@@ -71,7 +77,9 @@ python web_search.py
 
 ## Powerful & Flexible
 
-Phidata agents can use multiple tools and follow instructions to achieve complex tasks. For example, you can create a finance agent that can query financial data, create a file `finance_agent.py`
+Phidata agents can use multiple tools and follow instructions to achieve complex tasks.
+
+For example, you can create a finance agent with tools to query financial data, create a file `finance_agent.py`
 
 ```python
 from phi.agent import Agent
@@ -99,7 +107,9 @@ python finance_agent.py
 
 ## Multi-Modal by default
 
-Phidata agents support text, images, audio and video. For example, you can create an image agent that can understand images and make tool calls as needed, create a file `image_agent.py`
+Phidata agents support text, images, audio and video.
+
+For example, you can create an image agent that can understand images and make tool calls as needed, create a file `image_agent.py`
 
 ```python
 from phi.agent import Agent
@@ -215,14 +225,18 @@ if __name__ == "__main__":
     serve_playground_app("playground:app", reload=True)
 ```
 
-Authenticate with phidata:
 
-```
+Authenticate with phidata by running the following command:
+
+```shell
 phi auth
 ```
 
-> [!NOTE]
-> If `phi auth` fails, you can set the `PHI_API_KEY` environment variable by copying it from [phidata.app](https://www.phidata.app)
+or by exporting the `PHI_API_KEY` for your workspace from [phidata.app](https://www.phidata.app)
+
+```bash
+export PHI_API_KEY=phi-***
+```
 
 Install dependencies and run the Agent Playground:
 
@@ -372,9 +386,6 @@ python reasoning_agent.py
 > Reasoning is an experimental feature and will break ~20% of the time. **It is not a replacement for o1.**
 >
 > It is an experiment fueled by curiosity, combining COT and tool use. Set your expectations very low for this initial release. For example: It will not be able to count ‘r’s in ‘strawberry’.
-
-> [!TIP]
-> If using tools with `reasoning=True`, set `structured_outputs=False` because gpt-4o doesnt support tools with structured outputs.
 
 ## Demo Agents
 

@@ -14,7 +14,6 @@ from phi.model.response import FileType
 from phi.playground import Playground, serve_playground_app
 from phi.storage.agent.sqlite import SqlAgentStorage
 from phi.tools.fal_tools import FalTools
-from pydantic import BaseModel, Field
 
 image_agent_storage_file: str = "tmp/image_agent.db"
 
@@ -26,7 +25,7 @@ image_agent = Agent(
     description="You are an AI agent that can generate images using DALL-E.",
     instructions=[
         "When the user asks you to create an image, use the `create_image` tool to create the image.",
-        "Don't provide the URL of the image in the response. Only describe what image was generated."
+        "Don't provide the URL of the image in the response. Only describe what image was generated.",
     ],
     markdown=True,
     debug_mode=True,
@@ -43,7 +42,7 @@ ml_gif_agent = Agent(
     description="You are an AI agent that can generate gifs using the ModelsLabs API.",
     instructions=[
         "When the user asks you to create an image, use the `generate_media` tool to create the image.",
-        "Don't provide the URL of the image in the response. Only describe what image was generated."
+        "Don't provide the URL of the image in the response. Only describe what image was generated.",
     ],
     markdown=True,
     debug_mode=True,
@@ -60,7 +59,7 @@ ml_video_agent = Agent(
     description="You are an AI agent that can generate videos using the ModelsLabs API.",
     instructions=[
         "When the user asks you to create a video, use the `generate_media` tool to create the video.",
-        "Don't provide the URL of the video in the response. Only describe what video was generated."
+        "Don't provide the URL of the video in the response. Only describe what video was generated.",
     ],
     markdown=True,
     debug_mode=True,
@@ -77,7 +76,7 @@ fal_agent = Agent(
     description="You are an AI agent that can generate videos using the Fal API.",
     instructions=[
         "When the user asks you to create a video, use the `generate_media` tool to create the video.",
-        "Don't provide the URL of the video in the response. Only describe what video was generated."
+        "Don't provide the URL of the video in the response. Only describe what video was generated.",
     ],
     markdown=True,
     debug_mode=True,

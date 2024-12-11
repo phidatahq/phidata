@@ -32,7 +32,7 @@ from phi.model.content import Image, Video
 from phi.reasoning.step import ReasoningStep, ReasoningSteps, NextAction
 from phi.run.response import RunEvent, RunResponse, RunResponseExtraData
 from phi.knowledge.agent import AgentKnowledge
-from phi.model import Model
+from phi.model.base import Model
 from phi.model.message import Message, MessageReferences
 from phi.model.response import ModelResponse, ModelResponseEvent
 from phi.memory.agent import AgentMemory, MemoryRetrieval, Memory, AgentRun, SessionSummary  # noqa: F401

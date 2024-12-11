@@ -48,3 +48,21 @@ class CSVReader(Reader):
         except Exception as e:
             logger.error(f"Error reading: {file.name if isinstance(file, IO) else file}: {e}")
             return []
+
+
+class CSVUrlReader(Reader):
+    """Reader for CSV files"""
+
+    def read(self, url: str) -> List[Document]:
+        if not url:
+            raise ValueError("No URL provided")
+
+        try:
+            import httpx
+        except ImportError:
+            raise ImportError("`httpx` not installed")
+        
+        logger.info(f"Reading: {url}")
+        response = httpx.get(url)
+        
+        return CSVReader().read(file=io.StringIO(response.text))

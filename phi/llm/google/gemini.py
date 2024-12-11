@@ -132,10 +132,10 @@ class Gemini(LLM):
         return kwargs
 
     def invoke(self, messages: List[Message]):
-        return self.client.generate_media(contents=self.conform_messages_to_gemini(messages))
+        return self.client.generate_content(contents=self.conform_messages_to_gemini(messages))
 
     def invoke_stream(self, messages: List[Message]):
-        yield from self.client.generate_media(
+        yield from self.client.generate_content(
             contents=self.conform_messages_to_gemini(messages),
             stream=True,
         )

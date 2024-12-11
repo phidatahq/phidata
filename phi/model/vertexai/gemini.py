@@ -258,7 +258,7 @@ class Gemini(Model):
         Returns:
             GenerationResponse object containing the response content
         """
-        return self.get_client().generate_media(contents=self._format_messages(messages))
+        return self.get_client().generate_content(contents=self._format_messages(messages))
 
     def invoke_stream(self, messages: List[Message]) -> Iterator[GenerationResponse]:
         """
@@ -270,7 +270,7 @@ class Gemini(Model):
         Returns:
             Iterator[GenerationResponse] object containing the response content
         """
-        yield from self.get_client().generate_media(
+        yield from self.get_client().generate_content(
             contents=self._format_messages(messages),
             stream=True,
         )

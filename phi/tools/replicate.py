@@ -15,7 +15,7 @@ except ImportError:
     raise ImportError("`replicate` not installed. Please install using `pip install replicate`.")
 
 
-class ReplicateToolkit(Toolkit):
+class ReplicateTools(Toolkit):
     def __init__(
         self,
         model: str = "minimax/video-01",
@@ -44,8 +44,8 @@ class ReplicateToolkit(Toolkit):
         ext = ext.lower()
 
         # Define supported extensions
-        image_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff', '.webp'}
-        video_extensions = {'.mp4', '.mov', '.avi', '.mkv', '.flv', '.wmv', '.webm'}
+        image_extensions = {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".tiff", ".webp"}
+        video_extensions = {".mp4", ".mov", ".avi", ".mkv", ".flv", ".wmv", ".webm"}
 
         media_id = str(uuid4())
 

@@ -420,13 +420,25 @@ class Gemini(Model):
             messages (List[Message]): The list of conversation messages.
         """
         if function_call_results:
+            combined_content = []  # Use a list to collect all result contents
+            combined_parts = []  # Use a list to collect all function responses
+
             for result in function_call_results:
                 s = Struct()
                 s.update({"result": [result.content]})
                 function_response = genai.protos.Part(
                     function_response=genai.protos.FunctionResponse(name=result.tool_name, response=s)
                 )
-                messages.append(Message(role="tool", content=result.content, parts=[function_response]))
+                combined_content.append(result.content)
+                combined_parts.append(function_response)
+
+            messages.append(
+                Message(
+                    role="tool",
+                    content="\n".join(combined_content),
+                    parts=combined_parts
+                )
+            )
 
     def _handle_tool_calls(self, assistant_message: Message, messages: List[Message], model_response: ModelResponse):
         """

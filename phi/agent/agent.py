@@ -2645,7 +2645,7 @@ class Agent(BaseModel):
             run_data.update(
                 {
                     "run_input": self.run_input,
-                    "run_response": self.run_response,
+                    "run_response": self.run_response.to_dict(),
                     "run_response_format": run_response_format,
                 }
             )

@@ -2,8 +2,11 @@ import time
 import json
 from os import getenv
 from typing import Optional
+from uuid import uuid4
 
 from phi.agent import Agent
+from phi.model.content import Video, Image
+from phi.model.response import FileType
 from phi.tools import Toolkit
 from phi.utils.log import logger
 
@@ -25,6 +28,7 @@ class ModelsLabs(Toolkit):
         add_to_eta: int = 15,
         # Maximum time to wait for the video to be ready
         max_wait_time: int = 60,
+        file_type: FileType = FileType.MP4,
     ):
         super().__init__(name="models_labs")
 
@@ -33,13 +37,14 @@ class ModelsLabs(Toolkit):
         self.wait_for_completion = wait_for_completion
         self.add_to_eta = add_to_eta
         self.max_wait_time = max_wait_time
+        self.file_type = file_type
         self.api_key = api_key or getenv("MODELS_LAB_API_KEY")
         if not self.api_key:
             logger.error("MODELS_LAB_API_KEY not set. Please set the MODELS_LAB_API_KEY environment variable.")
 
-        self.register(self.generate_video)
+        self.register(self.generate_media)
 
-    def generate_video(self, agent: Agent, prompt: str) -> str:
+    def generate_media(self, agent: Agent, prompt: str) -> str:
         """Use this function to generate a video given a prompt.
 
         Args:
@@ -60,7 +65,7 @@ class ModelsLabs(Toolkit):
                     "width": 512,
                     "num_frames": 25,
                     "webhook": None,
-                    "output_type": "gif",
+                    "output_type": self.file_type.value,
                     "track_id": None,
                     "negative_prompt": "low quality",
                     "model_id": "cogvideox",
@@ -79,25 +84,18 @@ class ModelsLabs(Toolkit):
                 return f"Error: {result['error']}"
 
             eta = result["eta"]
-            video_url_links = result["future_links"]
-            video_id = result["id"]
-            logger.info(f"Video will be ready in {eta} seconds")
-            logger.info(f"Video URLs: {video_url_links}")
+            url_links = result["future_links"]
+            logger.info(f"Media will be ready in {eta} seconds")
+            logger.info(f"Media URLs: {url_links}")
 
-            video_data = []
-            for video_url in video_url_links:
-                video_data.append(
-                    {
-                        "eta": eta,
-                        "video_id": video_id,
-                        "url": video_url,
-                    }
-                )
-            result["data"] = video_data
+            video_id = str(uuid4())
+
             logger.debug(f"Result: {result}")
-
-            # Update the run response with the image URLs
-            agent.add_video(json.dumps(result))
+            for media_url in url_links:
+                if self.file_type == FileType.MP4:
+                    agent.add_video(Video(id=str(video_id), url=media_url, eta=str(eta)))
+                elif self.file_type == FileType.GIF:
+                    agent.add_image(Image(id=str(video_id), url=media_url))
 
             if self.wait_for_completion and isinstance(eta, int):
                 video_ready = False

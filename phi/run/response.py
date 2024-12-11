@@ -1,9 +1,10 @@
 from time import time
 from enum import Enum
-from typing import Optional, Any, Dict, List, Union
+from typing import Optional, Any, Dict, List
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from phi.model.content import Video, Image
 from phi.reasoning.step import ReasoningStep
 from phi.model.message import Message, MessageReferences
 
@@ -48,8 +49,8 @@ class RunResponse(BaseModel):
     session_id: Optional[str] = None
     workflow_id: Optional[str] = None
     tools: Optional[List[Dict[str, Any]]] = None
-    images: Optional[List[Union[str, Dict[str, Any]]]] = None
-    videos: Optional[List[Union[str, Dict[str, Any]]]] = None
+    images: Optional[List[Image]] = None
+    videos: Optional[List[Video]] = None
     audio: Optional[Dict] = None
     extra_data: Optional[RunResponseExtraData] = None
     created_at: int = Field(default_factory=lambda: int(time()))

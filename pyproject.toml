@@ -89,6 +89,7 @@ exclude = ["phienv*", "aienv*"]
 check_untyped_defs = true
 no_implicit_optional = true
 warn_unused_configs = true
+ignore_missing_imports = true
 plugins = ["pydantic.mypy"]
 exclude = ["phienv*", "aienv*", "scratch*", "wip*", "tmp*", "cookbook/assistants/examples/*", "phi/assistant/openai/*"]
 
@@ -145,6 +146,7 @@ module = [
   "pytz.*",
   "qdrant_client.*",
   "rapidocr_onnxruntime.*",
+  "replicate.*",
   "requests.*",
   "sentence_transformers.*",
   "serpapi.*",

@@ -159,7 +159,6 @@ class Gemini(Model):
             message_for_model["parts"] = parts
 
             # Add images to the message for the model
-            images_added = False
             if message.images is not None and message.role == "user":
                 import httpx
                 import base64
@@ -173,7 +172,7 @@ class Gemini(Model):
                                 "mime_type": "image/jpeg",
                                 "data": base64.b64encode(image_content).decode("utf-8"),
                             }
-                            message_for_model["parts"].append(image_data)
+                            message_for_model["parts"].append(image_data)  # type: ignore
                         except Exception as e:
                             logger.warning(f"Failed to download image from {image}: {e}")
                             continue

@@ -553,8 +553,13 @@ def get_async_playground_router(
         if workflow is None:
             raise HTTPException(status_code=404, detail="Workflow not found")
 
+        if body.session_id is not None:
+            logger.debug(f"Continuing session: {body.session_id}")
+        else:
+            logger.debug("Creating new session")
+
         # Create a new instance of this workflow
-        new_workflow_instance = workflow.deep_copy(update={"workflow_id": workflow_id})
+        new_workflow_instance = workflow.deep_copy(update={"workflow_id": workflow_id, "session_id": body.session_id})
         new_workflow_instance.user_id = body.user_id
 
         # Return based on the response type

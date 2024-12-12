@@ -258,8 +258,8 @@ class Gemini(Model):
                     continue
 
             if message.audio is not None and message.role == "user":
-                for audio in message.audio:
-                    try:
+                try:
+                    for audio in message.audio:
                         # Case 1: Audio is a file_types.File object (Recommended)
                         # Add it as a File object
                         if isinstance(audio, file_types.File):
@@ -283,9 +283,9 @@ class Gemini(Model):
                         elif isinstance(audio, bytes):
                             audio_file = {"mime_type": "audio/mp3", "data": audio}
                             message_parts.insert(0, audio_file)  # type: ignore
-                    except Exception as e:
-                        logger.warning(f"Failed to load video from {message.videos}: {e}")
-                        continue
+                except Exception as e:
+                    logger.warning(f"Failed to load video from {message.videos}: {e}")
+                    continue
 
             message_for_model["parts"] = message_parts
             formatted_messages.append(message_for_model)

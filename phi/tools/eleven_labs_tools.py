@@ -19,7 +19,7 @@ class ElevenLabsTools(Toolkit):
     def __init__(
         self,
         api_key: Optional[str] = None,
-        save_path: str = "audio_generations",
+        target_directory: str = "audio_generations",
         voice_id: str = "21m00Tcm4TlvDq8ikWAM",
         model_id: str = "eleven_multilingual_v2",
         output_format: str = "mp3_44100_64",

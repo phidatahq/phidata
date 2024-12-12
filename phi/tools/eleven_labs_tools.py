@@ -38,6 +38,7 @@ class ElevenLabsTools(Toolkit):
         if not path.exists(self.target_directory):
             makedirs(self.target_directory, exist_ok=True)
 
+        self.client = ElevenLabs(api_key=self.api_key)
         self.register(self.generate_audio)
 
     def generate_audio(self, agent: Agent, prompt: str) -> str:
@@ -49,10 +50,8 @@ class ElevenLabsTools(Toolkit):
         Returns:
             str: Return the path to the generated audio file.
         """
-        client = ElevenLabs(api_key=self.api_key)
-
         try:
-            audio_generator = client.text_to_speech.convert(
+            audio_generator = self.client.text_to_speech.convert(
                 voice_id=self.voice_id,
                 model_id=self.model_id,
                 text=prompt,

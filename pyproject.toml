@@ -1,6 +1,6 @@
 [project]
 name = "phidata"
-version = "2.7.1"
+version = "2.7.2"
 description = "Build multi-modal Agents with memory, knowledge and tools."
 requires-python = ">=3.7"
 readme = "README.md"

@@ -147,7 +147,7 @@ class Gemini(Model):
 
             # Add content to the message for the model
             content = message.content
-            if not content or message.role == "tool":
+            if not content or message.role in ["tool", "model"]:
                 parts = message.parts  # type: ignore
             else:
                 if isinstance(content, str):
@@ -157,6 +157,96 @@ class Gemini(Model):
                 else:
                     parts = [" "]
             message_for_model["parts"] = parts
+
+            # Add images to the message for the model
+            if message.images is not None and message.role == "user":
+                for image in message.images:
+                    if isinstance(image, str):
+                        # Case 1: Image is a URL
+                        if image.startswith("http://") or image.startswith("https://"):
+                            try:
+                                import httpx
+                                import base64
+
+                                image_content = httpx.get(image).content
+                                image_data = {
+                                    "mime_type": "image/jpeg",
+                                    "data": base64.b64encode(image_content).decode("utf-8"),
+                                }
+                                message_for_model["parts"].append(image_data)  # type: ignore
+                            except Exception as e:
+                                logger.warning(f"Failed to download image from {image}: {e}")
+                                continue
+                        # Case 2: Image is a path
+                        else:
+                            try:
+                                from os.path import exists, isfile
+                                import PIL.Image
+                            except ImportError:
+                                logger.error("`PIL.Image not installed. Please install it using 'pip install pillow'`")
+                                raise
+
+                            try:
+                                if exists(image) and isfile(image):
+                                    image_data = PIL.Image.open(image)  # type: ignore
+                                else:
+                                    logger.error(f"Image file {image} does not exist.")
+                                    raise
+                                message_for_model["parts"].append(image_data)  # type: ignore
+                            except Exception as e:
+                                logger.warning(f"Failed to load image from {image}: {e}")
+                                continue
+
+                    elif isinstance(image, bytes):
+                        image_data = {"mime_type": "image/jpeg", "data": base64.b64encode(image).decode("utf-8")}
+                        message_for_model["parts"].append(image_data)
+
+            if message.videos is not None and message.role == "user":
+                try:
+                    for video in message.videos:
+                        import time
+                        from os.path import exists, isfile
+
+                        video_file = None
+                        if exists(video) and isfile(video):  # type: ignore
+                            video_file = genai.upload_file(path=video)
+                        else:
+                            logger.error(f"Video file {video} does not exist.")
+                            raise
+
+                        # Check whether the file is ready to be used.
+                        while video_file.state.name == "PROCESSING":
+                            time.sleep(10)
+                            video_file = genai.get_file(video_file.name)
+
+                        if video_file.state.name == "FAILED":
+                            raise ValueError(video_file.state.name)
+
+                        message_for_model["parts"].insert(0, video_file)  # type: ignore
+
+                except Exception as e:
+                    logger.warning(f"Failed to load video from {message.videos}: {e}")
+                    continue
+
+            if message.audio is not None and message.role == "user":
+                try:
+                    from pathlib import Path
+                    from os.path import exists, isfile
+
+                    audio = message.audio.get("data")
+                    if audio:
+                        audio_file = None
+                        if exists(audio) and isfile(audio):
+                            audio_file = {"mime_type": "audio/mp3", "data": Path(audio).read_bytes()}
+                        else:
+                            logger.error(f"Audio file {audio} does not exist.")
+                            raise
+                        message_for_model["parts"].insert(0, audio_file)  # type: ignore
+
+                except Exception as e:
+                    logger.warning(f"Failed to load video from {message.videos}: {e}")
+                    continue
+
             formatted_messages.append(message_for_model)
         return formatted_messages
 
@@ -418,8 +508,8 @@ class Gemini(Model):
             messages (List[Message]): The list of conversation messages.
         """
         if function_call_results:
-            combined_content = []  # Use a list to collect all result contents
-            combined_parts = []  # Use a list to collect all function responses
+            combined_content: List = []
+            combined_parts: List = []
 
             for result in function_call_results:
                 s = Struct()
@@ -429,7 +519,7 @@ class Gemini(Model):
                 )
                 combined_content.append(result.content)
                 combined_parts.append(function_response)
-            messages.append(Message(role="tool", content="\n".join(combined_content), parts=combined_parts))  # type: ignore
+            messages.append(Message(role="tool", content=combined_content, parts=combined_parts))
 
     def handle_tool_calls(self, assistant_message: Message, messages: List[Message], model_response: ModelResponse):
         """

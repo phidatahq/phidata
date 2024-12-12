@@ -113,6 +113,7 @@ class Message(BaseModel):
         if self.videos:
             _logger(f"Number of Videos: {len(self.videos)}")
         if self.audio:
+            _logger(f"Number of Audio Files: {len(self.audio)}")
             if "id" in self.audio:
                 _logger(f"Audio ID: {self.audio['id']}")
             elif "data" in self.audio:

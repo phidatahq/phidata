@@ -57,6 +57,15 @@ class RunResponse(BaseModel):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
+    def to_dict(self) -> Dict[str, Any]:
+        _dict = self.model_dump(
+            exclude_none=True,
+            exclude={"messages"},
+        )
+        if self.messages is not None:
+            _dict["messages"] = [m.to_dict() for m in self.messages]
+        return _dict
+
     def get_content_as_string(self, **kwargs) -> str:
         import json
 

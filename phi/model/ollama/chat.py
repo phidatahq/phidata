@@ -157,7 +157,7 @@ class Ollama(Model):
             model_dict["request_params"] = self.request_params
         return model_dict
 
-    def process_message(self, message: Message) -> Dict[str, Any]:
+    def format_message(self, message: Message) -> Dict[str, Any]:
         """
         Format a message into the format expected by Ollama.
 
@@ -171,8 +171,9 @@ class Ollama(Model):
             "role": message.role,
             "content": message.content,
         }
-        if message.images is not None:
-            _message["images"] = message.images
+        if message.role == "user":
+            if message.images is not None:
+                _message["images"] = message.images
         return _message
 
     def invoke(self, messages: List[Message]) -> Mapping[str, Any]:
@@ -195,7 +196,7 @@ class Ollama(Model):
 
         return self.get_client().chat(
             model=self.id,
-            messages=[self.process_message(m) for m in messages],  # type: ignore
+            messages=[self.format_message(m) for m in messages],  # type: ignore
             **request_kwargs,
         )  # type: ignore
 
@@ -219,7 +220,7 @@ class Ollama(Model):
 
         return await self.get_async_client().chat(
             model=self.id,
-            messages=[self.process_message(m) for m in messages],  # type: ignore
+            messages=[self.format_message(m) for m in messages],  # type: ignore
             **request_kwargs,
         )  # type: ignore
 
@@ -235,7 +236,7 @@ class Ollama(Model):
         """
         yield from self.get_client().chat(
             model=self.id,
-            messages=[self.process_message(m) for m in messages],  # type: ignore
+            messages=[self.format_message(m) for m in messages],  # type: ignore
             stream=True,
             **self.request_kwargs,
         )  # type: ignore
@@ -252,7 +253,7 @@ class Ollama(Model):
         """
         async_stream = await self.get_async_client().chat(
             model=self.id,
-            messages=[self.process_message(m) for m in messages],  # type: ignore
+            messages=[self.format_message(m) for m in messages],  # type: ignore
             stream=True,
             **self.request_kwargs,
         )

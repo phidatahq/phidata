@@ -280,7 +280,7 @@ class OpenAIChat(Model):
                 model_dict["tool_choice"] = self.tool_choice
         return model_dict
 
-    def process_message(self, message: Message) -> Dict[str, Any]:
+    def format_message(self, message: Message) -> Dict[str, Any]:
         """
         Format a message into the format expected by OpenAI.
 
@@ -313,7 +313,7 @@ class OpenAIChat(Model):
                 if isinstance(self.response_format, type) and issubclass(self.response_format, BaseModel):
                     return self.get_client().beta.chat.completions.parse(
                         model=self.id,
-                        messages=[self.process_message(m) for m in messages],  # type: ignore
+                        messages=[self.format_message(m) for m in messages],  # type: ignore
                         **self.request_kwargs,
                     )
                 else:
@@ -323,7 +323,7 @@ class OpenAIChat(Model):
 
         return self.get_client().chat.completions.create(
             model=self.id,
-            messages=[self.process_message(m) for m in messages],  # type: ignore
+            messages=[self.format_message(m) for m in messages],  # type: ignore
             **self.request_kwargs,
         )
 
@@ -342,7 +342,7 @@ class OpenAIChat(Model):
                 if isinstance(self.response_format, type) and issubclass(self.response_format, BaseModel):
                     return await self.get_async_client().beta.chat.completions.parse(
                         model=self.id,
-                        messages=[self.process_message(m) for m in messages],  # type: ignore
+                        messages=[self.format_message(m) for m in messages],  # type: ignore
                         **self.request_kwargs,
                     )
                 else:
@@ -352,7 +352,7 @@ class OpenAIChat(Model):
 
         return await self.get_async_client().chat.completions.create(
             model=self.id,
-            messages=[self.process_message(m) for m in messages],  # type: ignore
+            messages=[self.format_message(m) for m in messages],  # type: ignore
             **self.request_kwargs,
         )
 
@@ -368,7 +368,7 @@ class OpenAIChat(Model):
         """
         yield from self.get_client().chat.completions.create(
             model=self.id,
-            messages=[self.process_message(m) for m in messages],  # type: ignore
+            messages=[self.format_message(m) for m in messages],  # type: ignore
             stream=True,
             stream_options={"include_usage": True},
             **self.request_kwargs,
@@ -386,7 +386,7 @@ class OpenAIChat(Model):
         """
         async_stream = await self.get_async_client().chat.completions.create(
             model=self.id,
-            messages=[self.process_message(m) for m in messages],  # type: ignore
+            messages=[self.format_message(m) for m in messages],  # type: ignore
             stream=True,
             stream_options={"include_usage": True},
             **self.request_kwargs,

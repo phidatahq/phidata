@@ -182,13 +182,17 @@ class Gemini(Model):
                             try:
                                 from os.path import exists, isfile
                                 import PIL.Image
-
-                                if exists(image) and isfile(image):
-                                    image_data = PIL.Image.open(image)
-                                    message_for_model["parts"].append(image_data)  # type: ignore
                             except ImportError:
                                 logger.error("`PIL.Image not installed. Please install it using 'pip install pillow'`")
                                 raise
+
+                            try:
+                                if exists(image) and isfile(image):
+                                    image_data = PIL.Image.open(image)
+                                else:
+                                    logger.error(f"Image file {image} does not exist.")
+                                    raise
+                                message_for_model["parts"].append(image_data)  # type: ignore
                             except Exception as e:
                                 logger.warning(f"Failed to load image from {image}: {e}")
                                 continue
@@ -229,11 +233,14 @@ class Gemini(Model):
                     from pathlib import Path
                     from os.path import exists, isfile
 
-                    audio = message.audio.get("path")
+                    audio = message.audio.get("data")
                     if audio:
                         audio_file = None
                         if exists(audio) and isfile(audio):
                             audio_file = {"mime_type": "audio/mp3", "data": Path(audio).read_bytes()}
+                        else:
+                            logger.error(f"Audio file {audio} does not exist.")
+                            raise
                         message_for_model["parts"].insert(0, audio_file)  # type: ignore
 
                 except Exception as e:

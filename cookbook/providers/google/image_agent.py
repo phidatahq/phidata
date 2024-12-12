@@ -9,9 +9,9 @@ agent = Agent(
 )
 
 agent.print_response(
-    "Tell me about this image",
+    "Tell me about this image and give me the latest news about it.",
     images=[
-        "cookbook/providers/google/IMG_9482.jpeg",
+        "https://upload.wikimedia.org/wikipedia/commons/b/bf/Krakow_-_Kosciol_Mariacki.jpg",
     ],
     stream=True,
 )

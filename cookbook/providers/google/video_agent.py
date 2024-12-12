@@ -10,7 +10,7 @@ agent = Agent(
 agent.print_response(
     "Tell me about this video",
     videos=[
-        "GreatRedSpot.mp4",
+        "cookbook/providers/google/GreatRedSpot.mp4",
     ],
     stream=True,
 )

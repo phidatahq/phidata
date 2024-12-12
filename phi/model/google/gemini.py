@@ -147,7 +147,7 @@ class Gemini(Model):
 
             # Add content to the message for the model
             content = message.content
-            if not content or message.role == "tool":
+            if not content or message.role in ["tool", "model"]:
                 parts = message.parts  # type: ignore
             else:
                 if isinstance(content, str):
@@ -157,6 +157,30 @@ class Gemini(Model):
                 else:
                     parts = [" "]
             message_for_model["parts"] = parts
+
+            # Add images to the message for the model
+            images_added = False
+            if message.images is not None and message.role == "user":
+                import httpx
+                import base64
+
+                # Download and encode images
+                for image in message.images:
+                    if isinstance(image, str):
+                        try:
+                            image_content = httpx.get(image).content
+                            image_data = {
+                                "mime_type": "image/jpeg",
+                                "data": base64.b64encode(image_content).decode("utf-8"),
+                            }
+                            message_for_model["parts"].append(image_data)
+                        except Exception as e:
+                            logger.warning(f"Failed to download image from {image}: {e}")
+                            continue
+                    elif isinstance(image, bytes):
+                        image_data = {"mime_type": "image/jpeg", "data": base64.b64encode(image).decode("utf-8")}
+                        message_for_model["parts"].append(image_data)
+
             formatted_messages.append(message_for_model)
         return formatted_messages
 
@@ -418,8 +442,8 @@ class Gemini(Model):
             messages (List[Message]): The list of conversation messages.
         """
         if function_call_results:
-            combined_content = []  # Use a list to collect all result contents
-            combined_parts = []  # Use a list to collect all function responses
+            combined_content: List = []
+            combined_parts: List = []
 
             for result in function_call_results:
                 s = Struct()
@@ -429,7 +453,7 @@ class Gemini(Model):
                 )
                 combined_content.append(result.content)
                 combined_parts.append(function_response)
-            messages.append(Message(role="tool", content="\n".join(combined_content), parts=combined_parts))  # type: ignore
+            messages.append(Message(role="tool", content=combined_content, parts=combined_parts))
 
     def handle_tool_calls(self, assistant_message: Message, messages: List[Message], model_response: ModelResponse):
         """

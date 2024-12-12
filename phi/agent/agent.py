@@ -28,6 +28,7 @@ from pydantic import BaseModel, ConfigDict, field_validator, Field, ValidationEr
 
 from phi.document import Document
 from phi.agent.session import AgentSession
+from phi.model.content import Image, Video
 from phi.reasoning.step import ReasoningStep, ReasoningSteps, NextAction
 from phi.run.response import RunEvent, RunResponse, RunResponseExtraData
 from phi.knowledge.agent import AgentKnowledge
@@ -57,9 +58,9 @@ class Agent(BaseModel):
 
     # -*- Agent Data
     # Images associated with this agent
-    images: Optional[List[Union[str, Dict[str, Any]]]] = None
+    images: Optional[List[Image]] = None
     # Videos associated with this agent
-    videos: Optional[List[Union[str, Dict[str, Any]]]] = None
+    videos: Optional[List[Video]] = None
 
     # Data associated with this agent
     # name, model, images and videos are automatically added to the agent_data
@@ -573,9 +574,9 @@ class Agent(BaseModel):
         if self.model is not None:
             agent_data["model"] = self.model.to_dict()
         if self.images is not None:
-            agent_data["images"] = self.images
+            agent_data["images"] = [img if isinstance(img, dict) else img.model_dump() for img in self.images]
         if self.videos is not None:
-            agent_data["videos"] = self.videos
+            agent_data["videos"] = [vid if isinstance(vid, dict) else vid.model_dump() for vid in self.videos]
         return agent_data
 
     def get_session_data(self) -> Dict[str, Any]:
@@ -588,7 +589,6 @@ class Agent(BaseModel):
 
     def get_agent_session(self) -> AgentSession:
         """Get an AgentSession object, which can be saved to the database"""
-
         return AgentSession(
             session_id=self.session_id,
             agent_id=self.agent_id,
@@ -632,13 +632,13 @@ class Agent(BaseModel):
             if "images" in session.agent_data:
                 images_from_db = session.agent_data.get("images")
                 if self.images is not None and isinstance(self.images, list):
-                    self.images.extend(images_from_db)  # type: ignore
+                    self.images.extend([Image.model_validate(img) for img in self.images])
                 else:
                     self.images = images_from_db
             if "videos" in session.agent_data:
                 videos_from_db = session.agent_data.get("videos")
                 if self.videos is not None and isinstance(self.videos, list):
-                    self.videos.extend(videos_from_db)  # type: ignore
+                    self.videos.extend([Video.model_validate(vid) for vid in self.videos])
                 else:
                     self.videos = videos_from_db
 
@@ -2433,7 +2433,7 @@ class Agent(BaseModel):
     # Handle images and videos
     ###########################################################################
 
-    def add_image(self, image: Union[str, Dict]) -> None:
+    def add_image(self, image: Image) -> None:
         if self.images is None:
             self.images = []
         self.images.append(image)
@@ -2442,7 +2442,7 @@ class Agent(BaseModel):
                 self.run_response.images = []
             self.run_response.images.append(image)
 
-    def add_video(self, video: Union[str, Dict]) -> None:
+    def add_video(self, video: Video) -> None:
         if self.videos is None:
             self.videos = []
         self.videos.append(video)
@@ -2451,10 +2451,10 @@ class Agent(BaseModel):
                 self.run_response.videos = []
             self.run_response.videos.append(video)
 
-    def get_images(self) -> Optional[List[Union[str, Dict]]]:
+    def get_images(self) -> Optional[List[Image]]:
         return self.images
 
-    def get_videos(self) -> Optional[List[Union[str, Dict]]]:
+    def get_videos(self) -> Optional[List[Video]]:
         return self.videos
 
     ###########################################################################

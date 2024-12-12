@@ -1,4 +1,4 @@
-# pip install qdrant-client 
+# pip install qdrant-client
 from phi.vectordb.qdrant import Qdrant
 from phi.agent import Agent
 from phi.knowledge.pdf import PDFUrlKnowledgeBase
@@ -13,10 +13,7 @@ docker run -p 6333:6333 -p 6334:6334 \
 """
 COLLECTION_NAME = "thai-recipes"
 
-vector_db = Qdrant(
-    collection=COLLECTION_NAME,
-    url="http://localhost:6333"
-)
+vector_db = Qdrant(collection=COLLECTION_NAME, url="http://localhost:6333")
 
 knowledge_base = PDFUrlKnowledgeBase(
     urls=["https://phi-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],

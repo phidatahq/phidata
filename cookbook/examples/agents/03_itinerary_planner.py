@@ -14,7 +14,7 @@ itinerary_agent = Agent(
         "Ensure that the gathered data is accurate and tailored to the user's preferences, such as destination, group size, and budget constraints.",
         "Create a clear and concise itinerary that includes: detailed day-by-day travel plan, suggested transportation and accommodation options, activity recommendations (e.g., sightseeing, dining, events), an estimated cost breakdown (covering transportation, accommodation, food, and activities).",
         "If a particular website or travel option is unavailable, provide alternatives from other trusted sources.",
-        "Do not include direct links to external websites or booking platforms in the response."
+        "Do not include direct links to external websites or booking platforms in the response.",
     ],
 )
 

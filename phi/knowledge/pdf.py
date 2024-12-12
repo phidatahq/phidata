@@ -4,6 +4,7 @@ from typing import Union, List, Iterator
 from phi.document import Document
 from phi.document.reader.pdf import PDFReader, PDFUrlReader, PDFImageReader, PDFUrlImageReader
 from phi.knowledge.agent import AgentKnowledge
+from phi.utils.log import logger
 
 
 class PDFKnowledgeBase(AgentKnowledge):
@@ -42,4 +43,8 @@ class PDFUrlKnowledgeBase(AgentKnowledge):
         """
 
         for url in self.urls:
-            yield self.reader.read(url=url)
+            if url.endswith(".pdf"):
+                yield self.reader.read(url=url)
+            else:
+                logger.error(f"Unsupported URL: {url}")
+

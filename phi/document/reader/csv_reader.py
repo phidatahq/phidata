@@ -1,6 +1,9 @@
 import csv
+import os
 from pathlib import Path
 from typing import List, Union, IO, Any
+from urllib.parse import urlparse
+
 from phi.document.base import Document
 from phi.document.reader.base import Reader
 from phi.utils.log import logger
@@ -48,3 +51,37 @@ class CSVReader(Reader):
         except Exception as e:
             logger.error(f"Error reading: {file.name if isinstance(file, IO) else file}: {e}")
             return []
+
+
+class CSVUrlReader(Reader):
+    """Reader for CSV files"""
+
+    def read(self, url: str) -> List[Document]:
+        if not url:
+            raise ValueError("No URL provided")
+
+        try:
+            import httpx
+        except ImportError:
+            raise ImportError("`httpx` not installed")
+
+        logger.info(f"Reading: {url}")
+        response = httpx.get(url)
+
+        try:
+            response.raise_for_status()
+        except httpx.HTTPStatusError as e:
+            logger.error(f"HTTP error occurred: {e.response.status_code} - {e.response.text}")
+            raise
+
+        parsed_url = urlparse(url)
+        filename = os.path.basename(parsed_url.path) or "data.csv"
+
+        file_obj = io.BytesIO(response.content)
+        file_obj.name = filename
+
+        documents = CSVReader().read(file=file_obj)
+
+        file_obj.close()
+
+        return documents

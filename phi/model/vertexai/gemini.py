@@ -75,8 +75,8 @@ class Gemini(Model):
         client (Optional[GenerativeModel]): The GenerativeModel client.
     """
 
+    id: str = "gemini-2.0-flash-exp"
     name: str = "Gemini"
-    model: str = "gemini-1.5-flash-002"
     provider: str = "VertexAI"
 
     # Request parameters
@@ -96,7 +96,7 @@ class Gemini(Model):
             GenerativeModel: GenerativeModel client.
         """
         if self.client is None:
-            self.client = GenerativeModel(model_name=self.model, **self.request_kwargs)
+            self.client = GenerativeModel(model_name=self.id, **self.request_kwargs)
         return self.client
 
     @property
@@ -118,7 +118,7 @@ class Gemini(Model):
             _request_params["tools"] = [GeminiTool(function_declarations=self.function_declarations)]
         return _request_params
 
-    def _format_messages(self, messages: List[Message]) -> List[Content]:
+    def format_messages(self, messages: List[Message]) -> List[Content]:
         """
         Converts a list of Message objects to Gemini-compatible Content objects.
 
@@ -149,7 +149,7 @@ class Gemini(Model):
 
         return formatted_messages
 
-    def _format_functions(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    def format_functions(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """
         Converts function parameters to a Gemini-compatible format.
 
@@ -208,26 +208,30 @@ class Gemini(Model):
                 self.functions = {}
 
             if isinstance(tool, Toolkit):
-                # For each function in the toolkit
+                # For each function in the toolkit, process entrypoint and add to self.tools
                 for name, func in tool.functions.items():
                     # If the function does not exist in self.functions, add to self.tools
                     if name not in self.functions:
+                        func._agent = agent
+                        func.process_entrypoint()
                         self.functions[name] = func
                         function_declaration = FunctionDeclaration(
                             name=func.name,
                             description=func.description,
-                            parameters=self._format_functions(func.parameters),
+                            parameters=self.format_functions(func.parameters),
                         )
                         self.function_declarations.append(function_declaration)
                         logger.debug(f"Function {name} from {tool.name} added to model.")
 
             elif isinstance(tool, Function):
                 if tool.name not in self.functions:
+                    tool._agent = agent
+                    tool.process_entrypoint()
                     self.functions[tool.name] = tool
                     function_declaration = FunctionDeclaration(
                         name=tool.name,
                         description=tool.description,
-                        parameters=self._format_functions(tool.parameters),
+                        parameters=self.format_functions(tool.parameters),
                     )
                     self.function_declarations.append(function_declaration)
                     logger.debug(f"Function {tool.name} added to model.")
@@ -241,7 +245,7 @@ class Gemini(Model):
                         function_declaration = FunctionDeclaration(
                             name=func.name,
                             description=func.description,
-                            parameters=self._format_functions(func.parameters),
+                            parameters=self.format_functions(func.parameters),
                         )
                         self.function_declarations.append(function_declaration)
                         logger.debug(f"Function '{func.name}' added to model.")
@@ -258,7 +262,7 @@ class Gemini(Model):
         Returns:
             GenerationResponse object containing the response content
         """
-        return self.get_client().generate_content(contents=self._format_messages(messages))
+        return self.get_client().generate_content(contents=self.format_messages(messages))
 
     def invoke_stream(self, messages: List[Message]) -> Iterator[GenerationResponse]:
         """
@@ -271,18 +275,11 @@ class Gemini(Model):
             Iterator[GenerationResponse] object containing the response content
         """
         yield from self.get_client().generate_content(
-            contents=self._format_messages(messages),
+            contents=self.format_messages(messages),
             stream=True,
         )
 
-    def _log_messages(self, messages: List[Message]) -> None:
-        """
-        Log messages for debugging.
-        """
-        for m in messages:
-            m.log()
-
-    def _update_usage_metrics(
+    def update_usage_metrics(
         self,
         assistant_message: Message,
         metrics: Metrics,
@@ -316,7 +313,7 @@ class Gemini(Model):
                 assistant_message.metrics["time_to_first_token"] = metrics.time_to_first_token
                 self.metrics.setdefault("time_to_first_token", []).append(metrics.time_to_first_token)
 
-    def _create_assistant_message(self, response: GenerationResponse, metrics: Metrics) -> Message:
+    def create_assistant_message(self, response: GenerationResponse, metrics: Metrics) -> Message:
         """
         Create an assistant message from the GenerationResponse.
 
@@ -369,13 +366,13 @@ class Gemini(Model):
             assistant_message.tool_calls = message_data.response_tool_calls
 
         # -*- Update usage metrics
-        self._update_usage_metrics(
+        self.update_usage_metrics(
             assistant_message=assistant_message, metrics=metrics, usage=message_data.response_usage
         )
 
         return assistant_message
 
-    def _get_function_calls_to_run(
+    def get_function_calls_to_run(
         self,
         assistant_message: Message,
         messages: List[Message],
@@ -403,7 +400,7 @@ class Gemini(Model):
                 function_calls_to_run.append(_function_call)
         return function_calls_to_run
 
-    def _format_function_call_results(
+    def format_function_call_results(
         self,
         function_call_results: List[Message],
         messages: List[Message],
@@ -428,7 +425,7 @@ class Gemini(Model):
 
             messages.append(Message(role="tool", content=list(contents), tool_call_result=Content(parts=list(parts))))
 
-    def _handle_tool_calls(self, assistant_message: Message, messages: List[Message], model_response: ModelResponse):
+    def handle_tool_calls(self, assistant_message: Message, messages: List[Message], model_response: ModelResponse):
         """
         Handle tool calls in the assistant message.
 
@@ -442,7 +439,7 @@ class Gemini(Model):
         """
         if assistant_message.tool_calls and self.run_tools:
             model_response.content = assistant_message.get_content_string() or ""
-            function_calls_to_run = self._get_function_calls_to_run(assistant_message, messages)
+            function_calls_to_run = self.get_function_calls_to_run(assistant_message, messages)
 
             if self.show_tool_calls:
                 if len(function_calls_to_run) == 1:
@@ -460,7 +457,7 @@ class Gemini(Model):
             ):
                 pass
 
-            self._format_function_call_results(function_call_results, messages)
+            self.format_function_call_results(function_call_results, messages)
 
             return model_response
         return None
@@ -485,7 +482,7 @@ class Gemini(Model):
         metrics.response_timer.stop()
 
         # -*- Create assistant message
-        assistant_message = self._create_assistant_message(response=response, metrics=metrics)
+        assistant_message = self.create_assistant_message(response=response, metrics=metrics)
         messages.append(assistant_message)
 
         # -*- Log response and metrics
@@ -493,7 +490,7 @@ class Gemini(Model):
         metrics.log()
 
         # -*- Handle tool calls
-        if self._handle_tool_calls(assistant_message, messages, model_response):
+        if self.handle_tool_calls(assistant_message, messages, model_response):
             response_after_tool_calls = self.response(messages=messages)
             if response_after_tool_calls.content is not None:
                 if model_response.content is None:
@@ -515,7 +512,7 @@ class Gemini(Model):
         logger.debug("---------- VertexAI Response End ----------")
         return model_response
 
-    def _handle_stream_tool_calls(self, assistant_message: Message, messages: List[Message]):
+    def handle_stream_tool_calls(self, assistant_message: Message, messages: List[Message]):
         """
         Parse and run function calls and append the results to messages.
 
@@ -527,7 +524,7 @@ class Gemini(Model):
             Iterator[ModelResponse]: Yields model responses during function execution.
         """
         if assistant_message.tool_calls and self.run_tools:
-            function_calls_to_run = self._get_function_calls_to_run(assistant_message, messages)
+            function_calls_to_run = self.get_function_calls_to_run(assistant_message, messages)
 
             if self.show_tool_calls:
                 if len(function_calls_to_run) == 1:
@@ -544,7 +541,7 @@ class Gemini(Model):
             ):
                 yield intermediate_model_response
 
-            self._format_function_call_results(function_call_results, messages)
+            self.format_function_call_results(function_call_results, messages)
 
     def response_stream(self, messages: List[Message]) -> Iterator[ModelResponse]:
         """
@@ -611,7 +608,7 @@ class Gemini(Model):
         if len(message_data.response_tool_calls) > 0:
             assistant_message.tool_calls = message_data.response_tool_calls
 
-        self._update_usage_metrics(
+        self.update_usage_metrics(
             assistant_message=assistant_message, metrics=metrics, usage=message_data.response_usage
         )
 
@@ -623,7 +620,7 @@ class Gemini(Model):
         metrics.log()
 
         if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
-            yield from self._handle_stream_tool_calls(assistant_message, messages)
+            yield from self.handle_stream_tool_calls(assistant_message, messages)
             yield from self.response_stream(messages=messages)
 
         # -*- Remove tool call blocks and tool call results from messages

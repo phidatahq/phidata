@@ -5,7 +5,7 @@ from phi.model.vertexai import Gemini
 from phi.tools.yfinance import YFinanceTools
 
 agent = Agent(
-    model=Gemini(id="gemini-1.5-flash"),
+    model=Gemini(id="gemini-2.0-flash-exp"),
     tools=[YFinanceTools(stock_price=True)],
     show_tool_calls=True,
     markdown=True,

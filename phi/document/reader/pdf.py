@@ -69,6 +69,12 @@ class PDFUrlReader(Reader):
         logger.info(f"Reading: {url}")
         response = httpx.get(url)
 
+        try:
+            response.raise_for_status()
+        except httpx.HTTPStatusError as e:
+            logger.error(f"HTTP error occurred: {e.response.status_code} - {e.response.text}")
+            raise
+
         doc_name = url.split("/")[-1].split(".")[0].replace("/", "_").replace(" ", "_")
         doc_reader = DocumentReader(BytesIO(response.content))
 

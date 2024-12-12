@@ -255,7 +255,9 @@ class OpenAIChat(Model):
         if self.presence_penalty is not None:
             model_dict["presence_penalty"] = self.presence_penalty
         if self.response_format is not None:
-            model_dict["response_format"] = self.response_format
+            model_dict["response_format"] = (
+                self.response_format if isinstance(self.response_format, dict) else str(self.response_format)
+            )
         if self.seed is not None:
             model_dict["seed"] = self.seed
         if self.stop is not None:

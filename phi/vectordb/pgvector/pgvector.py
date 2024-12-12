@@ -11,12 +11,12 @@ try:
     from sqlalchemy.sql.expression import text, func, select, desc, bindparam
     from sqlalchemy.types import DateTime, String
 except ImportError:
-    raise ImportError("`sqlalchemy` not installed")
+    raise ImportError("`sqlalchemy` not installed. Please install using `pip install sqlalchemy psycopg`")
 
 try:
     from pgvector.sqlalchemy import Vector
 except ImportError:
-    raise ImportError("`pgvector` not installed")
+    raise ImportError("`pgvector` not installed. Please install using `pip install pgvector`")
 
 from phi.document import Document
 from phi.embedder import Embedder

@@ -552,7 +552,7 @@ def get_async_playground_router(
         workflow = get_workflow_by_id(workflow_id, workflows)
         if workflow is None:
             raise HTTPException(status_code=404, detail="Workflow not found")
-        
+
         if body.session_id is not None:
             logger.debug(f"Continuing session: {body.session_id}")
         else:

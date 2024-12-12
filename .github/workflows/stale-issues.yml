@@ -1,4 +1,4 @@
-name: Close Stale Issues
+name: "Close Stale Issues"
 
 on:
   schedule:
@@ -6,26 +6,27 @@ on:
   workflow_dispatch:
 
 jobs:
-  close_stale_issues:
+  stale:
     runs-on: ubuntu-latest
     permissions:
       issues: write
 
     steps:
-      - name: Close stale issues
-        uses: actions/stale@v5
+      - uses: actions/stale@v9
         with:
+          # Message to comment on stale issues
           stale-issue-message: >
-            This issue has been marked as stale because it has been inactive
-            for more than 14 days. Please update this issue or it will be
-            automatically closed.
+            This issue has been automatically marked as stale due to 14 days of inactivity
+            and will now be closed.
+
+          # Mark issues as stale after 14 days
           days-before-issue-stale: 14
+
+          # Close issues immediately after marking as stale
           days-before-issue-close: 0
-          stale-issue-label: stale
 
-          # Disable PR processing
-          days-before-pr-stale: -1
-          days-before-pr-close: -1
+          # Label to apply when marking issues as stale
+          stale-issue-label: "stale"
 
-          # Only process issues, not PRs
-          only-issue-labels: "*"
+          # Remove stale label if an update is made
+          remove-stale-when-updated: true

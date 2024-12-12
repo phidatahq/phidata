@@ -1,6 +1,6 @@
 [project]
 name = "phidata"
-version = "2.6.7"
+version = "2.7.0"
 description = "Build multi-modal Agents with memory, knowledge and tools."
 requires-python = ">=3.7"
 readme = "README.md"
@@ -145,6 +145,7 @@ module = [
   "pytz.*",
   "qdrant_client.*",
   "rapidocr_onnxruntime.*",
+  "replicate.*",
   "requests.*",
   "sentence_transformers.*",
   "serpapi.*",

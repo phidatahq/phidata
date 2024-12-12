@@ -23,3 +23,8 @@ class ModelResponse:
     tool_call: Optional[Dict[str, Any]] = None
     event: str = ModelResponseEvent.assistant_response.value
     created_at: int = int(time())
+
+
+class FileType(str, Enum):
+    MP4 = "mp4"
+    GIF = "gif"

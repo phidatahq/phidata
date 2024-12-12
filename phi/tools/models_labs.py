@@ -45,7 +45,7 @@ class ModelsLabs(Toolkit):
         self.register(self.generate_media)
 
     def generate_media(self, agent: Agent, prompt: str) -> str:
-        """Use this function to generate a video given a prompt.
+        """Use this function to generate a video or image given a prompt.
 
         Args:
             prompt (str): A text description of the desired video.

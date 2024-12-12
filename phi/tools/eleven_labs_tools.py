@@ -42,7 +42,7 @@ class ElevenLabsTools(Toolkit):
 
     def generate_audio(self, agent: Agent, prompt: str) -> str:
         """
-        Use this function to generate audio from a text prompt.
+        Use this function to generate audio from a text prompt. The audio is stored to a file in the target_directory.
 
         Args:
             prompt (str): Text to generate audio from.

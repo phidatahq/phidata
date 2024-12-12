@@ -30,13 +30,13 @@ class ElevenLabsTools(Toolkit):
         if not self.api_key:
             logger.error("ELEVEN_LABS_API_KEY not set. Please set the ELEVEN_LABS_API_KEY environment variable.")
 
-        self.save_path = save_path
+        self.target_directory = target_directory
         self.voice_id = voice_id
         self.model_id = model_id
         self.output_format = output_format
 
-        if not path.exists(self.save_path):
-            makedirs(self.save_path, exist_ok=True)
+        if not path.exists(self.target_directory):
+            makedirs(self.target_directory, exist_ok=True)
 
         self.register(self.generate_audio)
 
@@ -60,7 +60,7 @@ class ElevenLabsTools(Toolkit):
             )
 
             output_filename = f"{uuid4()}.mp3"
-            output_path = path.join(self.save_path, output_filename)
+            output_path = path.join(self.target_directory, output_filename)
 
             with open(output_path, "wb") as f:
                 for chunk in audio_generator:

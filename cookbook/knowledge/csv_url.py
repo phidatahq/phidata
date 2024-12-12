@@ -6,7 +6,7 @@ db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 
 knowledge_base = CSVUrlKnowledgeBase(
     urls=["https://phi-public.s3.amazonaws.com/csvs/employees.csv"],
-    vector_db=PgVector(table_name="hr_data", db_url=db_url),
+    vector_db=PgVector(table_name="csv_documents", db_url=db_url),
 )
 knowledge_base.load(recreate=False)  # Comment out after first run
 

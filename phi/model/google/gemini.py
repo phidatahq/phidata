@@ -188,7 +188,7 @@ class Gemini(Model):
 
                             try:
                                 if exists(image) and isfile(image):
-                                    image_data = PIL.Image.open(image)
+                                    image_data = PIL.Image.open(image)  # type: ignore
                                 else:
                                     logger.error(f"Image file {image} does not exist.")
                                     raise

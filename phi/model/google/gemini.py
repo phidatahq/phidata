@@ -160,25 +160,85 @@ class Gemini(Model):
 
             # Add images to the message for the model
             if message.images is not None and message.role == "user":
-                import httpx
-                import base64
-
-                # Download and encode images
                 for image in message.images:
                     if isinstance(image, str):
-                        try:
-                            image_content = httpx.get(image).content
-                            image_data = {
-                                "mime_type": "image/jpeg",
-                                "data": base64.b64encode(image_content).decode("utf-8"),
-                            }
-                            message_for_model["parts"].append(image_data)  # type: ignore
-                        except Exception as e:
-                            logger.warning(f"Failed to download image from {image}: {e}")
-                            continue
+                        # Case 1: Image is a URL
+                        if image.startswith("http://") or image.startswith("https://"):
+                            try:
+                                import httpx
+                                import base64
+
+                                image_content = httpx.get(image).content
+                                image_data = {
+                                    "mime_type": "image/jpeg",
+                                    "data": base64.b64encode(image_content).decode("utf-8"),
+                                }
+                                message_for_model["parts"].append(image_data)  # type: ignore
+                            except Exception as e:
+                                logger.warning(f"Failed to download image from {image}: {e}")
+                                continue
+                        # Case 2: Image is a path
+                        else:
+                            try:
+                                from os.path import exists, isfile
+                                import PIL.Image
+
+                                if exists(image) and isfile(image):
+                                    image_data = PIL.Image.open(image)
+                                    message_for_model["parts"].append(image_data)  # type: ignore
+                            except ImportError:
+                                logger.error("`PIL.Image not installed. Please install it using 'pip install pillow'`")
+                                raise
+                            except Exception as e:
+                                logger.warning(f"Failed to load image from {image}: {e}")
+                                continue
+
                     elif isinstance(image, bytes):
                         image_data = {"mime_type": "image/jpeg", "data": base64.b64encode(image).decode("utf-8")}
                         message_for_model["parts"].append(image_data)
+
+            if message.videos is not None and message.role == "user":
+                try:
+                    for video in message.videos:
+                        import time
+                        from os.path import exists, isfile
+
+                        video_file = None
+                        if exists(video) and isfile(video):  # type: ignore
+                            video_file = genai.upload_file(path=video)
+                        else:
+                            logger.error(f"Video file {video} does not exist.")
+                            raise
+
+                        # Check whether the file is ready to be used.
+                        while video_file.state.name == "PROCESSING":
+                            time.sleep(10)
+                            video_file = genai.get_file(video_file.name)
+
+                        if video_file.state.name == "FAILED":
+                            raise ValueError(video_file.state.name)
+
+                        message_for_model["parts"].insert(0, video_file)  # type: ignore
+
+                except Exception as e:
+                    logger.warning(f"Failed to load video from {message.videos}: {e}")
+                    continue
+
+            if message.audio is not None and message.role == "user":
+                try:
+                    from pathlib import Path
+                    from os.path import exists, isfile
+
+                    audio = message.audio.get("path")
+                    if audio:
+                        audio_file = None
+                        if exists(audio) and isfile(audio):
+                            audio_file = {"mime_type": "audio/mp3", "data": Path(audio).read_bytes()}
+                        message_for_model["parts"].insert(0, audio_file)  # type: ignore
+
+                except Exception as e:
+                    logger.warning(f"Failed to load video from {message.videos}: {e}")
+                    continue
 
             formatted_messages.append(message_for_model)
         return formatted_messages

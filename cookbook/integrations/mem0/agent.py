@@ -19,6 +19,5 @@ run: RunResponse = agent.run("What do you know about me?")
 
 pprint_run_response(run)
 
-messages = [{"role": i.role, "content": i.content} for i in run.messages]
+messages = [{"role": i.role, "content": str(i.content)} for i in (run.messages or [])]
 client.add(messages, user_id=user_id)
-

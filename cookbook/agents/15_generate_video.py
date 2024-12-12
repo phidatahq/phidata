@@ -7,7 +7,7 @@ video_agent = Agent(
     tools=[ModelsLabs()],
     description="You are an AI agent that can generate videos using the ModelsLabs API.",
     instructions=[
-        "When the user asks you to create a video, use the `create_video` tool to create the video.",
+        "When the user asks you to create a video, use the `generate_media` tool to create the video.",
         "The video will be displayed in the UI automatically below your response, so you don't need to show the video URL in your response.",
         "Politely and courteously let the user know that the video has been generated and will be displayed below as soon as its ready.",
     ],

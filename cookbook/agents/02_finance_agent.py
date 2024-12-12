@@ -12,4 +12,4 @@ finance_agent = Agent(
     show_tool_calls=True,
     markdown=True,
 )
-finance_agent.print_response("Summarize analyst recommendations for NVDA", stream=True)
+finance_agent.print_response("Summarize and compare analyst recommendations for NVDA for TSLA", stream=True)

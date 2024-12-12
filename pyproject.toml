@@ -1,6 +1,6 @@
 [project]
 name = "phidata"
-version = "2.6.6"
+version = "2.7.0"
 description = "Build multi-modal Agents with memory, knowledge and tools."
 requires-python = ">=3.7"
 readme = "README.md"
@@ -101,6 +101,7 @@ module = [
   "boto3.*",
   "botocore.*",
   "bs4.*",
+  "chonkie.*",
   "chromadb.*",
   "clip.*",
   "clip.*",
@@ -121,9 +122,10 @@ module = [
   "jira.*",
   "kubernetes.*",
   "lancedb.*",
-  "langchain_core.*",
   "langchain.*",
+  "langchain_core.*",
   "llama_index.*",
+  "mem0.*",
   "mistralai.*",
   "mlx_whisper.*",
   "nest_asyncio.*",
@@ -135,8 +137,8 @@ module = [
   "pandas.*",
   "pgvector.*",
   "PIL.*",
-  "pinecone_text.*",
   "pinecone.*",
+  "pinecone_text.*",
   "psycopg.*",
   "psycopg2.*",
   "pyarrow.*",
@@ -145,6 +147,7 @@ module = [
   "pytz.*",
   "qdrant_client.*",
   "rapidocr_onnxruntime.*",
+  "replicate.*",
   "requests.*",
   "sentence_transformers.*",
   "serpapi.*",
@@ -166,6 +169,5 @@ module = [
   "wikipedia.*",
   "yfinance.*",
   "youtube_transcript_api.*",
-  "chonkie.*",
 ]
 ignore_missing_imports = true

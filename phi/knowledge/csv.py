@@ -4,6 +4,7 @@ from typing import Union, List, Iterator
 from phi.document import Document
 from phi.document.reader.csv_reader import CSVReader, CSVUrlReader
 from phi.knowledge.agent import AgentKnowledge
+from phi.utils.log import logger
 
 
 class CSVKnowledgeBase(AgentKnowledge):
@@ -29,10 +30,13 @@ class CSVKnowledgeBase(AgentKnowledge):
 
 
 class CSVUrlKnowledgeBase(AgentKnowledge):
-    url: List[str]
+    urls: List[str]
     reader: CSVUrlReader = CSVUrlReader()
 
     @property
     def document_lists(self) -> Iterator[List[Document]]:
-        for url in self.url:
-            yield self.reader.read(url=url)
+        for url in self.urls:
+            if url.endswith(".csv"):
+                yield self.reader.read(url=url)
+            else:
+                logger.error(f"Unsupported URL: {url}")

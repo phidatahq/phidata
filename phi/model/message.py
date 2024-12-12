@@ -35,9 +35,9 @@ class Message(BaseModel):
     tool_calls: Optional[List[Dict[str, Any]]] = None
 
     # Additional modalities
-    images: Optional[Sequence[Union[str, Dict]]] = None
-    videos: Optional[Sequence[Union[str, Dict]]] = None
-    audio: Optional[Dict] = None
+    audio: Optional[Any] = None
+    images: Optional[Sequence[Any]] = None
+    videos: Optional[Sequence[Any]] = None
 
     # -*- Attributes not sent to the model
     # The name of the tool called
@@ -109,11 +109,11 @@ class Message(BaseModel):
         if self.tool_calls:
             _logger(f"Tool Calls: {json.dumps(self.tool_calls, indent=2)}")
         if self.images:
-            _logger(f"Number of Images: {len(self.images)}")
+            _logger(f"Images added: {len(self.images)}")
         if self.videos:
-            _logger(f"Number of Videos: {len(self.videos)}")
+            _logger(f"Videos added: {len(self.videos)}")
         if self.audio:
-            _logger(f"Number of Audio Files: {len(self.audio)}")
+            _logger(f"Audio files added: {len(self.audio)}")
             if "id" in self.audio:
                 _logger(f"Audio ID: {self.audio['id']}")
             elif "data" in self.audio:

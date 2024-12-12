@@ -47,4 +47,3 @@ class PDFUrlKnowledgeBase(AgentKnowledge):
                 yield self.reader.read(url=url)
             else:
                 logger.error(f"Unsupported URL: {url}")
-

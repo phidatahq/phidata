@@ -1,4 +1,6 @@
+import time
 import json
+from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Optional, List, Iterator, Dict, Any, Union, Callable
 
@@ -16,6 +18,7 @@ try:
     from google.generativeai import GenerativeModel
     from google.generativeai.types.generation_types import GenerateContentResponse
     from google.generativeai.types.content_types import FunctionDeclaration, Tool as GeminiTool
+    from google.generativeai.types import file_types
     from google.ai.generativelanguage_v1beta.types.generative_service import (
         GenerateContentResponse as ResultGenerateContentResponse,
     )
@@ -139,7 +142,7 @@ class Gemini(Model):
         """
         formatted_messages: List = []
         for message in messages:
-            message_for_model = {}
+            message_for_model: Dict[str, Any] = {}
 
             # Add role to the message for the model
             role = "model" if message.role == "system" else "user" if message.role == "tool" else message.role
@@ -147,23 +150,31 @@ class Gemini(Model):
 
             # Add content to the message for the model
             content = message.content
+            # Initialize message_parts to be used for Gemini
+            message_parts: List[Any] = []
             if not content or message.role in ["tool", "model"]:
-                parts = message.parts  # type: ignore
+                message_parts = message.parts  # type: ignore
             else:
                 if isinstance(content, str):
-                    parts = [content]
+                    message_parts = [content]
                 elif isinstance(content, list):
-                    parts = content
+                    message_parts = content
                 else:
-                    parts = [" "]
-            message_for_model["parts"] = parts
+                    message_parts = [" "]
 
             # Add images to the message for the model
             if message.images is not None and message.role == "user":
                 for image in message.images:
-                    if isinstance(image, str):
-                        # Case 1: Image is a URL
-                        if image.startswith("http://") or image.startswith("https://"):
+                    # Case 1: Image is a file_types.File object (Recommended)
+                    # Add it as a File object
+                    if isinstance(image, file_types.File):
+                        # Google recommends that if using a single image, place the text prompt after the image.
+                        message_parts.insert(0, image)
+                    # Case 2: If image is a string, it is a URL or a local path
+                    elif isinstance(image, str) or isinstance(image, Path):
+                        # Case 2.1: Image is a URL
+                        # Download the image from the URL and add it as base64 encoded data
+                        if isinstance(image, str) and (image.startswith("http://") or image.startswith("https://")):
                             try:
                                 import httpx
                                 import base64
@@ -173,80 +184,109 @@ class Gemini(Model):
                                     "mime_type": "image/jpeg",
                                     "data": base64.b64encode(image_content).decode("utf-8"),
                                 }
-                                message_for_model["parts"].append(image_data)  # type: ignore
+                                message_parts.append(image_data)  # type: ignore
                             except Exception as e:
                                 logger.warning(f"Failed to download image from {image}: {e}")
                                 continue
-                        # Case 2: Image is a path
+                        # Case 2.2: Image is a local path
+                        # Open the image file and add it as base64 encoded data
                         else:
                             try:
-                                from os.path import exists, isfile
                                 import PIL.Image
                             except ImportError:
                                 logger.error("`PIL.Image not installed. Please install it using 'pip install pillow'`")
                                 raise
 
                             try:
-                                if exists(image) and isfile(image):
-                                    image_data = PIL.Image.open(image)  # type: ignore
+                                image_path = image if isinstance(image, Path) else Path(image)
+                                if image_path.exists() and image_path.is_file():
+                                    image_data = PIL.Image.open(image_path)  # type: ignore
                                 else:
-                                    logger.error(f"Image file {image} does not exist.")
+                                    logger.error(f"Image file {image_path} does not exist.")
                                     raise
-                                message_for_model["parts"].append(image_data)  # type: ignore
+                                message_parts.append(image_data)  # type: ignore
                             except Exception as e:
-                                logger.warning(f"Failed to load image from {image}: {e}")
+                                logger.warning(f"Failed to load image from {image_path}: {e}")
                                 continue
-
+                    # Case 3: Image is a bytes object
+                    # Add it as base64 encoded data
                     elif isinstance(image, bytes):
                         image_data = {"mime_type": "image/jpeg", "data": base64.b64encode(image).decode("utf-8")}
-                        message_for_model["parts"].append(image_data)
+                        message_parts.append(image_data)
+                    else:
+                        logger.warning(f"Unknown image type: {type(image)}")
+                        continue
 
             if message.videos is not None and message.role == "user":
                 try:
                     for video in message.videos:
-                        import time
-                        from os.path import exists, isfile
+                        # Case 1: Video is a file_types.File object (Recommended)
+                        # Add it as a File object
+                        if isinstance(video, file_types.File):
+                            # Google recommends that if using a single video, place the text prompt after the video.
+                            message_parts.insert(0, video)
+                        # Case 2: If video is a string, it is a local path
+                        elif isinstance(video, str) or isinstance(video, Path):
+                            # Upload the video file to the Gemini API
+                            video_file = None
+                            video_path = video if isinstance(video, Path) else Path(video)
+                            # Check if video is already uploaded
+                            video_file_name = video_path.name
+                            video_file_exists = genai.get_file(video_file_name)
+                            if video_file_exists:
+                                video_file = video_file_exists
+                            else:
+                                if video_path.exists() and video_path.is_file():
+                                    video_file = genai.upload_file(path=video_path)
+                                else:
+                                    logger.error(f"Video file {video_path} does not exist.")
+                                    raise
 
-                        video_file = None
-                        if exists(video) and isfile(video):  # type: ignore
-                            video_file = genai.upload_file(path=video)
-                        else:
-                            logger.error(f"Video file {video} does not exist.")
-                            raise
+                            # Check whether the file is ready to be used.
+                            while video_file.state.name == "PROCESSING":
+                                time.sleep(2)
+                                video_file = genai.get_file(video_file.name)
 
-                        # Check whether the file is ready to be used.
-                        while video_file.state.name == "PROCESSING":
-                            time.sleep(10)
-                            video_file = genai.get_file(video_file.name)
+                            if video_file.state.name == "FAILED":
+                                raise ValueError(video_file.state.name)
 
-                        if video_file.state.name == "FAILED":
-                            raise ValueError(video_file.state.name)
-
-                        message_for_model["parts"].insert(0, video_file)  # type: ignore
-
+                            # Google recommends that if using a single video, place the text prompt after the video.
+                            if video_file is not None:
+                                message_parts.insert(0, video_file)  # type: ignore
                 except Exception as e:
                     logger.warning(f"Failed to load video from {message.videos}: {e}")
                     continue
 
             if message.audio is not None and message.role == "user":
                 try:
-                    from pathlib import Path
-                    from os.path import exists, isfile
+                    # Case 1: Audio is a file_types.File object (Recommended)
+                    # Add it as a File object
+                    if isinstance(message.audio, file_types.File):
+                        # Google recommends that if using a single audio, place the text prompt after the audio.
+                        message_parts.insert(0, message.audio)  # type: ignore
+                    # Case 2: If audio is a string, it is a local path
+                    elif isinstance(message.audio, str) or isinstance(message.audio, Path):
+                        audio_path = message.audio if isinstance(message.audio, Path) else Path(message.audio)
+                        if audio_path.exists() and audio_path.is_file():
+                            import mimetypes
 
-                    audio = message.audio.get("data")
-                    if audio:
-                        audio_file = None
-                        if exists(audio) and isfile(audio):
-                            audio_file = {"mime_type": "audio/mp3", "data": Path(audio).read_bytes()}
+                            # Get mime type from file extension
+                            mime_type = mimetypes.guess_type(audio_path)[0] or "audio/mp3"
+                            audio_file = {"mime_type": mime_type, "data": audio_path.read_bytes()}
+                            message_parts.insert(0, audio_file)  # type: ignore
                         else:
-                            logger.error(f"Audio file {audio} does not exist.")
+                            logger.error(f"Audio file {audio_path} does not exist.")
                             raise
-                        message_for_model["parts"].insert(0, audio_file)  # type: ignore
-
+                    # Case 3: Audio is a bytes object
+                    # Add it as base64 encoded data
+                    elif isinstance(message.audio, bytes):
+                        audio_file = {"mime_type": "audio/mp3", "data": message.audio}
+                        message_parts.insert(0, audio_file)  # type: ignore
                 except Exception as e:
                     logger.warning(f"Failed to load video from {message.videos}: {e}")
                     continue
 
+            message_for_model["parts"] = message_parts
             formatted_messages.append(message_for_model)
         return formatted_messages
 

@@ -422,7 +422,7 @@ class Model(BaseModel):
         image_url = f"data:image/jpeg;base64,{base64_image}"
         return {"type": "image_url", "image_url": {"url": image_url}}
 
-    def _process_image(self, image: Union[str, Dict, bytes]) -> Optional[Dict[str, Any]]:
+    def process_image(self, image: Union[str, Dict, bytes]) -> Optional[Dict[str, Any]]:
         """Process an image based on the format."""
 
         if isinstance(image, dict):
@@ -468,7 +468,7 @@ class Model(BaseModel):
         # Add images to the message content
         for image in images:
             try:
-                image_data = self._process_image(image)
+                image_data = self.process_image(image)
                 if image_data:
                     message_content_with_image.append(image_data)
             except Exception as e:

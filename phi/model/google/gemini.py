@@ -327,6 +327,15 @@ class Gemini(Model):
         return formatted_params
 
     def _build_function_declaration(self, func: Function) -> FunctionDeclaration:
+        """
+        Builds the function declaration for Gemini tool calling.
+
+        Args:
+            func: An instance of the function.
+
+        Returns:
+            FunctionDeclaration: The formatted function declaration.
+        """
         formatted_params = self.format_functions(func.parameters)
         if "properties" in formatted_params and formatted_params["properties"]:
             # We have parameters to add

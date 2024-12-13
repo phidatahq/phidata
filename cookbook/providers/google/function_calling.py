@@ -9,6 +9,7 @@ class WeatherTools(Toolkit):
     """
     Simple tool to show function calling with functions that have and don't have parameters.
     """
+
     def __init__(self):
         super().__init__(name="Weather tool")
         self.register(self.get_weather)

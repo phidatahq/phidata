@@ -113,11 +113,14 @@ class Message(BaseModel):
         if self.videos:
             _logger(f"Videos added: {len(self.videos)}")
         if self.audio:
-            _logger(f"Audio files added: {len(self.audio)}")
-            if "id" in self.audio:
-                _logger(f"Audio ID: {self.audio['id']}")
-            elif "data" in self.audio:
-                _logger("Message contains raw audio data")
+            if isinstance(self.audio, dict):
+                _logger(f"Audio files added: {len(self.audio)}")
+                if "id" in self.audio:
+                    _logger(f"Audio ID: {self.audio['id']}")
+                elif "data" in self.audio:
+                    _logger("Message contains raw audio data")
+            else:
+                _logger(f"Audio file added: {self.audio}")
         # if self.model_extra and "images" in self.model_extra:
         #     _logger("images: {}".format(self.model_extra["images"]))
 

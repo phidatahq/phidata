@@ -259,32 +259,31 @@ class Gemini(Model):
 
             if message.audio is not None and message.role == "user":
                 try:
-                    for audio in message.audio:
-                        # Case 1: Audio is a file_types.File object (Recommended)
-                        # Add it as a File object
-                        if isinstance(audio, file_types.File):
-                            # Google recommends that if using a single audio, place the text prompt after the audio.
-                            message_parts.insert(0, audio)  # type: ignore
-                        # Case 2: If audio is a string, it is a local path
-                        elif isinstance(audio, str) or isinstance(audio, Path):
-                            audio_path = audio if isinstance(audio, Path) else Path(audio)
-                            if audio_path.exists() and audio_path.is_file():
-                                import mimetypes
+                    # Case 1: Audio is a file_types.File object (Recommended)
+                    # Add it as a File object
+                    if isinstance(message.audio, file_types.File):
+                        # Google recommends that if using a single audio, place the text prompt after the audio.
+                        message_parts.insert(0, message.audio)  # type: ignore
+                    # Case 2: If audio is a string, it is a local path
+                    elif isinstance(message.audio, str) or isinstance(message.audio, Path):
+                        audio_path = message.audio if isinstance(message.audio, Path) else Path(message.audio)
+                        if audio_path.exists() and audio_path.is_file():
+                            import mimetypes
 
-                                # Get mime type from file extension
-                                mime_type = mimetypes.guess_type(audio_path)[0] or "audio/mp3"
-                                audio_file = {"mime_type": mime_type, "data": audio_path.read_bytes()}
-                                message_parts.insert(0, audio_file)  # type: ignore
-                            else:
-                                logger.error(f"Audio file {audio_path} does not exist.")
-                                raise
-                        # Case 3: Audio is a bytes object
-                        # Add it as base64 encoded data
-                        elif isinstance(audio, bytes):
-                            audio_file = {"mime_type": "audio/mp3", "data": audio}
+                            # Get mime type from file extension
+                            mime_type = mimetypes.guess_type(audio_path)[0] or "audio/mp3"
+                            audio_file = {"mime_type": mime_type, "data": audio_path.read_bytes()}
                             message_parts.insert(0, audio_file)  # type: ignore
+                        else:
+                            logger.error(f"Audio file {audio_path} does not exist.")
+                            raise
+                    # Case 3: Audio is a bytes object
+                    # Add it as base64 encoded data
+                    elif isinstance(message.audio, bytes):
+                        audio_file = {"mime_type": "audio/mp3", "data": message.audio}
+                        message_parts.insert(0, audio_file)  # type: ignore
                 except Exception as e:
-                    logger.warning(f"Failed to load audio from {message.audio}: {e}")
+                    logger.warning(f"Failed to load video from {message.videos}: {e}")
                     continue
 
             message_for_model["parts"] = message_parts

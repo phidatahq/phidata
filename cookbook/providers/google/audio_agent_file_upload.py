@@ -16,6 +16,6 @@ print(f"Uploaded audio: {audio_file}")
 
 agent.print_response(
     "Tell me about this audio",
-    audio=[audio_file],
+    audio=audio_file,
     stream=True,
 )

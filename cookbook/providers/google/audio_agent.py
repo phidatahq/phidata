@@ -9,6 +9,6 @@ agent = Agent(
 # Please download a sample audio file to test this Agent
 agent.print_response(
     "Tell me about this audio",
-    audio=["sample_audio.mp3"],
+    audio="sample_audio.mp3",
     stream=True,
 )

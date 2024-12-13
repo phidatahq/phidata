@@ -5,11 +5,7 @@ from phi.knowledge.pdf import PDFUrlKnowledgeBase
 from phi.vectordb.chroma import ChromaDb
 
 # Initialize ChromaDB
-vector_db = ChromaDb(
-    collection="recipes",
-    path="tmp/chromadb",
-    persistent_client=True
-)
+vector_db = ChromaDb(collection="recipes", path="tmp/chromadb", persistent_client=True)
 
 # Create knowledge base
 knowledge_base = PDFUrlKnowledgeBase(

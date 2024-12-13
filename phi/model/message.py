@@ -48,6 +48,8 @@ class Message(BaseModel):
     tool_call_error: Optional[bool] = None
     # If True, the agent will stop executing after this tool call.
     stop_after_tool_call: bool = False
+    # When True, the message will be added to the agent's memory.
+    add_to_agent_memory: bool = True
 
     # Metrics for the message. This is not sent to the Model API.
     metrics: Dict[str, Any] = Field(default_factory=dict)

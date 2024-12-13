@@ -9,7 +9,7 @@ agent = Agent(
 )
 
 agent.print_response(
-    "Tell me about this image and give me the latest news about it.",
+    "Tell me about this image and search the web for more information.",
     images=[
         "https://upload.wikimedia.org/wikipedia/commons/a/a7/Camponotus_flavomarginatus_ant.jpg",
     ],

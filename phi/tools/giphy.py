@@ -50,8 +50,11 @@ class GiphyTools(Toolkit):
             data = response.json()
             gif_urls = []
             for gif in data.get("data", []):
+                images = gif.get("images", {})
+                original_image = images["original"]
+
                 media_id = str(uuid.uuid4())
-                gif_url = gif["embed_url"]
+                gif_url = original_image["url"]
                 alt_text = gif["alt_text"]
                 gif_urls.append(gif_url)
 

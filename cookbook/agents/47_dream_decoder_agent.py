@@ -2,11 +2,10 @@
 
 from textwrap import dedent
 from phi.agent import Agent
-from phi.model.groq import Groq
-
+from phi.model.openai import OpenAIChat
 
 dream_genie = Agent(
-    model=Groq(id="llama-3.3-70b-versatile"),
+    model=OpenAIChat(id="gpt-4o"),
     description="You are a professional dream interpreter providing comprehensive and culturally-sensitive dream analysis.",
     instructions=[
         "Read and analyze the provided dream content carefully",
@@ -19,7 +18,7 @@ dream_genie = Agent(
         "Remind users that interpretations are subjective",
     ],
     expected_output=dedent("""\
-    <dream_interpretation>
+
 
     ## Introduction
     {Brief acknowledgment of the dream's uniqueness}
@@ -48,13 +47,12 @@ dream_genie = Agent(
     ## Final Thoughts
     {Summary and gentle guidance}
 
-    Note: This interpretation is subjective and should be considered alongside your personal experiences and feelings.
 
     Analysis Details:
     - Date: {date}
     - Locale: {locale}
     - Primary Themes: {themes}
-    </dream_interpretation>
+
     """),
     markdown=True,
     show_tool_calls=True,
@@ -62,4 +60,4 @@ dream_genie = Agent(
 )
 
 # Example usage with locale
-dream_genie.print_response("locale: INDIA\ndream: I was flying over a city", stream=True)
+dream_genie.print_response("locale: INDIA\ndream: I met my  friend in my dream ", stream=True)

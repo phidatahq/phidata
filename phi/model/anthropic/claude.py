@@ -143,53 +143,77 @@ class Claude(Model):
 
                 if message.role == "user" and message.images is not None:
                     for image in message.images:
-                        try:
-                            content.append(self.add_image(image))
-                        except Exception as e:
-                            logger.error(f"Error adding image to message: {e}")
+                        image_content = self.add_image(image)
+                        if image_content:
+                            content.append(image_content)
 
                 chat_messages.append({"role": message.role, "content": content})  # type: ignore
         return chat_messages, " ".join(system_messages)
 
-    def add_image(self, image: str) -> Dict[str, Any]:
+    def add_image(self, image: Union[str, bytes]) -> Optional[Dict[str, Any]]:
         """
         Add an image to a message by converting it to base64 encoded format.
 
         Args:
-            image (str): URL of the image to be processed. Defaults to None.
+            image: URL string, local file path, or bytes object
 
         Returns:
-            Dict[str, Any]: A dictionary containing the processed image information.
+            Optional[Dict[str, Any]]: Dictionary containing the processed image information if successful
         """
         import base64
         import imghdr
-        import httpx
 
-        image_dict: Dict[str, Any] = {"type": "image"}
+        type_mapping = {"jpeg": "image/jpeg", "png": "image/png", "gif": "image/gif", "webp": "image/webp"}
 
         try:
-            response = httpx.get(image)
-            content = response.content
+            content = None
+            # Case 1: Image is a string
+            if isinstance(image, str):
+                # Case 1.1: Image is a URL
+                if image.startswith(("http://", "https://")):
+                    import httpx
 
-            # Get the image type from the content
+                    content = httpx.get(image).content
+                # Case 1.2: Image is a local file path
+                else:
+                    from pathlib import Path
+
+                    path = Path(image)
+                    if path.exists() and path.is_file():
+                        with open(image, "rb") as f:
+                            content = f.read()
+                    else:
+                        logger.error(f"Image file not found: {image}")
+                        return None
+            # Case 2: Image is a bytes object
+            elif isinstance(image, bytes):
+                content = image
+            else:
+                logger.error(f"Unsupported image type: {type(image)}")
+                return None
+
             img_type = imghdr.what(None, h=content)
             if not img_type:
-                raise ValueError("Unable to determine image type")
+                logger.error("Unable to determine image type")
+                return None
 
-            # Map imghdr types to image file types supported by the Anthropic API
-            type_mapping = {"jpeg": "image/jpeg", "png": "image/png", "gif": "image/gif", "webp": "image/webp"}
             media_type = type_mapping.get(img_type)
-            img_data = base64.standard_b64encode(content).decode("utf-8")
+            if not media_type:
+                logger.error(f"Unsupported image type: {img_type}")
+                return None
 
-            image_dict["source"] = {
-                "type": "base64",
-                "media_type": media_type,
-                "data": img_data,
+            return {
+                "type": "image",
+                "source": {
+                    "type": "base64",
+                    "media_type": media_type,
+                    "data": base64.b64encode(content).decode("utf-8"),
+                },
             }
-        except Exception as e:
-            logger.error(f"Error fetching image: {e}")
 
-        return image_dict
+        except Exception as e:
+            logger.error(f"Error processing image: {e}")
+            return None
 
     def prepare_request_kwargs(self, system_message: str) -> Dict[str, Any]:
         """

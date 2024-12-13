@@ -4,7 +4,7 @@ from typing import Optional
 from phi.tools import Toolkit
 
 try:
-    from crawl4ai import AsyncWebCrawler
+    from crawl4ai import AsyncWebCrawler, CacheMode
 except ImportError:
     raise ImportError("`crawl4ai` not installed. Please install using `pip install crawl4ai`")
 
@@ -44,8 +44,8 @@ class Crawl4aiTools(Toolkit):
         :return: The results of the crawling as a markdown string, or None if no result.
         """
 
-        async with AsyncWebCrawler() as crawler:
-            result = await crawler.arun(url=url)
+        async with AsyncWebCrawler(thread_safe=True) as crawler:
+            result = await crawler.arun(url=url, cache_mode=CacheMode.BYPASS)
 
             # Determine the length to use
             length = self.max_length or max_length
@@ -59,4 +59,4 @@ class Crawl4aiTools(Toolkit):
                 return result
 
             result = result.markdown.replace(" ", "")
-            return result
+        return result

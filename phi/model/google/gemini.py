@@ -283,7 +283,7 @@ class Gemini(Model):
                         audio_file = {"mime_type": "audio/mp3", "data": message.audio}
                         message_parts.insert(0, audio_file)  # type: ignore
                 except Exception as e:
-                    logger.warning(f"Failed to load video from {message.videos}: {e}")
+                    logger.warning(f"Failed to load audio from {message.audio}: {e}")
                     continue
 
             message_for_model["parts"] = message_parts

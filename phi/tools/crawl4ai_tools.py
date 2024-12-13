@@ -6,7 +6,7 @@ from phi.tools import Toolkit
 try:
     from crawl4ai import AsyncWebCrawler
 except ImportError:
-    raise ImportError("`crawl4ai` not installed. Please install using `pip install crawl4ai[all]`")
+    raise ImportError("`crawl4ai` not installed. Please install using `pip install crawl4ai`")
 
 
 class Crawl4aiTools(Toolkit):
@@ -33,10 +33,9 @@ class Crawl4aiTools(Toolkit):
             return "No URL provided"
 
         # Run the async crawler function synchronously
-        result = asyncio.run(self._async_web_crawler(url, max_length))
-        return result
+        return asyncio.run(self._async_web_crawler(url, max_length))
 
-    async def _async_web_crawler(self, url: str, max_length: Optional[int] = None) -> Optional[str]:
+    async def _async_web_crawler(self, url: str, max_length: Optional[int] = None) -> str:
         """
         Asynchronous method to crawl a website using AsyncWebCrawler.
 

@@ -32,7 +32,7 @@ from phi.model.content import Image, Video
 from phi.reasoning.step import ReasoningStep, ReasoningSteps, NextAction
 from phi.run.response import RunEvent, RunResponse, RunResponseExtraData
 from phi.knowledge.agent import AgentKnowledge
-from phi.model import Model
+from phi.model.base import Model
 from phi.model.message import Message, MessageReferences
 from phi.model.response import ModelResponse, ModelResponseEvent
 from phi.memory.agent import AgentMemory, MemoryRetrieval, Memory, AgentRun, SessionSummary  # noqa: F401
@@ -574,9 +574,9 @@ class Agent(BaseModel):
         if self.model is not None:
             agent_data["model"] = self.model.to_dict()
         if self.images is not None:
-            agent_data["images"] = [img.model_dump() for img in self.images]
+            agent_data["images"] = [img if isinstance(img, dict) else img.model_dump() for img in self.images]
         if self.videos is not None:
-            agent_data["videos"] = [vid.model_dump() for vid in self.videos]
+            agent_data["videos"] = [vid if isinstance(vid, dict) else vid.model_dump() for vid in self.videos]
         return agent_data
 
     def get_session_data(self) -> Dict[str, Any]:
@@ -1126,9 +1126,11 @@ class Agent(BaseModel):
 
     def get_user_message(
         self,
+        *,
         message: Optional[Union[str, List]],
-        images: Optional[Sequence[Union[str, Dict]]] = None,
-        audio: Optional[Dict] = None,
+        audio: Optional[Any] = None,
+        images: Optional[Sequence[Any]] = None,
+        videos: Optional[Sequence[Any]] = None,
         **kwargs: Any,
     ) -> Optional[Message]:
         """Return the user message for the Agent.
@@ -1170,8 +1172,9 @@ class Agent(BaseModel):
             return Message(
                 role=self.user_message_role,
                 content=user_prompt_content,
-                images=images,
                 audio=audio,
+                images=images,
+                videos=videos,
                 **kwargs,
             )
 
@@ -1182,8 +1185,9 @@ class Agent(BaseModel):
             return Message(
                 role=self.user_message_role,
                 content=user_prompt_from_template,
-                images=images,
                 audio=audio,
+                images=images,
+                videos=videos,
                 **kwargs,
             )
 
@@ -1220,8 +1224,9 @@ class Agent(BaseModel):
         return Message(
             role=self.user_message_role,
             content=user_prompt,
-            images=images,
             audio=audio,
+            images=images,
+            videos=videos,
             **kwargs,
         )
 
@@ -1229,8 +1234,9 @@ class Agent(BaseModel):
         self,
         *,
         message: Optional[Union[str, List, Dict, Message]] = None,
-        images: Optional[Sequence[Union[str, Dict]]] = None,
-        audio: Optional[Dict] = None,
+        audio: Optional[Any] = None,
+        images: Optional[Sequence[Any]] = None,
+        videos: Optional[Sequence[Any]] = None,
         messages: Optional[Sequence[Union[Dict, Message]]] = None,
         **kwargs: Any,
     ) -> Tuple[Optional[Message], List[Message], List[Message]]:
@@ -1312,7 +1318,7 @@ class Agent(BaseModel):
             elif isinstance(message, str) or isinstance(message, list):
                 # Get the user message
                 user_message: Optional[Message] = self.get_user_message(
-                    message=message, images=images, audio=audio, **kwargs
+                    message=message, audio=audio, images=images, videos=videos, **kwargs
                 )
                 # Add user message to the messages list
                 if user_message is not None:
@@ -1713,8 +1719,9 @@ class Agent(BaseModel):
         message: Optional[Union[str, List, Dict, Message]] = None,
         *,
         stream: bool = False,
-        audio: Optional[Dict] = None,
-        images: Optional[Sequence[Union[str, Dict]]] = None,
+        audio: Optional[Any] = None,
+        images: Optional[Sequence[Any]] = None,
+        videos: Optional[Sequence[Any]] = None,
         messages: Optional[Sequence[Union[Dict, Message]]] = None,
         stream_intermediate_steps: bool = False,
         **kwargs: Any,
@@ -1753,7 +1760,7 @@ class Agent(BaseModel):
 
         # 3. Prepare messages for this run
         system_message, user_messages, messages_for_model = self.get_messages_for_run(
-            message=message, images=images, audio=audio, messages=messages, **kwargs
+            message=message, audio=audio, images=images, videos=videos, messages=messages, **kwargs
         )
 
         # 4. Reason about the task if reasoning is enabled
@@ -1933,8 +1940,9 @@ class Agent(BaseModel):
         message: Optional[Union[str, List, Dict, Message]] = None,
         *,
         stream: Literal[False] = False,
-        images: Optional[Sequence[Union[str, Dict]]] = None,
-        audio: Optional[Dict] = None,
+        audio: Optional[Any] = None,
+        images: Optional[Sequence[Any]] = None,
+        videos: Optional[Sequence[Any]] = None,
         messages: Optional[Sequence[Union[Dict, Message]]] = None,
         **kwargs: Any,
     ) -> RunResponse: ...
@@ -1945,8 +1953,9 @@ class Agent(BaseModel):
         message: Optional[Union[str, List, Dict, Message]] = None,
         *,
         stream: Literal[True] = True,
-        images: Optional[Sequence[Union[str, Dict]]] = None,
-        audio: Optional[Dict] = None,
+        audio: Optional[Any] = None,
+        images: Optional[Sequence[Any]] = None,
+        videos: Optional[Sequence[Any]] = None,
         messages: Optional[Sequence[Union[Dict, Message]]] = None,
         stream_intermediate_steps: bool = False,
         **kwargs: Any,
@@ -1957,8 +1966,9 @@ class Agent(BaseModel):
         message: Optional[Union[str, List, Dict, Message]] = None,
         *,
         stream: bool = False,
-        images: Optional[Sequence[Union[str, Dict]]] = None,
-        audio: Optional[Dict] = None,
+        audio: Optional[Any] = None,
+        images: Optional[Sequence[Any]] = None,
+        videos: Optional[Sequence[Any]] = None,
         messages: Optional[Sequence[Union[Dict, Message]]] = None,
         stream_intermediate_steps: bool = False,
         **kwargs: Any,
@@ -1973,8 +1983,9 @@ class Agent(BaseModel):
                 self._run(
                     message=message,
                     stream=False,
-                    images=images,
                     audio=audio,
+                    images=images,
+                    videos=videos,
                     messages=messages,
                     stream_intermediate_steps=stream_intermediate_steps,
                     **kwargs,
@@ -2022,8 +2033,9 @@ class Agent(BaseModel):
                 resp = self._run(
                     message=message,
                     stream=True,
-                    images=images,
                     audio=audio,
+                    images=images,
+                    videos=videos,
                     messages=messages,
                     stream_intermediate_steps=stream_intermediate_steps,
                     **kwargs,
@@ -2033,8 +2045,9 @@ class Agent(BaseModel):
                 resp = self._run(
                     message=message,
                     stream=False,
-                    images=images,
                     audio=audio,
+                    images=images,
+                    videos=videos,
                     messages=messages,
                     stream_intermediate_steps=stream_intermediate_steps,
                     **kwargs,
@@ -2046,8 +2059,9 @@ class Agent(BaseModel):
         message: Optional[Union[str, List, Dict, Message]] = None,
         *,
         stream: bool = False,
-        images: Optional[Sequence[Union[str, Dict]]] = None,
-        audio: Optional[Dict] = None,
+        audio: Optional[Any] = None,
+        images: Optional[Sequence[Any]] = None,
+        videos: Optional[Sequence[Any]] = None,
         messages: Optional[Sequence[Union[Dict, Message]]] = None,
         stream_intermediate_steps: bool = False,
         **kwargs: Any,
@@ -2083,7 +2097,7 @@ class Agent(BaseModel):
 
         # 3. Prepare messages for this run
         system_message, user_messages, messages_for_model = self.get_messages_for_run(
-            message=message, images=images, audio=audio, messages=messages, **kwargs
+            message=message, audio=audio, images=images, videos=videos, messages=messages, **kwargs
         )
 
         # 4. Reason about the task if reasoning is enabled
@@ -2263,8 +2277,9 @@ class Agent(BaseModel):
         message: Optional[Union[str, List, Dict, Message]] = None,
         *,
         stream: bool = False,
-        images: Optional[Sequence[Union[str, Dict]]] = None,
-        audio: Optional[Dict] = None,
+        audio: Optional[Any] = None,
+        images: Optional[Sequence[Any]] = None,
+        videos: Optional[Sequence[Any]] = None,
         messages: Optional[Sequence[Union[Dict, Message]]] = None,
         stream_intermediate_steps: bool = False,
         **kwargs: Any,
@@ -2278,8 +2293,9 @@ class Agent(BaseModel):
             run_response = await self._arun(
                 message=message,
                 stream=False,
-                images=images,
                 audio=audio,
+                images=images,
+                videos=videos,
                 messages=messages,
                 stream_intermediate_steps=stream_intermediate_steps,
                 **kwargs,
@@ -2324,8 +2340,9 @@ class Agent(BaseModel):
                 resp = self._arun(
                     message=message,
                     stream=True,
-                    images=images,
                     audio=audio,
+                    images=images,
+                    videos=videos,
                     messages=messages,
                     stream_intermediate_steps=stream_intermediate_steps,
                     **kwargs,
@@ -2335,8 +2352,9 @@ class Agent(BaseModel):
                 resp = self._arun(
                     message=message,
                     stream=False,
-                    images=images,
                     audio=audio,
+                    images=images,
+                    videos=videos,
                     messages=messages,
                     stream_intermediate_steps=stream_intermediate_steps,
                     **kwargs,
@@ -2645,7 +2663,7 @@ class Agent(BaseModel):
             run_data.update(
                 {
                     "run_input": self.run_input,
-                    "run_response": self.run_response,
+                    "run_response": self.run_response.to_dict(),
                     "run_response_format": run_response_format,
                 }
             )

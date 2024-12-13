@@ -11,7 +11,7 @@ def multimodal_example(project: Optional[str], location: Optional[str]) -> str:
     # Load the model
     multimodal_model = GenerativeModel("gemini-1.0-pro-vision")
     # Query the model
-    response = multimodal_model.generate_media(
+    response = multimodal_model.generate_content(
         [
             # Add an example image
             Part.from_uri("gs://generativeai-downloads/images/scones.jpg", mime_type="image/jpeg"),

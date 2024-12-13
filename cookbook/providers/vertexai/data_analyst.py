@@ -11,7 +11,7 @@ duckdb_tools.create_table_from_path(
 )
 
 agent = Agent(
-    model=Gemini(id="gemini-1.5-flash"),
+    model=Gemini(id="gemini-2.0-flash-exp"),
     tools=[duckdb_tools],
     markdown=True,
     show_tool_calls=True,

@@ -1,6 +1,6 @@
 [project]
 name = "phidata"
-version = "2.7.0"
+version = "2.7.2"
 description = "Build multi-modal Agents with memory, knowledge and tools."
 requires-python = ">=3.7"
 readme = "README.md"
@@ -89,7 +89,6 @@ exclude = ["phienv*", "aienv*"]
 check_untyped_defs = true
 no_implicit_optional = true
 warn_unused_configs = true
-ignore_missing_imports = true
 plugins = ["pydantic.mypy"]
 exclude = ["phienv*", "aienv*", "scratch*", "wip*", "tmp*", "cookbook/assistants/examples/*", "phi/assistant/openai/*"]
 
@@ -102,6 +101,7 @@ module = [
   "boto3.*",
   "botocore.*",
   "bs4.*",
+  "chonkie.*",
   "chromadb.*",
   "clip.*",
   "clip.*",
@@ -122,9 +122,10 @@ module = [
   "jira.*",
   "kubernetes.*",
   "lancedb.*",
-  "langchain_core.*",
   "langchain.*",
+  "langchain_core.*",
   "llama_index.*",
+  "mem0.*",
   "mistralai.*",
   "mlx_whisper.*",
   "nest_asyncio.*",
@@ -136,8 +137,8 @@ module = [
   "pandas.*",
   "pgvector.*",
   "PIL.*",
-  "pinecone_text.*",
   "pinecone.*",
+  "pinecone_text.*",
   "psycopg.*",
   "psycopg2.*",
   "pyarrow.*",
@@ -168,6 +169,5 @@ module = [
   "wikipedia.*",
   "yfinance.*",
   "youtube_transcript_api.*",
-  "chonkie.*",
 ]
 ignore_missing_imports = true

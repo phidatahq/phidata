@@ -8,7 +8,7 @@ from phi.storage.agent.postgres import PgAgentStorage
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 
 agent = Agent(
-    model=Gemini(id="gemini-1.5-flash"),
+    model=Gemini(id="gemini-2.0-flash-exp"),
     storage=PgAgentStorage(table_name="agent_sessions", db_url=db_url),
     tools=[DuckDuckGo()],
     add_history_to_messages=True,

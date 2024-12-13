@@ -17,7 +17,7 @@ class MovieScript(BaseModel):
 
 
 movie_agent = Agent(
-    model=Gemini(id="gemini-1.5-flash"),
+    model=Gemini(id="gemini-2.0-flash-exp"),
     description="You help people write movie scripts.",
     response_model=MovieScript,
 )

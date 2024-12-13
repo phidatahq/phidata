@@ -103,7 +103,6 @@ gif_agent = Agent(
 )
 
 
-
 app = Playground(agents=[image_agent, ml_gif_agent, ml_video_agent, fal_agent, gif_agent]).get_app(use_async=False)
 
 if __name__ == "__main__":

@@ -1,5 +1,5 @@
 import uuid
-from typing import Optional, List
+from typing import Optional
 import httpx
 import os
 
@@ -52,13 +52,7 @@ class GiphyTools(Toolkit):
 
             for gif_url in gif_urls:
                 media_id = str(uuid.uuid4())
-                agent.add_image(
-                    Image(
-                        id=media_id,
-                        url=gif_url,
-                        revised_prompt=query
-                    )
-                )
+                agent.add_image(Image(id=media_id, url=gif_url, revised_prompt=query))
 
             return f"These are the found gifs {gif_urls}"
 

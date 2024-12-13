@@ -118,9 +118,9 @@ class YouTubeTools(Toolkit):
             captions = None
             kwargs: Dict = {}
             if self.languages:
-                kwargs['languages'] = self.languages or ["en"]
+                kwargs["languages"] = self.languages or ["en"]
             if self.proxies:
-                kwargs['proxies'] = self.proxies
+                kwargs["proxies"] = self.proxies
             captions = YouTubeTranscriptApi.get_transcript(video_id, **kwargs)
             # logger.debug(f"Captions for video {video_id}: {captions}")
             if captions:
@@ -147,11 +147,11 @@ class YouTubeTools(Toolkit):
             return "Error getting video ID from URL, please provide a valid YouTube url"
 
         try:
-            kwargs = {}
+            kwargs: Dict = {}
             if self.languages:
-                kwargs['languages'] = self.languages or ["en"]
+                kwargs["languages"] = self.languages or ["en"]
             if self.proxies:
-                kwargs['proxies'] = self.proxies
+                kwargs["proxies"] = self.proxies
 
             captions = YouTubeTranscriptApi.get_transcript(video_id, **kwargs)
             timestamps = []

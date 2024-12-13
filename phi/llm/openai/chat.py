@@ -181,7 +181,9 @@ class OpenAIChat(LLM):
         if self.presence_penalty:
             _dict["presence_penalty"] = self.presence_penalty
         if self.response_format:
-            _dict["response_format"] = self.response_format
+            _dict["response_format"] = (
+                self.response_format if isinstance(self.response_format, dict) else str(self.response_format)
+            )
         if self.seed is not None:
             _dict["seed"] = self.seed
         if self.stop:

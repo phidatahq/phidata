@@ -1,10 +1,12 @@
 ## Description
 
 **Please include:**
-- A summary of the changes and the related issue
-- Relevant motivation and context
-- Any dependencies or environment changes required
-- If this modifies AI/ML components, include model performance metrics
+
+- **Summary of changes**: Clearly describe the key changes in this PR and their purpose.
+- **Related issues**: Mention if this PR fixes or is connected to any issues (e.g., "Fixes #123" or "Relates to #456").
+- **Motivation and context**: Explain the reason for the changes and the problem they solve.
+- **Environment or dependencies**: Specify any changes in dependencies or environment configurations required for this update.
+- **Impact on AI/ML components**: (If applicable) Describe changes to AI/ML models and include performance metrics (e.g., accuracy, F1-score).
 
 Fixes # (issue)
 

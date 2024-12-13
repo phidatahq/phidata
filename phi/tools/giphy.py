@@ -48,11 +48,14 @@ class GiphyTools(Toolkit):
 
             # Extract the GIF URLs
             data = response.json()
-            gif_urls = [gif["embed_url"] for gif in data.get("data", [])]
-
-            for gif_url in gif_urls:
+            gif_urls = []
+            for gif in data.get("data", []):
                 media_id = str(uuid.uuid4())
-                agent.add_image(Image(id=media_id, url=gif_url, revised_prompt=query))
+                gif_url = gif["embed_url"]
+                alt_text = gif["alt_text"]
+                gif_urls.append(gif_url)
+
+                agent.add_image(Image(id=media_id, url=gif_url, alt_text=alt_text, revised_prompt=query))
 
             return f"These are the found gifs {gif_urls}"
 

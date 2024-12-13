@@ -7,11 +7,10 @@ from phi.tools.giphy import GiphyTools
 gif_agent = Agent(
     name="Gif Generator Agent",
     model=OpenAIChat(id="gpt-4o"),
-    tools=[GiphyTools()],
+    tools=[GiphyTools(limit=5)],
     description="You are an AI agent that can generate gifs using Giphy.",
     instructions=[
         "When the user asks you to create a gif, come up with the appropriate Giphy query and use the `search_gifs` tool to find the appropriate gif.",
-        "Don't return the URL, only describe what you created.",
     ],
     markdown=True,
     debug_mode=True,

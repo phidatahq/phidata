@@ -7,10 +7,7 @@ try:
     import clickhouse_connect
     import clickhouse_connect.driver.client
 except ImportError:
-    raise ImportError(
-        "`clickhouse-connect` not installed. "
-        "Use `pip install 'clickhouse-connect'` to install it"
-    )
+    raise ImportError("`clickhouse-connect` not installed. Use `pip install 'clickhouse-connect'` to install it")
 
 from phi.document import Document
 from phi.embedder import Embedder
@@ -104,13 +101,9 @@ class ClickhouseDb(VectorDb):
                     f"INDEX embedding_index embedding TYPE vector_similarity('hnsw', 'L2Distance', {self.index.quantization}, "
                     f"{self.index.hnsw_max_connections_per_layer}, {self.index.hnsw_candidate_list_size_for_construction})"
                 )
-                self.client.command(
-                    "SET allow_experimental_vector_similarity_index = 1"
-                )
+                self.client.command("SET allow_experimental_vector_similarity_index = 1")
             else:
-                raise NotImplementedError(
-                    f"Not implemented index {type(self.index)!r} is passed"
-                )
+                raise NotImplementedError(f"Not implemented index {type(self.index)!r} is passed")
 
             self.client.command("SET enable_json_type = 1")
 
@@ -120,6 +113,7 @@ class ClickhouseDb(VectorDb):
                     id String,
                     name String,
                     meta_data JSON DEFAULT '{{}}',
+                    filters JSON DEFAULT '{{}}',
                     content String,
                     embedding Array(Float32),
                     usage JSON,
@@ -196,6 +190,7 @@ class ClickhouseDb(VectorDb):
                 _id,
                 document.name,
                 document.meta_data,
+                filters,
                 cleaned_content,
                 document.embedding,
                 document.usage,
@@ -210,6 +205,7 @@ class ClickhouseDb(VectorDb):
                 "id",
                 "name",
                 "meta_data",
+                "filters",
                 "content",
                 "embedding",
                 "usage",
@@ -244,9 +240,7 @@ class ClickhouseDb(VectorDb):
             parameters=parameters,
         )
 
-    def search(
-        self, query: str, limit: int = 5, filters: Optional[Dict[str, Any]] = None
-    ) -> List[Document]:
+    def search(self, query: str, limit: int = 5, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
         query_embedding = self.embedder.get_embedding(query)
         if query_embedding is None:
             logger.error(f"Error getting embedding for Query: {query}")
@@ -264,14 +258,10 @@ class ClickhouseDb(VectorDb):
 
         order_by_query = ""
         if self.distance == Distance.l2 or self.distance == Distance.max_inner_product:
-            order_by_query = (
-                "ORDER BY L2Distance(embedding, {query_embedding:Array(Float32)})"
-            )
+            order_by_query = "ORDER BY L2Distance(embedding, {query_embedding:Array(Float32)})"
             parameters["query_embedding"] = query_embedding
         if self.distance == Distance.cosine:
-            order_by_query = (
-                "ORDER BY cosineDistance(embedding, {query_embedding:Array(Float32)})"
-            )
+            order_by_query = "ORDER BY cosineDistance(embedding, {query_embedding:Array(Float32)})"
             parameters["query_embedding"] = query_embedding
 
         clickhouse_query = (

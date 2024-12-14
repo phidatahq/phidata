@@ -12,8 +12,10 @@ agent = Agent(
         "Verify that each product recommendation is in stock and available for purchase.",
         "Avoid suggesting counterfeit or unverified products.",
         "Clearly mention the key attributes of each product (e.g., price, brand, features) in the response.",
-        "Format the recommendations neatly and ensure clarity for ease of user understanding."
+        "Format the recommendations neatly and ensure clarity for ease of user understanding.",
     ],
-    tools=[FirecrawlTools()]
+    tools=[FirecrawlTools()],
 )
-agent.print_response("I am looking for running shoes with the following preferences: Color: Black Purpose: Comfortable for long-distance running Budget: Under Rs. 10,000")
+agent.print_response(
+    "I am looking for running shoes with the following preferences: Color: Black Purpose: Comfortable for long-distance running Budget: Under Rs. 10,000"
+)

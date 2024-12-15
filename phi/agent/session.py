@@ -27,7 +27,18 @@ class AgentSession(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     def monitoring_data(self) -> Dict[str, Any]:
-        return self.model_dump()
+        monitoring_data = self.model_dump(exclude={"memory"})
+        # Google Gemini adds a "parts" field to the messages, which is not serializable
+        # If there are runs in the memory, remove the "parts" from the messages
+        if self.memory is not None and "runs" in self.memory:
+            _runs = self.memory["runs"]
+            if len(_runs) > 0:
+                for _run in _runs:
+                    if "messages" in _run:
+                        for m in _run["messages"]:
+                            if isinstance(m, dict):
+                                m.pop("parts", None)
+        return monitoring_data
 
     def telemetry_data(self) -> Dict[str, Any]:
         return self.model_dump(include={"model", "created_at", "updated_at"})

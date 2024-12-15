@@ -30,15 +30,12 @@ class OllamaTools(Ollama):
     """
     An Ollama class that uses XML tags for tool calls.
 
-    Attributes:
-        id (str): The ID of the model to use. Default is "llama3.2".
-        name (str): The name of the model. Default is "OllamaTools".
-        provider (str): The provider of the model. Default is "Ollama: llama3.2".
+    For more information, see: https://github.com/ollama/ollama/blob/main/docs/api.md
     """
 
     id: str = "llama3.2"
     name: str = "OllamaTools"
-    provider: str = "Ollama: " + id
+    provider: str = "Ollama"
 
     @property
     def request_kwargs(self) -> Dict[str, Any]:
@@ -48,18 +45,18 @@ class OllamaTools(Ollama):
         Returns:
             Dict[str, Any]: The API kwargs for the model.
         """
-        _request_params: Dict[str, Any] = {}
+        request_params: Dict[str, Any] = {}
         if self.format is not None:
-            _request_params["format"] = self.format
+            request_params["format"] = self.format
         if self.options is not None:
-            _request_params["options"] = self.options
+            request_params["options"] = self.options
         if self.keep_alive is not None:
-            _request_params["keep_alive"] = self.keep_alive
+            request_params["keep_alive"] = self.keep_alive
         if self.request_params is not None:
-            _request_params.update(self.request_params)
-        return _request_params
+            request_params.update(self.request_params)
+        return request_params
 
-    def _create_assistant_message(self, response: Mapping[str, Any], metrics: Metrics) -> Message:
+    def create_assistant_message(self, response: Mapping[str, Any], metrics: Metrics) -> Message:
         """
         Create an assistant message from the response.
 
@@ -120,10 +117,10 @@ class OllamaTools(Ollama):
             assistant_message.tool_calls = message_data.tool_calls
 
         # -*- Update metrics
-        self._update_usage_metrics(assistant_message=assistant_message, metrics=metrics, response=response)
+        self.update_usage_metrics(assistant_message=assistant_message, metrics=metrics, response=response)
         return assistant_message
 
-    def _format_function_call_results(self, function_call_results: List[Message], messages: List[Message]) -> None:
+    def format_function_call_results(self, function_call_results: List[Message], messages: List[Message]) -> None:
         """
         Format the function call results and append them to the messages.
 
@@ -140,7 +137,7 @@ class OllamaTools(Ollama):
                 )
                 messages.append(_fc_message)
 
-    def _handle_tool_calls(
+    def handle_tool_calls(
         self,
         assistant_message: Message,
         messages: List[Message],
@@ -160,7 +157,7 @@ class OllamaTools(Ollama):
         if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
             model_response.content = str(remove_tool_calls_from_string(assistant_message.get_content_string()))
             model_response.content += "\n\n"
-            function_calls_to_run = self._get_function_calls_to_run(assistant_message, messages)
+            function_calls_to_run = self.get_function_calls_to_run(assistant_message, messages)
             function_call_results: List[Message] = []
 
             if self.show_tool_calls:
@@ -178,7 +175,7 @@ class OllamaTools(Ollama):
             ):
                 pass
 
-            self._format_function_call_results(function_call_results, messages)
+            self.format_function_call_results(function_call_results, messages)
 
             return model_response
         return None
@@ -293,7 +290,7 @@ class OllamaTools(Ollama):
             assistant_message.tool_calls = message_data.tool_calls
 
         # -*- Update usage metrics
-        self._update_usage_metrics(
+        self.update_usage_metrics(
             assistant_message=assistant_message, metrics=metrics, response=message_data.response_usage
         )
 
@@ -306,8 +303,8 @@ class OllamaTools(Ollama):
 
         # -*- Handle tool calls
         if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
-            yield from self._handle_stream_tool_calls(assistant_message, messages)
-            yield from self.response_stream(messages=messages)
+            yield from self.handle_stream_tool_calls(assistant_message, messages)
+            yield from self.handle_post_tool_call_messages_stream(messages=messages)
         logger.debug("---------- Ollama Response End ----------")
 
     def get_instructions_to_generate_tool_calls(self) -> List[str]:

@@ -124,3 +124,31 @@ class YouTubeTools(Toolkit):
             return "No captions found for video"
         except Exception as e:
             return f"Error getting captions for video: {e}"
+
+    def get_video_timestamps(self, url: str) -> str:
+        """Generate timestamps for a YouTube video based on captions.
+
+        Args:
+            url: The URL of the YouTube video.
+
+        Returns:
+            str: Timestamps and summaries for the video.
+        """
+        if not url:
+            return "No URL provided"
+
+        try:
+            video_id = self.get_youtube_video_id(url)
+        except Exception:
+            return "Error getting video ID from URL, please provide a valid YouTube url"
+
+        try:
+            captions = YouTubeTranscriptApi.get_transcript(video_id, languages=self.languages or ["en"])
+            timestamps = []
+            for line in captions:
+                start = int(line["start"])
+                minutes, seconds = divmod(start, 60)
+                timestamps.append(f"{minutes}:{seconds:02d} - {line['text']}")
+            return "\n".join(timestamps)
+        except Exception as e:
+            return f"Error generating timestamps: {e}"

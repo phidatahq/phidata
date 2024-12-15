@@ -145,7 +145,9 @@ class LinearTool(Toolkit):
             logger.error(f"Error retrieving issue with ID {issue_id}: {e}")
             raise
 
-    def create_issue(self, title: str, description: str, team_id: str) -> Optional[str]:
+    def create_issue(
+        self, title: str, description: str, team_id: str, project_id: str, assignee_id: str
+    ) -> Optional[str]:
         """
         Create a new issue within a specific project and team.
 
@@ -163,22 +165,30 @@ class LinearTool(Toolkit):
         """
 
         query = """
-        mutation IssueCreate ($title: String!, $description: String!, $teamId: String!){
+        mutation IssueCreate ($title: String!, $description: String!, $teamId: String!, $projectId: String!, $assigneeId: String!){
           issueCreate(
-            input: { title: $title, description: $description, teamId: $teamId }
+            input: { title: $title, description: $description, teamId: $teamId, projectId: $projectId, assigneeId: $assigneeId}
           ) {
             success
             issue {
               id
               title
+              url
             }
           }
         }
         """
 
-        variables = {"title": title, "description": description, "teamId": team_id}
+        variables = {
+            "title": title,
+            "description": description,
+            "teamId": team_id,
+            "projectId": project_id,
+            "assigneeId": assignee_id,
+        }
         try:
             response = self._execute_query(query, variables)
+            logger.info(f"Response: {response}")
 
             if response["issueCreate"]["success"]:
                 issue = response["issueCreate"]["issue"]

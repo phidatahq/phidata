@@ -1,4 +1,6 @@
+import os
 import json
+from typing import Optional
 
 from phi.tools.toolkit import Toolkit
 from phi.utils.log import logger
@@ -12,10 +14,16 @@ except ImportError:
 
 class SlackTools(Toolkit):
     def __init__(
-        self, token: str, send_message: bool = True, list_channels: bool = True, get_channel_history: bool = True
+        self,
+        send_message: bool = True,
+        list_channels: bool = True,
+        get_channel_history: bool = True,
     ):
         super().__init__(name="slack")
-        self.client = WebClient(token=token)
+        self.token: Optional[str] = os.getenv("SLACK_TOKEN")
+        if self.token is None or self.token == "":
+            raise ValueError("SLACK_TOKEN is not set")
+        self.client = WebClient(token=self.token)
         if send_message:
             self.register(self.send_message)
         if list_channels:

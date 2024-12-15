@@ -13,9 +13,9 @@ except ImportError:
 class ConfluenceTools(Toolkit):
     def __init__(
         self,
-        username: str = None,
-        password: str = None,
-        url: str = None,
+        username: Optional[str] = None,
+        password: Optional[str] = None,
+        url: Optional[str] = None,
         api_key: Optional[str] = None,
     ):
         """Initialize Confluence Tools with authentication credentials.

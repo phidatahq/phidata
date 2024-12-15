@@ -2,7 +2,6 @@ from phi.agent import Agent
 from phi.tools.confluence import ConfluenceTools
 
 
-
 agent = Agent(
     name="Confluence agent",
     tools=[ConfluenceTools()],

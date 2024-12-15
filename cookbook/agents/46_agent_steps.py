@@ -2,7 +2,7 @@ from rich.pretty import pprint
 from phi.agent import Agent
 from phi.agent.step.reason import Reason
 from phi.agent.step.task import Task
-from phi.agent.step.output import Output
+from phi.agent.step.respond import Respond
 from phi.model.openai import OpenAIChat
 from phi.tools.yfinance import YFinanceTools
 
@@ -14,7 +14,7 @@ agent = Agent(
         Task(instructions="Pull stock prices"),
         Task(instructions="Pull analyst recommendations"),
         Task(instructions="Pull stock fundamentals"),
-        Output(instructions="Answer the original question"),
+        Respond(instructions="Answer the original question"),
     ],
     # reasoning=True,
     markdown=True,

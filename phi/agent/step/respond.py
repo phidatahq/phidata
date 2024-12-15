@@ -9,7 +9,7 @@ from phi.model.response import ModelResponse, ModelResponseEvent
 from phi.run.response import RunResponse, RunEvent
 
 
-class Output(AgentStep):
+class Respond(AgentStep):
     def __init__(self, instructions: str):
         self.instructions = instructions
 
@@ -71,9 +71,6 @@ class Output(AgentStep):
                             content=model_response_chunk.content,
                             event=RunEvent.tool_call_completed,
                         )
-
-            # Update the agent.run_response content with the final content from the model response
-            agent.run_response.content = model_response.content
         else:
             # Get the model response
             model_response = agent.model.response(messages=messages)

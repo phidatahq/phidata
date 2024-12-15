@@ -29,8 +29,8 @@ from pydantic import BaseModel, ConfigDict, field_validator, Field, ValidationEr
 from phi.document import Document
 from phi.agent.session import AgentSession
 from phi.agent.step.base import AgentStep
-from phi.agent.step.output import Output
 from phi.agent.step.reason import Reason
+from phi.agent.step.respond import Respond
 from phi.model.content import Image, Video
 from phi.reasoning.step import ReasoningStep, ReasoningSteps, NextAction
 from phi.run.response import RunEvent, RunResponse, RunResponseExtraData
@@ -1559,15 +1559,17 @@ class Agent(BaseModel):
         """Run the Agent and yield the RunResponse.
 
         Steps:
-        1. Setup: Update the model class and resolve context
-        2. Read existing session from storage
-        3. Prepare messages for this run
-        4. Reason about the task if reasoning is enabled
-        5. Generate a response from the Model (includes running function calls)
-        6. Update Memory
-        7. Save session to storage
-        8. Save output to file if save_output_to_file is set
-        9. Set the run_input
+        1. Prepare the Agent for the run
+        2. Update the Model and resolve context
+        3. Read existing session from storage
+        4. Prepare messages for this run
+        5. Prepare the steps for this run
+        6. Start the Run by yielding a RunStarted event
+        7. Run the Agent Steps
+        8. Update the RunResponse messages and metrics
+        9. Update Agent Memory
+        10. Save session to storage
+        11. Save output to file if save_response_to_file is set
         """
         # 1. Prepare the Agent for the run
         # Check if streaming is enabled
@@ -1580,7 +1582,7 @@ class Agent(BaseModel):
 
         logger.debug(f"*********** Agent Run Start: {self.run_response.run_id} ***********")
 
-        # 2. Update the model class and resolve context
+        # 2. Update the Model and resolve context
         self.update_model()
         self.run_response.model = self.model.id if self.model is not None else None
         if self.context is not None and self.resolve_context:
@@ -1598,38 +1600,45 @@ class Agent(BaseModel):
         if len(self.steps) == 0:
             if self.reasoning:
                 self.steps.append(Reason())
-            self.steps.append(Output())
+            self.steps.append(Respond())
 
-        # Get the index of the last "input" message in messages_for_run
-        # We track this so we can add messages after this index to the RunResponse
-        index_of_last_input_message = len(messages_for_run)
+        # Get the index of the last "user" message in messages_for_run
+        # We track this so we can add messages after this index to the RunResponse and Memory
+        index_of_last_user_message = len(messages_for_run)
 
-        # Yield a RunStarted event
+        # 6. Start the Run by yielding a RunStarted event
         if self.stream_intermediate_steps:
             yield self.create_run_response("Run started", RunEvent.run_started)
 
-        # 6. Run the Agent Steps
+        # 7. Run the Agent Steps
         for step in self.steps:
-            logger.debug(f"Step: {step.__class__.__name__} Start")
-            logger.debug(f"Messages for run: {messages_for_run}")
-            yield from step.run(
-                self, messages=messages_for_run, user_messages=user_messages, system_message=system_message
-            )
-            logger.debug(f"Step: {step.__class__.__name__} End")
+            try:
+                logger.debug(f"Step: {step.__class__.__name__} Started")
+                logger.debug(f"Messages for run: {messages_for_run}")
+                yield from step.run(
+                    agent=self,
+                    messages=messages_for_run,
+                    user_messages=user_messages,
+                    system_message=system_message,
+                )
+                logger.debug(f"Step: {step.__class__.__name__} Completed")
+            except Exception as e:
+                logger.error(f"Step: {step.__class__.__name__} Error: {e}")
+                raise
 
-        # 7. Update the RunResponse
+        # 8. Update the RunResponse messages and metrics
         # Build a list of messages that should be added to the RunResponse
         messages_for_run_response = [m for m in messages_for_run if m.add_to_agent_memory]
         self.run_response.messages = messages_for_run_response
         self.run_response.metrics = self.aggregate_metrics_from_messages(messages_for_run_response)
 
-        # 8. Update Memory
+        # 9. Update Agent Memory
         # Add the system message to the memory
         if system_message is not None:
             self.memory.add_system_message(system_message, system_message_role=self.system_message_role)
         # Build a list of messages that should be added to the AgentMemory
         messages_for_memory = user_messages
-        for m in messages_for_run[index_of_last_input_message:]:
+        for m in messages_for_run[index_of_last_user_message:]:
             if m.add_to_agent_memory:
                 messages_for_memory.append(m)
         self.memory.add_messages(messages=messages_for_memory)
@@ -1682,10 +1691,10 @@ class Agent(BaseModel):
         if self.memory.create_session_summary and self.memory.update_session_summary_after_run:
             self.memory.update_summary()
 
-        # 9. Save session to storage
+        # 10. Save session to storage
         self.write_to_storage()
 
-        # 10. Save output to file if save_response_to_file is set
+        # 11. Save output to file if save_response_to_file is set
         self.save_run_response_to_file(message=message)
 
         # Set the run_input

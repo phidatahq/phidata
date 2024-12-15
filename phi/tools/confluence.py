@@ -18,6 +18,20 @@ class ConfluenceTools(Toolkit):
             url:str=None,
             api_key:Optional[str]=None,
             ):
+        """Initialize Confluence Tools with authentication credentials.
+        
+        Args:
+            username (str, optional): Confluence username. Defaults to None.
+            password (str, optional): Confluence password. Defaults to None.
+            url (str, optional): Confluence instance URL. Defaults to None.
+            api_key (str, optional): Confluence API key. Defaults to None.
+        
+        Notes:
+            Credentials can be provided either through method arguments or environment variables:
+            - CONFLUENCE_URL
+            - CONFLUENCE_USERNAME
+            - CONFLUENCE_API_KEY
+        """
         
         super().__init__(name="confluence_tools")
         self.url = url or getenv("CONFLUENCE_URL")
@@ -25,44 +39,130 @@ class ConfluenceTools(Toolkit):
         self.password=api_key or getenv("CONFLUENCE_API_KEY") or password
 
         if not self.url:
-            logger.error("Confluence  url not provoided , either pass it in the constructor  or set CONFLUENCE_URL in environment variable")
+            logger.error("Confluence URL not provided. Pass it in the constructor or set CONFLUENCE_URL in environment variable")
 
         if not self.username:
-            logger.error("Confluence username not provided , either pass it in the constructor or ser CONFLUENCE_USERNAME in environment variable")
+            logger.error("Confluence username not provided. Pass it in the constructor or set CONFLUENCE_USERNAME in environment variable")
 
-        if not self.api_key:
-            logger.error("CONFLUENCE API KEY not provided , nor password is provided ")
+        if not self.password:
+            logger.error("Confluence API KEY or password not provided")
         
-        self.client=Confluence(url=url,username=username,password=self.password)
+        self.confluence=Confluence(url=url,username=username,password=self.password)
 
-    def get_page_content(self, space_key:str ,page_title:str ,expand:Optional[str]="body.storage"):
+        self.register(self.get_page_content)
+        self.register(self.get_space_key)
+        self.register(self.create_page)
+        self.register(self.update_page)
+        self.register(self.get_all_space_detail)
+        self.register(self.get_all_page_from_space)
 
+    def get_page_content(self, space_name:str ,page_title:str ,expand:Optional[str]="body.storage"):
+        """Retrieve the content of a specific page in a Confluence space.
+        
+        Args:
+            space_name (str): Name of the Confluence space.
+            page_title (str): Title of the page to retrieve.
+            expand (str, optional): Fields to expand in the page response. Defaults to "body.storage".
+        
+        Returns:
+            str: JSON-encoded page content or error message.
+        """
         try:
-            page=self.confluence.get_page_by_title(space_key,page_title,expand=expand):
+            key=self.get_space_key(space_name=space_name)
+            page=self.confluence.get_page_by_title(key,page_title,expand=expand)
             if page:
+                logger.info(f"Successfully retrieved page '{page_title}' from space '{space_name}'")
                 return json.dumps(page)
             
-            logger.warning(f"Page '{page_title}' not found in space key '{space_key}'")
-            return json.dumps({"error": f"Page '{page_title}' not found in space key'{space_key}'"})
+            logger.warning(f"Page '{page_title}' not found in space '{space_name}'")
+            return json.dumps({"error": f"Page '{page_title}' not found in space '{space_name}'"})
 
         except Exception as e:
             logger.error(f"Error retrieving page '{page_title}': {e}")
+            return json.dumps({"error": str(e)})
+    
+    def get_all_space_detail(self):
+        """Retrieve details about all Confluence spaces.
+        
+        Returns:
+            str: List of space details as a string.
+        """
+        logger.info("Retrieving details for all Confluence spaces")
+        results=self.confluence.get_all_spaces()["results"]
+        return str(results)
 
+    def get_space_key(self,space_name:str):
+        """Get the space key for a particular Confluence space.
+        
+        Args:
+            space_name (str): Name of the space whose key is required.
+        
+        Returns:
+            str: Space key or "No space found" if space doesn't exist.
+        """
+        result=self.confluence.get_all_spaces()
+        spaces=result["results"]
+
+        for space in spaces:
+            if space['name'] == space_name:
+                logger.info(f"Found space key for '{space_name}'")
+                return space['key']
+        
+        logger.warning(f"No space named {space_name} found")
+        return "No space found"
+    
+    def get_all_page_from_space(self,space_name):
+        """Retrieve all pages from a specific Confluence space.
+        
+        Args:
+            space_name (str): Name of the Confluence space.
+        
+        Returns:
+            list: Details of pages in the specified space.
+        """
+        logger.info(f"Retrieving all pages from space '{space_name}'")
+        space_key=self.get_space_key(space_name)
+        page_details=self.confluence.get_all_pages_from_space(space_key, status=None, expand=None, content_type='page')
+        page_details = str([{"id": page["id"], "title": page["title"]} for page in page_details])
+        return page_details
+
+    def create_page(self, space_name: str, title: str, body: str, parent_id: Optional[str] = None) -> str:
+        """Create a new page in Confluence.
+        
+        Args:
+            space_name (str): Name of the Confluence space.
+            title (str): Title of the new page.
+            body (str): Content of the new page.
+            parent_id (str, optional): ID of the parent page if creating a child page. Defaults to None.
+        
+        Returns:
+            str: JSON-encoded page ID and title or error message.
+        """
+        try:
+            space_key=self.get_space_key(space_name=space_name)
+            page = self.confluence.create_page(space_key, title, body, parent_id=parent_id)
+            logger.info(f"Page created: {title} with ID {page['id']}")
+            return json.dumps({"id": page['id'], "title": title})
+        except Exception as e:
+            logger.error(f"Error creating page '{title}': {e}")
             return json.dumps({"error": str(e)})
     
 
-    def get_space_key(self,space_name:str):
-
-        spaces=self.confluence.get_all_spaces()
-        for space in spaces:
-            if space['name'] == space_name:
-                return space['key']
-    
-    def create_page(self,space_key:str,page_name:str):
-        pass
-
-    
-
-
-            
-
+    def update_page(self, page_id: str, title: str, body: str) -> str:
+        """Update an existing Confluence page.
+        
+        Args:
+            page_id (str): ID of the page to update.
+            title (str): New title for the page.
+            body (str): Updated content for the page.
+        
+        Returns:
+            str: JSON-encoded status and ID of the updated page or error message.
+        """
+        try:
+            updated_page = self.confluence.update_page(page_id, title, body)
+            logger.info(f"Page updated: {title} with ID {updated_page['id']}")
+            return json.dumps({"status": "success", "id": updated_page['id']})
+        except Exception as e:
+            logger.error(f"Error updating page '{title}': {e}")
+            return json.dumps({"error": str(e)})

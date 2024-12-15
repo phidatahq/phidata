@@ -295,8 +295,7 @@ class WorkspaceConfig(BaseModel):
 
             # logger.debug(f"workspace_objects: {workspace_objects}")
             for obj_name, obj in workspace_objects.items():
-                _obj_type = obj.__class__.__name__
-                logger.debug(f"Loading {_obj_type}: {obj_name}")
+                logger.debug(f"Loading {obj.__class__.__name__}: {obj_name}")
                 if isinstance(obj, WorkspaceSettings):
                     if self.validate_workspace_settings(obj):
                         self._workspace_settings = obj
@@ -399,8 +398,7 @@ class WorkspaceConfig(BaseModel):
 
         # logger.debug(f"workspace_objects: {workspace_objects}")
         for obj_name, obj in workspace_objects.items():
-            _obj_type = obj.__class__.__name__
-            logger.debug(f"Loading {_obj_type}: {obj_name}")
+            logger.debug(f"Loading {obj.__class__.__module__}: {obj_name}")
             if isinstance(obj, WorkspaceSettings):
                 if temporary_ws_config.validate_workspace_settings(obj):
                     temporary_ws_config._workspace_settings = obj

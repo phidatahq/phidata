@@ -5,46 +5,46 @@ from phi.utils.log import logger
 
 
 class YouTubeReader(Reader):
-	"""Reader for YouTube video transcripts"""
+    """Reader for YouTube video transcripts"""
 
-	def read(self, video_url: str) -> List[Document]:
-		if not video_url:
-			raise ValueError("No video URL provided")
+    def read(self, video_url: str) -> List[Document]:
+        if not video_url:
+            raise ValueError("No video URL provided")
 
-		try:
-			from youtube_transcript_api import YouTubeTranscriptApi
-		except ImportError:
-			raise ImportError("`youtube_transcript_api` not installed")
+        try:
+            from youtube_transcript_api import YouTubeTranscriptApi
+        except ImportError:
+            raise ImportError("`youtube_transcript_api` not installed")
 
-		try:
-			# Extract video ID from URL
-			video_id = video_url.split("v=")[-1].split("&")[0]
-			logger.info(f"Reading transcript for video: {video_id}")
+        try:
+            # Extract video ID from URL
+            video_id = video_url.split("v=")[-1].split("&")[0]
+            logger.info(f"Reading transcript for video: {video_id}")
 
-			# Get transcript
-			transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
-			
-			# Combine transcript segments into full text
-			transcript_text = ""
-			for segment in transcript_list:
-				transcript_text += f"{segment['text']} "
+            # Get transcript
+            transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
 
-			documents = [
-				Document(
-					name=f"youtube_{video_id}",
-					id=f"youtube_{video_id}",
-					meta_data={"video_url": video_url, "video_id": video_id},
-					content=transcript_text.strip(),
-				)
-			]
+            # Combine transcript segments into full text
+            transcript_text = ""
+            for segment in transcript_list:
+                transcript_text += f"{segment['text']} "
 
-			if self.chunk:
-				chunked_documents = []
-				for document in documents:
-					chunked_documents.extend(self.chunk_document(document))
-				return chunked_documents
-			return documents
+            documents = [
+                Document(
+                    name=f"youtube_{video_id}",
+                    id=f"youtube_{video_id}",
+                    meta_data={"video_url": video_url, "video_id": video_id},
+                    content=transcript_text.strip(),
+                )
+            ]
 
-		except Exception as e:
-			logger.error(f"Error reading transcript for {video_url}: {e}")
-			return []
+            if self.chunk:
+                chunked_documents = []
+                for document in documents:
+                    chunked_documents.extend(self.chunk_document(document))
+                return chunked_documents
+            return documents
+
+        except Exception as e:
+            logger.error(f"Error reading transcript for {video_url}: {e}")
+            return []

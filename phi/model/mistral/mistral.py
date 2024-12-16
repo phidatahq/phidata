@@ -1,3 +1,4 @@
+from os import getenv
 from dataclasses import dataclass, field
 from typing import Optional, List, Iterator, Dict, Any, Union
 
@@ -14,9 +15,8 @@ try:
     from mistralai.models.chatcompletionresponse import ChatCompletionResponse
     from mistralai.models.deltamessage import DeltaMessage
     from mistralai.types.basemodel import Unset
-except ImportError:
-    logger.error("`mistralai` not installed")
-    raise
+except (ModuleNotFoundError, ImportError):
+    raise ImportError("`mistralai` not installed. Please install using `pip install mistralai`")
 
 MistralMessage = Union[models.UserMessage, models.AssistantMessage, models.SystemMessage, models.ToolMessage]
 
@@ -90,6 +90,10 @@ class MistralChat(Model):
         """
         if self.mistral_client:
             return self.mistral_client
+
+        self.api_key = self.api_key or getenv("MISTRAL_API_KEY")
+        if not self.api_key:
+            logger.error("MISTRAL_API_KEY not set. Please set the MISTRAL_API_KEY environment variable.")
 
         _client_params: Dict[str, Any] = {}
         if self.api_key:

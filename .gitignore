@@ -47,3 +47,5 @@ agents.db
 data.db
 
 .ipynb_checkpoints
+
+*.db

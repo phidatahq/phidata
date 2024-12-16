@@ -2,8 +2,6 @@ import json
 from os import getenv
 from typing import Optional, List, Iterator, Dict, Any
 
-from pydantic import model_validator
-
 from phi.model.message import Message
 from phi.model.openai.chat import StreamData, Metrics
 from phi.model.openai.like import OpenAILike
@@ -41,14 +39,6 @@ class Together(OpenAILike):
     api_key: Optional[str] = getenv("TOGETHER_API_KEY")
     base_url: str = "https://api.together.xyz/v1"
     monkey_patch: bool = False
-
-    @model_validator(mode="before")
-    def validate_api_key(cls, data: Any) -> str:
-        if "api_key" not in data or data["api_key"] is None:
-            raise ValueError(
-                "API key must be set for Together. Set it as an environment variable (TOGETHER_API_KEY) or provide it explicitly."
-            )
-        return data
 
     def response_stream(self, messages: List[Message]) -> Iterator[ModelResponse]:
         if not self.monkey_patch:

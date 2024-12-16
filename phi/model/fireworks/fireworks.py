@@ -1,8 +1,6 @@
 from os import getenv
 from typing import Optional, List, Iterator, Any
 
-from pydantic import model_validator
-
 from phi.model.message import Message
 from phi.model.openai import OpenAILike
 from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
@@ -26,14 +24,6 @@ class Fireworks(OpenAILike):
 
     api_key: Optional[str] = getenv("FIREWORKS_API_KEY", None)
     base_url: str = "https://api.fireworks.ai/inference/v1"
-
-    @model_validator(mode="before")
-    def validate_api_key(cls, data: Any) -> str:
-        if "api_key" not in data or data["api_key"] is None:
-            raise ValueError(
-                "API key must be set for Fireworks. Set it as an environment variable (FIREWORKS_API_KEY) or provide it explicitly."
-            )
-        return data
 
     def invoke_stream(self, messages: List[Message]) -> Iterator[ChatCompletionChunk]:
         """

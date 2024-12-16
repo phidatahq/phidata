@@ -105,7 +105,6 @@ class Groq(Model):
     async_client: Optional[AsyncGroqClient] = None
 
     def get_client_params(self) -> Dict[str, Any]:
-
         self.api_key = self.api_key or os.getenv("GROQ_API_KEY")
         if not self.api_key:
             logger.error("GROQ_API_KEY not set. Please set the GROQ_API_KEY environment variable.")

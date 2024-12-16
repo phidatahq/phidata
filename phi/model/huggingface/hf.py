@@ -130,7 +130,6 @@ class HuggingFaceChat(Model):
     async_client: Optional[AsyncInferenceClient] = None
 
     def get_client_params(self) -> Dict[str, Any]:
-
         self.api_key = self.api_key or os.getenv("HF_TOKEN")
         if not self.api_key:
             logger.error("HF_TOKEN not set. Please set the HF_TOKEN environment variable.")

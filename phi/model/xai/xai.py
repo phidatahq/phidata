@@ -25,8 +25,10 @@ class xAI(OpenAILike):
     api_key: Optional[str] = getenv("XAI_API_KEY")
     base_url: Optional[str] = "https://api.x.ai/v1"
 
-    @model_validator(mode='before')
+    @model_validator(mode="before")
     def validate_api_key(cls, data: Any) -> str:
-        if 'api_key' not in data or data['api_key'] is None:
-            raise ValueError("API key must be set for xAI. Set it as an environment variable (XAI_API_KEY) or provide it explicitly.")
+        if "api_key" not in data or data["api_key"] is None:
+            raise ValueError(
+                "API key must be set for xAI. Set it as an environment variable (XAI_API_KEY) or provide it explicitly."
+            )
         return data

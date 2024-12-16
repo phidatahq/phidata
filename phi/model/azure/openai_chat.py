@@ -1,6 +1,5 @@
 from os import getenv
 from typing import Optional, Dict, Any
-from phi.utils.log import logger
 from phi.model.openai.like import OpenAILike
 import httpx
 

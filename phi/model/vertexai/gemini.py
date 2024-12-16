@@ -22,7 +22,9 @@ try:
         Part,
     )
 except (ModuleNotFoundError, ImportError):
-    raise ImportError("`google-cloud-aiplatform` not installed. Please install using `pip install google-cloud-aiplatform`")
+    raise ImportError(
+        "`google-cloud-aiplatform` not installed. Please install using `pip install google-cloud-aiplatform`"
+    )
 
 
 @dataclass

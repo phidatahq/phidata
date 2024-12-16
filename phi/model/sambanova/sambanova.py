@@ -1,4 +1,4 @@
-from typing import Optional, Any
+from typing import Optional
 from os import getenv
 
 from phi.model.openai.like import OpenAILike

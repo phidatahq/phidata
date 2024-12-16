@@ -1,5 +1,5 @@
 from os import getenv
-from typing import Optional, List, Iterator, Any
+from typing import Optional, List, Iterator
 
 from phi.model.message import Message
 from phi.model.openai import OpenAILike

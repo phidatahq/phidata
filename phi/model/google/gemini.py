@@ -1,3 +1,4 @@
+import os
 import time
 import json
 from pathlib import Path
@@ -103,9 +104,12 @@ class Gemini(Model):
             return self.client
 
         client_params: Dict[str, Any] = {}
-        # Set client parameters if they are provided
-        if self.api_key:
-            client_params["api_key"] = self.api_key
+
+        self.api_key = self.api_key or os.getenv("GOOGLE_API_KEY")
+        if not self.api_key:
+            logger.error("GOOGLE_API_KEY not set. Please set the GOOGLE_API_KEY environment variable.")
+        client_params["api_key"] = self.api_key
+
         if self.client_params:
             client_params.update(self.client_params)
         genai.configure(**client_params)

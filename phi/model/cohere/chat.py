@@ -1,4 +1,5 @@
 import json
+import os
 from dataclasses import dataclass, field
 from typing import Optional, List, Iterator, Dict, Any, Tuple
 
@@ -72,6 +73,11 @@ class CohereChat(Model):
             return self.cohere_client
 
         _client_params: Dict[str, Any] = {}
+
+        self.api_key = self.api_key or os.getenv("CO_API_KEY")
+        if not self.api_key:
+            logger.error("CO_API_KEY not set. Please set the CO_API_KEY environment variable.")
+
         if self.api_key:
             _client_params["api_key"] = self.api_key
         return CohereClient(**_client_params)

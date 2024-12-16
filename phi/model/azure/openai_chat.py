@@ -7,9 +7,8 @@ import httpx
 try:
     from openai import AzureOpenAI as AzureOpenAIClient
     from openai import AsyncAzureOpenAI as AsyncAzureOpenAIClient
-except ImportError:
-    logger.error("`azure openai` not installed")
-    raise
+except (ModuleNotFoundError, ImportError):
+    raise ImportError("`azure openai` not installed. Please install using `pip install openai`")
 
 
 class AzureOpenAIChat(OpenAILike):

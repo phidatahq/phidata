@@ -1,5 +1,7 @@
-from typing import Optional
+from typing import Optional, Any
 from os import getenv
+
+from pydantic import model_validator
 
 from phi.model.openai.like import OpenAILike
 
@@ -22,3 +24,9 @@ class Sambanova(OpenAILike):
 
     api_key: Optional[str] = getenv("SAMBANOVA_API_KEY")
     base_url: str = "https://api.sambanova.ai/v1"
+
+    @model_validator(mode='before')
+    def validate_api_key(cls, data: Any) -> str:
+        if 'api_key' not in data or data['api_key'] is None:
+            raise ValueError("API key must be set for Sambanova. Set it as an environment variable (SAMBANOVA_API_KEY) or provide it explicitly.")
+        return data

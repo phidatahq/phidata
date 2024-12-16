@@ -1,5 +1,7 @@
-from typing import Optional
+from typing import Optional, Any
 from os import getenv
+
+from pydantic import model_validator
 
 from phi.model.openai.like import OpenAILike
 
@@ -20,5 +22,11 @@ class DeepSeekChat(OpenAILike):
     name: str = "DeepSeekChat"
     provider: str = "DeepSeek"
 
-    api_key: Optional[str] = getenv("DEEPSEEK_API_KEY")
+    api_key: Optional[str] = getenv("DEEPSEEK_API_KEY", None)
     base_url: str = "https://api.deepseek.com"
+
+    @model_validator(mode='before')
+    def validate_api_key(cls, data: Any) -> str:
+        if 'api_key' not in data or data['api_key'] is None:
+            raise ValueError("API key must be set for DeepSeekChat. Set it as an environment variable (DEEPSEEK_API_KEY) or provide it explicitly.")
+        return data

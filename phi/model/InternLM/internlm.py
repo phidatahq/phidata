@@ -1,5 +1,8 @@
 from os import getenv
-from typing import Optional
+from typing import Optional, Any
+
+from pydantic import model_validator
+
 from phi.model.openai.like import OpenAILike
 
 
@@ -19,5 +22,11 @@ class InternLM(OpenAILike):
     name: str = "InternLM"
     provider: str = "InternLM"
 
-    api_key: Optional[str] = getenv("INTERNLM_API_KEY")
+    api_key: Optional[str] = getenv("INTERNLM_API_KEY", None)
     base_url: Optional[str] = "https://internlm-chat.intern-ai.org.cn/puyu/api/v1/chat/completions"
+
+    @model_validator(mode='before')
+    def validate_api_key(cls, data: Any) -> str:
+        if 'api_key' not in data or data['api_key'] is None:
+            raise ValueError("API key must be set for InternLM. Set it as an environment variable (INTERNLM_API_KEY) or provide it explicitly.")
+        return data

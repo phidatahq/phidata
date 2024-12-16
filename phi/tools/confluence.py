@@ -6,7 +6,7 @@ import json
 
 try:
     from atlassian import Confluence
-except ImportError:
+except (ModuleNotFoundError, ImportError):
     raise ImportError("atlassian-python-api not install . Please install using `pip install atlassian-python-api`")
 
 

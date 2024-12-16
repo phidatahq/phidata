@@ -10,7 +10,6 @@ from typing import Iterator
 from pydantic import BaseModel, Field
 
 from phi.agent import Agent, RunResponse
-from phi.model.anthropic import Claude
 from phi.model.openai import OpenAIChat
 from phi.run.response import RunEvent
 from phi.storage.workflow.sqlite import SqlWorkflowStorage
@@ -113,7 +112,7 @@ if __name__ == "__main__":
     game_description = Prompt.ask(
         "[bold]Describe the game you want to make (keep it simple)[/bold]\n✨",
         # default="An asteroids game."
-        default="An asteroids game. Make sure the asteroids move randomly and are random sizes. They should continually spawn more and become more difficult over time. Keep score. Make my spaceship's movement realistic."
+        default="An asteroids game. Make sure the asteroids move randomly and are random sizes. They should continually spawn more and become more difficult over time. Keep score. Make my spaceship's movement realistic.",
     )
 
     hash_of_description = hash_string_sha256(game_description)

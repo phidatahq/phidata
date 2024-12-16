@@ -22,5 +22,3 @@ def open_html_file(file_path: Path):
 
     # Open the file in the default web browser
     webbrowser.open(file_url)
-
-

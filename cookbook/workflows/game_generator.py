@@ -2,6 +2,7 @@
 1. Install dependencies using: `pip install openai yfinance phidata`
 2. Run the script using: `python cookbook/workflows/investment_report_generator.py`
 """
+
 import json
 from pathlib import Path
 from typing import Iterator
@@ -48,7 +49,7 @@ class GameGenerator(Workflow):
             "The game should be HTML5, completely self-contained and must be runnable simply by opening on a browser",
             "Ensure the game has a alert that pops up if the user dies and then allows the user to restart or exit the game.",
             "Ensure instructions for the game are displayed on the HTML page."
-            "Use user-friendly colours and make the game canvas large enough for the game to be playable on a larger screen."
+            "Use user-friendly colours and make the game canvas large enough for the game to be playable on a larger screen.",
         ],
         response_model=GameOutput,
     )
@@ -93,7 +94,9 @@ class GameGenerator(Workflow):
             # Store the resulting code
             game_output_path.write_text(game_code)
 
-            yield RunResponse(run_id=self.run_id, event=RunEvent.workflow_completed, content=game_output.content.instructions)
+            yield RunResponse(
+                run_id=self.run_id, event=RunEvent.workflow_completed, content=game_output.content.instructions
+            )
         else:
             yield RunResponse(
                 run_id=self.run_id, event=RunEvent.workflow_completed, content="Sorry, could not QA the game."

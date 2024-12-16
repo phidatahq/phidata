@@ -2,6 +2,7 @@
 1. Install dependencies using: `pip install openai duckduckgo-search sqlalchemy 'fastapi[standard]' newspaper4k lxml_html_clean yfinance phidata`
 2. Run the script using: `python cookbook/workflows/05_playground.py`
 """
+
 from cookbook.workflows.game_generator import GameGenerator
 from phi.playground import Playground, serve_playground_app
 from phi.storage.workflow.sqlite import SqlWorkflowStorage

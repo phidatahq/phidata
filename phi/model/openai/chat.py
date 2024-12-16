@@ -1,3 +1,4 @@
+from os import getenv
 from dataclasses import dataclass, field
 from typing import Optional, List, Iterator, Dict, Any, Union
 
@@ -23,9 +24,8 @@ try:
         ChoiceDeltaToolCall,
     )
     from openai.types.chat.chat_completion_message import ChatCompletionMessage
-except ImportError:
-    logger.error("`openai` not installed")
-    raise
+except (ModuleNotFoundError, ImportError):
+    raise ImportError("`openai` not installed. Please install using `pip install openai`")
 
 
 @dataclass
@@ -118,6 +118,11 @@ class OpenAIChat(Model):
 
     def get_client_params(self) -> Dict[str, Any]:
         client_params: Dict[str, Any] = {}
+
+        self.api_key = self.api_key or getenv("OPENAI_API_KEY")
+        if not self.api_key:
+            logger.error("OPENAI_API_KEY not set. Please set the OPENAI_API_KEY environment variable.")
+
         if self.api_key is not None:
             client_params["api_key"] = self.api_key
         if self.organization is not None:

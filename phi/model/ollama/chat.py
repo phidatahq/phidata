@@ -14,9 +14,8 @@ from phi.utils.tools import get_function_call_for_tool_call
 
 try:
     from ollama import Client as OllamaClient, AsyncClient as AsyncOllamaClient
-except ImportError:
-    logger.error("`ollama` not installed")
-    raise
+except (ModuleNotFoundError, ImportError):
+    raise ImportError("`ollama` not installed. Please install using `pip install ollama`")
 
 
 @dataclass

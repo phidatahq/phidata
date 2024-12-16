@@ -10,12 +10,14 @@ from typing import Iterator
 from pydantic import BaseModel, Field
 
 from phi.agent import Agent, RunResponse
+from phi.model.anthropic import Claude
 from phi.model.openai import OpenAIChat
 from phi.run.response import RunEvent
 from phi.storage.workflow.sqlite import SqlWorkflowStorage
 from phi.utils.log import logger
 from phi.utils.pprint import pprint_run_response
 from phi.utils.string import hash_string_sha256
+from phi.utils.web import open_html_file
 from phi.workflow import Workflow
 
 
@@ -109,7 +111,9 @@ if __name__ == "__main__":
     from rich.prompt import Prompt
 
     game_description = Prompt.ask(
-        "[bold]Describe the game you want to make (keep it simple)[/bold]\n✨", default="A simple snake game"
+        "[bold]Describe the game you want to make (keep it simple)[/bold]\n✨",
+        # default="An asteroids game."
+        default="An asteroids game. Make sure the asteroids move randomly and are random sizes. They should continually spawn more and become more difficult over time. Keep score. Make my spaceship's movement realistic."
     )
 
     hash_of_description = hash_string_sha256(game_description)
@@ -124,7 +128,10 @@ if __name__ == "__main__":
     )
 
     # Execute the workflow
-    game_code: Iterator[RunResponse] = game_generator.run(game_description=game_description)
+    result: Iterator[RunResponse] = game_generator.run(game_description=game_description)
 
     # Print the report
-    pprint_run_response(game_code)
+    pprint_run_response(result)
+
+    if game_output_path.exists():
+        open_html_file(game_output_path)

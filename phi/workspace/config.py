@@ -17,6 +17,8 @@ ignored_dirs = ["ignore", "test", "tests", "config"]
 
 def get_workspace_objects_from_file(resource_file: Path) -> dict:
     """Returns workspace objects from the resource file"""
+    from phi.aws.resources import AwsResources
+    from phi.docker.resources import DockerResources
     try:
         python_objects = get_python_objects_from_module(resource_file)
         # logger.debug(f"python_objects: {python_objects}")
@@ -27,16 +29,18 @@ def get_workspace_objects_from_file(resource_file: Path) -> dict:
         aws_resources_available = False
         create_default_aws_resources = False
         for obj_name, obj in python_objects.items():
-            _type_name = obj.__class__.__name__
-            if _type_name in [
-                "WorkspaceSettings",
-                "DockerResources",
-                "AwsResources",
-            ]:
+            if isinstance(
+                obj,
+                (
+                    WorkspaceSettings,
+                    DockerResources,
+                    AwsResources,
+                ),
+            ):
                 workspace_objects[obj_name] = obj
-                if _type_name == "DockerResources":
+                if isinstance(obj, DockerResources):
                     docker_resources_available = True
-                elif _type_name == "AwsResources":
+                elif isinstance(obj, AwsResources):
                     aws_resources_available = True
 
             try:
@@ -50,7 +54,7 @@ def get_workspace_objects_from_file(resource_file: Path) -> dict:
                 pass
 
         if not docker_resources_available and create_default_docker_resources:
-            from phi.docker.resources import DockerResources, DockerResource, DockerApp
+            from phi.docker.resources import DockerResource, DockerApp
 
             logger.debug("Creating default docker resources")
             default_docker_resources = DockerResources()
@@ -74,7 +78,7 @@ def get_workspace_objects_from_file(resource_file: Path) -> dict:
                 workspace_objects["default_docker_resources"] = default_docker_resources
 
         if not aws_resources_available and create_default_aws_resources:
-            from phi.aws.resources import AwsResources, AwsResource, AwsApp
+            from phi.aws.resources import AwsResource, AwsApp
 
             logger.debug("Creating default aws resources")
             default_aws_resources = AwsResources()
@@ -171,8 +175,7 @@ class WorkspaceConfig(BaseModel):
         try:
             python_objects = get_python_objects_from_module(ws_settings_file)
             for obj_name, obj in python_objects.items():
-                _type_name = obj.__class__.__name__
-                if _type_name == "WorkspaceSettings":
+                if isinstance(obj, WorkspaceSettings):
                     if self.validate_workspace_settings(obj):
                         self._workspace_settings = obj
                         if self.ws_schema is not None and self._workspace_settings is not None:
@@ -254,6 +257,9 @@ class WorkspaceConfig(BaseModel):
 
         workspace_dir_path: Optional[Path] = self.workspace_dir_path
         if workspace_dir_path is not None:
+            from phi.aws.resources import AwsResources
+            from phi.docker.resources import DockerResources
+
             logger.debug(f"--^^-- Loading workspace from: {workspace_dir_path}")
             # Create a dict of objects in the workspace directory
             workspace_objects = {}
@@ -274,12 +280,14 @@ class WorkspaceConfig(BaseModel):
                     python_objects = get_python_objects_from_module(resource_file)
                     # logger.debug(f"python_objects: {python_objects}")
                     for obj_name, obj in python_objects.items():
-                        _type_name = obj.__class__.__name__
-                        if _type_name in [
-                            "WorkspaceSettings",
-                            "DockerResources",
-                            "AwsResources",
-                        ]:
+                        if isinstance(
+                            obj,
+                            (
+                                WorkspaceSettings,
+                                DockerResources,
+                                AwsResources,
+                            ),
+                        ):
                             workspace_objects[obj_name] = obj
                 except Exception:
                     logger.warning(f"Error in {resource_file}")
@@ -287,22 +295,21 @@ class WorkspaceConfig(BaseModel):
 
             # logger.debug(f"workspace_objects: {workspace_objects}")
             for obj_name, obj in workspace_objects.items():
-                _obj_type = obj.__class__.__name__
-                logger.debug(f"Loading {_obj_type}: {obj_name}")
-                if _obj_type == "WorkspaceSettings":
+                logger.debug(f"Loading {obj.__class__.__name__}: {obj_name}")
+                if isinstance(obj, WorkspaceSettings):
                     if self.validate_workspace_settings(obj):
                         self._workspace_settings = obj
                         if self.ws_schema is not None and self._workspace_settings is not None:
                             self._workspace_settings.ws_schema = self.ws_schema
                             logger.debug("Added WorkspaceSchema to WorkspaceSettings")
-                elif _obj_type == "DockerResources":
+                elif isinstance(obj, DockerResources):
                     if not obj.enabled:
                         logger.debug(f"Skipping {obj_name}: disabled")
                         continue
                     if docker_resource_groups is None:
                         docker_resource_groups = []
                     docker_resource_groups.append(obj)
-                elif _obj_type == "AwsResources":
+                elif isinstance(obj, AwsResources):
                     if not obj.enabled:
                         logger.debug(f"Skipping {obj_name}: disabled")
                         continue
@@ -365,6 +372,8 @@ class WorkspaceConfig(BaseModel):
 
         from sys import path as sys_path
         from phi.utils.load_env import load_env
+        from phi.aws.resources import AwsResources
+        from phi.docker.resources import DockerResources
 
         # Objects to read from the file
         docker_resource_groups: Optional[List[Any]] = None
@@ -389,19 +398,18 @@ class WorkspaceConfig(BaseModel):
 
         # logger.debug(f"workspace_objects: {workspace_objects}")
         for obj_name, obj in workspace_objects.items():
-            _obj_type = obj.__class__.__name__
-            logger.debug(f"Loading {_obj_type}: {obj_name}")
-            if _obj_type == "WorkspaceSettings":
+            logger.debug(f"Loading {obj.__class__.__module__}: {obj_name}")
+            if isinstance(obj, WorkspaceSettings):
                 if temporary_ws_config.validate_workspace_settings(obj):
                     temporary_ws_config._workspace_settings = obj
-            if _obj_type == "DockerResources":
+            if isinstance(obj, DockerResources):
                 if not obj.enabled:
                     logger.debug(f"Skipping {obj_name}: disabled")
                     continue
                 if docker_resource_groups is None:
                     docker_resource_groups = []
                 docker_resource_groups.append(obj)
-            elif _obj_type == "AwsResources":
+            elif isinstance(obj, AwsResources):
                 if not obj.enabled:
                     logger.debug(f"Skipping {obj_name}: disabled")
                     continue

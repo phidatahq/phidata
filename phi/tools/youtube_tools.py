@@ -1,7 +1,7 @@
 import json
 from urllib.parse import urlparse, parse_qs, urlencode
 from urllib.request import urlopen
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 
 from phi.tools import Toolkit
 
@@ -19,10 +19,12 @@ class YouTubeTools(Toolkit):
         get_video_captions: bool = True,
         get_video_data: bool = True,
         languages: Optional[List[str]] = None,
+        proxies: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(name="youtube_tools")
 
         self.languages: Optional[List[str]] = languages
+        self.proxies: Optional[Dict[str, Any]] = proxies
         if get_video_captions:
             self.register(self.get_youtube_video_captions)
         if get_video_data:
@@ -114,10 +116,12 @@ class YouTubeTools(Toolkit):
 
         try:
             captions = None
+            kwargs: Dict = {}
             if self.languages:
-                captions = YouTubeTranscriptApi.get_transcript(video_id, languages=self.languages)
-            else:
-                captions = YouTubeTranscriptApi.get_transcript(video_id)
+                kwargs["languages"] = self.languages or ["en"]
+            if self.proxies:
+                kwargs["proxies"] = self.proxies
+            captions = YouTubeTranscriptApi.get_transcript(video_id, **kwargs)
             # logger.debug(f"Captions for video {video_id}: {captions}")
             if captions:
                 return " ".join(line["text"] for line in captions)
@@ -143,7 +147,13 @@ class YouTubeTools(Toolkit):
             return "Error getting video ID from URL, please provide a valid YouTube url"
 
         try:
-            captions = YouTubeTranscriptApi.get_transcript(video_id, languages=self.languages or ["en"])
+            kwargs: Dict = {}
+            if self.languages:
+                kwargs["languages"] = self.languages or ["en"]
+            if self.proxies:
+                kwargs["proxies"] = self.proxies
+
+            captions = YouTubeTranscriptApi.get_transcript(video_id, **kwargs)
             timestamps = []
             for line in captions:
                 start = int(line["start"])

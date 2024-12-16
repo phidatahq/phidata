@@ -23,7 +23,7 @@ try:
         GenerateContentResponse as ResultGenerateContentResponse,
     )
     from google.protobuf.struct_pb2 import Struct
-except ImportError:
+except (ModuleNotFoundError, ImportError):
     logger.error("`google-generativeai` not installed. Please install it using `pip install google-generativeai`")
     raise
 
@@ -301,6 +301,7 @@ class Gemini(Model):
             Dict[str, Any]: The converted parameters dictionary compatible with Gemini.
         """
         formatted_params = {}
+
         for key, value in params.items():
             if key == "properties" and isinstance(value, dict):
                 converted_properties = {}
@@ -322,7 +323,32 @@ class Gemini(Model):
                 formatted_params[key] = converted_properties
             else:
                 formatted_params[key] = value
+
         return formatted_params
+
+    def _build_function_declaration(self, func: Function) -> FunctionDeclaration:
+        """
+        Builds the function declaration for Gemini tool calling.
+
+        Args:
+            func: An instance of the function.
+
+        Returns:
+            FunctionDeclaration: The formatted function declaration.
+        """
+        formatted_params = self.format_functions(func.parameters)
+        if "properties" in formatted_params and formatted_params["properties"]:
+            # We have parameters to add
+            return FunctionDeclaration(
+                name=func.name,
+                description=func.description,
+                parameters=formatted_params,
+            )
+        else:
+            return FunctionDeclaration(
+                name=func.name,
+                description=func.description,
+            )
 
     def add_tool(
         self,
@@ -356,11 +382,7 @@ class Gemini(Model):
                         func._agent = agent
                         func.process_entrypoint()
                         self.functions[name] = func
-                        function_declaration = FunctionDeclaration(
-                            name=func.name,
-                            description=func.description,
-                            parameters=self.format_functions(func.parameters),
-                        )
+                        function_declaration = self._build_function_declaration(func)
                         self.function_declarations.append(function_declaration)
                         logger.debug(f"Function {name} from {tool.name} added to model.")
 
@@ -369,11 +391,8 @@ class Gemini(Model):
                     tool._agent = agent
                     tool.process_entrypoint()
                     self.functions[tool.name] = tool
-                    function_declaration = FunctionDeclaration(
-                        name=tool.name,
-                        description=tool.description,
-                        parameters=self.format_functions(tool.parameters),
-                    )
+
+                    function_declaration = self._build_function_declaration(tool)
                     self.function_declarations.append(function_declaration)
                     logger.debug(f"Function {tool.name} added to model.")
 
@@ -383,11 +402,7 @@ class Gemini(Model):
                     if function_name not in self.functions:
                         func = Function.from_callable(tool)
                         self.functions[func.name] = func
-                        function_declaration = FunctionDeclaration(
-                            name=func.name,
-                            description=func.description,
-                            parameters=self.format_functions(func.parameters),
-                        )
+                        function_declaration = self._build_function_declaration(func)
                         self.function_declarations.append(function_declaration)
                         logger.debug(f"Function '{func.name}' added to model.")
                 except Exception as e:

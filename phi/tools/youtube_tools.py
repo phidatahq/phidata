@@ -1,7 +1,7 @@
 import json
 from urllib.parse import urlparse, parse_qs, urlencode
 from urllib.request import urlopen
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 
 from phi.tools import Toolkit
 
@@ -19,10 +19,12 @@ class YouTubeTools(Toolkit):
         get_video_captions: bool = True,
         get_video_data: bool = True,
         languages: Optional[List[str]] = None,
+        proxies: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(name="youtube_tools")
 
         self.languages: Optional[List[str]] = languages
+        self.proxies: Optional[Dict[str, Any]] = proxies
         if get_video_captions:
             self.register(self.get_youtube_video_captions)
         if get_video_data:
@@ -114,13 +116,49 @@ class YouTubeTools(Toolkit):
 
         try:
             captions = None
+            kwargs: Dict = {}
             if self.languages:
-                captions = YouTubeTranscriptApi.get_transcript(video_id, languages=self.languages)
-            else:
-                captions = YouTubeTranscriptApi.get_transcript(video_id)
+                kwargs["languages"] = self.languages or ["en"]
+            if self.proxies:
+                kwargs["proxies"] = self.proxies
+            captions = YouTubeTranscriptApi.get_transcript(video_id, **kwargs)
             # logger.debug(f"Captions for video {video_id}: {captions}")
             if captions:
                 return " ".join(line["text"] for line in captions)
             return "No captions found for video"
         except Exception as e:
             return f"Error getting captions for video: {e}"
+
+    def get_video_timestamps(self, url: str) -> str:
+        """Generate timestamps for a YouTube video based on captions.
+
+        Args:
+            url: The URL of the YouTube video.
+
+        Returns:
+            str: Timestamps and summaries for the video.
+        """
+        if not url:
+            return "No URL provided"
+
+        try:
+            video_id = self.get_youtube_video_id(url)
+        except Exception:
+            return "Error getting video ID from URL, please provide a valid YouTube url"
+
+        try:
+            kwargs: Dict = {}
+            if self.languages:
+                kwargs["languages"] = self.languages or ["en"]
+            if self.proxies:
+                kwargs["proxies"] = self.proxies
+
+            captions = YouTubeTranscriptApi.get_transcript(video_id, **kwargs)
+            timestamps = []
+            for line in captions:
+                start = int(line["start"])
+                minutes, seconds = divmod(start, 60)
+                timestamps.append(f"{minutes}:{seconds:02d} - {line['text']}")
+            return "\n".join(timestamps)
+        except Exception as e:
+            return f"Error generating timestamps: {e}"

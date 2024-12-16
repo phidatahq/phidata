@@ -8,9 +8,7 @@ from phi.model.response import ModelResponse
 from phi.tools.function import FunctionCall
 from phi.utils.log import logger
 from phi.utils.timer import Timer
-from phi.utils.tools import (
-    get_function_call_for_tool_call,
-)
+from phi.utils.tools import get_function_call_for_tool_call
 
 try:
     from anthropic import Anthropic as AnthropicClient
@@ -59,22 +57,7 @@ class Claude(Model):
     """
     A class representing Anthropic Claude model.
 
-
-    This class provides an interface for interacting with the Anthropic Claude model.
-
-    Attributes:
-        id (str): The id of the Anthropic Claude model to use. Defaults to "claude-3-5-sonnet-2024062".
-        name (str): The name of the model. Defaults to "Claude".
-        provider (str): The provider of the model. Defaults to "Anthropic".
-        max_tokens (Optional[int]): The maximum number of tokens to generate in the chat completion.
-        temperature (Optional[float]): Controls randomness in the model's output.
-        stop_sequences (Optional[List[str]]): A list of strings that the model should stop generating text at.
-        top_p (Optional[float]): Controls diversity via nucleus sampling.
-        top_k (Optional[int]): Controls diversity via top-k sampling.
-        request_params (Optional[Dict[str, Any]]): Additional parameters to include in the request.
-        api_key (Optional[str]): The API key for authenticating with Anthropic.
-        client_params (Optional[Dict[str, Any]]): Additional parameters for client configuration.
-        client (Optional[AnthropicClient]): A pre-configured instance of the Anthropic client.
+    For more information, see: https://docs.anthropic.com/en/api/messages
     """
 
     id: str = "claude-3-5-sonnet-20241022"
@@ -137,7 +120,7 @@ class Claude(Model):
             _request_params.update(self.request_params)
         return _request_params
 
-    def _format_messages(self, messages: List[Message]) -> Tuple[List[Dict[str, str]], str]:
+    def format_messages(self, messages: List[Message]) -> Tuple[List[Dict[str, str]], str]:
         """
         Process the list of messages and separate them into API messages and system messages.
 
@@ -155,10 +138,84 @@ class Claude(Model):
             if message.role == "system" or (message.role != "user" and idx in [0, 1]):
                 system_messages.append(content)  # type: ignore
             else:
+                if isinstance(content, str):
+                    content = [{"type": "text", "text": content}]
+
+                if message.role == "user" and message.images is not None:
+                    for image in message.images:
+                        image_content = self.add_image(image)
+                        if image_content:
+                            content.append(image_content)
+
                 chat_messages.append({"role": message.role, "content": content})  # type: ignore
         return chat_messages, " ".join(system_messages)
 
-    def _prepare_request_kwargs(self, system_message: str) -> Dict[str, Any]:
+    def add_image(self, image: Union[str, bytes]) -> Optional[Dict[str, Any]]:
+        """
+        Add an image to a message by converting it to base64 encoded format.
+
+        Args:
+            image: URL string, local file path, or bytes object
+
+        Returns:
+            Optional[Dict[str, Any]]: Dictionary containing the processed image information if successful
+        """
+        import base64
+        import imghdr
+
+        type_mapping = {"jpeg": "image/jpeg", "png": "image/png", "gif": "image/gif", "webp": "image/webp"}
+
+        try:
+            content = None
+            # Case 1: Image is a string
+            if isinstance(image, str):
+                # Case 1.1: Image is a URL
+                if image.startswith(("http://", "https://")):
+                    import httpx
+
+                    content = httpx.get(image).content
+                # Case 1.2: Image is a local file path
+                else:
+                    from pathlib import Path
+
+                    path = Path(image)
+                    if path.exists() and path.is_file():
+                        with open(image, "rb") as f:
+                            content = f.read()
+                    else:
+                        logger.error(f"Image file not found: {image}")
+                        return None
+            # Case 2: Image is a bytes object
+            elif isinstance(image, bytes):
+                content = image
+            else:
+                logger.error(f"Unsupported image type: {type(image)}")
+                return None
+
+            img_type = imghdr.what(None, h=content)
+            if not img_type:
+                logger.error("Unable to determine image type")
+                return None
+
+            media_type = type_mapping.get(img_type)
+            if not media_type:
+                logger.error(f"Unsupported image type: {img_type}")
+                return None
+
+            return {
+                "type": "image",
+                "source": {
+                    "type": "base64",
+                    "media_type": media_type,
+                    "data": base64.b64encode(content).decode("utf-8"),
+                },
+            }
+
+        except Exception as e:
+            logger.error(f"Error processing image: {e}")
+            return None
+
+    def prepare_request_kwargs(self, system_message: str) -> Dict[str, Any]:
         """
         Prepare the request keyword arguments for the API call.
 
@@ -172,10 +229,10 @@ class Claude(Model):
         request_kwargs["system"] = system_message
 
         if self.tools:
-            request_kwargs["tools"] = self._get_tools()
+            request_kwargs["tools"] = self.get_tools()
         return request_kwargs
 
-    def _get_tools(self) -> Optional[List[Dict[str, Any]]]:
+    def get_tools(self) -> Optional[List[Dict[str, Any]]]:
         """
         Transforms function definitions into a format accepted by the Anthropic API.
 
@@ -228,8 +285,8 @@ class Claude(Model):
         Returns:
             AnthropicMessage: The response from the model.
         """
-        chat_messages, system_message = self._format_messages(messages)
-        request_kwargs = self._prepare_request_kwargs(system_message)
+        chat_messages, system_message = self.format_messages(messages)
+        request_kwargs = self.prepare_request_kwargs(system_message)
 
         return self.get_client().messages.create(
             model=self.id,
@@ -247,8 +304,8 @@ class Claude(Model):
         Returns:
             Any: The streamed response from the model.
         """
-        chat_messages, system_message = self._format_messages(messages)
-        request_kwargs = self._prepare_request_kwargs(system_message)
+        chat_messages, system_message = self.format_messages(messages)
+        request_kwargs = self.prepare_request_kwargs(system_message)
 
         return self.get_client().messages.stream(
             model=self.id,
@@ -256,14 +313,7 @@ class Claude(Model):
             **request_kwargs,
         )
 
-    def _log_messages(self, messages: List[Message]) -> None:
-        """
-        Log messages for debugging.
-        """
-        for m in messages:
-            m.log()
-
-    def _update_usage_metrics(
+    def update_usage_metrics(
         self,
         assistant_message: Message,
         usage: Optional[Usage] = None,
@@ -297,7 +347,7 @@ class Claude(Model):
                 assistant_message.metrics["time_to_first_token"] = metrics.time_to_first_token
                 self.metrics.setdefault("time_to_first_token", []).append(metrics.time_to_first_token)
 
-    def _create_assistant_message(self, response: AnthropicMessage, metrics: Metrics) -> Tuple[Message, str, List[str]]:
+    def create_assistant_message(self, response: AnthropicMessage, metrics: Metrics) -> Tuple[Message, str, List[str]]:
         """
         Create an assistant message from the response.
 
@@ -355,11 +405,11 @@ class Claude(Model):
             assistant_message.content = message_data.response_block
 
         # -*- Update usage metrics
-        self._update_usage_metrics(assistant_message, message_data.response_usage, metrics)
+        self.update_usage_metrics(assistant_message, message_data.response_usage, metrics)
 
         return assistant_message, message_data.response_content, message_data.tool_ids
 
-    def _get_function_calls_to_run(self, assistant_message: Message, messages: List[Message]) -> List[FunctionCall]:
+    def get_function_calls_to_run(self, assistant_message: Message, messages: List[Message]) -> List[FunctionCall]:
         """
         Prepare function calls for the assistant message.
 
@@ -383,7 +433,7 @@ class Claude(Model):
                 function_calls_to_run.append(_function_call)
         return function_calls_to_run
 
-    def _format_function_call_results(
+    def format_function_call_results(
         self, function_call_results: List[Message], tool_ids: List[str], messages: List[Message]
     ) -> None:
         """
@@ -406,7 +456,7 @@ class Claude(Model):
                 )
             messages.append(Message(role="user", content=fc_responses))
 
-    def _handle_tool_calls(
+    def handle_tool_calls(
         self,
         assistant_message: Message,
         messages: List[Message],
@@ -430,7 +480,7 @@ class Claude(Model):
         if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
             model_response.content = str(response_content)
             model_response.content += "\n\n"
-            function_calls_to_run = self._get_function_calls_to_run(assistant_message, messages)
+            function_calls_to_run = self.get_function_calls_to_run(assistant_message, messages)
             function_call_results: List[Message] = []
 
             if self.show_tool_calls:
@@ -448,7 +498,7 @@ class Claude(Model):
             ):
                 pass
 
-            self._format_function_call_results(function_call_results, tool_ids, messages)
+            self.format_function_call_results(function_call_results, tool_ids, messages)
 
             return model_response
         return None
@@ -473,9 +523,10 @@ class Claude(Model):
         metrics.response_timer.stop()
 
         # -*- Create assistant message
-        assistant_message, response_content, tool_ids = self._create_assistant_message(
+        assistant_message, response_content, tool_ids = self.create_assistant_message(
             response=response, metrics=metrics
         )
+
         # -*- Add assistant message to messages
         messages.append(assistant_message)
 
@@ -484,7 +535,7 @@ class Claude(Model):
         metrics.log()
 
         # -*- Handle tool calls
-        if self._handle_tool_calls(assistant_message, messages, model_response, response_content, tool_ids):
+        if self.handle_tool_calls(assistant_message, messages, model_response, response_content, tool_ids):
             response_after_tool_calls = self.response(messages=messages)
             if response_after_tool_calls.content is not None:
                 if model_response.content is None:
@@ -499,7 +550,7 @@ class Claude(Model):
         logger.debug("---------- Claude Response End ----------")
         return model_response
 
-    def _handle_stream_tool_calls(
+    def handle_stream_tool_calls(
         self,
         assistant_message: Message,
         messages: List[Message],
@@ -518,7 +569,7 @@ class Claude(Model):
         """
         if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
             yield ModelResponse(content="\n\n")
-            function_calls_to_run = self._get_function_calls_to_run(assistant_message, messages)
+            function_calls_to_run = self.get_function_calls_to_run(assistant_message, messages)
             function_call_results: List[Message] = []
 
             if self.show_tool_calls:
@@ -535,7 +586,7 @@ class Claude(Model):
             ):
                 yield intermediate_model_response
 
-            self._format_function_call_results(function_call_results, tool_ids, messages)
+            self.format_function_call_results(function_call_results, tool_ids, messages)
 
     def response_stream(self, messages: List[Message]) -> Iterator[ModelResponse]:
         logger.debug("---------- Claude Response Start ----------")
@@ -592,7 +643,7 @@ class Claude(Model):
             assistant_message.tool_calls = message_data.tool_calls
 
         # -*- Update usage metrics
-        self._update_usage_metrics(assistant_message, message_data.response_usage, metrics)
+        self.update_usage_metrics(assistant_message, message_data.response_usage, metrics)
 
         # -*- Add assistant message to messages
         messages.append(assistant_message)
@@ -602,7 +653,7 @@ class Claude(Model):
         metrics.log()
 
         if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
-            yield from self._handle_stream_tool_calls(assistant_message, messages, message_data.tool_ids)
+            yield from self.handle_stream_tool_calls(assistant_message, messages, message_data.tool_ids)
             yield from self.response_stream(messages=messages)
         logger.debug("---------- Claude Response End ----------")
 

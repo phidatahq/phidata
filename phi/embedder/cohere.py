@@ -55,10 +55,10 @@ class CohereEmbedder(Embedder):
             logger.warning(e)
             return []
 
-    def get_embedding_and_usage(self, text: str) -> Tuple[List[float], Optional[Dict]]:
+    def get_embedding_and_usage(self, text: str) -> Tuple[List[float], Optional[Dict[str, Any]]]:
         response: Union[EmbeddingsFloatsEmbedResponse, EmbeddingsByTypeEmbedResponse] = self.response(text=text)
 
-        embedding = None
+        embedding: List[float] = []
         if isinstance(response, EmbeddingsFloatsEmbedResponse):
             embedding = response.embeddings[0]
         elif isinstance(response, EmbeddingsByTypeEmbedResponse):

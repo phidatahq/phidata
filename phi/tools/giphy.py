@@ -33,7 +33,7 @@ class GiphyTools(Toolkit):
             query (str): A text description of the required gif.
 
         Returns:
-            The resulting gif.
+            result (str): A string containing urls of GIFs found
         """
 
         base_url = "https://api.giphy.com/v1/gifs/search"
@@ -64,8 +64,8 @@ class GiphyTools(Toolkit):
             return f"These are the found gifs {gif_urls}"
 
         except httpx.HTTPStatusError as e:
-            print(f"HTTP error occurred: {e.response.status_code} - {e.response.text}")
+            logger.error(f"HTTP error occurred: {e.response.status_code} - {e.response.text}")
         except Exception as e:
-            print(f"An error occurred: {e}")
+            logger.error(f"An error occurred: {e}")
 
         return "No gifs found"

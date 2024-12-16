@@ -1,4 +1,4 @@
-import os
+from os import getenv
 import time
 import json
 from pathlib import Path
@@ -104,7 +104,7 @@ class Gemini(Model):
 
         client_params: Dict[str, Any] = {}
 
-        self.api_key = self.api_key or os.getenv("GOOGLE_API_KEY")
+        self.api_key = self.api_key or getenv("GOOGLE_API_KEY")
         if not self.api_key:
             logger.error("GOOGLE_API_KEY not set. Please set the GOOGLE_API_KEY environment variable.")
         client_params["api_key"] = self.api_key

@@ -1,4 +1,4 @@
-import os
+from os import getenv
 from dataclasses import dataclass, field
 from typing import Optional, List, Iterator, Dict, Any, Union
 
@@ -119,7 +119,7 @@ class OpenAIChat(Model):
     def get_client_params(self) -> Dict[str, Any]:
         client_params: Dict[str, Any] = {}
 
-        self.api_key = self.api_key or os.getenv("OPENAI_API_KEY")
+        self.api_key = self.api_key or getenv("OPENAI_API_KEY")
         if not self.api_key:
             logger.error("OPENAI_API_KEY not set. Please set the OPENAI_API_KEY environment variable.")
 

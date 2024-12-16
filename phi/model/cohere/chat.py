@@ -1,5 +1,5 @@
 import json
-import os
+from os import getenv
 from dataclasses import dataclass, field
 from typing import Optional, List, Iterator, Dict, Any, Tuple
 
@@ -73,7 +73,7 @@ class CohereChat(Model):
 
         _client_params: Dict[str, Any] = {}
 
-        self.api_key = self.api_key or os.getenv("CO_API_KEY")
+        self.api_key = self.api_key or getenv("CO_API_KEY")
         if not self.api_key:
             logger.error("CO_API_KEY not set. Please set the CO_API_KEY environment variable.")
 

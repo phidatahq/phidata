@@ -1,5 +1,5 @@
 import json
-import os
+from os import getenv
 from dataclasses import dataclass, field
 from typing import Optional, List, Iterator, Dict, Any, Union, Tuple
 
@@ -89,7 +89,7 @@ class Claude(Model):
         if self.client:
             return self.client
 
-        self.api_key = self.api_key or os.getenv("ANTHROPIC_API_KEY")
+        self.api_key = self.api_key or getenv("ANTHROPIC_API_KEY")
         if not self.api_key:
             logger.error("ANTHROPIC_API_KEY not set. Please set the ANTHROPIC_API_KEY environment variable.")
 

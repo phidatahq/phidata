@@ -1,4 +1,4 @@
-import os
+from os import getenv
 from dataclasses import dataclass, field
 from typing import Optional, List, Iterator, Dict, Any, Union
 
@@ -91,7 +91,7 @@ class MistralChat(Model):
         if self.mistral_client:
             return self.mistral_client
 
-        self.api_key = self.api_key or os.getenv("MISTRAL_API_KEY")
+        self.api_key = self.api_key or getenv("MISTRAL_API_KEY")
         if not self.api_key:
             logger.error("MISTRAL_API_KEY not set. Please set the MISTRAL_API_KEY environment variable.")
 

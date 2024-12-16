@@ -24,9 +24,8 @@ try:
         ChoiceDeltaToolCall,
     )
     from openai.types.chat.chat_completion_message import ChatCompletionMessage
-except ImportError:
-    logger.error("`openai` not installed")
-    raise
+except (ModuleNotFoundError, ImportError):
+    raise ImportError("`openai` not installed. Please install using `pip install openai`")
 
 
 @dataclass

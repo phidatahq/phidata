@@ -25,8 +25,7 @@ try:
     )
     from google.protobuf.struct_pb2 import Struct
 except (ModuleNotFoundError, ImportError):
-    logger.error("`google-generativeai` not installed. Please install it using `pip install google-generativeai`")
-    raise
+    raise ImportError("`google-generativeai` not installed. Please install it using `pip install google-generativeai`")
 
 
 @dataclass

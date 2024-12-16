@@ -29,9 +29,8 @@ try:
     )
     from cohere.types.api_meta_tokens import ApiMetaTokens
     from cohere.types.api_meta import ApiMeta
-except ImportError:
-    logger.error("`cohere` not installed")
-    raise
+except (ModuleNotFoundError, ImportError):
+    raise ImportError("`cohere` not installed. Please install using `pip install cohere`")
 
 
 @dataclass

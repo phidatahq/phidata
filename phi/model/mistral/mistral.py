@@ -15,9 +15,8 @@ try:
     from mistralai.models.chatcompletionresponse import ChatCompletionResponse
     from mistralai.models.deltamessage import DeltaMessage
     from mistralai.types.basemodel import Unset
-except ImportError:
-    logger.error("`mistralai` not installed")
-    raise
+except (ModuleNotFoundError, ImportError):
+    raise ImportError("`mistralai` not installed. Please install using `pip install mistralai`")
 
 MistralMessage = Union[models.UserMessage, models.AssistantMessage, models.SystemMessage, models.ToolMessage]
 

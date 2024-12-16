@@ -24,9 +24,8 @@ try:
         ChatCompletionOutputMessage,
         ChatCompletionOutputUsage,
     )
-except ImportError:
-    logger.error("`huggingface_hub` not installed")
-    raise
+except (ModuleNotFoundError, ImportError):
+    raise ImportError("`huggingface_hub` not installed. Please install using `pip install huggingface_hub`")
 
 
 @dataclass

@@ -1,7 +1,8 @@
+import os
 import uuid
 from typing import Optional
+
 import httpx
-import os
 
 from phi.agent import Agent
 from phi.model.content import Image

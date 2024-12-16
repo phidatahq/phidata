@@ -10,13 +10,13 @@ agent = Agent(
 )
 
 ## getting space details
-agent.print_response("how many spaces are there , and what are its name?")
+agent.print_response("How many spaces are there and what are their names?")
 
 ## getting page_content
-agent.print_response("what is the content present in page Large language model in LLM space")
+agent.print_response("What is the content present in page 'Large language model in LLM space'")
 
 ## getting page details in a particular space
-agent.print_response("can you extract all the page names from LLM space")
+agent.print_response("Can you extract all the page names from 'LLM space'")
 
 ## creating a new page in a space
-agent.print_response("can you create a new page named TESTING in LLM space")
+agent.print_response("Can you create a new page named 'TESTING' in 'LLM space'")

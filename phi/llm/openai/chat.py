@@ -1,3 +1,5 @@
+import os
+
 import httpx
 from typing import Optional, List, Iterator, Dict, Any, Union, Tuple
 
@@ -72,6 +74,10 @@ class OpenAIChat(LLM):
 
         if self.openai_client:
             return self.openai_client
+
+        self.api_key = self.api_key or os.getenv("OPENAI_API_KEY")
+        if not self.api_key:
+            logger.error("OPENAI_API_KEY not set. Please set the OPENAI_API_KEY environment variable.")
 
         _client_params: Dict[str, Any] = {}
         if self.api_key:

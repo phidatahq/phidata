@@ -19,6 +19,7 @@ def get_workspace_objects_from_file(resource_file: Path) -> dict:
     """Returns workspace objects from the resource file"""
     from phi.aws.resources import AwsResources
     from phi.docker.resources import DockerResources
+
     try:
         python_objects = get_python_objects_from_module(resource_file)
         # logger.debug(f"python_objects: {python_objects}")

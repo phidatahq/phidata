@@ -21,9 +21,10 @@ try:
         Content,
         Part,
     )
-except ImportError:
-    logger.error("`google-cloud-aiplatform` not installed")
-    raise
+except (ModuleNotFoundError, ImportError):
+    raise ImportError(
+        "`google-cloud-aiplatform` not installed. Please install using `pip install google-cloud-aiplatform`"
+    )
 
 
 @dataclass

@@ -14,5 +14,6 @@ class Video(BaseModel):
 class Image(BaseModel):
     id: str
     url: str
+    alt_text: Optional[str] = None
     original_prompt: Optional[str] = None
     revised_prompt: Optional[str] = None

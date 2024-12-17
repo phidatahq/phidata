@@ -64,7 +64,7 @@ class ElevenLabsTools(Toolkit):
         self.register(self.generate_sound_effect)
         self.register(self.text_to_speech)
 
-    def get_voices(self) -> list:
+    def get_voices(self) -> str:
         """
         Use this function to generate sound effect audio from a text prompt.
 
@@ -84,11 +84,11 @@ class ElevenLabsTools(Toolkit):
                     }
                 )
 
-            return response
+            return str(response)
 
         except Exception as e:
             logger.error(f"Failed to fetch voices: {e}")
-            return []
+            return f"Error: {e}"
 
     def _process_audio(self, audio_generator: Iterator[bytes]) -> str:
         # Step 1: Write audio data to BytesIO

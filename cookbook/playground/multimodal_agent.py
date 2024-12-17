@@ -115,12 +115,14 @@ audio_agent = Agent(
     instructions=[
         "When the user asks you to generate audio, use the `text_to_speech` tool to generate the audio.",
         "You'll generate the appropriate prompt to send to the tool to generate audio.",
+        "You don't need to find the appropriate voice first, I already specified the voice to user."
         "Return the audio file name in your response. Don't convert it to markdown.",
         "The audio should be long and detailed.",
     ],
     markdown=True,
     debug_mode=True,
-    show_tool_calls=True,
+    add_history_to_messages=True,
+    add_datetime_to_instructions=True,
     storage=SqlAgentStorage(table_name="audio_agent", db_file=image_agent_storage_file),
 )
 

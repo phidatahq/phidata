@@ -1,4 +1,5 @@
 import base64
+import json
 from typing import List, Optional, AsyncGenerator, Dict, cast, Union, Generator
 
 from fastapi import APIRouter, HTTPException, UploadFile
@@ -92,7 +93,7 @@ def get_playground_router(
         run_response = agent.run(message, images=images, stream=True, stream_intermediate_steps=True)
         for run_response_chunk in run_response:
             run_response_chunk = cast(RunResponse, run_response_chunk)
-            yield run_response_chunk.model_dump_json()
+            yield json.dumps(run_response_chunk.to_dict())
 
     def process_image(file: UploadFile) -> List[Union[str, Dict]]:
         content = file.file.read()

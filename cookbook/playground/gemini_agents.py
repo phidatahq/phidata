@@ -7,7 +7,7 @@ finance_agent = Agent(
     name="Finance Agent",
     model=Gemini(id="gemini-2.0-flash-exp"),
     tools=[YFinanceTools(stock_price=True)],
-    debug_mode=True
+    debug_mode=True,
 )
 
 app = Playground(agents=[finance_agent]).get_app(use_async=False)

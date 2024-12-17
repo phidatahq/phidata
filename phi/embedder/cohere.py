@@ -7,7 +7,7 @@ try:
     from cohere import Client as CohereClient
     from cohere.types.embed_response import EmbeddingsFloatsEmbedResponse, EmbeddingsByTypeEmbedResponse
 except ImportError:
-    raise ImportError("`cohere` not installed")
+    raise ImportError("`cohere` not installed. Please install using `pip install cohere`.")
 
 
 class CohereEmbedder(Embedder):

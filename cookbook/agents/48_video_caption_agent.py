@@ -44,21 +44,16 @@ video_caption_agent = Agent(
     markdown=True,
 )
 
-if __name__ == "__main__":
-    video_url = "/home/yus-vengeance/Downloads/linkedin_motivation.mp4"
 
-    # Create temp directory if it doesn't exist
-    temp_dir = Path("/tmp/video_captions")
-    temp_dir.mkdir(parents=True, exist_ok=True)
+    # video_url = "/home/yus-vengeance/Downloads/linkedin_motivation.mp4"
 
-    # Download video if it's a URL
-    if video_url.startswith('http'):
-        video_path = str(temp_dir / "input.mp4")
-        print(f"Downloading video to {video_path}...")
-        download_video(video_url, video_path)
-    else:
-        video_path = video_url
+# Create temp directory if it doesn't exist
+temp_dir = Path("/tmp/video_captions")
+temp_dir.mkdir(parents=True, exist_ok=True)
 
-    video_caption_agent.print_response(
-        f"Generate captions for {video_path} and embed them in the video"
-    )
+
+
+
+video_caption_agent.print_response(
+    "Generate captions for /home/yus-vengeance/Downloads/linkedin_motivation_with_captions.mp4 and embed them in the video"
+)

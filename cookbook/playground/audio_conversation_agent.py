@@ -7,7 +7,7 @@ from phi.storage.agent.sqlite import SqlAgentStorage
 audio_agent = Agent(
     name="Audio Chat Agent",
     model=OpenAIChat(
-        id="gpt-4o-audio-preview", modalities=["text", "audio"], audio={"voice": "alloy", "format": "wav"}
+        id="gpt-4o-audio-preview", modalities=["text", "audio"], audio={"voice": "alloy", "format": "pcm16"}  # Wav not supported for streaming
     ),
     debug_mode=True,
     add_history_to_messages=True,

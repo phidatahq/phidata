@@ -2,7 +2,7 @@
 pip install elevenlabs
 """
 
-from typing import Optional
+from typing import Optional, Literal
 from os import getenv, makedirs, path
 from phi.tools import Toolkit
 from phi.utils.log import logger
@@ -14,6 +14,20 @@ try:
 except ImportError:
     raise ImportError("`elevenlabs` not installed. Please install using `pip install elevenlabs`")
 
+OutputFormat = Literal[
+    "mp3_22050_32",    # mp3 with 22.05kHz sample rate at 32kbps
+    "mp3_44100_32",    # mp3 with 44.1kHz sample rate at 32kbps
+    "mp3_44100_64",    # mp3 with 44.1kHz sample rate at 64kbps
+    "mp3_44100_96",    # mp3 with 44.1kHz sample rate at 96kbps
+    "mp3_44100_128",   # default, mp3 with 44.1kHz sample rate at 128kbps
+    "mp3_44100_192",   # mp3 with 44.1kHz sample rate at 192kbps (Creator tier+)
+    "pcm_16000",       # PCM format (S16LE) with 16kHz sample rate
+    "pcm_22050",       # PCM format (S16LE) with 22.05kHz sample rate
+    "pcm_24000",       # PCM format (S16LE) with 24kHz sample rate
+    "pcm_44100",       # PCM format (S16LE) with 44.1kHz sample rate (Pro tier+)
+    "ulaw_8000"        # μ-law format with 8kHz sample rate (for Twilio)
+]
+
 
 class ElevenLabsTools(Toolkit):
     def __init__(
@@ -22,7 +36,7 @@ class ElevenLabsTools(Toolkit):
         target_directory: str = "audio_generations",
         voice_id: str = "21m00Tcm4TlvDq8ikWAM",
         model_id: str = "eleven_multilingual_v2",
-        output_format: str = "mp3_44100_64",
+        output_format: OutputFormat = "mp3_44100_64",
     ):
         super().__init__(name="elevenlabs")
 
@@ -58,7 +72,17 @@ class ElevenLabsTools(Toolkit):
                 output_format=self.output_format,
             )
 
-            output_filename = f"{uuid4()}.mp3"
+            # Determine file extension based on output format
+            if self.output_format.startswith("mp3"):
+                extension = "mp3"
+            elif self.output_format.startswith("pcm"):
+                extension = "wav"
+            elif self.output_format.startswith("ulaw"):
+                extension = "ulaw"
+            else:
+                extension = "mp3" 
+
+            output_filename = f"{uuid4()}.{extension}"
             output_path = path.join(self.target_directory, output_filename)
 
             with open(output_path, "wb") as f:

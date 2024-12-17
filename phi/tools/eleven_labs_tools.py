@@ -38,7 +38,7 @@ OutputFormat = Literal[
 class ElevenLabsTools(Toolkit):
     def __init__(
         self,
-        voice_id: str,
+        voice_id: str = "JBFqnCBsd6RMkjVDRZzb",
         api_key: Optional[str] = None,
         target_directory: Optional[str] = None,
         model_id: str = "eleven_multilingual_v2",

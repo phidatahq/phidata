@@ -1,13 +1,13 @@
-from os import path
 from typing import Optional, Any
 
-from pydantic import BaseModel, root_validator, model_validator
+from pydantic import BaseModel, model_validator
 
 
 class Media(BaseModel):
     id: str
     original_prompt: Optional[str] = None
     revised_prompt: Optional[str] = None
+
 
 class Video(Media):
     url: str  # Remote location for file
@@ -25,7 +25,7 @@ class Audio(Media):
     base64_audio: Optional[str] = None  # Base64-encoded audio data
     length: Optional[str] = None
 
-    @model_validator(mode='before')
+    @model_validator(mode="before")
     def validate_exclusive_audio(cls, data: Any):
         """
         Ensure that either `url` or `base64_audio` is provided, but not both.

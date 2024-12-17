@@ -1,6 +1,7 @@
 """
 pip install elevenlabs
 """
+
 from base64 import b64encode
 from io import BytesIO
 from pathlib import Path
@@ -20,17 +21,17 @@ except ImportError:
     raise ImportError("`elevenlabs` not installed. Please install using `pip install elevenlabs`")
 
 OutputFormat = Literal[
-    "mp3_22050_32",    # mp3 with 22.05kHz sample rate at 32kbps
-    "mp3_44100_32",    # mp3 with 44.1kHz sample rate at 32kbps
-    "mp3_44100_64",    # mp3 with 44.1kHz sample rate at 64kbps
-    "mp3_44100_96",    # mp3 with 44.1kHz sample rate at 96kbps
-    "mp3_44100_128",   # default, mp3 with 44.1kHz sample rate at 128kbps
-    "mp3_44100_192",   # mp3 with 44.1kHz sample rate at 192kbps (Creator tier+)
-    "pcm_16000",       # PCM format (S16LE) with 16kHz sample rate
-    "pcm_22050",       # PCM format (S16LE) with 22.05kHz sample rate
-    "pcm_24000",       # PCM format (S16LE) with 24kHz sample rate
-    "pcm_44100",       # PCM format (S16LE) with 44.1kHz sample rate (Pro tier+)
-    "ulaw_8000"        # μ-law format with 8kHz sample rate (for Twilio)
+    "mp3_22050_32",  # mp3 with 22.05kHz sample rate at 32kbps
+    "mp3_44100_32",  # mp3 with 44.1kHz sample rate at 32kbps
+    "mp3_44100_64",  # mp3 with 44.1kHz sample rate at 64kbps
+    "mp3_44100_96",  # mp3 with 44.1kHz sample rate at 96kbps
+    "mp3_44100_128",  # default, mp3 with 44.1kHz sample rate at 128kbps
+    "mp3_44100_192",  # mp3 with 44.1kHz sample rate at 192kbps (Creator tier+)
+    "pcm_16000",  # PCM format (S16LE) with 16kHz sample rate
+    "pcm_22050",  # PCM format (S16LE) with 22.05kHz sample rate
+    "pcm_24000",  # PCM format (S16LE) with 24kHz sample rate
+    "pcm_44100",  # PCM format (S16LE) with 44.1kHz sample rate (Pro tier+)
+    "ulaw_8000",  # μ-law format with 8kHz sample rate (for Twilio)
 ]
 
 
@@ -59,6 +60,8 @@ class ElevenLabsTools(Toolkit):
             target_path.mkdir(parents=True, exist_ok=True)
 
         self.eleven_labs_client = ElevenLabs(api_key=self.api_key)
+        self.register(self.get_voices)
+        self.register(self.generate_sound_effect)
         self.register(self.text_to_speech)
 
     def get_voices(self) -> list:
@@ -85,7 +88,7 @@ class ElevenLabsTools(Toolkit):
 
         except Exception as e:
             logger.error(f"Failed to fetch voices: {e}")
-            return f"Error: {e}"
+            return []
 
     def _process_audio(self, audio_generator: Iterator[bytes]) -> str:
         # Step 1: Write audio data to BytesIO
@@ -99,7 +102,6 @@ class ElevenLabsTools(Toolkit):
 
         # Step 3: Optionally save to disk if target_directory exists
         if self.target_directory:
-
             # Determine file extension based on output format
             if self.output_format.startswith("mp3"):
                 extension = "mp3"

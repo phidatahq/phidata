@@ -1,4 +1,3 @@
-import base64
 from pathlib import Path
 from rich import print
 from rich.text import Text

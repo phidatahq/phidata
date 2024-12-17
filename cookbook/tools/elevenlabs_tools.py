@@ -4,11 +4,11 @@ from phi.tools.eleven_labs_tools import ElevenLabsTools
 
 audio_agent = Agent(
     model=OpenAIChat(id="gpt-4o"),
-    tools=[ElevenLabsTools(
-        voice_id="21m00Tcm4TlvDq8ikWAM",
-        model_id="eleven_multilingual_v2",
-        target_directory="audio_generations"
-    )],
+    tools=[
+        ElevenLabsTools(
+            voice_id="21m00Tcm4TlvDq8ikWAM", model_id="eleven_multilingual_v2", target_directory="audio_generations"
+        )
+    ],
     description="You are an AI agent that can generate audio using the ElevenLabs API.",
     instructions=[
         "When the user asks you to generate audio, use the `generate_audio` tool to generate the audio.",

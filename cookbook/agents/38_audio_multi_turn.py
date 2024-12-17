@@ -1,4 +1,3 @@
-import base64
 from phi.agent import Agent
 from phi.model.openai import OpenAIChat
 from phi.utils.audio import write_audio_to_file

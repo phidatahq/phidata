@@ -1844,7 +1844,7 @@ class Agent(BaseModel):
             else:
                 self.run_response.content = model_response.content
             if model_response.audio is not None:
-                self.run_response.model_audio = model_response.audio
+                self.run_response.response_audio = model_response.audio
             self.run_response.messages = messages_for_model
             self.run_response.created_at = model_response.created_at
 

@@ -23,5 +23,5 @@ agent.run(
     audio={"data": encoded_string, "format": "wav"},
 )
 
-if agent.run_response.model_audio is not None and "data" in agent.run_response.model_audio:
-    write_audio_to_file(audio=agent.run_response.model_audio["data"], filename="tmp/dog.wav")
+if agent.run_response.response_audio is not None and "data" in agent.run_response.response_audio:
+    write_audio_to_file(audio=agent.run_response.response_audio["data"], filename="tmp/dog.wav")

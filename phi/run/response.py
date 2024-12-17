@@ -52,7 +52,7 @@ class RunResponse(BaseModel):
     images: Optional[List[Image]] = None  # Images attached to the response
     videos: Optional[List[Video]] = None  # Videos attached to the response
     audio: Optional[List[Audio]] = None  # Audio attached to the response
-    model_audio: Optional[Dict] = None  # Model audio response
+    response_audio: Optional[Dict] = None  # Model audio response
     extra_data: Optional[RunResponseExtraData] = None
     created_at: int = Field(default_factory=lambda: int(time()))
 

@@ -1,9 +1,13 @@
 """
 pip install elevenlabs
 """
+from base64 import b64encode
+from io import BytesIO
+from pathlib import Path
+from typing import Optional, Iterator
+from os import getenv, path
 
-from typing import Optional
-from os import getenv, makedirs, path
+from phi.model.content import Audio
 from phi.tools import Toolkit
 from phi.utils.log import logger
 from phi.agent import Agent
@@ -18,13 +22,13 @@ except ImportError:
 class ElevenLabsTools(Toolkit):
     def __init__(
         self,
+        voice_id: str,
         api_key: Optional[str] = None,
-        target_directory: str = "audio_generations",
-        voice_id: str = "21m00Tcm4TlvDq8ikWAM",
+        target_directory: Optional[str] = None,
         model_id: str = "eleven_multilingual_v2",
         output_format: str = "mp3_44100_64",
     ):
-        super().__init__(name="elevenlabs")
+        super().__init__(name="elevenlabs_tools")
 
         self.api_key = api_key or getenv("ELEVEN_LABS_API_KEY")
         if not self.api_key:
@@ -35,37 +39,125 @@ class ElevenLabsTools(Toolkit):
         self.model_id = model_id
         self.output_format = output_format
 
-        if not path.exists(self.target_directory):
-            makedirs(self.target_directory, exist_ok=True)
+        if self.target_directory:
+            target_path = Path(self.target_directory)
+            target_path.mkdir(parents=True, exist_ok=True)
 
-        self.client = ElevenLabs(api_key=self.api_key)
-        self.register(self.generate_audio)
+        self.eleven_labs_client = ElevenLabs(api_key=self.api_key)
+        self.register(self.text_to_speech)
 
-    def generate_audio(self, agent: Agent, prompt: str) -> str:
+    def get_voices(self) -> list:
         """
-        Use this function to generate audio from a text prompt. The audio is stored to a file in the target_directory.
+        Use this function to generate sound effect audio from a text prompt.
+
+        Returns:
+            result (list): A list of voices that have an ID, name and description.
+        """
+        try:
+            voices = self.eleven_labs_client.voices.get_all()
+
+            response = []
+            for voice in voices.voices:
+                response.append(
+                    {
+                        "id": voice.voice_id,
+                        "name": voice.name,
+                        "description": voice.description,
+                    }
+                )
+
+            return response
+
+        except Exception as e:
+            logger.error(f"Failed to fetch voices: {e}")
+            return f"Error: {e}"
+
+    def _process_audio(self, audio_generator: Iterator[bytes]) -> str:
+        # Step 1: Write audio data to BytesIO
+        audio_bytes = BytesIO()
+        for chunk in audio_generator:
+            audio_bytes.write(chunk)
+        audio_bytes.seek(0)  # Rewind the stream
+
+        # Step 2: Encode as Base64
+        base64_audio = b64encode(audio_bytes.read()).decode("utf-8")
+
+        # Step 3: Optionally save to disk if target_directory exists
+        if self.target_directory:
+            # Generate file name and path
+            output_filename = f"{uuid4()}.mp3"
+            file_path = path.join(self.target_directory, output_filename)
+
+            # Write from BytesIO to disk
+            audio_bytes.seek(0)  # Reset the BytesIO stream again
+            with open(file_path, "wb") as f:
+                f.write(audio_bytes.read())
+
+        return base64_audio
+
+    def generate_sound_effect(self, agent: Agent, prompt: str, voice_id: Optional[str] = None) -> str:
+        """
+        Use this function to generate sound effect audio from a text prompt.
 
         Args:
             prompt (str): Text to generate audio from.
+            voice_id (str): The ID of the voice to use for audio generation.
         Returns:
             str: Return the path to the generated audio file.
         """
         try:
-            audio_generator = self.client.text_to_speech.convert(
-                voice_id=self.voice_id,
+            audio_generator = self.eleven_labs_client.text_to_sound_effects.convert(
+                voice_id=voice_id or self.voice_id,
                 model_id=self.model_id,
                 text=prompt,
                 output_format=self.output_format,
             )
 
-            output_filename = f"{uuid4()}.mp3"
-            output_path = path.join(self.target_directory, output_filename)
+            base64_audio = self._process_audio(audio_generator)
 
-            with open(output_path, "wb") as f:
-                for chunk in audio_generator:
-                    f.write(chunk)
+            # Attach to the agent
+            agent.add_audio(
+                Audio(
+                    id=str(uuid4()),
+                    base64_audio=base64_audio,
+                )
+            )
 
-            return output_path
+            return "Audio generated successfully"
+
+        except Exception as e:
+            logger.error(f"Failed to generate audio: {e}")
+            return f"Error: {e}"
+
+    def text_to_speech(self, agent: Agent, prompt: str, voice_id: Optional[str] = None) -> str:
+        """
+        Use this function to convert text to speech audio.
+
+        Args:
+            prompt (str): Text to generate audio from.
+            voice_id (str): The ID of the voice to use for audio generation.
+        Returns:
+            str: Return the path to the generated audio file.
+        """
+        try:
+            audio_generator = self.eleven_labs_client.text_to_speech.convert(
+                text=prompt,
+                voice_id=voice_id or self.voice_id,
+                model_id=self.model_id,
+                output_format=self.output_format,
+            )
+
+            base64_audio = self._process_audio(audio_generator)
+
+            # Attach to the agent
+            agent.add_audio(
+                Audio(
+                    id=str(uuid4()),
+                    base64_audio=base64_audio,
+                )
+            )
+
+            return "Audio generated successfully"
 
         except Exception as e:
             logger.error(f"Failed to generate audio: {e}")

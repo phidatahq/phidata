@@ -4,7 +4,7 @@ from typing import Optional, Any, Dict, List
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from phi.model.content import Video, Image
+from phi.model.content import Video, Image, Audio
 from phi.reasoning.step import ReasoningStep
 from phi.model.message import Message, MessageReferences
 
@@ -49,9 +49,10 @@ class RunResponse(BaseModel):
     session_id: Optional[str] = None
     workflow_id: Optional[str] = None
     tools: Optional[List[Dict[str, Any]]] = None
-    images: Optional[List[Image]] = None
-    videos: Optional[List[Video]] = None
-    audio: Optional[Dict] = None
+    images: Optional[List[Image]] = None  # Images attached to the response
+    videos: Optional[List[Video]] = None  # Videos attached to the response
+    audio: Optional[List[Audio]] = None  # Audio attached to the response
+    model_audio: Optional[Dict] = None  # Model audio response
     extra_data: Optional[RunResponseExtraData] = None
     created_at: int = Field(default_factory=lambda: int(time()))
 

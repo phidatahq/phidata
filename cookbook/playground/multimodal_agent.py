@@ -9,6 +9,7 @@ Docs on Agent UI: https://docs.phidata.com/agent-ui
 from phi.agent import Agent
 from phi.model.openai import OpenAIChat
 from phi.tools.dalle import Dalle
+from phi.tools.eleven_labs_tools import ElevenLabsTools
 from phi.tools.giphy import GiphyTools
 from phi.tools.models_labs import ModelsLabs
 from phi.model.response import FileType
@@ -102,8 +103,28 @@ gif_agent = Agent(
     storage=SqlAgentStorage(table_name="gif_agent", db_file=image_agent_storage_file),
 )
 
+audio_agent = Agent(
+    name="Audio Generator Agent",
+    model=OpenAIChat(id="gpt-4o"),
+    tools=[ElevenLabsTools(
+        voice_id="21m00Tcm4TlvDq8ikWAM",
+        model_id="eleven_multilingual_v2",
+        target_directory="audio_generations"
+    )],
+    description="You are an AI agent that can generate audio using the ElevenLabs API.",
+    instructions=[
+        "When the user asks you to generate audio, use the `text_to_speech` tool to generate the audio.",
+        "You'll generate the appropriate prompt to send to the tool to generate audio.",
+        "Return the audio file name in your response. Don't convert it to markdown.",
+        "The audio should be long and detailed.",
+    ],
+    markdown=True,
+    debug_mode=True,
+    show_tool_calls=True,
+)
 
-app = Playground(agents=[image_agent, ml_gif_agent, ml_video_agent, fal_agent, gif_agent]).get_app(use_async=False)
+
+app = Playground(agents=[image_agent, ml_gif_agent, ml_video_agent, fal_agent, gif_agent, audio_agent]).get_app(use_async=False)
 
 if __name__ == "__main__":
     serve_playground_app("multimodal_agent:app", reload=True)

@@ -120,7 +120,6 @@ audio_agent = Agent(
     ],
     markdown=True,
     debug_mode=True,
-    show_tool_calls=True,
     storage=SqlAgentStorage(table_name="audio_agent", db_file=image_agent_storage_file),
 )
 

@@ -1,4 +1,5 @@
 import json
+from os import getenv
 from dataclasses import dataclass, field
 from typing import Optional, List, Iterator, Dict, Any, Tuple
 
@@ -28,9 +29,8 @@ try:
     )
     from cohere.types.api_meta_tokens import ApiMetaTokens
     from cohere.types.api_meta import ApiMeta
-except ImportError:
-    logger.error("`cohere` not installed")
-    raise
+except (ModuleNotFoundError, ImportError):
+    raise ImportError("`cohere` not installed. Please install using `pip install cohere`")
 
 
 @dataclass
@@ -72,6 +72,11 @@ class CohereChat(Model):
             return self.cohere_client
 
         _client_params: Dict[str, Any] = {}
+
+        self.api_key = self.api_key or getenv("CO_API_KEY")
+        if not self.api_key:
+            logger.error("CO_API_KEY not set. Please set the CO_API_KEY environment variable.")
+
         if self.api_key:
             _client_params["api_key"] = self.api_key
         return CohereClient(**_client_params)

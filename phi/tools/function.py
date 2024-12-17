@@ -175,7 +175,7 @@ class Function(BaseModel):
         except Exception as e:
             logger.warning(f"Could not parse args for {self.name}: {e}", exc_info=True)
 
-        self.description = getdoc(self.entrypoint)
+        self.description = getdoc(self.entrypoint) or self.description
         self.parameters = parameters
         self.entrypoint = validate_call(self.entrypoint)
 

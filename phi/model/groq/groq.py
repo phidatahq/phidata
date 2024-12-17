@@ -1,3 +1,4 @@
+from os import getenv
 from dataclasses import dataclass, field
 from typing import Optional, List, Iterator, Dict, Any, Union
 
@@ -16,9 +17,8 @@ try:
     from groq.types.chat import ChatCompletion, ChatCompletionMessage
     from groq.types.chat.chat_completion_chunk import ChatCompletionChunk, ChoiceDeltaToolCall, ChoiceDelta
     from groq.types.completion_usage import CompletionUsage
-except ImportError:
-    logger.error("`groq` not installed")
-    raise
+except (ModuleNotFoundError, ImportError):
+    raise ImportError("`groq` not installed. Please install using `pip install groq`")
 
 
 @dataclass
@@ -104,6 +104,10 @@ class Groq(Model):
     async_client: Optional[AsyncGroqClient] = None
 
     def get_client_params(self) -> Dict[str, Any]:
+        self.api_key = self.api_key or getenv("GROQ_API_KEY")
+        if not self.api_key:
+            logger.error("GROQ_API_KEY not set. Please set the GROQ_API_KEY environment variable.")
+
         client_params: Dict[str, Any] = {}
         if self.api_key:
             client_params["api_key"] = self.api_key

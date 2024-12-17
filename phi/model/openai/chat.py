@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 from typing import Optional, List, Iterator, Dict, Any, Union
 
 import httpx
+from packaging import version
 from pydantic import BaseModel
 
 from phi.model.base import Model
@@ -24,6 +25,17 @@ try:
         ChoiceDeltaToolCall,
     )
     from openai.types.chat.chat_completion_message import ChatCompletionMessage
+
+    MIN_OPENAI_VERSION = "1.52.0"
+
+    # Check the installed openai version
+    from openai import __version__ as installed_version
+
+    if version.parse(installed_version) < version.parse(MIN_OPENAI_VERSION):
+        logger.warning(
+            f"`openai` version must be >= {MIN_OPENAI_VERSION}, but found {installed_version}. "
+            f"Please upgrade using `pip install --upgrade openai`."
+        )
 except (ModuleNotFoundError, ImportError):
     raise ImportError("`openai` not installed. Please install using `pip install openai`")
 
@@ -547,7 +559,7 @@ class OpenAIChat(Model):
                 assistant_message.tool_calls = [t.model_dump() for t in response_message.tool_calls]
             except Exception as e:
                 logger.warning(f"Error processing tool calls: {e}")
-        if response_message.audio is not None:
+        if hasattr(response_message, "audio") and response_message.audio is not None:
             try:
                 assistant_message.audio = response_message.audio.model_dump()
             except Exception as e:

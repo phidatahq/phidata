@@ -1,5 +1,6 @@
 from enum import Enum
 from typing import Dict, List, Any, Optional, Tuple
+from copy import deepcopy
 
 from pydantic import BaseModel, ConfigDict
 
@@ -357,8 +358,22 @@ class AgentMemory(BaseModel):
         self.summary = None
         self.memories = None
 
-    def deep_copy(self, *, update: Optional[Dict[str, Any]] = None) -> "AgentMemory":
-        new_memory = self.model_copy(deep=True, update=update)
-        # clear the new memory to remove any references to the old memory
-        new_memory.clear()
-        return new_memory
+    def deep_copy(self):
+        # Create a shallow copy of the object
+        copied_obj = self.__class__(**self.model_dump())
+
+        # Manually deepcopy fields that are known to be safe
+        for field_name, field_value in self.__dict__.items():
+            if field_name not in ["db", "classifier", "manager", "summarizer"]:
+                try:
+                    setattr(copied_obj, field_name, deepcopy(field_value))
+                except Exception as e:
+                    logger.warning(f"Failed to deepcopy field: {field_name} - {e}")
+                    setattr(copied_obj, field_name, field_value)
+
+        copied_obj.db = self.db
+        copied_obj.classifier = self.classifier
+        copied_obj.manager = self.manager
+        copied_obj.summarizer = self.summarizer
+
+        return copied_obj

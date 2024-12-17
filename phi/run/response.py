@@ -1,3 +1,4 @@
+import json
 from time import time
 from enum import Enum
 from typing import Optional, Any, Dict, List
@@ -56,6 +57,18 @@ class RunResponse(BaseModel):
     created_at: int = Field(default_factory=lambda: int(time()))
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    def to_json(self) -> str:
+        _dict = self.model_dump(
+            exclude_none=True,
+            exclude={"messages"},
+        )
+        if self.messages is not None:
+            _dict["messages"] = self.model_dump(
+                exclude_none=True,
+                include={"role", "content", "name", "tool_call_id", "tool_calls", "audio", "images", "videos", "metrics"},
+            )
+        return json.dumps(_dict, indent=2)
 
     def to_dict(self) -> Dict[str, Any]:
         _dict = self.model_dump(

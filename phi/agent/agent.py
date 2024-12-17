@@ -1716,8 +1716,10 @@ class Agent(BaseModel):
             agent_id=self.agent_id,
             content=content,
             tools=self.run_response.tools,
+            audio=self.run_response.audio,
             images=self.run_response.images,
             videos=self.run_response.videos,
+            response_audio=self.run_response.response_audio,
             model=self.run_response.model,
             messages=self.run_response.messages,
             extra_data=self.run_response.extra_data,
@@ -1808,6 +1810,7 @@ class Agent(BaseModel):
                         self.run_response.content = model_response_chunk.content
                         self.run_response.created_at = model_response_chunk.created_at
                         yield self.run_response
+
                 elif model_response_chunk.event == ModelResponseEvent.tool_call_started.value:
                     # Add tool call to the run_response
                     tool_call_dict = model_response_chunk.tool_call
@@ -1858,6 +1861,8 @@ class Agent(BaseModel):
         # Update the run_response content if streaming as run_response will only contain the last chunk
         if self.stream:
             self.run_response.content = model_response.content
+            if model_response.audio is not None:
+                self.run_response.response_audio = model_response.audio
 
         # 6. Update Memory
         if self.stream_intermediate_steps:
@@ -2148,6 +2153,15 @@ class Agent(BaseModel):
                         self.run_response.content = model_response_chunk.content
                         self.run_response.created_at = model_response_chunk.created_at
                         yield self.run_response
+                    if model_response_chunk.audio is not None:
+                        if model_response.audio is None:
+                            model_response.audio = {"data": "", "transcript": ""}
+
+                        model_response.audio["data"] += model_response.audio.get("data", "")
+                        model_response.audio["transcript"] += model_response.audio.get("transcript", "")
+                        self.run_response.response_audio = model_response_chunk.audio
+                        self.run_response.created_at = model_response_chunk.created_at
+                        yield self.run_response
                 elif model_response_chunk.event == ModelResponseEvent.tool_call_started.value:
                     # Add tool call to the run_response
                     tool_call_dict = model_response_chunk.tool_call
@@ -2196,6 +2210,8 @@ class Agent(BaseModel):
         # Update the run_response content if streaming as run_response will only contain the last chunk
         if self.stream:
             self.run_response.content = model_response.content
+            if model_response.audio is not None:
+                self.run_response.response_audio = model_response.audio
 
         # 6. Update Memory
         if self.stream_intermediate_steps:

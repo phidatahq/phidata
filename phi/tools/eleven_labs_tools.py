@@ -147,6 +147,7 @@ class ElevenLabsTools(Toolkit):
                 Audio(
                     id=str(uuid4()),
                     base64_audio=base64_audio,
+                    mime_type="audio/mpeg",
                 )
             )
 

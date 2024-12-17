@@ -1811,6 +1811,16 @@ class Agent(BaseModel):
                         self.run_response.created_at = model_response_chunk.created_at
                         yield self.run_response
 
+                    if model_response_chunk.audio is not None:
+                        if model_response.audio is None:
+                            model_response.audio = {"data": "", "transcript": ""}
+
+                        model_response.audio["data"] += model_response.audio.get("data", "")
+                        model_response.audio["transcript"] += model_response.audio.get("transcript", "")
+                        self.run_response.response_audio = model_response_chunk.audio
+                        self.run_response.created_at = model_response_chunk.created_at
+                        yield self.run_response
+
                 elif model_response_chunk.event == ModelResponseEvent.tool_call_started.value:
                     # Add tool call to the run_response
                     tool_call_dict = model_response_chunk.tool_call

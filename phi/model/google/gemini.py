@@ -155,7 +155,7 @@ class Gemini(Model):
             content = message.content
             # Initialize message_parts to be used for Gemini
             message_parts: List[Any] = []
-            if not content or message.role in ["tool", "model"]:
+            if (not content or message.role in ["tool", "model"]) and hasattr(message, "parts"):
                 message_parts = message.parts  # type: ignore
             else:
                 if isinstance(content, str):

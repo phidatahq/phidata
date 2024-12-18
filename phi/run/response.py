@@ -64,10 +64,13 @@ class RunResponse(BaseModel):
             exclude={"messages"},
         )
         if self.messages is not None:
-            _dict["messages"] = [m.model_dump(
-                exclude_none=True,
-                exclude={"parts"},  # Exclude what Gemini adds
-            ) for m in self.messages]
+            _dict["messages"] = [
+                m.model_dump(
+                    exclude_none=True,
+                    exclude={"parts"},  # Exclude what Gemini adds
+                )
+                for m in self.messages
+            ]
         return json.dumps(_dict, indent=2)
 
     def to_dict(self) -> Dict[str, Any]:

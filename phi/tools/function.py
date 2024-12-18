@@ -170,8 +170,6 @@ class Function(BaseModel):
                     if param.default == param.empty and name != "self" and name != "agent"
                 ]
 
-            # Param type should not be a list
-
             # logger.debug(f"JSON schema for {self.name}: {parameters}")
         except Exception as e:
             logger.warning(f"Could not parse args for {self.name}: {e}", exc_info=True)

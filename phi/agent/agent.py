@@ -1811,6 +1811,17 @@ class Agent(BaseModel):
                         self.run_response.created_at = model_response_chunk.created_at
                         yield self.run_response
 
+                    if model_response_chunk.audio is not None:
+                        if model_response.audio is None:
+                            model_response.audio = {"data": "", "transcript": ""}
+
+                        model_response.audio["data"] += model_response.audio.get("data", "")
+                        model_response.audio["transcript"] += model_response.audio.get("transcript", "")
+                        self.run_response.response_audio = model_response_chunk.audio
+                        self.run_response.created_at = model_response_chunk.created_at
+                        # TODO add all to final event
+                        yield self.run_response
+
                 elif model_response_chunk.event == ModelResponseEvent.tool_call_started.value:
                     # Add tool call to the run_response
                     tool_call_dict = model_response_chunk.tool_call
@@ -2151,6 +2162,15 @@ class Agent(BaseModel):
                     if model_response_chunk.content is not None and model_response.content is not None:
                         model_response.content += model_response_chunk.content
                         self.run_response.content = model_response_chunk.content
+                        self.run_response.created_at = model_response_chunk.created_at
+                        yield self.run_response
+                    if model_response_chunk.audio is not None:
+                        if model_response.audio is None:
+                            model_response.audio = {"data": "", "transcript": ""}
+
+                        model_response.audio["data"] += model_response.audio.get("data", "")
+                        model_response.audio["transcript"] += model_response.audio.get("transcript", "")
+                        self.run_response.response_audio = model_response_chunk.audio
                         self.run_response.created_at = model_response_chunk.created_at
                         yield self.run_response
                 elif model_response_chunk.event == ModelResponseEvent.tool_call_started.value:

@@ -5,7 +5,7 @@ from phi.tools.duckduckgo import DuckDuckGo
 from phi.storage.agent.yaml import YamlFileAgentStorage
 
 agent = Agent(
-    storage=YamlFileAgentStorage(path="tmp/agent_sessions_yaml"),
+    storage=YamlFileAgentStorage(dir_path="tmp/agent_sessions_yaml"),
     tools=[DuckDuckGo()],
     add_history_to_messages=True,
 )

@@ -5,7 +5,7 @@ from phi.tools.duckduckgo import DuckDuckGo
 from phi.storage.agent.json import JsonFileAgentStorage
 
 agent = Agent(
-    storage=JsonFileAgentStorage(path="tmp/agent_sessions_json"),
+    storage=JsonFileAgentStorage(dir_path="tmp/agent_sessions_json"),
     tools=[DuckDuckGo()],
     add_history_to_messages=True,
 )

@@ -9,9 +9,9 @@ from phi.utils.log import logger
 
 
 class YamlFileAgentStorage(AgentStorage):
-    def __init__(self, path: Union[str, Path]):
-        self.path = Path(path)
-        self.path.mkdir(parents=True, exist_ok=True)
+    def __init__(self, dir_path: Union[str, Path]):
+        self.dir_path = Path(dir_path)
+        self.dir_path.mkdir(parents=True, exist_ok=True)
 
     def serialize(self, data: dict) -> str:
         return yaml.dump(data, default_flow_style=False)
@@ -21,13 +21,13 @@ class YamlFileAgentStorage(AgentStorage):
 
     def create(self) -> None:
         """Create the storage if it doesn't exist."""
-        if not self.path.exists():
-            self.path.mkdir(parents=True, exist_ok=True)
+        if not self.dir_path.exists():
+            self.dir_path.mkdir(parents=True, exist_ok=True)
 
     def read(self, session_id: str, user_id: Optional[str] = None) -> Optional[AgentSession]:
         """Read an AgentSession from storage."""
         try:
-            with open(self.path / f"{session_id}.yaml", "r", encoding="utf-8") as f:
+            with open(self.dir_path / f"{session_id}.yaml", "r", encoding="utf-8") as f:
                 data = self.deserialize(f.read())
                 if user_id and data["user_id"] != user_id:
                     return None
@@ -38,7 +38,7 @@ class YamlFileAgentStorage(AgentStorage):
     def get_all_session_ids(self, user_id: Optional[str] = None, agent_id: Optional[str] = None) -> List[str]:
         """Get all session IDs, optionally filtered by user_id and/or agent_id."""
         session_ids = []
-        for file in self.path.glob("*.yaml"):
+        for file in self.dir_path.glob("*.yaml"):
             with open(file, "r", encoding="utf-8") as f:
                 data = self.deserialize(f.read())
                 if (not user_id or data["user_id"] == user_id) and (not agent_id or data["agent_id"] == agent_id):
@@ -48,7 +48,7 @@ class YamlFileAgentStorage(AgentStorage):
     def get_all_sessions(self, user_id: Optional[str] = None, agent_id: Optional[str] = None) -> List[AgentSession]:
         """Get all sessions, optionally filtered by user_id and/or agent_id."""
         sessions = []
-        for file in self.path.glob("*.yaml"):
+        for file in self.dir_path.glob("*.yaml"):
             with open(file, "r", encoding="utf-8") as f:
                 data = self.deserialize(f.read())
                 if (not user_id or data["user_id"] == user_id) and (not agent_id or data["agent_id"] == agent_id):
@@ -63,7 +63,7 @@ class YamlFileAgentStorage(AgentStorage):
             if "created_at" not in data:
                 data["created_at"] = data["updated_at"]
 
-            with open(self.path / f"{session.session_id}.yaml", "w", encoding="utf-8") as f:
+            with open(self.dir_path / f"{session.session_id}.yaml", "w", encoding="utf-8") as f:
                 f.write(self.serialize(data))
             return session
         except Exception as e:
@@ -75,13 +75,13 @@ class YamlFileAgentStorage(AgentStorage):
         if session_id is None:
             return
         try:
-            (self.path / f"{session_id}.yaml").unlink(missing_ok=True)
+            (self.dir_path / f"{session_id}.yaml").unlink(missing_ok=True)
         except Exception as e:
             logger.error(f"Error deleting session: {e}")
 
     def drop(self) -> None:
         """Drop all sessions from storage."""
-        for file in self.path.glob("*.yaml"):
+        for file in self.dir_path.glob("*.yaml"):
             file.unlink()
 
     def upgrade_schema(self) -> None:

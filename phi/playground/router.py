@@ -478,10 +478,6 @@ def get_async_playground_router(
         if agent is None:
             raise HTTPException(status_code=404, detail="Agent not found")
 
-        if body.files:
-            if agent.knowledge is None:
-                raise HTTPException(status_code=404, detail="KnowledgeBase not found")
-
         if body.session_id is not None:
             logger.debug(f"Continuing session: {body.session_id}")
         else:
@@ -503,18 +499,28 @@ def get_async_playground_router(
         if body.files:
             for file in body.files:
                 if file.content_type == "application/pdf":
+                    if agent.knowledge is None:
+                        raise HTTPException(status_code=404, detail="KnowledgeBase not found")
                     file_content = await PDFReader().read(file)
                     agent.knowledge.load_document(file_content)
                 elif file.content_type == "text/csv":
+                    if agent.knowledge is None:
+                        raise HTTPException(status_code=404, detail="KnowledgeBase not found")
                     file_content = await CSVReader().read(file)
                     agent.knowledge.load_document(file_content)
                 elif file.content_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+                    if agent.knowledge is None:
+                        raise HTTPException(status_code=404, detail="KnowledgeBase not found")
                     file_content = await DocxReader().read(file)
                     agent.knowledge.load_document(file_content)
                 elif file.content_type == "application/json":
+                    if agent.knowledge is None:
+                        raise HTTPException(status_code=404, detail="KnowledgeBase not found")
                     file_content = await JSONReader().read(file)
                     agent.knowledge.load_document(file_content)
                 elif file.content_type == "text/plain":
+                    if agent.knowledge is None:
+                        raise HTTPException(status_code=404, detail="KnowledgeBase not found")
                     file_content = await TextReader().read(file)
                     agent.knowledge.load_document(file_content)
                 elif file.content_type in ["png", "jpg", "jpeg", "gif", "bmp", "tiff", "ico"]:

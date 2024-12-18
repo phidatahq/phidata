@@ -17,7 +17,7 @@ class GeminiOpenAIChat(OpenAILike):
         base_url (Optional[str]): The base URL for the xAI API.
     """
 
-    id: str = "gemini-1.5-flash"
+    id: str = "gemini-2.0-flash-exp"
     name: str = "Gemini"
     provider: str = "Google"
 

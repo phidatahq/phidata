@@ -1,3 +1,4 @@
+from os import getenv
 import time
 import json
 from pathlib import Path
@@ -24,8 +25,7 @@ try:
     )
     from google.protobuf.struct_pb2 import Struct
 except (ModuleNotFoundError, ImportError):
-    logger.error("`google-generativeai` not installed. Please install it using `pip install google-generativeai`")
-    raise
+    raise ImportError("`google-generativeai` not installed. Please install it using `pip install google-generativeai`")
 
 
 @dataclass
@@ -103,9 +103,12 @@ class Gemini(Model):
             return self.client
 
         client_params: Dict[str, Any] = {}
-        # Set client parameters if they are provided
-        if self.api_key:
-            client_params["api_key"] = self.api_key
+
+        self.api_key = self.api_key or getenv("GOOGLE_API_KEY")
+        if not self.api_key:
+            logger.error("GOOGLE_API_KEY not set. Please set the GOOGLE_API_KEY environment variable.")
+        client_params["api_key"] = self.api_key
+
         if self.client_params:
             client_params.update(self.client_params)
         genai.configure(**client_params)
@@ -152,7 +155,7 @@ class Gemini(Model):
             content = message.content
             # Initialize message_parts to be used for Gemini
             message_parts: List[Any] = []
-            if not content or message.role in ["tool", "model"]:
+            if (not content or message.role in ["tool", "model"]) and hasattr(message, "parts"):
                 message_parts = message.parts  # type: ignore
             else:
                 if isinstance(content, str):

@@ -38,6 +38,7 @@ class RecursiveChunking(ChunkingStrategy):
             chunk_id = None
             if document.id:
                 chunk_id = f"{document.id}_{chunk_number}"
+            chunk_number += 1
             meta_data["chunk_size"] = len(chunk)
             chunks.append(Document(id=chunk_id, name=document.name, meta_data=meta_data, content=chunk))
 

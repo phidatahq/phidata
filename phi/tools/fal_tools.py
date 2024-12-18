@@ -27,9 +27,9 @@ class FalTools(Toolkit):
         super().__init__(name="fal")
 
         self.api_key = api_key or getenv("FAL_KEY")
-        self.model = model
         if not self.api_key:
             logger.error("FAL_KEY not set. Please set the FAL_KEY environment variable.")
+        self.model = model
         self.seen_logs: set[str] = set()
         self.register(self.generate_media)
 

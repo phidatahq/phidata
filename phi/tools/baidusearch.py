@@ -22,7 +22,7 @@ class BaiduSearch(Toolkit):
     Args:
         fixed_max_results (Optional[int]): A fixed number of maximum results.
         fixed_language (Optional[str]): A fixed language for the search results.
-        headers (Optional[Any]): Headers to be used in the search request.
+        headers (Optional[Any]):
         proxy (Optional[str]): Proxy to be used in the search request.
         debug (Optional[bool]): Enable debug output.
     """

@@ -134,6 +134,11 @@ class Ollama(Model):
             request_params["keep_alive"] = self.keep_alive
         if self.tools is not None:
             request_params["tools"] = self.get_tools_for_api()
+            # Ensure types are valid strings
+            for tool in request_params["tools"]:
+                for prop, obj in tool["function"]["parameters"]["properties"].items():
+                    if isinstance(obj["type"], list):
+                        obj["type"] = obj["type"][0]
         if self.request_params is not None:
             request_params.update(self.request_params)
         return request_params

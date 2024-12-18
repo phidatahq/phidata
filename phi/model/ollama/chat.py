@@ -137,7 +137,7 @@ class Ollama(Model):
             # Ensure types are valid strings
             for tool in request_params["tools"]:
                 for prop, obj in tool["function"]["parameters"]["properties"].items():
-                    if type(obj["type"]) == list:
+                    if isinstance(obj["type"], list):
                         obj["type"] = obj["type"][0]
         if self.request_params is not None:
             request_params.update(self.request_params)

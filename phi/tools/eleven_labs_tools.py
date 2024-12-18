@@ -122,22 +122,20 @@ class ElevenLabsTools(Toolkit):
 
         return base64_audio
 
-    def generate_sound_effect(self, agent: Agent, prompt: str, voice_id: Optional[str] = None) -> str:
+    def generate_sound_effect(self, agent: Agent, prompt: str, duration_seconds: Optional[float] = None) -> str:
         """
         Use this function to generate sound effect audio from a text prompt.
 
         Args:
             prompt (str): Text to generate audio from.
-            voice_id (str): The ID of the voice to use for audio generation.
+            duration_seconds (Optional[float]): Duration in seconds to generate audio from.
         Returns:
             str: Return the path to the generated audio file.
         """
         try:
             audio_generator = self.eleven_labs_client.text_to_sound_effects.convert(
-                voice_id=voice_id or self.voice_id,
-                model_id=self.model_id,
                 text=prompt,
-                output_format=self.output_format,
+                duration_seconds=duration_seconds
             )
 
             base64_audio = self._process_audio(audio_generator)
@@ -163,7 +161,7 @@ class ElevenLabsTools(Toolkit):
 
         Args:
             prompt (str): Text to generate audio from.
-            voice_id (str): The ID of the voice to use for audio generation.
+            voice_id (Optional[str]): The ID of the voice to use for audio generation. Uses default if none is specified.
         Returns:
             str: Return the path to the generated audio file.
         """
@@ -182,7 +180,7 @@ class ElevenLabsTools(Toolkit):
                 Audio(
                     id=str(uuid4()),
                     base64_audio=base64_audio,
-                    mime_type="audio/mpeg", 
+                    mime_type="audio/mpeg",
                 )
             )
 

@@ -1,10 +1,10 @@
-import base64
 from pathlib import Path
 from rich import print
 from rich.text import Text
 
 from phi.agent import Agent, RunResponse
 from phi.model.openai import OpenAIChat
+from phi.utils.audio import write_audio_to_file
 
 cwd = Path(__file__).parent.resolve()
 
@@ -23,7 +23,5 @@ audio_agent = Agent(
 )
 
 audio_story: RunResponse = audio_agent.run(f"Narrate the story with flair: {image_story.content}")
-if audio_story.audio is not None and "data" in audio_story.audio:
-    wav_bytes = base64.b64decode(audio_story.audio["data"])
-    with open(cwd.joinpath("tmp/multimodal-agents.wav"), "wb") as f:
-        f.write(wav_bytes)
+if audio_story.response_audio is not None and "data" in audio_story.response_audio:
+    write_audio_to_file(audio=audio_story.response_audio["data"], filename="tmp/multimodal-agents.wav")

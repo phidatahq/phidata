@@ -1,10 +1,11 @@
+import json
 from time import time
 from enum import Enum
 from typing import Optional, Any, Dict, List
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from phi.model.content import Video, Image
+from phi.model.content import Video, Image, Audio
 from phi.reasoning.step import ReasoningStep
 from phi.model.message import Message, MessageReferences
 
@@ -49,13 +50,29 @@ class RunResponse(BaseModel):
     session_id: Optional[str] = None
     workflow_id: Optional[str] = None
     tools: Optional[List[Dict[str, Any]]] = None
-    images: Optional[List[Image]] = None
-    videos: Optional[List[Video]] = None
-    audio: Optional[Dict] = None
+    images: Optional[List[Image]] = None  # Images attached to the response
+    videos: Optional[List[Video]] = None  # Videos attached to the response
+    audio: Optional[List[Audio]] = None  # Audio attached to the response
+    response_audio: Optional[Dict] = None  # Model audio response
     extra_data: Optional[RunResponseExtraData] = None
     created_at: int = Field(default_factory=lambda: int(time()))
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    def to_json(self) -> str:
+        _dict = self.model_dump(
+            exclude_none=True,
+            exclude={"messages"},
+        )
+        if self.messages is not None:
+            _dict["messages"] = [
+                m.model_dump(
+                    exclude_none=True,
+                    exclude={"parts"},  # Exclude what Gemini adds
+                )
+                for m in self.messages
+            ]
+        return json.dumps(_dict, indent=2)
 
     def to_dict(self) -> Dict[str, Any]:
         _dict = self.model_dump(

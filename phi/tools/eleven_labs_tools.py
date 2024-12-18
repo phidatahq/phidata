@@ -20,7 +20,7 @@ try:
 except ImportError:
     raise ImportError("`elevenlabs` not installed. Please install using `pip install elevenlabs`")
 
-OutputFormat = Literal[
+ElevenLabsAudioOutputFormat = Literal[
     "mp3_22050_32",  # mp3 with 22.05kHz sample rate at 32kbps
     "mp3_44100_32",  # mp3 with 44.1kHz sample rate at 32kbps
     "mp3_44100_64",  # mp3 with 44.1kHz sample rate at 64kbps
@@ -42,7 +42,7 @@ class ElevenLabsTools(Toolkit):
         api_key: Optional[str] = None,
         target_directory: Optional[str] = None,
         model_id: str = "eleven_multilingual_v2",
-        output_format: OutputFormat = "mp3_44100_64",
+        output_format: ElevenLabsAudioOutputFormat = "mp3_44100_64",
     ):
         super().__init__(name="elevenlabs_tools")
 

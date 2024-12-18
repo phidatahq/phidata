@@ -158,7 +158,6 @@ class Function(BaseModel):
 
             # Get JSON schema for parameters only
             parameters = get_json_schema(type_hints=param_type_hints, strict=strict)
-
             # If strict=True mark all fields as required
             # See: https://platform.openai.com/docs/guides/structured-outputs/supported-schemas#all-fields-must-be-required
             if strict:
@@ -170,6 +169,8 @@ class Function(BaseModel):
                     for name, param in sig.parameters.items()
                     if param.default == param.empty and name != "self" and name != "agent"
                 ]
+
+            # Param type should not be a list
 
             # logger.debug(f"JSON schema for {self.name}: {parameters}")
         except Exception as e:

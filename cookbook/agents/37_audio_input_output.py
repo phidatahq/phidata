@@ -2,6 +2,7 @@ import base64
 import requests
 from phi.agent import Agent
 from phi.model.openai import OpenAIChat
+from phi.utils.audio import write_audio_to_file
 
 # Fetch the audio file and convert it to a base64 encoded string
 url = "https://openaiassets.blob.core.windows.net/$web/API/docs/audio/alloy.wav"
@@ -22,7 +23,5 @@ agent.run(
     audio={"data": encoded_string, "format": "wav"},
 )
 
-if agent.run_response.audio is not None and "data" in agent.run_response.audio:
-    wav_bytes = base64.b64decode(agent.run_response.audio["data"])
-    with open("dog.wav", "wb") as f:
-        f.write(wav_bytes)
+if agent.run_response.response_audio is not None and "data" in agent.run_response.response_audio:
+    write_audio_to_file(audio=agent.run_response.response_audio["data"], filename="tmp/dog.wav")

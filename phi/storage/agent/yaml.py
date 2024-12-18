@@ -27,9 +27,9 @@ class YamlFileAgentStorage(AgentStorage):
     def read(self, session_id: str, user_id: Optional[str] = None) -> Optional[AgentSession]:
         """Read an AgentSession from storage."""
         try:
-            with open(self.path / f"{session_id}.yaml", 'r', encoding='utf-8') as f:
+            with open(self.path / f"{session_id}.yaml", "r", encoding="utf-8") as f:
                 data = self.deserialize(f.read())
-                if user_id and data['user_id'] != user_id:
+                if user_id and data["user_id"] != user_id:
                     return None
                 return AgentSession.model_validate(data)
         except FileNotFoundError:
@@ -39,19 +39,19 @@ class YamlFileAgentStorage(AgentStorage):
         """Get all session IDs, optionally filtered by user_id and/or agent_id."""
         session_ids = []
         for file in self.path.glob("*.yaml"):
-            with open(file, 'r', encoding='utf-8') as f:
+            with open(file, "r", encoding="utf-8") as f:
                 data = self.deserialize(f.read())
-                if (not user_id or data['user_id'] == user_id) and (not agent_id or data['agent_id'] == agent_id):
-                    session_ids.append(data['session_id'])
+                if (not user_id or data["user_id"] == user_id) and (not agent_id or data["agent_id"] == agent_id):
+                    session_ids.append(data["session_id"])
         return session_ids
 
     def get_all_sessions(self, user_id: Optional[str] = None, agent_id: Optional[str] = None) -> List[AgentSession]:
         """Get all sessions, optionally filtered by user_id and/or agent_id."""
         sessions = []
         for file in self.path.glob("*.yaml"):
-            with open(file, 'r', encoding='utf-8') as f:
+            with open(file, "r", encoding="utf-8") as f:
                 data = self.deserialize(f.read())
-                if (not user_id or data['user_id'] == user_id) and (not agent_id or data['agent_id'] == agent_id):
+                if (not user_id or data["user_id"] == user_id) and (not agent_id or data["agent_id"] == agent_id):
                     sessions.append(AgentSession.model_validate(data))
         return sessions
 
@@ -59,11 +59,11 @@ class YamlFileAgentStorage(AgentStorage):
         """Insert or update an AgentSession in storage."""
         try:
             data = session.model_dump()
-            data['updated_at'] = int(time.time())
-            if 'created_at' not in data:
-                data['created_at'] = data['updated_at']
-                
-            with open(self.path / f"{session.session_id}.yaml", 'w', encoding='utf-8') as f:
+            data["updated_at"] = int(time.time())
+            if "created_at" not in data:
+                data["created_at"] = data["updated_at"]
+
+            with open(self.path / f"{session.session_id}.yaml", "w", encoding="utf-8") as f:
                 f.write(self.serialize(data))
             return session
         except Exception as e:

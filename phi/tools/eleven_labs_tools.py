@@ -66,7 +66,7 @@ class ElevenLabsTools(Toolkit):
 
     def get_voices(self) -> str:
         """
-        Use this function to generate sound effect audio from a text prompt.
+        Use this function to get all the voices available.
 
         Returns:
             result (list): A list of voices that have an ID, name and description.

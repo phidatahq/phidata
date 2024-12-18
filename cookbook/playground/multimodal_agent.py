@@ -89,6 +89,7 @@ fal_agent = Agent(
 
 gif_agent = Agent(
     name="Gif Generator Agent",
+    agent_id="gif_agent",
     model=OpenAIChat(id="gpt-4o"),
     tools=[GiphyTools()],
     description="You are an AI agent that can generate gifs using Giphy.",
@@ -105,6 +106,7 @@ gif_agent = Agent(
 
 audio_agent = Agent(
     name="Audio Generator Agent",
+    agent_id="audio_agent",
     model=OpenAIChat(id="gpt-4o"),
     tools=[
         ElevenLabsTools(

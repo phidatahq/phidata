@@ -44,13 +44,15 @@ class MemorySummarizer(BaseModel):
 
         Conversation:
         """)
+        conversation = []
+        for message_pair in messages_for_summarization:
+            conversation.append(f"User: {message_pair['user']}")
+            if "assistant" in message_pair:
+                conversation.append(f"Assistant: {message_pair['assistant']}")
+            elif "model" in message_pair:
+                conversation.append(f"Assistant: {message_pair['model']}")
 
-        system_prompt += "\n".join(
-            [
-                f"User: {message_pair['user']}\nAssistant: {message_pair['assistant']}"
-                for message_pair in messages_for_summarization
-            ]
-        )
+        system_prompt += "\n".join(conversation)
 
         if not self.use_structured_outputs:
             system_prompt += "\n\nProvide your output as a JSON containing the following fields:"

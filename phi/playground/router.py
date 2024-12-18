@@ -463,16 +463,13 @@ def get_async_playground_router(
             run_response_chunk = cast(RunResponse, run_response_chunk)
             yield run_response_chunk.model_dump_json()
 
-    async def process_image(files: List[UploadFile]) -> List[Union[str, Dict]]:
-        image_list: List[Union[str, Dict]] = []
-        for file in files:
-            content = await file.file.read()
-            encoded = base64.b64encode(content).decode("utf-8")
+    async def process_image(file: UploadFile) -> List[Union[str, Dict]]:
+        content = file.file.read()
+        encoded = base64.b64encode(content).decode("utf-8")
 
-            image_info = {"filename": file.filename, "content_type": file.content_type, "size": len(content)}
-            image_list.append([encoded, image_info])
+        image_info = {"filename": file.filename, "content_type": file.content_type, "size": len(content)}
 
-        return image_list
+        return [encoded, image_info]
 
     @playground_router.post("/agent/run")
     async def agent_run(body: AgentRunRequest):
@@ -500,9 +497,8 @@ def get_async_playground_router(
         else:
             new_agent_instance.monitoring = False
 
-        base64_images: Optional[List[Union[str, Dict]]] = None
-        if body.images:
-            base64_images = await process_image(body.images)
+        images, audio, video = 0, 0, 0
+        audio_file_content, base64_image, video_file_content = None, None, None
 
         if body.files:
             for file in body.files:
@@ -521,21 +517,28 @@ def get_async_playground_router(
                 elif file.content_type == "text/plain":
                     file_content = await TextReader().read(file)
                     agent.knowledge.load_document(file_content)
+                elif file.content_type in ["png", "jpg", "jpeg", "gif", "bmp", "tiff", "ico"]:
+                    if images > 1:
+                        raise HTTPException(status_code=400, detail="Only one image is supported")
+                    base64_image = await process_image(file)
+                    images += 1
+                elif file.content_type in ["audio/mpeg", "audio/wav", "audio/ogg", "audio/webm"]:
+                    if audio > 1:
+                        raise HTTPException(status_code=400, detail="Only one audio file is supported")
+                    audio_file_content = await file.file.read()
+                    audio += 1
+                elif file.content_type in ["video/mp4", "video/webm"]:
+                    if video > 1:
+                        raise HTTPException(status_code=400, detail="Only one video file is supported")
+                    video_file_content = await file.file.read()
+                    video += 1
                 else:
-                    raise HTTPException(status_code=404, detail="Unsupported file type")
-
-        audio_file_content = None
-        if body.audio_file:
-            audio_file_content = await body.audio_file.file.read()
-
-        video_file_content = None
-        if body.video:
-            video_file_content = await body.video.file.read()
+                    raise HTTPException(status_code=400, detail="Unsupported file type")
 
         if body.stream:
             return StreamingResponse(
                 chat_response_streamer(
-                    new_agent_instance, body.message, base64_images, audio_file_content, video_file_content
+                    new_agent_instance, body.message, base64_image, audio_file_content, video_file_content
                 ),
                 media_type="text/event-stream",
             )
@@ -544,7 +547,7 @@ def get_async_playground_router(
                 RunResponse,
                 await new_agent_instance.arun(
                     body.message,
-                    images=base64_images,
+                    images=base64_image,
                     audio=audio_file_content,
                     videos=video_file_content,
                     stream=False,

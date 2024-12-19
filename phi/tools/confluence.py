@@ -72,6 +72,7 @@ class ConfluenceTools(Toolkit):
             str: JSON-encoded page content or error message.
         """
         try:
+            logger.info(f"Retrieving page content from space '{space_name}'")
             key = self.get_space_key(space_name=space_name)
             page = self.confluence.get_page_by_title(key, page_title, expand=expand)
             if page:
@@ -115,7 +116,7 @@ class ConfluenceTools(Toolkit):
         logger.warning(f"No space named {space_name} found")
         return "No space found"
 
-    def get_all_page_from_space(self, space_name):
+    def get_all_page_from_space(self, space_name: str):
         """Retrieve all pages from a specific Confluence space.
 
         Args:

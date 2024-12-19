@@ -1,6 +1,6 @@
 # IMPORTANT: Before running this script, ensure that the (ANY MODEL )API_KEY environment variable is set.
 # To set the API key, follow the instructions below:
-# 
+# For example for DEEPSEEK
 # On Windows:
 # Open Command Prompt as Administrator and run:
 # setx DEEPSEEK_API_KEY "your-api-key-here"

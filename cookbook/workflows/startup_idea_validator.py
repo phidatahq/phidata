@@ -31,19 +31,18 @@ class MarketResearch(BaseModel):
 
 
 class StartupIdeaValidator(Workflow):
-
     idea_clarifier_agent: Agent = Agent(
         model=OpenAIChat(id="gpt-4o-mini"),
         instructions=[
             "Given a user's startup idea, its your goal to refine that idea. ",
             "Evaluates the originality of the idea by comparing it with existing concepts. ",
-            "Define the mission and objectives of the startup."
+            "Define the mission and objectives of the startup.",
         ],
         add_history_to_messages=True,
         add_datetime_to_instructions=True,
         response_model=IdeaClarification,
         structured_outputs=True,
-        debug_mode=False
+        debug_mode=False,
     )
 
     market_research_agent: Agent = Agent(
@@ -53,13 +52,13 @@ class StartupIdeaValidator(Workflow):
             "You are provided with a startup idea and the company's mission and objectives. ",
             "Estimate the total addressable market (TAM), serviceable available market (SAM), and serviceable obtainable market (SOM). ",
             "Define target customer segments and their characteristics. ",
-            "Search the web for resources if you need to."
+            "Search the web for resources if you need to.",
         ],
         add_history_to_messages=True,
         add_datetime_to_instructions=True,
         response_model=MarketResearch,
         structured_outputs=True,
-        debug_mode=False
+        debug_mode=False,
     )
 
     competitor_analysis_agent: Agent = Agent(
@@ -69,29 +68,27 @@ class StartupIdeaValidator(Workflow):
             "You are provided with a startup idea and some market research related to the idea. ",
             "Identify existing competitors in the market. ",
             "Perform Strengths, Weaknesses, Opportunities, and Threats (SWOT) analysis for each competitor. ",
-            "Assess the startup’s potential positioning relative to competitors."
+            "Assess the startup’s potential positioning relative to competitors.",
         ],
         add_history_to_messages=True,
         add_datetime_to_instructions=True,
         markdown=True,
-        debug_mode=False
+        debug_mode=False,
     )
 
     report_agent: Agent = Agent(
         model=OpenAIChat(id="gpt-4o-mini"),
         instructions=[
             "You are provided with a startup idea and other data about the idea. ",
-            "Summarise everything into a single report."
+            "Summarise everything into a single report.",
         ],
         add_history_to_messages=True,
         add_datetime_to_instructions=True,
         markdown=True,
-        debug_mode=False
+        debug_mode=False,
     )
 
-
     def get_idea_clarification(self, startup_idea: str) -> Optional[IdeaClarification]:
-
         try:
             response: RunResponse = self.idea_clarifier_agent.run(startup_idea)
 
@@ -107,9 +104,9 @@ class StartupIdeaValidator(Workflow):
         except Exception as e:
             logger.warning(f"Failed: {str(e)}")
 
+        return None
 
     def get_market_research(self, startup_idea: str, idea_clarification: IdeaClarification) -> Optional[MarketResearch]:
-
         agent_input = {"startup_idea": startup_idea, **idea_clarification.model_dump()}
 
         try:
@@ -128,9 +125,9 @@ class StartupIdeaValidator(Workflow):
         except Exception as e:
             logger.warning(f"Failed: {str(e)}")
 
+        return None
 
     def get_competitor_analysis(self, startup_idea: str, market_research: MarketResearch) -> Optional[str]:
-
         agent_input = {"startup_idea": startup_idea, **market_research.model_dump()}
 
         try:
@@ -145,6 +142,7 @@ class StartupIdeaValidator(Workflow):
         except Exception as e:
             logger.warning(f"Failed: {str(e)}")
 
+        return None
 
     def run(self, startup_idea: str) -> Iterator[RunResponse]:
         logger.info(f"Generating a startup validation report for: {startup_idea}")
@@ -165,19 +163,24 @@ class StartupIdeaValidator(Workflow):
         if market_research is None:
             yield RunResponse(
                 event=RunEvent.workflow_completed,
-                content=f"Market research failed",
+                content="Market research failed",
             )
             return
 
-        competitor_analysis: str = self.get_competitor_analysis(startup_idea, market_research)
+        competitor_analysis: Optional[str] = self.get_competitor_analysis(startup_idea, market_research)
 
         # Compile the final report
-        final_response: RunResponse = self.report_agent.run(json.dumps({
-            "startup_idea": startup_idea,
-            **idea_clarification.model_dump(),
-            **market_research.model_dump(),
-            "competitor_analysis_report": competitor_analysis,
-        }, indent=4))
+        final_response: RunResponse = self.report_agent.run(
+            json.dumps(
+                {
+                    "startup_idea": startup_idea,
+                    **idea_clarification.model_dump(),
+                    **market_research.model_dump(),
+                    "competitor_analysis_report": competitor_analysis,
+                },
+                indent=4,
+            )
+        )
 
         yield RunResponse(content=final_response.content, event=RunEvent.workflow_completed)
 

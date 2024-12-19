@@ -1,7 +1,9 @@
 from phi.tools import Toolkit
-from moviepy import VideoFileClip  # type: ignore
+from moviepy import  VideoFileClip, TextClip, CompositeVideoClip # type: ignore
 from openai import OpenAI
+
 client = OpenAI()
+    
 
 class VideoTools(Toolkit):
     """Tool for processing video files, extracting audio, transcribing and adding captions"""
@@ -55,9 +57,7 @@ class VideoTools(Toolkit):
         try:
             with open(audio_path, "rb") as audio_file:
                 transcript = client.audio.transcriptions.create(
-                    model="whisper-1",
-                    file=audio_file,
-                    response_format="text"
+                    model="whisper-1", file=audio_file, response_format="text"
                 )
                 print(f"Transcript: {transcript}")
             return transcript
@@ -75,7 +75,7 @@ class VideoTools(Toolkit):
             str: Path to the created SRT file
         """
         try:
-            with open(output_path, 'w', encoding='utf-8') as f:
+            with open(output_path, "w", encoding="utf-8") as f:
                 f.write(f"1\n00:00:00,000 --> 99:59:59,999\n{transcription.strip()}\n\n")
             return output_path
         except Exception as e:
@@ -93,13 +93,55 @@ class VideoTools(Toolkit):
             str: Path to the output video with captions
         """
         try:
+
+
+            # Load the video
             video = VideoFileClip(video_path)
-            # Add subtitles using moviepy
-            video.write_videofile(
-                output_path,
-                codec='libx264',
-                audio_codec='aac'
-            )
+
+            # Read captions from SRT file
+            with open(caption_path, "r", encoding="utf-8") as f:
+                caption_text = f.read().split("\n")[2]  # Get the text from SRT format
+
+            # Create text clip using modern MoviePy syntax
+            try:
+                txt_clip = (
+                    TextClip(
+                        text=caption_text,
+                        font_size=24,
+                        color="white",
+                        bg_color="black",
+                        font="Arial.ttf",
+                    )
+                    .with_duration(video.duration)
+                    .with_position(("center", "bottom"))
+                )
+            except:
+                # Fallback without specific font
+                txt_clip = (
+                    TextClip(
+                        text=caption_text,
+                        font_size=24,
+                        color="white",
+                        bg_color="black",
+                        font="Arial.ttf",
+                    )
+                    .with_duration(video.duration)
+                    .with_position(("center", "bottom"))
+                )
+
+            # Combine video and text using composition
+            final_video = CompositeVideoClip([video, txt_clip])
+
+            # Write the result
+            final_video.write_videofile(output_path, codec="libx264", audio_codec="aac")
+
+            # Clean up
+            video.close()
+            txt_clip.close()
+            final_video.close()
+
             return output_path
+
         except Exception as e:
+            print(f"Detailed error: {str(e)}")
             return f"Failed to embed captions: {str(e)}"

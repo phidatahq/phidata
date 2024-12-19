@@ -104,7 +104,7 @@ module = [
   "bs4.*",
   "chonkie.*",
   "chromadb.*",
-  "clip.*",
+  "clickhouse_connect.*",
   "clip.*",
   "cohere.*",
   "crawl4ai.*",

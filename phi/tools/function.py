@@ -139,6 +139,11 @@ class Function(BaseModel):
             return
 
         parameters = {"type": "object", "properties": {}, "required": []}
+        params_set = False
+        # If the user set the parameters (i.e. they are different from the default), we should keep them
+        if self.parameters != parameters:
+            params_set = True
+
         try:
             sig = signature(self.entrypoint)
             type_hints = get_type_hints(self.entrypoint)
@@ -174,8 +179,9 @@ class Function(BaseModel):
         except Exception as e:
             logger.warning(f"Could not parse args for {self.name}: {e}", exc_info=True)
 
-        self.description = getdoc(self.entrypoint) or self.description
-        self.parameters = parameters
+        self.description = self.description or getdoc(self.entrypoint)
+        if not params_set:
+            self.parameters = parameters
         self.entrypoint = validate_call(self.entrypoint)
 
     def get_type_name(self, t: Type[T]):

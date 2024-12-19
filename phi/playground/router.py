@@ -92,7 +92,7 @@ def get_playground_router(
         run_response = agent.run(message, images=images, stream=True, stream_intermediate_steps=True)
         for run_response_chunk in run_response:
             run_response_chunk = cast(RunResponse, run_response_chunk)
-            yield run_response_chunk.model_dump_json()
+            yield run_response_chunk.to_json()
 
     def process_image(file: UploadFile) -> List[Union[str, Dict]]:
         content = file.file.read()
@@ -399,7 +399,7 @@ def get_async_playground_router(
         run_response = await agent.arun(message, images=images, stream=True, stream_intermediate_steps=True)
         async for run_response_chunk in run_response:
             run_response_chunk = cast(RunResponse, run_response_chunk)
-            yield run_response_chunk.model_dump_json()
+            yield run_response_chunk.to_json()
 
     async def process_image(file: UploadFile) -> List[Union[str, Dict]]:
         content = file.file.read()

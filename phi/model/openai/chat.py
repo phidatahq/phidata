@@ -71,6 +71,7 @@ class Metrics:
 @dataclass
 class StreamData:
     response_content: str = ""
+    response_audio: Optional[dict] = None
     response_tool_calls: Optional[List[ChoiceDeltaToolCall]] = None
 
 
@@ -310,8 +311,9 @@ class OpenAIChat(Model):
         if message.role == "user":
             if message.images is not None:
                 message = self.add_images_to_message(message=message, images=message.images)
-            if message.audio is not None:
-                message = self.add_audio_to_message(message=message, audio=message.audio)
+
+        if message.audio is not None:
+            message = self.add_audio_to_message(message=message, audio=message.audio)
 
         return message.to_dict()
 
@@ -854,17 +856,20 @@ class OpenAIChat(Model):
                     metrics.time_to_first_token = metrics.response_timer.elapsed
 
                 response_delta: ChoiceDelta = response.choices[0].delta
-                response_content: Optional[str] = response_delta.content
-                response_tool_calls: Optional[List[ChoiceDeltaToolCall]] = response_delta.tool_calls
 
-                if response_content is not None:
-                    stream_data.response_content += response_content
-                    yield ModelResponse(content=response_content)
+                if response_delta.content is not None:
+                    stream_data.response_content += response_delta.content
+                    yield ModelResponse(content=response_delta.content)
 
-                if response_tool_calls is not None:
+                if hasattr(response_delta, "audio"):
+                    response_audio = response_delta.audio
+                    stream_data.response_audio = response_audio
+                    yield ModelResponse(audio=response_audio)
+
+                if response_delta.tool_calls is not None:
                     if stream_data.response_tool_calls is None:
                         stream_data.response_tool_calls = []
-                    stream_data.response_tool_calls.extend(response_tool_calls)
+                    stream_data.response_tool_calls.extend(response_delta.tool_calls)
 
             if response.usage is not None:
                 self.add_response_usage_to_metrics(metrics=metrics, response_usage=response.usage)
@@ -874,6 +879,9 @@ class OpenAIChat(Model):
         assistant_message = Message(role="assistant")
         if stream_data.response_content != "":
             assistant_message.content = stream_data.response_content
+
+        if stream_data.response_audio is not None:
+            assistant_message.audio = stream_data.response_audio
 
         if stream_data.response_tool_calls is not None:
             _tool_calls = self.build_tool_calls(stream_data.response_tool_calls)
@@ -917,23 +925,26 @@ class OpenAIChat(Model):
         # -*- Generate response
         metrics.response_timer.start()
         async for response in self.ainvoke_stream(messages=messages):
-            if len(response.choices) > 0:
+            if response.choices and len(response.choices) > 0:
                 metrics.completion_tokens += 1
                 if metrics.completion_tokens == 1:
                     metrics.time_to_first_token = metrics.response_timer.elapsed
 
                 response_delta: ChoiceDelta = response.choices[0].delta
-                response_content = response_delta.content
-                response_tool_calls = response_delta.tool_calls
 
-                if response_content is not None:
-                    stream_data.response_content += response_content
-                    yield ModelResponse(content=response_content)
+                if response_delta.content is not None:
+                    stream_data.response_content += response_delta.content
+                    yield ModelResponse(content=response_delta.content)
 
-                if response_tool_calls is not None:
+                if hasattr(response_delta, "audio"):
+                    response_audio = response_delta.audio
+                    stream_data.response_audio = response_audio
+                    yield ModelResponse(audio=response_audio)
+
+                if response_delta.tool_calls is not None:
                     if stream_data.response_tool_calls is None:
                         stream_data.response_tool_calls = []
-                    stream_data.response_tool_calls.extend(response_tool_calls)
+                    stream_data.response_tool_calls.extend(response_delta.tool_calls)
 
             if response.usage is not None:
                 self.add_response_usage_to_metrics(metrics=metrics, response_usage=response.usage)
@@ -943,6 +954,9 @@ class OpenAIChat(Model):
         assistant_message = Message(role="assistant")
         if stream_data.response_content != "":
             assistant_message.content = stream_data.response_content
+
+        if stream_data.response_audio is not None:
+            assistant_message.audio = stream_data.response_audio
 
         if stream_data.response_tool_calls is not None:
             _tool_calls = self.build_tool_calls(stream_data.response_tool_calls)

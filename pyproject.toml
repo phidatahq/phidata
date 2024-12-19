@@ -1,6 +1,6 @@
 [project]
 name = "phidata"
-version = "2.7.3"
+version = "2.7.4"
 description = "Build multi-modal Agents with memory, knowledge and tools."
 requires-python = ">=3.7"
 readme = "README.md"
@@ -98,6 +98,7 @@ module = [
   "anthropic.*",
   "apify_client.*",
   "arxiv.*",
+  "atlassian.*",
   "boto3.*",
   "botocore.*",
   "bs4.*",

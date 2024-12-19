@@ -1,6 +1,3 @@
-from phi.agent import Agent, RunResponse
-from phi.model.deepseek import DeepSeekChat
-
 # IMPORTANT: Before running this script, ensure that the (ANY MODEL )API_KEY environment variable is set.
 # To set the API key, follow the instructions below:
 # 

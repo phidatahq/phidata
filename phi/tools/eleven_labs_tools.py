@@ -130,8 +130,7 @@ class ElevenLabsTools(Toolkit):
         """
         try:
             audio_generator = self.eleven_labs_client.text_to_sound_effects.convert(
-                text=prompt,
-                duration_seconds=duration_seconds
+                text=prompt, duration_seconds=duration_seconds
             )
 
             base64_audio = self._process_audio(audio_generator)

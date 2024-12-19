@@ -722,3 +722,8 @@ class Ollama(Model):
             async for post_tool_call_response in self.ahandle_post_tool_call_messages_stream(messages=messages):
                 yield post_tool_call_response
         logger.debug("---------- Ollama Async Response End ----------")
+
+    def model_copy(self, *, update: dict[str, Any] | None = None, deep: bool = False) -> Model:
+        new_model = Ollama(**self.model_dump(exclude={"client"}), client=self.client)
+        return new_model
+

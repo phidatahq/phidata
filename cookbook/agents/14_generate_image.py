@@ -18,4 +18,3 @@ if images and isinstance(images, list):
     for image_response in images:
         image_url = image_response.url
         print(image_url)
-

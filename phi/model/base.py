@@ -422,7 +422,7 @@ class Model(BaseModel):
         image_url = f"data:image/jpeg;base64,{base64_image}"
         return {"type": "image_url", "image_url": {"url": image_url}}
 
-    def _process_image(self, image: Union[str, Dict, bytes]) -> Optional[Dict[str, Any]]:
+    def process_image(self, image: Any) -> Optional[Dict[str, Any]]:
         """Process an image based on the format."""
 
         if isinstance(image, dict):
@@ -437,9 +437,7 @@ class Model(BaseModel):
         logger.warning(f"Unsupported image type: {type(image)}")
         return None
 
-    def add_images_to_message(
-        self, message: Message, images: Optional[Sequence[Union[str, Dict, bytes]]] = None
-    ) -> Message:
+    def add_images_to_message(self, message: Message, images: Optional[Sequence[Any]] = None) -> Message:
         """
         Add images to a message for the model. By default, we use the OpenAI image format but other Models
         can override this method to use a different image format.
@@ -468,7 +466,7 @@ class Model(BaseModel):
         # Add images to the message content
         for image in images:
             try:
-                image_data = self._process_image(image)
+                image_data = self.process_image(image)
                 if image_data:
                     message_content_with_image.append(image_data)
             except Exception as e:
@@ -479,7 +477,7 @@ class Model(BaseModel):
         message.content = message_content_with_image
         return message
 
-    def add_audio_to_message(self, message: Message, audio: Optional[Dict] = None) -> Message:
+    def add_audio_to_message(self, message: Message, audio: Optional[Any] = None) -> Message:
         """
         Add audio to a message for the model. By default, we use the OpenAI audio format but other Models
         can override this method to use a different audio format.

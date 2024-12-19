@@ -14,9 +14,8 @@ from phi.utils.tools import get_function_call_for_tool_call
 
 try:
     from ollama import Client as OllamaClient, AsyncClient as AsyncOllamaClient
-except ImportError:
-    logger.error("`ollama` not installed")
-    raise
+except (ModuleNotFoundError, ImportError):
+    raise ImportError("`ollama` not installed. Please install using `pip install ollama`")
 
 
 @dataclass
@@ -135,6 +134,11 @@ class Ollama(Model):
             request_params["keep_alive"] = self.keep_alive
         if self.tools is not None:
             request_params["tools"] = self.get_tools_for_api()
+            # Ensure types are valid strings
+            for tool in request_params["tools"]:
+                for prop, obj in tool["function"]["parameters"]["properties"].items():
+                    if isinstance(obj["type"], list):
+                        obj["type"] = obj["type"][0]
         if self.request_params is not None:
             request_params.update(self.request_params)
         return request_params
@@ -157,7 +161,7 @@ class Ollama(Model):
             model_dict["request_params"] = self.request_params
         return model_dict
 
-    def process_message(self, message: Message) -> Dict[str, Any]:
+    def format_message(self, message: Message) -> Dict[str, Any]:
         """
         Format a message into the format expected by Ollama.
 
@@ -171,8 +175,9 @@ class Ollama(Model):
             "role": message.role,
             "content": message.content,
         }
-        if message.images is not None:
-            _message["images"] = message.images
+        if message.role == "user":
+            if message.images is not None:
+                _message["images"] = message.images
         return _message
 
     def invoke(self, messages: List[Message]) -> Mapping[str, Any]:
@@ -195,7 +200,7 @@ class Ollama(Model):
 
         return self.get_client().chat(
             model=self.id,
-            messages=[self.process_message(m) for m in messages],  # type: ignore
+            messages=[self.format_message(m) for m in messages],  # type: ignore
             **request_kwargs,
         )  # type: ignore
 
@@ -219,7 +224,7 @@ class Ollama(Model):
 
         return await self.get_async_client().chat(
             model=self.id,
-            messages=[self.process_message(m) for m in messages],  # type: ignore
+            messages=[self.format_message(m) for m in messages],  # type: ignore
             **request_kwargs,
         )  # type: ignore
 
@@ -235,7 +240,7 @@ class Ollama(Model):
         """
         yield from self.get_client().chat(
             model=self.id,
-            messages=[self.process_message(m) for m in messages],  # type: ignore
+            messages=[self.format_message(m) for m in messages],  # type: ignore
             stream=True,
             **self.request_kwargs,
         )  # type: ignore
@@ -252,7 +257,7 @@ class Ollama(Model):
         """
         async_stream = await self.get_async_client().chat(
             model=self.id,
-            messages=[self.process_message(m) for m in messages],  # type: ignore
+            messages=[self.format_message(m) for m in messages],  # type: ignore
             stream=True,
             **self.request_kwargs,
         )
@@ -444,7 +449,7 @@ class Ollama(Model):
             ):
                 parsed_object = self.response_format.model_validate_json(response.get("message", {}).get("content", ""))
                 if parsed_object is not None:
-                    model_response.parsed = parsed_object
+                    model_response.parsed = parsed_object.model_dump_json()
         except Exception as e:
             logger.warning(f"Error parsing structured outputs: {e}")
 
@@ -507,7 +512,7 @@ class Ollama(Model):
             ):
                 parsed_object = self.response_format.model_validate_json(response.get("message", {}).get("content", ""))
                 if parsed_object is not None:
-                    model_response.parsed = parsed_object
+                    model_response.parsed = parsed_object.model_dump_json()
         except Exception as e:
             logger.warning(f"Error parsing structured outputs: {e}")
 

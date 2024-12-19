@@ -1,3 +1,4 @@
+from os import getenv
 from dataclasses import dataclass, field
 from typing import Optional, List, Iterator, Dict, Any, Union
 
@@ -16,9 +17,8 @@ try:
     from groq.types.chat import ChatCompletion, ChatCompletionMessage
     from groq.types.chat.chat_completion_chunk import ChatCompletionChunk, ChoiceDeltaToolCall, ChoiceDelta
     from groq.types.completion_usage import CompletionUsage
-except ImportError:
-    logger.error("`groq` not installed")
-    raise
+except (ModuleNotFoundError, ImportError):
+    raise ImportError("`groq` not installed. Please install using `pip install groq`")
 
 
 @dataclass
@@ -104,6 +104,10 @@ class Groq(Model):
     async_client: Optional[AsyncGroqClient] = None
 
     def get_client_params(self) -> Dict[str, Any]:
+        self.api_key = self.api_key or getenv("GROQ_API_KEY")
+        if not self.api_key:
+            logger.error("GROQ_API_KEY not set. Please set the GROQ_API_KEY environment variable.")
+
         client_params: Dict[str, Any] = {}
         if self.api_key:
             client_params["api_key"] = self.api_key
@@ -247,7 +251,7 @@ class Groq(Model):
                 model_dict["tool_choice"] = self.tool_choice
         return model_dict
 
-    def process_message(self, message: Message) -> Dict[str, Any]:
+    def format_message(self, message: Message) -> Dict[str, Any]:
         """
         Format a message into the format expected by OpenAI.
 
@@ -277,7 +281,7 @@ class Groq(Model):
         """
         return self.get_client().chat.completions.create(
             model=self.id,
-            messages=[self.process_message(m) for m in messages],  # type: ignore
+            messages=[self.format_message(m) for m in messages],  # type: ignore
             **self.request_kwargs,
         )
 
@@ -293,7 +297,7 @@ class Groq(Model):
         """
         return await self.get_async_client().chat.completions.create(
             model=self.id,
-            messages=[self.process_message(m) for m in messages],  # type: ignore
+            messages=[self.format_message(m) for m in messages],  # type: ignore
             **self.request_kwargs,
         )
 
@@ -309,7 +313,7 @@ class Groq(Model):
         """
         yield from self.get_client().chat.completions.create(
             model=self.id,
-            messages=[self.process_message(m) for m in messages],  # type: ignore
+            messages=[self.format_message(m) for m in messages],  # type: ignore
             stream=True,
             **self.request_kwargs,
         )
@@ -326,7 +330,7 @@ class Groq(Model):
         """
         async_stream = await self.get_async_client().chat.completions.create(
             model=self.id,
-            messages=[self.process_message(m) for m in messages],  # type: ignore
+            messages=[self.format_message(m) for m in messages],  # type: ignore
             stream=True,
             **self.request_kwargs,
         )

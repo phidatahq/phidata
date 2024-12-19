@@ -1,4 +1,7 @@
+from os import getenv
+import time
 import json
+from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Optional, List, Iterator, Dict, Any, Union, Callable
 
@@ -16,13 +19,13 @@ try:
     from google.generativeai import GenerativeModel
     from google.generativeai.types.generation_types import GenerateContentResponse
     from google.generativeai.types.content_types import FunctionDeclaration, Tool as GeminiTool
+    from google.generativeai.types import file_types
     from google.ai.generativelanguage_v1beta.types.generative_service import (
         GenerateContentResponse as ResultGenerateContentResponse,
     )
     from google.protobuf.struct_pb2 import Struct
-except ImportError:
-    logger.error("`google-generativeai` not installed. Please install it using `pip install google-generativeai`")
-    raise
+except (ModuleNotFoundError, ImportError):
+    raise ImportError("`google-generativeai` not installed. Please install it using `pip install google-generativeai`")
 
 
 @dataclass
@@ -61,8 +64,7 @@ class Gemini(Model):
     Gemini model class for Google's Generative AI models.
 
     Attributes:
-
-        id (str): Model ID. Default is `gemini-1.5-flash`.
+        id (str): Model ID. Default is `gemini-2.0-flash-exp`.
         name (str): The name of this chat model instance. Default is `Gemini`.
         provider (str): Model provider. Default is `Google`.
         function_declarations (List[FunctionDeclaration]): List of function declarations.
@@ -73,7 +75,7 @@ class Gemini(Model):
         client (GenerativeModel): Generative model client.
     """
 
-    id: str = "gemini-1.5-flash"
+    id: str = "gemini-2.0-flash-exp"
     name: str = "Gemini"
     provider: str = "Google"
 
@@ -100,13 +102,16 @@ class Gemini(Model):
         if self.client:
             return self.client
 
-        _client_params: Dict[str, Any] = {}
-        # Set client parameters if they are provided
-        if self.api_key:
-            _client_params["api_key"] = self.api_key
+        client_params: Dict[str, Any] = {}
+
+        self.api_key = self.api_key or getenv("GOOGLE_API_KEY")
+        if not self.api_key:
+            logger.error("GOOGLE_API_KEY not set. Please set the GOOGLE_API_KEY environment variable.")
+        client_params["api_key"] = self.api_key
+
         if self.client_params:
-            _client_params.update(self.client_params)
-        genai.configure(**_client_params)
+            client_params.update(self.client_params)
+        genai.configure(**client_params)
         return genai.GenerativeModel(model_name=self.id, **self.request_kwargs)
 
     @property
@@ -117,18 +122,18 @@ class Gemini(Model):
         Returns:
             Dict[str, Any]: The request keyword arguments.
         """
-        _request_params: Dict[str, Any] = {}
+        request_params: Dict[str, Any] = {}
         if self.generation_config:
-            _request_params["generation_config"] = self.generation_config
+            request_params["generation_config"] = self.generation_config
         if self.safety_settings:
-            _request_params["safety_settings"] = self.safety_settings
+            request_params["safety_settings"] = self.safety_settings
         if self.generative_model_kwargs:
-            _request_params.update(self.generative_model_kwargs)
+            request_params.update(self.generative_model_kwargs)
         if self.function_declarations:
-            _request_params["tools"] = [GeminiTool(function_declarations=self.function_declarations)]
-        return _request_params
+            request_params["tools"] = [GeminiTool(function_declarations=self.function_declarations)]
+        return request_params
 
-    def _format_messages(self, messages: List[Message]) -> List[Dict[str, Any]]:
+    def format_messages(self, messages: List[Message]) -> List[Dict[str, Any]]:
         """
         Converts a list of Message objects to the Gemini-compatible format.
 
@@ -139,22 +144,156 @@ class Gemini(Model):
             List[Dict[str, Any]]: The formatted_messages list of messages.
         """
         formatted_messages: List = []
-        for msg in messages:
-            content = msg.content
-            role = "model" if msg.role == "system" else "user" if msg.role == "tool" else msg.role
-            if not content or msg.role == "tool":
-                parts = msg.parts  # type: ignore
+        for message in messages:
+            message_for_model: Dict[str, Any] = {}
+
+            # Add role to the message for the model
+            role = "model" if message.role == "system" else "user" if message.role == "tool" else message.role
+            message_for_model["role"] = role
+
+            # Add content to the message for the model
+            content = message.content
+            # Initialize message_parts to be used for Gemini
+            message_parts: List[Any] = []
+            if (not content or message.role in ["tool", "model"]) and hasattr(message, "parts"):
+                message_parts = message.parts  # type: ignore
             else:
                 if isinstance(content, str):
-                    parts = [content]
+                    message_parts = [content]
                 elif isinstance(content, list):
-                    parts = content
+                    message_parts = content
                 else:
-                    parts = [" "]
-            formatted_messages.append({"role": role, "parts": parts})
+                    message_parts = [" "]
+
+            # Add images to the message for the model
+            if message.images is not None and message.role == "user":
+                for image in message.images:
+                    # Case 1: Image is a file_types.File object (Recommended)
+                    # Add it as a File object
+                    if isinstance(image, file_types.File):
+                        # Google recommends that if using a single image, place the text prompt after the image.
+                        message_parts.insert(0, image)
+                    # Case 2: If image is a string, it is a URL or a local path
+                    elif isinstance(image, str) or isinstance(image, Path):
+                        # Case 2.1: Image is a URL
+                        # Download the image from the URL and add it as base64 encoded data
+                        if isinstance(image, str) and (image.startswith("http://") or image.startswith("https://")):
+                            try:
+                                import httpx
+                                import base64
+
+                                image_content = httpx.get(image).content
+                                image_data = {
+                                    "mime_type": "image/jpeg",
+                                    "data": base64.b64encode(image_content).decode("utf-8"),
+                                }
+                                message_parts.append(image_data)  # type: ignore
+                            except Exception as e:
+                                logger.warning(f"Failed to download image from {image}: {e}")
+                                continue
+                        # Case 2.2: Image is a local path
+                        # Open the image file and add it as base64 encoded data
+                        else:
+                            try:
+                                import PIL.Image
+                            except ImportError:
+                                logger.error("`PIL.Image not installed. Please install it using 'pip install pillow'`")
+                                raise
+
+                            try:
+                                image_path = image if isinstance(image, Path) else Path(image)
+                                if image_path.exists() and image_path.is_file():
+                                    image_data = PIL.Image.open(image_path)  # type: ignore
+                                else:
+                                    logger.error(f"Image file {image_path} does not exist.")
+                                    raise
+                                message_parts.append(image_data)  # type: ignore
+                            except Exception as e:
+                                logger.warning(f"Failed to load image from {image_path}: {e}")
+                                continue
+                    # Case 3: Image is a bytes object
+                    # Add it as base64 encoded data
+                    elif isinstance(image, bytes):
+                        image_data = {"mime_type": "image/jpeg", "data": base64.b64encode(image).decode("utf-8")}
+                        message_parts.append(image_data)
+                    else:
+                        logger.warning(f"Unknown image type: {type(image)}")
+                        continue
+
+            if message.videos is not None and message.role == "user":
+                try:
+                    for video in message.videos:
+                        # Case 1: Video is a file_types.File object (Recommended)
+                        # Add it as a File object
+                        if isinstance(video, file_types.File):
+                            # Google recommends that if using a single video, place the text prompt after the video.
+                            message_parts.insert(0, video)
+                        # Case 2: If video is a string, it is a local path
+                        elif isinstance(video, str) or isinstance(video, Path):
+                            # Upload the video file to the Gemini API
+                            video_file = None
+                            video_path = video if isinstance(video, Path) else Path(video)
+                            # Check if video is already uploaded
+                            video_file_name = video_path.name
+                            video_file_exists = genai.get_file(video_file_name)
+                            if video_file_exists:
+                                video_file = video_file_exists
+                            else:
+                                if video_path.exists() and video_path.is_file():
+                                    video_file = genai.upload_file(path=video_path)
+                                else:
+                                    logger.error(f"Video file {video_path} does not exist.")
+                                    raise
+
+                            # Check whether the file is ready to be used.
+                            while video_file.state.name == "PROCESSING":
+                                time.sleep(2)
+                                video_file = genai.get_file(video_file.name)
+
+                            if video_file.state.name == "FAILED":
+                                raise ValueError(video_file.state.name)
+
+                            # Google recommends that if using a single video, place the text prompt after the video.
+                            if video_file is not None:
+                                message_parts.insert(0, video_file)  # type: ignore
+                except Exception as e:
+                    logger.warning(f"Failed to load video from {message.videos}: {e}")
+                    continue
+
+            if message.audio is not None and message.role == "user":
+                try:
+                    # Case 1: Audio is a file_types.File object (Recommended)
+                    # Add it as a File object
+                    if isinstance(message.audio, file_types.File):
+                        # Google recommends that if using a single audio, place the text prompt after the audio.
+                        message_parts.insert(0, message.audio)  # type: ignore
+                    # Case 2: If audio is a string, it is a local path
+                    elif isinstance(message.audio, str) or isinstance(message.audio, Path):
+                        audio_path = message.audio if isinstance(message.audio, Path) else Path(message.audio)
+                        if audio_path.exists() and audio_path.is_file():
+                            import mimetypes
+
+                            # Get mime type from file extension
+                            mime_type = mimetypes.guess_type(audio_path)[0] or "audio/mp3"
+                            audio_file = {"mime_type": mime_type, "data": audio_path.read_bytes()}
+                            message_parts.insert(0, audio_file)  # type: ignore
+                        else:
+                            logger.error(f"Audio file {audio_path} does not exist.")
+                            raise
+                    # Case 3: Audio is a bytes object
+                    # Add it as base64 encoded data
+                    elif isinstance(message.audio, bytes):
+                        audio_file = {"mime_type": "audio/mp3", "data": message.audio}
+                        message_parts.insert(0, audio_file)  # type: ignore
+                except Exception as e:
+                    logger.warning(f"Failed to load audio from {message.audio}: {e}")
+                    continue
+
+            message_for_model["parts"] = message_parts
+            formatted_messages.append(message_for_model)
         return formatted_messages
 
-    def _format_functions(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    def format_functions(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """
         Converts function parameters to a Gemini-compatible format.
 
@@ -165,6 +304,7 @@ class Gemini(Model):
             Dict[str, Any]: The converted parameters dictionary compatible with Gemini.
         """
         formatted_params = {}
+
         for key, value in params.items():
             if key == "properties" and isinstance(value, dict):
                 converted_properties = {}
@@ -186,7 +326,32 @@ class Gemini(Model):
                 formatted_params[key] = converted_properties
             else:
                 formatted_params[key] = value
+
         return formatted_params
+
+    def _build_function_declaration(self, func: Function) -> FunctionDeclaration:
+        """
+        Builds the function declaration for Gemini tool calling.
+
+        Args:
+            func: An instance of the function.
+
+        Returns:
+            FunctionDeclaration: The formatted function declaration.
+        """
+        formatted_params = self.format_functions(func.parameters)
+        if "properties" in formatted_params and formatted_params["properties"]:
+            # We have parameters to add
+            return FunctionDeclaration(
+                name=func.name,
+                description=func.description,
+                parameters=formatted_params,
+            )
+        else:
+            return FunctionDeclaration(
+                name=func.name,
+                description=func.description,
+            )
 
     def add_tool(
         self,
@@ -220,11 +385,7 @@ class Gemini(Model):
                         func._agent = agent
                         func.process_entrypoint()
                         self.functions[name] = func
-                        function_declaration = FunctionDeclaration(
-                            name=func.name,
-                            description=func.description,
-                            parameters=self._format_functions(func.parameters),
-                        )
+                        function_declaration = self._build_function_declaration(func)
                         self.function_declarations.append(function_declaration)
                         logger.debug(f"Function {name} from {tool.name} added to model.")
 
@@ -233,11 +394,8 @@ class Gemini(Model):
                     tool._agent = agent
                     tool.process_entrypoint()
                     self.functions[tool.name] = tool
-                    function_declaration = FunctionDeclaration(
-                        name=tool.name,
-                        description=tool.description,
-                        parameters=self._format_functions(tool.parameters),
-                    )
+
+                    function_declaration = self._build_function_declaration(tool)
                     self.function_declarations.append(function_declaration)
                     logger.debug(f"Function {tool.name} added to model.")
 
@@ -247,11 +405,7 @@ class Gemini(Model):
                     if function_name not in self.functions:
                         func = Function.from_callable(tool)
                         self.functions[func.name] = func
-                        function_declaration = FunctionDeclaration(
-                            name=func.name,
-                            description=func.description,
-                            parameters=self._format_functions(func.parameters),
-                        )
+                        function_declaration = self._build_function_declaration(func)
                         self.function_declarations.append(function_declaration)
                         logger.debug(f"Function '{func.name}' added to model.")
                 except Exception as e:
@@ -267,7 +421,7 @@ class Gemini(Model):
         Returns:
             GenerateContentResponse: The response from the model.
         """
-        return self.get_client().generate_content(contents=self._format_messages(messages))
+        return self.get_client().generate_content(contents=self.format_messages(messages))
 
     def invoke_stream(self, messages: List[Message]):
         """
@@ -280,18 +434,11 @@ class Gemini(Model):
             Iterator[GenerateContentResponse]: The response from the model as a stream.
         """
         yield from self.get_client().generate_content(
-            contents=self._format_messages(messages),
+            contents=self.format_messages(messages),
             stream=True,
         )
 
-    def _log_messages(self, messages: List[Message]) -> None:
-        """
-        Log messages for debugging.
-        """
-        for m in messages:
-            m.log()
-
-    def _update_usage_metrics(
+    def update_usage_metrics(
         self,
         assistant_message: Message,
         usage: Optional[ResultGenerateContentResponse] = None,
@@ -325,9 +472,9 @@ class Gemini(Model):
                 assistant_message.metrics["time_to_first_token"] = metrics.time_to_first_token
                 self.metrics["time_to_first_token"] = metrics.time_to_first_token
 
-    def _create_assistant_message(self, response: GenerateContentResponse, metrics: Metrics) -> Message:
+    def create_assistant_message(self, response: GenerateContentResponse, metrics: Metrics) -> Message:
         """
-        Create an assistant message from the model response.
+        Create an assistant message from the response.
 
         Args:
             response (GenerateContentResponse): The model response.
@@ -375,11 +522,10 @@ class Gemini(Model):
             assistant_message.tool_calls = message_data.response_tool_calls
 
         # -*- Update usage metrics
-        self._update_usage_metrics(assistant_message, message_data.response_usage, metrics)
-
+        self.update_usage_metrics(assistant_message, message_data.response_usage, metrics)
         return assistant_message
 
-    def _get_function_calls_to_run(
+    def get_function_calls_to_run(
         self,
         assistant_message: Message,
         messages: List[Message],
@@ -407,7 +553,7 @@ class Gemini(Model):
                 function_calls_to_run.append(_function_call)
         return function_calls_to_run
 
-    def _format_function_call_results(
+    def format_function_call_results(
         self,
         function_call_results: List[Message],
         messages: List[Message],
@@ -420,15 +566,20 @@ class Gemini(Model):
             messages (List[Message]): The list of conversation messages.
         """
         if function_call_results:
+            combined_content: List = []
+            combined_parts: List = []
+
             for result in function_call_results:
                 s = Struct()
                 s.update({"result": [result.content]})
                 function_response = genai.protos.Part(
                     function_response=genai.protos.FunctionResponse(name=result.tool_name, response=s)
                 )
-                messages.append(Message(role="tool", content=result.content, parts=[function_response]))
+                combined_content.append(result.content)
+                combined_parts.append(function_response)
+            messages.append(Message(role="tool", content=combined_content, parts=combined_parts))
 
-    def _handle_tool_calls(self, assistant_message: Message, messages: List[Message], model_response: ModelResponse):
+    def handle_tool_calls(self, assistant_message: Message, messages: List[Message], model_response: ModelResponse):
         """
         Handle tool calls in the assistant message.
 
@@ -442,7 +593,7 @@ class Gemini(Model):
         """
         if assistant_message.tool_calls and self.run_tools:
             model_response.content = assistant_message.get_content_string() or ""
-            function_calls_to_run = self._get_function_calls_to_run(assistant_message, messages)
+            function_calls_to_run = self.get_function_calls_to_run(assistant_message, messages)
 
             if self.show_tool_calls:
                 if len(function_calls_to_run) == 1:
@@ -460,7 +611,7 @@ class Gemini(Model):
             ):
                 pass
 
-            self._format_function_call_results(function_call_results, messages)
+            self.format_function_call_results(function_call_results, messages)
 
             return model_response
         return None
@@ -480,12 +631,14 @@ class Gemini(Model):
         model_response = ModelResponse()
         metrics = Metrics()
 
+        # -*- Generate response
         metrics.response_timer.start()
         response: GenerateContentResponse = self.invoke(messages=messages)
         metrics.response_timer.stop()
 
         # -*- Create assistant message
-        assistant_message = self._create_assistant_message(response=response, metrics=metrics)
+        assistant_message = self.create_assistant_message(response=response, metrics=metrics)
+
         # -*- Add assistant message to messages
         messages.append(assistant_message)
 
@@ -493,7 +646,12 @@ class Gemini(Model):
         assistant_message.log()
         metrics.log()
 
-        if self._handle_tool_calls(assistant_message, messages, model_response):
+        # -*- Update model response with assistant message content
+        if assistant_message.content is not None:
+            model_response.content = assistant_message.get_content_string()
+
+        # -*- Handle tool calls
+        if self.handle_tool_calls(assistant_message, messages, model_response) is not None:
             response_after_tool_calls = self.response(messages=messages)
             if response_after_tool_calls.content is not None:
                 if model_response.content is None:
@@ -501,18 +659,14 @@ class Gemini(Model):
                 model_response.content += response_after_tool_calls.content
             return model_response
 
-        if assistant_message.content is not None:
-            model_response.content = assistant_message.get_content_string()
-
         # -*- Remove parts from messages
         # for m in messages:
         #     if hasattr(m, "parts"):
         #         m.parts = None
-
         logger.debug("---------- Gemini Response End ----------")
         return model_response
 
-    def _handle_stream_tool_calls(self, assistant_message: Message, messages: List[Message]):
+    def handle_stream_tool_calls(self, assistant_message: Message, messages: List[Message]):
         """
         Parse and run function calls and append the results to messages.
 
@@ -524,7 +678,7 @@ class Gemini(Model):
             Iterator[ModelResponse]: Yields model responses during function execution.
         """
         if assistant_message.tool_calls and self.run_tools:
-            function_calls_to_run = self._get_function_calls_to_run(assistant_message, messages)
+            function_calls_to_run = self.get_function_calls_to_run(assistant_message, messages)
 
             if self.show_tool_calls:
                 if len(function_calls_to_run) == 1:
@@ -541,7 +695,7 @@ class Gemini(Model):
             ):
                 yield intermediate_model_response
 
-            self._format_function_call_results(function_call_results, messages)
+            self.format_function_call_results(function_call_results, messages)
 
     def response_stream(self, messages: List[Message]) -> Iterator[ModelResponse]:
         """
@@ -594,7 +748,6 @@ class Gemini(Model):
                             }
                         )
             message_data.response_usage = response.usage_metadata
-
         metrics.response_timer.stop()
 
         # -*- Create assistant message
@@ -609,7 +762,7 @@ class Gemini(Model):
             assistant_message.tool_calls = message_data.response_tool_calls
 
         # -*- Update usage metrics
-        self._update_usage_metrics(assistant_message, message_data.response_usage, metrics)
+        self.update_usage_metrics(assistant_message, message_data.response_usage, metrics)
 
         # -*- Add assistant message to messages
         messages.append(assistant_message)
@@ -619,12 +772,11 @@ class Gemini(Model):
         metrics.log()
 
         if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
-            yield from self._handle_stream_tool_calls(assistant_message, messages)
+            yield from self.handle_stream_tool_calls(assistant_message, messages)
             yield from self.response_stream(messages=messages)
 
         # -*- Remove parts from messages
         # for m in messages:
         #     if hasattr(m, "parts"):
         #         m.parts = None
-
         logger.debug("---------- Gemini Response End ----------")

@@ -35,9 +35,9 @@ class Message(BaseModel):
     tool_calls: Optional[List[Dict[str, Any]]] = None
 
     # Additional modalities
-    images: Optional[Sequence[Union[str, Dict]]] = None
-    videos: Optional[Sequence[Union[str, Dict]]] = None
-    audio: Optional[Dict] = None
+    audio: Optional[Any] = None
+    images: Optional[Sequence[Any]] = None
+    videos: Optional[Sequence[Any]] = None
 
     # -*- Attributes not sent to the model
     # The name of the tool called
@@ -73,11 +73,12 @@ class Message(BaseModel):
     def to_dict(self) -> Dict[str, Any]:
         _dict = self.model_dump(
             exclude_none=True,
-            include={"role", "content", "name", "tool_call_id", "tool_calls"},
+            include={"role", "content", "audio", "name", "tool_call_id", "tool_calls"},
         )
         # Manually add the content field even if it is None
         if self.content is None:
             _dict["content"] = None
+
         return _dict
 
     def log(self, level: Optional[str] = None):
@@ -109,14 +110,18 @@ class Message(BaseModel):
         if self.tool_calls:
             _logger(f"Tool Calls: {json.dumps(self.tool_calls, indent=2)}")
         if self.images:
-            _logger(f"Number of Images: {len(self.images)}")
+            _logger(f"Images added: {len(self.images)}")
         if self.videos:
-            _logger(f"Number of Videos: {len(self.videos)}")
+            _logger(f"Videos added: {len(self.videos)}")
         if self.audio:
-            if "id" in self.audio:
-                _logger(f"Audio ID: {self.audio['id']}")
-            elif "data" in self.audio:
-                _logger("Message contains raw audio data")
+            if isinstance(self.audio, dict):
+                _logger(f"Audio files added: {len(self.audio)}")
+                if "id" in self.audio:
+                    _logger(f"Audio ID: {self.audio['id']}")
+                elif "data" in self.audio:
+                    _logger("Message contains raw audio data")
+            else:
+                _logger(f"Audio file added: {self.audio}")
         # if self.model_extra and "images" in self.model_extra:
         #     _logger("images: {}".format(self.model_extra["images"]))
 

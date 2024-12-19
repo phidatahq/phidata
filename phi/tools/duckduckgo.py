@@ -20,6 +20,7 @@ class DuckDuckGo(Toolkit):
         proxy: Optional[str] = None,
         proxies: Optional[Any] = None,
         timeout: Optional[int] = 10,
+        verify: bool = True,
     ):
         super().__init__(name="duckduckgo")
 
@@ -33,6 +34,8 @@ class DuckDuckGo(Toolkit):
         if news:
             self.register(self.duckduckgo_news)
 
+        self.verify: bool = verify
+
     def duckduckgo_search(self, query: str, max_results: int = 5) -> str:
         """Use this function to search DuckDuckGo for a query.
 
@@ -44,7 +47,7 @@ class DuckDuckGo(Toolkit):
             The result from DuckDuckGo.
         """
         logger.debug(f"Searching DDG for: {query}")
-        ddgs = DDGS(headers=self.headers, proxy=self.proxy, proxies=self.proxies, timeout=self.timeout)
+        ddgs = DDGS(headers=self.headers, proxy=self.proxy, proxies=self.proxies, timeout=self.timeout, verify=self.verify)
         return json.dumps(ddgs.text(keywords=query, max_results=(self.fixed_max_results or max_results)), indent=2)
 
     def duckduckgo_news(self, query: str, max_results: int = 5) -> str:
@@ -58,5 +61,5 @@ class DuckDuckGo(Toolkit):
             The latest news from DuckDuckGo.
         """
         logger.debug(f"Searching DDG news for: {query}")
-        ddgs = DDGS(headers=self.headers, proxy=self.proxy, proxies=self.proxies, timeout=self.timeout)
+        ddgs = DDGS(headers=self.headers, proxy=self.proxy, proxies=self.proxies, timeout=self.timeout, verify=self.verify)
         return json.dumps(ddgs.news(keywords=query, max_results=(self.fixed_max_results or max_results)), indent=2)

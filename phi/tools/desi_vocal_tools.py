@@ -26,24 +26,51 @@ class DesiVocalTools(Toolkit):
         self.register(self.get_voices)
         self.register(self.text_to_speech)
 
-    # def get_voices(self) -> str:
-    #     try:
-    #         url = "https://prod-api2.desivocal.com/dv/api/v0/tts_api/voices"
-    #         response = requests.get(url)
-    #         for voice in response.json():
-                
-    #         return str(response.text)
-    #     except Exception as e:
-    #         logger.error(f"Failed to get voices: {e}")
-    #         return f"Error: {e}"
+    def get_voices(self) -> str:
+        """
+        Use this function to get all the voices available.
 
-    def text_to_speech(self, agent: Agent, text: str) -> str:
+        Returns:
+            result (list): A list of voices that have an ID, name and description.
+        """
+        try:
+            url = "https://prod-api2.desivocal.com/dv/api/v0/tts_api/voices"
+            response = requests.get(url)
+            voices_data = response.json()
+
+            response = []
+            for voice_id, voice_info in voices_data.items():
+                response.append(
+                    {
+                        "id": voice_id,
+                        "name": voice_info["name"],
+                        "description": f"Gender: {voice_info['audio_gender']}, Type: {voice_info['voice_type']}, Languages: {', '.join(voice_info['languages'])}",
+                        "preview_url": next(iter(voice_info["preview_path"].values()))
+                        if voice_info["preview_path"]
+                        else None,
+                    }
+                )
+
+            return str(response)
+        except Exception as e:
+            logger.error(f"Failed to get voices: {e}")
+            return f"Error: {e}"
+
+    def text_to_speech(self, agent: Agent, prompt: str, voice_id: Optional[str] = None) -> str:
+        """
+        Use this function to generate audio from text.
+
+        Args:
+            prompt (str): The text to generate audio from.
+        Returns:
+            result (str): The URL of the generated audio.
+        """
         try:
             url = "https://prod-api2.desivocal.com/dv/api/v0/tts_api/generate"
 
             payload = {
-                "text": text,
-                "voice_id": self.voice_id,
+                "text": prompt,
+                "voice_id": voice_id or self.voice_id,
             }
 
             headers = {

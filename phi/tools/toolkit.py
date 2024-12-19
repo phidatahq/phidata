@@ -27,6 +27,7 @@ class Toolkit:
         try:
             f = Function(
                 name=function.__name__,
+                description=function.__doc__,
                 entrypoint=function,
                 sanitize_arguments=sanitize_arguments,
             )

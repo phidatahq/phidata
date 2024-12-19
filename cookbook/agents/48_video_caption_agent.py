@@ -41,8 +41,6 @@ video_caption_agent = Agent(
 )
 
 
-# video_url = "/home/yus-vengeance/Downloads/linkedin_motivation.mp4"
-
 # Create temp directory if it doesn't exist
 temp_dir = Path("/tmp/video_captions")
 temp_dir.mkdir(parents=True, exist_ok=True)

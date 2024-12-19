@@ -1,9 +1,9 @@
 from phi.tools import Toolkit
-from moviepy import  VideoFileClip, TextClip, CompositeVideoClip # type: ignore
+from moviepy import VideoFileClip, TextClip, CompositeVideoClip  # type: ignore
 from openai import OpenAI
 
 client = OpenAI()
-    
+
 
 class VideoTools(Toolkit):
     """Tool for processing video files, extracting audio, transcribing and adding captions"""
@@ -93,8 +93,6 @@ class VideoTools(Toolkit):
             str: Path to the output video with captions
         """
         try:
-
-
             # Load the video
             video = VideoFileClip(video_path)
 
@@ -102,21 +100,8 @@ class VideoTools(Toolkit):
             with open(caption_path, "r", encoding="utf-8") as f:
                 caption_text = f.read().split("\n")[2]  # Get the text from SRT format
 
-            # Create text clip using modern MoviePy syntax
-            try:
-                txt_clip = (
-                    TextClip(
-                        text=caption_text,
-                        font_size=24,
-                        color="white",
-                        bg_color="black",
-                        font="Arial.ttf",
-                    )
-                    .with_duration(video.duration)
-                    .with_position(("center", "bottom"))
-                )
-            except:
-                # Fallback without specific font
+                # Create text clip using modern MoviePy syntax
+
                 txt_clip = (
                     TextClip(
                         text=caption_text,

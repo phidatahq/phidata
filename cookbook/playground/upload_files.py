@@ -27,4 +27,4 @@ agent = Agent(knowledge=knowledge_base, use_tools=True, show_tool_calls=True)
 app = Playground(agents=[agent]).get_app()
 
 if __name__ == "__main__":
-    serve_playground_app("test1:app", reload=True)
+    serve_playground_app("upload_files:app", reload=True)

@@ -139,10 +139,11 @@ class Function(BaseModel):
             return
 
         parameters = {"type": "object", "properties": {}, "required": []}
-        params_set = False
+
+        params_set_by_user = False
         # If the user set the parameters (i.e. they are different from the default), we should keep them
-        if self.parameters != parameters:
-            params_set = True
+        if self.parameters != {"type": "object", "properties": {}}:
+            params_set_by_user = True
 
         try:
             sig = signature(self.entrypoint)
@@ -180,7 +181,7 @@ class Function(BaseModel):
             logger.warning(f"Could not parse args for {self.name}: {e}", exc_info=True)
 
         self.description = self.description or getdoc(self.entrypoint)
-        if not params_set:
+        if not params_set_by_user:
             self.parameters = parameters
         self.entrypoint = validate_call(self.entrypoint)
 

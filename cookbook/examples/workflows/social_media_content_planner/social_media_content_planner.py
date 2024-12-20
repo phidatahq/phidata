@@ -4,26 +4,19 @@ from phi.model.openai import OpenAIChat
 from phi.tools.firecrawl import FirecrawlTools
 from pydantic import BaseModel, Field
 from typing import List, Optional
-import yaml
 import json
 from dotenv import load_dotenv
 import scheduler
+from prompts import agents_config, tasks_config
 
 # Load environment variables
 load_dotenv()
-
-# Load agent and task configurations
-with open('planner_agents.yaml', 'r') as f:
-    agents_config = yaml.safe_load(f)
-
-with open('planner_tasks.yaml', 'r') as f:
-    tasks_config = yaml.safe_load(f)
 
 
 # Define Pydantic models to structure responses
 class BlogAnalyzer(BaseModel):
     """
-    Represents the response from the Draft Analyzer agent.
+    Represents the response from the Blog Analyzer agent.
     Includes the blog title and content in Markdown format.
     """
     title: str
@@ -61,13 +54,13 @@ class LinkedInPost(BaseModel):
 blog_analyzer = Agent(
     model=OpenAIChat(id="gpt-4o"),
     tools=[FirecrawlTools(scrape=True, crawl=False)],  # Enables blog scraping capabilities
-    description=f"{agents_config['draft_analyzer']['role']} - {agents_config['draft_analyzer']['goal']}",
+    description=f"{agents_config['blog_analyzer']['role']} - {agents_config['blog_analyzer']['goal']}",
     instructions=[
-        f"{agents_config['draft_analyzer']['backstory']}",
-        tasks_config['analyze_draft']['description'],  # Task-specific instructions for draft analysis
+        f"{agents_config['blog_analyzer']['backstory']}",
+        tasks_config['analyze_blog']['description'],  # Task-specific instructions for blog analysis
     ],
     response_model=BlogAnalyzer,  # Expects response to follow the BlogAnalyzer Pydantic model
-    verbose=agents_config['draft_analyzer']['verbose'],
+    verbose=agents_config['blog_analyzer']['verbose'],
 )
 
 # Twitter Thread Planner:
@@ -116,7 +109,7 @@ class ContentPlanningWorkflow(Workflow):
             print(f"Blog title: {result.title}")
             return result.blog_content_markdown
         else:
-            raise ValueError("Unexpected content type received from draft analyzer.")
+            raise ValueError("Unexpected content type received from blog analyzer.")
 
     def generate_plan(self, blog_content: str, post_type: str) -> dict:
         if post_type == "twitter":
@@ -158,7 +151,7 @@ class ContentPlanningWorkflow(Workflow):
         # Scrape the blog post
         blog_content = self.scrape_blog_post(self.blog_post_url)
 
-        # Generate the plan based on the draft and post type
+        # Generate the plan based on the blog and post type
         plan = self.generate_plan(blog_content, self.post_type)
 
         # Schedule and publish the content
@@ -172,3 +165,4 @@ if __name__ == "__main__":
     # Initialize and run the workflow
     workflow = ContentPlanningWorkflow(blog_post_url=blog_post_url, post_type=post_type)
     workflow.run()
+

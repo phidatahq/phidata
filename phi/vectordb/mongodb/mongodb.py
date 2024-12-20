@@ -24,7 +24,7 @@ except ImportError:
 
 import os
 
-class MDBVector(VectorDb):
+class MongoDBVector(VectorDb):
     """
     MongoDB Vector Database implementation with elegant handling of Atlas Search index creation.
     """
@@ -42,7 +42,7 @@ class MDBVector(VectorDb):
         **kwargs,
     ):
         """
-        Initialize the MDBVector with MongoDB collection details.
+        Initialize the MongoDBVector with MongoDB collection details.
 
         Args:
             collection_name (str): Name of the MongoDB collection.

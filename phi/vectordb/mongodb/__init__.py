@@ -1,3 +1,3 @@
-from phi.vectordb.mongodb.mongodb import MDBVector
+from phi.vectordb.mongodb.mongodb import MongoDBVector
 
-__all__ = ["MDBVector"]
+__all__ = ["MongoDBVector"]

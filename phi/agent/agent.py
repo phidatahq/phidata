@@ -28,7 +28,7 @@ from pydantic import BaseModel, ConfigDict, field_validator, Field, ValidationEr
 
 from phi.document import Document
 from phi.agent.session import AgentSession
-from phi.model.content import Image, Video, Audio
+from phi.model.content import Image, Video, Audio, ModelResponseAudio
 from phi.reasoning.step import ReasoningStep, ReasoningSteps, NextAction
 from phi.run.response import RunEvent, RunResponse, RunResponseExtraData
 from phi.knowledge.agent import AgentKnowledge
@@ -1815,11 +1815,8 @@ class Agent(BaseModel):
                         if model_response.audio is None:
                             model_response.audio = {"data": "", "transcript": ""}
 
-                        model_response.audio["data"] += model_response.audio.get("data", "")
-                        model_response.audio["transcript"] += model_response.audio.get("transcript", "")
-                        self.run_response.response_audio = model_response_chunk.audio
-                        self.run_response.created_at = model_response_chunk.created_at
-                        # TODO add all to final event
+                        model_response.audio["data"] += model_response_chunk.audio.get("data", "")
+                        model_response.audio["transcript"] += model_response_chunk.audio.get("transcript", "")
                         yield self.run_response
 
                 elif model_response_chunk.event == ModelResponseEvent.tool_call_started.value:
@@ -1858,7 +1855,10 @@ class Agent(BaseModel):
             else:
                 self.run_response.content = model_response.content
             if model_response.audio is not None:
-                self.run_response.response_audio = model_response.audio
+                self.run_response.response_audio = ModelResponseAudio(
+                        base64_audio=model_response.audio.get("data"),
+                        transcript=model_response.audio.get("transcript"),
+                    )
             self.run_response.messages = messages_for_model
             self.run_response.created_at = model_response.created_at
 
@@ -1873,7 +1873,10 @@ class Agent(BaseModel):
         if self.stream:
             self.run_response.content = model_response.content
             if model_response.audio is not None:
-                self.run_response.response_audio = model_response.audio
+                self.run_response.response_audio = ModelResponseAudio(
+                        base64_audio=model_response.audio.get("data"),
+                        transcript=model_response.audio.get("transcript"),
+                    )
 
         # 6. Update Memory
         if self.stream_intermediate_steps:
@@ -2164,14 +2167,15 @@ class Agent(BaseModel):
                         self.run_response.content = model_response_chunk.content
                         self.run_response.created_at = model_response_chunk.created_at
                         yield self.run_response
+
                     if model_response_chunk.audio is not None:
                         if model_response.audio is None:
                             model_response.audio = {"data": "", "transcript": ""}
 
-                        model_response.audio["data"] += model_response.audio.get("data", "")
-                        model_response.audio["transcript"] += model_response.audio.get("transcript", "")
-                        self.run_response.response_audio = model_response_chunk.audio
-                        self.run_response.created_at = model_response_chunk.created_at
+                        model_response.audio["data"] += model_response_chunk.audio.get("data", "")
+                        model_response.audio["transcript"] += model_response_chunk.audio.get("transcript", "")
+                        # self.run_response.response_audio = model_response_chunk.audio
+                        # self.run_response.created_at = model_response_chunk.created_at
                         yield self.run_response
                 elif model_response_chunk.event == ModelResponseEvent.tool_call_started.value:
                     # Add tool call to the run_response
@@ -2208,6 +2212,11 @@ class Agent(BaseModel):
                 self.run_response.content_type = self.response_model.__name__
             else:
                 self.run_response.content = model_response.content
+                if model_response.audio is not None:
+                    self.run_response.response_audio = ModelResponseAudio(
+                        base64_audio=model_response.audio.get("data"),
+                        transcript=model_response.audio.get("transcript"),
+                    )
             self.run_response.messages = messages_for_model
             self.run_response.created_at = model_response.created_at
 
@@ -2215,14 +2224,19 @@ class Agent(BaseModel):
         run_messages = user_messages + messages_for_model[num_input_messages:]
         if system_message is not None:
             run_messages.insert(0, system_message)
+
         # Update the run_response
         self.run_response.messages = run_messages
         self.run_response.metrics = self._aggregate_metrics_from_run_messages(run_messages)
+
         # Update the run_response content if streaming as run_response will only contain the last chunk
         if self.stream:
             self.run_response.content = model_response.content
             if model_response.audio is not None:
-                self.run_response.response_audio = model_response.audio
+                self.run_response.response_audio = ModelResponseAudio(
+                        base64_audio=model_response.audio.get("data"),
+                        transcript=model_response.audio.get("transcript"),
+                    )
 
         # 6. Update Memory
         if self.stream_intermediate_steps:

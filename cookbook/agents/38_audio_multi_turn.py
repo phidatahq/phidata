@@ -12,8 +12,8 @@ agent = Agent(
 
 agent.run("Is a golden retriever a good family dog?")
 if agent.run_response.response_audio is not None and "data" in agent.run_response.response_audio:
-    write_audio_to_file(audio=agent.run_response.response_audio["data"], filename="tmp/answer_1.wav")
+    write_audio_to_file(audio=agent.run_response.response_audio.base64_audio, filename="tmp/answer_1.wav")
 
 agent.run("Why do you say they are loyal?")
 if agent.run_response.response_audio is not None and "data" in agent.run_response.response_audio:
-    write_audio_to_file(audio=agent.run_response.response_audio["data"], filename="tmp/answer_2.wav")
+    write_audio_to_file(audio=agent.run_response.response_audio.base64_audio, filename="tmp/answer_2.wav")

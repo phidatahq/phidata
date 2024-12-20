@@ -36,3 +36,8 @@ class Audio(Media):
         if not data.get("url") and not data.get("base64_audio"):
             raise ValueError("Either `url` or `base64_audio` must be provided.")
         return data
+
+
+class ModelResponseAudio(BaseModel):
+    base64_audio: str
+    transcript: Optional[str] = None

@@ -24,4 +24,4 @@ agent.run(
 )
 
 if agent.run_response.response_audio is not None and "data" in agent.run_response.response_audio:
-    write_audio_to_file(audio=agent.run_response.response_audio["data"], filename="tmp/dog.wav")
+    write_audio_to_file(audio=agent.run_response.response_audio.base64_audio, filename="tmp/dog.wav")

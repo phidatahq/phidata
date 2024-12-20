@@ -24,6 +24,7 @@ class Audio(Media):
     url: Optional[str] = None  # Remote location for file
     base64_audio: Optional[str] = None  # Base64-encoded audio data
     length: Optional[str] = None
+    mime_type: Optional[str] = None
 
     @model_validator(mode="before")
     def validate_exclusive_audio(cls, data: Any):

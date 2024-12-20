@@ -1,3 +1,7 @@
+"""
+pip install elevenlabs
+"""
+
 from phi.agent import Agent
 from phi.model.openai import OpenAIChat
 from phi.tools.eleven_labs_tools import ElevenLabsTools
@@ -23,3 +27,5 @@ audio_agent = Agent(
 )
 
 audio_agent.print_response("Generate a very long audio of history of french revolution")
+
+audio_agent.print_response("Generate a kick sound effect")

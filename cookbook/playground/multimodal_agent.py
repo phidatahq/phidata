@@ -89,6 +89,7 @@ fal_agent = Agent(
 
 gif_agent = Agent(
     name="Gif Generator Agent",
+    agent_id="gif_agent",
     model=OpenAIChat(id="gpt-4o"),
     tools=[GiphyTools()],
     description="You are an AI agent that can generate gifs using Giphy.",
@@ -105,6 +106,7 @@ gif_agent = Agent(
 
 audio_agent = Agent(
     name="Audio Generator Agent",
+    agent_id="audio_agent",
     model=OpenAIChat(id="gpt-4o"),
     tools=[
         ElevenLabsTools(
@@ -116,7 +118,7 @@ audio_agent = Agent(
         "When the user asks you to generate audio, use the `text_to_speech` tool to generate the audio.",
         "You'll generate the appropriate prompt to send to the tool to generate audio.",
         "You don't need to find the appropriate voice first, I already specified the voice to user."
-        "Return the audio file name in your response. Don't convert it to markdown.",
+        "Don't return file name or file url in your response or markdown just tell the audio was created successfully.",
         "The audio should be long and detailed.",
     ],
     markdown=True,

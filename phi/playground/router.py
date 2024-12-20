@@ -398,8 +398,8 @@ def get_async_playground_router(
     ) -> AsyncGenerator:
         run_response = await agent.arun(message, images=images, stream=True, stream_intermediate_steps=True)
         async for run_response_chunk in run_response:
+            print(run_response_chunk.event, "|", run_response_chunk.content, "|", run_response_chunk.response_audio.base64_audio[:10] if run_response_chunk.response_audio else "-")
             run_response_chunk = cast(RunResponse, run_response_chunk)
-            # print(run_response_chunk.event, "|", run_response_chunk.content, "|", run_response_chunk.response_audio)
             yield run_response_chunk.to_json()
 
     async def process_image(file: UploadFile) -> List[Union[str, Dict]]:

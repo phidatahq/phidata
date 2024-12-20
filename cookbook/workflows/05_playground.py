@@ -3,6 +3,7 @@
 2. Run the script using: `python cookbook/workflows/05_playground.py`
 """
 
+from cookbook.workflows.game_generator import GameGenerator
 from phi.playground import Playground, serve_playground_app
 from phi.storage.workflow.sqlite import SqlWorkflowStorage
 
@@ -31,6 +32,14 @@ investment_report_generator = InvestmentReportGenerator(
     workflow_id="generate-investment-report",
     storage=SqlWorkflowStorage(
         table_name="investment_report_workflows",
+        db_file="tmp/workflows.db",
+    ),
+)
+
+game_generator = GameGenerator(
+    workflow_id="game-generator",
+    storage=SqlWorkflowStorage(
+        table_name="game_generator_workflows",
         db_file="tmp/workflows.db",
     ),
 )

@@ -33,7 +33,7 @@ class MongoDBVector(VectorDb):
         self,
         collection_name: str,
         db_url: Optional[str] = "mongodb://localhost:27017/",
-        database: str = "vector_db",
+        database: str = "ai",
         embedder: Embedder = OpenAIEmbedder(),
         distance_metric: str = Distance.cosine,
         overwrite: bool = False,

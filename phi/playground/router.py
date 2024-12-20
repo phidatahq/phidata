@@ -1,7 +1,8 @@
 import base64
+from io import BytesIO
 from typing import Any, List, Optional, AsyncGenerator, Dict, cast, Union, Generator
 
-from fastapi import APIRouter, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse, JSONResponse
 
 from phi.agent.agent import Agent, RunResponse
@@ -111,67 +112,80 @@ def get_playground_router(
         return images
 
     @playground_router.post("/agent/run")
-    def agent_run(body: AgentRunRequest):
-        logger.debug(f"AgentRunRequest: {body}")
-        agent = get_agent_by_id(body.agent_id, agents)
+    def agent_run(
+        message: str = Form(...),
+        agent_id: str = Form(...),
+        stream: bool = Form(True),
+        monitor: bool = Form(False),
+        session_id: Optional[str] = Form(None),
+        user_id: Optional[str] = Form(None),
+        files: Optional[List[UploadFile]] = File(None),
+    ):
+        logger.debug(f"AgentRunRequest: {message} {agent_id} {stream} {monitor} {session_id} {user_id} {files}")
+        agent = get_agent_by_id(agent_id, agents)
         if agent is None:
             raise HTTPException(status_code=404, detail="Agent not found")
 
-        if body.files:
+        if files:
             if agent.knowledge is None:
                 raise HTTPException(status_code=404, detail="KnowledgeBase not found")
 
-        if body.session_id is not None:
-            logger.debug(f"Continuing session: {body.session_id}")
+        if session_id is not None:
+            logger.debug(f"Continuing session: {session_id}")
         else:
             logger.debug("Creating new session")
 
         # Create a new instance of this agent
-        new_agent_instance = agent.deep_copy(update={"session_id": body.session_id})
-        if body.user_id is not None:
-            new_agent_instance.user_id = body.user_id
+        new_agent_instance = agent.deep_copy(update={"session_id": session_id})
+        if user_id is not None:
+            new_agent_instance.user_id = user_id
 
-        if body.monitor:
+        if monitor:
             new_agent_instance.monitoring = True
         else:
             new_agent_instance.monitoring = False
 
-        base64_images: Optional[List[Union[str, Dict]]] = None
-        if body.images:
-            base64_images = process_image(body.images)
-
-        if body.files:
-            for file in body.files:
+        if files:
+            for file in files:
                 if file.content_type == "application/pdf":
-                    file_content = PDFReader().read(file)
-                    agent.knowledge.load_document(file_content)
+                    if agent.knowledge is None:
+                        raise HTTPException(status_code=404, detail="KnowledgeBase not found")
+                    contents = file.read()
+                    pdf_file = BytesIO(contents)
+                    pdf_file.name = file.filename
+                    file_content = PDFReader().read(pdf_file)
+                    agent.knowledge.load_documents(file_content)
                 elif file.content_type == "text/csv":
-                    file_content = CSVReader().read(file)
-                    agent.knowledge.load_document(file_content)
+                    if agent.knowledge is None:
+                        raise HTTPException(status_code=404, detail="KnowledgeBase not found")
+                    contents = file.read()
+                    csv_file = BytesIO(contents)
+                    csv_file.name = file.filename
+                    file_content = CSVReader().read(csv_file)
+                    agent.knowledge.load_documents(file_content)
                 elif file.content_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
-                    file_content = DocxReader().read(file)
-                    agent.knowledge.load_document(file_content)
-                elif file.content_type == "application/json":
-                    file_content = JSONReader().read(file)
-                    agent.knowledge.load_document(file_content)
+                    if agent.knowledge is None:
+                        raise HTTPException(status_code=404, detail="KnowledgeBase not found")
+                    contents = file.read()
+                    docx_file = BytesIO(contents)
+                    docx_file.name = file.filename
+                    file_content = DocxReader().read(docx_file)
+                    agent.knowledge.load_documents(file_content)
                 elif file.content_type == "text/plain":
-                    file_content = TextReader().read(file)
-                    agent.knowledge.load_document(file_content)
+                    if agent.knowledge is None:
+                        raise HTTPException(status_code=404, detail="KnowledgeBase not found")
+                    contents = file.read()
+                    text_file = BytesIO(contents)
+                    text_file.name = file.filename
+                    file_content = TextReader().read(text_file)
+                    agent.knowledge.load_documents(file_content)
                 else:
-                    raise HTTPException(status_code=404, detail="Unsupported file type")
+                    raise HTTPException(status_code=400, detail="Unsupported file type")
 
-        audio_file_content = None
-        if body.audio_file:
-            audio_file_content = body.audio_file.file.read()
-
-        video_file_content = None
-        if body.video:
-            video_file_content = body.video.file.read()
-
-        if body.stream:
+        if stream:
             return StreamingResponse(
                 chat_response_streamer(
-                    new_agent_instance, body.message, base64_images, audio_file_content, video_file_content
+                    new_agent_instance, message
                 ),
                 media_type="text/event-stream",
             )
@@ -179,10 +193,7 @@ def get_playground_router(
             run_response = cast(
                 RunResponse,
                 new_agent_instance.run(
-                    body.message,
-                    images=base64_images,
-                    audio=audio_file_content,
-                    videos=video_file_content,
+                    message,
                     stream=False,
                 ),
             )
@@ -472,79 +483,76 @@ def get_async_playground_router(
         return [encoded, image_info]
 
     @playground_router.post("/agent/run")
-    async def agent_run(body: AgentRunRequest):
-        logger.debug(f"AgentRunRequest: {body}")
-        agent = get_agent_by_id(body.agent_id, agents)
+    async def agent_run(
+        message: str = Form(...),
+        agent_id: str = Form(...),
+        stream: bool = Form(True),
+        monitor: bool = Form(False),
+        session_id: Optional[str] = Form(None),
+        user_id: Optional[str] = Form(None),
+        files: Optional[List[UploadFile]] = File(None),
+    ):
+        logger.debug(f"AgentRunRequest: {message} {session_id} {user_id} {agent_id}")
+        agent = get_agent_by_id(agent_id, agents)
         if agent is None:
             raise HTTPException(status_code=404, detail="Agent not found")
 
-        if body.session_id is not None:
-            logger.debug(f"Continuing session: {body.session_id}")
+        if session_id is not None:
+            logger.debug(f"Continuing session: {session_id}")
         else:
             logger.debug("Creating new session")
 
         # Create a new instance of this agent
-        new_agent_instance = agent.deep_copy(update={"session_id": body.session_id})
-        if body.user_id is not None:
-            new_agent_instance.user_id = body.user_id
+        new_agent_instance = agent.deep_copy(update={"session_id": session_id})
+        if user_id is not None:
+            new_agent_instance.user_id = user_id
 
-        if body.monitor:
+        if monitor:
             new_agent_instance.monitoring = True
         else:
             new_agent_instance.monitoring = False
 
-        images, audio, video = 0, 0, 0
-        audio_file_content, base64_image, video_file_content = None, None, None
-
-        if body.files:
-            for file in body.files:
+        if files:
+            for file in files:
                 if file.content_type == "application/pdf":
                     if agent.knowledge is None:
                         raise HTTPException(status_code=404, detail="KnowledgeBase not found")
-                    file_content = await PDFReader().read(file)
-                    agent.knowledge.load_document(file_content)
+                    contents = await file.read()
+                    pdf_file = BytesIO(contents)
+                    pdf_file.name = file.filename
+                    file_content = PDFReader().read(pdf_file)
+                    agent.knowledge.load_documents(file_content)
                 elif file.content_type == "text/csv":
                     if agent.knowledge is None:
                         raise HTTPException(status_code=404, detail="KnowledgeBase not found")
-                    file_content = await CSVReader().read(file)
-                    agent.knowledge.load_document(file_content)
+                    contents = await file.read()
+                    csv_file = BytesIO(contents)
+                    csv_file.name = file.filename
+                    file_content = CSVReader().read(csv_file)
+                    agent.knowledge.load_documents(file_content)
                 elif file.content_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
                     if agent.knowledge is None:
                         raise HTTPException(status_code=404, detail="KnowledgeBase not found")
-                    file_content = await DocxReader().read(file)
-                    agent.knowledge.load_document(file_content)
-                elif file.content_type == "application/json":
-                    if agent.knowledge is None:
-                        raise HTTPException(status_code=404, detail="KnowledgeBase not found")
-                    file_content = await JSONReader().read(file)
-                    agent.knowledge.load_document(file_content)
+                    contents = await file.read()
+                    docx_file = BytesIO(contents)
+                    docx_file.name = file.filename
+                    file_content = DocxReader().read(docx_file)
+                    agent.knowledge.load_documents(file_content)
                 elif file.content_type == "text/plain":
                     if agent.knowledge is None:
                         raise HTTPException(status_code=404, detail="KnowledgeBase not found")
-                    file_content = await TextReader().read(file)
-                    agent.knowledge.load_document(file_content)
-                elif file.content_type in ["png", "jpg", "jpeg", "gif", "bmp", "tiff", "ico"]:
-                    if images > 1:
-                        raise HTTPException(status_code=400, detail="Only one image is supported")
-                    base64_image = await process_image(file)
-                    images += 1
-                elif file.content_type in ["audio/mpeg", "audio/wav", "audio/ogg", "audio/webm"]:
-                    if audio > 1:
-                        raise HTTPException(status_code=400, detail="Only one audio file is supported")
-                    audio_file_content = await file.file.read()
-                    audio += 1
-                elif file.content_type in ["video/mp4", "video/webm"]:
-                    if video > 1:
-                        raise HTTPException(status_code=400, detail="Only one video file is supported")
-                    video_file_content = await file.file.read()
-                    video += 1
+                    contents = await file.read()
+                    text_file = BytesIO(contents)
+                    text_file.name = file.filename
+                    file_content = TextReader().read(text_file)
+                    agent.knowledge.load_documents(file_content)
                 else:
                     raise HTTPException(status_code=400, detail="Unsupported file type")
 
-        if body.stream:
+        if stream:
             return StreamingResponse(
                 chat_response_streamer(
-                    new_agent_instance, body.message, base64_image, audio_file_content, video_file_content
+                    new_agent_instance, message
                 ),
                 media_type="text/event-stream",
             )
@@ -552,10 +560,7 @@ def get_async_playground_router(
             run_response = cast(
                 RunResponse,
                 await new_agent_instance.arun(
-                    body.message,
-                    images=base64_image,
-                    audio=audio_file_content,
-                    videos=video_file_content,
+                    message,
                     stream=False,
                 ),
             )

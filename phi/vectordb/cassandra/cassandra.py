@@ -59,22 +59,19 @@ class CassandraDb(VectorDb):
 
     def doc_exists(self, document: Document) -> bool:
         """Check if a document exists by ID."""
-        query = f"SELECT COUNT(*) FROM {self.keyspace}.{
-            self.table_name} WHERE row_id = %s"
+        query = f"SELECT COUNT(*) FROM {self.keyspace}.{self.table_name} WHERE row_id = %s"
         result = self.session.execute(query, (document.id,))
         return result[0].count > 0
 
     def name_exists(self, name: str) -> bool:
         """Check if a document exists by name."""
-        query = f"SELECT COUNT(*) FROM {self.keyspace}.{
-            self.table_name} WHERE document_name = %s"
+        query = f"SELECT COUNT(*) FROM {self.keyspace}.{self.table_name} WHERE document_name = %s"
         result = self.session.execute(query, (name,))
         return result[0].count > 0
 
     def id_exists(self, id: str) -> bool:
         """Check if a document exists by ID."""
-        query = f"SELECT COUNT(*) FROM {self.keyspace}.{
-            self.table_name} WHERE row_id = %s"
+        query = f"SELECT COUNT(*) FROM {self.keyspace}.{self.table_name} WHERE row_id = %s"
         result = self.session.execute(query, (id,))
         return result[0].count > 0
 
@@ -128,8 +125,7 @@ class CassandraDb(VectorDb):
     def drop(self) -> None:
         """Drop the vector table in Cassandra."""
         logger.debug(f"Cassandra VectorDB : Dropping Table {self.table_name}")
-        drop_table_query = f"DROP TABLE IF EXISTS {
-            self.keyspace}.{self.table_name}"
+        drop_table_query = f"DROP TABLE IF EXISTS {self.keyspace}.{self.table_name}"
         self.session.execute(drop_table_query)
 
     def exists(self) -> bool:

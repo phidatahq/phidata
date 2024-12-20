@@ -13,21 +13,11 @@ db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 
 knowledge_base = CombinedKnowledgeBase(
     sources=[
-        PDFKnowledgeBase(
-            vector_db=PgVector(table_name="recipes_pdf", db_url=db_url), path=""
-        ),
-        CSVKnowledgeBase(
-            vector_db=PgVector(table_name="recipes_csv", db_url=db_url), path=""
-        ),
-        DocxKnowledgeBase(
-            vector_db=PgVector(table_name="recipes_docx", db_url=db_url), path=""
-        ),
-        JSONKnowledgeBase(
-            vector_db=PgVector(table_name="recipes_json", db_url=db_url), path=""
-        ),
-        TextKnowledgeBase(
-            vector_db=PgVector(table_name="recipes_text", db_url=db_url), path=""
-        ),
+        PDFKnowledgeBase(vector_db=PgVector(table_name="recipes_pdf", db_url=db_url), path=""),
+        CSVKnowledgeBase(vector_db=PgVector(table_name="recipes_csv", db_url=db_url), path=""),
+        DocxKnowledgeBase(vector_db=PgVector(table_name="recipes_docx", db_url=db_url), path=""),
+        JSONKnowledgeBase(vector_db=PgVector(table_name="recipes_json", db_url=db_url), path=""),
+        TextKnowledgeBase(vector_db=PgVector(table_name="recipes_text", db_url=db_url), path=""),
     ],
     vector_db=PgVector(table_name="recipes_combined", db_url=db_url),
 )
@@ -38,4 +28,3 @@ app = Playground(agents=[agent]).get_app()
 
 if __name__ == "__main__":
     serve_playground_app("test1:app", reload=True)
-

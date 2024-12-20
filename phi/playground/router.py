@@ -9,7 +9,6 @@ from phi.agent.agent import Agent, RunResponse
 from phi.agent.session import AgentSession
 from phi.document.reader.csv_reader import CSVReader
 from phi.document.reader.docx import DocxReader
-from phi.document.reader.json import JSONReader
 from phi.document.reader.pdf import PDFReader
 from phi.document.reader.text import TextReader
 from phi.workflow.workflow import Workflow
@@ -25,7 +24,6 @@ from phi.utils.log import logger
 
 from phi.playground.schemas import (
     AgentGetResponse,
-    AgentRunRequest,
     AgentSessionsRequest,
     AgentSessionsResponse,
     AgentRenameRequest,
@@ -100,16 +98,12 @@ def get_playground_router(
             run_response_chunk = cast(RunResponse, run_response_chunk)
             yield run_response_chunk.model_dump_json()
 
-    def process_image(files: List[UploadFile]) -> List[List[Union[str, Dict]]]:
-        images = []
-        for file in files:
-            content = file.file.read()
-            encoded = base64.b64encode(content).decode("utf-8")
+    def process_image(file: UploadFile) -> List[Union[str, Dict]]:
+        content = file.file.read()
+        encoded = base64.b64encode(content).decode("utf-8")
 
-            image_info = {"filename": file.filename, "content_type": file.content_type, "size": len(content)}
-            images.append([encoded, image_info])
-
-        return images
+        image_info = {"filename": file.filename, "content_type": file.content_type, "size": len(content)}
+        return [encoded, image_info]
 
     @playground_router.post("/agent/run")
     def agent_run(
@@ -150,7 +144,7 @@ def get_playground_router(
                 if file.content_type == "application/pdf":
                     if agent.knowledge is None:
                         raise HTTPException(status_code=404, detail="KnowledgeBase not found")
-                    contents = file.read()
+                    contents = file.file.read()
                     pdf_file = BytesIO(contents)
                     pdf_file.name = file.filename
                     file_content = PDFReader().read(pdf_file)
@@ -158,7 +152,7 @@ def get_playground_router(
                 elif file.content_type == "text/csv":
                     if agent.knowledge is None:
                         raise HTTPException(status_code=404, detail="KnowledgeBase not found")
-                    contents = file.read()
+                    contents = file.file.read()
                     csv_file = BytesIO(contents)
                     csv_file.name = file.filename
                     file_content = CSVReader().read(csv_file)
@@ -166,7 +160,7 @@ def get_playground_router(
                 elif file.content_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
                     if agent.knowledge is None:
                         raise HTTPException(status_code=404, detail="KnowledgeBase not found")
-                    contents = file.read()
+                    contents = file.file.read()
                     docx_file = BytesIO(contents)
                     docx_file.name = file.filename
                     file_content = DocxReader().read(docx_file)
@@ -174,7 +168,7 @@ def get_playground_router(
                 elif file.content_type == "text/plain":
                     if agent.knowledge is None:
                         raise HTTPException(status_code=404, detail="KnowledgeBase not found")
-                    contents = file.read()
+                    contents = file.file.read()
                     text_file = BytesIO(contents)
                     text_file.name = file.filename
                     file_content = TextReader().read(text_file)
@@ -184,9 +178,7 @@ def get_playground_router(
 
         if stream:
             return StreamingResponse(
-                chat_response_streamer(
-                    new_agent_instance, message
-                ),
+                chat_response_streamer(new_agent_instance, message),
                 media_type="text/event-stream",
             )
         else:
@@ -551,9 +543,7 @@ def get_async_playground_router(
 
         if stream:
             return StreamingResponse(
-                chat_response_streamer(
-                    new_agent_instance, message
-                ),
+                chat_response_streamer(new_agent_instance, message),
                 media_type="text/event-stream",
             )
         else:

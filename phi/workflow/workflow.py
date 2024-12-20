@@ -321,7 +321,9 @@ class Workflow(BaseModel):
             self._run_parameters = {
                 name: {
                     "name": name,
-                    "default": param.default if param.default is not inspect.Parameter.empty else None,
+                    "default": param.default.default
+                    if hasattr(param.default, "__class__") and param.default.__class__.__name__ == "FieldInfo"
+                    else (param.default if param.default is not inspect.Parameter.empty else None),
                     "annotation": (
                         param.annotation.__name__
                         if hasattr(param.annotation, "__name__")

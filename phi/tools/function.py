@@ -158,7 +158,6 @@ class Function(BaseModel):
 
             # Get JSON schema for parameters only
             parameters = get_json_schema(type_hints=param_type_hints, strict=strict)
-
             # If strict=True mark all fields as required
             # See: https://platform.openai.com/docs/guides/structured-outputs/supported-schemas#all-fields-must-be-required
             if strict:
@@ -175,7 +174,7 @@ class Function(BaseModel):
         except Exception as e:
             logger.warning(f"Could not parse args for {self.name}: {e}", exc_info=True)
 
-        self.description = getdoc(self.entrypoint)
+        self.description = getdoc(self.entrypoint) or self.description
         self.parameters = parameters
         self.entrypoint = validate_call(self.entrypoint)
 

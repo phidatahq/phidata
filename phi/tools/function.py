@@ -53,7 +53,7 @@ class Function(BaseModel):
     # The parameters the functions accepts, described as a JSON Schema object.
     # To describe a function that accepts no parameters, provide the value {"type": "object", "properties": {}}.
     parameters: Dict[str, Any] = Field(
-        default_factory=lambda: {"type": "object", "properties": {}},
+        default_factory=lambda: {"type": "object", "properties": {}, "required": []},
         description="JSON Schema object describing function parameters",
     )
     strict: Optional[bool] = None
@@ -142,7 +142,7 @@ class Function(BaseModel):
 
         params_set_by_user = False
         # If the user set the parameters (i.e. they are different from the default), we should keep them
-        if self.parameters != {"type": "object", "properties": {}}:
+        if self.parameters != parameters:
             params_set_by_user = True
 
         try:

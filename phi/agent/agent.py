@@ -1856,9 +1856,9 @@ class Agent(BaseModel):
                 self.run_response.content = model_response.content
             if model_response.audio is not None:
                 self.run_response.response_audio = ModelResponseAudio(
-                        base64_audio=model_response.audio.get("data"),
-                        transcript=model_response.audio.get("transcript"),
-                    )
+                    base64_audio=model_response.audio.get("data"),
+                    transcript=model_response.audio.get("transcript"),
+                )
             self.run_response.messages = messages_for_model
             self.run_response.created_at = model_response.created_at
 
@@ -1874,9 +1874,9 @@ class Agent(BaseModel):
             self.run_response.content = model_response.content
             if model_response.audio is not None:
                 self.run_response.response_audio = ModelResponseAudio(
-                        base64_audio=model_response.audio.get("data"),
-                        transcript=model_response.audio.get("transcript"),
-                    )
+                    base64_audio=model_response.audio.get("data"),
+                    transcript=model_response.audio.get("transcript"),
+                )
 
         # 6. Update Memory
         if self.stream_intermediate_steps:
@@ -2234,9 +2234,9 @@ class Agent(BaseModel):
             self.run_response.content = model_response.content
             if model_response.audio is not None:
                 self.run_response.response_audio = ModelResponseAudio(
-                        base64_audio=model_response.audio.get("data"),
-                        transcript=model_response.audio.get("transcript"),
-                    )
+                    base64_audio=model_response.audio.get("data"),
+                    transcript=model_response.audio.get("transcript"),
+                )
 
         # 6. Update Memory
         if self.stream_intermediate_steps:

@@ -23,5 +23,5 @@ audio_agent = Agent(
 )
 
 audio_story: RunResponse = audio_agent.run(f"Narrate the story with flair: {image_story.content}")
-if audio_story.response_audio is not None and "data" in audio_story.response_audio:
+if audio_story.response_audio is not None:
     write_audio_to_file(audio=audio_story.response_audio.base64_audio, filename="tmp/multimodal-agents.wav")

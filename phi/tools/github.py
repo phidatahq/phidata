@@ -48,7 +48,7 @@ class GithubTools(Toolkit):
 
     def authenticate(self):
         """Authenticate with GitHub using the provided access token."""
-        auth = Auth.Token(self.access_token)
+        auth = Auth.Token(self.access_token)  # type: ignore
         if self.base_url:
             logger.debug(f"Authenticating with GitHub Enterprise at {self.base_url}")
             return Github(base_url=self.base_url, auth=auth)

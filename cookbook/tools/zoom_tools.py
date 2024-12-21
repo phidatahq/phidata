@@ -31,10 +31,10 @@ class CustomZoomTool(ZoomTool):
         """
         Obtain or refresh the access token for Zoom API.
 
-        to get the  account_id  ,client_id  ,client_secret
+        To get the account_id, client_id, client_secret
         https://developers.zoom.us/docs/internal-apps/create/
 
-        for oauth 2.0
+        For oauth 2.0
         https://developers.zoom.us/docs/integrations/oauth/
         Returns:
             A string containing the access token or an empty string if token retrieval fails.
@@ -47,7 +47,10 @@ class CustomZoomTool(ZoomTool):
 
         try:
             response = requests.post(
-                self.token_url, headers=headers, data=data, auth=(self.client_id, self.client_secret)
+                self.token_url,
+                headers=headers,
+                data=data,
+                auth=(self.client_id, self.client_secret),  # type: ignore
             )
             response.raise_for_status()
 

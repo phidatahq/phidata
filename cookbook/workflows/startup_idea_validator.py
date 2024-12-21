@@ -1,6 +1,6 @@
 """
-1. Install dependencies using: `pip install openai exa_py sqlalchemy phidata`
-2. Run the script using: `python cookbook/workflows/blog_post_generator.py`
+1. Install dependencies using: `pip install openai googlesearch-python pycountry phidata`
+2. Run the script using: `python cookbook/workflows/startup_idea_validator.py`
 """
 
 import json
@@ -205,7 +205,7 @@ if __name__ == "__main__":
             table_name="validate_startup_ideas_workflow",
             db_file="tmp/workflows.db",
         ),
-        debug_mode=True
+        debug_mode=True,
     )
 
     final_report: Iterator[RunResponse] = startup_idea_validator.run(startup_idea=idea)

@@ -497,7 +497,7 @@ class Agent(BaseModel):
                     "Please provide a `model` or install `openai`."
                 )
                 exit(1)
-            self.model = OpenAIChat()
+            self.model = OpenAIChat()  # We default to OpenAIChat as a base model
 
         # Set response_format if it is not set on the Model
         if self.response_model is not None and self.model.response_format is None:

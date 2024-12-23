@@ -1,7 +1,13 @@
 from phi.tools import Toolkit
-from moviepy import VideoFileClip, TextClip, CompositeVideoClip, ColorClip  # type: ignore
 from phi.utils.log import logger
 from typing import List, Dict
+
+try:
+    from moviepy import VideoFileClip, TextClip, CompositeVideoClip, ColorClip  # type: ignore
+except ImportError:
+    raise ImportError(
+        "`moviepy` not installed. Please install using `pip install moviepy`"
+    )
 
 
 class MoviePyVideoTools(Toolkit):

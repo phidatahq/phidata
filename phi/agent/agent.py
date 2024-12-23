@@ -353,7 +353,7 @@ class Agent(BaseModel):
 
     def has_team(self) -> bool:
         return self.team is not None and len(self.team) > 0
-    
+
     def has_workflows(self) -> bool:
         return self.workflows is not None and len(self.workflows) > 0
 
@@ -463,7 +463,7 @@ class Agent(BaseModel):
                     transfer_prompt += f"Available tools: {', '.join(_tools)}\n"
             return transfer_prompt
         return ""
-    
+
     def get_workflow_prompt(self) -> str:
         if self.has_workflows():
             workflow_prompt = "## Available Workflows:"
@@ -484,16 +484,20 @@ class Agent(BaseModel):
 
         workflow_functions = []
         for func_name, func in workflow._registered_functions.items():
-            workflow_functions.append(Function(
-                name=f"{func_name}",
-                description=func.get("description") if func.get("description") else f"Use this function to run the {func_name} function of the {workflow_name} workflow", 
-                parameters={"type": "object", "properties": func["parameters"], "required": func["required"]},
-                entrypoint=func["function"],
-                class_instance=workflow,
-                sanitize_arguments=True,
-                show_result=False,
-                stop_after_tool_call=False
-            ))
+            workflow_functions.append(
+                Function(
+                    name=f"{func_name}",
+                    description=func.get("description")
+                    if func.get("description")
+                    else f"Use this function to run the {func_name} function of the {workflow_name} workflow",
+                    parameters={"type": "object", "properties": func["parameters"], "required": func["required"]},
+                    entrypoint=func["function"],
+                    class_instance=workflow,
+                    sanitize_arguments=True,
+                    show_result=False,
+                    stop_after_tool_call=False,
+                )
+            )
 
         return workflow_functions
 

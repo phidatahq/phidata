@@ -456,15 +456,16 @@ class Workflow(BaseModel):
 
         # For other types, return as is
         return field_value
-    
+
     @classmethod
     def register(cls, description: Optional[str] = None) -> Callable:
         """
         Decorator to register functions within the workflow.
-        
+
         Args:
             description: Optional description of what the function does
         """
+
         def decorator(func: Callable) -> Callable:
             @wraps(func)
             def wrapper(*args, **kwargs):
@@ -472,34 +473,41 @@ class Workflow(BaseModel):
 
             # Get function signature parameters
             type_mapping = {
-                str: 'string',
-                int: 'integer', 
-                bool: 'boolean',
-                float: 'number',
-                list: 'array',
-                dict: 'object'
+                str: "string",
+                int: "integer",
+                bool: "boolean",
+                float: "number",
+                list: "array",
+                dict: "object",
             }
             sig = inspect.signature(func)
             params = {
                 name: {
-                    'type': type_mapping.get(param.annotation, param.annotation.__name__) if param.annotation != inspect.Parameter.empty else None,
+                    "type": type_mapping.get(param.annotation, param.annotation.__name__)
+                    if param.annotation != inspect.Parameter.empty
+                    else None,
                 }
                 for name, param in sig.parameters.items()
-                if name != 'self'
+                if name != "self"
             }
 
             # Ensure _registered_functions is initialized as a dictionary
-            if not hasattr(cls, '_registered_functions') or not isinstance(cls._registered_functions, dict):
+            if not hasattr(cls, "_registered_functions") or not isinstance(cls._registered_functions, dict):
                 cls._registered_functions = {}
 
             # Update function metadata
 
             cls._registered_functions[func.__name__] = {
-                'function': wrapper,
-                'description': description or func.__doc__ or "No description provided",
-                'parameters': params,
-                'required': [name for name, param in sig.parameters.items() if param.default is inspect.Parameter.empty and name != 'self'],
+                "function": wrapper,
+                "description": description or func.__doc__ or "No description provided",
+                "parameters": params,
+                "required": [
+                    name
+                    for name, param in sig.parameters.items()
+                    if param.default is inspect.Parameter.empty and name != "self"
+                ],
             }
 
             return wrapper
+
         return decorator

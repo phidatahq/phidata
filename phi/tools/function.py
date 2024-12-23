@@ -319,9 +319,10 @@ class FunctionCall(BaseModel):
                 if "fc" in signature(self.function.entrypoint).parameters:
                     entrypoint_args["fc"] = self
 
-
                 if self.function.class_instance is not None:
-                    self.result = self.function.entrypoint.__get__(self.function.class_instance)(**entrypoint_args, **self.arguments)
+                    self.result = self.function.entrypoint.__get__(self.function.class_instance)(
+                        **entrypoint_args, **self.arguments
+                    )
                 else:
                     self.result = self.function.entrypoint(**entrypoint_args, **self.arguments)
 

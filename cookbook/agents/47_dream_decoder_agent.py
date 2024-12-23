@@ -1,5 +1,3 @@
-"""Run `pip install phi-agent groq exa-py` to install dependencies."""
-
 from textwrap import dedent
 from phi.agent import Agent
 from phi.model.openai import OpenAIChat

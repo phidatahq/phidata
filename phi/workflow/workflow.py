@@ -471,12 +471,18 @@ class Workflow(BaseModel):
                 return func(*args, **kwargs)
 
             # Get function signature parameters
+            type_mapping = {
+                str: 'string',
+                int: 'integer', 
+                bool: 'boolean',
+                float: 'number',
+                list: 'array',
+                dict: 'object'
+            }
             sig = inspect.signature(func)
             params = {
                 name: {
-                    'type': param.annotation.__name__ if param.annotation != inspect.Parameter.empty else None,
-                    'default': param.default if param.default != inspect.Parameter.empty else None,
-                    'kind': str(param.kind)
+                    'type': type_mapping.get(param.annotation, param.annotation.__name__) if param.annotation != inspect.Parameter.empty else None,
                 }
                 for name, param in sig.parameters.items()
                 if name != 'self'
@@ -487,10 +493,12 @@ class Workflow(BaseModel):
                 cls._registered_functions = {}
 
             # Update function metadata
+
             cls._registered_functions[func.__name__] = {
                 'function': wrapper,
                 'description': description or func.__doc__ or "No description provided",
-                'parameters': params
+                'parameters': params,
+                'required': [name for name, param in sig.parameters.items() if param.default is inspect.Parameter.empty and name != 'self'],
             }
 
             return wrapper

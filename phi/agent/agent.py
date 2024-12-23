@@ -478,41 +478,22 @@ class Agent(BaseModel):
         return ""
 
     def get_workflow_function(self, workflow: Workflow, index: int) -> List[Function]:
-        workflow_name = workflow.name.replace(" ", "_").lower() if workflow.name else f"workflow_{index}"
+        workflow_name = workflow.name.replace(" ", "_") if workflow.name else f"workflow_{index}"
         if workflow.name is None:
             workflow.name = workflow_name
 
         workflow_functions = []
-        logger.debug(f"*********** Workflow functions: {workflow._registered_functions} ***********")
         for func_name, func in workflow._registered_functions.items():
-            def _run_workflow_function(input: str, _func=func) -> str:
-                try:
-                    response = _func["function"](input)
-                    if isinstance(response, Iterator):
-                        # If response is an iterator, get the last response
-                        last_response = None
-                        for r in response:
-                            last_response = r
-                        if last_response is not None:
-                            return last_response.get_content_as_string()
-                        return "No response from workflow"
-                    # Otherwise handle single RunResponse
-                    if response is None:
-                        return "No response from workflow"
-                    return response.get_content_as_string()
-                except Exception as e:
-                    return f"Failed to run workflow function: {e}"
-
-            workflow_function = Function.from_callable(_run_workflow_function)
-            workflow_function.name = f"{workflow_name}_{func_name}"
-            workflow_function.description = dedent(f"""\
-            Use this function to run the {func_name} function of the {workflow_name} workflow
-            Args:
-                {json.dumps(func["parameters"], indent=2)}
-            Returns:
-                str: The result of the workflow function.
-            """)
-            workflow_functions.append(workflow_function)
+            workflow_functions.append(Function(
+                name=f"{func_name}",
+                description=func.get("description") if func.get("description") else f"Use this function to run the {func_name} function of the {workflow_name} workflow", 
+                parameters={"type": "object", "properties": func["parameters"], "required": func["required"]},
+                entrypoint=func["function"],
+                class_instance=workflow,
+                sanitize_arguments=True,
+                show_result=False,
+                stop_after_tool_call=False
+            ))
 
         return workflow_functions
 
@@ -542,9 +523,7 @@ class Agent(BaseModel):
         # Add workflow tools
         if self.has_workflows():
             for workflow_index, workflow in enumerate(self.workflows):
-                tools.append(self.get_workflow_function(workflow, workflow_index))
-
-        logger.debug(f"*********** Tools: {tools} ***********")
+                tools.extend(self.get_workflow_function(workflow, workflow_index))
 
         # Add transfer tools
         if self.team is not None and len(self.team) > 0:
@@ -585,9 +564,6 @@ class Agent(BaseModel):
                     and self.model.supports_structured_outputs
                 ):
                     self.model.add_tool(tool=tool, strict=True, agent=self)
-                elif isinstance(tool, list):
-                    for t in tool:
-                        self.model.add_tool(t)
                 else:
                     self.model.add_tool(tool=tool, agent=self)
 
@@ -1873,6 +1849,7 @@ class Agent(BaseModel):
             yield self.generic_run_response("Run started", RunEvent.run_started)
 
         # 5. Generate a response from the Model (includes running function calls)
+        logger.debug(f"*********** Messages for model: {messages_for_model} ***********")
         model_response: ModelResponse
         self.model = cast(Model, self.model)
         if self.stream:

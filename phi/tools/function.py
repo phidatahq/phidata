@@ -58,6 +58,9 @@ class Function(BaseModel):
     )
     strict: Optional[bool] = None
 
+    # The class instance to be used when calling the function
+    class_instance: Optional[Any] = None
+
     # The function to be called.
     entrypoint: Optional[Callable] = None
     # If True, the arguments are sanitized before being passed to the function.
@@ -316,7 +319,12 @@ class FunctionCall(BaseModel):
                 if "fc" in signature(self.function.entrypoint).parameters:
                     entrypoint_args["fc"] = self
 
-                self.result = self.function.entrypoint(**entrypoint_args, **self.arguments)
+
+                if self.function.class_instance is not None:
+                    self.result = self.function.entrypoint.__get__(self.function.class_instance)(**entrypoint_args, **self.arguments)
+                else:
+                    self.result = self.function.entrypoint(**entrypoint_args, **self.arguments)
+
                 function_call_success = True
             except ToolCallException as e:
                 logger.debug(f"{e.__class__.__name__}: {e}")

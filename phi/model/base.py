@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, ValidationIn
 
 from phi.model.message import Message
 from phi.model.response import ModelResponse, ModelResponseEvent
+from phi.run.response import RunResponse
 from phi.tools import Tool, Toolkit
 from phi.tools.function import Function, FunctionCall, ToolCallException
 from phi.utils.log import logger
@@ -247,7 +248,10 @@ class Model(BaseModel):
             function_call_output: Optional[Union[List[Any], str]] = ""
             if isinstance(function_call.result, (GeneratorType, collections.abc.Iterator)):
                 for item in function_call.result:
-                    function_call_output += item
+                    if isinstance(item, str):
+                        function_call_output += item
+                    elif isinstance(item, RunResponse):
+                        function_call_output += item.content
                     if function_call.function.show_result:
                         yield ModelResponse(content=item)
             else:

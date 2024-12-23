@@ -26,7 +26,14 @@ The Content Creator Agent Workflow is a multi-agent workflow designed to streaml
    cd phidata/examples/workflows/social-media-content-planner
    ```
 
-3. **Install Dependencies:**
+3. **Create Virtual Environment**
+
+  ```bash
+  python3 -m venv ~/.venvs/aienv
+  source ~/.venvs/aienv/bin/activate
+  ```
+
+4. **Install Dependencies:**
 
    Ensure you have Python installed, then run:
 
@@ -34,11 +41,15 @@ The Content Creator Agent Workflow is a multi-agent workflow designed to streaml
    pip install -r requirements.txt
    ```
 
-4. **Configure the Workflow:**
+5. **Set the environment variables**
 
-   Modify the `config.yaml` file to include your social media platform credentials and preferences.
+    Create a .env file to set the API keys for OpenAI, Firecrawl API and Typefully API.
 
-5. **Run the Workflow:**
+6. **Configure the Workflow:**
+
+   Modify the `config.py` file to include your social media platform credentials and preferences.
+
+7. **Run the Workflow:**
 
    Execute the main script to start the content creation process:
 
@@ -48,8 +59,4 @@ The Content Creator Agent Workflow is a multi-agent workflow designed to streaml
 
 ## Customization
 
-The workflow is designed to be flexible. You can adjust the llm model parameters, content templates, and scheduling settings within the configuration files to better suit your needs.
-
-## Contributing
-
-We welcome contributions to enhance this workflow. Please fork the repository, create a new branch for your feature or bug fix, and submit a pull request for review.
+The workflow is designed to be flexible. You can adjust the model provider parameters, content templates, and scheduling settings within the configuration files to better suit your needs.

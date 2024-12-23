@@ -2,7 +2,6 @@ from phi.agent import Agent
 from phi.model.openai import OpenAIChat
 from phi.tools.moviepy_video_tools import MoviePyVideoTools
 from phi.tools.openai import OpenAITools
-from phi.utils.download_stream_file import download_video
 from pathlib import Path
 
 

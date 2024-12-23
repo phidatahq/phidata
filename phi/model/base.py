@@ -122,6 +122,8 @@ class Model(BaseModel):
                 tools_for_api.append(tool.to_dict())
             elif isinstance(tool, Dict):
                 tools_for_api.append(tool)
+            elif isinstance(tool, Function):
+                tools_for_api.append({"type": "function", "function": tool.to_dict()})
         return tools_for_api
 
     def add_tool(

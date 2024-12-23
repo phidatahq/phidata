@@ -41,13 +41,30 @@ The Content Creator Agent Workflow is a multi-agent workflow designed to streaml
    pip install -r requirements.txt
    ```
 
-5. **Set the environment variables**
+5. **Set the Environment Variables**
 
-    Create a .env file to set the API keys for OpenAI, Firecrawl API and Typefully API.
+    Create a `.env` file in the root directory of your project and add the required API keys. For example:
 
-6. **Configure the Workflow:**
+    ```plaintext
+    OPENAI_API_KEY=your_openai_api_key_here
+    FIRECRAWL_API_KEY=your_firecrawl_api_key_here
+    TYPEFULLY_API_KEY=your_typefully_api_key_here
+    ```
 
-   Modify the `config.py` file to include your social media platform credentials and preferences.
+    These keys are used to authenticate requests to the respective APIs.
+
+6. **Configure the Workflow**
+
+    The `config.py` file is used to centralize configurations for your project. It includes:
+
+    - **API Configuration**:
+        - Defines the base URLs and headers required for API requests, with keys loaded from the `.env` file.
+    - **Enums**:
+        - `BlogPostURL`: You can define the blogpost URL here.
+        - `PostType`: Defines the type of social media posts, such as `TWITTER` or `LINKEDIN`.
+
+    Update the `.env` file with your API keys and customize the enums in `config.py` if additional blog URLs or post types are needed.
+
 
 7. **Run the Workflow:**
 

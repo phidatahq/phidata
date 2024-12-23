@@ -1,18 +1,11 @@
-import os
 import requests
 import datetime
 from typing import Optional, Dict, Any
 from pydantic import BaseModel
 from dotenv import load_dotenv
+from config import TYPEFULLY_API_URL, HEADERS
 
 load_dotenv()
-
-# Constants
-TYPEFULLY_API_URL = "https://api.typefully.com/v1/drafts/"
-TYPEFULLY_API_KEY = os.getenv("TYPEFULLY_API_KEY")
-HEADERS = {
-    "X-API-KEY": f"Bearer {TYPEFULLY_API_KEY}"
-}
 
 
 def json_to_typefully_content(thread_json: Dict[str, Any]) -> str:

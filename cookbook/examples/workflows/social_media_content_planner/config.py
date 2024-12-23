@@ -1,0 +1,22 @@
+from enum import Enum
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+
+TYPEFULLY_API_URL = "https://api.typefully.com/v1/drafts/"
+TYPEFULLY_API_KEY = os.getenv("TYPEFULLY_API_KEY")
+HEADERS = {
+    "X-API-KEY": f"Bearer {TYPEFULLY_API_KEY}"
+}
+
+
+# Define the enums
+class BlogPostURL(Enum):
+    CHUNKING_STRATEGIES = "https://blog.dailydoseofds.com/p/5-chunking-strategies-for-rag"
+
+
+class PostType(Enum):
+    TWITTER = "twitter"
+    LINKEDIN = "linkedin"

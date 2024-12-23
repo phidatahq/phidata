@@ -95,6 +95,7 @@ class BlogPostGenerator(Workflow):
         # Save the blog post in the cache
         self.add_blog_post_to_cache(topic, self.writer.run_response.content)
 
+    @Workflow.register(description="Generate a blog post on a given topic.")
     def run(self, topic: str, use_cache: bool = True) -> Iterator[RunResponse]:
         logger.info(f"Generating a blog post on: {topic}")
 
@@ -117,6 +118,14 @@ class BlogPostGenerator(Workflow):
 
         # Write a blog post
         yield from self.write_blog_post(topic, search_results)
+
+    @Workflow.register(description="Update the blog post on a given topic.")
+    def update(self, topic: str) -> Optional[SearchResults]:
+        pass
+
+    @Workflow.register(description="Delete the blog post on a given topic.")
+    def delete(self, topic: str) -> Optional[SearchResults]:
+        pass
 
 
 # Run the workflow if the script is executed directly

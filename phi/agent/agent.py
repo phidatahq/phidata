@@ -28,7 +28,7 @@ from pydantic import BaseModel, ConfigDict, field_validator, Field, ValidationEr
 
 from phi.document import Document
 from phi.agent.session import AgentSession
-from phi.model.content import Image, Video
+from phi.model.content import Image, Video, Audio
 from phi.reasoning.step import ReasoningStep, ReasoningSteps, NextAction
 from phi.run.response import RunEvent, RunResponse, RunResponseExtraData
 from phi.knowledge.agent import AgentKnowledge
@@ -61,6 +61,8 @@ class Agent(BaseModel):
     images: Optional[List[Image]] = None
     # Videos associated with this agent
     videos: Optional[List[Video]] = None
+    # Audio associated with this agent
+    audio: Optional[List[Audio]] = None
 
     # Data associated with this agent
     # name, model, images and videos are automatically added to the agent_data
@@ -577,6 +579,8 @@ class Agent(BaseModel):
             agent_data["images"] = [img if isinstance(img, dict) else img.model_dump() for img in self.images]
         if self.videos is not None:
             agent_data["videos"] = [vid if isinstance(vid, dict) else vid.model_dump() for vid in self.videos]
+        if self.audio is not None:
+            agent_data["audio"] = [aud if isinstance(aud, dict) else aud.model_dump() for aud in self.audio]
         return agent_data
 
     def get_session_data(self) -> Dict[str, Any]:
@@ -641,6 +645,12 @@ class Agent(BaseModel):
                     self.videos.extend([Video.model_validate(vid) for vid in self.videos])
                 else:
                     self.videos = videos_from_db
+            if "audio" in session.agent_data:
+                audio_from_db = session.agent_data.get("audio")
+                if self.audio is not None and isinstance(self.audio, list):
+                    self.audio.extend([Audio.model_validate(aud) for aud in self.audio])
+                else:
+                    self.audio = audio_from_db
 
             # If agent_data is set in the agent, update the database agent_data with the agent's agent_data
             if self.agent_data is not None:
@@ -1706,8 +1716,10 @@ class Agent(BaseModel):
             agent_id=self.agent_id,
             content=content,
             tools=self.run_response.tools,
+            audio=self.run_response.audio,
             images=self.run_response.images,
             videos=self.run_response.videos,
+            response_audio=self.run_response.response_audio,
             model=self.run_response.model,
             messages=self.run_response.messages,
             extra_data=self.run_response.extra_data,
@@ -1798,6 +1810,7 @@ class Agent(BaseModel):
                         self.run_response.content = model_response_chunk.content
                         self.run_response.created_at = model_response_chunk.created_at
                         yield self.run_response
+
                 elif model_response_chunk.event == ModelResponseEvent.tool_call_started.value:
                     # Add tool call to the run_response
                     tool_call_dict = model_response_chunk.tool_call
@@ -1834,7 +1847,7 @@ class Agent(BaseModel):
             else:
                 self.run_response.content = model_response.content
             if model_response.audio is not None:
-                self.run_response.audio = model_response.audio
+                self.run_response.response_audio = model_response.audio
             self.run_response.messages = messages_for_model
             self.run_response.created_at = model_response.created_at
 
@@ -1848,6 +1861,8 @@ class Agent(BaseModel):
         # Update the run_response content if streaming as run_response will only contain the last chunk
         if self.stream:
             self.run_response.content = model_response.content
+            if model_response.audio is not None:
+                self.run_response.response_audio = model_response.audio
 
         # 6. Update Memory
         if self.stream_intermediate_steps:
@@ -2186,6 +2201,8 @@ class Agent(BaseModel):
         # Update the run_response content if streaming as run_response will only contain the last chunk
         if self.stream:
             self.run_response.content = model_response.content
+            if model_response.audio is not None:
+                self.run_response.response_audio = model_response.audio
 
         # 6. Update Memory
         if self.stream_intermediate_steps:
@@ -2469,11 +2486,23 @@ class Agent(BaseModel):
                 self.run_response.videos = []
             self.run_response.videos.append(video)
 
+    def add_audio(self, audio: Audio) -> None:
+        if self.audio is None:
+            self.audio = []
+        self.audio.append(audio)
+        if self.run_response is not None:
+            if self.run_response.audio is None:
+                self.run_response.audio = []
+            self.run_response.audio.append(audio)
+
     def get_images(self) -> Optional[List[Image]]:
         return self.images
 
     def get_videos(self) -> Optional[List[Video]]:
         return self.videos
+
+    def get_audio(self) -> Optional[List[Audio]]:
+        return self.audio
 
     ###########################################################################
     # Default Tools

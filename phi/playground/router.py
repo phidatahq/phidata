@@ -92,7 +92,7 @@ def get_playground_router(
         run_response = agent.run(message, images=images, stream=True, stream_intermediate_steps=True)
         for run_response_chunk in run_response:
             run_response_chunk = cast(RunResponse, run_response_chunk)
-            yield run_response_chunk.model_dump_json()
+            yield run_response_chunk.to_json()
 
     def process_image(file: UploadFile) -> List[Union[str, Dict]]:
         content = file.file.read()
@@ -399,7 +399,7 @@ def get_async_playground_router(
         run_response = await agent.arun(message, images=images, stream=True, stream_intermediate_steps=True)
         async for run_response_chunk in run_response:
             run_response_chunk = cast(RunResponse, run_response_chunk)
-            yield run_response_chunk.model_dump_json()
+            yield run_response_chunk.to_json()
 
     async def process_image(file: UploadFile) -> List[Union[str, Dict]]:
         content = file.file.read()
@@ -553,8 +553,13 @@ def get_async_playground_router(
         if workflow is None:
             raise HTTPException(status_code=404, detail="Workflow not found")
 
+        if body.session_id is not None:
+            logger.debug(f"Continuing session: {body.session_id}")
+        else:
+            logger.debug("Creating new session")
+
         # Create a new instance of this workflow
-        new_workflow_instance = workflow.deep_copy(update={"workflow_id": workflow_id})
+        new_workflow_instance = workflow.deep_copy(update={"workflow_id": workflow_id, "session_id": body.session_id})
         new_workflow_instance.user_id = body.user_id
 
         # Return based on the response type

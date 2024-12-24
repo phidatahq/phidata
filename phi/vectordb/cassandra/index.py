@@ -5,7 +5,7 @@ try:
     from cassio.table.mixins.vector import VectorMixin
     from .extra_param_mixin import ExtraParamMixin
 except (ImportError, ModuleNotFoundError):
-    raise ImportError("Could not import cassio python package. " "Please install it with `pip install cassio`.")
+    raise ImportError("Could not import cassio python package. Please install it with pip install cassio.")
 
 
 class PhiMetadataVectorCassandraTable(ExtraParamMixin, TypeNormalizerMixin, MetadataMixin, VectorMixin, BaseTable):

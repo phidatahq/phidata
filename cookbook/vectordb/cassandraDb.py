@@ -7,7 +7,7 @@ try:
     from cassandra.cluster import Cluster  # type: ignore
 except (ImportError, ModuleNotFoundError):
     raise ImportError(
-        "Could not import cassandra-driver python package. " "Please install it with `pip install cassandra-driver`."
+        "Could not import cassandra-driver python package.Please install it with pip install cassandra-driver."
     )
 from phi.embedder.mistral import MistralEmbedder
 from phi.model.mistral import MistralChat

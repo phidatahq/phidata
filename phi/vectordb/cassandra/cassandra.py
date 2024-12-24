@@ -2,7 +2,7 @@ from typing import Optional, List, Dict, Any, Iterable
 from phi.vectordb.base import VectorDb
 from phi.embedder import Embedder
 from phi.document import Document
-from .index import PhiMetadataVectorCassandraTable
+from phi.vectordb.cassandra.index import PhiMetadataVectorCassandraTable
 from phi.utils.log import logger
 
 

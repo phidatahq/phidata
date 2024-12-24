@@ -23,6 +23,7 @@ class FalTools(Toolkit):
         self,
         api_key: Optional[str] = None,
         model: str = "fal-ai/hunyuan-video",
+        image_url: Optional[str] = None,
     ):
         super().__init__(name="fal")
 
@@ -30,8 +31,10 @@ class FalTools(Toolkit):
         if not self.api_key:
             logger.error("FAL_KEY not set. Please set the FAL_KEY environment variable.")
         self.model = model
+        self.image_url = image_url
         self.seen_logs: set[str] = set()
         self.register(self.generate_media)
+        self.register(self.image_to_image)
 
     def on_queue_update(self, update):
         if isinstance(update, fal_client.InProgress) and update.logs:
@@ -85,4 +88,40 @@ class FalTools(Toolkit):
             return f"{media_type.capitalize()} generated successfully at {url}"
         except Exception as e:
             logger.error(f"Failed to run model: {e}")
+            return f"Error: {e}"
+
+    def image_to_image(self, agent: Agent, prompt: str) -> str:
+        """
+        Use this function to generate an image from a given image using the Fal AI API.
+
+        Args:
+            prompt (str): A text description of the task.
+            image_url (str): The URL of the image to use for the generation.
+        Returns:
+            str: Return the result of the model.
+        """
+        if not self.image_url:
+            raise ValueError("Image URL is required but not provided.")
+
+        try:
+            result = fal_client.subscribe(
+                "fal-ai/flux/dev/image-to-image",
+                arguments={"image_url": self.image_url, "prompt": prompt},
+                with_logs=True,
+                on_queue_update=self.on_queue_update,
+            )
+            print("result - ", result)
+            url = result.get("images", [{}])[0].get("url", "")
+            media_id = str(uuid4())
+            agent.add_image(
+                Image(
+                    id=media_id,
+                    url=url,
+                )
+            )
+
+            return f"Image generated successfully at {url}"
+
+        except Exception as e:
+            logger.error(f"Failed to generate image: {e}")
             return f"Error: {e}"

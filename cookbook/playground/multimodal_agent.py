@@ -128,10 +128,26 @@ audio_agent = Agent(
     storage=SqlAgentStorage(table_name="audio_agent", db_file=image_agent_storage_file),
 )
 
-
-app = Playground(agents=[image_agent, ml_gif_agent, ml_video_agent, fal_agent, gif_agent, audio_agent]).get_app(
-    use_async=False
+image_to_image_agent = Agent(
+    name="Image to Image Agent",
+    agent_id="image_to_image_agent",
+    model=OpenAIChat(id="gpt-4o"),
+    tools=[FalTools(image_url="https://fal.media/files/koala/Chls9L2ZnvuipUTEwlnJC.png")],
+    markdown=True,
+    debug=True,
+    show_tool_calls=True,
+    instructions=[
+        "You have to use the `image_to_image` tool to generate the image.",
+        "You are an AI agent that can generate images using the Fal AI API.",
+        "You will be given a prompt and an image URL.",
+        "Don't return file name or file url in your response or markdown just tell the audio was created successfully.",
+    ],
+    storage=SqlAgentStorage(table_name="image_to_image_agent", db_file=image_agent_storage_file),
 )
+
+app = Playground(
+    agents=[image_agent, ml_gif_agent, ml_video_agent, fal_agent, gif_agent, audio_agent, image_to_image_agent]
+).get_app(use_async=False)
 
 if __name__ == "__main__":
     serve_playground_app("multimodal_agent:app", reload=True)

@@ -13,10 +13,6 @@ HEADERS = {
 
 
 # Define the enums
-class BlogPostURL(Enum):
-    CHUNKING_STRATEGIES = "https://blog.dailydoseofds.com/p/5-chunking-strategies-for-rag"
-
-
 class PostType(Enum):
     TWITTER = "twitter"
     LINKEDIN = "linkedin"

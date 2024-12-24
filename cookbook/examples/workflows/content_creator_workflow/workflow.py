@@ -118,12 +118,13 @@ class ContentPlanningWorkflow(Workflow):
                 raise ValueError("Unexpected content type received from blog analyzer.")
 
     def generate_plan(self, blog_content: str, post_type: PostType) -> dict:
+        plan_response: RunResponse = RunResponse(content=None)
         if post_type == PostType.TWITTER:
             logger.info(f"Generating post plan for {post_type}")
-            plan_response: RunResponse = self.twitter_thread_planner.run(blog_content)
+            plan_response = self.twitter_thread_planner.run(blog_content)
         elif post_type == PostType.LINKEDIN:
             logger.info(f"Generating post plan for {post_type}")
-            plan_response: RunResponse = self.linkedin_post_planner.run(blog_content)
+            plan_response = self.linkedin_post_planner.run(blog_content)
         else:
             raise ValueError(f"Unsupported post type: {post_type}")
 

@@ -26,7 +26,7 @@ class CSVReader(Reader):
             else:
                 logger.info(f"Reading uploaded file: {file.name}")
                 file.seek(0)
-                file_content = io.StringIO(file.read().decode("utf-8"))
+                file_content = io.StringIO(file.read().decode("utf-8"))  # type: ignore
 
             csv_name = Path(file.name).stem if isinstance(file, Path) else file.name.split(".")[0]
             csv_content = ""

@@ -60,7 +60,6 @@ The Content Creator Agent Workflow is a multi-agent workflow designed to streaml
     - **API Configuration**:
         - Defines the base URLs and headers required for API requests, with keys loaded from the `.env` file.
     - **Enums**:
-        - `BlogPostURL`: You can define the blogpost URL here.
         - `PostType`: Defines the type of social media posts, such as `TWITTER` or `LINKEDIN`.
 
     Update the `.env` file with your API keys and customize the enums in `config.py` if additional blog URLs or post types are needed.

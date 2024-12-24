@@ -12,9 +12,7 @@ encoded_string = base64.b64encode(wav_data).decode("utf-8")
 
 # Provide the agent with the audio file and get result as text
 agent = Agent(
-    model=OpenAIChat(
-        id="gpt-4o-audio-preview", modalities=["text"]
-    ),
+    model=OpenAIChat(id="gpt-4o-audio-preview", modalities=["text"]),
     markdown=True,
 )
 agent.print_response("What is in this audio?", audio={"data": encoded_string, "format": "wav"})

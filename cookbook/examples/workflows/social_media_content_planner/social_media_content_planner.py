@@ -8,7 +8,7 @@ import json
 from dotenv import load_dotenv
 import scheduler
 from prompts import agents_config, tasks_config
-from config import BlogPostURL, PostType
+from config import PostType
 
 # Load environment variables
 load_dotenv()
@@ -162,5 +162,5 @@ if __name__ == "__main__":
     # Initialize and run the workflow
     blogpost_url = "https://blog.dailydoseofds.com/p/5-chunking-strategies-for-rag"
     workflow = ContentPlanningWorkflow()
-    workflow.run(blog_post_url=blogpost_url, post_type=PostType.TWITTER)
+    workflow.run(blog_post_url=blogpost_url, post_type=PostType.TWITTER)   # PostType.LINKEDIN for linkedin post
 

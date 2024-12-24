@@ -258,7 +258,7 @@ class Hermes(LLM):
             # logger.info(f"Ollama partial response: {response}")
             # logger.info(f"Ollama partial response type: {type(response)}")
             response_message: Optional[dict] = response.get("message")
-            response_content = response_message.get("content") if response_message else None
+            response_content: str = response_message.get("content", "") if response_message else ""
             # logger.info(f"Ollama partial response content: {response_content}")
 
             # Add response content to assistant message

@@ -9,9 +9,7 @@ knowledge_base = PDFUrlKnowledgeBase(
     urls=[
         "https://www.justice.gov/d9/criminal-ccips/legacy/2015/01/14/ccmanual_0.pdf",
     ],
-
     vector_db=PgVector(table_name="legal_docs", db_url=db_url),
-
 )
 knowledge_base.load(recreate=False)
 

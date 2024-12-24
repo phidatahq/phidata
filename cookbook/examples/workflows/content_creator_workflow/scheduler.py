@@ -3,7 +3,9 @@ import datetime
 from typing import Optional, Dict, Any
 from pydantic import BaseModel
 from dotenv import load_dotenv
-from config import TYPEFULLY_API_URL, HEADERS
+
+from cookbook.examples.workflows.content_creator_workflow.config import TYPEFULLY_API_URL, HEADERS, PostType
+from phi.utils.log import logger
 
 load_dotenv()
 
@@ -54,7 +56,7 @@ def schedule_thread(
         response.raise_for_status()
         return response.json()
     except requests.exceptions.RequestException as e:
-        print(f"Error: {e}")
+        logger.error(f"Error: {e}")
         return None
 
 
@@ -63,7 +65,7 @@ def schedule(
         hours_from_now: int = 1,
         threadify: bool = False,
         share: bool = True,
-        post_type: str = "twitter"
+        post_type: PostType = PostType.TWITTER
 ) -> Optional[Dict[str, Any]]:
     """
     Schedule a thread from a Pydantic model.
@@ -81,11 +83,11 @@ def schedule(
         thread_content = ""
         # Convert Pydantic model to dict
         thread_json = thread_model.model_dump()
-        print("######## Thread JSON: ", thread_json)
+        logger.info("######## Thread JSON: ", thread_json)
         # Convert to Typefully format
-        if post_type == "twitter":
+        if post_type == PostType.TWITTER:
             thread_content = json_to_typefully_content(thread_json)
-        elif post_type == "linkedin":
+        elif post_type == PostType.LINKEDIN:
             thread_content = json_to_linkedin_content(thread_json)
 
         # Calculate schedule time
@@ -102,13 +104,13 @@ def schedule(
             )
 
             if response:
-                print("Thread scheduled successfully!")
+                logger.info("Thread scheduled successfully!")
                 return response
             else:
-                print("Failed to schedule the thread.")
+                logger.error("Failed to schedule the thread.")
                 return None
         return None
 
     except Exception as e:
-        print(f"Error: {str(e)}")
+        logger.error(f"Error: {str(e)}")
         return None

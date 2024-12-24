@@ -1,5 +1,5 @@
-from enum import Enum
 import os
+from enum import Enum
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -14,5 +14,5 @@ HEADERS = {
 
 # Define the enums
 class PostType(Enum):
-    TWITTER = "twitter"
-    LINKEDIN = "linkedin"
+    TWITTER = "Twitter"
+    LINKEDIN = "LinkedIn"

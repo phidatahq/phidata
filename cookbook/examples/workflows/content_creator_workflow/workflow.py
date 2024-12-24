@@ -1,14 +1,17 @@
+import json
+from typing import List, Optional
+from dotenv import load_dotenv
+from pydantic import BaseModel
+
 from phi.agent import Agent, RunResponse
+from phi.run.response import RunEvent
 from phi.workflow import Workflow
 from phi.model.openai import OpenAIChat
 from phi.tools.firecrawl import FirecrawlTools
-from pydantic import BaseModel, Field
-from typing import List, Optional
-import json
-from dotenv import load_dotenv
-import scheduler
-from prompts import agents_config, tasks_config
-from config import PostType
+from phi.utils.log import logger
+from cookbook.examples.workflows.content_creator_workflow.scheduler import schedule
+from cookbook.examples.workflows.content_creator_workflow.prompts import agents_config, tasks_config
+from cookbook.examples.workflows.content_creator_workflow.config import PostType
 
 # Load environment variables
 load_dotenv()
@@ -60,7 +63,7 @@ class ContentPlanningWorkflow(Workflow):
     description: str = "Plan, schedule, and publish social media content based on a blog post."
 
     # Blog Analyzer Agent: Extracts blog content (title, sections) and converts it into Markdown format for further use.
-    blog_analyzer = Agent(
+    blog_analyzer: Agent = Agent(
         model=OpenAIChat(id="gpt-4o"),
         tools=[FirecrawlTools(scrape=True, crawl=False)],  # Enables blog scraping capabilities
         description=f"{agents_config['blog_analyzer']['role']} - {agents_config['blog_analyzer']['goal']}",
@@ -73,7 +76,7 @@ class ContentPlanningWorkflow(Workflow):
 
     # Twitter Thread Planner: Creates a Twitter thread from the blog content, each tweet is concise, engaging,
     # and logically connected with relevant media.
-    twitter_thread_planner = Agent(
+    twitter_thread_planner: Agent = Agent(
         model=OpenAIChat(id="gpt-4o"),
         description=f"{agents_config['twitter_thread_planner']['role']} - {agents_config['twitter_thread_planner']['goal']}",
         instructions=[
@@ -85,7 +88,7 @@ class ContentPlanningWorkflow(Workflow):
 
     # LinkedIn Post Planner: Converts blog content into a structured LinkedIn post, optimized for a professional
     # audience with relevant hashtags.
-    linkedin_post_planner = Agent(
+    linkedin_post_planner: Agent = Agent(
         model=OpenAIChat(id="gpt-4o"),
         description=f"{agents_config['linkedin_post_planner']['role']} - {agents_config['linkedin_post_planner']['goal']}",
         instructions=[
@@ -95,21 +98,26 @@ class ContentPlanningWorkflow(Workflow):
         response_model=LinkedInPost,  # Expects response to follow the LinkedInPost Pydantic model
     )
 
-    def scrape_blog_post(self, blog_post_url: str):
-        response: RunResponse = self.blog_analyzer.run(blog_post_url)
-        if response.content_type == "BlogAnalyzer":
-            result = response.content
-            print(f"Blog title: {result.title}")
-            return result.blog_content_markdown
+    def scrape_blog_post(self, blog_post_url: str, use_cache: bool = True):
+        if use_cache and blog_post_url in self.session_state:
+            logger.info(f"Using cache for blog post: {blog_post_url}")
+            return self.session_state[blog_post_url]
         else:
-            raise ValueError("Unexpected content type received from blog analyzer.")
+            response: RunResponse = self.blog_analyzer.run(blog_post_url)
+            if isinstance(response.content, BlogAnalyzer):
+                result = response.content
+                logger.info(f"Blog title: {result.title}")
+                self.session_state[blog_post_url] = result.blog_content_markdown
+                return result.blog_content_markdown
+            else:
+                raise ValueError("Unexpected content type received from blog analyzer.")
 
-    def generate_plan(self, blog_content: str, post_type: str) -> dict:
-        if post_type == "twitter":
-            print(f"Generating post plan for {post_type}")
+    def generate_plan(self, blog_content: str, post_type: PostType) -> dict:
+        if post_type == PostType.TWITTER:
+            logger.info(f"Generating post plan for {post_type}")
             plan_response: RunResponse = self.twitter_thread_planner.run(blog_content)
-        elif post_type == "linkedin":
-            print(f"Generating post plan for {post_type}")
+        elif post_type == PostType.LINKEDIN:
+            logger.info(f"Generating post plan for {post_type}")
             plan_response: RunResponse = self.linkedin_post_planner.run(blog_content)
         else:
             raise ValueError(f"Unsupported post type: {post_type}")
@@ -118,49 +126,54 @@ class ContentPlanningWorkflow(Workflow):
             return plan_response.content
         elif plan_response.content_type == "application/json":
             data = json.loads(plan_response.content)
-            if post_type == "twitter":
+            if post_type == PostType.TWITTER:
                 return Thread(**data)
             else:
                 return LinkedInPost(**data)
         else:
             raise ValueError("Unexpected content type received from planner.")
 
-    def schedule_and_publish(self, plan, post_type: str):
+    def schedule_and_publish(self, plan, post_type: PostType) -> RunResponse:
         """
         Schedules and publishes the content leveraging Typefully api.
         """
-        print(f"# Publishing content for post type: {post_type}")
+        logger.info(f"# Publishing content for post type: {post_type}")
 
         # Use the `scheduler` module directly to schedule the content
-        response = scheduler.schedule(
+        response = schedule(
             thread_model=plan,
-            post_type=post_type,  # Either "twitter" or "linkedin"
+            post_type=post_type,  # Either "Twitter" or "LinkedIn"
         )
 
-        if response:
-            print(f"# Content scheduled successfully! Share URL: {response.get('share_url')}")
-        else:
-            print("# Failed to schedule content.")
+        logger.info(f"Response: {response}")
 
-    def run(self, blog_post_url, post_type):
+        if response:
+            return RunResponse(content=response, event=RunEvent.workflow_completed)
+        else:
+            return RunResponse(content="Failed to schedule content.", event=RunEvent.workflow_completed)
+
+    def run(self, blog_post_url, post_type) -> RunResponse:
         """
         Args:
             blog_post_url: URL of the blog post to analyze.
-            post_type: Type of post to generate (e.g., twitter or linkedin).
+            post_type: Type of post to generate (e.g., Twitter or LinkedIn).
         """
         # Scrape the blog post
-        blog_content = self.scrape_blog_post(self.blog_post_url)
+        blog_content = self.scrape_blog_post(blog_post_url)
 
         # Generate the plan based on the blog and post type
-        plan = self.generate_plan(blog_content, self.post_type)
+        plan = self.generate_plan(blog_content, post_type)
 
         # Schedule and publish the content
-        self.schedule_and_publish(plan, self.post_type)
+        response = self.schedule_and_publish(plan, post_type)
+
+        return response
 
 
 if __name__ == "__main__":
     # Initialize and run the workflow
     blogpost_url = "https://blog.dailydoseofds.com/p/5-chunking-strategies-for-rag"
     workflow = ContentPlanningWorkflow()
-    workflow.run(blog_post_url=blogpost_url, post_type=PostType.TWITTER)   # PostType.LINKEDIN for linkedin post
+    response = workflow.run(blog_post_url=blogpost_url, post_type=PostType.TWITTER)   # PostType.LINKEDIN for LinkedIn post
+    logger.info(response.content)
 

@@ -23,7 +23,7 @@ The Content Creator Agent Workflow is a multi-agent workflow designed to streaml
 2. **Navigate to the Workflow Directory:**
 
    ```bash
-   cd phidata/examples/workflows/social-media-content-planner
+   cd phidata/examples/workflows/content-creator-workflow
    ```
 
 3. **Create Virtual Environment**
@@ -43,12 +43,10 @@ The Content Creator Agent Workflow is a multi-agent workflow designed to streaml
 
 5. **Set the Environment Variables**
 
-    Create a `.env` file in the root directory of your project and add the required API keys. For example:
-
-    ```plaintext
-    OPENAI_API_KEY=your_openai_api_key_here
-    FIRECRAWL_API_KEY=your_firecrawl_api_key_here
-    TYPEFULLY_API_KEY=your_typefully_api_key_here
+    ```bash
+    export OPENAI_API_KEY="your_openai_api_key_here"
+    export FIRECRAWL_API_KEY="your_firecrawl_api_key_here"
+    export TYPEFULLY_API_KEY="your_typefully_api_key_here"
     ```
 
     These keys are used to authenticate requests to the respective APIs.
@@ -70,7 +68,7 @@ The Content Creator Agent Workflow is a multi-agent workflow designed to streaml
    Execute the main script to start the content creation process:
 
    ```bash
-   python social_media_content_planner.py
+   python workflow.py
    ```
 
 ## Customization

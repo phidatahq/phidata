@@ -23,6 +23,7 @@ class BlogAnalyzer(BaseModel):
     Represents the response from the Blog Analyzer agent.
     Includes the blog title and content in Markdown format.
     """
+
     title: str
     blog_content_markdown: str
 
@@ -31,6 +32,7 @@ class Tweet(BaseModel):
     """
     Represents an individual tweet within a Twitter thread.
     """
+
     content: str
     is_hook: bool = False  # Marks if this tweet is the "hook" (first tweet)
     media_urls: Optional[List[str]] = []  # Associated media URLs, if any
@@ -40,6 +42,7 @@ class Thread(BaseModel):
     """
     Represents a complete Twitter thread containing multiple tweets.
     """
+
     topic: str
     tweets: List[Tweet]
 
@@ -48,6 +51,7 @@ class LinkedInPost(BaseModel):
     """
     Represents a LinkedIn post.
     """
+
     content: str
     media_url: Optional[str] = None  # Optional media attachment URL
 
@@ -59,6 +63,7 @@ class ContentPlanningWorkflow(Workflow):
     2. Generating a content plan for either Twitter or LinkedIn based on the scraped content.
     3. Scheduling and publishing the planned content.
     """
+
     # This description is used only in workflow UI
     description: str = "Plan, schedule, and publish social media content based on a blog post."
 
@@ -69,7 +74,7 @@ class ContentPlanningWorkflow(Workflow):
         description=f"{agents_config['blog_analyzer']['role']} - {agents_config['blog_analyzer']['goal']}",
         instructions=[
             f"{agents_config['blog_analyzer']['backstory']}",
-            tasks_config['analyze_blog']['description'],  # Task-specific instructions for blog analysis
+            tasks_config["analyze_blog"]["description"],  # Task-specific instructions for blog analysis
         ],
         response_model=BlogAnalyzer,  # Expects response to follow the BlogAnalyzer Pydantic model
     )
@@ -81,7 +86,7 @@ class ContentPlanningWorkflow(Workflow):
         description=f"{agents_config['twitter_thread_planner']['role']} - {agents_config['twitter_thread_planner']['goal']}",
         instructions=[
             f"{agents_config['twitter_thread_planner']['backstory']}",
-            tasks_config['create_twitter_thread_plan']['description'],
+            tasks_config["create_twitter_thread_plan"]["description"],
         ],
         response_model=Thread,  # Expects response to follow the Thread Pydantic model
     )
@@ -93,7 +98,7 @@ class ContentPlanningWorkflow(Workflow):
         description=f"{agents_config['linkedin_post_planner']['role']} - {agents_config['linkedin_post_planner']['goal']}",
         instructions=[
             f"{agents_config['linkedin_post_planner']['backstory']}",
-            tasks_config['create_linkedin_post_plan']['description'],
+            tasks_config["create_linkedin_post_plan"]["description"],
         ],
         response_model=LinkedInPost,  # Expects response to follow the LinkedInPost Pydantic model
     )
@@ -174,6 +179,7 @@ if __name__ == "__main__":
     # Initialize and run the workflow
     blogpost_url = "https://blog.dailydoseofds.com/p/5-chunking-strategies-for-rag"
     workflow = ContentPlanningWorkflow()
-    response = workflow.run(blog_post_url=blogpost_url, post_type=PostType.TWITTER)   # PostType.LINKEDIN for LinkedIn post
+    response = workflow.run(
+        blog_post_url=blogpost_url, post_type=PostType.TWITTER
+    )  # PostType.LINKEDIN for LinkedIn post
     logger.info(response.content)
-

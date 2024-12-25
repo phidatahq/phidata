@@ -77,6 +77,7 @@ class ContentPlanningWorkflow(Workflow):
             tasks_config["analyze_blog"]["description"],  # Task-specific instructions for blog analysis
         ],
         response_model=BlogAnalyzer,  # Expects response to follow the BlogAnalyzer Pydantic model
+        structured_outputs=True,
     )
 
     # Twitter Thread Planner: Creates a Twitter thread from the blog content, each tweet is concise, engaging,
@@ -89,6 +90,7 @@ class ContentPlanningWorkflow(Workflow):
             tasks_config["create_twitter_thread_plan"]["description"],
         ],
         response_model=Thread,  # Expects response to follow the Thread Pydantic model
+        structured_outputs=True,
     )
 
     # LinkedIn Post Planner: Converts blog content into a structured LinkedIn post, optimized for a professional
@@ -101,6 +103,7 @@ class ContentPlanningWorkflow(Workflow):
             tasks_config["create_linkedin_post_plan"]["description"],
         ],
         response_model=LinkedInPost,  # Expects response to follow the LinkedInPost Pydantic model
+        structured_outputs=True,
     )
 
     def scrape_blog_post(self, blog_post_url: str, use_cache: bool = True):
@@ -117,7 +120,7 @@ class ContentPlanningWorkflow(Workflow):
             else:
                 raise ValueError("Unexpected content type received from blog analyzer.")
 
-    def generate_plan(self, blog_content: str, post_type: PostType) -> dict:
+    def generate_plan(self, blog_content: str, post_type: PostType):
         plan_response: RunResponse = RunResponse(content=None)
         if post_type == PostType.TWITTER:
             logger.info(f"Generating post plan for {post_type}")
@@ -128,9 +131,9 @@ class ContentPlanningWorkflow(Workflow):
         else:
             raise ValueError(f"Unsupported post type: {post_type}")
 
-        if plan_response.content_type == "Thread" or plan_response.content_type == LinkedInPost:
+        if isinstance(plan_response.content, (Thread, LinkedInPost)):
             return plan_response.content
-        elif plan_response.content_type == "application/json":
+        elif isinstance(plan_response.content, str):
             data = json.loads(plan_response.content)
             if post_type == PostType.TWITTER:
                 return Thread(**data)
@@ -180,7 +183,7 @@ if __name__ == "__main__":
     # Initialize and run the workflow
     blogpost_url = "https://blog.dailydoseofds.com/p/5-chunking-strategies-for-rag"
     workflow = ContentPlanningWorkflow()
-    response = workflow.run(
+    post_response = workflow.run(
         blog_post_url=blogpost_url, post_type=PostType.TWITTER
     )  # PostType.LINKEDIN for LinkedIn post
-    logger.info(response.content)
+    logger.info(post_response.content)

@@ -1,5 +1,5 @@
 from phi.agent import Agent
-from phi.tools.googlecalender import GoogleCalenderTools
+from phi.tools.googlecalendar import GoogleCalendarTools
 from phi.model.mistral import MistralChat
 import datetime
 import os
@@ -10,14 +10,16 @@ except (ModuleNotFoundError, ImportError):
     raise ImportError("`tzlocal not found` install using `pip install tzlocal`")
 
 agent = Agent(
-    tools=[GoogleCalenderTools(credentials_path="<PATH_TO_YOUR_CREDENTIALS_FILE>")],
+    tools=[GoogleCalendarTools(credentials_path="<PATH_TO_YOUR_CREDENTIALS_FILE>")],
     show_tool_calls=True,
-    instructions=[f"""
+    instructions=[
+        f"""
 You are scheduling assistant . Today is {datetime.datetime.now()} and the users timezone is {get_localzone_name()}.
 You should help users to perform these actions in their Google calendar :
     - get their scheduled events from a certain date and time
     - create events based on provided details
-"""],
+"""
+    ],
     provider=MistralChat(api_key=os.getenv("MISTRAL_API_KEY")),
     add_datetime_to_instructions=True,
 )

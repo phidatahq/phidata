@@ -54,31 +54,31 @@ def authenticated(func):
     return wrapper
 
 
-class GoogleCalenderTools(Toolkit):
+class GoogleCalendarTools(Toolkit):
     def __init__(self, credentials_path: Optional[str] = None, token_path: Optional[str] = None):
         """
-        Google Calender Tool.
+        Google Calendar Tool.
 
         :param credentials_path: Path of the file credentials.json file which contains OAuth 2.0 Client ID. A client ID is used to identify a single app to Google's OAuth servers. If your app runs on multiple platforms, you must create a separate client ID for each platform. Refer doc https://developers.google.com/calendar/api/quickstart/python#authorize_credentials_for_a_desktop_application
         :param token_path: Path of the file token.json which stores the user's access and refresh tokens, and is created automatically when the authorization flow completes for the first time.
 
         """
-        super().__init__(name="google_calender_tools")
+        super().__init__(name="google_calendar_tools")
 
         if not credentials_path:
             logger.error(
-                "Google Calender Tool : Please Provide Valid Credentials Path , You can refer https://developers.google.com/calendar/api/quickstart/python#authorize_credentials_for_a_desktop_application to create your credentials"
+                "Google Calendar Tool : Please Provide Valid Credentials Path , You can refer https://developers.google.com/calendar/api/quickstart/python#authorize_credentials_for_a_desktop_application to create your credentials"
             )
             raise ValueError("Credential path is required")
         elif not os.path.exists(credentials_path):
             logger.error(
-                "Google Calender Tool : Credential file Path is invalid , please provide the full path of the credentials json file"
+                "Google Calendar Tool : Credential file Path is invalid , please provide the full path of the credentials json file"
             )
             raise ValueError("Credentials Path is invalid")
 
         if not token_path:
             logger.warning(
-                f"Google Calender Tool : Token path is not provided ,  using {os.path.dirname(credentials_path)}/token.json as default path"
+                f"Google Calendar Tool : Token path is not provided ,  using {os.path.dirname(credentials_path)}/token.json as default path"
             )
             token_path = f"{os.path.dirname(credentials_path)}/token.json"
 

@@ -7,7 +7,7 @@ from phi.tools.duckduckgo import DuckDuckGo
 providers = ["openai", "anthropic", "ollama", "cohere", "google"]
 instructions = [
     "Your task is to write a well researched report on AI providers.",
-    "The report should be unbiased and factual."
+    "The report should be unbiased and factual.",
 ]
 
 

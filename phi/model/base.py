@@ -249,9 +249,21 @@ class Model(BaseModel):
             if isinstance(function_call.result, (GeneratorType, collections.abc.Iterator)):
                 for item in function_call.result:
                     if isinstance(item, str):
-                        function_call_output += item
+                        if isinstance(function_call_output, str):
+                            function_call_output += item
+                        else:
+                            if function_call_output is None:
+                                function_call_output = [item]
+                            else:
+                                function_call_output.append(item)
                     elif isinstance(item, RunResponse):
-                        function_call_output += item.content
+                        if isinstance(function_call_output, str):
+                            function_call_output = item.content
+                        else:
+                            if function_call_output is None:
+                                function_call_output = [item.content]
+                            else:
+                                function_call_output.append(item.content)
                     if function_call.function.show_result:
                         yield ModelResponse(content=item)
             else:

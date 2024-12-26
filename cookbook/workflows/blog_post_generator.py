@@ -119,14 +119,6 @@ class BlogPostGenerator(Workflow):
         # Write a blog post
         yield from self.write_blog_post(topic, search_results)
 
-    @Workflow.register(description="Update the blog post on a given topic.")
-    def update(self, topic: str) -> Optional[SearchResults]:
-        pass
-
-    @Workflow.register(description="Delete the blog post on a given topic.")
-    def delete(self, topic: str) -> Optional[SearchResults]:
-        pass
-
 
 # Run the workflow if the script is executed directly
 if __name__ == "__main__":

@@ -1853,7 +1853,6 @@ class Agent(BaseModel):
             yield self.generic_run_response("Run started", RunEvent.run_started)
 
         # 5. Generate a response from the Model (includes running function calls)
-        logger.debug(f"*********** Messages for model: {messages_for_model} ***********")
         model_response: ModelResponse
         self.model = cast(Model, self.model)
         if self.stream:

@@ -15,20 +15,26 @@ class ImageSearcher:
         )        
         self.vector_db.create()
     
-    def add_images(self, image_urls: List[str], clear_existing: bool = False):
+    def add_images(self, image_urls: List[str], clear_existing: bool = False, show_progress: bool = False):
         """Add images to the vector database"""
         if clear_existing:
             self.vector_db.drop()
             self.vector_db.create()
         
         image_docs = []
+        total = len(image_urls)
+        
         for i, url in enumerate(image_urls):
+            if show_progress:
+                print(f"Processing image {i+1}/{total}: {url}")
+            
             doc = Document(
                 content=url,
                 name=f"image_{i}",
-                meta_data={"type": url.split('/')[-1].split('_')[0]}  # Extract image type from URL, Eg cat.jpg -> cat
+                # meta_data={"type": url.split('/')[-1].split('_')[0]}
             )
-            image_docs.append(doc)        
+            image_docs.append(doc)
+        
         self.vector_db.insert(image_docs)
         print(f"Added {len(image_docs)} images to the database")
     
@@ -64,5 +70,5 @@ class ImageSearcher:
                 })
         
         # Sort by distance
-        similar_images.sort(key=lambda x: x['similarity'], reverse=True)
+        similar_images.sort(key=lambda x: x['similarity'])
         return similar_images[:limit]

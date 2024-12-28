@@ -29,8 +29,6 @@ class OpenAIEmbeddings(Toolkit):
         """Required method for phi.document.Document compatibility"""
         if isinstance(text, str):
             embedding = self.get_text_embeddings(text)
-        else:
-            embedding = self.get_image_embeddings(text)
         return embedding.tolist(), {"total_tokens": 0}  # Mock usage stats
 
     def get_embedding(self, text: str):

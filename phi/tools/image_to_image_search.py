@@ -6,18 +6,13 @@ import numpy as np
 
 class ImageSearcher:
     def __init__(self):
-        # Initialize embeddings
-        self.embeddings = OpenAIEmbeddings()
-        
-        # Initialize ChromaDB
+        self.embeddings = OpenAIEmbeddings()        
         self.vector_db = ChromaDb(
             collection="image_collection",
             embedder=self.embeddings,
             path="tmp/image_db",
             persistent_client=True
-        )
-        
-        # Create the collection
+        )        
         self.vector_db.create()
     
     def add_images(self, image_urls: List[str], clear_existing: bool = False):
@@ -26,17 +21,14 @@ class ImageSearcher:
             self.vector_db.drop()
             self.vector_db.create()
         
-        # Create Document objects for each image
         image_docs = []
         for i, url in enumerate(image_urls):
             doc = Document(
                 content=url,
                 name=f"image_{i}",
-                meta_data={"type": url.split('/')[-1].split('_')[0]}  # Extract image type from URL
+                meta_data={"type": url.split('/')[-1].split('_')[0]}  # Extract image type from URL, Eg cat.jpg -> cat
             )
-            image_docs.append(doc)
-        
-        # Insert documents into the vector database
+            image_docs.append(doc)        
         self.vector_db.insert(image_docs)
         print(f"Added {len(image_docs)} images to the database")
     
@@ -55,20 +47,22 @@ class ImageSearcher:
         # Calculate similarities manually
         similar_images = []
         for doc_content, doc_embedding in zip(collection_data['documents'], collection_data['embeddings']):
-            if doc_content != query_image_url:  # Skip the query image
+            # if doc_content != query_image_url:  # Skip the query image from similarity calculation
                 # Calculate cosine similarity
+                # Cosine similarity = (query_embedding * doc_embedding) /  (|query_embedding| * |doc_embedding|)
                 similarity = np.dot(query_embedding, doc_embedding) / (
                     np.linalg.norm(query_embedding) * np.linalg.norm(doc_embedding)
                 )
                 print("similarity", similarity)
-                distance = 1 - similarity
+                # distance = 1 - similarity
                 
                 similar_images.append({
                     'url': doc_content,
-                    'distance': distance,
+                    # 'distance': distance,
+                    'similarity': similarity,
                     'type': doc_content.split('/')[-1].split('_')[0]
                 })
         
         # Sort by distance
-        similar_images.sort(key=lambda x: x['distance'])
+        similar_images.sort(key=lambda x: x['similarity'], reverse=True)
         return similar_images[:limit]

@@ -22,7 +22,7 @@ source ~/.venvs/aienv/bin/activate
 ### 3. Install libraries
 
 ```shell
-pip install -U ollama duckduckgo-search duckdb yfinance phidata
+pip install -U ollama duckduckgo-search duckdb yfinance phidata browser-use
 ```
 
 ### 4. Run Agent without Tools
@@ -69,6 +69,12 @@ python cookbook/providers/ollama/data_analyst.py
 
 ```shell
 python cookbook/providers/ollama/web_search.py
+```
+
+- Browser Automation
+
+```shell
+python cookbook/providers/ollama/browser_automation.py
 ```
 
 ### 6. Run Agent that returns structured output

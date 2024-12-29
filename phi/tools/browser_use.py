@@ -62,7 +62,7 @@ class BrowserUseTool:
 
 def get_browser_use_tools(
     ollama_base_url: str = "http://localhost:11434",
-    model: str = "llama2",
+    model: str = "llama3.1",
     browser_use_kwargs: Optional[Dict[str, Any]] = None,
 ) -> List[Tool]:
     """Get tools for browser automation using browser-use

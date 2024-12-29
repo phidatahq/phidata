@@ -18,7 +18,7 @@ class MovieScript(BaseModel):
 
 # Agent that returns a structured output
 structured_output_agent = Agent(
-    model=Ollama(id="llama3.2"),
+    model=Ollama(id="llama3.1"),
     description="You write movie scripts.",
     response_model=MovieScript,
     structured_outputs=True,

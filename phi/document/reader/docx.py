@@ -4,7 +4,10 @@ from phi.document.base import Document
 from phi.document.reader.base import Reader
 from phi.utils.log import logger
 import io
-from docx import Document as DocxDocument  # type: ignore
+try:
+    from docx import Document as DocxDocument  # type: ignore
+except ImportError:
+    raise ImportError("docx is not installed. Please install it using `pip install python-docx`")
 
 
 class DocxReader(Reader):

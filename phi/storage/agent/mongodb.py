@@ -59,7 +59,13 @@ class MongoAgentStorage(AgentStorage):
             raise
 
     def read(self, session_id: str, user_id: Optional[str] = None) -> Optional[AgentSession]:
-        """Read an agent session from MongoDB"""
+        """Read an agent session from MongoDB
+        Args:
+            session_id: ID of the session to read
+            user_id: ID of the user to read
+        Returns:
+            AgentSession: The session if found, otherwise None
+        """
         try:
             query = {"session_id": session_id}
             if user_id:
@@ -76,7 +82,13 @@ class MongoAgentStorage(AgentStorage):
             return None
 
     def get_all_session_ids(self, user_id: Optional[str] = None, agent_id: Optional[str] = None) -> List[str]:
-        """Get all session IDs matching the criteria"""
+        """Get all session IDs matching the criteria
+        Args:
+            user_id: ID of the user to read
+            agent_id: ID of the agent to read
+        Returns:
+            List[str]: List of session IDs
+        """
         try:
             query = {}
             if user_id is not None:
@@ -92,7 +104,13 @@ class MongoAgentStorage(AgentStorage):
             return []
 
     def get_all_sessions(self, user_id: Optional[str] = None, agent_id: Optional[str] = None) -> List[AgentSession]:
-        """Get all sessions matching the criteria"""
+        """Get all sessions matching the criteria
+        Args:
+            user_id: ID of the user to read
+            agent_id: ID of the agent to read
+        Returns:
+            List[AgentSession]: List of sessions
+        """
         try:
             query = {}
             if user_id is not None:
@@ -112,7 +130,13 @@ class MongoAgentStorage(AgentStorage):
             return []
 
     def upsert(self, session: AgentSession, create_and_retry: bool = True) -> Optional[AgentSession]:
-        """Upsert an agent session"""
+        """Upsert an agent session
+        Args:
+            session: AgentSession to upsert
+            create_and_retry: Whether to create a new session if the session_id already exists
+        Returns:
+            AgentSession: The session if upserted, otherwise None
+        """
         try:
             # Convert session to dict and add timestamps
             session_dict = session.model_dump()
@@ -149,7 +173,12 @@ class MongoAgentStorage(AgentStorage):
             return None
 
     def delete_session(self, session_id: Optional[str] = None) -> None:
-        """Delete an agent session"""
+        """Delete an agent session
+        Args:
+            session_id: ID of the session to delete
+        Returns:
+            None
+        """
         if session_id is None:
             logger.warning("No session_id provided for deletion")
             return
@@ -164,7 +193,10 @@ class MongoAgentStorage(AgentStorage):
             logger.error(f"Error deleting session: {e}")
 
     def drop(self) -> None:
-        """Drop the collection"""
+        """Drop the collection
+        Returns:
+            None
+        """
         try:
             self.collection.drop()
         except PyMongoError as e:

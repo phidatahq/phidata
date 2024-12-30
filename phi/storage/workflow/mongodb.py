@@ -62,7 +62,13 @@ class MongoWorkflowStorage(WorkflowStorage):
             raise
 
     def read(self, session_id: str, user_id: Optional[str] = None) -> Optional[WorkflowSession]:
-        """Read a workflow session from MongoDB"""
+        """Read a workflow session from MongoDB
+        Args:
+            session_id: ID of the session to read
+            user_id: ID of the user to read
+        Returns:
+            WorkflowSession: The session if found, otherwise None
+        """
         try:
             query = {"session_id": session_id}
             if user_id:
@@ -79,7 +85,13 @@ class MongoWorkflowStorage(WorkflowStorage):
             return None
 
     def get_all_session_ids(self, user_id: Optional[str] = None, workflow_id: Optional[str] = None) -> List[str]:
-        """Get all session IDs matching the criteria"""
+        """Get all session IDs matching the criteria
+        Args:
+            user_id: ID of the user to read
+            workflow_id: ID of the workflow to read
+        Returns:
+            List[str]: List of session IDs
+        """
         try:
             query = {}
             if user_id is not None:
@@ -97,7 +109,13 @@ class MongoWorkflowStorage(WorkflowStorage):
     def get_all_sessions(
         self, user_id: Optional[str] = None, workflow_id: Optional[str] = None
     ) -> List[WorkflowSession]:
-        """Get all sessions matching the criteria"""
+        """Get all sessions matching the criteria
+        Args:
+            user_id: ID of the user to read
+            workflow_id: ID of the workflow to read
+        Returns:
+            List[WorkflowSession]: List of sessions
+        """
         try:
             query = {}
             if user_id is not None:
@@ -117,7 +135,13 @@ class MongoWorkflowStorage(WorkflowStorage):
             return []
 
     def upsert(self, session: WorkflowSession, create_and_retry: bool = True) -> Optional[WorkflowSession]:
-        """Upsert a workflow session"""
+        """Upsert a workflow session
+        Args:
+            session: WorkflowSession to upsert
+            create_and_retry: Whether to create a new session if the session_id already exists
+        Returns:
+            WorkflowSession: The session if upserted, otherwise None
+        """
         try:
             # Convert session to dict and add timestamps
             session_dict = session.model_dump()
@@ -154,7 +178,12 @@ class MongoWorkflowStorage(WorkflowStorage):
             return None
 
     def delete_session(self, session_id: Optional[str] = None) -> None:
-        """Delete a workflow session"""
+        """Delete a workflow session
+        Args:
+            session_id: ID of the session to delete
+        Returns:
+            None
+        """
         if session_id is None:
             logger.warning("No session_id provided for deletion")
             return
@@ -169,7 +198,10 @@ class MongoWorkflowStorage(WorkflowStorage):
             logger.error(f"Error deleting session: {e}")
 
     def drop(self) -> None:
-        """Drop the collection"""
+        """Drop the collection
+        Returns:
+            None
+        """
         try:
             self.collection.drop()
         except PyMongoError as e:

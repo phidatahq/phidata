@@ -57,6 +57,12 @@ class MongoMemoryDb(MemoryDb):
             raise
 
     def memory_exists(self, memory: MemoryRow) -> bool:
+        """Check if a memory exists
+        Args:
+            memory: MemoryRow to check
+        Returns:
+            bool: True if the memory exists, False otherwise
+        """
         try:
             result = self.collection.find_one({"id": memory.id})
             return result is not None
@@ -67,6 +73,14 @@ class MongoMemoryDb(MemoryDb):
     def read_memories(
         self, user_id: Optional[str] = None, limit: Optional[int] = None, sort: Optional[str] = None
     ) -> List[MemoryRow]:
+        """Read memories from the collection
+        Args:
+            user_id: ID of the user to read
+            limit: Maximum number of memories to read
+            sort: Sort order ("asc" or "desc")
+        Returns:
+            List[MemoryRow]: List of memories
+        """
         memories: List[MemoryRow] = []
         try:
             # Build query
@@ -90,6 +104,13 @@ class MongoMemoryDb(MemoryDb):
         return memories
 
     def upsert_memory(self, memory: MemoryRow, create_and_retry: bool = True) -> None:
+        """Upsert a memory into the collection
+        Args:
+            memory: MemoryRow to upsert
+            create_and_retry: Whether to create a new memory if the id already exists
+        Returns:
+            None
+        """
         try:
             now = datetime.now(timezone.utc)
             timestamp = int(now.timestamp())
@@ -124,6 +145,12 @@ class MongoMemoryDb(MemoryDb):
             raise
 
     def delete_memory(self, id: str) -> None:
+        """Delete a memory from the collection
+        Args:
+            id: ID of the memory to delete
+        Returns:
+            None
+        """
         try:
             result = self.collection.delete_one({"id": id})
             if result.deleted_count == 0:
@@ -135,15 +162,27 @@ class MongoMemoryDb(MemoryDb):
             raise
 
     def drop_table(self) -> None:
+        """Drop the collection
+        Returns:
+            None
+        """
         try:
             self.collection.drop()
         except PyMongoError as e:
             logger.error(f"Error dropping collection: {e}")
 
     def table_exists(self) -> bool:
+        """Check if the collection exists
+        Returns:
+            bool: True if the collection exists, False otherwise
+        """
         return self.collection_name in self.db.list_collection_names()
 
     def clear(self) -> bool:
+        """Clear the collection
+        Returns:
+            bool: True if the collection was cleared, False otherwise
+        """
         try:
             result = self.collection.delete_many({})
             return result.acknowledged

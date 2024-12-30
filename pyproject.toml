@@ -102,6 +102,7 @@ module = [
   "boto3.*",
   "botocore.*",
   "bs4.*",
+  "cassio.*",
   "chonkie.*",
   "chromadb.*",
   "clickhouse_connect.*",

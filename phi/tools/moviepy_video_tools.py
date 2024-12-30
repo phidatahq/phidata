@@ -1,13 +1,11 @@
 from phi.tools import Toolkit
 from phi.utils.log import logger
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 try:
     from moviepy import VideoFileClip, TextClip, CompositeVideoClip, ColorClip  # type: ignore
 except ImportError:
-    raise ImportError(
-        "`moviepy` not installed. Please install using `pip install moviepy`"
-    )
+    raise ImportError("`moviepy` not installed. Please install using `pip install moviepy ffmpeg`")
 
 
 class MoviePyVideoTools(Toolkit):
@@ -237,14 +235,23 @@ class MoviePyVideoTools(Toolkit):
             logger.error(f"Failed to create SRT file: {str(e)}")
             return f"Failed to create SRT file: {str(e)}"
 
-    def embed_captions(self, video_path: str, caption_path: str, output_path: str) -> str:
+    def embed_captions(
+        self,
+        video_path: str,
+        srt_path: str,
+        output_path: Optional[str] = None,
+        font_size: int = 24,
+        font_color: str = "white",
+        stroke_color: str = "black",
+        stroke_width: int = 1,
+    ) -> str:
         """Embed scrolling captions with word-level highlighting into video"""
         try:
             # Load video
             video = VideoFileClip(video_path)
 
             # Read caption file and parse SRT
-            with open(caption_path, "r", encoding="utf-8") as f:
+            with open(srt_path, "r", encoding="utf-8") as f:
                 srt_content = f.read()
 
             # Parse SRT and get word timing

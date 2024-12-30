@@ -30,13 +30,8 @@ video_caption_agent = Agent(
 )
 
 
-# Create temp directory if it doesn't exist
-temp_dir = Path("/tmp/video_captions")
-temp_dir.mkdir(parents=True, exist_ok=True)
-
-
 video_caption_agent.print_response(
-    "Generate captions for cookbook/examples/caption_video_tool/trump.mp4 and embed them in the video"
+    "Generate captions for cookbook/examples/caption_video_tool/React in 100 Seconds.mp4 and embed them in the video"
 )
 # video_caption_agent.print_response(
 #     "read the captions for /Users/ayushjha/Downloads/videoplayback (1).mp4 and summarize them"

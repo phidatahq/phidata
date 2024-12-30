@@ -9,7 +9,7 @@ try:
 except ImportError:
     raise ImportError("`open-clip-torch` is not installed. Please install using `pip install open-clip-torch`")
 
-class OpenAIEmbeddings(Toolkit):
+class OpenClipEmbedder(Toolkit):
     def __init__(self, model: str = "hf-hub:laion/CLIP-ViT-g-14-laion2B-s12B-b42K"):
         super().__init__(name="openai_embeddings")
         self.model_name = model  # For storing the original model name for tokenizer to use.

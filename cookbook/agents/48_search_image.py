@@ -25,7 +25,7 @@ def search_image():
     # image_searcher = load_images_to_vector_db("FashionDataset.csv", limit=30)
     
     # Search with a query image
-    query_image = "https://assets.myntassets.com/assets/images/18704418/2022/6/11/507490f7-c8f9-492c-b3f8-c7e977d1af701654922515416SochWomenRedThreadWorkGeorgetteAnarkaliKurta1.jpg"
+    query_image = "http://assets.myntassets.com/assets/images/12413214/2021/11/22/bb925efb-80d9-4cb6-838c-df86f1ba3c3e1637570416652-Varanga-Women-Mustard-Yellow-Floral-Yoke-Embroidered-Straigh-1.jpg"
     similar_images = image_searcher.search_similar_images(query_image, limit=10)
     
     # Print results

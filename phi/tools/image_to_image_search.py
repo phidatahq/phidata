@@ -1,4 +1,4 @@
-from phi.tools.openai_embeddings import OpenAIEmbeddings
+from phi.tools.openclip_embedder import OpenClipEmbedder
 from phi.vectordb.chroma import ChromaDb
 from phi.document import Document
 from typing import List
@@ -6,7 +6,7 @@ import numpy as np
 
 class ImageSearcher:
     def __init__(self):
-        self.embeddings = OpenAIEmbeddings()        
+        self.embeddings = OpenClipEmbedder()        
         self.vector_db = ChromaDb(
             collection="image_collection",
             embedder=self.embeddings,

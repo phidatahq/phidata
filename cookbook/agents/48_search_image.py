@@ -2,7 +2,7 @@ from phi.tools.image_to_image_search import ImageSearcher
 import pandas as pd
 
 
-def load_images_to_vector_db(csv_file_path, limit=30):
+def load_images_to_vector_db_from_csv(csv_file_path, limit=30):
     # Initialize the image searcher
     image_searcher = ImageSearcher()
     
@@ -22,7 +22,7 @@ def search_image():
     # Load images and get searcher
     image_searcher = ImageSearcher()
 
-    # image_searcher = load_images_to_vector_db("FashionDataset.csv", limit=30)
+    image_searcher = load_images_to_vector_db_from_csv("FashionDataset.csv", limit=30)
     
     # Search with a query image
     query_image = "http://assets.myntassets.com/assets/images/12413214/2021/11/22/bb925efb-80d9-4cb6-838c-df86f1ba3c3e1637570416652-Varanga-Women-Mustard-Yellow-Floral-Yoke-Embroidered-Straigh-1.jpg"

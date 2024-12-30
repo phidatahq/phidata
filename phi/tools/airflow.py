@@ -7,6 +7,9 @@ from phi.utils.log import logger
 
 class AirflowToolkit(Toolkit):
     def __init__(self, dags_dir: Optional[Union[Path, str]] = None, save_dag: bool = True, read_dag: bool = True):
+        """
+        quick start to work with airflow : https://airflow.apache.org/docs/apache-airflow/stable/start.html
+        """
         super().__init__(name="AirflowTools")
 
         _dags_dir: Optional[Path] = None

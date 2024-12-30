@@ -1,4 +1,4 @@
-"""Run `pip install yfinance` to install dependencies."""
+"""Run `pip install openai yfinance phidata` to install dependencies."""
 
 from phi.agent import Agent
 from phi.model.openai import OpenAIChat
@@ -12,4 +12,4 @@ finance_agent = Agent(
     show_tool_calls=True,
     markdown=True,
 )
-finance_agent.print_response("Summarize analyst recommendations for NVDA", stream=True)
+finance_agent.print_response("Summarize and compare analyst recommendations for NVDA for TSLA", stream=True)

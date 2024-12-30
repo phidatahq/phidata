@@ -5,7 +5,7 @@ from phi.model.groq import Groq
 from phi.tools.yfinance import YFinanceTools
 
 agent = Agent(
-    model=Groq(id="llama3-groq-70b-8192-tool-use-preview"),
+    model=Groq(id="llama-3.3-70b-versatile"),
     tools=[YFinanceTools(stock_price=True)],
     show_tool_calls=True,
     markdown=True,

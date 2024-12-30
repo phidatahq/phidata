@@ -1,4 +1,4 @@
-# xAI Agents
+# xAI Cookbook
 
 > Note: Fork and clone this repository if needed
 
@@ -21,22 +21,48 @@ export XAI_API_KEY=***
 pip install -U openai duckduckgo-search duckdb yfinance phidata
 ```
 
-### 4. Run Finance Agent
+### 4. Run Agent without Tools
+
+- Streaming on
+
+```shell
+python cookbook/providers/xai/basic_stream.py
+```
+
+- Streaming off
+
+```shell
+python cookbook/providers/xai/basic.py
+```
+
+### 5. Run with Tools
+
+- Yahoo Finance with streaming on
+
+```shell
+python cookbook/providers/xai/agent_stream.py
+```
+
+- Yahoo Finance without streaming
+
+```shell
+python cookbook/providers/xai/agent.py
+```
+
+- Finance Agent
 
 ```shell
 python cookbook/providers/xai/finance_agent.py
 ```
 
-### 5. Run Data Analyst
+- Data Analyst
 
 ```shell
 python cookbook/providers/xai/data_analyst.py
 ```
 
-### 6. Run Web Search Agent
+- Web Search
 
 ```shell
 python cookbook/providers/xai/web_search.py
 ```
-
-### 7. Summarize youtube videos using xAI

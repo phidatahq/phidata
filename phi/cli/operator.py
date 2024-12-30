@@ -76,13 +76,13 @@ def authenticate_user() -> None:
     print_info("Welcome {}".format(user.email))
 
 
-def initialize_phi(reset: bool = False, login: bool = False) -> bool:
+def initialize_phi(reset: bool = False, login: bool = False) -> Optional[PhiCliConfig]:
     """Initialize phi on the users machine.
 
     Steps:
     1. Check if PHI_CLI_DIR exists, if not, create it. If reset == True, recreate PHI_CLI_DIR.
     2. Authenticates the user if login == True.
-    3. If PhiCliConfig exists and auth is valid, return True.
+    3. If PhiCliConfig exists and auth is valid, returns PhiCliConfig.
     """
     from phi.utils.filesystem import delete_from_fs
     from phi.api.user import create_anon_user
@@ -127,12 +127,8 @@ def initialize_phi(reset: bool = False, login: bool = False) -> bool:
         if anon_user is not None and phi_config is not None:
             phi_config.user = anon_user
 
-    if phi_config is not None:
-        logger.debug("Phidata initialized")
-        return True
-    else:
-        logger.error("Something went wrong, please try again")
-        return False
+    logger.debug("Phidata initialized")
+    return phi_config
 
 
 def sign_in_using_cli() -> None:

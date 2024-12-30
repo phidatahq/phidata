@@ -1,14 +1,13 @@
 # Ollama Cookbook
 
 > Note: Fork and clone this repository if needed
-> Ollama Model class has been designed to work with llama models. Support for more model classes coming soon
 
 ### 1. [Install](https://github.com/ollama/ollama?tab=readme-ov-file#macos) ollama and run models
 
 Run your chat model
 
 ```shell
-ollama run llama3.2
+ollama run llama3.1:8b
 ```
 
 Message `/bye` to exit the chat model
@@ -66,14 +65,26 @@ python cookbook/providers/ollama/finance_agent.py
 python cookbook/providers/ollama/data_analyst.py
 ```
 
+- Web Search
+
+```shell
+python cookbook/providers/ollama/web_search.py
+```
+
 ### 6. Run Agent that returns structured output
 
 ```shell
 python cookbook/providers/ollama/structured_output.py
 ```
 
-### 7. Run Agent that uses web search
+### 7. Run Agent that uses storage
 
 ```shell
-python cookbook/providers/ollama/web_search.py
+python cookbook/providers/ollama/storage.py
+```
+
+### 8. Run Agent that uses knowledge
+
+```shell
+python cookbook/providers/ollama/knowledge.py
 ```

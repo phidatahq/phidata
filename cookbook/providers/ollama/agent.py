@@ -5,8 +5,9 @@ from phi.model.ollama import Ollama
 from phi.tools.yfinance import YFinanceTools
 
 agent = Agent(
-    model=Ollama(id="llama3.2"),
+    model=Ollama(id="llama3.1:8b"),
     tools=[YFinanceTools(stock_price=True)],
+    instructions="Use tables to display data.",
     show_tool_calls=True,
     markdown=True,
 )

@@ -156,14 +156,15 @@ class PhiCliConfig:
         self.save_config()
         return ws_config
 
-    def update_ws_config(
+    def create_or_update_ws_config(
         self,
         ws_root_path: Path,
         ws_schema: Optional[WorkspaceSchema] = None,
         ws_team: Optional[TeamSchema] = None,
-        set_as_active: bool = False,
+        set_as_active: bool = True,
     ) -> Optional[WorkspaceConfig]:
-        """Updates WorkspaceConfig and returns True if successful"""
+        """Creates or updates a WorkspaceConfig and returns the WorkspaceConfig"""
+
         ws_config = self._add_or_update_ws_config(
             ws_root_path=ws_root_path,
             ws_schema=ws_schema,
@@ -231,7 +232,7 @@ class PhiCliConfig:
         write_json_file(file_path=phi_cli_settings.config_file_path, data=config_data)
 
     @classmethod
-    def from_saved_config(cls):
+    def from_saved_config(cls) -> Optional["PhiCliConfig"]:
         try:
             config_data = read_json_file(file_path=phi_cli_settings.config_file_path)
             if config_data is None or not isinstance(config_data, dict):
@@ -254,6 +255,7 @@ class PhiCliConfig:
         except Exception as e:
             logger.warning(e)
             logger.warning("Please setup the workspace using `phi ws setup`")
+            return None
 
     ######################################################
     ## Print PhiCliConfig

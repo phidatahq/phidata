@@ -1,8 +1,9 @@
 """
 1. Install dependencies using: `pip install phidata opencv-python google-generativeai sqlalchemy pydantic`
-2. Install ffmpeg `brew install ffmpeg` 
+2. Install ffmpeg `brew install ffmpeg`
 2. Run the script using: `python cookbook/agents/47_video_to_shorts.py`
 """
+
 from phi.agent import Agent
 from phi.model.google import Gemini
 from google.generativeai import upload_file, get_file
@@ -11,16 +12,15 @@ import subprocess
 from pathlib import Path
 from phi.utils.log import logger
 
-video_path = "cookbook/agents/videoplayback (1).mp4"
-output_dir = "output/shorts/weird-food"
+video_path = "sample.mp4"
+output_dir = Path("output/sample")
 
 agent = Agent(
     name="Video2Shorts",
     description="Process videos and generate engaging shorts.",
-    model=Gemini(id="gemini-2.0-flash-exp"), 
+    model=Gemini(id="gemini-2.0-flash-exp"),
     markdown=True,
     debug_mode=True,
-
     structured_outputs=True,
 )
 
@@ -77,12 +77,14 @@ response = agent.run(query, videos=[video_file])
 output_dir = Path(output_dir)
 output_dir.mkdir(parents=True, exist_ok=True)
 
-# 6. Extract and cut video segments
+
+# 6. Extract and cut video segments - Optional
 def extract_segments(response_text):
     import re
-    segments_pattern = r'\|\s*(\d+:\d+)\s*\|\s*(\d+:\d+)\s*\|\s*(.*?)\s*\|\s*(\d+)\s*\|'
-    segments = []
-        
+
+    segments_pattern = r"\|\s*(\d+:\d+)\s*\|\s*(\d+:\d+)\s*\|\s*(.*?)\s*\|\s*(\d+)\s*\|"
+    segments: list[dict] = []
+
     for match in re.finditer(segments_pattern, str(response_text)):
         start_time = match.group(1)
         end_time = match.group(2)
@@ -90,38 +92,41 @@ def extract_segments(response_text):
         score = int(match.group(4))
 
         # Convert timestamps to seconds
-        start_seconds = sum(x * int(t) for x, t in zip([60, 1], start_time.split(':')))
-        end_seconds = sum(x * int(t) for x, t in zip([60, 1], end_time.split(':')))
+        start_seconds = sum(x * int(t) for x, t in zip([60, 1], start_time.split(":")))
+        end_seconds = sum(x * int(t) for x, t in zip([60, 1], end_time.split(":")))
         duration = end_seconds - start_seconds
 
         # Only process high-scoring segments
         if 15 <= duration <= 60 and score > 7:
             output_path = output_dir / f"short_{len(segments) + 1}.mp4"
-            
+
             # FFmpeg command to cut video
             command = [
-                'ffmpeg',
-                '-ss', str(start_seconds),
-                '-i', video_path,
-                '-t', str(duration),
-                '-vf', 'scale=1080:1920,setsar=1:1',
-                '-c:v', 'libx264',
-                '-c:a', 'aac',
-                '-y',
-                str(output_path)
+                "ffmpeg",
+                "-ss",
+                str(start_seconds),
+                "-i",
+                video_path,
+                "-t",
+                str(duration),
+                "-vf",
+                "scale=1080:1920,setsar=1:1",
+                "-c:v",
+                "libx264",
+                "-c:a",
+                "aac",
+                "-y",
+                str(output_path),
             ]
-            
+
             try:
                 subprocess.run(command, check=True)
-                segments.append({
-                    'path': output_path,
-                    'description': description,
-                    'score': score
-                })
+                segments.append({"path": output_path, "description": description, "score": score})
             except subprocess.CalledProcessError:
                 print(f"Failed to process segment: {start_time} - {end_time}")
 
     return segments
+
 
 logger.debug(f"{response.content}")
 
@@ -134,4 +139,3 @@ for short in shorts:
     print(f"Short at {short['path']}")
     print(f"Description: {short['description']}")
     print(f"Engagement Score: {short['score']}/10\n")
-

@@ -1,4 +1,5 @@
 import json
+import os
 from typing import Optional
 from phi.tools import Toolkit
 
@@ -17,7 +18,7 @@ class ScrapeGraphTools(Toolkit):
     ):
         super().__init__(name="scrapegraph_tools")
 
-        self.api_key: Optional[str] = api_key
+        self.api_key: Optional[str] = api_key or os.getenv("SGAI_API_KEY")
         self.client = Client(api_key=self.api_key)
 
         # Start with smartscraper by default
@@ -40,8 +41,6 @@ class ScrapeGraphTools(Toolkit):
         Returns:
             The structured data extracted from the webpage
         """
-        if url is None:
-            return "No URL provided"
 
         try:
             response = self.client.smartscraper(website_url=url, user_prompt=prompt)
@@ -58,8 +57,6 @@ class ScrapeGraphTools(Toolkit):
         Returns:
             The markdown version of the webpage
         """
-        if url is None:
-            return "No URL provided"
 
         try:
             response = self.client.markdownify(website_url=url)

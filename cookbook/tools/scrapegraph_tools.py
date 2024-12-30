@@ -1,16 +1,11 @@
-import os
-
 from phi.agent import Agent
 from phi.tools.scrapegraph_tools import ScrapeGraphTools
 
-api_key = os.getenv("SGAI_API_KEY")
 
 # Example 1: Default behavior - only smartscraper enabled
-scrapegraph = ScrapeGraphTools(
-    api_key=api_key,  # smartscraper=True by default
-)
+scrapegraph = ScrapeGraphTools(smartscraper=True)
 
-agent = Agent(tools=[scrapegraph], show_tool_calls=True, markdown=True)
+agent = Agent(tools=[scrapegraph], show_tool_calls=True, markdown=True, stream=True)
 
 # Use smartscraper
 agent.print_response("""
@@ -23,10 +18,7 @@ Use smartscraper to extract the following from https://www.wired.com/category/sc
 """)
 
 # Example 2: Only markdownify enabled (by setting smartscraper=False)
-scrapegraph_md = ScrapeGraphTools(
-    api_key=api_key,
-    smartscraper=False,  # This will automatically enable markdownify
-)
+scrapegraph_md = ScrapeGraphTools(smartscraper=False)
 
 agent_md = Agent(tools=[scrapegraph_md], show_tool_calls=True, markdown=True)
 

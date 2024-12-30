@@ -247,6 +247,10 @@ class MoviePyVideoTools(Toolkit):
     ) -> str:
         """Embed scrolling captions with word-level highlighting into video"""
         try:
+            # If no output path provided, create one based on input video
+            if output_path is None:
+                output_path = video_path.rsplit(".", 1)[0] + "_captioned.mp4"
+
             # Load video
             video = VideoFileClip(video_path)
 

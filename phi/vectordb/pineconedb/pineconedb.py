@@ -10,6 +10,7 @@ from phi.document import Document
 from phi.embedder import Embedder
 from phi.vectordb.base import VectorDb
 from phi.utils.log import logger
+from phi.reranker.base import Reranker
 
 
 class PineconeDB(VectorDb):
@@ -63,6 +64,7 @@ class PineconeDB(VectorDb):
         config: Optional[Config] = None,
         use_hybrid_search: bool = False,
         hybrid_alpha: float = 0.5,
+        reranker: Optional[Reranker] = None,
         **kwargs,
     ):
         self._client = None
@@ -99,6 +101,7 @@ class PineconeDB(VectorDb):
 
             _embedder = OpenAIEmbedder()
         self.embedder: Embedder = _embedder
+        self.reranker: Optional[Reranker] = reranker
 
     @property
     def client(self) -> Pinecone:
@@ -327,7 +330,8 @@ class PineconeDB(VectorDb):
                 include_values=include_values,
                 include_metadata=True,
             )
-        return [
+
+        search_results = [
             Document(
                 content=(result.metadata.get("text", "") if result.metadata is not None else ""),
                 id=result.id,
@@ -336,6 +340,10 @@ class PineconeDB(VectorDb):
             )
             for result in response.matches
         ]
+
+        if self.reranker:
+            search_results = self.reranker.rerank(query=query, documents=search_results)
+        return search_results
 
     def optimize(self) -> None:
         """Optimize the index.

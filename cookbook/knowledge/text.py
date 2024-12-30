@@ -21,8 +21,8 @@ knowledge_base.load(recreate=False)
 
 # Initialize the Assistant with the knowledge_base
 agent = Agent(
-    knowledge_base=knowledge_base,
-    add_references_to_prompt=True,
+    knowledge=knowledge_base,
+    search_knowledge=True,
 )
 
 # Use the agent

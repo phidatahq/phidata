@@ -1,15 +1,10 @@
 """Run `pip install openai slack-sdk` to install dependencies."""
 
-import os
-
 from phi.agent import Agent
 from phi.tools.slack import SlackTools
 
 
-slack_token = os.getenv("SLACK_TOKEN")
-if not slack_token:
-    raise ValueError("SLACK_TOKEN not set")
-slack_tools = SlackTools(token=slack_token)
+slack_tools = SlackTools()
 
 agent = Agent(tools=[slack_tools], show_tool_calls=True)
 

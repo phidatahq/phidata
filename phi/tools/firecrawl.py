@@ -94,7 +94,7 @@ class FirecrawlTools(Toolkit):
         if self.limit or limit:
             params["limit"] = self.limit or limit
             if self.formats and set(self.formats).issubset(set(["markdown", "html", "rawHtml", "links", "screenshot"])):
-                params["scrapeOptions"] = {"formats": self.formats}
+                params["scrapeOptions"] = {"formats": self.formats}  # type: ignore
 
         crawl_result = self.app.crawl_url(url, params=params, poll_interval=15)
         return json.dumps(crawl_result)
@@ -117,7 +117,7 @@ class FirecrawlTools(Toolkit):
         if self.limit or limit:
             params["limit"] = self.limit or limit
             if self.formats and set(self.formats).issubset(set(["markdown", "html", "rawHtml", "links", "screenshot"])):
-                params["scrapeOptions"] = {"formats": self.formats}
+                params["scrapeOptions"] = {"formats": self.formats} # type: ignore
         poll_interval: int = 15
 
         # Firecrawl async_crawl_url returns crawl job id, hence adding custom implementation  with helper functions to return final  async crawl response.

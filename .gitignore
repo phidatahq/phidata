@@ -47,3 +47,7 @@ agents.db
 data.db
 
 .ipynb_checkpoints
+
+audio_generations
+
+*.db

@@ -2,7 +2,7 @@ from phi.agent import Agent
 from phi.model.openai import OpenAIChat
 from phi.tools.moviepy_video_tools import MoviePyVideoTools
 from phi.tools.openai import OpenAITools
-from pathlib import Path
+
 
 
 # Create a single tool instance instead of multiple ones

@@ -6,7 +6,6 @@ from phi.tools.openai import OpenAITools
 
 video_tools = MoviePyVideoTools(process_video=True, generate_captions=True, embed_captions=True)
 
-
 openai_tools = OpenAITools()
 
 video_caption_agent = Agent(
@@ -28,6 +27,4 @@ video_caption_agent = Agent(
 )
 
 
-video_caption_agent.print_response(
-    "Generate captions for {video with location} and embed them in the video"
-)
+video_caption_agent.print_response("Generate captions for {video with location} and embed them in the video")

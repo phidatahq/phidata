@@ -49,9 +49,9 @@ class SelfEvaluationWorkflow(Workflow):
         max_tries = 3
         for _ in range(max_tries):
             feedback = self.content_reviewer_agent.run(content.content)
-            if feedback.content.score > 8:
+            if feedback.content and feedback.content.score > 8:
                 break
-            input = f"Here is the feedback: {feedback.content.feedback} for your content {content}. Please improve the content based on the feedback."
+            input = f"Here is the feedback: {feedback.content.feedback if feedback.content else ''} for your content {content.content if content.content else ''}. Please improve the content based on the feedback."
             content = self.content_creator_agent.run(input)
         return content
 

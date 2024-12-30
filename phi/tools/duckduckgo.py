@@ -15,6 +15,7 @@ class DuckDuckGo(Toolkit):
         self,
         search: bool = True,
         news: bool = True,
+        modifier: Optional[str] = None,
         fixed_max_results: Optional[int] = None,
         headers: Optional[Any] = None,
         proxy: Optional[str] = None,
@@ -28,6 +29,7 @@ class DuckDuckGo(Toolkit):
         self.proxies: Optional[Any] = proxies
         self.timeout: Optional[int] = timeout
         self.fixed_max_results: Optional[int] = fixed_max_results
+        self.modifier: Optional[str] = modifier
         if search:
             self.register(self.duckduckgo_search)
         if news:
@@ -45,7 +47,7 @@ class DuckDuckGo(Toolkit):
         """
         logger.debug(f"Searching DDG for: {query}")
         ddgs = DDGS(headers=self.headers, proxy=self.proxy, proxies=self.proxies, timeout=self.timeout)
-        return json.dumps(ddgs.text(keywords=query, max_results=(self.fixed_max_results or max_results)), indent=2)
+        return json.dumps(ddgs.text(keywords=self.modifier+" "+query, max_results=(self.fixed_max_results or max_results)), indent=2)
 
     def duckduckgo_news(self, query: str, max_results: int = 5) -> str:
         """Use this function to get the latest news from DuckDuckGo.

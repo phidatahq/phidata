@@ -95,7 +95,7 @@ class Upstash(VectorDb):
             info = self._index.info()
             if info is None:
                 raise ValueError("Failed to get index info")
-                
+
             index_dimension = info.dimension
             if self.dimension is not None and index_dimension != self.dimension:
                 raise ValueError(
@@ -204,9 +204,11 @@ class Upstash(VectorDb):
         for document in documents:
             document.embed(embedder=self.embedder)
             if document.id is None or document.embedding is None:
-                logger.error(f"Document ID and embedding must not be None. Skipping document with content: {document.content[:100]}...")
+                logger.error(
+                    f"Document ID and embedding must not be None. Skipping document with content: {document.content[:100]}..."
+                )
                 continue
-                
+
             document.meta_data["text"] = document.content
             data_to_upsert = Vector(
                 id=document.id, vector=document.embedding, metadata=document.meta_data, data=document.content
@@ -269,7 +271,7 @@ class Upstash(VectorDb):
             return []
 
         filter_str = "" if filters is None else str(filters)
-        
+
         response = self.index.query(
             vector=dense_embedding,
             namespace=_namespace,

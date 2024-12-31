@@ -1,4 +1,4 @@
-from typing import Optional, Dict, List, Any, Union
+from typing import Optional, Dict, List, Any
 
 try:
     from upstash_vector import Index, Vector
@@ -56,13 +56,13 @@ class Upstash(VectorDb):
         reranker: Optional[Reranker] = None,
         **kwargs,
     ):
-        self._index = None
+        self._index: Optional[Index] = None
         self.url: str = url
         self.token: str = token
-        self.retries: int = retries
-        self.retry_interval: float = retry_interval
+        self.retries: int = retries if retries is not None else 3
+        self.retry_interval: float = retry_interval if retry_interval is not None else 1.0
         self.dimension: Optional[int] = dimension
-        self.namespace: str = namespace
+        self.namespace: str = namespace if namespace is not None else DEFAULT_NAMESPACE
         self.kwargs: Dict[str, Any] = kwargs
 
         # Initialize embedder for embedding the document contents
@@ -89,9 +89,15 @@ class Upstash(VectorDb):
                 retries=self.retries,
                 retry_interval=self.retry_interval,
             )
+            if self._index is None:
+                raise ValueError("Failed to initialize Upstash index")
 
-            index_dimension = self._index.info().dimension
-            if index_dimension != self.dimension:
+            info = self._index.info()
+            if info is None:
+                raise ValueError("Failed to get index info")
+                
+            index_dimension = info.dimension
+            if self.dimension is not None and index_dimension != self.dimension:
                 raise ValueError(
                     f"Index dimension {index_dimension} does not match provided dimension {self.dimension}"
                 )
@@ -151,7 +157,11 @@ class Upstash(VectorDb):
             bool: True if the document exists, False otherwise.
 
         """
-        response = self.index.fetch(ids=[document.id])
+        if document.id is None:
+            logger.error("Document ID cannot be None")
+            return False
+        documents_to_fetch = [document.id]
+        response = self.index.fetch(ids=documents_to_fetch)
         return len(response) > 0
 
     def name_exists(self, name: str) -> bool:
@@ -193,11 +203,19 @@ class Upstash(VectorDb):
         vectors = []
         for document in documents:
             document.embed(embedder=self.embedder)
+            if document.id is None or document.embedding is None:
+                logger.error(f"Document ID and embedding must not be None. Skipping document with content: {document.content[:100]}...")
+                continue
+                
             document.meta_data["text"] = document.content
             data_to_upsert = Vector(
                 id=document.id, vector=document.embedding, metadata=document.meta_data, data=document.content
             )
             vectors.append(data_to_upsert)
+
+        if not vectors:
+            logger.warning("No valid documents to upsert")
+            return
 
         self.index.upsert(vectors, namespace=_namespace)
 
@@ -229,7 +247,7 @@ class Upstash(VectorDb):
         self,
         query: str,
         limit: int = 5,
-        filters: Optional[str] = "",
+        filters: Optional[Dict[str, Any]] = None,
         namespace: Optional[str] = None,
     ) -> List[Document]:
         """Search for documents in the index.
@@ -237,11 +255,8 @@ class Upstash(VectorDb):
         Args:
             query (str): The query string to search for.
             limit (int, optional): Maximum number of results to return. Defaults to 5.
-            filters (Optional[str], optional): Metadata filters for the search. Defaults to "".
+            filters (Optional[Dict[str, Any]], optional): Metadata filters for the search.
             namespace (Optional[str], optional): The namespace to search in. Defaults to None, which uses the instance namespace.
-            include_data (Optional[bool], optional): Whether to include document data in results. Defaults to False.
-            include_metadata (Optional[bool], optional): Whether to include metadata in results. Defaults to False.
-            include_vectors (Optional[bool], optional): Whether to include vectors in results. Defaults to False.
 
         Returns:
             List[Document]: List of matching documents.
@@ -253,25 +268,33 @@ class Upstash(VectorDb):
             logger.error(f"Error getting embedding for Query: {query}")
             return []
 
+        filter_str = "" if filters is None else str(filters)
+        
         response = self.index.query(
             vector=dense_embedding,
             namespace=_namespace,
             top_k=limit,
-            filter=filters,
+            filter=filter_str,
             include_data=True,
             include_metadata=True,
             include_vectors=True,
         )
 
-        search_results = [
-            Document(
-                content=result.data,
-                id=result.id,
-                meta_data=result.metadata,
-                embedding=result.vector,
-            )
-            for result in response
-        ]
+        if response is None:
+            logger.info(f"No results found for query: {query}")
+            return []
+
+        search_results = []
+        for result in response:
+            if result.data is not None and result.id is not None and result.vector is not None:
+                search_results.append(
+                    Document(
+                        content=result.data,
+                        id=result.id,
+                        meta_data=result.metadata or {},
+                        embedding=result.vector,
+                    )
+                )
 
         if self.reranker:
             search_results = self.reranker.rerank(query=query, documents=search_results)
@@ -289,7 +312,8 @@ class Upstash(VectorDb):
             bool: True if the index was deleted, False otherwise.
         """
         _namespace = self.namespace if namespace is None else namespace
-        return self.index.reset(namespace=_namespace, all=delete_all)
+        response = self.index.reset(namespace=_namespace, all=delete_all)
+        return True if response.lower().strip() == "success" else False
 
     def get_index_info(self) -> InfoResult:
         """Get information about the index.

@@ -90,23 +90,24 @@ class FalTools(Toolkit):
             logger.error(f"Failed to run model: {e}")
             return f"Error: {e}"
 
-    def image_to_image(self, agent: Agent, prompt: str) -> str:
+    def image_to_image(self, agent: Agent, prompt: str, image_url: Optional[str] = None) -> str:
         """
         Use this function to generate an image from a given image using the Fal AI API.
 
         Args:
             prompt (str): A text description of the task.
             image_url (str): The URL of the image to use for the generation.
+            
         Returns:
             str: Return the result of the model.
         """
-        if not self.image_url:
-            raise ValueError("Image URL is required but not provided.")
+
+        image = self.image_url or image_url
 
         try:
             result = fal_client.subscribe(
                 "fal-ai/flux/dev/image-to-image",
-                arguments={"image_url": self.image_url, "prompt": prompt},
+                arguments={"image_url": image, "prompt": prompt},
                 with_logs=True,
                 on_queue_update=self.on_queue_update,
             )

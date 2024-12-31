@@ -17,6 +17,7 @@ from phi.reranker.base import Reranker
 
 DEFAULT_NAMESPACE = ""
 
+
 class Upstash(VectorDb):
     """A class representing an Upstash Vector database.
 
@@ -68,6 +69,7 @@ class Upstash(VectorDb):
         _embedder = embedder
         if _embedder is None:
             from phi.embedder.openai import OpenAIEmbedder
+
             _embedder = OpenAIEmbedder(dimensions=self.dimension)
         self.embedder: Embedder = _embedder
         self.reranker: Optional[Reranker] = reranker
@@ -178,10 +180,7 @@ class Upstash(VectorDb):
         return namespace in namespaces
 
     def upsert(
-        self, 
-        documents: List[Document], 
-        filters: Optional[Dict[str, Any]] = None,
-        namespace: Optional[str] = None
+        self, documents: List[Document], filters: Optional[Dict[str, Any]] = None, namespace: Optional[str] = None
     ) -> None:
         """Upsert documents into the index.
 
@@ -196,15 +195,12 @@ class Upstash(VectorDb):
             document.embed(embedder=self.embedder)
             document.meta_data["text"] = document.content
             data_to_upsert = Vector(
-                id=document.id,
-                vector=document.embedding,
-                metadata=document.meta_data,
-                data=document.content
+                id=document.id, vector=document.embedding, metadata=document.meta_data, data=document.content
             )
             vectors.append(data_to_upsert)
 
         self.index.upsert(vectors, namespace=_namespace)
-    
+
     def upsert_available(self) -> bool:
         """Check if upsert operation is available.
 
@@ -229,9 +225,10 @@ class Upstash(VectorDb):
         """
         raise NotImplementedError("Upstash does not support insert operations. Use upsert instead.")
 
-    def search(self, 
-        query: str, 
-        limit: int = 5, 
+    def search(
+        self,
+        query: str,
+        limit: int = 5,
         filters: Optional[str] = "",
         namespace: Optional[str] = None,
     ) -> List[Document]:
@@ -263,7 +260,7 @@ class Upstash(VectorDb):
             filter=filters,
             include_data=True,
             include_metadata=True,
-            include_vectors=True
+            include_vectors=True,
         )
 
         search_results = [

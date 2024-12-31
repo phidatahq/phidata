@@ -176,3 +176,61 @@ class RedditTools(Toolkit):
             return json.dumps({"subreddit_stats": stats})
         except Exception as e:
             return f"Error getting subreddit stats: {e}"
+        
+    def create_post(self, subreddit: str, title: str, content: str, flair: Optional[str] = None, is_self: bool = True) -> str:
+        """
+        Create a new post in a subreddit.
+        
+        Args:
+            subreddit (str): Name of the subreddit to post in.
+            title (str): Title of the post.
+            content (str): Content of the post (text for self posts, URL for link posts).
+            flair (Optional[str]): Flair to add to the post. Must be an available flair in the subreddit.
+            is_self (bool): Whether this is a self (text) post (True) or link post (False).
+        Returns:
+            str: JSON string containing the created post information.
+        """
+        if not self.reddit:
+            return "Please provide Reddit API credentials"
+
+        if not self._check_user_auth():
+            return "User authentication required for posting. Please provide username and password."
+
+        try:
+            logger.info(f"Creating post in r/{subreddit}")
+
+            subreddit_obj = self.reddit.subreddit(subreddit)
+            
+            if flair:
+                available_flairs = [f['text'] for f in subreddit_obj.flair.link_templates]
+                if flair not in available_flairs:
+                    return f"Invalid flair. Available flairs: {', '.join(available_flairs)}"
+
+            if is_self:
+                submission = subreddit_obj.submit(
+                    title=title,
+                    selftext=content,
+                    flair_id=flair,
+            )
+            else:
+                submission = subreddit_obj.submit(
+                    title=title,
+                    url=content,
+                    flair_id=flair,
+                )
+            logger.info(f"Post created: {submission.permalink}")
+
+            post_info: Dict[str, Union[str, int, float]] = {
+                "id": submission.id,
+                "title": submission.title,
+                "url": submission.url,
+                "permalink": submission.permalink,
+                "created_utc": submission.created_utc,
+                "author": str(submission.author),
+                "flair": submission.link_flair_text
+            }
+
+            return json.dumps({"post": post_info})
+
+        except Exception as e:
+            return f"Error creating post: {e}"

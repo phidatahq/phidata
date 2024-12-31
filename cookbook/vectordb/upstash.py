@@ -10,7 +10,7 @@ VECTOR_DB_DIMENSION = 1536
 
 # Initialize Upstash DB
 vector_db = Upstash(
-    url="UPSTASH_VECTOR_REST_URL", 
+    url="UPSTASH_VECTOR_REST_URL",
     token="UPSTASH_VECTOR_REST_TOKEN",
     dimension=VECTOR_DB_DIMENSION,
     embedder=OpenAIEmbedder(dimensions=VECTOR_DB_DIMENSION),

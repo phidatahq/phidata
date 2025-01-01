@@ -1,6 +1,6 @@
 """
-1. Install dependencies using: `pip install openai yfinance phidata`
-2. Run the script using: `python cookbook/workflows/investment_report_generator.py`
+1. Install dependencies using: `pip install openai phidata`
+2. Run the script using: `python cookbook/workflows/game_generator.py`
 """
 
 import json

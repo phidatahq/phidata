@@ -1,22 +1,17 @@
 from typing import List, Optional, Iterator, Dict, Any
 
-from pydantic import ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from agno.document import Document
 from agno.document.reader.base import Reader
 from agno.document.chunking.strategy import ChunkingStrategy
 from agno.document.chunking.fixed import FixedSizeChunking
-from agno.knowledge.base import AssistantKnowledge
 from agno.vectordb import VectorDb
 from agno.utils.log import logger
 
 
 class AgentKnowledge(AssistantKnowledge):
-    """Base class for Agent knowledge
-
-    This class inherits from AssistantKnowledge only to maintain backward compatibility for downstream Knowledge bases.
-    In phidata 3.0.0, AssistantKnowledge will be deprecated and this class will inherit directly from BaseModel.
-    """
+    """Base class for Agent knowledge"""
 
     # Reader for reading documents from files, pdfs, urls, etc.
     reader: Optional[Reader] = None

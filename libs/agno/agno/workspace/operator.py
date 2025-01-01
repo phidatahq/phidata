@@ -31,8 +31,8 @@ TEMPLATE_TO_NAME_MAP: Dict[WorkspaceStarterTemplate, str] = {
     WorkspaceStarterTemplate.agent_api: "agent-api",
 }
 TEMPLATE_TO_REPO_MAP: Dict[WorkspaceStarterTemplate, str] = {
-    WorkspaceStarterTemplate.agent_app: "https://github.com/phidatahq/agent-app.git",
-    WorkspaceStarterTemplate.agent_api: "https://github.com/phidatahq/agent-api.git",
+    WorkspaceStarterTemplate.agent_app: "https://github.com/agno-agi/agent-app.git",
+    WorkspaceStarterTemplate.agent_api: "https://github.com/agno-agi/agent-api.git",
 }
 
 
@@ -54,7 +54,7 @@ def create_workspace(
 
     current_dir: Path = Path(".").resolve()
 
-    # Phi should be initialized before creating a workspace
+    # Initialize Agno before creating a workspace
     agno_config: Optional[AgnoCliConfig] = AgnoCliConfig.from_saved_config()
     if not agno_config:
         agno_config = initialize_agno()
@@ -346,9 +346,9 @@ def setup_workspace(ws_root_path: Path) -> Optional[WorkspaceConfig]:
         # logger.debug("Workspace Config: {}".format(ws_config.model_dump_json(indent=2)))
         print_subheading("Setup complete! Next steps:")
         print_info("1. Start workspace:")
-        print_info("\tphi ws up")
+        print_info("\tag ws up")
         print_info("2. Stop workspace:")
-        print_info("\tphi ws down")
+        print_info("\tag ws down")
         if ws_config.workspace_settings is not None:
             scripts_dir = ws_config.workspace_settings.scripts_dir
             install_ws_file = f"sh {ws_root_path}/{scripts_dir}/install.sh"
@@ -666,7 +666,7 @@ def set_workspace_as_active(ws_dir_name: Optional[str]) -> None:
     ## 1. Validate Pre-requisites
     ######################################################
     ######################################################
-    # 1.1 Check PhiConf is valid
+    # 1.1 Check AgnoCliConfig is valid
     ######################################################
     agno_config: Optional[AgnoCliConfig] = AgnoCliConfig.from_saved_config()
     if not agno_config:

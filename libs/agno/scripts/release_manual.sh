@@ -1,10 +1,9 @@
 #!/bin/bash
 
 ############################################################################
-#
-# Release phidata to pypi
+# Release agno to pypi
 # Usage:
-#   ./scripts/release.sh
+#   ./scripts/release_manual.sh
 #
 # Note:
 #   build & twine must be available in the venv
@@ -15,7 +14,7 @@ REPO_ROOT="$( dirname ${CURR_DIR} )"
 source ${CURR_DIR}/_utils.sh
 
 main() {
-  print_heading "Releasing *phidata*"
+  print_heading "Releasing *agno*"
 
   cd ${REPO_ROOT}
   print_heading "pwd: $(pwd)"
@@ -23,14 +22,14 @@ main() {
   print_heading "Proceed?"
   space_to_continue
 
-  print_heading "Building phidata"
+  print_heading "Building agno"
   python3 -m build
 
-  print_heading "Release phidata to testpypi?"
+  print_heading "Release agno to testpypi?"
   space_to_continue
   python3 -m twine upload --repository testpypi ${REPO_ROOT}/dist/*
 
-  print_heading "Release phidata to pypi"
+  print_heading "Release agno to pypi"
   space_to_continue
   python3 -m twine upload --repository pypi ${REPO_ROOT}/dist/*
 }

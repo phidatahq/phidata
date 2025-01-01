@@ -37,15 +37,15 @@ class PlaygroundSettings(BaseSettings):
     def set_cors_origin_list(cls, cors_origin_list):
         valid_cors = cors_origin_list or []
 
-        # Add phidata domains to cors origin list
+        # Add Agno domains to cors origin list
         valid_cors.extend(
             [
                 "http://localhost",
                 "http://localhost:3000",
-                "https://phidata.app",
-                "https://www.phidata.app",
-                "https://stgphi.com",
-                "https://www.stgphi.com",
+                "https://agno.com",
+                "https://www.agno.com",
+                "https://agno.so",
+                "https://www.agno.so",
             ]
         )
 

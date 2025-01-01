@@ -23,7 +23,7 @@ class MemoryClassifier(BaseModel):
             except ModuleNotFoundError as e:
                 logger.exception(e)
                 logger.error(
-                    "phidata uses `openai` as the default model provider. "
+                    "Agno uses `openai` as the default model provider. "
                     "Please provide a `model` or install `openai`."
                 )
                 exit(1)

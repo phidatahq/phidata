@@ -445,7 +445,11 @@ def start_workspace(
         logger.error("Some resources failed to create, please check logs")
         workspace_event_status = "failed"
 
-    if agno_config.user is not None and ws_config.ws_schema is not None and ws_config.ws_schema.id_workspace is not None:
+    if (
+        agno_config.user is not None
+        and ws_config.ws_schema is not None
+        and ws_config.ws_schema.id_workspace is not None
+    ):
         # Log workspace start event
         log_workspace_event(
             user=agno_config.user,
@@ -536,7 +540,11 @@ def stop_workspace(
         logger.error("Some resources failed to delete, please check logs")
         workspace_event_status = "failed"
 
-    if agno_config.user is not None and ws_config.ws_schema is not None and ws_config.ws_schema.id_workspace is not None:
+    if (
+        agno_config.user is not None
+        and ws_config.ws_schema is not None
+        and ws_config.ws_schema.id_workspace is not None
+    ):
         # Log workspace stop event
         log_workspace_event(
             user=agno_config.user,
@@ -628,7 +636,11 @@ def update_workspace(
         logger.error("Some resources failed to update, please check logs")
         workspace_event_status = "failed"
 
-    if agno_config.user is not None and ws_config.ws_schema is not None and ws_config.ws_schema.id_workspace is not None:
+    if (
+        agno_config.user is not None
+        and ws_config.ws_schema is not None
+        and ws_config.ws_schema.id_workspace is not None
+    ):
         # Log workspace start event
         log_workspace_event(
             user=agno_config.user,

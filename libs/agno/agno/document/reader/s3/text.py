@@ -8,9 +8,7 @@ from agno.utils.log import logger
 try:
     from agno.aws.resource.s3.object import S3Object
 except (ModuleNotFoundError, ImportError):
-    raise ImportError(
-        "`agno-aws` not installed. Please install using `pip install agno-aws`"
-    )
+    raise ImportError("`agno-aws` not installed. Please install using `pip install agno-aws`")
 
 
 class S3TextReader(Reader):
@@ -33,12 +31,7 @@ class S3TextReader(Reader):
             s3_object.download(temporary_file)
 
             logger.info(f"Parsing: {temporary_file}")
-            doc_name = (
-                s3_object.name.split("/")[-1]
-                .split(".")[0]
-                .replace("/", "_")
-                .replace(" ", "_")
-            )
+            doc_name = s3_object.name.split("/")[-1].split(".")[0].replace("/", "_").replace(" ", "_")
             doc_content = textract.process(temporary_file)
             documents = [
                 Document(

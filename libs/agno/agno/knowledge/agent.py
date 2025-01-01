@@ -10,7 +10,7 @@ from agno.vectordb import VectorDb
 from agno.utils.log import logger
 
 
-class AgentKnowledge(AssistantKnowledge):
+class AgentKnowledge(BaseModel):
     """Base class for Agent knowledge"""
 
     # Reader for reading documents from files, pdfs, urls, etc.

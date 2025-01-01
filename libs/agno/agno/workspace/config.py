@@ -129,9 +129,7 @@ class WorkspaceConfig(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     def to_dict(self) -> dict:
-        return self.model_dump(
-            include={"ws_root_path", "ws_schema", "ws_team", "ws_api_key"}
-        )
+        return self.model_dump(include={"ws_root_path", "ws_schema", "ws_team", "ws_api_key"})
 
     @property
     def workspace_dir_path(self) -> Optional[Path]:
@@ -148,9 +146,7 @@ class WorkspaceConfig(BaseModel):
 
         if self.ws_root_path is not None and obj.ws_root is not None:
             if obj.ws_root != self.ws_root_path:
-                raise Exception(
-                    f"WorkspaceSettings.ws_root ({obj.ws_root}) must match {self.ws_root_path}"
-                )
+                raise Exception(f"WorkspaceSettings.ws_root ({obj.ws_root}) must match {self.ws_root_path}")
         if obj.workspace_dir is not None:
             if self.workspace_dir_path is not None:
                 if self.ws_root_path is None:
@@ -183,10 +179,7 @@ class WorkspaceConfig(BaseModel):
                 if isinstance(obj, WorkspaceSettings):
                     if self.validate_workspace_settings(obj):
                         self._workspace_settings = obj
-                        if (
-                            self.ws_schema is not None
-                            and self._workspace_settings is not None
-                        ):
+                        if self.ws_schema is not None and self._workspace_settings is not None:
                             self._workspace_settings.ws_schema = self.ws_schema
                             logger.debug("Added WorkspaceSchema to WorkspaceSettings")
         except Exception:
@@ -219,19 +212,13 @@ class WorkspaceConfig(BaseModel):
             if self.workspace_settings is not None:
                 environ[WORKSPACE_NAME_ENV_VAR] = str(self.workspace_settings.ws_name)
 
-                scripts_dir = self.ws_root_path.joinpath(
-                    self.workspace_settings.scripts_dir
-                )
+                scripts_dir = self.ws_root_path.joinpath(self.workspace_settings.scripts_dir)
                 environ[SCRIPTS_DIR_ENV_VAR] = str(scripts_dir)
 
-                storage_dir = self.ws_root_path.joinpath(
-                    self.workspace_settings.storage_dir
-                )
+                storage_dir = self.ws_root_path.joinpath(self.workspace_settings.storage_dir)
                 environ[STORAGE_DIR_ENV_VAR] = str(storage_dir)
 
-                workflows_dir = self.ws_root_path.joinpath(
-                    self.workspace_settings.workflows_dir
-                )
+                workflows_dir = self.ws_root_path.joinpath(self.workspace_settings.workflows_dir)
                 environ[WORKFLOWS_DIR_ENV_VAR] = str(workflows_dir)
 
         if self.ws_schema is not None:
@@ -287,16 +274,9 @@ class WorkspaceConfig(BaseModel):
 
                 resource_file_parts = resource_file.parts
                 workspace_dir_path_parts = workspace_dir_path.parts
-                resource_file_parts_after_ws = resource_file_parts[
-                    len(workspace_dir_path_parts) :
-                ]
+                resource_file_parts_after_ws = resource_file_parts[len(workspace_dir_path_parts) :]
                 # Check if file in ignored directory
-                if any(
-                    [
-                        ignored_dir in resource_file_parts_after_ws
-                        for ignored_dir in ignored_dirs
-                    ]
-                ):
+                if any([ignored_dir in resource_file_parts_after_ws for ignored_dir in ignored_dirs]):
                     logger.debug(f"Skipping file in ignored directory: {resource_file}")
                     continue
                 logger.debug(f"Reading file: {resource_file}")
@@ -323,10 +303,7 @@ class WorkspaceConfig(BaseModel):
                 if isinstance(obj, WorkspaceSettings):
                     if self.validate_workspace_settings(obj):
                         self._workspace_settings = obj
-                        if (
-                            self.ws_schema is not None
-                            and self._workspace_settings is not None
-                        ):
+                        if self.ws_schema is not None and self._workspace_settings is not None:
                             self._workspace_settings.ws_schema = self.ws_schema
                             logger.debug("Added WorkspaceSchema to WorkspaceSettings")
                 elif isinstance(obj, DockerResources):
@@ -350,9 +327,7 @@ class WorkspaceConfig(BaseModel):
 
         # Resources filtered by infra
         filtered_infra_resources: List[InfraResources] = []
-        logger.debug(
-            f"Getting resources for env: {env} | infra: {infra} | order: {order}"
-        )
+        logger.debug(f"Getting resources for env: {env} | infra: {infra} | order: {order}")
         if infra is None:
             if docker_resource_groups is not None:
                 filtered_infra_resources.extend(docker_resource_groups)
@@ -384,9 +359,7 @@ class WorkspaceConfig(BaseModel):
             logger.debug("WorkspaceConfig._workspace_settings is None")
         if self._workspace_settings is not None:
             for resource_group in env_filtered_resource_groups:
-                logger.debug(
-                    f"Setting workspace settings for {resource_group.__class__.__name__}"
-                )
+                logger.debug(f"Setting workspace settings for {resource_group.__class__.__name__}")
                 resource_group.set_workspace_settings(self._workspace_settings)
         return env_filtered_resource_groups
 
@@ -455,9 +428,7 @@ class WorkspaceConfig(BaseModel):
 
         # Resources filtered by infra
         filtered_infra_resources: List[InfraResources] = []
-        logger.debug(
-            f"Getting resources for env: {env} | infra: {infra} | order: {order}"
-        )
+        logger.debug(f"Getting resources for env: {env} | infra: {infra} | order: {order}")
         if infra is None:
             if docker_resource_groups is not None:
                 filtered_infra_resources.extend(docker_resource_groups)
@@ -492,10 +463,6 @@ class WorkspaceConfig(BaseModel):
             )
         if temporary_ws_config._workspace_settings is not None:
             for resource_group in env_filtered_resource_groups:
-                logger.debug(
-                    f"Setting workspace settings for {resource_group.__class__.__name__}"
-                )
-                resource_group.set_workspace_settings(
-                    temporary_ws_config._workspace_settings
-                )
+                logger.debug(f"Setting workspace settings for {resource_group.__class__.__name__}")
+                resource_group.set_workspace_settings(temporary_ws_config._workspace_settings)
         return env_filtered_resource_groups

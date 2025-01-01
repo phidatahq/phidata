@@ -3,8 +3,8 @@
 ############################################################################
 # Generate requirements.txt from pyproject.toml
 # Usage:
-# ./scripts/generate_requirements.sh : Generate requirements.txt
-# ./scripts/generate_requirements.sh upgrade : Upgrade requirements.txt
+# ./libs/agno/scripts/generate_requirements.sh: Generate requirements.txt
+# ./libs/agno/scripts/generate_requirements.sh upgrade: Upgrade requirements.txt
 ############################################################################
 
 CURR_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -20,7 +20,6 @@ then
     uv pip compile ${AGNO_DIR}/pyproject.toml --no-cache --upgrade -o ${AGNO_DIR}/requirements.txt
 else
   print_heading "Generating requirements.txt"
-  uv pip compile pyproject.toml -o requirements.txt
   UV_CUSTOM_COMPILE_COMMAND="./scripts/generate_requirements.sh" \
     uv pip compile ${AGNO_DIR}/pyproject.toml --no-cache -o ${AGNO_DIR}/requirements.txt
 fi

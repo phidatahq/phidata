@@ -11,7 +11,6 @@ except ImportError:
 
 from phi.document import Document
 from phi.embedder import Embedder
-from phi.embedder.openai import OpenAIEmbedder
 from phi.vectordb.base import VectorDb
 from phi.vectordb.distance import Distance
 from phi.utils.log import logger
@@ -22,8 +21,8 @@ class Qdrant(VectorDb):
     def __init__(
         self,
         collection: str,
-        embedder: Embedder = OpenAIEmbedder(),
         distance: Distance = Distance.cosine,
+        embedder: Optional[Embedder] = None,
         location: Optional[str] = None,
         url: Optional[str] = None,
         port: Optional[int] = 6333,
@@ -42,6 +41,10 @@ class Qdrant(VectorDb):
         self.collection: str = collection
 
         # Embedder for embedding the document contents
+        if embedder is None:
+            from phi.embedder.openai import OpenAIEmbedder
+
+            embedder = OpenAIEmbedder()
         self.embedder: Embedder = embedder
         self.dimensions: Optional[int] = self.embedder.dimensions
 

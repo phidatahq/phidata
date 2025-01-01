@@ -5,7 +5,7 @@ description = "Model-agnostic framework for building Agents"
 requires-python = ">=3.7"
 readme = "README.md"
 authors = [
-  {name = "Ashpreet Bedi", email = "ashpreet@phidata.com"}
+  {name = "Ashpreet Bedi", email = "ashpreet@agno.com"}
 ]
 
 dependencies = [
@@ -28,23 +28,13 @@ dev = [
   "ruff",
   "timeout-decorator",
   "types-pyyaml",
-]
-server = [
-  "fastapi",
-  "uvicorn",
-]
-all = [
-  "mypy",
-  "pytest",
-  "ruff",
-  "timeout-decorator",
-  "types-pyyaml",
   "fastapi",
   "uvicorn",
 ]
 
 [project.scripts]
-ag = "agno.cli.ag:ag_cli"
+ag = "agno.cli.entrypoint:agno_cli"
+agno = "agno.cli.entrypoint:agno_cli"
 
 [project.urls]
 homepage = "https://agno.com"
@@ -66,21 +56,21 @@ testpaths = "tests"
 
 [tool.ruff]
 line-length = 120
-exclude = ["phienv*", "aienv*"]
 # Ignore `F401` (import violations) in all `__init__.py` files
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]
-"phi/k8s/app/traefik/crds.py" = ["E501"]
 
 [tool.mypy]
 check_untyped_defs = true
 no_implicit_optional = true
 warn_unused_configs = true
 plugins = ["pydantic.mypy"]
-exclude = ["phienv*", "aienv*", "scratch*", "wip*", "tmp*", "cookbook/assistants/examples/*", "phi/assistant/openai/*"]
+exclude = ["scratch*", "wip*", "tmp*"]
 
 [[tool.mypy.overrides]]
 module = [
+  "agno.aws.*",
+  "agno.docker.*",
   "altair.*",
   "anthropic.*",
   "apify_client.*",
@@ -107,11 +97,12 @@ module = [
   "googlesearch.*",
   "groq.*",
   "huggingface_hub.*",
+  "imghdr.*",
   "jira.*",
   "kubernetes.*",
   "lancedb.*",
-  "langchain.*",
   "langchain_core.*",
+  "langchain.*",
   "llama_index.*",
   "mem0.*",
   "mistralai.*",
@@ -125,8 +116,8 @@ module = [
   "pandas.*",
   "pgvector.*",
   "PIL.*",
-  "pinecone.*",
   "pinecone_text.*",
+  "pinecone.*",
   "psycopg.*",
   "psycopg2.*",
   "pyarrow.*",

@@ -1,2 +1,2 @@
-from phi.knowledge.base import AssistantKnowledge
-from phi.knowledge.agent import AgentKnowledge
+from agno.knowledge.base import AssistantKnowledge
+from agno.knowledge.agent import AgentKnowledge

@@ -3,10 +3,10 @@ from os import getenv
 from urllib.parse import urlparse
 from uuid import uuid4
 
-from phi.agent import Agent
-from phi.model.content import Video, Image
-from phi.tools import Toolkit
-from phi.utils.log import logger
+from agno.agent import Agent
+from agno.model.content import Video, Image
+from agno.tools import Toolkit
+from agno.utils.log import logger
 
 try:
     import replicate

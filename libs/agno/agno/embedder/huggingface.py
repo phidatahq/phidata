@@ -2,8 +2,8 @@ import json
 from os import getenv
 from typing import Any, Dict, List, Optional, Tuple
 
-from phi.embedder.base import Embedder
-from phi.utils.log import logger
+from agno.embedder.base import Embedder
+from agno.utils.log import logger
 
 try:
     from huggingface_hub import InferenceClient, SentenceSimilarityInput

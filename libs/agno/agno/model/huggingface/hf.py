@@ -5,13 +5,13 @@ from typing import Optional, List, Iterator, Dict, Any, Union
 import httpx
 from pydantic import BaseModel
 
-from phi.model.base import Model
-from phi.model.message import Message
-from phi.model.response import ModelResponse
-from phi.tools.function import FunctionCall
-from phi.utils.log import logger
-from phi.utils.timer import Timer
-from phi.utils.tools import get_function_call_for_tool_call
+from agno.model.base import Model
+from agno.model.message import Message
+from agno.model.response import ModelResponse
+from agno.tools.function import FunctionCall
+from agno.utils.log import logger
+from agno.utils.timer import Timer
+from agno.utils.tools import get_function_call_for_tool_call
 
 try:
     from huggingface_hub import InferenceClient

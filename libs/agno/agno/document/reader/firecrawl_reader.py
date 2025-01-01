@@ -1,8 +1,8 @@
 from typing import Dict, List, Optional, Literal
 
-from phi.document.base import Document
-from phi.document.reader.base import Reader
-from phi.utils.log import logger
+from agno.document.base import Document
+from agno.document.reader.base import Reader
+from agno.utils.log import logger
 
 from firecrawl import FirecrawlApp
 

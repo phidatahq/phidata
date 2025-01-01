@@ -2,9 +2,9 @@ from typing import Any, List
 
 from pydantic import BaseModel, Field, ConfigDict
 
-from phi.document.chunking.strategy import ChunkingStrategy
-from phi.document.chunking.fixed import FixedSizeChunking
-from phi.document.base import Document
+from agno.document.chunking.strategy import ChunkingStrategy
+from agno.document.chunking.fixed import FixedSizeChunking
+from agno.document.base import Document
 
 
 class Reader(BaseModel):

@@ -1,8 +1,8 @@
 import requests
 import json
 from typing import Optional
-from phi.tools.toolkit import Toolkit
-from phi.utils.log import logger
+from agno.tools.toolkit import Toolkit
+from agno.utils.log import logger
 
 
 class ZoomTool(Toolkit):

@@ -1,10 +1,10 @@
 from typing import List, Optional
 
-from phi.document.chunking.strategy import ChunkingStrategy
-from phi.document.base import Document
-from phi.model.openai import OpenAIChat
-from phi.model.base import Model
-from phi.model.message import Message
+from agno.document.chunking.strategy import ChunkingStrategy
+from agno.document.base import Document
+from agno.model.openai import OpenAIChat
+from agno.model.base import Model
+from agno.model.message import Message
 
 
 class AgenticChunking(ChunkingStrategy):
@@ -26,10 +26,10 @@ class AgenticChunking(ChunkingStrategy):
 
         while remaining_text:
             # Ask model to find a good breakpoint within max_chunk_size
-            prompt = f"""Analyze this text and determine a natural breakpoint within the first {self.max_chunk_size} characters. 
+            prompt = f"""Analyze this text and determine a natural breakpoint within the first {self.max_chunk_size} characters.
             Consider semantic completeness, paragraph boundaries, and topic transitions.
             Return only the character position number of where to break the text:
-            
+
             {remaining_text[:self.max_chunk_size]}"""
 
             try:

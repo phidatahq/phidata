@@ -3,13 +3,13 @@ from typing import Optional, List, Any
 
 from pydantic import BaseModel, ConfigDict
 
-from phi.infra.type import InfraType
-from phi.infra.resources import InfraResources
-from phi.api.schemas.team import TeamSchema
-from phi.api.schemas.workspace import WorkspaceSchema
-from phi.workspace.settings import WorkspaceSettings
-from phi.utils.py_io import get_python_objects_from_module
-from phi.utils.log import logger
+from agno.infra.type import InfraType
+from agno.infra.resources import InfraResources
+from agno.api.schemas.team import TeamSchema
+from agno.api.schemas.workspace import WorkspaceSchema
+from agno.workspace.settings import WorkspaceSettings
+from agno.utils.py_io import get_python_objects_from_module
+from agno.utils.log import logger
 
 # List of directories to ignore when loading the workspace
 ignored_dirs = ["ignore", "test", "tests", "config"]
@@ -17,91 +17,91 @@ ignored_dirs = ["ignore", "test", "tests", "config"]
 
 def get_workspace_objects_from_file(resource_file: Path) -> dict:
     """Returns workspace objects from the resource file"""
-    from phi.aws.resources import AwsResources
-    from phi.docker.resources import DockerResources
+    # from agno.aws.resources import AwsResources
+    # from agno.docker.resources import DockerResources
 
     try:
-        python_objects = get_python_objects_from_module(resource_file)
+        # python_objects = get_python_objects_from_module(resource_file)
         # logger.debug(f"python_objects: {python_objects}")
 
-        workspace_objects = {}
-        docker_resources_available = False
-        create_default_docker_resources = False
-        aws_resources_available = False
-        create_default_aws_resources = False
-        for obj_name, obj in python_objects.items():
-            if isinstance(
-                obj,
-                (
-                    WorkspaceSettings,
-                    DockerResources,
-                    AwsResources,
-                ),
-            ):
-                workspace_objects[obj_name] = obj
-                if isinstance(obj, DockerResources):
-                    docker_resources_available = True
-                elif isinstance(obj, AwsResources):
-                    aws_resources_available = True
+        workspace_objects: dict[str, Any] = {}
+        # docker_resources_available = False
+        # create_default_docker_resources = False
+        # aws_resources_available = False
+        # create_default_aws_resources = False
+        # for obj_name, obj in python_objects.items():
+        #     if isinstance(
+        #         obj,
+        #         (
+        #             WorkspaceSettings,
+        #             DockerResources,
+        #             AwsResources,
+        #         ),
+        #     ):
+        #         workspace_objects[obj_name] = obj
+        #         if isinstance(obj, DockerResources):
+        #             docker_resources_available = True
+        #         elif isinstance(obj, AwsResources):
+        #             aws_resources_available = True
 
-            try:
-                if not docker_resources_available:
-                    if obj.__class__.__module__.startswith("phi.docker"):
-                        create_default_docker_resources = True
-                if not aws_resources_available:
-                    if obj.__class__.__module__.startswith("phi.aws"):
-                        create_default_aws_resources = True
-            except Exception:
-                pass
+        #     try:
+        #         if not docker_resources_available:
+        #             if obj.__class__.__module__.startswith("agno.docker"):
+        #                 create_default_docker_resources = True
+        #         if not aws_resources_available:
+        #             if obj.__class__.__module__.startswith("agno.aws"):
+        #                 create_default_aws_resources = True
+        #     except Exception:
+        #         pass
 
-        if not docker_resources_available and create_default_docker_resources:
-            from phi.docker.resources import DockerResource, DockerApp
+        # if not docker_resources_available and create_default_docker_resources:
+        #     from agno.docker.resources import DockerResource, DockerApp
 
-            logger.debug("Creating default docker resources")
-            default_docker_resources = DockerResources()
-            add_default_docker_resources = False
-            for obj_name, obj in python_objects.items():
-                _obj_class = obj.__class__
-                if issubclass(_obj_class, DockerResource):
-                    if default_docker_resources.resources is None:
-                        default_docker_resources.resources = []
-                    default_docker_resources.resources.append(obj)
-                    add_default_docker_resources = True
-                    logger.debug(f"Added DockerResource: {obj_name}")
-                elif issubclass(_obj_class, DockerApp):
-                    if default_docker_resources.apps is None:
-                        default_docker_resources.apps = []
-                    default_docker_resources.apps.append(obj)
-                    add_default_docker_resources = True
-                    logger.debug(f"Added DockerApp: {obj_name}")
+        #     logger.debug("Creating default docker resources")
+        #     default_docker_resources = DockerResources()
+        #     add_default_docker_resources = False
+        #     for obj_name, obj in python_objects.items():
+        #         _obj_class = obj.__class__
+        #         if issubclass(_obj_class, DockerResource):
+        #             if default_docker_resources.resources is None:
+        #                 default_docker_resources.resources = []
+        #             default_docker_resources.resources.append(obj)
+        #             add_default_docker_resources = True
+        #             logger.debug(f"Added DockerResource: {obj_name}")
+        #         elif issubclass(_obj_class, DockerApp):
+        #             if default_docker_resources.apps is None:
+        #                 default_docker_resources.apps = []
+        #             default_docker_resources.apps.append(obj)
+        #             add_default_docker_resources = True
+        #             logger.debug(f"Added DockerApp: {obj_name}")
 
-            if add_default_docker_resources:
-                workspace_objects["default_docker_resources"] = default_docker_resources
+        #     if add_default_docker_resources:
+        #         workspace_objects["default_docker_resources"] = default_docker_resources
 
-        if not aws_resources_available and create_default_aws_resources:
-            from phi.aws.resources import AwsResource, AwsApp
+        # if not aws_resources_available and create_default_aws_resources:
+        #     from agno.aws.resources import AwsResource, AwsApp
 
-            logger.debug("Creating default aws resources")
-            default_aws_resources = AwsResources()
-            add_default_aws_resources = False
-            for obj_name, obj in python_objects.items():
-                _obj_class = obj.__class__
-                # logger.debug(f"Checking {_obj_class}: {obj_name}")
-                if issubclass(_obj_class, AwsResource):
-                    if default_aws_resources.resources is None:
-                        default_aws_resources.resources = []
-                    default_aws_resources.resources.append(obj)
-                    add_default_aws_resources = True
-                    logger.debug(f"Added AwsResource: {obj_name}")
-                elif issubclass(_obj_class, AwsApp):
-                    if default_aws_resources.apps is None:
-                        default_aws_resources.apps = []
-                    default_aws_resources.apps.append(obj)
-                    add_default_aws_resources = True
-                    logger.debug(f"Added AwsApp: {obj_name}")
+        #     logger.debug("Creating default aws resources")
+        #     default_aws_resources = AwsResources()
+        #     add_default_aws_resources = False
+        #     for obj_name, obj in python_objects.items():
+        #         _obj_class = obj.__class__
+        #         # logger.debug(f"Checking {_obj_class}: {obj_name}")
+        #         if issubclass(_obj_class, AwsResource):
+        #             if default_aws_resources.resources is None:
+        #                 default_aws_resources.resources = []
+        #             default_aws_resources.resources.append(obj)
+        #             add_default_aws_resources = True
+        #             logger.debug(f"Added AwsResource: {obj_name}")
+        #         elif issubclass(_obj_class, AwsApp):
+        #             if default_aws_resources.apps is None:
+        #                 default_aws_resources.apps = []
+        #             default_aws_resources.apps.append(obj)
+        #             add_default_aws_resources = True
+        #             logger.debug(f"Added AwsApp: {obj_name}")
 
-            if add_default_aws_resources:
-                workspace_objects["default_aws_resources"] = default_aws_resources
+        #     if add_default_aws_resources:
+        #         workspace_objects["default_aws_resources"] = default_aws_resources
 
         return workspace_objects
     except Exception:
@@ -110,7 +110,7 @@ def get_workspace_objects_from_file(resource_file: Path) -> dict:
 
 
 class WorkspaceConfig(BaseModel):
-    """The WorkspaceConfig stores data for a phidata workspace."""
+    """The WorkspaceConfig stores data for a agnodata workspace."""
 
     # Root directory for the workspace.
     ws_root_path: Path
@@ -129,13 +129,15 @@ class WorkspaceConfig(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     def to_dict(self) -> dict:
-        return self.model_dump(include={"ws_root_path", "ws_schema", "ws_team", "ws_api_key"})
+        return self.model_dump(
+            include={"ws_root_path", "ws_schema", "ws_team", "ws_api_key"}
+        )
 
     @property
     def workspace_dir_path(self) -> Optional[Path]:
         if self._workspace_dir_path is None:
             if self.ws_root_path is not None:
-                from phi.workspace.helpers import get_workspace_dir_path
+                from agno.workspace.helpers import get_workspace_dir_path
 
                 self._workspace_dir_path = get_workspace_dir_path(self.ws_root_path)
         return self._workspace_dir_path
@@ -146,7 +148,9 @@ class WorkspaceConfig(BaseModel):
 
         if self.ws_root_path is not None and obj.ws_root is not None:
             if obj.ws_root != self.ws_root_path:
-                raise Exception(f"WorkspaceSettings.ws_root ({obj.ws_root}) must match {self.ws_root_path}")
+                raise Exception(
+                    f"WorkspaceSettings.ws_root ({obj.ws_root}) must match {self.ws_root_path}"
+                )
         if obj.workspace_dir is not None:
             if self.workspace_dir_path is not None:
                 if self.ws_root_path is None:
@@ -179,7 +183,10 @@ class WorkspaceConfig(BaseModel):
                 if isinstance(obj, WorkspaceSettings):
                     if self.validate_workspace_settings(obj):
                         self._workspace_settings = obj
-                        if self.ws_schema is not None and self._workspace_settings is not None:
+                        if (
+                            self.ws_schema is not None
+                            and self._workspace_settings is not None
+                        ):
                             self._workspace_settings.ws_schema = self.ws_schema
                             logger.debug("Added WorkspaceSchema to WorkspaceSettings")
         except Exception:
@@ -191,7 +198,7 @@ class WorkspaceConfig(BaseModel):
     def set_local_env(self) -> None:
         from os import environ
 
-        from phi.constants import (
+        from agno.constants import (
             SCRIPTS_DIR_ENV_VAR,
             STORAGE_DIR_ENV_VAR,
             WORKFLOWS_DIR_ENV_VAR,
@@ -212,13 +219,19 @@ class WorkspaceConfig(BaseModel):
             if self.workspace_settings is not None:
                 environ[WORKSPACE_NAME_ENV_VAR] = str(self.workspace_settings.ws_name)
 
-                scripts_dir = self.ws_root_path.joinpath(self.workspace_settings.scripts_dir)
+                scripts_dir = self.ws_root_path.joinpath(
+                    self.workspace_settings.scripts_dir
+                )
                 environ[SCRIPTS_DIR_ENV_VAR] = str(scripts_dir)
 
-                storage_dir = self.ws_root_path.joinpath(self.workspace_settings.storage_dir)
+                storage_dir = self.ws_root_path.joinpath(
+                    self.workspace_settings.storage_dir
+                )
                 environ[STORAGE_DIR_ENV_VAR] = str(storage_dir)
 
-                workflows_dir = self.ws_root_path.joinpath(self.workspace_settings.workflows_dir)
+                workflows_dir = self.ws_root_path.joinpath(
+                    self.workspace_settings.workflows_dir
+                )
                 environ[WORKFLOWS_DIR_ENV_VAR] = str(workflows_dir)
 
         if self.ws_schema is not None:
@@ -231,14 +244,17 @@ class WorkspaceConfig(BaseModel):
                     environ[AWS_REGION_ENV_VAR] = self.workspace_settings.aws_region
 
     def get_resources(
-        self, env: Optional[str] = None, infra: Optional[InfraType] = None, order: str = "create"
+        self,
+        env: Optional[str] = None,
+        infra: Optional[InfraType] = None,
+        order: str = "create",
     ) -> List[InfraResources]:
         if self.ws_root_path is None:
             logger.warning("WorkspaceConfig.ws_root_path is None")
             return []
 
         from sys import path as sys_path
-        from phi.utils.load_env import load_env
+        from agno.utils.load_env import load_env
 
         # Objects to read from the files in the workspace_dir_path
         docker_resource_groups: Optional[List[Any]] = None
@@ -258,8 +274,8 @@ class WorkspaceConfig(BaseModel):
 
         workspace_dir_path: Optional[Path] = self.workspace_dir_path
         if workspace_dir_path is not None:
-            from phi.aws.resources import AwsResources
-            from phi.docker.resources import DockerResources
+            from agno.aws.resources import AwsResources
+            from agno.docker.resources import DockerResources
 
             logger.debug(f"--^^-- Loading workspace from: {workspace_dir_path}")
             # Create a dict of objects in the workspace directory
@@ -271,9 +287,16 @@ class WorkspaceConfig(BaseModel):
 
                 resource_file_parts = resource_file.parts
                 workspace_dir_path_parts = workspace_dir_path.parts
-                resource_file_parts_after_ws = resource_file_parts[len(workspace_dir_path_parts) :]
+                resource_file_parts_after_ws = resource_file_parts[
+                    len(workspace_dir_path_parts) :
+                ]
                 # Check if file in ignored directory
-                if any([ignored_dir in resource_file_parts_after_ws for ignored_dir in ignored_dirs]):
+                if any(
+                    [
+                        ignored_dir in resource_file_parts_after_ws
+                        for ignored_dir in ignored_dirs
+                    ]
+                ):
                     logger.debug(f"Skipping file in ignored directory: {resource_file}")
                     continue
                 logger.debug(f"Reading file: {resource_file}")
@@ -300,7 +323,10 @@ class WorkspaceConfig(BaseModel):
                 if isinstance(obj, WorkspaceSettings):
                     if self.validate_workspace_settings(obj):
                         self._workspace_settings = obj
-                        if self.ws_schema is not None and self._workspace_settings is not None:
+                        if (
+                            self.ws_schema is not None
+                            and self._workspace_settings is not None
+                        ):
                             self._workspace_settings.ws_schema = self.ws_schema
                             logger.debug("Added WorkspaceSchema to WorkspaceSettings")
                 elif isinstance(obj, DockerResources):
@@ -324,7 +350,9 @@ class WorkspaceConfig(BaseModel):
 
         # Resources filtered by infra
         filtered_infra_resources: List[InfraResources] = []
-        logger.debug(f"Getting resources for env: {env} | infra: {infra} | order: {order}")
+        logger.debug(
+            f"Getting resources for env: {env} | infra: {infra} | order: {order}"
+        )
         if infra is None:
             if docker_resource_groups is not None:
                 filtered_infra_resources.extend(docker_resource_groups)
@@ -356,13 +384,18 @@ class WorkspaceConfig(BaseModel):
             logger.debug("WorkspaceConfig._workspace_settings is None")
         if self._workspace_settings is not None:
             for resource_group in env_filtered_resource_groups:
-                logger.debug(f"Setting workspace settings for {resource_group.__class__.__name__}")
+                logger.debug(
+                    f"Setting workspace settings for {resource_group.__class__.__name__}"
+                )
                 resource_group.set_workspace_settings(self._workspace_settings)
         return env_filtered_resource_groups
 
     @staticmethod
     def get_resources_from_file(
-        resource_file: Path, env: Optional[str] = None, infra: Optional[InfraType] = None, order: str = "create"
+        resource_file: Path,
+        env: Optional[str] = None,
+        infra: Optional[InfraType] = None,
+        order: str = "create",
     ) -> List[InfraResources]:
         if not resource_file.exists():
             raise FileNotFoundError(f"File {resource_file} does not exist")
@@ -372,9 +405,9 @@ class WorkspaceConfig(BaseModel):
             raise ValueError(f"File {resource_file} is not a python file")
 
         from sys import path as sys_path
-        from phi.utils.load_env import load_env
-        from phi.aws.resources import AwsResources
-        from phi.docker.resources import DockerResources
+        from agno.utils.load_env import load_env
+        from agno.aws.resources import AwsResources
+        from agno.docker.resources import DockerResources
 
         # Objects to read from the file
         docker_resource_groups: Optional[List[Any]] = None
@@ -422,7 +455,9 @@ class WorkspaceConfig(BaseModel):
 
         # Resources filtered by infra
         filtered_infra_resources: List[InfraResources] = []
-        logger.debug(f"Getting resources for env: {env} | infra: {infra} | order: {order}")
+        logger.debug(
+            f"Getting resources for env: {env} | infra: {infra} | order: {order}"
+        )
         if infra is None:
             if docker_resource_groups is not None:
                 filtered_infra_resources.extend(docker_resource_groups)
@@ -457,6 +492,10 @@ class WorkspaceConfig(BaseModel):
             )
         if temporary_ws_config._workspace_settings is not None:
             for resource_group in env_filtered_resource_groups:
-                logger.debug(f"Setting workspace settings for {resource_group.__class__.__name__}")
-                resource_group.set_workspace_settings(temporary_ws_config._workspace_settings)
+                logger.debug(
+                    f"Setting workspace settings for {resource_group.__class__.__name__}"
+                )
+                resource_group.set_workspace_settings(
+                    temporary_ws_config._workspace_settings
+                )
         return env_filtered_resource_groups

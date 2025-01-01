@@ -2,10 +2,10 @@ from typing import List, Any, Optional, cast
 
 from pydantic import BaseModel
 
-from phi.model.base import Model
-from phi.model.message import Message
-from phi.memory.memory import Memory
-from phi.utils.log import logger
+from agno.model.base import Model
+from agno.model.message import Message
+from agno.memory.memory import Memory
+from agno.utils.log import logger
 
 
 class MemoryClassifier(BaseModel):
@@ -19,7 +19,7 @@ class MemoryClassifier(BaseModel):
     def update_model(self) -> None:
         if self.model is None:
             try:
-                from phi.model.openai import OpenAIChat
+                from agno.model.openai import OpenAIChat
             except ModuleNotFoundError as e:
                 logger.exception(e)
                 logger.error(

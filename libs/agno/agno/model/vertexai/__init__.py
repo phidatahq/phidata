@@ -1,1 +1,1 @@
-from phi.model.vertexai.gemini import Gemini
+from agno.model.vertexai.gemini import Gemini

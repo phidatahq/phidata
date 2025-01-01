@@ -1,1 +1,1 @@
-from phi.embedder.base import Embedder
+from agno.embedder.base import Embedder

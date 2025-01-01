@@ -1,7 +1,7 @@
 from typing import Iterator, List
 
-from phi.document import Document
-from phi.knowledge.agent import AgentKnowledge
+from agno.document import Document
+from agno.knowledge.agent import AgentKnowledge
 
 try:
     import wikipedia  # noqa: F401

@@ -1,4 +1,4 @@
-from phi.agent.agent import (
+from agno.agent.agent import (
     Agent,
     AgentKnowledge,
     AgentMemory,

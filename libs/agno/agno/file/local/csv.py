@@ -1,7 +1,7 @@
 from typing import Any
 
-from phi.file import File
-from phi.utils.log import logger
+from agno.file import File
+from agno.utils.log import logger
 
 
 class CsvFile(File):

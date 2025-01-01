@@ -1,7 +1,7 @@
 from rich.console import Console
 from rich.style import Style
 
-from phi.utils.log import logger
+from agno.utils.log import logger
 
 console = Console()
 
@@ -48,22 +48,18 @@ def print_info(msg: str) -> None:
 
 
 def log_config_not_available_msg() -> None:
-    logger.error("phidata config not found, please run `phi init` and try again")
+    logger.error("Agno config not found, please run `ag init` and try again")
 
 
 def log_active_workspace_not_available() -> None:
     logger.error("Could not find an active workspace. You can:")
-    logger.error("- Run `phi ws setup` to setup a workspace at the current path")
-    logger.error("- Run `phi ws create` to create a new workspace")
+    logger.error("- Run `ag ws setup` to setup a workspace at the current path")
+    logger.error("- Run `ag ws create` to create a new workspace")
 
 
 def print_available_workspaces(avl_ws_list) -> None:
     avl_ws_names = [w.ws_root_path.stem for w in avl_ws_list] if avl_ws_list else []
     print_info("Available Workspaces:\n  - {}".format("\n  - ".join(avl_ws_names)))
-
-
-def log_phi_init_failed_msg() -> None:
-    logger.error("phi initialization failed, please try again")
 
 
 def confirm_yes_no(question, default: str = "yes") -> bool:

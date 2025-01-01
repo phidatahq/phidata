@@ -18,14 +18,14 @@ try:
 except ImportError:
     raise ImportError("`pgvector` not installed. Please install using `pip install pgvector`")
 
-from phi.document import Document
-from phi.embedder import Embedder
-from phi.vectordb.base import VectorDb
-from phi.vectordb.distance import Distance
-from phi.vectordb.search import SearchType
-from phi.vectordb.pgvector.index import Ivfflat, HNSW
-from phi.utils.log import logger
-from phi.reranker.base import Reranker
+from agno.document import Document
+from agno.embedder import Embedder
+from agno.vectordb.base import VectorDb
+from agno.vectordb.distance import Distance
+from agno.vectordb.search import SearchType
+from agno.vectordb.pgvector.index import Ivfflat, HNSW
+from agno.utils.log import logger
+from agno.reranker.base import Reranker
 
 
 class PgVector(VectorDb):
@@ -95,7 +95,7 @@ class PgVector(VectorDb):
 
         # Embedder for embedding the document contents
         if embedder is None:
-            from phi.embedder.openai import OpenAIEmbedder
+            from agno.embedder.openai import OpenAIEmbedder
 
             embedder = OpenAIEmbedder()
         self.embedder: Embedder = embedder

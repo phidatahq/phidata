@@ -1,8 +1,8 @@
 from os import getenv
 from typing import Optional, List, Iterator
 
-from phi.model.message import Message
-from phi.model.openai import OpenAILike
+from agno.model.message import Message
+from agno.model.openai import OpenAILike
 from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
 
 

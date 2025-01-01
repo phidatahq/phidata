@@ -1,8 +1,8 @@
 from typing import List, Iterator
 
-from phi.document import Document
-from phi.knowledge.agent import AgentKnowledge
-from phi.utils.log import logger
+from agno.document import Document
+from agno.knowledge.agent import AgentKnowledge
+from agno.utils.log import logger
 
 
 class CombinedKnowledgeBase(AgentKnowledge):

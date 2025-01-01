@@ -1,7 +1,7 @@
 from typing import List
 
 from pydantic import BaseModel, ConfigDict
-from phi.document import Document
+from agno.document import Document
 
 
 class Reranker(BaseModel):

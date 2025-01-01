@@ -2,18 +2,18 @@ from collections import OrderedDict
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from phi.cli.console import print_heading, print_info
-from phi.cli.settings import phi_cli_settings
-from phi.api.schemas.user import UserSchema
-from phi.api.schemas.team import TeamSchema
-from phi.api.schemas.workspace import WorkspaceSchema
-from phi.utils.log import logger
-from phi.utils.json_io import read_json_file, write_json_file
-from phi.workspace.config import WorkspaceConfig
+from agno.cli.console import print_heading, print_info
+from agno.cli.settings import agno_cli_settings
+from agno.api.schemas.user import UserSchema
+from agno.api.schemas.team import TeamSchema
+from agno.api.schemas.workspace import WorkspaceSchema
+from agno.utils.log import logger
+from agno.utils.json_io import read_json_file, write_json_file
+from agno.workspace.config import WorkspaceConfig
 
 
-class PhiCliConfig:
-    """The PhiCliConfig class manages user data for the phi cli"""
+class AgnoCliConfig:
+    """The AgnoCliConfig class manages user data for the agno cli"""
 
     def __init__(
         self,
@@ -25,7 +25,7 @@ class PhiCliConfig:
         # To add a user, use the user setter
         self._user: Optional[UserSchema] = user
 
-        # Active ws dir - used as the default for `phi` commands
+        # Active ws dir - used as the default for `ag` commands
         # To add an active workspace, use the active_ws_dir setter
         self._active_ws_dir: Optional[str] = active_ws_dir
 
@@ -60,8 +60,8 @@ class PhiCliConfig:
         logger.debug("Clearing user cache")
         self.ws_config_map.clear()
         self._active_ws_dir = None
-        phi_cli_settings.ai_conversations_path.unlink(missing_ok=True)
-        logger.info("Workspaces cleared, please setup again using `phi ws setup`")
+        agno_cli_settings.ai_conversations_path.unlink(missing_ok=True)
+        logger.info("Workspaces cleared, please setup again using `ag ws setup`")
 
     ######################################################
     ## Workspace functions
@@ -122,7 +122,7 @@ class PhiCliConfig:
         # By this point there should be a WorkspaceConfig object for this ws_name
         existing_ws_config: Optional[WorkspaceConfig] = self.ws_config_map.get(ws_root_str, None)
         if existing_ws_config is None:
-            logger.error(f"Could not find workspace at: {ws_root_str}, please run `phi ws setup`")
+            logger.error(f"Could not find workspace at: {ws_root_str}, please run `ag ws setup`")
             return None
 
         # Update the ws_schema if it's not None and different from the existing one
@@ -150,7 +150,7 @@ class PhiCliConfig:
     def add_new_ws_to_config(
         self, ws_root_path: Path, ws_team: Optional[TeamSchema] = None
     ) -> Optional[WorkspaceConfig]:
-        """Adds a newly created workspace to the PhiCliConfig"""
+        """Adds a newly created workspace to the AgnoCliConfig"""
 
         ws_config = self._add_or_update_ws_config(ws_root_path=ws_root_path, ws_team=ws_team)
         self.save_config()
@@ -176,7 +176,7 @@ class PhiCliConfig:
         return ws_config
 
     def delete_ws(self, ws_root_path: Path) -> None:
-        """Handles Deleting a workspace from the PhiCliConfig and api"""
+        """Handles Deleting a workspace from the AgnoCliConfig and api"""
 
         ws_root_str = str(ws_root_path)
         print_heading(f"Deleting record for workspace: {ws_root_str}")
@@ -192,7 +192,7 @@ class PhiCliConfig:
             self._active_ws_dir = None
         self.save_config()
         print_info("Workspace record deleted")
-        print_info("Note: this does not delete any data locally or from phidata.app, please delete them manually\n")
+        print_info("Note: this does not delete any data locally or from agno.com, please delete them manually\n")
 
     ######################################################
     ######################################################
@@ -220,7 +220,7 @@ class PhiCliConfig:
         return None
 
     ######################################################
-    ## Save PhiCliConfig
+    ## Save AgnoCliConfig
     ######################################################
 
     def save_config(self):
@@ -229,12 +229,12 @@ class PhiCliConfig:
             "active_ws_dir": self.active_ws_dir,
             "ws_config_map": {k: v.to_dict() for k, v in self.ws_config_map.items()},
         }
-        write_json_file(file_path=phi_cli_settings.config_file_path, data=config_data)
+        write_json_file(file_path=agno_cli_settings.config_file_path, data=config_data)
 
     @classmethod
-    def from_saved_config(cls) -> Optional["PhiCliConfig"]:
+    def from_saved_config(cls) -> Optional["AgnoCliConfig"]:
         try:
-            config_data = read_json_file(file_path=phi_cli_settings.config_file_path)
+            config_data = read_json_file(file_path=agno_cli_settings.config_file_path)
             if config_data is None or not isinstance(config_data, dict):
                 logger.debug("No config found")
                 return None
@@ -254,11 +254,11 @@ class PhiCliConfig:
             return new_config
         except Exception as e:
             logger.warning(e)
-            logger.warning("Please setup the workspace using `phi ws setup`")
+            logger.warning("Please setup the workspace using `ag ws setup`")
             return None
 
     ######################################################
-    ## Print PhiCliConfig
+    ## Print AgnoCliConfig
     ######################################################
 
     def print_to_cli(self, show_all: bool = False):
@@ -269,7 +269,7 @@ class PhiCliConfig:
         else:
             print_info("No active workspace found.")
             print_info(
-                "Please create a workspace using `phi ws create` " "or setup existing workspace using `phi ws setup`"
+                "Please create a workspace using `ag ws create` " "or setup existing workspace using `ag ws setup`"
             )
 
         if show_all and len(self.ws_config_map) > 0:

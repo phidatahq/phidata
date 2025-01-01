@@ -2,8 +2,8 @@ from os import getenv
 from typing import Optional, Dict, List, Tuple, Any
 from typing_extensions import Literal
 
-from phi.embedder.base import Embedder
-from phi.utils.log import logger
+from agno.embedder.base import Embedder
+from agno.utils.log import logger
 
 try:
     from openai import AzureOpenAI as AzureOpenAIClient

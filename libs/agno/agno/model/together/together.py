@@ -2,13 +2,13 @@ import json
 from os import getenv
 from typing import Optional, List, Iterator, Dict, Any
 
-from phi.model.message import Message
-from phi.model.openai.chat import StreamData, Metrics
-from phi.model.openai.like import OpenAILike
-from phi.model.response import ModelResponse
-from phi.tools.function import FunctionCall
-from phi.utils.log import logger
-from phi.utils.tools import get_function_call_for_tool_call
+from agno.model.message import Message
+from agno.model.openai.chat import StreamData, Metrics
+from agno.model.openai.like import OpenAILike
+from agno.model.response import ModelResponse
+from agno.tools.function import FunctionCall
+from agno.utils.log import logger
+from agno.utils.tools import get_function_call_for_tool_call
 
 try:
     from openai.types.completion_usage import CompletionUsage

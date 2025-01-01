@@ -1,8 +1,8 @@
 import requests
 from os import getenv
 from typing import Optional
-from phi.tools import Toolkit
-from phi.utils.log import logger
+from agno.tools import Toolkit
+from agno.utils.log import logger
 
 
 class LinearTool(Toolkit):
@@ -359,7 +359,7 @@ class LinearTool(Toolkit):
 
         query = """
         query HighPriorityIssues {
-        issues(filter: { 
+        issues(filter: {
           priority: { lte: 2 }
         }) {
           nodes {

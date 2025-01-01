@@ -1,6 +1,6 @@
 from typing import Any, Dict, Union, get_args, get_origin, Optional
 
-from phi.utils.log import logger
+from agno.utils.log import logger
 
 
 def get_json_type_for_py_type(arg: str) -> str:

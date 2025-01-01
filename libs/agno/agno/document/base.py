@@ -2,7 +2,7 @@ from typing import Optional, Dict, Any, List
 
 from pydantic import BaseModel, ConfigDict
 
-from phi.embedder import Embedder
+from agno.embedder import Embedder
 
 
 class Document(BaseModel):

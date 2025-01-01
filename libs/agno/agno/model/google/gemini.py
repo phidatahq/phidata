@@ -5,14 +5,14 @@ from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Optional, List, Iterator, Dict, Any, Union, Callable
 
-from phi.model.base import Model
-from phi.model.message import Message
-from phi.model.response import ModelResponse
-from phi.tools.function import Function, FunctionCall
-from phi.tools import Tool, Toolkit
-from phi.utils.log import logger
-from phi.utils.timer import Timer
-from phi.utils.tools import get_function_call_for_tool_call
+from agno.model.base import Model
+from agno.model.message import Message
+from agno.model.response import ModelResponse
+from agno.tools.function import Function, FunctionCall
+from agno.tools import Tool, Toolkit
+from agno.utils.log import logger
+from agno.utils.timer import Timer
+from agno.utils.tools import get_function_call_for_tool_call
 
 try:
     import google.generativeai as genai

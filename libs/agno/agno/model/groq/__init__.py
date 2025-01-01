@@ -1,1 +1,1 @@
-from phi.model.groq.groq import Groq
+from agno.model.groq.groq import Groq

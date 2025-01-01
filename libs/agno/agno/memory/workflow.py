@@ -2,8 +2,8 @@ from typing import Dict, List, Any, Optional
 
 from pydantic import BaseModel, ConfigDict
 
-from phi.run.response import RunResponse
-from phi.utils.log import logger
+from agno.run.response import RunResponse
+from agno.utils.log import logger
 
 
 class WorkflowRun(BaseModel):

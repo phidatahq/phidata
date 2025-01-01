@@ -1,23 +1,23 @@
-"""Phi Cli
+"""Agno cli
 
-This is the entrypoint for the `phi` cli application.
+This is the entrypoint for the `agno` cli application.
 """
 
 from typing import Optional
 
 import typer
 
-from phi.cli.ws.ws_cli import ws_cli
-from phi.utils.log import set_log_level_to_debug, logger
+from agno.cli.ws.ws_cli import ws_cli
+from agno.utils.log import set_log_level_to_debug, logger
 
-phi_cli = typer.Typer(
+agno_cli = typer.Typer(
     help="""\b
-Phidata is an AI toolkit for engineers.
+Agno is an AI toolkit for engineers.
 \b
 Usage:
-1. Run `phi ws create` to create a new workspace
-2. Run `phi ws up` to start the workspace
-3. Run `phi ws down` to stop the workspace
+1. Run `ag ws create` to create a new workspace
+2. Run `ag ws up` to start the workspace
+3. Run `ag ws down` to stop the workspace
 """,
     no_args_is_help=True,
     add_completion=False,
@@ -28,35 +28,35 @@ Usage:
 )
 
 
-@phi_cli.command(short_help="Initialize phidata, use -r to reset")
+@agno_cli.command(short_help="Initialize Agno, use -r to reset")
 def init(
-    reset: bool = typer.Option(False, "--reset", "-r", help="Reset phidata", show_default=True),
+    reset: bool = typer.Option(False, "--reset", "-r", help="Reset Agno", show_default=True),
     print_debug_log: bool = typer.Option(
         False,
         "-d",
         "--debug",
         help="Print debug logs.",
     ),
-    login: bool = typer.Option(False, "--login", "-l", help="Login with phidata.com", show_default=True),
+    login: bool = typer.Option(False, "--login", "-l", help="Login with agno.com", show_default=True),
 ):
     """
     \b
-    Initialize phidata, use -r to reset
+    Initialize Agno, use -r to reset
 
     \b
     Examples:
-    * `phi init`    -> Initializing phidata
-    * `phi init -r` -> Reset and initializing phidata
+    * `ag init`    -> Initializing Agno
+    * `ag init -r` -> Reset Agno
     """
     if print_debug_log:
         set_log_level_to_debug()
 
-    from phi.cli.operator import initialize_phi
+    from agno.cli.operator import initialize_agno
 
-    initialize_phi(reset=reset, login=login)
+    initialize_agno(reset=reset, login=login)
 
 
-@phi_cli.command(short_help="Reset phi installation")
+@agno_cli.command(short_help="Reset Agno installation")
 def reset(
     print_debug_log: bool = typer.Option(
         False,
@@ -67,18 +67,17 @@ def reset(
 ):
     """
     \b
-    Reset the existing phidata installation
-    After resetting please run `phi init` to initialize again.
+    Reset the existing Agno configuration
     """
     if print_debug_log:
         set_log_level_to_debug()
 
-    from phi.cli.operator import initialize_phi
+    from agno.cli.operator import initialize_agno
 
-    initialize_phi(reset=True)
+    initialize_agno(reset=True)
 
 
-@phi_cli.command(short_help="Authenticate with phidata.com")
+@agno_cli.command(short_help="Authenticate with agno.com")
 def auth(
     print_debug_log: bool = typer.Option(
         False,
@@ -89,17 +88,17 @@ def auth(
 ):
     """
     \b
-    Authenticate your account with phidata.
+    Authenticate your account with agno.com
     """
     if print_debug_log:
         set_log_level_to_debug()
 
-    from phi.cli.operator import authenticate_user
+    from agno.cli.operator import authenticate_user
 
     authenticate_user()
 
 
-@phi_cli.command(short_help="Log in from the cli", hidden=True)
+@agno_cli.command(short_help="Log in from the cli", hidden=True)
 def login(
     print_debug_log: bool = typer.Option(
         False,
@@ -114,17 +113,17 @@ def login(
 
     \b
     Examples:
-    * `phi login`
+    * `ag login`
     """
     if print_debug_log:
         set_log_level_to_debug()
 
-    from phi.cli.operator import sign_in_using_cli
+    from agno.cli.operator import sign_in_using_cli
 
     sign_in_using_cli()
 
 
-@phi_cli.command(short_help="Ping phidata servers")
+@agno_cli.command(short_help="Ping Agno servers")
 def ping(
     print_debug_log: bool = typer.Option(
         False,
@@ -133,21 +132,21 @@ def ping(
         help="Print debug logs.",
     ),
 ):
-    """Ping the phidata servers and check if you are authenticated"""
+    """Ping the Agno servers and check if you are authenticated"""
     if print_debug_log:
         set_log_level_to_debug()
 
-    from phi.api.user import user_ping
-    from phi.cli.console import print_info
+    from agno.api.user import user_ping
+    from agno.cli.console import print_info
 
     ping_success = user_ping()
     if ping_success:
         print_info("Ping successful")
     else:
-        print_info("Could not ping phidata servers")
+        print_info("Could not ping Agno servers")
 
 
-@phi_cli.command(short_help="Print phi config")
+@agno_cli.command(short_help="Print Agno config")
 def config(
     print_debug_log: bool = typer.Option(
         False,
@@ -156,21 +155,21 @@ def config(
         help="Print debug logs.",
     ),
 ):
-    """Print your current phidata config"""
+    """Print your current Agno config"""
     if print_debug_log:
         set_log_level_to_debug()
 
-    from phi.cli.config import PhiCliConfig
-    from phi.cli.console import print_info
+    from agno.cli.config import AgnoCliConfig
+    from agno.cli.console import print_info
 
-    conf: Optional[PhiCliConfig] = PhiCliConfig.from_saved_config()
+    conf: Optional[AgnoCliConfig] = AgnoCliConfig.from_saved_config()
     if conf is not None:
         conf.print_to_cli(show_all=True)
     else:
-        print_info("Phi not initialized, run `phi init` to get started")
+        print_info("Agno not initialized, run `ag init` to get started")
 
 
-@phi_cli.command(short_help="Set current directory as active workspace")
+@agno_cli.command(short_help="Set current directory as active workspace")
 def set(
     ws_name: str = typer.Option(None, "-ws", help="Active workspace name"),
     print_debug_log: bool = typer.Option(
@@ -190,10 +189,10 @@ def set(
 
     \b
     Examples:
-    $ `phi ws set`           -> Set the current directory as the active phidata workspace
-    $ `phi ws set -ws idata` -> Set the workspace named idata as the active phidata workspace
+    $ `ag ws set`           -> Set the current directory as the active Agno workspace
+    $ `ag ws set -ws idata` -> Set the workspace named idata as the active Agno workspace
     """
-    from phi.workspace.operator import set_workspace_as_active
+    from agno.workspace.operator import set_workspace_as_active
 
     if print_debug_log:
         set_log_level_to_debug()
@@ -201,7 +200,7 @@ def set(
     set_workspace_as_active(ws_dir_name=ws_name)
 
 
-@phi_cli.command(short_help="Start resources defined in a resources.py file")
+@agno_cli.command(short_help="Start resources defined in a resources.py file")
 def start(
     resources_file: str = typer.Argument(
         "resources.py",
@@ -256,22 +255,22 @@ def start(
     Start resources defined in a resources.py file
     \b
     Examples:
-    > `phi ws start`                -> Start resources defined in a resources.py file
-    > `phi ws start workspace.py`   -> Start resources defined in a workspace.py file
+    > `ag ws start`                -> Start resources defined in a resources.py file
+    > `ag ws start workspace.py`   -> Start resources defined in a workspace.py file
     """
     if print_debug_log:
         set_log_level_to_debug()
 
     from pathlib import Path
-    from phi.cli.config import PhiCliConfig
-    from phi.cli.console import log_config_not_available_msg
-    from phi.cli.operator import start_resources, initialize_phi
-    from phi.infra.type import InfraType
+    from agno.cli.config import AgnoCliConfig
+    from agno.cli.console import log_config_not_available_msg
+    from agno.cli.operator import start_resources, initialize_agno
+    from agno.infra.type import InfraType
 
-    phi_config: Optional[PhiCliConfig] = PhiCliConfig.from_saved_config()
-    if not phi_config:
-        phi_config = initialize_phi()
-        if not phi_config:
+    agno_config: Optional[AgnoCliConfig] = AgnoCliConfig.from_saved_config()
+    if not agno_config:
+        agno_config = initialize_agno()
+        if not agno_config:
             log_config_not_available_msg()
             return
 
@@ -302,7 +301,7 @@ def start(
 
     resources_file_path: Path = Path(".").resolve().joinpath(resources_file)
     start_resources(
-        phi_config=phi_config,
+        agno_config=agno_config,
         resources_file_path=resources_file_path,
         target_env=target_env,
         target_infra=target_infra,
@@ -316,7 +315,7 @@ def start(
     )
 
 
-@phi_cli.command(short_help="Stop resources defined in a resources.py file")
+@agno_cli.command(short_help="Stop resources defined in a resources.py file")
 def stop(
     resources_file: str = typer.Argument(
         "resources.py",
@@ -365,22 +364,22 @@ def stop(
     Stop resources defined in a resources.py file
     \b
     Examples:
-    > `phi ws stop`                -> Stop resources defined in a resources.py file
-    > `phi ws stop workspace.py`   -> Stop resources defined in a workspace.py file
+    > `ag ws stop`                -> Stop resources defined in a resources.py file
+    > `ag ws stop workspace.py`   -> Stop resources defined in a workspace.py file
     """
     if print_debug_log:
         set_log_level_to_debug()
 
     from pathlib import Path
-    from phi.cli.config import PhiCliConfig
-    from phi.cli.console import log_config_not_available_msg
-    from phi.cli.operator import stop_resources, initialize_phi
-    from phi.infra.type import InfraType
+    from agno.cli.config import AgnoCliConfig
+    from agno.cli.console import log_config_not_available_msg
+    from agno.cli.operator import stop_resources, initialize_agno
+    from agno.infra.type import InfraType
 
-    phi_config: Optional[PhiCliConfig] = PhiCliConfig.from_saved_config()
-    if not phi_config:
-        phi_config = initialize_phi()
-        if not phi_config:
+    agno_config: Optional[AgnoCliConfig] = AgnoCliConfig.from_saved_config()
+    if not agno_config:
+        agno_config = initialize_agno()
+        if not agno_config:
             log_config_not_available_msg()
             return
 
@@ -411,7 +410,7 @@ def stop(
 
     resources_file_path: Path = Path(".").resolve().joinpath(resources_file)
     stop_resources(
-        phi_config=phi_config,
+        agno_config=agno_config,
         resources_file_path=resources_file_path,
         target_env=target_env,
         target_infra=target_infra,
@@ -424,7 +423,7 @@ def stop(
     )
 
 
-@phi_cli.command(short_help="Update resources defined in a resources.py file")
+@agno_cli.command(short_help="Update resources defined in a resources.py file")
 def patch(
     resources_file: str = typer.Argument(
         "resources.py",
@@ -474,22 +473,22 @@ def patch(
     Update resources defined in a resources.py file
     \b
     Examples:
-    > `phi ws patch`                -> Update resources defined in a resources.py file
-    > `phi ws patch workspace.py`   -> Update resources defined in a workspace.py file
+    > `ag ws patch`                -> Update resources defined in a resources.py file
+    > `ag ws patch workspace.py`   -> Update resources defined in a workspace.py file
     """
     if print_debug_log:
         set_log_level_to_debug()
 
     from pathlib import Path
-    from phi.cli.config import PhiCliConfig
-    from phi.cli.console import log_config_not_available_msg
-    from phi.cli.operator import patch_resources, initialize_phi
-    from phi.infra.type import InfraType
+    from agno.cli.config import AgnoCliConfig
+    from agno.cli.console import log_config_not_available_msg
+    from agno.cli.operator import patch_resources, initialize_agno
+    from agno.infra.type import InfraType
 
-    phi_config: Optional[PhiCliConfig] = PhiCliConfig.from_saved_config()
-    if not phi_config:
-        phi_config = initialize_phi()
-        if not phi_config:
+    agno_config: Optional[AgnoCliConfig] = AgnoCliConfig.from_saved_config()
+    if not agno_config:
+        agno_config = initialize_agno()
+        if not agno_config:
             log_config_not_available_msg()
             return
 
@@ -520,7 +519,7 @@ def patch(
 
     resources_file_path: Path = Path(".").resolve().joinpath(resources_file)
     patch_resources(
-        phi_config=phi_config,
+        agno_config=agno_config,
         resources_file_path=resources_file_path,
         target_env=target_env,
         target_infra=target_infra,
@@ -533,7 +532,7 @@ def patch(
     )
 
 
-@phi_cli.command(short_help="Restart resources defined in a resources.py file")
+@agno_cli.command(short_help="Restart resources defined in a resources.py file")
 def restart(
     resources_file: str = typer.Argument(
         "resources.py",
@@ -582,11 +581,11 @@ def restart(
     Restart resources defined in a resources.py file
     \b
     Examples:
-    > `phi ws restart`                -> Start resources defined in a resources.py file
-    > `phi ws restart workspace.py`   -> Start resources defined in a workspace.py file
+    > `ag ws restart`                -> Start resources defined in a resources.py file
+    > `ag ws restart workspace.py`   -> Start resources defined in a workspace.py file
     """
     from time import sleep
-    from phi.cli.console import print_info
+    from agno.cli.console import print_info
 
     stop(
         resources_file=resources_file,
@@ -616,4 +615,4 @@ def restart(
     )
 
 
-phi_cli.add_typer(ws_cli)
+agno_cli.add_typer(ws_cli)

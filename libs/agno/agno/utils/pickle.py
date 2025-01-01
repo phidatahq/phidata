@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Any, Optional
 
-from phi.utils.log import logger
+from agno.utils.log import logger
 
 
 def pickle_object_to_file(obj: Any, file_path: Path) -> Any:

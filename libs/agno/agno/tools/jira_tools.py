@@ -2,8 +2,8 @@ import os
 import json
 from typing import Optional, cast
 
-from phi.tools import Toolkit
-from phi.utils.log import logger
+from agno.tools import Toolkit
+from agno.utils.log import logger
 
 try:
     from jira import JIRA, Issue

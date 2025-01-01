@@ -2,13 +2,13 @@ import json
 from dataclasses import dataclass, field
 from typing import Optional, List, Iterator, Dict, Any, Tuple
 
-from phi.aws.api_client import AwsApiClient
-from phi.model.base import Model
-from phi.model.message import Message
-from phi.model.response import ModelResponse
-from phi.utils.log import logger
-from phi.utils.timer import Timer
-from phi.utils.tools import (
+from agno.aws.api_client import AwsApiClient
+from agno.model.base import Model
+from agno.model.message import Message
+from agno.model.response import ModelResponse
+from agno.utils.log import logger
+from agno.utils.timer import Timer
+from agno.utils.tools import (
     get_function_call_for_tool_call,
 )
 
@@ -60,7 +60,7 @@ class AwsBedrock(Model):
 
         # Priority 2: Get aws_region from env
         from os import getenv
-        from phi.constants import AWS_REGION_ENV_VAR
+        from agno.constants import AWS_REGION_ENV_VAR
 
         aws_region_env = getenv(AWS_REGION_ENV_VAR)
         if aws_region_env is not None:
@@ -74,7 +74,7 @@ class AwsBedrock(Model):
 
         # Priority 2: Get aws_profile from env
         from os import getenv
-        from phi.constants import AWS_PROFILE_ENV_VAR
+        from agno.constants import AWS_PROFILE_ENV_VAR
 
         aws_profile_env = getenv(AWS_PROFILE_ENV_VAR)
         if aws_profile_env is not None:

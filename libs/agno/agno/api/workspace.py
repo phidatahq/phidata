@@ -2,18 +2,18 @@ from typing import List, Optional, Dict, Union
 
 from httpx import Response
 
-from phi.api.api import api, invalid_response
-from phi.api.routes import ApiRoutes
-from phi.api.schemas.user import UserSchema
-from phi.api.schemas.workspace import (
+from agno.api.api import api, invalid_response
+from agno.api.routes import ApiRoutes
+from agno.api.schemas.user import UserSchema
+from agno.api.schemas.workspace import (
     WorkspaceSchema,
     WorkspaceCreate,
     WorkspaceUpdate,
     WorkspaceEvent,
 )
-from phi.api.schemas.team import TeamIdentifier
-from phi.cli.settings import phi_cli_settings
-from phi.utils.log import logger
+from agno.api.schemas.team import TeamIdentifier
+from agno.cli.settings import agno_cli_settings
+from agno.utils.log import logger
 
 
 def create_workspace_for_user(
@@ -123,7 +123,7 @@ def update_workspace_for_team(
 
 
 def log_workspace_event(user: UserSchema, workspace_event: WorkspaceEvent) -> bool:
-    if not phi_cli_settings.api_enabled:
+    if not agno_cli_settings.api_enabled:
         return False
 
     logger.debug("--**-- Log workspace event")

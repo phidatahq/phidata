@@ -3,9 +3,9 @@ from typing import Union, Iterable
 
 from pydantic import BaseModel
 
-from phi.run.response import RunResponse
-from phi.utils.timer import Timer
-from phi.utils.log import logger
+from agno.run.response import RunResponse
+from agno.utils.timer import Timer
+from agno.utils.log import logger
 
 
 def pprint_run_response(
@@ -17,7 +17,7 @@ def pprint_run_response(
     from rich.box import ROUNDED
     from rich.markdown import Markdown
     from rich.json import JSON
-    from phi.cli.console import console
+    from agno.cli.console import console
 
     # If run_response is a single RunResponse, wrap it in a list to make it iterable
     if isinstance(run_response, RunResponse):

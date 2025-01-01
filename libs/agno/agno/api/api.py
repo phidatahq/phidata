@@ -3,16 +3,16 @@ from typing import Optional, Dict
 
 from httpx import Client as HttpxClient, AsyncClient as HttpxAsyncClient, Response
 
-from phi.constants import PHI_API_KEY_ENV_VAR
-from phi.cli.settings import phi_cli_settings
-from phi.cli.credentials import read_auth_token
-from phi.utils.log import logger
+from agno.constants import AGNO_API_KEY_ENV_VAR
+from agno.cli.settings import agno_cli_settings
+from agno.cli.credentials import read_auth_token
+from agno.utils.log import logger
 
 
 class Api:
     def __init__(self):
         self.headers: Dict[str, str] = {
-            "user-agent": f"{phi_cli_settings.app_name}/{phi_cli_settings.app_version}",
+            "user-agent": f"{agno_cli_settings.app_name}/{agno_cli_settings.app_version}",
             "Content-Type": "application/json",
         }
         self._auth_token: Optional[str] = None
@@ -33,36 +33,36 @@ class Api:
             self._authenticated_headers = self.headers.copy()
             token = self.auth_token
             if token is not None:
-                self._authenticated_headers[phi_cli_settings.auth_token_header] = token
-            phi_api_key = getenv(PHI_API_KEY_ENV_VAR)
-            if phi_api_key is not None:
-                self._authenticated_headers["Authorization"] = f"Bearer {phi_api_key}"
+                self._authenticated_headers[agno_cli_settings.auth_token_header] = token
+            agno_api_key = getenv(AGNO_API_KEY_ENV_VAR)
+            if agno_api_key is not None:
+                self._authenticated_headers["Authorization"] = f"Bearer {agno_api_key}"
         return self._authenticated_headers
 
     def Client(self) -> HttpxClient:
         return HttpxClient(
-            base_url=phi_cli_settings.api_url,
+            base_url=agno_cli_settings.api_url,
             headers=self.headers,
             timeout=60,
         )
 
     def AuthenticatedClient(self) -> HttpxClient:
         return HttpxClient(
-            base_url=phi_cli_settings.api_url,
+            base_url=agno_cli_settings.api_url,
             headers=self.authenticated_headers,
             timeout=60,
         )
 
     def AsyncClient(self) -> HttpxAsyncClient:
         return HttpxAsyncClient(
-            base_url=phi_cli_settings.api_url,
+            base_url=agno_cli_settings.api_url,
             headers=self.headers,
             timeout=60,
         )
 
     def AuthenticatedAsyncClient(self) -> HttpxAsyncClient:
         return HttpxAsyncClient(
-            base_url=phi_cli_settings.api_url,
+            base_url=agno_cli_settings.api_url,
             headers=self.authenticated_headers,
             timeout=60,
         )

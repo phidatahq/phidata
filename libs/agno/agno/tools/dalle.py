@@ -2,10 +2,10 @@ from os import getenv
 from typing import Optional, Literal
 from uuid import uuid4
 
-from phi.agent import Agent
-from phi.model.content import Image
-from phi.tools import Toolkit
-from phi.utils.log import logger
+from agno.agent import Agent
+from agno.model.content import Image
+from agno.tools import Toolkit
+from agno.utils.log import logger
 
 try:
     from openai import OpenAI

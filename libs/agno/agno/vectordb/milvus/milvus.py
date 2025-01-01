@@ -6,12 +6,12 @@ try:
 except ImportError:
     raise ImportError("The `pymilvus` package is not installed. " "Please install it via `pip install pymilvus`.")
 
-from phi.document import Document
-from phi.embedder import Embedder
-from phi.embedder.openai import OpenAIEmbedder
-from phi.vectordb.base import VectorDb
-from phi.vectordb.distance import Distance
-from phi.utils.log import logger
+from agno.document import Document
+from agno.embedder import Embedder
+from agno.embedder.openai import OpenAIEmbedder
+from agno.vectordb.base import VectorDb
+from agno.vectordb.distance import Distance
+from agno.utils.log import logger
 
 
 class Milvus(VectorDb):

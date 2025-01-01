@@ -2,10 +2,10 @@ from typing import List, Optional, Iterator, Dict, Any
 
 from pydantic import BaseModel, ConfigDict
 
-from phi.document import Document
-from phi.document.reader.base import Reader
-from phi.vectordb import VectorDb
-from phi.utils.log import logger
+from agno.document import Document
+from agno.document.reader.base import Reader
+from agno.vectordb import VectorDb
+from agno.utils.log import logger
 
 
 class AssistantKnowledge(BaseModel):

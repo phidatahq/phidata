@@ -1,7 +1,7 @@
-from phi.reranker.base import Reranker
+from agno.reranker.base import Reranker
 from typing import List, Dict, Any, Optional
-from phi.document import Document
-from phi.utils.log import logger
+from agno.document import Document
+from agno.utils.log import logger
 
 try:
     from cohere import Client as CohereClient

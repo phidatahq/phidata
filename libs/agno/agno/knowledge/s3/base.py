@@ -1,9 +1,9 @@
 from typing import List, Iterator, Optional
 
-from phi.document import Document
-from phi.aws.resource.s3.bucket import S3Bucket
-from phi.aws.resource.s3.object import S3Object
-from phi.knowledge.agent import AgentKnowledge
+from agno.document import Document
+from agno.aws.resource.s3.bucket import S3Bucket
+from agno.aws.resource.s3.object import S3Object
+from agno.knowledge.agent import AgentKnowledge
 
 
 class S3KnowledgeBase(AgentKnowledge):

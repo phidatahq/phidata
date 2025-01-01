@@ -1,1 +1,1 @@
-from phi.model.mistral.mistral import MistralChat
+from agno.model.mistral.mistral import MistralChat

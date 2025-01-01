@@ -2,13 +2,13 @@ from typing import List, Optional, Iterator, Dict, Any
 
 from pydantic import ConfigDict, Field, model_validator
 
-from phi.document import Document
-from phi.document.reader.base import Reader
-from phi.document.chunking.strategy import ChunkingStrategy
-from phi.document.chunking.fixed import FixedSizeChunking
-from phi.knowledge.base import AssistantKnowledge
-from phi.vectordb import VectorDb
-from phi.utils.log import logger
+from agno.document import Document
+from agno.document.reader.base import Reader
+from agno.document.chunking.strategy import ChunkingStrategy
+from agno.document.chunking.fixed import FixedSizeChunking
+from agno.knowledge.base import AssistantKnowledge
+from agno.vectordb import VectorDb
+from agno.utils.log import logger
 
 
 class AgentKnowledge(AssistantKnowledge):

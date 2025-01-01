@@ -2,11 +2,11 @@ from typing import List, Optional, Dict
 
 from httpx import Response
 
-from phi.api.api import api, invalid_response
-from phi.api.routes import ApiRoutes
-from phi.api.schemas.user import UserSchema
-from phi.api.schemas.team import TeamSchema
-from phi.utils.log import logger
+from agno.api.api import api, invalid_response
+from agno.api.routes import ApiRoutes
+from agno.api.schemas.user import UserSchema
+from agno.api.schemas.team import TeamSchema
+from agno.utils.log import logger
 
 
 def get_teams_for_user(user: UserSchema) -> Optional[List[TeamSchema]]:

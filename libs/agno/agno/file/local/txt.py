@@ -1,6 +1,6 @@
 from typing import Any
 
-from phi.file import File
+from agno.file import File
 
 
 class TextFile(File):

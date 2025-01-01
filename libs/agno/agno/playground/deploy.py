@@ -6,9 +6,9 @@ from rich import box
 from rich.text import Text
 from rich.panel import Panel
 
-from phi.cli.settings import phi_cli_settings
-from phi.api.playground import deploy_playground_archive
-from phi.utils.log import logger
+from agno.cli.settings import agno_cli_settings
+from agno.api.playground import deploy_playground_archive
+from agno.utils.log import logger
 
 
 def create_deployment_info(
@@ -116,7 +116,7 @@ def create_tar_archive(root: Path) -> Path:
 
 
 def deploy_archive(name: str, tar_path: Path) -> None:
-    """Deploying the tar archive to phi-cloud.
+    """Deploying the tar archive to agno-cloud.
 
     Args:
         name (str): The name of the playground app
@@ -156,11 +156,11 @@ def deploy_playground_app(
     name: str,
     root: Optional[Path] = None,
 ) -> None:
-    """Deploy a playground application to phi-cloud.
+    """Deploy a playground application to agno-cloud.
 
     This function:
     1. Creates a tar archive of the root directory.
-    2. Uploades the archive to phi-cloud.
+    2. Uploades the archive to agno-cloud.
     3. Cleaning up temporary files.
     4. Displaying real-time progress updates.
 
@@ -174,12 +174,12 @@ def deploy_playground_app(
         Exception: If any step of the deployment process fails
     """
 
-    phi_cli_settings.gate_alpha_feature()
+    agno_cli_settings.gate_alpha_feature()
 
     from rich.live import Live
     from rich.console import Group
     from rich.status import Status
-    from phi.utils.timer import Timer
+    from agno.utils.timer import Timer
 
     if app is None:
         raise ValueError("PlaygroundApp is required")

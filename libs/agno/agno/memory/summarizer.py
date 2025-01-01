@@ -4,10 +4,10 @@ from typing import List, Any, Optional, cast, Tuple, Dict
 
 from pydantic import BaseModel, ValidationError
 
-from phi.model.base import Model
-from phi.model.message import Message
-from phi.memory.summary import SessionSummary
-from phi.utils.log import logger
+from agno.model.base import Model
+from agno.model.message import Message
+from agno.memory.summary import SessionSummary
+from agno.utils.log import logger
 
 
 class MemorySummarizer(BaseModel):
@@ -17,7 +17,7 @@ class MemorySummarizer(BaseModel):
     def update_model(self) -> None:
         if self.model is None:
             try:
-                from phi.model.openai import OpenAIChat
+                from agno.model.openai import OpenAIChat
             except ModuleNotFoundError as e:
                 logger.exception(e)
                 logger.error(

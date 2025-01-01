@@ -1,8 +1,8 @@
 from functools import wraps, update_wrapper
 from typing import Union, Callable, Any, TypeVar, overload, Optional
 
-from phi.tools.function import Function
-from phi.utils.log import logger
+from agno.tools.function import Function
+from agno.utils.log import logger
 
 # Type variable for better type hints
 F = TypeVar("F", bound=Callable[..., Any])

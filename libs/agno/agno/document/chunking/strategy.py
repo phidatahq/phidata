@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import List
 
-from phi.document.base import Document
+from agno.document.base import Document
 
 
 class ChunkingStrategy(ABC):

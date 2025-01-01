@@ -1,6 +1,6 @@
-"""Phi Workspace Cli
+"""Agno Workspace Cli
 
-This is the entrypoint for the `phi ws` application.
+This is the entrypoint for the `agno ws` application.
 """
 
 from pathlib import Path
@@ -8,22 +8,22 @@ from typing import Optional, cast, List
 
 import typer
 
-from phi.cli.console import (
+from agno.cli.console import (
     print_info,
     print_heading,
     log_config_not_available_msg,
     log_active_workspace_not_available,
     print_available_workspaces,
 )
-from phi.utils.log import logger, set_log_level_to_debug
-from phi.infra.type import InfraType
+from agno.utils.log import logger, set_log_level_to_debug
+from agno.infra.type import InfraType
 
 ws_cli = typer.Typer(
     name="ws",
     short_help="Manage workspaces",
     help="""\b
-Use `phi ws [COMMAND]` to create, setup, start or stop your workspace.
-Run `phi ws [COMMAND] --help` for more info.
+Use `ag ws [COMMAND]` to create, setup, start or stop your workspace.
+Run `ag ws [COMMAND] --help` for more info.
 """,
     no_args_is_help=True,
     add_completion=False,
@@ -67,13 +67,13 @@ def create(
     Create a new workspace in the current directory using a starter template or url
     \b
     Examples:
-    > phi ws create -t llm-app          -> Create an `llm-app` in the current directory
-    > phi ws create -t llm-app -n llm   -> Create an `llm-app` named `llm` in the current directory
+    > ag ws create -t ai-app                -> Create an `ai-app` in the current directory
+    > ag ws create -t ai-app -n my-ai-app   -> Create an `ai-app` named `my-ai-app` in the current directory
     """
     if print_debug_log:
         set_log_level_to_debug()
 
-    from phi.workspace.operator import create_workspace
+    from agno.workspace.operator import create_workspace
 
     create_workspace(name=name, template=template, url=url)
 
@@ -96,13 +96,13 @@ def setup(
     Setup a workspace. This command can be run from the workspace directory OR using the workspace path.
     \b
     Examples:
-    > `phi ws setup`           -> Setup the current directory as a workspace
-    > `phi ws setup llm-app`   -> Setup the `llm-app` folder as a workspace
+    > `ag ws setup`           -> Setup the current directory as a workspace
+    > `ag ws setup ai-app`   -> Setup the `ai-app` folder as a workspace
     """
     if print_debug_log:
         set_log_level_to_debug()
 
-    from phi.workspace.operator import setup_workspace
+    from agno.workspace.operator import setup_workspace
 
     # By default, we assume this command is run from the workspace directory
     ws_root_path: Path = Path(".").resolve()
@@ -175,41 +175,41 @@ def up(
     Options can also be provided as a RESOURCE_FILTER in the format: ENV:INFRA:GROUP:NAME:TYPE
     \b
     Examples:
-    > `phi ws up`            -> Deploy all resources
-    > `phi ws up dev`        -> Deploy all dev resources
-    > `phi ws up prd`        -> Deploy all prd resources
-    > `phi ws up prd:aws`    -> Deploy all prd aws resources
-    > `phi ws up prd:::s3`   -> Deploy prd resources matching name s3
+    > `ag ws up`            -> Deploy all resources
+    > `ag ws up dev`        -> Deploy all dev resources
+    > `ag ws up prd`        -> Deploy all prd resources
+    > `ag ws up prd:aws`    -> Deploy all prd aws resources
+    > `ag ws up prd:::s3`   -> Deploy prd resources matching name s3
     """
     if print_debug_log:
         set_log_level_to_debug()
 
-    from phi.cli.config import PhiCliConfig
-    from phi.cli.operator import initialize_phi
-    from phi.workspace.config import WorkspaceConfig
-    from phi.workspace.operator import start_workspace, setup_workspace
-    from phi.workspace.helpers import get_workspace_dir_path
-    from phi.utils.resource_filter import parse_resource_filter
+    from agno.cli.config import AgnoCliConfig
+    from agno.cli.operator import initialize_agno
+    from agno.workspace.config import WorkspaceConfig
+    from agno.workspace.operator import start_workspace, setup_workspace
+    from agno.workspace.helpers import get_workspace_dir_path
+    from agno.utils.resource_filter import parse_resource_filter
 
-    phi_config: Optional[PhiCliConfig] = PhiCliConfig.from_saved_config()
-    if not phi_config:
-        phi_config = initialize_phi()
-    if not phi_config:
+    agno_config: Optional[AgnoCliConfig] = AgnoCliConfig.from_saved_config()
+    if not agno_config:
+        agno_config = initialize_agno()
+    if not agno_config:
         log_config_not_available_msg()
         return
-    phi_config = cast(PhiCliConfig, phi_config)
+    agno_config = cast(AgnoCliConfig, agno_config)
 
     # Workspace to start
     ws_to_start: Optional[WorkspaceConfig] = None
 
     # If there is an existing workspace at current path, use that workspace
     current_path: Path = Path(".").resolve()
-    ws_at_current_path: Optional[WorkspaceConfig] = phi_config.get_ws_config_by_path(current_path)
+    ws_at_current_path: Optional[WorkspaceConfig] = agno_config.get_ws_config_by_path(current_path)
     if ws_at_current_path is not None:
         logger.debug(f"Found workspace at: {ws_at_current_path.ws_root_path}")
-        if str(ws_at_current_path.ws_root_path) != phi_config.active_ws_dir:
+        if str(ws_at_current_path.ws_root_path) != agno_config.active_ws_dir:
             logger.debug(f"Updating active workspace to {ws_at_current_path.ws_root_path}")
-            phi_config.set_active_ws_dir(ws_at_current_path.ws_root_path)
+            agno_config.set_active_ws_dir(ws_at_current_path.ws_root_path)
         ws_to_start = ws_at_current_path
 
     # If there's no existing workspace at current path, check if there's a `workspace` dir in the current path
@@ -224,7 +224,7 @@ def up(
 
     # If there's no workspace at current path, check if an active workspace exists
     if ws_to_start is None:
-        active_ws_config: Optional[WorkspaceConfig] = phi_config.get_active_ws_config()
+        active_ws_config: Optional[WorkspaceConfig] = agno_config.get_active_ws_config()
         # If there's an active workspace, use that workspace
         if active_ws_config is not None:
             ws_to_start = active_ws_config
@@ -232,7 +232,7 @@ def up(
     # If there's no workspace to start, raise an error showing available workspaces
     if ws_to_start is None:
         log_active_workspace_not_available()
-        avl_ws = phi_config.available_ws
+        avl_ws = agno_config.available_ws
         if avl_ws:
             print_available_workspaces(avl_ws)
         return
@@ -292,7 +292,7 @@ def up(
     logger.debug(f"\tpull         : {pull}")
     print_heading("Starting workspace: {}".format(str(ws_to_start.ws_root_path.stem)))
     start_workspace(
-        phi_config=phi_config,
+        agno_config=agno_config,
         ws_config=ws_to_start,
         target_env=target_env,
         target_infra=target_infra,
@@ -364,22 +364,22 @@ def down(
     Options can also be provided as a RESOURCE_FILTER in the format: ENV:INFRA:GROUP:NAME:TYPE
     \b
     Examples:
-    > `phi ws down`            -> Delete all resources
+    > `ag ws down`            -> Delete all resources
     """
     if print_debug_log:
         set_log_level_to_debug()
 
-    from phi.cli.config import PhiCliConfig
-    from phi.cli.operator import initialize_phi
-    from phi.workspace.config import WorkspaceConfig
-    from phi.workspace.operator import stop_workspace, setup_workspace
-    from phi.workspace.helpers import get_workspace_dir_path
-    from phi.utils.resource_filter import parse_resource_filter
+    from agno.cli.config import AgnoCliConfig
+    from agno.cli.operator import initialize_agno
+    from agno.workspace.config import WorkspaceConfig
+    from agno.workspace.operator import stop_workspace, setup_workspace
+    from agno.workspace.helpers import get_workspace_dir_path
+    from agno.utils.resource_filter import parse_resource_filter
 
-    phi_config: Optional[PhiCliConfig] = PhiCliConfig.from_saved_config()
-    if not phi_config:
-        phi_config = initialize_phi()
-    if not phi_config:
+    agno_config: Optional[AgnoCliConfig] = AgnoCliConfig.from_saved_config()
+    if not agno_config:
+        agno_config = initialize_agno()
+    if not agno_config:
         log_config_not_available_msg()
         return
 
@@ -388,12 +388,12 @@ def down(
 
     # If there is an existing workspace at current path, use that workspace
     current_path: Path = Path(".").resolve()
-    ws_at_current_path: Optional[WorkspaceConfig] = phi_config.get_ws_config_by_path(current_path)
+    ws_at_current_path: Optional[WorkspaceConfig] = agno_config.get_ws_config_by_path(current_path)
     if ws_at_current_path is not None:
         logger.debug(f"Found workspace at: {ws_at_current_path.ws_root_path}")
-        if str(ws_at_current_path.ws_root_path) != phi_config.active_ws_dir:
+        if str(ws_at_current_path.ws_root_path) != agno_config.active_ws_dir:
             logger.debug(f"Updating active workspace to {ws_at_current_path.ws_root_path}")
-            phi_config.set_active_ws_dir(ws_at_current_path.ws_root_path)
+            agno_config.set_active_ws_dir(ws_at_current_path.ws_root_path)
         ws_to_stop = ws_at_current_path
 
     # If there's no existing workspace at current path, check if there's a `workspace` dir in the current path
@@ -408,7 +408,7 @@ def down(
 
     # If there's no workspace at current path, check if an active workspace exists
     if ws_to_stop is None:
-        active_ws_config: Optional[WorkspaceConfig] = phi_config.get_active_ws_config()
+        active_ws_config: Optional[WorkspaceConfig] = agno_config.get_active_ws_config()
         # If there's an active workspace, use that workspace
         if active_ws_config is not None:
             ws_to_stop = active_ws_config
@@ -416,7 +416,7 @@ def down(
     # If there's no workspace to stop, raise an error showing available workspaces
     if ws_to_stop is None:
         log_active_workspace_not_available()
-        avl_ws = phi_config.available_ws
+        avl_ws = agno_config.available_ws
         if avl_ws:
             print_available_workspaces(avl_ws)
         return
@@ -475,7 +475,7 @@ def down(
     logger.debug(f"\tforce        : {force}")
     print_heading("Stopping workspace: {}".format(str(ws_to_stop.ws_root_path.stem)))
     stop_workspace(
-        phi_config=phi_config,
+        agno_config=agno_config,
         ws_config=ws_to_stop,
         target_env=target_env,
         target_infra=target_infra,
@@ -550,22 +550,22 @@ def patch(
     Options can also be provided as a RESOURCE_FILTER in the format: ENV:INFRA:GROUP:NAME:TYPE
     Examples:
     \b
-    > `phi ws patch`           -> Patch all resources
+    > `ag ws patch`           -> Patch all resources
     """
     if print_debug_log:
         set_log_level_to_debug()
 
-    from phi.cli.config import PhiCliConfig
-    from phi.cli.operator import initialize_phi
-    from phi.workspace.config import WorkspaceConfig
-    from phi.workspace.operator import update_workspace, setup_workspace
-    from phi.workspace.helpers import get_workspace_dir_path
-    from phi.utils.resource_filter import parse_resource_filter
+    from agno.cli.config import AgnoCliConfig
+    from agno.cli.operator import initialize_agno
+    from agno.workspace.config import WorkspaceConfig
+    from agno.workspace.operator import update_workspace, setup_workspace
+    from agno.workspace.helpers import get_workspace_dir_path
+    from agno.utils.resource_filter import parse_resource_filter
 
-    phi_config: Optional[PhiCliConfig] = PhiCliConfig.from_saved_config()
-    if not phi_config:
-        phi_config = initialize_phi()
-    if not phi_config:
+    agno_config: Optional[AgnoCliConfig] = AgnoCliConfig.from_saved_config()
+    if not agno_config:
+        agno_config = initialize_agno()
+    if not agno_config:
         log_config_not_available_msg()
         return
 
@@ -574,12 +574,12 @@ def patch(
 
     # If there is an existing workspace at current path, use that workspace
     current_path: Path = Path(".").resolve()
-    ws_at_current_path: Optional[WorkspaceConfig] = phi_config.get_ws_config_by_path(current_path)
+    ws_at_current_path: Optional[WorkspaceConfig] = agno_config.get_ws_config_by_path(current_path)
     if ws_at_current_path is not None:
         logger.debug(f"Found workspace at: {ws_at_current_path.ws_root_path}")
-        if str(ws_at_current_path.ws_root_path) != phi_config.active_ws_dir:
+        if str(ws_at_current_path.ws_root_path) != agno_config.active_ws_dir:
             logger.debug(f"Updating active workspace to {ws_at_current_path.ws_root_path}")
-            phi_config.set_active_ws_dir(ws_at_current_path.ws_root_path)
+            agno_config.set_active_ws_dir(ws_at_current_path.ws_root_path)
         ws_to_patch = ws_at_current_path
 
     # If there's no existing workspace at current path, check if there's a `workspace` dir in the current path
@@ -594,7 +594,7 @@ def patch(
 
     # If there's no workspace at current path, check if an active workspace exists
     if ws_to_patch is None:
-        active_ws_config: Optional[WorkspaceConfig] = phi_config.get_active_ws_config()
+        active_ws_config: Optional[WorkspaceConfig] = agno_config.get_active_ws_config()
         # If there's an active workspace, use that workspace
         if active_ws_config is not None:
             ws_to_patch = active_ws_config
@@ -602,7 +602,7 @@ def patch(
     # If there's no workspace to patch, raise an error showing available workspaces
     if ws_to_patch is None:
         log_active_workspace_not_available()
-        avl_ws = phi_config.available_ws
+        avl_ws = agno_config.available_ws
         if avl_ws:
             print_available_workspaces(avl_ws)
         return
@@ -662,7 +662,7 @@ def patch(
     logger.debug(f"\tpull         : {pull}")
     print_heading("Updating workspace: {}".format(str(ws_to_patch.ws_root_path.stem)))
     update_workspace(
-        phi_config=phi_config,
+        agno_config=agno_config,
         ws_config=ws_to_patch,
         target_env=target_env,
         target_infra=target_infra,
@@ -727,11 +727,11 @@ def restart(
     ),
 ):
     """\b
-    Restarts the active workspace. i.e. runs `phi ws down` and then `phi ws up`.
+    Restarts the active workspace. i.e. runs `ag ws down` and then `ag ws up`.
 
     \b
     Examples:
-    > `phi ws restart`
+    > `ag ws restart`
     """
     if print_debug_log:
         set_log_level_to_debug()
@@ -781,27 +781,27 @@ def config(
 
     \b
     Examples:
-    $ `phi ws config`         -> Print the active workspace config
+    $ `ag ws config`         -> Print the active workspace config
     """
     if print_debug_log:
         set_log_level_to_debug()
 
-    from phi.cli.config import PhiCliConfig
-    from phi.cli.operator import initialize_phi
-    from phi.workspace.config import WorkspaceConfig
-    from phi.utils.load_env import load_env
+    from agno.cli.config import AgnoCliConfig
+    from agno.cli.operator import initialize_agno
+    from agno.workspace.config import WorkspaceConfig
+    from agno.utils.load_env import load_env
 
-    phi_config: Optional[PhiCliConfig] = PhiCliConfig.from_saved_config()
-    if not phi_config:
-        phi_config = initialize_phi()
-    if not phi_config:
+    agno_config: Optional[AgnoCliConfig] = AgnoCliConfig.from_saved_config()
+    if not agno_config:
+        agno_config = initialize_agno()
+    if not agno_config:
         log_config_not_available_msg()
         return
 
-    active_ws_config: Optional[WorkspaceConfig] = phi_config.get_active_ws_config()
+    active_ws_config: Optional[WorkspaceConfig] = agno_config.get_active_ws_config()
     if active_ws_config is None:
         log_active_workspace_not_available()
-        avl_ws = phi_config.available_ws
+        avl_ws = agno_config.available_ws
         if avl_ws:
             print_available_workspaces(avl_ws)
         return
@@ -820,7 +820,7 @@ def delete(
         False,
         "-a",
         "--all",
-        help="Delete all workspaces from phidata",
+        help="Delete all workspaces from Agno",
     ),
     print_debug_log: bool = typer.Option(
         False,
@@ -830,32 +830,32 @@ def delete(
     ),
 ):
     """\b
-    Deletes the workspace record from phi.
+    Deletes the workspace record from agno.
     NOTE: Does not delete any physical files.
 
     \b
     Examples:
-    $ `phi ws delete`         -> Delete the active workspace from phidata
-    $ `phi ws delete -a`      -> Delete all workspaces from phidata
+    $ `ag ws delete`         -> Delete the active workspace from Agno
+    $ `ag ws delete -a`      -> Delete all workspaces from Agno
     """
     if print_debug_log:
         set_log_level_to_debug()
 
-    from phi.cli.config import PhiCliConfig
-    from phi.cli.operator import initialize_phi
-    from phi.workspace.operator import delete_workspace
+    from agno.cli.config import AgnoCliConfig
+    from agno.cli.operator import initialize_agno
+    from agno.workspace.operator import delete_workspace
 
-    phi_config: Optional[PhiCliConfig] = PhiCliConfig.from_saved_config()
-    if not phi_config:
-        phi_config = initialize_phi()
-    if not phi_config:
+    agno_config: Optional[AgnoCliConfig] = AgnoCliConfig.from_saved_config()
+    if not agno_config:
+        agno_config = initialize_agno()
+    if not agno_config:
         log_config_not_available_msg()
         return
 
     ws_to_delete: List[Path] = []
     # Delete workspace by name if provided
     if ws_name is not None:
-        ws_config = phi_config.get_ws_config_by_dir_name(ws_name)
+        ws_config = agno_config.get_ws_config_by_dir_name(ws_name)
         if ws_config is None:
             logger.error(f"Workspace {ws_name} not found")
             return
@@ -863,10 +863,10 @@ def delete(
     else:
         # Delete all workspaces if flag is set
         if all_workspaces:
-            ws_to_delete = [ws.ws_root_path for ws in phi_config.available_ws if ws.ws_root_path is not None]
+            ws_to_delete = [ws.ws_root_path for ws in agno_config.available_ws if ws.ws_root_path is not None]
         else:
             # By default, we assume this command is run for the active workspace
-            if phi_config.active_ws_dir is not None:
-                ws_to_delete.append(Path(phi_config.active_ws_dir))
+            if agno_config.active_ws_dir is not None:
+                ws_to_delete.append(Path(agno_config.active_ws_dir))
 
-    delete_workspace(phi_config, ws_to_delete)
+    delete_workspace(agno_config, ws_to_delete)

@@ -1,8 +1,8 @@
 import json
 from typing import Any, Optional, List, Dict
 
-from phi.tools import Toolkit
-from phi.utils.log import logger
+from agno.tools import Toolkit
+from agno.utils.log import logger
 
 try:
     from googlesearch import search

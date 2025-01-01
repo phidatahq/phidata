@@ -20,9 +20,9 @@ try:
 except ImportError:
     raise ImportError("`sqlalchemy` not installed. Please install it with `pip install sqlalchemy`")
 
-from phi.memory.db import MemoryDb
-from phi.memory.row import MemoryRow
-from phi.utils.log import logger
+from agno.memory.db import MemoryDb
+from agno.memory.row import MemoryRow
+from agno.utils.log import logger
 
 
 class SqliteMemoryDb(MemoryDb):

@@ -1,8 +1,8 @@
 from typing import Any, Dict, Optional, Callable, get_type_hints, Type, TypeVar, Union, List
 from pydantic import BaseModel, Field, validate_call
 
-from phi.model.message import Message
-from phi.utils.log import logger
+from agno.model.message import Message
+from agno.utils.log import logger
 
 T = TypeVar("T")
 
@@ -83,7 +83,7 @@ class Function(BaseModel):
     @classmethod
     def from_callable(cls, c: Callable, strict: bool = False) -> "Function":
         from inspect import getdoc, signature
-        from phi.utils.json_schema import get_json_schema
+        from agno.utils.json_schema import get_json_schema
 
         function_name = c.__name__
         parameters = {"type": "object", "properties": {}, "required": []}
@@ -133,7 +133,7 @@ class Function(BaseModel):
     def process_entrypoint(self, strict: bool = False):
         """Process the entrypoint and make it ready for use by an agent."""
         from inspect import getdoc, signature
-        from phi.utils.json_schema import get_json_schema
+        from agno.utils.json_schema import get_json_schema
 
         if self.entrypoint is None:
             return

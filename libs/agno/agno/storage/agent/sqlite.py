@@ -13,9 +13,9 @@ try:
 except ImportError:
     raise ImportError("`sqlalchemy` not installed. Please install it using `pip install sqlalchemy`")
 
-from phi.agent import AgentSession
-from phi.storage.agent.base import AgentStorage
-from phi.utils.log import logger
+from agno.agent import AgentSession
+from agno.storage.agent.base import AgentStorage
+from agno.utils.log import logger
 
 
 class SqlAgentStorage(AgentStorage):

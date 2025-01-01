@@ -13,15 +13,15 @@ try:
 except ImportError:
     raise ImportError("`sqlalchemy` not installed")
 
-from phi.document import Document
-from phi.embedder import Embedder
-from phi.embedder.openai import OpenAIEmbedder
-from phi.vectordb.base import VectorDb
-from phi.vectordb.distance import Distance
+from agno.document import Document
+from agno.embedder import Embedder
+from agno.embedder.openai import OpenAIEmbedder
+from agno.vectordb.base import VectorDb
+from agno.vectordb.distance import Distance
 
-# from phi.vectordb.singlestore.index import Ivfflat, HNSWFlat
-from phi.utils.log import logger
-from phi.reranker.base import Reranker
+# from agno.vectordb.singlestore.index import Ivfflat, HNSWFlat
+from agno.utils.log import logger
+from agno.reranker.base import Reranker
 
 
 class S2VectorDb(VectorDb):

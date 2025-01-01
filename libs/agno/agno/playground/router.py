@@ -4,20 +4,20 @@ from typing import List, Optional, AsyncGenerator, Dict, cast, Union, Generator
 from fastapi import APIRouter, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse, JSONResponse
 
-from phi.agent.agent import Agent, RunResponse
-from phi.agent.session import AgentSession
-from phi.workflow.workflow import Workflow
-from phi.workflow.session import WorkflowSession
-from phi.playground.operator import (
+from agno.agent.agent import Agent, RunResponse
+from agno.agent.session import AgentSession
+from agno.workflow.workflow import Workflow
+from agno.workflow.session import WorkflowSession
+from agno.playground.operator import (
     format_tools,
     get_agent_by_id,
     get_session_title,
     get_session_title_from_workflow_session,
     get_workflow_by_id,
 )
-from phi.utils.log import logger
+from agno.utils.log import logger
 
-from phi.playground.schemas import (
+from agno.playground.schemas import (
     AgentGetResponse,
     AgentRunRequest,
     AgentSessionsRequest,

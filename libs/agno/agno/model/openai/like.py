@@ -1,5 +1,5 @@
 from typing import Optional
-from phi.model.openai.chat import OpenAIChat
+from agno.model.openai.chat import OpenAIChat
 
 
 class OpenAILike(OpenAIChat):

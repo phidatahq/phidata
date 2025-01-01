@@ -1,5 +1,5 @@
-from phi.tools.tool import Tool
-from phi.tools.decorator import tool
-from phi.tools.function import Function, FunctionCall, StopAgentRun, RetryAgentRun, ToolCallException
-from phi.tools.toolkit import Toolkit
-from phi.tools.tool_registry import ToolRegistry
+from agno.tools.tool import Tool
+from agno.tools.decorator import tool
+from agno.tools.function import Function, FunctionCall, StopAgentRun, RetryAgentRun, ToolCallException
+from agno.tools.toolkit import Toolkit
+from agno.tools.tool_registry import ToolRegistry

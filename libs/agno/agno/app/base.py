@@ -3,10 +3,10 @@ from typing import Optional, Dict, Any, Union, List
 from pydantic import field_validator, Field
 from pydantic_core.core_schema import ValidationInfo
 
-from phi.infra.base import InfraBase
-from phi.app.context import ContainerContext
-from phi.resource.base import ResourceBase
-from phi.utils.log import logger
+from agno.infra.base import InfraBase
+from agno.app.context import ContainerContext
+from agno.resource.base import ResourceBase
+from agno.utils.log import logger
 
 
 class AppBase(InfraBase):

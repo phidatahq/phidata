@@ -3,10 +3,10 @@ import uuid
 from os import getenv
 from typing import Optional, Dict, Any, Literal, TypedDict
 
-from phi.agent import Agent
-from phi.tools import Toolkit
-from phi.utils.log import logger
-from phi.model.content import Video
+from agno.agent import Agent
+from agno.tools import Toolkit
+from agno.utils.log import logger
+from agno.model.content import Video
 
 try:
     from lumaai import LumaAI  # type: ignore

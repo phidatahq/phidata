@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Optional, List
 
-from phi.agent.session import AgentSession
+from agno.agent.session import AgentSession
 
 
 class AgentStorage(ABC):

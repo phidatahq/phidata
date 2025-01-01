@@ -1,8 +1,8 @@
 from typing import List, Iterator
 
-from phi.document import Document
-from phi.document.reader.s3.text import S3TextReader
-from phi.knowledge.s3.base import S3KnowledgeBase
+from agno.document import Document
+from agno.document.reader.s3.text import S3TextReader
+from agno.knowledge.s3.base import S3KnowledgeBase
 
 
 class S3TextKnowledgeBase(S3KnowledgeBase):

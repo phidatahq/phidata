@@ -1,7 +1,7 @@
 from typing import Optional, Dict, Any, List
 
-from phi.model.message import Message
-from phi.model.aws.bedrock import AwsBedrock
+from agno.model.message import Message
+from agno.model.aws.bedrock import AwsBedrock
 
 
 class Claude(AwsBedrock):

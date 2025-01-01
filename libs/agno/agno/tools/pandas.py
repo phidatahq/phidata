@@ -1,7 +1,7 @@
 from typing import Dict, Any
 
-from phi.tools import Toolkit
-from phi.utils.log import logger
+from agno.tools import Toolkit
+from agno.utils.log import logger
 
 try:
     import pandas as pd

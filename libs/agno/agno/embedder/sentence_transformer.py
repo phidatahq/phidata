@@ -1,8 +1,8 @@
 import platform
 from typing import Dict, List, Optional, Tuple, Union
 
-from phi.embedder.base import Embedder
-from phi.utils.log import logger
+from agno.embedder.base import Embedder
+from agno.utils.log import logger
 
 try:
     from sentence_transformers import SentenceTransformer

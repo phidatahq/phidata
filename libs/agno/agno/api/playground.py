@@ -4,13 +4,13 @@ from typing import Union, Dict, List
 
 from httpx import Response, Client as HttpxClient
 
-from phi.constants import PHI_API_KEY_ENV_VAR
-from phi.cli.settings import phi_cli_settings
-from phi.cli.credentials import read_auth_token
-from phi.api.api import api, invalid_response
-from phi.api.routes import ApiRoutes
-from phi.api.schemas.playground import PlaygroundEndpointCreate
-from phi.utils.log import logger
+from agno.constants import AGNO_API_KEY_ENV_VAR
+from agno.cli.settings import agno_cli_settings
+from agno.cli.credentials import read_auth_token
+from agno.api.api import api, invalid_response
+from agno.api.routes import ApiRoutes
+from agno.api.schemas.playground import PlaygroundEndpointCreate
+from agno.utils.log import logger
 
 
 def create_playground_endpoint(playground: PlaygroundEndpointCreate) -> bool:
@@ -63,13 +63,13 @@ def deploy_playground_archive(name: str, tar_path: Path) -> bool:
     # Build headers
     headers = {}
     if token := read_auth_token():
-        headers[phi_cli_settings.auth_token_header] = token
-    if phi_api_key := getenv(PHI_API_KEY_ENV_VAR):
-        headers["Authorization"] = f"Bearer {phi_api_key}"
+        headers[agno_cli_settings.auth_token_header] = token
+    if agno_api_key := getenv(AGNO_API_KEY_ENV_VAR):
+        headers["Authorization"] = f"Bearer {agno_api_key}"
 
     try:
         with (
-            HttpxClient(base_url=phi_cli_settings.api_url, headers=headers) as api_client,
+            HttpxClient(base_url=agno_cli_settings.api_url, headers=headers) as api_client,
             open(tar_path, "rb") as file,
         ):
             files = {"file": (tar_path.name, file, "application/gzip")}

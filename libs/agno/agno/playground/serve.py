@@ -5,10 +5,10 @@ from fastapi import FastAPI
 from rich import box
 from rich.panel import Panel
 
-from phi.api.playground import create_playground_endpoint, PlaygroundEndpointCreate
-from phi.cli.settings import phi_cli_settings
-from phi.cli.console import console
-from phi.utils.log import logger
+from agno.api.playground import create_playground_endpoint, PlaygroundEndpointCreate
+from agno.cli.settings import agno_cli_settings
+from agno.cli.console import console
+from agno.utils.log import logger
 
 
 def serve_playground_app(
@@ -39,7 +39,7 @@ def serve_playground_app(
     encoded_endpoint = quote(f"{host}:{port}")
 
     # Create a panel with the playground URL
-    url = f"{phi_cli_settings.playground_url}?endpoint={encoded_endpoint}"
+    url = f"{agno_cli_settings.playground_url}?endpoint={encoded_endpoint}"
     panel = Panel(
         f"[bold green]URL:[/bold green] [link={url}]{url}[/link]",
         title="Agent Playground",

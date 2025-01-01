@@ -1,1 +1,1 @@
-from phi.vectordb.qdrant.qdrant import Qdrant
+from agno.vectordb.qdrant.qdrant import Qdrant

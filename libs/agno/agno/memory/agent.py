@@ -4,15 +4,15 @@ from copy import deepcopy
 
 from pydantic import BaseModel, ConfigDict
 
-from phi.memory.classifier import MemoryClassifier
-from phi.memory.db import MemoryDb
-from phi.memory.manager import MemoryManager
-from phi.memory.memory import Memory
-from phi.memory.summary import SessionSummary
-from phi.memory.summarizer import MemorySummarizer
-from phi.model.message import Message
-from phi.run.response import RunResponse
-from phi.utils.log import logger
+from agno.memory.classifier import MemoryClassifier
+from agno.memory.db import MemoryDb
+from agno.memory.manager import MemoryManager
+from agno.memory.memory import Memory
+from agno.memory.summary import SessionSummary
+from agno.memory.summarizer import MemorySummarizer
+from agno.model.message import Message
+from agno.run.response import RunResponse
+from agno.utils.log import logger
 
 
 class AgentRun(BaseModel):

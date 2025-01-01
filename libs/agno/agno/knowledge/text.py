@@ -1,9 +1,9 @@
 from pathlib import Path
 from typing import Union, List, Iterator
 
-from phi.document import Document
-from phi.document.reader.text import TextReader
-from phi.knowledge.agent import AgentKnowledge
+from agno.document import Document
+from agno.document.reader.text import TextReader
+from agno.knowledge.agent import AgentKnowledge
 
 
 class TextKnowledgeBase(AgentKnowledge):

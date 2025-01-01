@@ -9,9 +9,9 @@ try:
 except ImportError:
     raise ImportError("`sqlalchemy` not installed. Please install it with `pip install sqlalchemy`")
 
-from phi.workflow import WorkflowSession
-from phi.storage.workflow.base import WorkflowStorage
-from phi.utils.log import logger
+from agno.workflow import WorkflowSession
+from agno.storage.workflow.base import WorkflowStorage
+from agno.utils.log import logger
 
 
 class PgWorkflowStorage(WorkflowStorage):

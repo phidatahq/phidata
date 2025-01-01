@@ -2,7 +2,7 @@ from os import getenv
 from typing import Optional
 
 
-from phi.model.openai.like import OpenAILike
+from agno.model.openai.like import OpenAILike
 
 
 class GeminiOpenAIChat(OpenAILike):

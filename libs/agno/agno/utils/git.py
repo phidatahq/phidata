@@ -3,7 +3,7 @@ from typing import Optional
 
 import git
 
-from phi.utils.log import logger
+from agno.utils.log import logger
 
 
 def get_remote_origin_for_dir(

@@ -1,10 +1,10 @@
 from typing import List, Optional
 
-from phi.document.chunking.strategy import ChunkingStrategy
-from phi.document.base import Document
-from phi.embedder.base import Embedder
-from phi.embedder.openai import OpenAIEmbedder
-from phi.utils.log import logger
+from agno.document.chunking.strategy import ChunkingStrategy
+from agno.document.base import Document
+from agno.embedder.base import Embedder
+from agno.embedder.openai import OpenAIEmbedder
+from agno.utils.log import logger
 
 try:
     from chonkie import SemanticChunker

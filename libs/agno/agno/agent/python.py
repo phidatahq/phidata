@@ -4,10 +4,10 @@ from pathlib import Path
 from pydantic import model_validator
 from textwrap import dedent
 
-from phi.agent import Agent, Message
-from phi.file import File
-from phi.tools.python import PythonTools
-from phi.utils.log import logger
+from agno.agent import Agent, Message
+from agno.file import File
+from agno.tools.python import PythonTools
+from agno.utils.log import logger
 
 
 class PythonAgent(Agent):

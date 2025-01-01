@@ -6,7 +6,7 @@ from typing import Optional, List, Dict
 from pydantic import field_validator, ValidationInfo, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from phi.api.schemas.workspace import WorkspaceSchema
+from agno.api.schemas.workspace import WorkspaceSchema
 
 
 class WorkspaceSettings(BaseSettings):
@@ -29,15 +29,15 @@ class WorkspaceSettings(BaseSettings):
     storage_dir: str = "storage"
     workflows_dir: str = "workflows"
     workspace_dir: str = "workspace"
-    # default env for phi ws commands
+    # default env for agno ws commands
     default_env: Optional[str] = "dev"
-    # default infra for phi ws commands
+    # default infra for agno ws commands
     default_infra: Optional[str] = None
     #
     # -*- Image Settings
     #
     # Repository for images
-    image_repo: str = "phidata"
+    image_repo: str = "agnohq"
     # Name:tag for the image
     image_name: Optional[str] = None
     # Build images locally
@@ -129,14 +129,14 @@ class WorkspaceSettings(BaseSettings):
     aws_config_file: Optional[str] = None
     aws_shared_credentials_file: Optional[str] = None
     # -*- Cli settings
-    # Set to True if `phi` should continue creating
+    # Set to True if Agno should continue creating
     # resources after a resource creation has failed
     continue_on_create_failure: bool = False
-    # Set to True if `phi` should continue deleting
+    # Set to True if Agno should continue deleting
     # resources after a resource deleting has failed
     # Defaults to True because we normally want to continue deleting
     continue_on_delete_failure: bool = True
-    # Set to True if `phi` should continue patching
+    # Set to True if Agno should continue patching
     # resources after a resource patch has failed
     continue_on_patch_failure: bool = False
     #

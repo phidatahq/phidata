@@ -1,10 +1,10 @@
 import json
 from typing import List, Optional
 
-from phi.document import Document
-from phi.knowledge.website import WebsiteKnowledgeBase
-from phi.tools import Toolkit
-from phi.utils.log import logger
+from agno.document import Document
+from agno.knowledge.website import WebsiteKnowledgeBase
+from agno.tools import Toolkit
+from agno.utils.log import logger
 
 
 class WebsiteTools(Toolkit):
@@ -41,7 +41,7 @@ class WebsiteTools(Toolkit):
         :param url: The url of the website to read.
         :return: Relevant documents from the website.
         """
-        from phi.document.reader.website import WebsiteReader
+        from agno.document.reader.website import WebsiteReader
 
         website = WebsiteReader()
 

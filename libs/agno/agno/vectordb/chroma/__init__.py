@@ -1,1 +1,1 @@
-from phi.vectordb.chroma.chromadb import ChromaDb
+from agno.vectordb.chroma.chromadb import ChromaDb

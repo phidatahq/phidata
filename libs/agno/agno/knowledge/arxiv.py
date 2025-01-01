@@ -1,8 +1,8 @@
 from typing import Iterator, List
 
-from phi.document import Document
-from phi.document.reader.arxiv import ArxivReader
-from phi.knowledge.agent import AgentKnowledge
+from agno.document import Document
+from agno.document.reader.arxiv import ArxivReader
+from agno.knowledge.agent import AgentKnowledge
 
 
 class ArxivKnowledgeBase(AgentKnowledge):

@@ -1,7 +1,7 @@
 from os import getenv
 from typing import Optional
 
-from phi.embedder.openai import OpenAIEmbedder
+from agno.embedder.openai import OpenAIEmbedder
 
 
 class FireworksEmbedder(OpenAIEmbedder):

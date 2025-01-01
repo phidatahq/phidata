@@ -1,1 +1,1 @@
-from phi.model.nvidia.nvidia import Nvidia
+from agno.model.nvidia.nvidia import Nvidia

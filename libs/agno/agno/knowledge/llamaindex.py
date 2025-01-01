@@ -1,8 +1,8 @@
 from typing import List, Optional, Callable, Dict, Any
 
-from phi.document import Document
-from phi.knowledge.agent import AgentKnowledge
-from phi.utils.log import logger
+from agno.document import Document
+from agno.knowledge.agent import AgentKnowledge
+from agno.utils.log import logger
 
 try:
     from llama_index.core.schema import NodeWithScore

@@ -3,7 +3,7 @@ from typing import Optional, List, Any, Dict
 
 from pydantic import BaseModel, ConfigDict
 
-from phi.workspace.settings import WorkspaceSettings
+from agno.workspace.settings import WorkspaceSettings
 
 
 class InfraBase(BaseModel):
@@ -91,14 +91,14 @@ class InfraBase(BaseModel):
 
     def get_env_file_data(self) -> Optional[Dict[str, Any]]:
         if self.cached_env_file_data is None:
-            from phi.utils.yaml_io import read_yaml_file
+            from agno.utils.yaml_io import read_yaml_file
 
             self.cached_env_file_data = read_yaml_file(file_path=self.env_file)
         return self.cached_env_file_data
 
     def get_secret_file_data(self) -> Optional[Dict[str, Any]]:
         if self.cached_secret_file_data is None:
-            from phi.utils.yaml_io import read_yaml_file
+            from agno.utils.yaml_io import read_yaml_file
 
             self.cached_secret_file_data = read_yaml_file(file_path=self.secrets_file)
         return self.cached_secret_file_data
@@ -110,7 +110,7 @@ class InfraBase(BaseModel):
         return None
 
     def set_aws_env_vars(self, env_dict: Dict[str, str], aws_region: Optional[str] = None) -> None:
-        from phi.constants import (
+        from agno.constants import (
             AWS_REGION_ENV_VAR,
             AWS_DEFAULT_REGION_ENV_VAR,
         )

@@ -6,11 +6,11 @@ try:
 except ImportError:
     raise ImportError("The `pinecone` package is not installed, please install using `pip install pinecone`.")
 
-from phi.document import Document
-from phi.embedder import Embedder
-from phi.vectordb.base import VectorDb
-from phi.utils.log import logger
-from phi.reranker.base import Reranker
+from agno.document import Document
+from agno.embedder import Embedder
+from agno.vectordb.base import VectorDb
+from agno.utils.log import logger
+from agno.reranker.base import Reranker
 
 
 class PineconeDB(VectorDb):
@@ -97,7 +97,7 @@ class PineconeDB(VectorDb):
         # Embedder for embedding the document contents
         _embedder = embedder
         if _embedder is None:
-            from phi.embedder.openai import OpenAIEmbedder
+            from agno.embedder.openai import OpenAIEmbedder
 
             _embedder = OpenAIEmbedder()
         self.embedder: Embedder = _embedder

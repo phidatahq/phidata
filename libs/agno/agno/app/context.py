@@ -2,7 +2,7 @@ from typing import Optional
 
 from pydantic import BaseModel
 
-from phi.api.schemas.workspace import WorkspaceSchema
+from agno.api.schemas.workspace import WorkspaceSchema
 
 
 class ContainerContext(BaseModel):

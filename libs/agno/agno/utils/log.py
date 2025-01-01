@@ -3,7 +3,7 @@ import logging
 
 from rich.logging import RichHandler
 
-LOGGER_NAME = "phi"
+LOGGER_NAME = "agno"
 
 
 def get_logger(logger_name: str) -> logging.Logger:
@@ -12,7 +12,7 @@ def get_logger(logger_name: str) -> logging.Logger:
     rich_handler = RichHandler(
         show_time=False,
         rich_tracebacks=False,
-        show_path=True if getenv("PHI_API_RUNTIME") == "dev" else False,
+        show_path=True if getenv("AGNO_API_RUNTIME") == "dev" else False,
         tracebacks_show_locals=False,
     )
     rich_handler.setFormatter(

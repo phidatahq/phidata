@@ -2,7 +2,7 @@ from typing import List, Optional
 
 from pydantic import BaseModel
 
-from phi.resource.base import ResourceBase
+from agno.resource.base import ResourceBase
 
 
 class ResourceGroup(BaseModel):

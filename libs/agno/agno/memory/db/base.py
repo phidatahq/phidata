@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Optional, List
 
-from phi.memory.row import MemoryRow
+from agno.memory.row import MemoryRow
 
 
 class MemoryDb(ABC):

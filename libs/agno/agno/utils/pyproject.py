@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Optional, Dict
 
-from phi.utils.log import logger
+from agno.utils.log import logger
 
 
 def read_pyproject_phidata(pyproject_file: Path) -> Optional[Dict]:

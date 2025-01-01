@@ -3,12 +3,12 @@ from io import BytesIO
 from pathlib import Path
 from typing import Iterator
 
-from phi.model.content import Audio
+from agno.model.content import Audio
 from typing import Optional, Literal
 from os import getenv, path
-from phi.tools import Toolkit
-from phi.utils.log import logger
-from phi.agent import Agent
+from agno.tools import Toolkit
+from agno.utils.log import logger
+from agno.agent import Agent
 from uuid import uuid4
 
 try:

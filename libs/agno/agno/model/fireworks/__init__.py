@@ -1,1 +1,1 @@
-from phi.model.fireworks.fireworks import Fireworks
+from agno.model.fireworks.fireworks import Fireworks

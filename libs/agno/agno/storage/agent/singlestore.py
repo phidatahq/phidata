@@ -12,9 +12,9 @@ try:
 except ImportError:
     raise ImportError("`sqlalchemy` not installed")
 
-from phi.agent.session import AgentSession
-from phi.storage.agent.base import AgentStorage
-from phi.utils.log import logger
+from agno.agent.session import AgentSession
+from agno.storage.agent.base import AgentStorage
+from agno.utils.log import logger
 
 
 class S2AgentStorage(AgentStorage):

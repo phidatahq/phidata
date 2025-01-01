@@ -1,12 +1,12 @@
 from typing import Optional
 from pathlib import Path
 
-from phi.utils.log import logger
+from agno.utils.log import logger
 
 
 def get_workspace_dir_from_env() -> Optional[Path]:
     from os import getenv
-    from phi.constants import WORKSPACE_DIR_ENV_VAR
+    from agno.constants import WORKSPACE_DIR_ENV_VAR
 
     logger.debug(f"Reading {WORKSPACE_DIR_ENV_VAR} from environment variables")
     workspace_dir = getenv(WORKSPACE_DIR_ENV_VAR, None)
@@ -22,7 +22,7 @@ def get_workspace_dir_path(ws_root_path: Path) -> Path:
         1. subdirectory: workspace
         2. In a folder defined by the pyproject.toml file
     """
-    from phi.utils.pyproject import read_pyproject_phidata
+    from agno.utils.pyproject import read_pyproject_phidata
 
     logger.debug(f"Searching for a workspace directory in {ws_root_path}")
 

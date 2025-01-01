@@ -4,9 +4,9 @@ from typing import Optional, Union, Callable, List
 
 from pydantic import BaseModel, ConfigDict, field_validator, Field
 
-from phi.agent import Agent, RunResponse
-from phi.utils.log import logger, set_log_level_to_debug
-from phi.utils.timer import Timer
+from agno.agent import Agent, RunResponse
+from agno.utils.log import logger, set_log_level_to_debug
+from agno.utils.timer import Timer
 
 
 class AccuracyResult(BaseModel):
@@ -66,11 +66,11 @@ class Eval(BaseModel):
             return self.accuracy_evaluator
 
         try:
-            from phi.model.openai import OpenAIChat
+            from agno.model.openai import OpenAIChat
         except ImportError as e:
             logger.exception(e)
             logger.error(
-                "phidata uses `openai` as the default model provider. Please run `pip install openai` to use the default evaluator."
+                "Agno agents use `openai` as the default model provider. Please run `pip install openai` to use the default evaluator."
             )
             exit(1)
 
@@ -185,7 +185,7 @@ Your evaluation should be objective, thorough, and well-reasoned. Provide specif
         return self.result
 
     def print_result(self, answer: Optional[Union[str, Callable]] = None) -> Optional[EvalResult]:
-        from phi.cli.console import console
+        from agno.cli.console import console
         from rich.table import Table
         from rich.progress import Progress, SpinnerColumn, TextColumn
         from rich.box import ROUNDED

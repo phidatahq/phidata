@@ -1,8 +1,8 @@
 from collections import OrderedDict
 from typing import Callable, Dict, Any
 
-from phi.tools.function import Function
-from phi.utils.log import logger
+from agno.tools.function import Function
+from agno.utils.log import logger
 
 
 class Toolkit:

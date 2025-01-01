@@ -1,8 +1,8 @@
 from pathlib import Path
 from typing import Optional, Union
 
-from phi.tools import Toolkit
-from phi.utils.log import logger
+from agno.tools import Toolkit
+from agno.utils.log import logger
 
 
 class AirflowToolkit(Toolkit):

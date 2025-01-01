@@ -3,28 +3,28 @@ from typing import Optional, Dict, List, cast
 
 
 from rich.prompt import Prompt
-from phi.api.workspace import log_workspace_event
-from phi.api.schemas.workspace import (
+from agno.api.workspace import log_workspace_event
+from agno.api.schemas.workspace import (
     WorkspaceSchema,
     WorkspaceCreate,
     WorkspaceUpdate,
     WorkspaceEvent,
 )
-from phi.api.schemas.team import TeamSchema, TeamIdentifier
-from phi.cli.config import PhiCliConfig
-from phi.cli.console import (
+from agno.api.schemas.team import TeamSchema, TeamIdentifier
+from agno.cli.config import AgnoCliConfig
+from agno.cli.console import (
     console,
     print_heading,
     print_info,
     print_subheading,
     log_config_not_available_msg,
 )
-from phi.infra.type import InfraType
-from phi.infra.resources import InfraResources
-from phi.workspace.config import WorkspaceConfig
-from phi.workspace.enums import WorkspaceStarterTemplate
-from phi.utils.common import str_to_int
-from phi.utils.log import logger
+from agno.infra.type import InfraType
+from agno.infra.resources import InfraResources
+from agno.workspace.config import WorkspaceConfig
+from agno.workspace.enums import WorkspaceStarterTemplate
+from agno.utils.common import str_to_int
+from agno.utils.log import logger
 
 TEMPLATE_TO_NAME_MAP: Dict[WorkspaceStarterTemplate, str] = {
     WorkspaceStarterTemplate.agent_app: "agent-app",
@@ -47,21 +47,21 @@ def create_workspace(
     import git
     from shutil import copytree
 
-    from phi.cli.operator import initialize_phi
-    from phi.utils.filesystem import rmdir_recursive
-    from phi.workspace.helpers import get_workspace_dir_path
-    from phi.utils.git import GitCloneProgress
+    from agno.cli.operator import initialize_agno
+    from agno.utils.filesystem import rmdir_recursive
+    from agno.workspace.helpers import get_workspace_dir_path
+    from agno.utils.git import GitCloneProgress
 
     current_dir: Path = Path(".").resolve()
 
     # Phi should be initialized before creating a workspace
-    phi_config: Optional[PhiCliConfig] = PhiCliConfig.from_saved_config()
-    if not phi_config:
-        phi_config = initialize_phi()
-        if not phi_config:
+    agno_config: Optional[AgnoCliConfig] = AgnoCliConfig.from_saved_config()
+    if not agno_config:
+        agno_config = initialize_agno()
+        if not agno_config:
             log_config_not_available_msg()
             return None
-    phi_config = cast(PhiCliConfig, phi_config)
+    agno_config = cast(AgnoCliConfig, agno_config)
 
     ws_dir_name: Optional[str] = name
     repo_to_clone: Optional[str] = url
@@ -143,7 +143,7 @@ def create_workspace(
             logger.info("Please delete the .git folder manually")
             pass
 
-    phi_config.add_new_ws_to_config(ws_root_path=ws_root_path)
+    agno_config.add_new_ws_to_config(ws_root_path=ws_root_path)
 
     try:
         # workspace_dir_path is the path to the ws_root/workspace dir
@@ -165,26 +165,26 @@ def create_workspace(
 
 
 def setup_workspace(ws_root_path: Path) -> Optional[WorkspaceConfig]:
-    """Setup a phi workspace at `ws_root_path` and return the WorkspaceConfig
+    """Setup an Agno workspace at `ws_root_path` and return the WorkspaceConfig
 
     1. Pre-requisites
     1.1 Check ws_root_path exists and is a directory
-    1.2 Create PhiCliConfig if needed
+    1.2 Create AgnoCliConfig if needed
     1.3 Create a WorkspaceConfig if needed
     1.4 Get the workspace name
     1.5 Get the git remote origin url
     1.6 Create anon user if needed
 
     2. Create or update WorkspaceSchema
-    2.1 Check if a ws_schema exists for this workspace, meaning this workspace has a record in phi-api
+    2.1 Check if a ws_schema exists for this workspace, meaning this workspace has a record in agno-api
     2.2 Create WorkspaceSchema if it doesn't exist
     2.3 Update WorkspaceSchema if git_url is updated
     """
     from rich.live import Live
     from rich.status import Status
-    from phi.cli.operator import initialize_phi
-    from phi.utils.git import get_remote_origin_for_dir
-    from phi.workspace.helpers import get_workspace_dir_path
+    from agno.cli.operator import initialize_agno
+    from agno.utils.git import get_remote_origin_for_dir
+    from agno.workspace.helpers import get_workspace_dir_path
 
     print_heading("Setting up workspace\n")
 
@@ -197,27 +197,27 @@ def setup_workspace(ws_root_path: Path) -> Optional[WorkspaceConfig]:
         logger.error("Invalid directory: {}".format(ws_root_path))
         return None
 
-    # 1.2 Create PhiCliConfig if needed
-    phi_config: Optional[PhiCliConfig] = PhiCliConfig.from_saved_config()
-    if not phi_config:
-        phi_config = initialize_phi()
-        if not phi_config:
+    # 1.2 Create AgnoCliConfig if needed
+    agno_config: Optional[AgnoCliConfig] = AgnoCliConfig.from_saved_config()
+    if not agno_config:
+        agno_config = initialize_agno()
+        if not agno_config:
             log_config_not_available_msg()
             return None
 
     # 1.3 Create a WorkspaceConfig if needed
     logger.debug(f"Checking for a workspace at {ws_root_path}")
-    ws_config: Optional[WorkspaceConfig] = phi_config.get_ws_config_by_path(ws_root_path)
+    ws_config: Optional[WorkspaceConfig] = agno_config.get_ws_config_by_path(ws_root_path)
     if ws_config is None:
         # There's no record of this workspace, reasons:
         # - The user is setting up a new workspace
-        # - The user ran `phi init -r` which erased existing workspaces
+        # - The user ran `ag init -r` which erased existing workspaces
         logger.debug(f"Could not find a workspace at: {ws_root_path}")
 
         # Check if the workspace contains a `workspace` dir
         workspace_ws_dir_path = get_workspace_dir_path(ws_root_path)
         logger.debug(f"Found the `workspace` configuration at: {workspace_ws_dir_path}")
-        ws_config = phi_config.create_or_update_ws_config(ws_root_path=ws_root_path, set_as_active=True)
+        ws_config = agno_config.create_or_update_ws_config(ws_root_path=ws_root_path, set_as_active=True)
         if ws_config is None:
             logger.error(f"Failed to create WorkspaceConfig for {ws_root_path}")
             return None
@@ -233,8 +233,8 @@ def setup_workspace(ws_root_path: Path) -> Optional[WorkspaceConfig]:
     logger.debug("Git origin: {}".format(git_remote_origin_url))
 
     # 1.6 Create anon user if the user is not logged in
-    if phi_config.user is None:
-        from phi.api.user import create_anon_user
+    if agno_config.user is None:
+        from agno.api.user import create_anon_user
 
         logger.debug("Creating anon user")
         with Live(transient=True) as live_log:
@@ -243,23 +243,23 @@ def setup_workspace(ws_root_path: Path) -> Optional[WorkspaceConfig]:
             anon_user = create_anon_user()
             status.stop()
         if anon_user is not None:
-            phi_config.user = anon_user
+            agno_config.user = anon_user
 
     ######################################################
     ## 2. Create or update WorkspaceSchema
     ######################################################
-    # 2.1 Check if a ws_schema exists for this workspace, meaning this workspace has a record in phi-api
+    # 2.1 Check if a ws_schema exists for this workspace, meaning this workspace has a record in agno-api
     ws_schema: Optional[WorkspaceSchema] = ws_config.ws_schema if ws_config is not None else None
-    if phi_config.user is not None:
+    if agno_config.user is not None:
         # 2.2 Create WorkspaceSchema if it doesn't exist
         if ws_schema is None or ws_schema.id_workspace is None:
-            from phi.api.team import get_teams_for_user
-            from phi.api.workspace import create_workspace_for_user
+            from agno.api.team import get_teams_for_user
+            from agno.api.workspace import create_workspace_for_user
 
             # If ws_schema is None, this is a NEW WORKSPACE.
             # We make a call to the api to create a new ws_schema
             logger.debug("Creating ws_schema")
-            logger.debug(f"Getting teams for user: {phi_config.user.email}")
+            logger.debug(f"Getting teams for user: {agno_config.user.email}")
             teams: Optional[List[TeamSchema]] = None
             selected_team: Optional[TeamSchema] = None
             team_identifier: Optional[TeamIdentifier] = None
@@ -268,7 +268,7 @@ def setup_workspace(ws_root_path: Path) -> Optional[WorkspaceConfig]:
                     "Checking for available teams...", spinner="aesthetic", speed=2.0, refresh_per_second=10
                 )
                 live_log.update(status)
-                teams = get_teams_for_user(phi_config.user)
+                teams = get_teams_for_user(agno_config.user)
                 status.stop()
             if teams is not None and len(teams) > 0:
                 logger.debug(f"The user has {len(teams)} available teams. Checking if they want to use one of them")
@@ -293,7 +293,7 @@ def setup_workspace(ws_root_path: Path) -> Optional[WorkspaceConfig]:
                 status = Status("Creating workspace...", spinner="aesthetic", speed=2.0, refresh_per_second=10)
                 live_log.update(status)
                 ws_schema = create_workspace_for_user(
-                    user=phi_config.user,
+                    user=agno_config.user,
                     workspace=WorkspaceCreate(
                         ws_name=workspace_name,
                         git_url=git_remote_origin_url,
@@ -305,13 +305,13 @@ def setup_workspace(ws_root_path: Path) -> Optional[WorkspaceConfig]:
             logger.debug(f"Workspace created: {workspace_name}")
             if selected_team is not None:
                 logger.debug(f"Selected team: {selected_team.name}")
-            ws_config = phi_config.create_or_update_ws_config(
+            ws_config = agno_config.create_or_update_ws_config(
                 ws_root_path=ws_root_path, ws_schema=ws_schema, ws_team=selected_team, set_as_active=True
             )
 
         # 2.3 Update WorkspaceSchema if git_url is updated
         if git_remote_origin_url is not None and ws_schema is not None and ws_schema.git_url != git_remote_origin_url:
-            from phi.api.workspace import update_workspace_for_user, update_workspace_for_team
+            from agno.api.workspace import update_workspace_for_user, update_workspace_for_team
 
             logger.debug("Updating workspace")
             logger.debug(f"Existing git_url: {ws_schema.git_url}")
@@ -319,7 +319,7 @@ def setup_workspace(ws_root_path: Path) -> Optional[WorkspaceConfig]:
 
             if ws_config is not None and ws_config.ws_team is not None:
                 updated_workspace_schema = update_workspace_for_team(
-                    user=phi_config.user,
+                    user=agno_config.user,
                     workspace=WorkspaceUpdate(
                         id_workspace=ws_schema.id_workspace,
                         git_url=git_remote_origin_url,
@@ -328,7 +328,7 @@ def setup_workspace(ws_root_path: Path) -> Optional[WorkspaceConfig]:
                 )
             else:
                 updated_workspace_schema = update_workspace_for_user(
-                    user=phi_config.user,
+                    user=agno_config.user,
                     workspace=WorkspaceUpdate(
                         id_workspace=ws_schema.id_workspace,
                         git_url=git_remote_origin_url,
@@ -336,7 +336,7 @@ def setup_workspace(ws_root_path: Path) -> Optional[WorkspaceConfig]:
                 )
             if updated_workspace_schema is not None:
                 # Update the ws_schema for this workspace.
-                ws_config = phi_config.create_or_update_ws_config(
+                ws_config = agno_config.create_or_update_ws_config(
                     ws_root_path=ws_root_path, ws_schema=updated_workspace_schema, set_as_active=True
                 )
             else:
@@ -355,9 +355,9 @@ def setup_workspace(ws_root_path: Path) -> Optional[WorkspaceConfig]:
             print_info("3. Install workspace dependencies:")
             print_info(f"\t{install_ws_file}")
 
-        if ws_config.ws_schema is not None and phi_config.user is not None:
+        if ws_config.ws_schema is not None and agno_config.user is not None:
             log_workspace_event(
-                user=phi_config.user,
+                user=agno_config.user,
                 workspace_event=WorkspaceEvent(
                     id_workspace=ws_config.ws_schema.id_workspace,
                     event_type="setup",
@@ -375,7 +375,7 @@ def setup_workspace(ws_root_path: Path) -> Optional[WorkspaceConfig]:
 
 
 def start_workspace(
-    phi_config: PhiCliConfig,
+    agno_config: AgnoCliConfig,
     ws_config: WorkspaceConfig,
     target_env: Optional[str] = None,
     target_infra: Optional[InfraType] = None,
@@ -387,7 +387,7 @@ def start_workspace(
     force: Optional[bool] = None,
     pull: Optional[bool] = False,
 ) -> None:
-    """Start a Phi Workspace. This is called from `phi ws up`"""
+    """Start an Agno Workspace. This is called from `ag ws up`"""
     if ws_config is None:
         logger.error("WorkspaceConfig invalid")
         return
@@ -445,10 +445,10 @@ def start_workspace(
         logger.error("Some resources failed to create, please check logs")
         workspace_event_status = "failed"
 
-    if phi_config.user is not None and ws_config.ws_schema is not None and ws_config.ws_schema.id_workspace is not None:
+    if agno_config.user is not None and ws_config.ws_schema is not None and ws_config.ws_schema.id_workspace is not None:
         # Log workspace start event
         log_workspace_event(
-            user=phi_config.user,
+            user=agno_config.user,
             workspace_event=WorkspaceEvent(
                 id_workspace=ws_config.ws_schema.id_workspace,
                 event_type="start",
@@ -468,7 +468,7 @@ def start_workspace(
 
 
 def stop_workspace(
-    phi_config: PhiCliConfig,
+    agno_config: AgnoCliConfig,
     ws_config: WorkspaceConfig,
     target_env: Optional[str] = None,
     target_infra: Optional[InfraType] = None,
@@ -479,7 +479,7 @@ def stop_workspace(
     auto_confirm: Optional[bool] = False,
     force: Optional[bool] = None,
 ) -> None:
-    """Stop a Phi Workspace. This is called from `phi ws down`"""
+    """Stop an Agno Workspace. This is called from `ag ws down`"""
     if ws_config is None:
         logger.error("WorkspaceConfig invalid")
         return
@@ -536,10 +536,10 @@ def stop_workspace(
         logger.error("Some resources failed to delete, please check logs")
         workspace_event_status = "failed"
 
-    if phi_config.user is not None and ws_config.ws_schema is not None and ws_config.ws_schema.id_workspace is not None:
+    if agno_config.user is not None and ws_config.ws_schema is not None and ws_config.ws_schema.id_workspace is not None:
         # Log workspace stop event
         log_workspace_event(
-            user=phi_config.user,
+            user=agno_config.user,
             workspace_event=WorkspaceEvent(
                 id_workspace=ws_config.ws_schema.id_workspace,
                 event_type="stop",
@@ -559,7 +559,7 @@ def stop_workspace(
 
 
 def update_workspace(
-    phi_config: PhiCliConfig,
+    agno_config: AgnoCliConfig,
     ws_config: WorkspaceConfig,
     target_env: Optional[str] = None,
     target_infra: Optional[InfraType] = None,
@@ -571,7 +571,7 @@ def update_workspace(
     force: Optional[bool] = None,
     pull: Optional[bool] = False,
 ) -> None:
-    """Update a Phi Workspace. This is called from `phi ws patch`"""
+    """Update an Agno Workspace. This is called from `ag ws patch`"""
     if ws_config is None:
         logger.error("WorkspaceConfig invalid")
         return
@@ -628,10 +628,10 @@ def update_workspace(
         logger.error("Some resources failed to update, please check logs")
         workspace_event_status = "failed"
 
-    if phi_config.user is not None and ws_config.ws_schema is not None and ws_config.ws_schema.id_workspace is not None:
+    if agno_config.user is not None and ws_config.ws_schema is not None and ws_config.ws_schema.id_workspace is not None:
         # Log workspace start event
         log_workspace_event(
-            user=phi_config.user,
+            user=agno_config.user,
             workspace_event=WorkspaceEvent(
                 id_workspace=ws_config.ws_schema.id_workspace,
                 event_type="update",
@@ -650,17 +650,17 @@ def update_workspace(
         )
 
 
-def delete_workspace(phi_config: PhiCliConfig, ws_to_delete: Optional[List[Path]]) -> None:
+def delete_workspace(agno_config: AgnoCliConfig, ws_to_delete: Optional[List[Path]]) -> None:
     if ws_to_delete is None or len(ws_to_delete) == 0:
         print_heading("No workspaces to delete")
         return
 
     for ws_root in ws_to_delete:
-        phi_config.delete_ws(ws_root_path=ws_root)
+        agno_config.delete_ws(ws_root_path=ws_root)
 
 
 def set_workspace_as_active(ws_dir_name: Optional[str]) -> None:
-    from phi.cli.operator import initialize_phi
+    from agno.cli.operator import initialize_agno
 
     ######################################################
     ## 1. Validate Pre-requisites
@@ -668,10 +668,10 @@ def set_workspace_as_active(ws_dir_name: Optional[str]) -> None:
     ######################################################
     # 1.1 Check PhiConf is valid
     ######################################################
-    phi_config: Optional[PhiCliConfig] = PhiCliConfig.from_saved_config()
-    if not phi_config:
-        phi_config = initialize_phi()
-        if not phi_config:
+    agno_config: Optional[AgnoCliConfig] = AgnoCliConfig.from_saved_config()
+    if not agno_config:
+        agno_config = initialize_agno()
+        if not agno_config:
             log_config_not_available_msg()
             return
 
@@ -681,12 +681,12 @@ def set_workspace_as_active(ws_dir_name: Optional[str]) -> None:
     # By default, we assume this command is run from the workspace directory
     ws_root_path: Optional[Path] = None
     if ws_dir_name is None:
-        # If the user does not provide a ws_name, that implies `phi set` is ran from
+        # If the user does not provide a ws_name, that implies `ag set` is ran from
         # the workspace directory.
         ws_root_path = Path(".").resolve()
     else:
         # If the user provides a workspace name manually, we find the dir for that ws
-        ws_config: Optional[WorkspaceConfig] = phi_config.get_ws_config_by_dir_name(ws_dir_name)
+        ws_config: Optional[WorkspaceConfig] = agno_config.get_ws_config_by_dir_name(ws_dir_name)
         if ws_config is None:
             logger.error(f"Could not find workspace {ws_dir_name}")
             return
@@ -701,18 +701,18 @@ def set_workspace_as_active(ws_dir_name: Optional[str]) -> None:
     # 1.3 Validate WorkspaceConfig is available i.e. a workspace is available at this directory
     ######################################################
     logger.debug(f"Checking for a workspace at path: {ws_root_path}")
-    active_ws_config: Optional[WorkspaceConfig] = phi_config.get_ws_config_by_path(ws_root_path)
+    active_ws_config: Optional[WorkspaceConfig] = agno_config.get_ws_config_by_path(ws_root_path)
     if active_ws_config is None:
         # This happens when the workspace is not yet setup
         print_info(f"Could not find a workspace at path: {ws_root_path}")
         # TODO: setup automatically for the user
-        print_info("If this workspace has not been setup, please run `phi ws setup` from the workspace directory")
+        print_info("If this workspace has not been setup, please run `ag ws setup` from the workspace directory")
         return
 
     ######################################################
     ## 2. Set workspace as active
     ######################################################
     print_heading(f"Setting workspace {active_ws_config.ws_root_path.stem} as active")
-    phi_config.set_active_ws_dir(active_ws_config.ws_root_path)
+    agno_config.set_active_ws_dir(active_ws_config.ws_root_path)
     print_info("Active workspace updated")
     return

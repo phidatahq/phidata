@@ -1,8 +1,8 @@
 from typing import List, Iterator
 
-from phi.document import Document
-from phi.document.reader.youtube_reader import YouTubeReader
-from phi.knowledge.agent import AgentKnowledge
+from agno.document import Document
+from agno.document.reader.youtube_reader import YouTubeReader
+from agno.knowledge.agent import AgentKnowledge
 
 
 class YouTubeKnowledgeBase(AgentKnowledge):

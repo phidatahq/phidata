@@ -1,1 +1,1 @@
-from phi.model.sambanova.sambanova import Sambanova
+from agno.model.sambanova.sambanova import Sambanova

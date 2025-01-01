@@ -7,30 +7,30 @@ from pydantic import field_validator, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic_core.core_schema import ValidationInfo
 
-from phi.utils.log import logger
+from agno.utils.log import logger
 
-PHI_CLI_DIR: Path = Path.home().resolve().joinpath(".phi")
+AGNO_CLI_CONFIG_DIR: Path = Path.home().resolve().joinpath(".config").joinpath("agno")
 
 
-class PhiCliSettings(BaseSettings):
-    app_name: str = "phi"
-    app_version: str = metadata.version("phidata")
+class AgnoCliSettings(BaseSettings):
+    app_name: str = "agno"
+    app_version: str = metadata.version("agno")
 
-    tmp_token_path: Path = PHI_CLI_DIR.joinpath("tmp_token")
-    config_file_path: Path = PHI_CLI_DIR.joinpath("config.json")
-    credentials_path: Path = PHI_CLI_DIR.joinpath("credentials.json")
-    ai_conversations_path: Path = PHI_CLI_DIR.joinpath("ai_conversations.json")
-    auth_token_cookie: str = "__phi_session"
-    auth_token_header: str = "X-PHIDATA-AUTH-TOKEN"
+    tmp_token_path: Path = AGNO_CLI_CONFIG_DIR.joinpath("tmp_token")
+    config_file_path: Path = AGNO_CLI_CONFIG_DIR.joinpath("config.json")
+    credentials_path: Path = AGNO_CLI_CONFIG_DIR.joinpath("credentials.json")
+    ai_conversations_path: Path = AGNO_CLI_CONFIG_DIR.joinpath("ai_conversations.json")
+    auth_token_cookie: str = "__agno_session"
+    auth_token_header: str = "X-AGNO-AUTH-TOKEN"
 
     api_runtime: str = "prd"
     api_enabled: bool = True
     alpha_features: bool = False
-    api_url: str = Field("https://api.phidata.com", validate_default=True)
-    signin_url: str = Field("https://phidata.app/login", validate_default=True)
-    playground_url: str = Field("https://phidata.app/playground", validate_default=True)
+    api_url: str = Field("https://api.agno.com", validate_default=True)
+    signin_url: str = Field("https://agno.com/login", validate_default=True)
+    playground_url: str = Field("https://agno.com/playground", validate_default=True)
 
-    model_config = SettingsConfigDict(env_prefix="PHI_")
+    model_config = SettingsConfigDict(env_prefix="AGNO_")
 
     @field_validator("api_runtime", mode="before")
     def validate_runtime_env(cls, v):
@@ -48,9 +48,9 @@ class PhiCliSettings(BaseSettings):
         if api_runtime == "dev":
             return "http://localhost:3000/login"
         elif api_runtime == "stg":
-            return "https://stgphi.com/login"
+            return "https://agno.so/login"
         else:
-            return "https://phidata.app/login"
+            return "https://agno.com/login"
 
     @field_validator("playground_url", mode="before")
     def update_playground_url(cls, v, info: ValidationInfo):
@@ -58,9 +58,9 @@ class PhiCliSettings(BaseSettings):
         if api_runtime == "dev":
             return "http://localhost:3000/playground"
         elif api_runtime == "stg":
-            return "https://stgphi.com/playground"
+            return "https://agno.so/playground"
         else:
-            return "https://phidata.app/playground"
+            return "https://agno.com/playground"
 
     @field_validator("api_url", mode="before")
     def update_api_url(cls, v, info: ValidationInfo):
@@ -68,18 +68,18 @@ class PhiCliSettings(BaseSettings):
         if api_runtime == "dev":
             from os import getenv
 
-            if getenv("PHI_RUNTIME") == "docker":
+            if getenv("AGNO_RUNTIME") == "docker":
                 return "http://host.docker.internal:7070"
             return "http://localhost:7070"
         elif api_runtime == "stg":
-            return "https://api.stgphi.com"
+            return "https://api.agno.so"
         else:
-            return "https://api.phidata.com"
+            return "https://api.agno.com"
 
     def gate_alpha_feature(self):
         if not self.alpha_features:
-            logger.error("This is an Alpha feature not for general use.\nPlease message the phidata team for access.")
+            logger.error("This is an Alpha feature not for general use.\nPlease message the Agno team for access.")
             exit(1)
 
 
-phi_cli_settings = PhiCliSettings()
+agno_cli_settings = AgnoCliSettings()

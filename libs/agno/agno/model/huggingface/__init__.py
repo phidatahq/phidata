@@ -1,1 +1,1 @@
-from phi.model.huggingface.hf import HuggingFaceChat
+from agno.model.huggingface.hf import HuggingFaceChat

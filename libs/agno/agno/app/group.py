@@ -2,7 +2,7 @@ from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict
 
-from phi.app.base import AppBase
+from agno.app.base import AppBase
 
 
 class AppGroup(BaseModel):

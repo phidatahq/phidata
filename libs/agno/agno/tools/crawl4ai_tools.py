@@ -1,7 +1,7 @@
 import asyncio
 from typing import Optional
 
-from phi.tools import Toolkit
+from agno.tools import Toolkit
 
 try:
     from crawl4ai import AsyncWebCrawler, CacheMode

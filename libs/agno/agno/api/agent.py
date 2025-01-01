@@ -1,12 +1,12 @@
-from phi.api.api import api
-from phi.api.routes import ApiRoutes
-from phi.api.schemas.agent import AgentRunCreate, AgentSessionCreate
-from phi.cli.settings import phi_cli_settings
-from phi.utils.log import logger
+from agno.api.api import api
+from agno.api.routes import ApiRoutes
+from agno.api.schemas.agent import AgentRunCreate, AgentSessionCreate
+from agno.cli.settings import agno_cli_settings
+from agno.utils.log import logger
 
 
 def create_agent_session(session: AgentSessionCreate, monitor: bool = False) -> None:
-    if not phi_cli_settings.api_enabled:
+    if not agno_cli_settings.api_enabled:
         return
 
     logger.debug("--**-- Logging Agent Session")
@@ -22,7 +22,7 @@ def create_agent_session(session: AgentSessionCreate, monitor: bool = False) -> 
 
 
 def create_agent_run(run: AgentRunCreate, monitor: bool = False) -> None:
-    if not phi_cli_settings.api_enabled:
+    if not agno_cli_settings.api_enabled:
         return
 
     logger.debug("--**-- Logging Agent Run")
@@ -38,7 +38,7 @@ def create_agent_run(run: AgentRunCreate, monitor: bool = False) -> None:
 
 
 async def acreate_agent_session(session: AgentSessionCreate, monitor: bool = False) -> None:
-    if not phi_cli_settings.api_enabled:
+    if not agno_cli_settings.api_enabled:
         return
 
     logger.debug("--**-- Logging Agent Session (Async)")
@@ -53,7 +53,7 @@ async def acreate_agent_session(session: AgentSessionCreate, monitor: bool = Fal
 
 
 async def acreate_agent_run(run: AgentRunCreate, monitor: bool = False) -> None:
-    if not phi_cli_settings.api_enabled:
+    if not agno_cli_settings.api_enabled:
         return
 
     logger.debug("--**-- Logging Agent Run (Async)")

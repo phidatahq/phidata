@@ -13,7 +13,7 @@ class PlaygroundSettings(BaseSettings):
     """
 
     env: str = "dev"
-    title: str = "phi-playground"
+    title: str = "agno-playground"
 
     # Set to False to disable docs server at /docs and /redoc
     docs_enabled: bool = True

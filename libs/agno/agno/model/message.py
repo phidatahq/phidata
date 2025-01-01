@@ -3,7 +3,7 @@ from time import time
 from typing import Optional, Any, Dict, List, Union, Sequence
 from pydantic import BaseModel, ConfigDict, Field
 
-from phi.utils.log import logger
+from agno.utils.log import logger
 
 
 class MessageReferences(BaseModel):

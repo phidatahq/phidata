@@ -1,2 +1,2 @@
-from phi.model.openai.chat import OpenAIChat
-from phi.model.openai.like import OpenAILike
+from agno.model.openai.chat import OpenAIChat
+from agno.model.openai.like import OpenAILike

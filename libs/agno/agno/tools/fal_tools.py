@@ -5,10 +5,10 @@ pip install fal-client
 from os import getenv
 from typing import Optional
 
-from phi.agent import Agent
-from phi.tools import Toolkit
-from phi.utils.log import logger
-from phi.model.content import Video, Image
+from agno.agent import Agent
+from agno.tools import Toolkit
+from agno.utils.log import logger
+from agno.model.content import Video, Image
 from uuid import uuid4
 
 

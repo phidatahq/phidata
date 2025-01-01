@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import List, Optional, Dict, Any
 
-from phi.document import Document
+from agno.document import Document
 
 
 class VectorDb(ABC):

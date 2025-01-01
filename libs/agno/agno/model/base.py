@@ -5,12 +5,12 @@ from typing import List, Iterator, Optional, Dict, Any, Callable, Union, Sequenc
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, ValidationInfo
 
-from phi.model.message import Message
-from phi.model.response import ModelResponse, ModelResponseEvent
-from phi.tools import Tool, Toolkit
-from phi.tools.function import Function, FunctionCall, ToolCallException
-from phi.utils.log import logger
-from phi.utils.timer import Timer
+from agno.model.message import Message
+from agno.model.response import ModelResponse, ModelResponseEvent
+from agno.tools import Tool, Toolkit
+from agno.tools.function import Function, FunctionCall, ToolCallException
+from agno.utils.log import logger
+from agno.utils.timer import Timer
 
 
 class Model(BaseModel):

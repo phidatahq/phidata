@@ -1,1 +1,1 @@
-from phi.model.together.together import Together
+from agno.model.together.together import Together

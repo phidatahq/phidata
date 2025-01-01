@@ -5,9 +5,9 @@ from typing import Optional, Any, Dict, List
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from phi.model.content import Video, Image, Audio
-from phi.reasoning.step import ReasoningStep
-from phi.model.message import Message, MessageReferences
+from agno.model.content import Video, Image, Audio
+from agno.reasoning.step import ReasoningStep
+from agno.model.message import Message, MessageReferences
 
 
 class RunEvent(str, Enum):

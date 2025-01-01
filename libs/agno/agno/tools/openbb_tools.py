@@ -2,8 +2,8 @@ import json
 from os import getenv
 from typing import Optional, Literal, Any
 
-from phi.tools import Toolkit
-from phi.utils.log import logger
+from agno.tools import Toolkit
+from agno.utils.log import logger
 
 try:
     from openbb import obb as openbb_app

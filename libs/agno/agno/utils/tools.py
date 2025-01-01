@@ -1,7 +1,7 @@
 from typing import Dict, Any, Optional
 
-from phi.tools.function import Function, FunctionCall
-from phi.utils.functions import get_function_call
+from agno.tools.function import Function, FunctionCall
+from agno.utils.functions import get_function_call
 
 
 def get_function_call_for_tool_call(

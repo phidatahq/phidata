@@ -1,7 +1,7 @@
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Optional
 
-from phi.cli.settings import phi_cli_settings
+from agno.cli.settings import agno_cli_settings
 
 
 class CliAuthRequestHandler(BaseHTTPRequestHandler):
@@ -11,7 +11,7 @@ class CliAuthRequestHandler(BaseHTTPRequestHandler):
         https://gist.github.com/mdonkers/63e115cc0c79b4f6b8b3a6b797e485c7
 
     TODO:
-        * Fix the header and limit to only localhost or phidata.com
+        * Fix the header and limit to only localhost or agno.com
     """
 
     def _set_response(self):
@@ -47,9 +47,9 @@ class CliAuthRequestHandler(BaseHTTPRequestHandler):
         # )
         # logger.debug("Data: {}".format(decoded_post_data))
         # logger.info("type: {}".format(type(post_data)))
-        phi_cli_settings.tmp_token_path.parent.mkdir(parents=True, exist_ok=True)
-        phi_cli_settings.tmp_token_path.touch(exist_ok=True)
-        phi_cli_settings.tmp_token_path.write_text(decoded_post_data)
+        agno_cli_settings.tmp_token_path.parent.mkdir(parents=True, exist_ok=True)
+        agno_cli_settings.tmp_token_path.touch(exist_ok=True)
+        agno_cli_settings.tmp_token_path.write_text(decoded_post_data)
         # TODO: Add checks before shutting down the server
         self.server.running = False  # type: ignore
         self._set_response()
@@ -111,9 +111,9 @@ def get_auth_token_from_web_flow(port: int) -> Optional[str]:
     server = CliAuthServer(port)
     server.run()
 
-    if phi_cli_settings.tmp_token_path.exists() and phi_cli_settings.tmp_token_path.is_file():
-        auth_token_str = phi_cli_settings.tmp_token_path.read_text()
+    if agno_cli_settings.tmp_token_path.exists() and agno_cli_settings.tmp_token_path.is_file():
+        auth_token_str = agno_cli_settings.tmp_token_path.read_text()
         auth_token_json = json.loads(auth_token_str)
-        phi_cli_settings.tmp_token_path.unlink()
+        agno_cli_settings.tmp_token_path.unlink()
         return auth_token_json.get("AuthToken", None)
     return None

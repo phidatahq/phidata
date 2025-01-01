@@ -1,3 +1,3 @@
-from phi.model.ollama.chat import Ollama
-from phi.model.ollama.hermes import Hermes
-from phi.model.ollama.tools import OllamaTools
+from agno.model.ollama.chat import Ollama
+from agno.model.ollama.hermes import Hermes
+from agno.model.ollama.tools import OllamaTools

@@ -1,6 +1,6 @@
 from typing import Optional
 
-from phi.app.base import AppBase, ContainerContext, ResourceBase  # noqa: F401
+from agno.app.base import AppBase, ContainerContext, ResourceBase  # noqa: F401
 
 
 class DbApp(AppBase):

@@ -3,10 +3,10 @@ import json
 from dataclasses import dataclass, field
 from typing import Optional, List, Iterator, Dict, Any, Mapping, Tuple
 
-from phi.model.message import Message
-from phi.model.response import ModelResponse
-from phi.model.ollama.chat import Ollama, Metrics
-from phi.utils.log import logger
+from agno.model.message import Message
+from agno.model.response import ModelResponse
+from agno.model.ollama.chat import Ollama, Metrics
+from agno.utils.log import logger
 
 
 @dataclass

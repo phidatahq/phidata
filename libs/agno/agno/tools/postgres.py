@@ -7,8 +7,8 @@ except ImportError:
         "`psycopg2` not installed. Please install using `pip install psycopg2`. If you face issues, try `pip install psycopg2-binary`."
     )
 
-from phi.tools import Toolkit
-from phi.utils.log import logger
+from agno.tools import Toolkit
+from agno.utils.log import logger
 
 
 class PostgresTools(Toolkit):

@@ -2,10 +2,10 @@ from typing import Iterator, List, Optional, Dict, Any
 
 from pydantic import model_validator
 
-from phi.document import Document
-from phi.document.reader.website import WebsiteReader
-from phi.knowledge.agent import AgentKnowledge
-from phi.utils.log import logger
+from agno.document import Document
+from agno.document.reader.website import WebsiteReader
+from agno.knowledge.agent import AgentKnowledge
+from agno.utils.log import logger
 
 
 class WebsiteKnowledgeBase(AgentKnowledge):

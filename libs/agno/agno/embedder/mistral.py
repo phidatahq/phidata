@@ -1,8 +1,8 @@
 from os import getenv
 from typing import Optional, Dict, List, Tuple, Any
 
-from phi.embedder.base import Embedder
-from phi.utils.log import logger
+from agno.embedder.base import Embedder
+from agno.utils.log import logger
 
 try:
     from mistralai import Mistral

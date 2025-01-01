@@ -1,6 +1,6 @@
 from typing import List
 
-from phi.utils.log import logger
+from agno.utils.log import logger
 
 
 def run_shell_command(args: List[str], tail: int = 100) -> str:

@@ -1,1 +1,1 @@
-from phi.model.deepseek.deepseek import DeepSeekChat
+from agno.model.deepseek.deepseek import DeepSeekChat

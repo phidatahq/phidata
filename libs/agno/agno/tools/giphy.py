@@ -4,10 +4,10 @@ from typing import Optional
 
 import httpx
 
-from phi.agent import Agent
-from phi.model.content import Image
-from phi.tools import Toolkit
-from phi.utils.log import logger
+from agno.agent import Agent
+from agno.model.content import Image
+from agno.tools import Toolkit
+from agno.utils.log import logger
 
 
 class GiphyTools(Toolkit):

@@ -11,6 +11,7 @@
 CURR_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(dirname "${CURR_DIR}")"
 AGNO_DIR="${REPO_ROOT}/libs/agno"
+AGNO_DOCKER_DIR="${REPO_ROOT}/libs/agno_docker"
 PHI_DIR="${REPO_ROOT}/libs/phi"
 source "${CURR_DIR}/_utils.sh"
 
@@ -19,16 +20,30 @@ PYTHON_VERSION=$(python3 --version)
 
 print_heading "Development setup..."
 
-print_heading "Creating virtual env at ${VENV_DIR}"
+print_heading "Removing virtual env"
+print_info "rm -rf ${VENV_DIR}"
+rm -rf ${VENV_DIR}
+
+print_heading "Creating virtual env"
 print_info "VIRTUAL_ENV=${VENV_DIR} uv venv"
 VIRTUAL_ENV=${VENV_DIR} uv venv
 
 print_heading "Installing Agno"
-print_info "VIRTUAL_ENV=${VENV_DIR} uv pip sync ${AGNO_DIR}/requirements.txt"
-VIRTUAL_ENV=${VENV_DIR} uv pip sync ${AGNO_DIR}/requirements.txt
+print_info "VIRTUAL_ENV=${VENV_DIR} uv pip install -r ${AGNO_DIR}/requirements.txt"
+VIRTUAL_ENV=${VENV_DIR} uv pip install -r ${AGNO_DIR}/requirements.txt
 
 print_heading "Installing Agno in editable mode with dev dependencies"
 VIRTUAL_ENV=${VENV_DIR} uv pip install -e ${AGNO_DIR}[dev]
+
+print_heading "Installing Agno-Docker"
+print_info "VIRTUAL_ENV=${VENV_DIR} uv pip install -r ${AGNO_DOCKER_DIR}/requirements.txt"
+VIRTUAL_ENV=${VENV_DIR} uv pip install -r ${AGNO_DOCKER_DIR}/requirements.txt
+
+print_heading "Installing Agno-Docker in editable mode with dev dependencies"
+VIRTUAL_ENV=${VENV_DIR} uv pip install -e ${AGNO_DOCKER_DIR}[dev]
+
+print_heading "uv pip list"
+VIRTUAL_ENV=${VENV_DIR} uv pip list
 
 print_heading "Development setup complete"
 print_heading "Activate venv using: source .venv/bin/activate"

@@ -27,7 +27,7 @@ class InfraBase(BaseModel):
     # -*- Debug Mode
     debug_mode: bool = False
 
-    # -*- Resource Environment
+    # -*- Environment Variables
     # Add env variables to resource where applicable
     env_vars: Optional[Dict[str, Any]] = None
     # Read env from a file in yaml format
@@ -39,7 +39,7 @@ class InfraBase(BaseModel):
     # Read secret variables from AWS Secrets
     aws_secrets: Optional[Any] = None
 
-    # -*- Waiter Control
+    # -*- Wait for resource to be created, updated or deleted
     wait_for_create: bool = True
     wait_for_update: bool = True
     wait_for_delete: bool = True

@@ -310,6 +310,9 @@ class Gemini(Model):
                 converted_properties = {}
                 for prop_key, prop_value in value.items():
                     property_type = prop_value.get("type")
+                    if property_type == "array":
+                        converted_properties[prop_key] = prop_value
+                        continue
                     if isinstance(property_type, list):
                         # Create a copy to avoid modifying the original list
                         non_null_types = [t for t in property_type if t != "null"]

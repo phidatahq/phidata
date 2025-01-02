@@ -19,7 +19,7 @@ class GeminiEmbedder(Embedder):
     api_key: Optional[str] = None
     request_params: Optional[Dict[str, Any]] = None
     client_params: Optional[Dict[str, Any]] = None
-    gemini_client: Optional[genai.embed_content] = None
+    gemini_client: Optional[genai] = None
 
     @property
     def client(self):

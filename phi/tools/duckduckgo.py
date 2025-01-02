@@ -23,6 +23,7 @@ class DuckDuckGo(Toolkit):
         proxies (Optional[Any]): A list of proxies to be used in the search request.
         timeout (Optional[int]): The maximum number of seconds to wait for a response.
     """
+
     def __init__(
         self,
         search: bool = True,

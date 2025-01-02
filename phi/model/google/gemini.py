@@ -319,6 +319,10 @@ class Gemini(Model):
                         if non_null_types:
                             # Use the first non-null type
                             converted_type = non_null_types[0]
+                            if converted_type == "array":
+                                prop_value["type"] = converted_type
+                                converted_properties[prop_key] = prop_value
+                                continue
                         else:
                             # Default type if all types are 'null'
                             converted_type = "string"

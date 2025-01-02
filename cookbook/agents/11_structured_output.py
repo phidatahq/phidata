@@ -9,8 +9,8 @@ from rich.spinner import Spinner
 from rich.text import Text
 from pydantic import BaseModel, Field
 
-from phi.agent import Agent, RunResponse
-from phi.model.openai import OpenAIChat
+from agno.agent import Agent, RunResponse
+from agno.model.openai import OpenAIChat
 
 console = Console()
 

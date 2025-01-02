@@ -1,9 +1,9 @@
 from typing import Iterator
 from rich.pretty import pprint
-from phi.agent import Agent, RunResponse
-from phi.model.openai import OpenAIChat
-from phi.tools.yfinance import YFinanceTools
-from phi.utils.pprint import pprint_run_response
+from agno.agent import Agent, RunResponse
+from agno.model.openai import OpenAIChat
+from agno.tools.yfinance import YFinanceTools
+from agno.utils.pprint import pprint_run_response
 
 agent = Agent(
     model=OpenAIChat(id="gpt-4o"),

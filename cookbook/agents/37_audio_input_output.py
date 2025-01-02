@@ -1,8 +1,8 @@
 import base64
 import requests
-from phi.agent import Agent
-from phi.model.openai import OpenAIChat
-from phi.utils.audio import write_audio_to_file
+from agno.agent import Agent
+from agno.model.openai import OpenAIChat
+from agno.utils.audio import write_audio_to_file
 
 # Fetch the audio file and convert it to a base64 encoded string
 url = "https://openaiassets.blob.core.windows.net/$web/API/docs/audio/alloy.wav"

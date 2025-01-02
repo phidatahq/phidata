@@ -269,7 +269,7 @@ class AgnoCliConfig:
         else:
             print_info("No active workspace found.")
             print_info(
-                "Please create a workspace using `ag ws create` " "or setup existing workspace using `ag ws setup`"
+                "Please create a workspace using `ag ws create` " "or setup an existing workspace using `ag ws setup`"
             )
 
         if show_all and len(self.ws_config_map) > 0:

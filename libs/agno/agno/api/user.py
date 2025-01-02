@@ -142,7 +142,7 @@ def create_anon_user() -> Optional[UserSchema]:
 
             agno_auth_token = r.headers.get(agno_cli_settings.auth_token_header)
             if agno_auth_token is None:
-                logger.error("Could not authenticate user")
+                logger.debug("Could not create anon user")
                 return None
 
             user_data = r.json()

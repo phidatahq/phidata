@@ -1,8 +1,8 @@
-"""Run `pip install openai yfinance phidata` to install dependencies."""
+"""Run `pip install openai yfinance agno` to install dependencies."""
 
-from phi.agent import Agent
-from phi.model.openai import OpenAIChat
-from phi.tools.yfinance import YFinanceTools
+from agno.agent import Agent
+from agno.model.openai import OpenAIChat
+from agno.tools.yfinance import YFinanceTools
 
 finance_agent = Agent(
     name="Finance Agent",

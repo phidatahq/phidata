@@ -1,9 +1,9 @@
 """Run `pip install openai duckduckgo-search yfinance` to install dependencies."""
 
-from phi.agent import Agent
-from phi.model.openai import OpenAIChat
-from phi.tools.yfinance import YFinanceTools
-from phi.tools.duckduckgo import DuckDuckGo
+from agno.agent import Agent
+from agno.model.openai import OpenAIChat
+from agno.tools.yfinance import YFinanceTools
+from agno.tools.duckduckgo import DuckDuckGo
 
 agent = Agent(
     model=OpenAIChat(id="gpt-4o"),

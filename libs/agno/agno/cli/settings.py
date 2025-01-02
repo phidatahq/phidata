@@ -9,7 +9,7 @@ from pydantic_core.core_schema import ValidationInfo
 
 from agno.utils.log import logger
 
-AGNO_CLI_CONFIG_DIR: Path = Path.home().resolve().joinpath(".config").joinpath("agno")
+AGNO_CLI_CONFIG_DIR: Path = Path.home().resolve().joinpath(".config").joinpath("ag")
 
 
 class AgnoCliSettings(BaseSettings):

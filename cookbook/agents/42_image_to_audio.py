@@ -2,9 +2,9 @@ from pathlib import Path
 from rich import print
 from rich.text import Text
 
-from phi.agent import Agent, RunResponse
-from phi.model.openai import OpenAIChat
-from phi.utils.audio import write_audio_to_file
+from agno.agent import Agent, RunResponse
+from agno.model.openai import OpenAIChat
+from agno.utils.audio import write_audio_to_file
 
 cwd = Path(__file__).parent.resolve()
 

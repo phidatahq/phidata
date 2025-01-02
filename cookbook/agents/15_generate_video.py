@@ -1,6 +1,6 @@
-from phi.agent import Agent
-from phi.model.openai import OpenAIChat
-from phi.tools.models_labs import ModelsLabs
+from agno.agent import Agent
+from agno.model.openai import OpenAIChat
+from agno.tools.models_labs import ModelsLabs
 
 video_agent = Agent(
     model=OpenAIChat(id="gpt-4o"),

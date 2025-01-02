@@ -1,6 +1,6 @@
-from phi.agent import Agent
-from phi.model.openai import OpenAIChat
-from phi.tools.youtube_tools import YouTubeTools
+from agno.agent import Agent
+from agno.model.openai import OpenAIChat
+from agno.tools.youtube_tools import YouTubeTools
 
 agent = Agent(
     name="YouTube Timestamps Agent",

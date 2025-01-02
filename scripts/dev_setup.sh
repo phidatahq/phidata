@@ -27,8 +27,8 @@ print_heading "Installing Agno"
 print_info "VIRTUAL_ENV=${VENV_DIR} uv pip sync ${AGNO_DIR}/requirements.txt"
 VIRTUAL_ENV=${VENV_DIR} uv pip sync ${AGNO_DIR}/requirements.txt
 
-print_heading "Installing Agno in editable mode with all dependencies"
-VIRTUAL_ENV=${VENV_DIR} uv pip install -e ${AGNO_DIR}[all]
+print_heading "Installing Agno in editable mode with dev dependencies"
+VIRTUAL_ENV=${VENV_DIR} uv pip install -e ${AGNO_DIR}[dev]
 
 print_heading "Development setup complete"
 print_heading "Activate venv using: source .venv/bin/activate"

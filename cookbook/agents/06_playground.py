@@ -1,11 +1,11 @@
 """Run `pip install openai yfinance duckduckgo-search phidata 'fastapi[standard]' sqlalchemy` to install dependencies."""
 
-from phi.agent import Agent
-from phi.model.openai import OpenAIChat
-from phi.storage.agent.sqlite import SqlAgentStorage
-from phi.tools.duckduckgo import DuckDuckGo
-from phi.tools.yfinance import YFinanceTools
-from phi.playground import Playground, serve_playground_app
+from agno.agent import Agent
+from agno.model.openai import OpenAIChat
+from agno.storage.agent.sqlite import SqlAgentStorage
+from agno.tools.duckduckgo import DuckDuckGo
+from agno.tools.yfinance import YFinanceTools
+from agno.playground import Playground, serve_playground_app
 
 web_agent = Agent(
     name="Web Agent",

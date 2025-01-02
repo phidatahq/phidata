@@ -160,13 +160,16 @@ def config(
         set_log_level_to_debug()
 
     from agno.cli.config import AgnoCliConfig
-    from agno.cli.console import print_info
+    from agno.cli.console import log_config_not_available_msg
+    from agno.cli.operator import initialize_agno
 
-    conf: Optional[AgnoCliConfig] = AgnoCliConfig.from_saved_config()
-    if conf is not None:
-        conf.print_to_cli(show_all=True)
-    else:
-        print_info("Agno not initialized, run `ag init` to get started")
+    agno_config: Optional[AgnoCliConfig] = AgnoCliConfig.from_saved_config()
+    if not agno_config:
+        agno_config = initialize_agno()
+        if not agno_config:
+            log_config_not_available_msg()
+            return
+    agno_config.print_to_cli(show_all=True)
 
 
 @agno_cli.command(short_help="Set current directory as active workspace")

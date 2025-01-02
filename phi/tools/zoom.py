@@ -123,7 +123,7 @@ class ZoomTool(Toolkit):
         params = {"type": "upcoming", "page_size": 30}
 
         try:
-            response = requests.get(url, headers=headers, params=params)
+            response = requests.get(url, headers=headers, params=params)  # type: ignore
             response.raise_for_status()
             meetings = response.json()
 

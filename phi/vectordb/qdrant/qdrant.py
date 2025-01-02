@@ -86,7 +86,7 @@ class Qdrant(VectorDb):
                 https=self.https,
                 api_key=self.api_key,
                 prefix=self.prefix,
-                timeout=self.timeout,
+                timeout=self.timeout,  # type: ignore
                 host=self.host,
                 path=self.path,
                 **self.kwargs,

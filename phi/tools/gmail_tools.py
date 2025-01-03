@@ -35,20 +35,40 @@ SCOPES = ['https://www.googleapis.com/auth/gmail.readonly',
           'https://www.googleapis.com/auth/gmail.compose']
 
 class GmailTools(Toolkit):
-    def __init__(self):
+    def __init__(
+            self, 
+            get_latest_emails: bool = True,
+            get_emails_from_user: bool = True,
+            get_unread_emails: bool = True,
+            get_starred_emails: bool = True,
+            get_emails_by_context: bool = True,
+            get_emails_by_date: bool = True,
+            create_draft_email: bool = True,
+            send_email: bool = True,
+            search_emails: bool = True
+            ):
         """Initialize GmailTools and authenticate with Gmail API"""
         super().__init__()
         self.creds = self._authenticate()
         self.service = build('gmail', 'v1', credentials=self.creds)
-        self.register(self.get_latest_emails)
-        self.register(self.get_emails_from_user)
-        self.register(self.get_unread_emails)
-        self.register(self.get_starred_emails)
-        self.register(self.get_emails_by_context)
-        self.register(self.get_emails_by_date)
-        self.register(self.create_draft_email)
-        self.register(self.send_email)
-        self.register(self.search_emails)
+        if get_latest_emails:
+            self.register(self.get_latest_emails)
+        if get_emails_from_user:
+            self.register(self.get_emails_from_user)
+        if get_unread_emails:
+            self.register(self.get_unread_emails)
+        if get_starred_emails:
+            self.register(self.get_starred_emails)
+        if get_emails_by_context:
+            self.register(self.get_emails_by_context)
+        if get_emails_by_date:
+            self.register(self.get_emails_by_date)
+        if create_draft_email:
+            self.register(self.create_draft_email)
+        if send_email:
+            self.register(self.send_email)
+        if search_emails:
+            self.register(self.search_emails)
 
     def _format_emails(self, emails: List[dict]) -> str:
         """Format list of email dictionaries into a readable string"""
@@ -200,7 +220,7 @@ class GmailTools(Toolkit):
         except Exception as error:
             return f"Unexpected error retrieving emails by date: {type(error).__name__}: {error}"
 
-    def create_draft_email(self, to: str, subject: str, body: str, cc: Optional[str] = None) -> dict:
+    def create_draft_email(self, to: str, subject: str, body: str, cc: Optional[str] = None) -> str:
         """
         Create and save a draft email. to and cc are comma separated string of email ids
         Args:
@@ -210,15 +230,15 @@ class GmailTools(Toolkit):
             cc (Optional[str]): Comma separated string of CC email addresses (optional)
 
         Returns:
-            dict: Draft email details including id
+            str: Stringified dictionary containing draft email details including id
         """
         message = self._create_message(to.split(','), subject, body, cc.split(',') if cc else None)
         draft = {'message': message}
         draft = self.service.users().drafts().create(
             userId='me', body=draft).execute()
-        return draft
+        return str(draft)
 
-    def send_email(self, to: str, subject: str, body: str, cc: Optional[str] = None) -> dict:
+    def send_email(self, to: str, subject: str, body: str, cc: Optional[str] = None) -> str:
         """
         Send an email immediately. to and cc are comma separated string of email ids
         Args:
@@ -226,14 +246,15 @@ class GmailTools(Toolkit):
             subject (str): Email subject
             body (str): Email body content
             cc (Optional[str]): Comma separated string of CC email addresses (optional)
-
+        
         Returns:
-            dict: Sent email details including id
+            str: Stringified dictionary containing sent email details including id
         """
+        body = body.replace('\n', '<br>')
         message = self._create_message(to.split(','), subject, body, cc.split(',') if cc else None)
         message = self.service.users().messages().send(
             userId='me', body=message).execute()
-        return message
+        return str(message)
     
     def search_emails(self, query: str, count: int) -> str:
         """
@@ -286,7 +307,8 @@ class GmailTools(Toolkit):
 
     def _create_message(self, to: List[str], subject: str, body: str, cc: Optional[List[str]] = None) -> dict:
         """Create email message"""
-        message = MIMEText(body)
+        body = body.replace('\\n', '\n')
+        message = MIMEText(body, 'html')
         message['to'] = ', '.join(to)
         message['from'] = 'me'
         message['subject'] = subject

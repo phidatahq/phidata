@@ -6,6 +6,7 @@
 #
 annotated-types==0.7.0
 anyio==4.6.2.post1
+browser-use==0.1.0
 certifi==2024.8.30
 click==8.1.7
 exceptiongroup==1.2.2

@@ -5,6 +5,7 @@ from typing import Optional, Union, Callable, List
 from pydantic import BaseModel, ConfigDict, field_validator, Field
 
 from phi.agent import Agent, RunResponse
+from phi.model.base import Model
 from phi.utils.log import logger, set_log_level_to_debug
 from phi.utils.timer import Timer
 
@@ -12,11 +13,17 @@ from phi.utils.timer import Timer
 class AccuracyResult(BaseModel):
     score: int = Field(..., description="Accuracy Score between 1 and 10 assigned to the Agent's answer.")
     reason: str = Field(..., description="Detailed reasoning for the accuracy score.")
+    relevance: int = Field(..., description="Relevance Score between 1 and 10 assigned to the Agent's answer.")
+    completeness: int = Field(..., description="Completeness Score between 1 and 10 assigned to the Agent's answer.")
+    confidence: float = Field(..., description="Model's confidence in the answer (0-1).")
 
 
 class EvalResult(BaseModel):
     accuracy_score: int = Field(..., description="Accuracy Score between 1 to 10.")
     accuracy_reason: str = Field(..., description="Reasoning for the accuracy score.")
+    relevance_score: Optional[int] = Field(None, description="Relevance Score between 1 to 10.")
+    completeness_score: Optional[int] = Field(None, description="Completeness Score between 1 to 10.")
+    confidence_score: Optional[float] = Field(None, description="Model's confidence in the answer (0-1).")
 
 
 class Eval(BaseModel):
@@ -27,11 +34,9 @@ class Eval(BaseModel):
     # Agent to evaluate
     agent: Optional[Agent] = None
 
-    # Question to evaluate
-    question: str
-    answer: Optional[str] = None
-    # Expected Answer for the question
-    expected_answer: str
+    # Model used to evaluate the answer
+    model: Optional[Model] = None
+
     # Result of the evaluation
     result: Optional[EvalResult] = None
 
@@ -61,18 +66,21 @@ class Eval(BaseModel):
             logger.debug("Debug logs enabled")
         return v
 
-    def get_accuracy_evaluator(self) -> Agent:
+    def get_accuracy_evaluator(self, question: str, expected_answer: str) -> Agent:
         if self.accuracy_evaluator is not None:
             return self.accuracy_evaluator
 
-        try:
-            from phi.model.openai import OpenAIChat
-        except ImportError as e:
-            logger.exception(e)
-            logger.error(
-                "phidata uses `openai` as the default model provider. Please run `pip install openai` to use the default evaluator."
-            )
-            exit(1)
+        model = self.model
+        if model is None:
+            try:
+                from phi.model.openai import OpenAIChat
+            except ImportError as e:
+                logger.exception(e)
+                logger.error(
+                    "phidata uses `openai` as the default model provider. Please run `pip install openai` to use the default evaluator."
+                )
+                exit(1)
+            model = OpenAIChat(id="gpt-4o-mini")
 
         accuracy_guidelines = ""
         if self.accuracy_guidelines is not None and len(self.accuracy_guidelines) > 0:
@@ -87,16 +95,16 @@ class Eval(BaseModel):
             accuracy_context += "\n"
 
         return Agent(
-            model=OpenAIChat(id="gpt-4o-mini"),
+            model=model,
             description=f"""\
 You are an expert evaluator tasked with assessing the accuracy of an AI Agent's answer compared to an expected answer for a given question.
 Your task is to provide a detailed analysis and assign a score on a scale of 1 to 10, where 10 indicates a perfect match to the expected answer.
 
 ## Question:
-{self.question}
+{question}
 
 ## Expected Answer:
-{self.expected_answer}
+{expected_answer}
 
 ## Evaluation Criteria:
 1. Accuracy of information
@@ -123,16 +131,14 @@ Your evaluation should be objective, thorough, and well-reasoned. Provide specif
             response_model=AccuracyResult,
         )
 
-    def run(self, answer: Optional[Union[str, Callable]] = None) -> Optional[EvalResult]:
+    def run(self, question: str, expected_answer: str, answer: Optional[Union[str, Callable]] = None) -> Optional[EvalResult]:
         logger.debug(f"*********** Evaluation Start: {self.eval_id} ***********")
 
         answer_to_evaluate: Optional[RunResponse] = None
         if answer is None:
             if self.agent is not None:
                 logger.debug("Getting answer from agent")
-                answer_to_evaluate = self.agent.run(self.question)
-            if self.answer is not None:
-                answer_to_evaluate = RunResponse(content=self.answer)
+                answer_to_evaluate = self.agent.run(question)
         else:
             try:
                 if callable(answer):
@@ -146,17 +152,15 @@ Your evaluation should be objective, thorough, and well-reasoned. Provide specif
 
         if answer_to_evaluate is None:
             raise ValueError("No Answer to evaluate.")
-        else:
-            self.answer = answer_to_evaluate.content
 
         logger.debug("************************ Evaluating ************************")
-        logger.debug(f"Question: {self.question}")
-        logger.debug(f"Expected Answer: {self.expected_answer}")
+        logger.debug(f"Question: {question}")
+        logger.debug(f"Expected Answer: {expected_answer}")
         logger.debug(f"Answer: {answer_to_evaluate}")
         logger.debug("************************************************************")
 
         logger.debug("Evaluating accuracy...")
-        accuracy_evaluator = self.get_accuracy_evaluator()
+        accuracy_evaluator = self.get_accuracy_evaluator(question=question, expected_answer=expected_answer)
         try:
             self.accuracy_result: AccuracyResult = accuracy_evaluator.run(
                 answer_to_evaluate.content, stream=False
@@ -169,6 +173,9 @@ Your evaluation should be objective, thorough, and well-reasoned. Provide specif
             self.result = EvalResult(
                 accuracy_score=self.accuracy_result.score,
                 accuracy_reason=self.accuracy_result.reason,
+                relevance_score=self.accuracy_result.relevance,
+                completeness_score=self.accuracy_result.completeness,
+                confidence_score=self.accuracy_result.confidence,
             )
 
         # -*- Save result to file if save_result_to_file is set
@@ -184,7 +191,7 @@ Your evaluation should be objective, thorough, and well-reasoned. Provide specif
         logger.debug(f"*********** Evaluation End: {self.eval_id} ***********")
         return self.result
 
-    def print_result(self, answer: Optional[Union[str, Callable]] = None) -> Optional[EvalResult]:
+    def print_result(self, question: str, expected_answer: str, answer: Optional[Union[str, Callable]] = None) -> Optional[EvalResult]:
         from phi.cli.console import console
         from rich.table import Table
         from rich.progress import Progress, SpinnerColumn, TextColumn
@@ -194,7 +201,7 @@ Your evaluation should be objective, thorough, and well-reasoned. Provide specif
         response_timer.start()
         with Progress(SpinnerColumn(spinner_name="dots"), TextColumn("{task.description}"), transient=True) as progress:
             progress.add_task("Working...")
-            result: Optional[EvalResult] = self.run(answer=answer)
+            result: Optional[EvalResult] = self.run(question=question, expected_answer=expected_answer, answer=answer)
 
         response_timer.stop()
         if result is None:
@@ -208,12 +215,59 @@ Your evaluation should be objective, thorough, and well-reasoned. Provide specif
             title_style="bold sky_blue1",
             title_justify="center",
         )
-        table.add_row("Question", self.question)
-        table.add_row("Answer", self.answer)
-        table.add_row("Expected Answer", self.expected_answer)
+        table.add_row("Question", question)
+        table.add_row("Answer", answer)
+        table.add_row("Expected Answer", expected_answer)
         table.add_row("Accuracy Score", f"{str(result.accuracy_score)}/10")
         table.add_row("Accuracy Reason", result.accuracy_reason)
+        table.add_row("Relevance Score", f"{str(result.relevance_score)}/10")
+        table.add_row("Completeness Score", f"{str(result.completeness_score)}/10")
+        table.add_row("Confidence Score", f"{str(result.confidence_score)}/1.0")
         table.add_row("Time Taken", f"{response_timer.elapsed:.1f}s")
         console.print(table)
 
         return result
+    
+    def eval_tool_calls(self, expected_tool_calls: List[str], agent: Optional[Agent] = None, prompt: Optional[str] = None, response: Optional[RunResponse] = None) -> bool:
+        from phi.cli.console import console
+        from rich.table import Table
+        from rich.box import ROUNDED
+
+        if agent:
+            if prompt is None:
+                raise ValueError("Prompt is required to evaluate tool calls")
+            else:
+                response = agent.run(prompt)
+        elif response is None:
+            raise ValueError("Response is required to evaluate tool calls")
+        
+        last_tool_calls = None
+        for message in reversed(response.messages):
+            if message.tool_calls:
+                if last_tool_calls is None:
+                    last_tool_calls = message.tool_calls
+                else:
+                    last_tool_calls.append(message.tool_calls)
+
+        table = Table(
+            box=ROUNDED,
+            border_style="blue",
+            show_header=False,
+            title="[Tool Calls Eval Result]",
+            title_style="bold sky_blue1",
+            title_justify="center",
+        )
+        # table.add_column("Tool Call")
+        # table.add_column("Result")
+
+        failed = False
+        for tool_call in last_tool_calls:
+            if tool_call["function"]["name"] not in expected_tool_calls:
+                table.add_row(tool_call["function"]["name"], "Failed")
+                failed = True
+            else:
+                table.add_row(tool_call["function"]["name"], "Passed")
+
+        console.print(table)
+        
+        return not failed

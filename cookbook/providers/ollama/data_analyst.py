@@ -11,7 +11,7 @@ duckdb_tools.create_table_from_path(
 )
 
 agent = Agent(
-    model=Ollama(id="llama3.2"),
+    model=Ollama(id="llama3.1:8b"),
     tools=[duckdb_tools],
     markdown=True,
     show_tool_calls=True,
@@ -20,4 +20,4 @@ agent = Agent(
     - movies: contains information about movies from IMDB.
     """),
 )
-agent.print_response("What is the average rating of movies?", stream=False)
+agent.print_response("What is the average rating of movies?", stream=True)

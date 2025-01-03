@@ -155,12 +155,6 @@ def config(
         "--debug",
         help="Print debug logs.",
     ),
-    show_all: bool = typer.Option(
-        False,
-        "-a",
-        "--all",
-        help="Show all workspaces",
-    ),
 ):
     """Print your current phidata config"""
     if print_debug_log:
@@ -171,7 +165,7 @@ def config(
 
     conf: Optional[PhiCliConfig] = PhiCliConfig.from_saved_config()
     if conf is not None:
-        conf.print_to_cli(show_all=show_all)
+        conf.print_to_cli(show_all=True)
     else:
         print_info("Phi not initialized, run `phi init` to get started")
 
@@ -276,17 +270,10 @@ def start(
 
     phi_config: Optional[PhiCliConfig] = PhiCliConfig.from_saved_config()
     if not phi_config:
-        init_success = initialize_phi()
-        if not init_success:
-            from phi.cli.console import log_phi_init_failed_msg
-
-            log_phi_init_failed_msg()
-            return False
-        phi_config = PhiCliConfig.from_saved_config()
-        # If phi_config is still None, throw an error
+        phi_config = initialize_phi()
         if not phi_config:
             log_config_not_available_msg()
-            return False
+            return
 
     target_env: Optional[str] = None
     target_infra_str: Optional[str] = None
@@ -392,17 +379,10 @@ def stop(
 
     phi_config: Optional[PhiCliConfig] = PhiCliConfig.from_saved_config()
     if not phi_config:
-        init_success = initialize_phi()
-        if not init_success:
-            from phi.cli.console import log_phi_init_failed_msg
-
-            log_phi_init_failed_msg()
-            return False
-        phi_config = PhiCliConfig.from_saved_config()
-        # If phi_config is still None, throw an error
+        phi_config = initialize_phi()
         if not phi_config:
             log_config_not_available_msg()
-            return False
+            return
 
     target_env: Optional[str] = None
     target_infra_str: Optional[str] = None
@@ -508,17 +488,10 @@ def patch(
 
     phi_config: Optional[PhiCliConfig] = PhiCliConfig.from_saved_config()
     if not phi_config:
-        init_success = initialize_phi()
-        if not init_success:
-            from phi.cli.console import log_phi_init_failed_msg
-
-            log_phi_init_failed_msg()
-            return False
-        phi_config = PhiCliConfig.from_saved_config()
-        # If phi_config is still None, throw an error
+        phi_config = initialize_phi()
         if not phi_config:
             log_config_not_available_msg()
-            return False
+            return
 
     target_env: Optional[str] = None
     target_infra_str: Optional[str] = None

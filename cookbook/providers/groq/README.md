@@ -61,14 +61,34 @@ python cookbook/providers/groq/finance_agent.py
 python cookbook/providers/groq/data_analyst.py
 ```
 
+- Web Search
+
+```shell
+python cookbook/providers/groq/web_search.py
+```
+
 ### 6. Run Agent that returns structured output
 
 ```shell
 python cookbook/providers/groq/structured_output.py
 ```
 
-### 7. Run Agent that uses web search
+### 7. Run Agent that uses storage
+
+Please run pgvector in a docker container using:
 
 ```shell
-python cookbook/providers/groq/web_search.py
+./cookbook/run_pgvector.sh
+```
+
+Then run the following:
+
+```shell
+python cookbook/providers/groq/storage.py
+```
+
+### 8. Run Agent that uses knowledge
+
+```shell
+python cookbook/providers/groq/knowledge.py
 ```

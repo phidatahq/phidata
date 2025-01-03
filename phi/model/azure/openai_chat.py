@@ -1,13 +1,13 @@
 from os import getenv
 from typing import Optional, Dict, Any
-from phi.utils.log import logger
 from phi.model.openai.like import OpenAILike
+import httpx
 
 try:
     from openai import AzureOpenAI as AzureOpenAIClient
-except ImportError:
-    logger.error("`azure openai` not installed")
-    raise
+    from openai import AsyncAzureOpenAI as AsyncAzureOpenAIClient
+except (ModuleNotFoundError, ImportError):
+    raise ImportError("`azure openai` not installed. Please install using `pip install openai`")
 
 
 class AzureOpenAIChat(OpenAILike):
@@ -38,10 +38,8 @@ class AzureOpenAIChat(OpenAILike):
     api_version: str = getenv("AZURE_OPENAI_API_VERSION", "2024-02-01")
     azure_endpoint: Optional[str] = getenv("AZURE_OPENAI_ENDPOINT")
     azure_deployment: Optional[str] = getenv("AZURE_DEPLOYMENT")
-    base_url: Optional[str] = None
     azure_ad_token: Optional[str] = None
     azure_ad_token_provider: Optional[Any] = None
-    organization: Optional[str] = None
     openai_client: Optional[AzureOpenAIClient] = None
 
     def get_client(self) -> AzureOpenAIClient:
@@ -55,6 +53,30 @@ class AzureOpenAIChat(OpenAILike):
         if self.openai_client:
             return self.openai_client
 
+        _client_params: Dict[str, Any] = self.get_client_params()
+
+        return AzureOpenAIClient(**_client_params)
+
+    def get_async_client(self) -> AsyncAzureOpenAIClient:
+        """
+        Returns an asynchronous OpenAI client.
+
+        Returns:
+            AsyncAzureOpenAIClient: An instance of the asynchronous OpenAI client.
+        """
+
+        _client_params: Dict[str, Any] = self.get_client_params()
+
+        if self.http_client:
+            _client_params["http_client"] = self.http_client
+        else:
+            # Create a new async HTTP client with custom limits
+            _client_params["http_client"] = httpx.AsyncClient(
+                limits=httpx.Limits(max_connections=1000, max_keepalive_connections=100)
+            )
+        return AsyncAzureOpenAIClient(**_client_params)
+
+    def get_client_params(self) -> Dict[str, Any]:
         _client_params: Dict[str, Any] = {}
         if self.api_key:
             _client_params["api_key"] = self.api_key
@@ -76,5 +98,4 @@ class AzureOpenAIChat(OpenAILike):
             _client_params["http_client"] = self.http_client
         if self.client_params:
             _client_params.update(self.client_params)
-
-        return AzureOpenAIClient(**_client_params)
+        return _client_params

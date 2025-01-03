@@ -185,32 +185,57 @@ def up(
         set_log_level_to_debug()
 
     from phi.cli.config import PhiCliConfig
+    from phi.cli.operator import initialize_phi
     from phi.workspace.config import WorkspaceConfig
-    from phi.workspace.operator import start_workspace
+    from phi.workspace.operator import start_workspace, setup_workspace
+    from phi.workspace.helpers import get_workspace_dir_path
     from phi.utils.resource_filter import parse_resource_filter
 
     phi_config: Optional[PhiCliConfig] = PhiCliConfig.from_saved_config()
     if not phi_config:
+        phi_config = initialize_phi()
+    if not phi_config:
         log_config_not_available_msg()
         return
+    phi_config = cast(PhiCliConfig, phi_config)
 
-    active_ws_config: Optional[WorkspaceConfig] = phi_config.get_active_ws_config()
-    if active_ws_config is None:
+    # Workspace to start
+    ws_to_start: Optional[WorkspaceConfig] = None
+
+    # If there is an existing workspace at current path, use that workspace
+    current_path: Path = Path(".").resolve()
+    ws_at_current_path: Optional[WorkspaceConfig] = phi_config.get_ws_config_by_path(current_path)
+    if ws_at_current_path is not None:
+        logger.debug(f"Found workspace at: {ws_at_current_path.ws_root_path}")
+        if str(ws_at_current_path.ws_root_path) != phi_config.active_ws_dir:
+            logger.debug(f"Updating active workspace to {ws_at_current_path.ws_root_path}")
+            phi_config.set_active_ws_dir(ws_at_current_path.ws_root_path)
+        ws_to_start = ws_at_current_path
+
+    # If there's no existing workspace at current path, check if there's a `workspace` dir in the current path
+    # In that case setup the workspace
+    if ws_to_start is None:
+        workspace_ws_dir_path = get_workspace_dir_path(current_path)
+        if workspace_ws_dir_path is not None:
+            logger.debug(f"Found workspace directory: {workspace_ws_dir_path}")
+            logger.debug(f"Setting up a workspace at: {current_path}")
+            ws_to_start = setup_workspace(ws_root_path=current_path)
+            print_info("")
+
+    # If there's no workspace at current path, check if an active workspace exists
+    if ws_to_start is None:
+        active_ws_config: Optional[WorkspaceConfig] = phi_config.get_active_ws_config()
+        # If there's an active workspace, use that workspace
+        if active_ws_config is not None:
+            ws_to_start = active_ws_config
+
+    # If there's no workspace to start, raise an error showing available workspaces
+    if ws_to_start is None:
         log_active_workspace_not_available()
         avl_ws = phi_config.available_ws
         if avl_ws:
             print_available_workspaces(avl_ws)
         return
-
-    current_path: Path = Path(".").resolve()
-    # If there is a workspace at the current path, update the active workspace to the current directory
-    if active_ws_config.ws_root_path != current_path and not auto_confirm:
-        ws_at_current_path = phi_config.get_ws_config_by_path(current_path)
-        if ws_at_current_path is not None:
-            ws_at_current_path_dir_name = ws_at_current_path.ws_root_path.stem
-            logger.debug(f"Updating active workspace to {ws_at_current_path_dir_name}")
-            phi_config.set_active_ws_dir(ws_at_current_path.ws_root_path)
-            active_ws_config = ws_at_current_path
 
     target_env: Optional[str] = None
     target_infra_str: Optional[str] = None
@@ -245,11 +270,9 @@ def up(
 
     # derive env:infra:name:type:group from defaults
     if target_env is None:
-        target_env = active_ws_config.workspace_settings.default_env if active_ws_config.workspace_settings else None
+        target_env = ws_to_start.workspace_settings.default_env if ws_to_start.workspace_settings else None
     if target_infra_str is None:
-        target_infra_str = (
-            active_ws_config.workspace_settings.default_infra if active_ws_config.workspace_settings else None
-        )
+        target_infra_str = ws_to_start.workspace_settings.default_infra if ws_to_start.workspace_settings else None
     if target_infra_str is not None:
         try:
             target_infra = cast(InfraType, InfraType(target_infra_str.lower()))
@@ -267,10 +290,10 @@ def up(
     logger.debug(f"\tauto_confirm : {auto_confirm}")
     logger.debug(f"\tforce        : {force}")
     logger.debug(f"\tpull         : {pull}")
-    print_heading("Starting workspace: {}".format(str(active_ws_config.ws_root_path.stem)))
+    print_heading("Starting workspace: {}".format(str(ws_to_start.ws_root_path.stem)))
     start_workspace(
         phi_config=phi_config,
-        ws_config=active_ws_config,
+        ws_config=ws_to_start,
         target_env=target_env,
         target_infra=target_infra,
         target_group=target_group,
@@ -347,32 +370,56 @@ def down(
         set_log_level_to_debug()
 
     from phi.cli.config import PhiCliConfig
+    from phi.cli.operator import initialize_phi
     from phi.workspace.config import WorkspaceConfig
-    from phi.workspace.operator import stop_workspace
+    from phi.workspace.operator import stop_workspace, setup_workspace
+    from phi.workspace.helpers import get_workspace_dir_path
     from phi.utils.resource_filter import parse_resource_filter
 
     phi_config: Optional[PhiCliConfig] = PhiCliConfig.from_saved_config()
     if not phi_config:
+        phi_config = initialize_phi()
+    if not phi_config:
         log_config_not_available_msg()
         return
 
-    active_ws_config: Optional[WorkspaceConfig] = phi_config.get_active_ws_config()
-    if active_ws_config is None:
+    # Workspace to stop
+    ws_to_stop: Optional[WorkspaceConfig] = None
+
+    # If there is an existing workspace at current path, use that workspace
+    current_path: Path = Path(".").resolve()
+    ws_at_current_path: Optional[WorkspaceConfig] = phi_config.get_ws_config_by_path(current_path)
+    if ws_at_current_path is not None:
+        logger.debug(f"Found workspace at: {ws_at_current_path.ws_root_path}")
+        if str(ws_at_current_path.ws_root_path) != phi_config.active_ws_dir:
+            logger.debug(f"Updating active workspace to {ws_at_current_path.ws_root_path}")
+            phi_config.set_active_ws_dir(ws_at_current_path.ws_root_path)
+        ws_to_stop = ws_at_current_path
+
+    # If there's no existing workspace at current path, check if there's a `workspace` dir in the current path
+    # In that case setup the workspace
+    if ws_to_stop is None:
+        workspace_ws_dir_path = get_workspace_dir_path(current_path)
+        if workspace_ws_dir_path is not None:
+            logger.debug(f"Found workspace directory: {workspace_ws_dir_path}")
+            logger.debug(f"Setting up a workspace at: {current_path}")
+            ws_to_stop = setup_workspace(ws_root_path=current_path)
+            print_info("")
+
+    # If there's no workspace at current path, check if an active workspace exists
+    if ws_to_stop is None:
+        active_ws_config: Optional[WorkspaceConfig] = phi_config.get_active_ws_config()
+        # If there's an active workspace, use that workspace
+        if active_ws_config is not None:
+            ws_to_stop = active_ws_config
+
+    # If there's no workspace to stop, raise an error showing available workspaces
+    if ws_to_stop is None:
         log_active_workspace_not_available()
         avl_ws = phi_config.available_ws
         if avl_ws:
             print_available_workspaces(avl_ws)
         return
-
-    current_path: Path = Path(".").resolve()
-    # If there is a workspace at the current path, update the active workspace to the current directory
-    if active_ws_config.ws_root_path != current_path and not auto_confirm:
-        ws_at_current_path = phi_config.get_ws_config_by_path(current_path)
-        if ws_at_current_path is not None:
-            ws_at_current_path_dir_name = ws_at_current_path.ws_root_path.stem
-            logger.debug(f"Updating active workspace to {ws_at_current_path_dir_name}")
-            phi_config.set_active_ws_dir(ws_at_current_path.ws_root_path)
-            active_ws_config = ws_at_current_path
 
     target_env: Optional[str] = None
     target_infra_str: Optional[str] = None
@@ -407,11 +454,9 @@ def down(
 
     # derive env:infra:name:type:group from defaults
     if target_env is None:
-        target_env = active_ws_config.workspace_settings.default_env if active_ws_config.workspace_settings else None
+        target_env = ws_to_stop.workspace_settings.default_env if ws_to_stop.workspace_settings else None
     if target_infra_str is None:
-        target_infra_str = (
-            active_ws_config.workspace_settings.default_infra if active_ws_config.workspace_settings else None
-        )
+        target_infra_str = ws_to_stop.workspace_settings.default_infra if ws_to_stop.workspace_settings else None
     if target_infra_str is not None:
         try:
             target_infra = cast(InfraType, InfraType(target_infra_str.lower()))
@@ -428,10 +473,10 @@ def down(
     logger.debug(f"\tdry_run      : {dry_run}")
     logger.debug(f"\tauto_confirm : {auto_confirm}")
     logger.debug(f"\tforce        : {force}")
-    print_heading("Stopping workspace: {}".format(str(active_ws_config.ws_root_path.stem)))
+    print_heading("Stopping workspace: {}".format(str(ws_to_stop.ws_root_path.stem)))
     stop_workspace(
         phi_config=phi_config,
-        ws_config=active_ws_config,
+        ws_config=ws_to_stop,
         target_env=target_env,
         target_infra=target_infra,
         target_group=target_group,
@@ -511,32 +556,56 @@ def patch(
         set_log_level_to_debug()
 
     from phi.cli.config import PhiCliConfig
+    from phi.cli.operator import initialize_phi
     from phi.workspace.config import WorkspaceConfig
-    from phi.workspace.operator import update_workspace
+    from phi.workspace.operator import update_workspace, setup_workspace
+    from phi.workspace.helpers import get_workspace_dir_path
     from phi.utils.resource_filter import parse_resource_filter
 
     phi_config: Optional[PhiCliConfig] = PhiCliConfig.from_saved_config()
     if not phi_config:
+        phi_config = initialize_phi()
+    if not phi_config:
         log_config_not_available_msg()
         return
 
-    active_ws_config: Optional[WorkspaceConfig] = phi_config.get_active_ws_config()
-    if active_ws_config is None:
+    # Workspace to patch
+    ws_to_patch: Optional[WorkspaceConfig] = None
+
+    # If there is an existing workspace at current path, use that workspace
+    current_path: Path = Path(".").resolve()
+    ws_at_current_path: Optional[WorkspaceConfig] = phi_config.get_ws_config_by_path(current_path)
+    if ws_at_current_path is not None:
+        logger.debug(f"Found workspace at: {ws_at_current_path.ws_root_path}")
+        if str(ws_at_current_path.ws_root_path) != phi_config.active_ws_dir:
+            logger.debug(f"Updating active workspace to {ws_at_current_path.ws_root_path}")
+            phi_config.set_active_ws_dir(ws_at_current_path.ws_root_path)
+        ws_to_patch = ws_at_current_path
+
+    # If there's no existing workspace at current path, check if there's a `workspace` dir in the current path
+    # In that case setup the workspace
+    if ws_to_patch is None:
+        workspace_ws_dir_path = get_workspace_dir_path(current_path)
+        if workspace_ws_dir_path is not None:
+            logger.debug(f"Found workspace directory: {workspace_ws_dir_path}")
+            logger.debug(f"Setting up a workspace at: {current_path}")
+            ws_to_patch = setup_workspace(ws_root_path=current_path)
+            print_info("")
+
+    # If there's no workspace at current path, check if an active workspace exists
+    if ws_to_patch is None:
+        active_ws_config: Optional[WorkspaceConfig] = phi_config.get_active_ws_config()
+        # If there's an active workspace, use that workspace
+        if active_ws_config is not None:
+            ws_to_patch = active_ws_config
+
+    # If there's no workspace to patch, raise an error showing available workspaces
+    if ws_to_patch is None:
         log_active_workspace_not_available()
         avl_ws = phi_config.available_ws
         if avl_ws:
             print_available_workspaces(avl_ws)
         return
-
-    current_path: Path = Path(".").resolve()
-    # If there is a workspace at the current path, update the active workspace to the current directory
-    if active_ws_config.ws_root_path != current_path and not auto_confirm:
-        ws_at_current_path = phi_config.get_ws_config_by_path(current_path)
-        if ws_at_current_path is not None:
-            ws_at_current_path_dir_name = ws_at_current_path.ws_root_path.stem
-            logger.debug(f"Updating active workspace to {ws_at_current_path_dir_name}")
-            phi_config.set_active_ws_dir(ws_at_current_path.ws_root_path)
-            active_ws_config = ws_at_current_path
 
     target_env: Optional[str] = None
     target_infra_str: Optional[str] = None
@@ -571,11 +640,9 @@ def patch(
 
     # derive env:infra:name:type:group from defaults
     if target_env is None:
-        target_env = active_ws_config.workspace_settings.default_env if active_ws_config.workspace_settings else None
+        target_env = ws_to_patch.workspace_settings.default_env if ws_to_patch.workspace_settings else None
     if target_infra_str is None:
-        target_infra_str = (
-            active_ws_config.workspace_settings.default_infra if active_ws_config.workspace_settings else None
-        )
+        target_infra_str = ws_to_patch.workspace_settings.default_infra if ws_to_patch.workspace_settings else None
     if target_infra_str is not None:
         try:
             target_infra = cast(InfraType, InfraType(target_infra_str.lower()))
@@ -593,10 +660,10 @@ def patch(
     logger.debug(f"\tauto_confirm : {auto_confirm}")
     logger.debug(f"\tforce        : {force}")
     logger.debug(f"\tpull         : {pull}")
-    print_heading("Updating workspace: {}".format(str(active_ws_config.ws_root_path.stem)))
+    print_heading("Updating workspace: {}".format(str(ws_to_patch.ws_root_path.stem)))
     update_workspace(
         phi_config=phi_config,
-        ws_config=active_ws_config,
+        ws_config=ws_to_patch,
         target_env=target_env,
         target_infra=target_infra,
         target_group=target_group,
@@ -720,10 +787,13 @@ def config(
         set_log_level_to_debug()
 
     from phi.cli.config import PhiCliConfig
+    from phi.cli.operator import initialize_phi
     from phi.workspace.config import WorkspaceConfig
     from phi.utils.load_env import load_env
 
     phi_config: Optional[PhiCliConfig] = PhiCliConfig.from_saved_config()
+    if not phi_config:
+        phi_config = initialize_phi()
     if not phi_config:
         log_config_not_available_msg()
         return
@@ -772,9 +842,12 @@ def delete(
         set_log_level_to_debug()
 
     from phi.cli.config import PhiCliConfig
+    from phi.cli.operator import initialize_phi
     from phi.workspace.operator import delete_workspace
 
     phi_config: Optional[PhiCliConfig] = PhiCliConfig.from_saved_config()
+    if not phi_config:
+        phi_config = initialize_phi()
     if not phi_config:
         log_config_not_available_msg()
         return

@@ -1,8 +1,10 @@
 from typing import List, Optional
 
-from phi.agent.agent import Agent, Tool, Toolkit, Function, AgentChat
+from phi.agent.agent import Agent, Tool, Toolkit, Function, AgentRun
 from phi.agent.session import AgentSession
 from phi.utils.log import logger
+from phi.workflow.session import WorkflowSession
+from phi.workflow.workflow import Workflow
 
 
 def format_tools(agent_tools):
@@ -26,7 +28,10 @@ def format_tools(agent_tools):
     return formatted_tools
 
 
-def get_agent_by_id(agents: List[Agent], agent_id: str) -> Optional[Agent]:
+def get_agent_by_id(agent_id: str, agents: Optional[List[Agent]] = None) -> Optional[Agent]:
+    if agent_id is None or agents is None:
+        return None
+
     for agent in agents:
         if agent.agent_id == agent_id:
             return agent
@@ -41,13 +46,13 @@ def get_session_title(session: AgentSession) -> str:
         return session_name
     memory = session.memory
     if memory is not None:
-        chats = memory.get("chats")
-        if isinstance(chats, list):
-            for _chat in chats:
+        runs = memory.get("runs") or memory.get("chats")
+        if isinstance(runs, list):
+            for _run in runs:
                 try:
-                    chat_parsed = AgentChat.model_validate(_chat)
-                    if chat_parsed.message is not None and chat_parsed.message.role == "user":
-                        content = chat_parsed.message.get_content_string()
+                    run_parsed = AgentRun.model_validate(_run)
+                    if run_parsed.message is not None and run_parsed.message.role == "user":
+                        content = run_parsed.message.get_content_string()
                         if content:
                             return content
                         else:
@@ -55,3 +60,35 @@ def get_session_title(session: AgentSession) -> str:
                 except Exception as e:
                     logger.error(f"Error parsing chat: {e}")
     return "Unnamed session"
+
+
+def get_session_title_from_workflow_session(workflow_session: WorkflowSession) -> str:
+    if workflow_session is None:
+        return "Unnamed session"
+    session_name = (
+        workflow_session.session_data.get("session_name") if workflow_session.session_data is not None else None
+    )
+    if session_name is not None:
+        return session_name
+    memory = workflow_session.memory
+    if memory is not None:
+        runs = memory.get("runs")
+        if isinstance(runs, list):
+            for _run in runs:
+                try:
+                    response = _run.get("response")
+                    content = response.get("content") if response else None
+                    return content.split("\n")[0] if content else "No title"
+                except Exception as e:
+                    logger.error(f"Error parsing chat: {e}")
+    return "Unnamed session"
+
+
+def get_workflow_by_id(workflow_id: str, workflows: Optional[List[Workflow]] = None) -> Optional[Workflow]:
+    if workflows is None or workflow_id is None:
+        return None
+
+    for workflow in workflows:
+        if workflow.workflow_id == workflow_id:
+            return workflow
+    return None

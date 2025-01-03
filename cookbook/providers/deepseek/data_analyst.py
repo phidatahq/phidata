@@ -11,7 +11,7 @@ duckdb_tools.create_table_from_path(
 )
 
 agent = Agent(
-    model=DeepSeekChat,
+    model=DeepSeekChat(id="deepseek-chat"),
     tools=[duckdb_tools],
     markdown=True,
     show_tool_calls=True,

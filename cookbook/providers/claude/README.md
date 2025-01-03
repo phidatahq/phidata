@@ -74,3 +74,15 @@ python cookbook/providers/claude/finance.py
 ```shell
 python cookbook/providers/claude/structured_output.py
 ```
+
+### 7. Run Agent that uses storage
+
+```shell
+python cookbook/providers/claude/storage.py
+```
+
+### 8. Run Agent that uses knowledge
+
+```shell
+python cookbook/providers/claude/knowledge.py
+```

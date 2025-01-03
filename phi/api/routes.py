@@ -16,6 +16,9 @@ class ApiRoutes:
     WORKSPACE_DELETE: str = "/v1/workspace/delete"
     WORKSPACE_EVENT_CREATE: str = "/v1/workspace/event/create"
 
+    # Team paths
+    TEAM_READ_ALL: str = "/v1/team/read/all"
+
     # Agent paths
     AGENT_SESSION_CREATE: str = "/v1/agent/session/create"
     AGENT_RUN_CREATE: str = "/v1/agent/run/create"
@@ -26,6 +29,7 @@ class ApiRoutes:
 
     # Playground paths
     PLAYGROUND_ENDPOINT_CREATE: str = "/v1/playground/endpoint/create"
+    PLAYGROUND_APP_DEPLOY: str = "/v1/playground/app/deploy"
 
     # Assistant paths
     ASSISTANT_RUN_CREATE: str = "/v1/assistant/run/create"

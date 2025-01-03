@@ -17,10 +17,10 @@ class MovieScript(BaseModel):
 
 
 json_mode_agent = Agent(
-    model=Groq(id="mixtral-8x7b-32768"),
+    model=Groq(id="llama-3.3-70b-versatile"),
     description="You help people write movie scripts.",
     response_model=MovieScript,
-    debug_mode=True,
+    # debug_mode=True,
 )
 
 # Get the response in a variable

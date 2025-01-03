@@ -11,18 +11,18 @@ except ImportError:
 
 from phi.document import Document
 from phi.embedder import Embedder
-from phi.embedder.openai import OpenAIEmbedder
 from phi.vectordb.base import VectorDb
 from phi.vectordb.distance import Distance
 from phi.utils.log import logger
+from phi.reranker.base import Reranker
 
 
 class Qdrant(VectorDb):
     def __init__(
         self,
         collection: str,
-        embedder: Embedder = OpenAIEmbedder(),
         distance: Distance = Distance.cosine,
+        embedder: Optional[Embedder] = None,
         location: Optional[str] = None,
         url: Optional[str] = None,
         port: Optional[int] = 6333,
@@ -34,12 +34,17 @@ class Qdrant(VectorDb):
         timeout: Optional[float] = None,
         host: Optional[str] = None,
         path: Optional[str] = None,
+        reranker: Optional[Reranker] = None,
         **kwargs,
     ):
         # Collection attributes
         self.collection: str = collection
 
         # Embedder for embedding the document contents
+        if embedder is None:
+            from phi.embedder.openai import OpenAIEmbedder
+
+            embedder = OpenAIEmbedder()
         self.embedder: Embedder = embedder
         self.dimensions: Optional[int] = self.embedder.dimensions
 
@@ -61,6 +66,9 @@ class Qdrant(VectorDb):
         self.timeout: Optional[float] = timeout
         self.host: Optional[str] = host
         self.path: Optional[str] = path
+
+        # Reranker instance
+        self.reranker: Optional[Reranker] = reranker
 
         # Qdrant client kwargs
         self.kwargs = kwargs
@@ -218,6 +226,9 @@ class Qdrant(VectorDb):
                     usage=result.payload["usage"],
                 )
             )
+
+        if self.reranker:
+            search_results = self.reranker.rerank(query=query, documents=search_results)
 
         return search_results
 

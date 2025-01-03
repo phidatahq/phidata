@@ -46,10 +46,13 @@ def pdf_assistant(new: bool = False, user: str = "user"):
         print(f"Continuing Run: {run_id}\n")
 
     while True:
-        message = Prompt.ask(f"[bold] :sunglasses: {user} [/bold]")
-        if message in ("exit", "bye"):
-            break
-        assistant.print_response(message, markdown=True)
+        try:
+            message = Prompt.ask(f"[bold] :sunglasses: {user} [/bold]")
+            if message in ("exit", "bye"):
+                break
+            assistant.print_response(message, markdown=True)
+        except Exception as e:
+            print(f"[red]Error: {e}[/red]")  # Added error handling
 
 
 if __name__ == "__main__":

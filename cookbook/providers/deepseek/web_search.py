@@ -5,7 +5,7 @@ from phi.model.deepseek import DeepSeekChat
 from phi.tools.duckduckgo import DuckDuckGo
 
 agent = Agent(
-    model=DeepSeekChat(),
+    model=DeepSeekChat(id="deepseek-chat"),
     tools=[DuckDuckGo()],
     show_tool_calls=True,
     markdown=True,

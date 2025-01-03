@@ -34,7 +34,7 @@ wip
 dist
 
 # ignore virtualenvs
-.venv
+.venv*
 venv*
 phienv*
 aienv*
@@ -43,6 +43,11 @@ aienv*
 scratch
 junk
 tmp
+agents.db
 data.db
 
 .ipynb_checkpoints
+
+audio_generations
+
+*.db

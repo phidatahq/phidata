@@ -80,3 +80,26 @@ class MemoryClassifier(BaseModel):
         response = self.model.response(messages=messages_for_model)
         logger.debug("*********** MemoryClassifier End ***********")
         return response.content
+
+    async def arun(
+        self,
+        message: Optional[str] = None,
+        **kwargs: Any,
+    ) -> Optional[str]:
+        logger.debug("*********** Async MemoryClassifier Start ***********")
+
+        # Update the Model (set defaults, add logit etc.)
+        self.update_model()
+
+        # Prepare the List of messages to send to the Model
+        messages_for_model: List[Message] = [self.get_system_message()]
+        # Add the user prompt message
+        user_prompt_message = Message(role="user", content=message, **kwargs) if message else None
+        if user_prompt_message is not None:
+            messages_for_model += [user_prompt_message]
+
+        # Generate a response from the Model (includes running function calls)
+        self.model = cast(Model, self.model)
+        response = await self.model.aresponse(messages=messages_for_model)
+        logger.debug("*********** Async MemoryClassifier End ***********")
+        return response.content

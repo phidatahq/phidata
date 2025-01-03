@@ -13,7 +13,13 @@ source ~/.venvs/aienv/bin/activate
 pip install -U pinecone pinecone-text pypdf openai phidata
 ```
 
-### 3. Run Pinecone Hybrid Search Agent
+### 3. Set Pinecone API Key
+
+```shell
+export PINECONE_API_KEY=***
+```
+
+### 4. Run Pinecone Hybrid Search Agent
 
 ```shell
 python cookbook/examples/hybrid_search/pinecone/agent.py

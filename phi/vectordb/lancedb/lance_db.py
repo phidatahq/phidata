@@ -311,6 +311,7 @@ class LanceDb(VectorDb):
 
         # Deep copy attributes
         for k, v in self.__dict__.items():
+            # Skip "table" to properly handle initialisation later
             if k == "table":
                 continue
             # Reuse db_engine and Session without copying

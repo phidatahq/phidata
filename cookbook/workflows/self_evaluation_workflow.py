@@ -26,6 +26,7 @@ class SelfEvaluationWorkflow(Workflow):
             "You do an ok job at creating content, but you need to improve your content based on the feedback.",
         ],
         model=OpenAIChat(model="gpt-4o"),
+        debug_mode=True,
     )
 
     content_reviewer_agent: Agent = Agent(
@@ -42,6 +43,7 @@ class SelfEvaluationWorkflow(Workflow):
         ],
         response_model=Feedback,
         model=OpenAIChat(model="gpt-4o"),
+        debug_mode=True,
     )
 
     def run(self, topic: str) -> RunResponse:

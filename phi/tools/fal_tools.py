@@ -23,7 +23,6 @@ class FalTools(Toolkit):
         self,
         api_key: Optional[str] = None,
         model: str = "fal-ai/hunyuan-video",
-        image_url: Optional[str] = None,
     ):
         super().__init__(name="fal")
 
@@ -31,7 +30,6 @@ class FalTools(Toolkit):
         if not self.api_key:
             logger.error("FAL_KEY not set. Please set the FAL_KEY environment variable.")
         self.model = model
-        self.image_url = image_url
         self.seen_logs: set[str] = set()
         self.register(self.generate_media)
         self.register(self.image_to_image)
@@ -92,7 +90,9 @@ class FalTools(Toolkit):
 
     def image_to_image(self, agent: Agent, prompt: str, image_url: Optional[str] = None) -> str:
         """
-        Use this function to generate an image from a given image using the Fal AI API.
+        Use this function to transform an input image based on a text prompt using the Fal AI image-to-image model.
+        The model takes an existing image and generates a new version modified according to your prompt.
+        See https://fal.ai/models/fal-ai/flux/dev/image-to-image/api for more details about the image-to-image capabilities.
 
         Args:
             prompt (str): A text description of the task.
@@ -102,12 +102,11 @@ class FalTools(Toolkit):
             str: Return the result of the model.
         """
 
-        image = self.image_url or image_url
 
         try:
             result = fal_client.subscribe(
                 "fal-ai/flux/dev/image-to-image",
-                arguments={"image_url": image, "prompt": prompt},
+                arguments={"image_url": image_url, "prompt": prompt},
                 with_logs=True,
                 on_queue_update=self.on_queue_update,
             )

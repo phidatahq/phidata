@@ -6,7 +6,7 @@ agent = Agent(
     model=OpenAIChat(id="gpt-4o"),
     agent_id="image-to-image",
     name="Image to Image Agent",
-    tools=[FalTools(image_url="https://fal.media/files/koala/Chls9L2ZnvuipUTEwlnJC.png")],
+    tools=[FalTools()],
     markdown=True,
     debug=True,
     show_tool_calls=True,
@@ -18,4 +18,4 @@ agent = Agent(
     ],
 )
 
-agent.print_response("a cat dressed as a wizard with a background of a mystic forest", stream=True)
+agent.print_response("a cat dressed as a wizard with a background of a mystic forest. Make it look like 'https://fal.media/files/koala/Chls9L2ZnvuipUTEwlnJC.png'", stream=True)

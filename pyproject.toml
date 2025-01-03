@@ -151,6 +151,7 @@ module = [
   "rapidocr_onnxruntime.*",
   "replicate.*",
   "requests.*",
+  "scrapegraph_py.*",
   "sentence_transformers.*",
   "serpapi.*",
   "setuptools.*",

@@ -296,4 +296,31 @@ class LanceDb(VectorDb):
         return False
 
     def name_exists(self, name: str) -> bool:
-        raise NotImplementedError
+        # TODO: Implement proper name existence check when LanceDb supports it
+        return False
+
+    def __deepcopy__(self, memo):
+        """Custom deepcopy method for LanceDb"""
+
+        from copy import deepcopy
+
+        # Create a new instance without calling __init__
+        cls = self.__class__
+        copied_obj = cls.__new__(cls)
+        memo[id(self)] = copied_obj
+
+        # Deep copy attributes
+        for k, v in self.__dict__.items():
+            # Skip "table" to properly handle initialisation later
+            if k == "table":
+                continue
+            # Reuse db_engine and Session without copying
+            if k in {"connection", "embedder"}:
+                setattr(copied_obj, k, v)
+            else:
+                setattr(copied_obj, k, deepcopy(v, memo))
+
+        # Recreate metadata and table for the copied instance
+        copied_obj.table = copied_obj._init_table()
+
+        return copied_obj

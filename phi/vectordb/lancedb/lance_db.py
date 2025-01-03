@@ -321,7 +321,6 @@ class LanceDb(VectorDb):
                 setattr(copied_obj, k, deepcopy(v, memo))
 
         # Recreate metadata and table for the copied instance
-        # copied_obj.metadata = MetaData(schema=copied_obj.schema)
         copied_obj.table = copied_obj._init_table()
 
         return copied_obj

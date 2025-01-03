@@ -1815,6 +1815,8 @@ class Agent(BaseModel):
                         if model_response.audio is None:
                             model_response.audio = {"data": "", "transcript": ""}
 
+                        # TODO: Stream the audio out
+
                         model_response.audio["data"] += model_response_chunk.audio.get("data", "")
                         model_response.audio["transcript"] += model_response_chunk.audio.get("transcript", "")
                         yield self.run_response
@@ -2172,6 +2174,8 @@ class Agent(BaseModel):
                         if model_response.audio is None:
                             model_response.audio = {"data": "", "transcript": ""}
 
+                        self.run_res
+                        # Append to the transcript
                         model_response.audio["data"] += model_response_chunk.audio.get("data", "")
                         model_response.audio["transcript"] += model_response_chunk.audio.get("transcript", "")
                         # self.run_response.response_audio = model_response_chunk.audio

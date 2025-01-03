@@ -5,6 +5,7 @@ from typing import Optional, Union, Callable, List
 from pydantic import BaseModel, ConfigDict, field_validator, Field
 
 from phi.agent import Agent, RunResponse
+from phi.model.base import Model
 from phi.utils.log import logger, set_log_level_to_debug
 from phi.utils.timer import Timer
 
@@ -12,11 +13,17 @@ from phi.utils.timer import Timer
 class AccuracyResult(BaseModel):
     score: int = Field(..., description="Accuracy Score between 1 and 10 assigned to the Agent's answer.")
     reason: str = Field(..., description="Detailed reasoning for the accuracy score.")
+    relevance: int = Field(..., description="Relevance Score between 1 and 10 assigned to the Agent's answer.")
+    completeness: int = Field(..., description="Completeness Score between 1 and 10 assigned to the Agent's answer.")
+    confidence: float = Field(..., description="Model's confidence in the answer (0-1).")
 
 
 class EvalResult(BaseModel):
     accuracy_score: int = Field(..., description="Accuracy Score between 1 to 10.")
     accuracy_reason: str = Field(..., description="Reasoning for the accuracy score.")
+    relevance_score: Optional[int] = Field(None, description="Relevance Score between 1 to 10.")
+    completeness_score: Optional[int] = Field(None, description="Completeness Score between 1 to 10.")
+    confidence_score: Optional[float] = Field(None, description="Model's confidence in the answer (0-1).")
 
 
 class Eval(BaseModel):
@@ -26,6 +33,9 @@ class Eval(BaseModel):
     eval_id: Optional[str] = Field(None, validate_default=True)
     # Agent to evaluate
     agent: Optional[Agent] = None
+
+    # Model used to evaluate the answer
+    model: Optional[Model] = None
 
     # Question to evaluate
     question: str
@@ -65,14 +75,17 @@ class Eval(BaseModel):
         if self.accuracy_evaluator is not None:
             return self.accuracy_evaluator
 
-        try:
-            from phi.model.openai import OpenAIChat
-        except ImportError as e:
-            logger.exception(e)
-            logger.error(
-                "phidata uses `openai` as the default model provider. Please run `pip install openai` to use the default evaluator."
-            )
-            exit(1)
+        model = self.model
+        if model is None:
+            try:
+                from phi.model.openai import OpenAIChat
+            except ImportError as e:
+                logger.exception(e)
+                logger.error(
+                    "phidata uses `openai` as the default model provider. Please run `pip install openai` to use the default evaluator."
+                )
+                exit(1)
+            model = OpenAIChat(id="gpt-4o-mini")
 
         accuracy_guidelines = ""
         if self.accuracy_guidelines is not None and len(self.accuracy_guidelines) > 0:
@@ -87,7 +100,7 @@ class Eval(BaseModel):
             accuracy_context += "\n"
 
         return Agent(
-            model=OpenAIChat(id="gpt-4o-mini"),
+            model=model,
             description=f"""\
 You are an expert evaluator tasked with assessing the accuracy of an AI Agent's answer compared to an expected answer for a given question.
 Your task is to provide a detailed analysis and assign a score on a scale of 1 to 10, where 10 indicates a perfect match to the expected answer.
@@ -169,6 +182,9 @@ Your evaluation should be objective, thorough, and well-reasoned. Provide specif
             self.result = EvalResult(
                 accuracy_score=self.accuracy_result.score,
                 accuracy_reason=self.accuracy_result.reason,
+                relevance_score=self.accuracy_result.relevance,
+                completeness_score=self.accuracy_result.completeness,
+                confidence_score=self.accuracy_result.confidence,
             )
 
         # -*- Save result to file if save_result_to_file is set

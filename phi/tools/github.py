@@ -23,6 +23,7 @@ class GithubTools(Toolkit):
         get_pull_request: bool = True,
         get_pull_request_changes: bool = True,
         create_issue: bool = True,
+        create_repository: bool = True,
     ):
         super().__init__(name="github")
 
@@ -45,6 +46,8 @@ class GithubTools(Toolkit):
             self.register(self.get_pull_request_changes)
         if create_issue:
             self.register(self.create_issue)
+        if create_repository:
+            self.register(self.create_repository)
 
     def authenticate(self):
         """Authenticate with GitHub using the provided access token."""
@@ -100,6 +103,44 @@ class GithubTools(Toolkit):
             return json.dumps(repo_names, indent=2)
         except GithubException as e:
             logger.error(f"Error listing repositories: {e}")
+            return json.dumps({"error": str(e)})
+
+    def create_repository(
+        self,
+        name: str,
+        private: bool = False,
+        description: Optional[str] = None,
+        auto_init: bool = False,
+    ) -> str:
+        """Create a new repository on GitHub.
+
+        Args:
+            name (str): The name of the repository.
+            private (bool, optional): Whether the repository is private. Defaults to False.
+            description (str, optional): A short description of the repository.
+            auto_init (bool, optional): Whether to initialize the repository with a README. Defaults to False.
+
+        Returns:
+            A JSON-formatted string containing the created repository details.
+        """
+        logger.debug(f"Creating repository: {name}")
+        try:
+            description = description if description is not None else ""
+            repo = self.g.get_user().create_repo(
+                name=name,
+                private=private,
+                description=description,
+                auto_init=auto_init,
+            )
+            repo_info = {
+                "name": repo.full_name,
+                "url": repo.html_url,
+                "private": repo.private,
+                "description": repo.description,
+            }
+            return json.dumps(repo_info, indent=2)
+        except GithubException as e:
+            logger.error(f"Error creating repository: {e}")
             return json.dumps({"error": str(e)})
 
     def get_repository(self, repo_name: str) -> str:

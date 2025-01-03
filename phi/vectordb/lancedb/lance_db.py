@@ -23,7 +23,7 @@ class LanceDb(VectorDb):
         uri: lancedb.URI = "/tmp/lancedb",
         table: Optional[lancedb.db.LanceTable] = None,
         table_name: Optional[str] = None,
-        connection: Optional[lancedb.DBConnection] = None,
+        connection: Optional[lancedb.LanceDBConnection] = None,
         api_key: Optional[str] = None,
         embedder: Optional[Embedder] = None,
         search_type: SearchType = SearchType.vector,
@@ -50,28 +50,37 @@ class LanceDb(VectorDb):
 
         # LanceDB connection details
         self.uri: lancedb.URI = uri
-        self.connection: lancedb.DBConnection = connection or lancedb.connect(uri=self.uri, api_key=api_key)
+        self.connection: lancedb.LanceDBConnection = connection or lancedb.connect(uri=self.uri, api_key=api_key)
 
-        # LanceDB table details
-        self.table: lancedb.db.LanceTable
-        self.table_name: str
-        if table:
-            if not isinstance(table, lancedb.db.LanceTable):
-                raise ValueError(
-                    "table should be an instance of lancedb.db.LanceTable, ",
-                    f"got {type(table)}",
-                )
-            self.table = table
+        self.table: Optional[lancedb.db.LanceTable] = table
+        self.table_name: Optional[str] = table_name
+
+        if table_name and table_name in self.connection.table_names():
+            # Open the table if it exists
+            self.table = self.connection.open_table(name=table_name)
             self.table_name = self.table.name
             self._vector_col = self.table.schema.names[0]
-            self._id = self.tbl.schema.names[1]  # type: ignore
-        else:
-            if not table_name:
-                raise ValueError("Either table or table_name should be provided.")
-            self.table_name = table_name
-            self._id = "id"
-            self._vector_col = "vector"
-            self.table = self._init_table()
+            self._id = self.table.schema.names[1]  # type: ignore
+
+        if self.table is None:
+            # LanceDB table details
+            if table:
+                if not isinstance(table, lancedb.db.LanceTable):
+                    raise ValueError(
+                        "table should be an instance of lancedb.db.LanceTable, ",
+                        f"got {type(table)}",
+                    )
+                self.table = table
+                self.table_name = self.table.name
+                self._vector_col = self.table.schema.names[0]
+                self._id = self.tbl.schema.names[1]  # type: ignore
+            else:
+                if not table_name:
+                    raise ValueError("Either table or table_name should be provided.")
+                self.table_name = table_name
+                self._id = "id"
+                self._vector_col = "vector"
+                self.table = self._init_table()
 
         self.reranker: Optional[Reranker] = reranker
         self.nprobes: Optional[int] = nprobes
@@ -155,8 +164,11 @@ class LanceDb(VectorDb):
             )
             logger.debug(f"Inserted document: {document.name} ({document.meta_data})")
 
-        self.table.add(data)
-        logger.debug(f"Upsert {len(data)} documents")
+        if self.table:
+            self.table.add(data)
+            logger.debug(f"Upsert {len(data)} documents")
+        else:
+            logger.error("Table not initialized. Please create the table first")
 
     def upsert(self, documents: List[Document], filters: Optional[Dict[str, Any]] = None) -> None:
         """
@@ -166,7 +178,6 @@ class LanceDb(VectorDb):
             documents (List[Document]): List of documents to upsert
             filters (Optional[Dict[str, Any]]): Filters to apply while upserting
         """
-        logger.debug("Redirecting the request to insert")
         self.insert(documents)
 
     def search(self, query: str, limit: int = 5, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
@@ -184,6 +195,10 @@ class LanceDb(VectorDb):
         query_embedding = self.embedder.get_embedding(query)
         if query_embedding is None:
             logger.error(f"Error getting embedding for Query: {query}")
+            return []
+
+        if self.table is None:
+            logger.error("Table not initialized. Please create the table first")
             return []
 
         results = self.table.search(
@@ -206,6 +221,9 @@ class LanceDb(VectorDb):
         query_embedding = self.embedder.get_embedding(query)
         if query_embedding is None:
             logger.error(f"Error getting embedding for Query: {query}")
+            return []
+        if self.table is None:
+            logger.error("Table not initialized. Please create the table first")
             return []
         if not self.fts_index_exists:
             self.table.create_fts_index("payload", use_tantivy=self.use_tantivy, replace=True)
@@ -234,6 +252,9 @@ class LanceDb(VectorDb):
         return search_results
 
     def keyword_search(self, query: str, limit: int = 5) -> List[Document]:
+        if self.table is None:
+            logger.error("Table not initialized. Please create the table first")
+            return []
         if not self.fts_index_exists:
             self.table.create_fts_index("payload", use_tantivy=self.use_tantivy, replace=True)
             self.fts_index_exists = True
@@ -285,7 +306,7 @@ class LanceDb(VectorDb):
         return False
 
     def get_count(self) -> int:
-        if self.exists():
+        if self.exists() and self.table:
             return self.table.count_rows()
         return 0
 

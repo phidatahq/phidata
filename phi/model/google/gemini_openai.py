@@ -1,5 +1,7 @@
 from os import getenv
 from typing import Optional
+
+
 from phi.model.openai.like import OpenAILike
 
 
@@ -19,5 +21,5 @@ class GeminiOpenAIChat(OpenAILike):
     name: str = "Gemini"
     provider: str = "Google"
 
-    api_key: Optional[str] = getenv("GOOGLE_API_KEY")
+    api_key: Optional[str] = getenv("GOOGLE_API_KEY", None)
     base_url: Optional[str] = "https://generativelanguage.googleapis.com/v1beta/"

@@ -1,4 +1,4 @@
-"""Run `pip install duckduckgo-search sqlalchemy anthropic` to install dependencies."""
+"""Run `pip install duckduckgo-search sqlalchemy openai` to install dependencies."""
 
 from phi.agent import Agent
 from phi.model.openai import OpenAIChat

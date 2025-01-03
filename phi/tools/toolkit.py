@@ -1,5 +1,5 @@
 from collections import OrderedDict
-from typing import Callable, Dict
+from typing import Callable, Dict, Any
 
 from phi.tools.function import Function
 from phi.utils.log import logger
@@ -7,16 +7,31 @@ from phi.utils.log import logger
 
 class Toolkit:
     def __init__(self, name: str = "toolkit"):
+        """Initialize a new Toolkit.
+
+        Args:
+            name: A descriptive name for the toolkit
+        """
         self.name: str = name
         self.functions: Dict[str, Function] = OrderedDict()
 
-    def register(self, function: Callable, sanitize_arguments: bool = True):
+    def register(self, function: Callable[..., Any], sanitize_arguments: bool = True):
+        """Register a function with the toolkit.
+
+        Args:
+            function: The callable to register
+
+        Returns:
+            The registered function
+        """
         try:
-            f = Function.from_callable(function)
-            f.sanitize_arguments = sanitize_arguments
+            f = Function(
+                name=function.__name__,
+                entrypoint=function,
+                sanitize_arguments=sanitize_arguments,
+            )
             self.functions[f.name] = f
             logger.debug(f"Function: {f.name} registered with {self.name}")
-            # logger.debug(f"Json Schema: {f.to_dict()}")
         except Exception as e:
             logger.warning(f"Failed to create Function for: {function.__name__}")
             raise e

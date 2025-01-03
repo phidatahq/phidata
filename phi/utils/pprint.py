@@ -42,7 +42,7 @@ def pprint_run_response(
         console.print(table)
     else:
         streaming_response_content: str = ""
-        with Live() as live_log:
+        with Live(console=console) as live_log:
             status = Status("Working...", spinner="dots")
             live_log.update(status)
             response_timer = Timer()

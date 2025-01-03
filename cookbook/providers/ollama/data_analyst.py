@@ -20,4 +20,4 @@ agent = Agent(
     - movies: contains information about movies from IMDB.
     """),
 )
-agent.print_response("What is the average rating of movies?", stream=False)
+agent.print_response("What is the average rating of movies?", stream=True)

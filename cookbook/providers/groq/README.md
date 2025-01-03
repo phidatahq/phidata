@@ -75,6 +75,14 @@ python cookbook/providers/groq/structured_output.py
 
 ### 7. Run Agent that uses storage
 
+Please run pgvector in a docker container using:
+
+```shell
+./cookbook/run_pgvector.sh
+```
+
+Then run the following:
+
 ```shell
 python cookbook/providers/groq/storage.py
 ```

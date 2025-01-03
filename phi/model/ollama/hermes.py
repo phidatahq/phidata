@@ -27,18 +27,13 @@ class Hermes(Ollama):
     """
     A class for interacting with the Hermes model via Ollama. This is a subclass of the Ollama model,
     which customizes tool call streaming for the hermes3 model.
-
-    Attributes:
-        id (str): The ID of the model.
-        name (str): The name of the model.
-        provider (Optional[str]): The provider of the model.
     """
 
     id: str = "hermes3"
     name: str = "Hermes"
     provider: str = "Ollama"
 
-    def _handle_tool_call_chunk(self, content, tool_call_buffer, message_data) -> Tuple[str, bool]:
+    def handle_tool_call_chunk(self, content, tool_call_buffer, message_data) -> Tuple[str, bool]:
         """
         Handle a tool call chunk for response stream.
 
@@ -94,7 +89,7 @@ class Hermes(Ollama):
                 if message_data.response_content_chunk.strip().startswith("</tool_call>"):
                     message_data.end_tool_call = True
                 if message_data.in_tool_call:
-                    message_data.tool_call_chunk, message_data.in_tool_call = self._handle_tool_call_chunk(
+                    message_data.tool_call_chunk, message_data.in_tool_call = self.handle_tool_call_chunk(
                         message_data.response_content_chunk, message_data.tool_call_chunk, message_data
                     )
                 elif message_data.response_content_chunk.strip().startswith("<tool_call>"):
@@ -126,7 +121,7 @@ class Hermes(Ollama):
             assistant_message.tool_calls = message_data.tool_calls
 
         # -*- Update usage metrics
-        self._update_usage_metrics(
+        self.update_usage_metrics(
             assistant_message=assistant_message, metrics=metrics, response=message_data.response_usage
         )
 
@@ -139,8 +134,8 @@ class Hermes(Ollama):
 
         # -*- Handle tool calls
         if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
-            yield from self._handle_stream_tool_calls(assistant_message, messages)
-            yield from self.response_stream(messages=messages)
+            yield from self.handle_stream_tool_calls(assistant_message, messages)
+            yield from self.handle_post_tool_call_messages_stream(messages=messages)
         logger.debug("---------- Ollama Hermes Response End ----------")
 
     async def aresponse_stream(self, messages: List[Message]) -> Any:
@@ -179,7 +174,7 @@ class Hermes(Ollama):
                 if message_data.response_content_chunk.strip().startswith("</tool_call>"):
                     message_data.end_tool_call = True
                 if message_data.in_tool_call:
-                    message_data.tool_call_chunk, message_data.in_tool_call = self._handle_tool_call_chunk(
+                    message_data.tool_call_chunk, message_data.in_tool_call = self.handle_tool_call_chunk(
                         message_data.response_content_chunk, message_data.tool_call_chunk, message_data
                     )
                 elif message_data.response_content_chunk.strip().startswith("<tool_call>"):
@@ -211,7 +206,7 @@ class Hermes(Ollama):
             assistant_message.tool_calls = message_data.tool_calls
 
         # -*- Update usage metrics
-        self._update_usage_metrics(
+        self.update_usage_metrics(
             assistant_message=assistant_message, metrics=metrics, response=message_data.response_usage
         )
 
@@ -224,8 +219,8 @@ class Hermes(Ollama):
 
         # -*- Handle tool calls
         if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
-            for model_response in self._handle_stream_tool_calls(assistant_message, messages):
-                yield model_response
-            async for model_response in self.aresponse_stream(messages=messages):
-                yield model_response
+            for tool_call_response in self.handle_stream_tool_calls(assistant_message, messages):
+                yield tool_call_response
+            async for post_tool_call_response in self.ahandle_post_tool_call_messages_stream(messages=messages):
+                yield post_tool_call_response
         logger.debug("---------- Ollama Hermes Async Response End ----------")

@@ -22,7 +22,7 @@ class Fireworks(OpenAILike):
     name: str = "Fireworks: " + id
     provider: str = "Fireworks"
 
-    api_key: Optional[str] = getenv("FIREWORKS_API_KEY")
+    api_key: Optional[str] = getenv("FIREWORKS_API_KEY", None)
     base_url: str = "https://api.fireworks.ai/inference/v1"
 
     def invoke_stream(self, messages: List[Message]) -> Iterator[ChatCompletionChunk]:

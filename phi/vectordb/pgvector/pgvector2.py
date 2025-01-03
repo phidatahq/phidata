@@ -23,6 +23,7 @@ from phi.vectordb.base import VectorDb
 from phi.vectordb.distance import Distance
 from phi.vectordb.pgvector.index import Ivfflat, HNSW
 from phi.utils.log import logger
+from phi.reranker.base import Reranker
 
 
 class PgVector2(VectorDb):
@@ -35,6 +36,7 @@ class PgVector2(VectorDb):
         embedder: Optional[Embedder] = None,
         distance: Distance = Distance.cosine,
         index: Optional[Union[Ivfflat, HNSW]] = HNSW(),
+        reranker: Optional[Reranker] = None,
     ):
         _engine: Optional[Engine] = db_engine
         if _engine is None and db_url is not None:
@@ -63,6 +65,9 @@ class PgVector2(VectorDb):
 
         # Distance metric
         self.distance: Distance = distance
+
+        # Reranker instance
+        self.reranker: Optional[Reranker] = reranker
 
         # Index for the collection
         self.index: Optional[Union[Ivfflat, HNSW]] = index
@@ -298,6 +303,9 @@ class PgVector2(VectorDb):
                     usage=neighbor.usage,
                 )
             )
+
+        if self.reranker:
+            search_results = self.reranker.rerank(query=query, documents=search_results)
 
         return search_results
 

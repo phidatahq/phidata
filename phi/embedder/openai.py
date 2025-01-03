@@ -39,7 +39,7 @@ class OpenAIEmbedder(Embedder):
             _client_params.update(self.client_params)
         return OpenAIClient(**_client_params)
 
-    def _response(self, text: str) -> CreateEmbeddingResponse:
+    def response(self, text: str) -> CreateEmbeddingResponse:
         _request_params: Dict[str, Any] = {
             "input": text,
             "model": self.model,
@@ -54,7 +54,7 @@ class OpenAIEmbedder(Embedder):
         return self.client.embeddings.create(**_request_params)
 
     def get_embedding(self, text: str) -> List[float]:
-        response: CreateEmbeddingResponse = self._response(text=text)
+        response: CreateEmbeddingResponse = self.response(text=text)
         try:
             return response.data[0].embedding
         except Exception as e:
@@ -62,7 +62,7 @@ class OpenAIEmbedder(Embedder):
             return []
 
     def get_embedding_and_usage(self, text: str) -> Tuple[List[float], Optional[Dict]]:
-        response: CreateEmbeddingResponse = self._response(text=text)
+        response: CreateEmbeddingResponse = self.response(text=text)
 
         embedding = response.data[0].embedding
         usage = response.usage

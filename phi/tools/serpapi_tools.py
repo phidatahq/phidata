@@ -19,7 +19,7 @@ class SerpApiTools(Toolkit):
     ):
         super().__init__(name="serpapi_tools")
 
-        self.api_key = api_key or getenv("SERPAPI_API_KEY")
+        self.api_key = api_key or getenv("SERP_API_KEY")
         if not self.api_key:
             logger.warning("No Serpapi API key provided")
 
@@ -27,12 +27,13 @@ class SerpApiTools(Toolkit):
         if search_youtube:
             self.register(self.search_youtube)
 
-    def search_google(self, query: str) -> str:
+    def search_google(self, query: str, num_results: int = 10) -> str:
         """
         Search Google using the Serpapi API. Returns the search results.
 
         Args:
             query(str): The query to search for.
+            num_results(int): The number of results to return.
 
         Returns:
             str: The search results from Google.
@@ -52,7 +53,7 @@ class SerpApiTools(Toolkit):
 
             logger.info(f"Searching Google for: {query}")
 
-            params = {"q": query, "api_key": self.api_key}
+            params = {"q": query, "api_key": self.api_key, "num": num_results}
 
             search = serpapi.GoogleSearch(params)
             results = search.get_dict()

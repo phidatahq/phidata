@@ -13,18 +13,32 @@ source ~/.venvs/aienv/bin/activate
 pip install -U pymysql sqlalchemy pypdf openai phidata
 ```
 
-3. Add credentials
+3. Run SingleStore
+
+```shell
+docker run \                                          
+    -d --name singlestoredb-dev \
+    -e ROOT_PASSWORD="admin" \                              
+    -p 3306:3306 -p 8080:8080 -p 9000:9000 \
+    --platform linux/amd64 \
+    ghcr.io/singlestore-labs/singlestoredb-dev:latest
+```
+
+4. Create the database
+
+- Visit http://localhost:8080 and login with `root` and `admin`
+- Create the database with your choice of name
+
+5. Add credentials
 
 - For SingleStore
 
-> Note: If using a shared tier, please provide a certificate file for SSL connection [Read more](https://docs.singlestore.com/cloud/connect-to-singlestore/connect-with-mysql/connect-with-mysql-client/connect-to-singlestore-helios-using-tls-ssl/)
-
 ```shell
-export SINGLESTORE_HOST="host"
-export SINGLESTORE_PORT="3333"
-export SINGLESTORE_USERNAME="user"
-export SINGLESTORE_PASSWORD="password"
-export SINGLESTORE_DATABASE="db"
+export SINGLESTORE_HOST="localhost"
+export SINGLESTORE_PORT="3306"
+export SINGLESTORE_USERNAME="root"
+export SINGLESTORE_PASSWORD="admin"
+export SINGLESTORE_DATABASE="your_database_name" 
 export SINGLESTORE_SSL_CA=".certs/singlestore_bundle.pem"
 ```
 

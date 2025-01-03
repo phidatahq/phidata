@@ -99,8 +99,6 @@ class SqlWorkflowStorage(WorkflowStorage):
             Column("user_data", sqlite.JSON),
             # Session Metadata
             Column("session_data", sqlite.JSON),
-            # Session state stored in the database
-            Column("session_state", sqlite.JSON),
             # The Unix timestamp of when this session was created.
             Column("created_at", sqlite.INTEGER, default=lambda: int(time.time())),
             # The Unix timestamp of when this session was last updated.
@@ -186,7 +184,7 @@ class SqlWorkflowStorage(WorkflowStorage):
             with self.Session() as sess, sess.begin():
                 # get all session_ids
                 stmt = select(self.table.c.session_id)
-                if user_id is not None:
+                if user_id is not None and user_id != "":
                     stmt = stmt.where(self.table.c.user_id == user_id)
                 if workflow_id is not None:
                     stmt = stmt.where(self.table.c.workflow_id == workflow_id)
@@ -219,7 +217,7 @@ class SqlWorkflowStorage(WorkflowStorage):
             with self.Session() as sess, sess.begin():
                 # get all sessions
                 stmt = select(self.table)
-                if user_id is not None:
+                if user_id is not None and user_id != "":
                     stmt = stmt.where(self.table.c.user_id == user_id)
                 if workflow_id is not None:
                     stmt = stmt.where(self.table.c.workflow_id == workflow_id)
@@ -257,7 +255,6 @@ class SqlWorkflowStorage(WorkflowStorage):
                     workflow_data=session.workflow_data,
                     user_data=session.user_data,
                     session_data=session.session_data,
-                    session_state=session.session_state,
                 )
 
                 # Define the upsert if the session_id already exists
@@ -271,7 +268,6 @@ class SqlWorkflowStorage(WorkflowStorage):
                         workflow_data=session.workflow_data,
                         user_data=session.user_data,
                         session_data=session.session_data,
-                        session_state=session.session_state,
                         updated_at=int(time.time()),
                     ),  # The updated value for each column
                 )

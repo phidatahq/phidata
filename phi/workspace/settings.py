@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional, List, Dict
 
-from pydantic import field_validator, ValidationInfo
+from pydantic import field_validator, ValidationInfo, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from phi.api.schemas.workspace import WorkspaceSchema
@@ -117,9 +117,9 @@ class WorkspaceSettings(BaseSettings):
     aws_az4: Optional[str] = None
     aws_az5: Optional[str] = None
     # Public subnets. 1 in each AZ.
-    public_subnets: List[str] = []
+    public_subnets: List[str] = Field(default_factory=list)
     # Private subnets. 1 in each AZ.
-    private_subnets: List[str] = []
+    private_subnets: List[str] = Field(default_factory=list)
     # Subnet IDs. 1 in each AZ.
     # Derived from public and private subnets if not provided.
     subnet_ids: Optional[List[str]] = None

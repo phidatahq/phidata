@@ -20,5 +20,5 @@ class DeepSeekChat(OpenAILike):
     name: str = "DeepSeekChat"
     provider: str = "DeepSeek"
 
-    api_key: Optional[str] = getenv("DEEPSEEK_API_KEY")
+    api_key: Optional[str] = getenv("DEEPSEEK_API_KEY", None)
     base_url: str = "https://api.deepseek.com"

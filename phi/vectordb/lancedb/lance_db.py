@@ -5,7 +5,6 @@ import json
 try:
     import lancedb
     import pyarrow as pa
-    from lancedb.rerankers import Reranker
 except ImportError:
     raise ImportError("`lancedb` not installed.")
 
@@ -15,6 +14,7 @@ from phi.vectordb.base import VectorDb
 from phi.vectordb.distance import Distance
 from phi.vectordb.search import SearchType
 from phi.utils.log import logger
+from phi.reranker.base import Reranker
 
 
 class LanceDb(VectorDb):
@@ -190,13 +190,15 @@ class LanceDb(VectorDb):
             query=query_embedding,
             vector_column_name=self._vector_col,
         ).limit(limit)
+
         if self.nprobes:
             results.nprobes(self.nprobes)
-        if self.reranker:
-            results.rerank(reranker=self.reranker)
-        results = results.to_pandas()
 
+        results = results.to_pandas()
         search_results = self._build_search_results(results)
+
+        if self.reranker:
+            search_results = self.reranker.rerank(query=query, documents=search_results)
 
         return search_results
 
@@ -221,12 +223,13 @@ class LanceDb(VectorDb):
 
         if self.nprobes:
             results.nprobes(self.nprobes)
-        if self.reranker:
-            results.rerank(reranker=self.reranker)
 
         results = results.to_pandas()
 
         search_results = self._build_search_results(results)
+
+        if self.reranker:
+            search_results = self.reranker.rerank(query=query, documents=search_results)
 
         return search_results
 
@@ -244,6 +247,9 @@ class LanceDb(VectorDb):
             .to_pandas()
         )
         search_results = self._build_search_results(results)
+
+        if self.reranker:
+            search_results = self.reranker.rerank(query=query, documents=search_results)
         return search_results
 
     def _build_search_results(self, results) -> List[Document]:  # TODO: typehint pandas?

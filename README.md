@@ -2,8 +2,14 @@
   phidata
 </h1>
 
+<p align="center">
+  <a href="https://docs.phidata.com">
+    <img src="https://img.shields.io/badge/Read%20the%20Documentation-Click%20Here-green?style=for-the-badge&logo=read-the-docs" alt="Read the Docs">
+  </a>
+</p>
+
 <h3 align="center">
-Build Agents with memory, knowledge, tools and reasoning
+Build multi-modal Agents with memory, knowledge, tools and reasoning.
 </h3>
 
 <img
@@ -13,13 +19,11 @@ Build Agents with memory, knowledge, tools and reasoning
 
 ## What is phidata?
 
-**Phidata is a framework for building agentic systems**, engineers use phidata to:
+**Phidata is a framework for building multi-modal agents**, use phidata to:
 
-- **Build Agents with memory, knowledge, tools and reasoning.** [examples](#web-search-agent)
-- **Build teams of Agents that can work together.** [example](#team-of-agents)
-- **Chat with Agents using a beautiful Agent UI.** [example](#agent-ui)
-- **Monitor, evaluate and optimize Agents.** [example](#monitoring)
-- **Build agentic systems i.e. applications with an API, database and vectordb.**
+- **Build multi-modal agents with memory, knowledge, tools and reasoning.**
+- **Build teams of agents that can work together to solve problems.**
+- **Chat with your agents using a beautiful Agent UI.**
 
 ## Install
 
@@ -27,11 +31,24 @@ Build Agents with memory, knowledge, tools and reasoning
 pip install -U phidata
 ```
 
-## Agents
+## Key Features
 
-### Web Search Agent
+- [Simple & Elegant](#simple--elegant)
+- [Powerful & Flexible](#powerful--flexible)
+- [Multi-Modal by default](#multi-modal-by-default)
+- [Multi-Agent orchestration](#multi-agent-orchestration)
+- [A beautiful Agent UI to chat with your agents](#a-beautiful-agent-ui-to-chat-with-your-agents)
+- [Agentic RAG built-in](#agentic-rag)
+- [Structured Outputs](#structured-outputs)
+- [Reasoning Agents](#reasoning-agents-experimental)
+- [Monitoring & Debugging built-in](#monitoring--debugging)
+- [Demo Agents](#demo-agents)
 
-Let's start by building a simple agent that can search the web, create a file `web_search.py`
+## Simple & Elegant
+
+Phidata Agents are simple and elegant, resulting in minimal, beautiful code.
+
+For example, you can create a web search agent in 10 lines of code, create a file `web_search.py`
 
 ```python
 from phi.agent import Agent
@@ -39,14 +56,13 @@ from phi.model.openai import OpenAIChat
 from phi.tools.duckduckgo import DuckDuckGo
 
 web_agent = Agent(
-    name="Web Agent",
     model=OpenAIChat(id="gpt-4o"),
     tools=[DuckDuckGo()],
     instructions=["Always include sources"],
     show_tool_calls=True,
     markdown=True,
 )
-web_agent.print_response("Whats happening in France?", stream=True)
+web_agent.print_response("Tell me about OpenAI Sora?", stream=True)
 ```
 
 Install libraries, export your `OPENAI_API_KEY` and run the Agent:
@@ -59,9 +75,11 @@ export OPENAI_API_KEY=sk-xxxx
 python web_search.py
 ```
 
-### Finance Agent
+## Powerful & Flexible
 
-Lets create another agent that can query financial data, create a file `finance_agent.py`
+Phidata agents can use multiple tools and follow instructions to achieve complex tasks.
+
+For example, you can create a finance agent with tools to query financial data, create a file `finance_agent.py`
 
 ```python
 from phi.agent import Agent
@@ -87,9 +105,39 @@ pip install yfinance
 python finance_agent.py
 ```
 
-## Team of Agents
+## Multi-Modal by default
 
-Now lets create a team of agents using the agents above, create a file `agent_team.py`
+Phidata agents support text, images, audio and video.
+
+For example, you can create an image agent that can understand images and make tool calls as needed, create a file `image_agent.py`
+
+```python
+from phi.agent import Agent
+from phi.model.openai import OpenAIChat
+from phi.tools.duckduckgo import DuckDuckGo
+
+agent = Agent(
+    model=OpenAIChat(id="gpt-4o"),
+    tools=[DuckDuckGo()],
+    markdown=True,
+)
+
+agent.print_response(
+    "Tell me about this image and give me the latest news about it.",
+    images=["https://upload.wikimedia.org/wikipedia/commons/b/bf/Krakow_-_Kosciol_Mariacki.jpg"],
+    stream=True,
+)
+```
+
+Run the Agent:
+
+```shell
+python image_agent.py
+```
+
+## Multi-Agent orchestration
+
+Phidata agents can work together as a team to achieve complex tasks, create a file `agent_team.py`
 
 ```python
 from phi.agent import Agent
@@ -119,6 +167,7 @@ finance_agent = Agent(
 
 agent_team = Agent(
     team=[web_agent, finance_agent],
+    model=OpenAIChat(id="gpt-4o"),
     instructions=["Always include sources", "Use tables to display data"],
     show_tool_calls=True,
     markdown=True,
@@ -133,85 +182,7 @@ Run the Agent team:
 python agent_team.py
 ```
 
-## Reasoning Agents
-
-Reasoning is an experimental feature that helps agents work through a problem step-by-step, backtracking and correcting as needed. Create a file `reasoning_agent.py`.
-
-```python
-from phi.agent import Agent
-from phi.model.openai import OpenAIChat
-
-task = (
-    "Three missionaries and three cannibals need to cross a river. "
-    "They have a boat that can carry up to two people at a time. "
-    "If, at any time, the cannibals outnumber the missionaries on either side of the river, the cannibals will eat the missionaries. "
-    "How can all six people get across the river safely? Provide a step-by-step solution and show the solutions as an ascii diagram"
-)
-
-reasoning_agent = Agent(model=OpenAIChat(id="gpt-4o"), reasoning=True, markdown=True, structured_outputs=True)
-reasoning_agent.print_response(task, stream=True, show_full_reasoning=True)
-```
-
-Run the Reasoning Agent:
-
-```shell
-python reasoning_agent.py
-```
-
-> [!WARNING]
-> Reasoning is an experimental feature and will break ~20% of the time. **It is not a replacement for o1.**
->
-> It is an experiment fueled by curiosity, combining COT and tool use. Set your expectations very low for this initial release. For example: It will not be able to count ‘r’s in ‘strawberry’.
-
-> [!TIP]
-> If using tools with `reasoning=True`, set `structured_outputs=False` because gpt-4o doesnt support tools with structured outputs.
-
-## RAG Agent
-
-Instead of always inserting the "context" into the prompt, the RAG Agent can search its knowledge base (vector db) for the specific information it needs to achieve its task.
-
-This saves tokens and improves response quality. Create a file `rag_agent.py`
-
-```python
-from phi.agent import Agent
-from phi.model.openai import OpenAIChat
-from phi.embedder.openai import OpenAIEmbedder
-from phi.knowledge.pdf import PDFUrlKnowledgeBase
-from phi.vectordb.lancedb import LanceDb, SearchType
-
-# Create a knowledge base from a PDF
-knowledge_base = PDFUrlKnowledgeBase(
-    urls=["https://phi-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
-    # Use LanceDB as the vector database
-    vector_db=LanceDb(
-        table_name="recipes",
-        uri="tmp/lancedb",
-        search_type=SearchType.vector,
-        embedder=OpenAIEmbedder(model="text-embedding-3-small"),
-    ),
-)
-# Comment out after first run as the knowledge base is loaded
-knowledge_base.load()
-
-agent = Agent(
-    model=OpenAIChat(id="gpt-4o"),
-    # Add the knowledge base to the agent
-    knowledge=knowledge_base,
-    show_tool_calls=True,
-    markdown=True,
-)
-agent.print_response("How do I make chicken and galangal in coconut milk soup", stream=True)
-```
-
-Install libraries and run the Agent:
-
-```shell
-pip install lancedb tantivy pypdf sqlalchemy
-
-python rag_agent.py
-```
-
-## Agent UI
+## A beautiful Agent UI to chat with your agents
 
 Phidata provides a beautiful UI for interacting with your agents. Let's take it for a spin, create a file `playground.py`
 
@@ -254,14 +225,18 @@ if __name__ == "__main__":
     serve_playground_app("playground:app", reload=True)
 ```
 
-Authenticate with phidata:
 
-```
+Authenticate with phidata by running the following command:
+
+```shell
 phi auth
 ```
 
-> [!NOTE]
-> If `phi auth` fails, you can set the `PHI_API_KEY` environment variable by copying it from [phidata.app](https://www.phidata.app)
+or by exporting the `PHI_API_KEY` for your workspace from [phidata.app](https://www.phidata.app)
+
+```bash
+export PHI_API_KEY=phi-***
+```
 
 Install dependencies and run the Agent Playground:
 
@@ -278,6 +253,139 @@ python playground.py
   src="https://github.com/user-attachments/assets/3a2ff93c-3d2d-4f1a-9573-eee25542e5c4"
   style="border-radius: 8px;"
 />
+
+## Agentic RAG
+
+We were the first to pioneer Agentic RAG using our Auto-RAG paradigm. With Agentic RAG (or auto-rag), the Agent can search its knowledge base (vector db) for the specific information it needs to achieve its task, instead of always inserting the "context" into the prompt.
+
+This saves tokens and improves response quality. Create a file `rag_agent.py`
+
+```python
+from phi.agent import Agent
+from phi.model.openai import OpenAIChat
+from phi.embedder.openai import OpenAIEmbedder
+from phi.knowledge.pdf import PDFUrlKnowledgeBase
+from phi.vectordb.lancedb import LanceDb, SearchType
+
+# Create a knowledge base from a PDF
+knowledge_base = PDFUrlKnowledgeBase(
+    urls=["https://phi-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
+    # Use LanceDB as the vector database
+    vector_db=LanceDb(
+        table_name="recipes",
+        uri="tmp/lancedb",
+        search_type=SearchType.vector,
+        embedder=OpenAIEmbedder(model="text-embedding-3-small"),
+    ),
+)
+# Comment out after first run as the knowledge base is loaded
+knowledge_base.load()
+
+agent = Agent(
+    model=OpenAIChat(id="gpt-4o"),
+    # Add the knowledge base to the agent
+    knowledge=knowledge_base,
+    show_tool_calls=True,
+    markdown=True,
+)
+agent.print_response("How do I make chicken and galangal in coconut milk soup", stream=True)
+```
+
+Install libraries and run the Agent:
+
+```shell
+pip install lancedb tantivy pypdf sqlalchemy
+
+python rag_agent.py
+```
+
+## Structured Outputs
+
+Agents can return their output in a structured format as a Pydantic model.
+
+Create a file `structured_output.py`
+
+```python
+from typing import List
+from pydantic import BaseModel, Field
+from phi.agent import Agent
+from phi.model.openai import OpenAIChat
+
+# Define a Pydantic model to enforce the structure of the output
+class MovieScript(BaseModel):
+    setting: str = Field(..., description="Provide a nice setting for a blockbuster movie.")
+    ending: str = Field(..., description="Ending of the movie. If not available, provide a happy ending.")
+    genre: str = Field(..., description="Genre of the movie. If not available, select action, thriller or romantic comedy.")
+    name: str = Field(..., description="Give a name to this movie")
+    characters: List[str] = Field(..., description="Name of characters for this movie.")
+    storyline: str = Field(..., description="3 sentence storyline for the movie. Make it exciting!")
+
+# Agent that uses JSON mode
+json_mode_agent = Agent(
+    model=OpenAIChat(id="gpt-4o"),
+    description="You write movie scripts.",
+    response_model=MovieScript,
+)
+# Agent that uses structured outputs
+structured_output_agent = Agent(
+    model=OpenAIChat(id="gpt-4o"),
+    description="You write movie scripts.",
+    response_model=MovieScript,
+    structured_outputs=True,
+)
+
+json_mode_agent.print_response("New York")
+structured_output_agent.print_response("New York")
+```
+
+- Run the `structured_output.py` file
+
+```shell
+python structured_output.py
+```
+
+- The output is an object of the `MovieScript` class, here's how it looks:
+
+```shell
+MovieScript(
+│   setting='A bustling and vibrant New York City',
+│   ending='The protagonist saves the city and reconciles with their estranged family.',
+│   genre='action',
+│   name='City Pulse',
+│   characters=['Alex Mercer', 'Nina Castillo', 'Detective Mike Johnson'],
+│   storyline='In the heart of New York City, a former cop turned vigilante, Alex Mercer, teams up with a street-smart activist, Nina Castillo, to take down a corrupt political figure who threatens to destroy the city. As they navigate through the intricate web of power and deception, they uncover shocking truths that push them to the brink of their abilities. With time running out, they must race against the clock to save New York and confront their own demons.'
+)
+```
+
+## Reasoning Agents (experimental)
+
+Reasoning helps agents work through a problem step-by-step, backtracking and correcting as needed. Create a file `reasoning_agent.py`.
+
+```python
+from phi.agent import Agent
+from phi.model.openai import OpenAIChat
+
+task = (
+    "Three missionaries and three cannibals need to cross a river. "
+    "They have a boat that can carry up to two people at a time. "
+    "If, at any time, the cannibals outnumber the missionaries on either side of the river, the cannibals will eat the missionaries. "
+    "How can all six people get across the river safely? Provide a step-by-step solution and show the solutions as an ascii diagram"
+)
+
+reasoning_agent = Agent(model=OpenAIChat(id="gpt-4o"), reasoning=True, markdown=True, structured_outputs=True)
+reasoning_agent.print_response(task, stream=True, show_full_reasoning=True)
+```
+
+Run the Reasoning Agent:
+
+```shell
+python reasoning_agent.py
+```
+
+> [!WARNING]
+> Reasoning is an experimental feature and will break ~20% of the time. **It is not a replacement for o1.**
+>
+> It is an experiment fueled by curiosity, combining COT and tool use. Set your expectations very low for this initial release. For example: It will not be able to count ‘r’s in ‘strawberry’.
 
 ## Demo Agents
 
@@ -420,70 +528,6 @@ data_analyst.print_response(
 pip install duckdb
 
 python data_analyst.py
-```
-
-</details>
-
-### Agent that can generate structured outputs
-
-<details>
-
-<summary>Show code</summary>
-
-One of our favorite LLM features is generating structured data (i.e. a pydantic model) from text. Use this feature to extract features, generate data etc.
-
-Let's create a Movie Agent to write a `MovieScript` for us, create a file `structured_output.py`
-
-```python
-from typing import List
-from pydantic import BaseModel, Field
-from phi.agent import Agent
-from phi.model.openai import OpenAIChat
-
-# Define a Pydantic model to enforce the structure of the output
-class MovieScript(BaseModel):
-    setting: str = Field(..., description="Provide a nice setting for a blockbuster movie.")
-    ending: str = Field(..., description="Ending of the movie. If not available, provide a happy ending.")
-    genre: str = Field(..., description="Genre of the movie. If not available, select action, thriller or romantic comedy.")
-    name: str = Field(..., description="Give a name to this movie")
-    characters: List[str] = Field(..., description="Name of characters for this movie.")
-    storyline: str = Field(..., description="3 sentence storyline for the movie. Make it exciting!")
-
-# Agent that uses JSON mode
-json_mode_agent = Agent(
-    model=OpenAIChat(id="gpt-4o"),
-    description="You write movie scripts.",
-    response_model=MovieScript,
-)
-# Agent that uses structured outputs
-structured_output_agent = Agent(
-    model=OpenAIChat(id="gpt-4o-2024-08-06"),
-    description="You write movie scripts.",
-    response_model=MovieScript,
-    structured_outputs=True,
-)
-
-json_mode_agent.print_response("New York")
-structured_output_agent.print_response("New York")
-```
-
-- Run the `structured_output.py` file
-
-```shell
-python structured_output.py
-```
-
-- The output is an object of the `MovieScript` class, here's how it looks:
-
-```shell
-MovieScript(
-│   setting='A bustling and vibrant New York City',
-│   ending='The protagonist saves the city and reconciles with their estranged family.',
-│   genre='action',
-│   name='City Pulse',
-│   characters=['Alex Mercer', 'Nina Castillo', 'Detective Mike Johnson'],
-│   storyline='In the heart of New York City, a former cop turned vigilante, Alex Mercer, teams up with a street-smart activist, Nina Castillo, to take down a corrupt political figure who threatens to destroy the city. As they navigate through the intricate web of power and deception, they uncover shocking truths that push them to the brink of their abilities. With time running out, they must race against the clock to save New York and confront their own demons.'
-)
 ```
 
 </details>

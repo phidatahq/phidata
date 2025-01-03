@@ -20,5 +20,5 @@ class Nvidia(OpenAILike):
     name: str = "Nvidia"
     provider: str = "Nvidia " + id
 
-    api_key: Optional[str] = getenv("NVIDIA_API_KEY")
+    api_key: Optional[str] = getenv("NVIDIA_API_KEY", None)
     base_url: str = "https://integrate.api.nvidia.com/v1"

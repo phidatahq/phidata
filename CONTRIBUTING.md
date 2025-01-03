@@ -29,12 +29,13 @@ Please follow the [fork and pull request](https://docs.github.com/en/get-started
 ## Formatting and validation
 
 Ensure your code meets our quality standards by running the appropriate formatting and validation script before submitting a pull request:
-   - For Unix:
-     - `./scripts/format.sh`
-     - `./scripts/validate.sh`
-   - For Windows:
-     - `.\scripts\format.bat`
-     - `.\scripts\validate.bat`
+
+- For Unix:
+  - `./scripts/format.sh`
+  - `./scripts/validate.sh`
+- For Windows:
+  - `.\scripts\format.bat`
+  - `.\scripts\validate.bat`
 
 These scripts will perform code formatting with `ruff`, static type checks with `mypy`, and run unit tests with `pytest`.
 
@@ -93,5 +94,4 @@ Message us on [Discord](https://discord.gg/4MtYHHrgA8) or post on [Discourse](ht
 
 ## 📝 License
 
-This project is licensed under the terms of the [MIT license](/LICENSE)
-
+This project is licensed under the terms of the [MPL-2.0 license](/LICENSE)

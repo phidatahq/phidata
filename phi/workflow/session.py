@@ -19,8 +19,6 @@ class WorkflowSession(BaseModel):
     user_data: Optional[Dict[str, Any]] = None
     # Session Metadata
     session_data: Optional[Dict[str, Any]] = None
-    # Session state stored in the database
-    session_state: Optional[Dict[str, Any]] = None
     # The Unix timestamp when this session was created
     created_at: Optional[int] = None
     # The Unix timestamp when this session was last updated

@@ -1,9 +1,10 @@
+import asyncio
 from typing import Optional
 
 from phi.tools import Toolkit
 
 try:
-    from crawl4ai import WebCrawler
+    from crawl4ai import AsyncWebCrawler, CacheMode
 except ImportError:
     raise ImportError("`crawl4ai` not installed. Please install using `pip install crawl4ai`")
 
@@ -31,21 +32,31 @@ class Crawl4aiTools(Toolkit):
         if url is None:
             return "No URL provided"
 
-        # Create an instance of WebCrawler
-        crawler = WebCrawler(verbose=True)
-        crawler.warmup()
+        # Run the async crawler function synchronously
+        return asyncio.run(self._async_web_crawler(url, max_length))
 
-        # Run the crawler on a URL
-        result = crawler.run(url=url)
+    async def _async_web_crawler(self, url: str, max_length: Optional[int] = None) -> str:
+        """
+        Asynchronous method to crawl a website using AsyncWebCrawler.
 
-        # Determine the length to use
-        length = self.max_length or max_length
+        :param url: The URL to crawl.
 
-        # Remove spaces and truncate if length is specified
-        if length:
-            result = result.markdown[:length]
-            result = result.replace(" ", "")
-            return result
+        :return: The results of the crawling as a markdown string, or None if no result.
+        """
 
-        result = result.markdown.replace(" ", "")
+        async with AsyncWebCrawler(thread_safe=True) as crawler:
+            result = await crawler.arun(url=url, cache_mode=CacheMode.BYPASS)
+
+            # Determine the length to use
+            length = self.max_length or max_length
+            if not result.markdown:
+                return "No result"
+
+            # Remove spaces and truncate if length is specified
+            if length:
+                result = result.markdown[:length]
+                result = result.replace(" ", "")
+                return result
+
+            result = result.markdown.replace(" ", "")
         return result

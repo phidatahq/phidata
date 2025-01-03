@@ -23,11 +23,12 @@ finance_agent = Agent(
     markdown=True,
 )
 
-agent_team = Agent(
+team_leader = Agent(
     team=[web_agent, finance_agent],
+    model=Ollama(id="llama3.1:8b"),
     instructions=["Always include sources", "Use tables to display data"],
     show_tool_calls=True,
     markdown=True,
 )
 
-agent_team.print_response("Summarize analyst recommendations and share the latest news for NVDA", stream=True)
+team_leader.print_response("Summarize analyst recommendations and share the latest news for NVDA", stream=True)

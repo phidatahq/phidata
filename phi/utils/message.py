@@ -1,7 +1,9 @@
 from typing import Dict, List, Union
 
+from phi.model.message import Message
 
-def get_text_from_message(message: Union[List, Dict, str]) -> str:
+
+def get_text_from_message(message: Union[List, Dict, str, Message]) -> str:
     """Return the user texts from the message"""
 
     if isinstance(message, str):
@@ -33,4 +35,9 @@ def get_text_from_message(message: Union[List, Dict, str]) -> str:
                             text_messages.append(m_content)
         if len(text_messages) > 0:
             return "\n".join(text_messages)
+    if isinstance(message, dict):
+        if "content" in message:
+            return get_text_from_message(message["content"])
+    if isinstance(message, Message) and message.content is not None:
+        return get_text_from_message(message.content)
     return ""

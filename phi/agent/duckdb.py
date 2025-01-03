@@ -188,10 +188,16 @@ class DuckDbAgent(Agent):
                 system_message += system_message_from_model
 
         # Then add instructions to the system prompt
-        instructions = self.instructions
-        # Add default instructions
-        if instructions is None:
-            instructions = []
+        instructions = []
+        if self.instructions is not None:
+            _instructions = self.instructions
+            if callable(self.instructions):
+                _instructions = self.instructions(agent=self)
+
+            if isinstance(_instructions, str):
+                instructions.append(_instructions)
+            elif isinstance(_instructions, list):
+                instructions.extend(_instructions)
 
         instructions += self.get_default_instructions()
         if len(instructions) > 0:

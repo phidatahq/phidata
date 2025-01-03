@@ -2,7 +2,7 @@
 
 ############################################################################
 # Format the agno_docker library using ruff
-# Usage: ./libs/agno_docker/scripts/format.sh
+# Usage: ./libs/infra/agno_docker/scripts/format.sh
 ############################################################################
 
 CURR_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

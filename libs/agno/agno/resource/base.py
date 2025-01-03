@@ -6,9 +6,11 @@ from agno.utils.log import logger
 
 
 class ResourceBase(InfraBase):
-    # Resource name is required
-    name: str
-    # Resource type
+    """Base class for all Infrastructure Resources."""
+
+    # Name of the resource
+    name: Optional[str] = None
+    # Type of the resource
     resource_type: Optional[str] = None
     # List of resource types to match against for filtering
     resource_type_list: Optional[List[str]] = None
@@ -20,11 +22,11 @@ class ResourceBase(InfraBase):
     resource_deleted: bool = False
 
     def get_resource_name(self) -> str:
-        return self.name
+        return self.name or self.__class__.__name__
 
     def get_resource_type(self) -> str:
         if self.resource_type is None:
-            return self.__class__.__name__
+            return self.__class_ResourceGroup_.__name__
         return self.resource_type
 
     def get_resource_type_list(self) -> List[str]:

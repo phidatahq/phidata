@@ -7,10 +7,20 @@ from agno.workspace.settings import WorkspaceSettings
 
 
 class InfraBase(BaseModel):
+    """Base class for all Infrastructure resources.
+
+    Any infrastructure resource, resource group, or App inherits from this class.
+    """
+
+    # Name of the resource
     name: Optional[str] = None
+    # Group of the resource
     group: Optional[str] = None
-    version: Optional[str] = None
+    # Environment filter for this resource
     env: Optional[str] = None
+    # Infrastructure filter for this resource
+    infra: Optional[str] = None
+    # Whether this resource is enabled
     enabled: bool = True
 
     #  -*- Resource Control
@@ -24,10 +34,14 @@ class InfraBase(BaseModel):
     # Force create/update/delete implementation
     force: Optional[bool] = None
 
-    # -*- Debug Mode
-    debug_mode: bool = False
+    # -*- Wait for resource to be created, updated or deleted
+    wait_for_create: bool = True
+    wait_for_update: bool = True
+    wait_for_delete: bool = True
+    waiter_delay: int = 30
+    waiter_max_attempts: int = 50
 
-    # -*- Environment Variables
+    # -*- Environment Variables for the resource (if applicable)
     # Add env variables to resource where applicable
     env_vars: Optional[Dict[str, Any]] = None
     # Read env from a file in yaml format
@@ -38,16 +52,11 @@ class InfraBase(BaseModel):
     secrets_file: Optional[Path] = None
     # Read secret variables from AWS Secrets
     aws_secrets: Optional[Any] = None
+    # -*- Debug Mode
+    debug_mode: bool = False
 
-    # -*- Wait for resource to be created, updated or deleted
-    wait_for_create: bool = True
-    wait_for_update: bool = True
-    wait_for_delete: bool = True
-    waiter_delay: int = 30
-    waiter_max_attempts: int = 50
-
-    #  -*- Save to output directory
-    # If True, save output to json files
+    #  -*- Store resource to output directory
+    # If True, save resource output to json files
     save_output: bool = False
     # The directory for the input files in the workspace directory
     input_dir: Optional[str] = None
@@ -77,14 +86,6 @@ class InfraBase(BaseModel):
     def workspace_name(self) -> Optional[str]:
         return self.workspace_settings.ws_name if self.workspace_settings is not None else None
 
-    @property
-    def workspace_dir(self) -> Optional[Path]:
-        if self.workspace_root is not None:
-            workspace_dir = self.workspace_settings.workspace_dir if self.workspace_settings is not None else None
-            if workspace_dir is not None:
-                return self.workspace_root.joinpath(workspace_dir)
-        return None
-
     def set_workspace_settings(self, workspace_settings: Optional[WorkspaceSettings] = None) -> None:
         if workspace_settings is not None:
             self.workspace_settings = workspace_settings
@@ -108,18 +109,3 @@ class InfraBase(BaseModel):
         if secret_file_data is not None:
             return secret_file_data.get(secret_name)
         return None
-
-    def set_aws_env_vars(self, env_dict: Dict[str, str], aws_region: Optional[str] = None) -> None:
-        from agno.constants import (
-            AWS_REGION_ENV_VAR,
-            AWS_DEFAULT_REGION_ENV_VAR,
-        )
-
-        if aws_region is not None:
-            # logger.debug(f"Setting AWS Region to {aws_region}")
-            env_dict[AWS_REGION_ENV_VAR] = aws_region
-            env_dict[AWS_DEFAULT_REGION_ENV_VAR] = aws_region
-        elif self.workspace_settings is not None and self.workspace_settings.aws_region is not None:
-            # logger.debug(f"Setting AWS Region to {aws_region} using workspace_settings")
-            env_dict[AWS_REGION_ENV_VAR] = self.workspace_settings.aws_region
-            env_dict[AWS_DEFAULT_REGION_ENV_VAR] = self.workspace_settings.aws_region

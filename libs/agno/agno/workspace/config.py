@@ -4,6 +4,7 @@ from typing import Optional, List, Any
 from pydantic import BaseModel, ConfigDict
 
 from agno.infra.type import InfraType
+from agno.infra.base import InfraBase
 from agno.infra.resources import InfraResources
 from agno.api.schemas.team import TeamSchema
 from agno.api.schemas.workspace import WorkspaceSchema
@@ -15,95 +16,21 @@ from agno.utils.log import logger
 ignored_dirs = ["ignore", "test", "tests", "config"]
 
 
-def get_workspace_objects_from_file(resource_file: Path) -> dict:
-    """Returns workspace objects from the resource file"""
-    # from agno.aws.resources import AwsResources
-    # from agno.docker.resources import DockerResources
-
+def get_infra_resources_from_file(resource_file: Path) -> dict:
+    """Returns infra resources from a file"""
     try:
-        # python_objects = get_python_objects_from_module(resource_file)
+        python_objects = get_python_objects_from_module(resource_file)
         # logger.debug(f"python_objects: {python_objects}")
 
-        workspace_objects: dict[str, Any] = {}
-        # docker_resources_available = False
-        # create_default_docker_resources = False
-        # aws_resources_available = False
-        # create_default_aws_resources = False
-        # for obj_name, obj in python_objects.items():
-        #     if isinstance(
-        #         obj,
-        #         (
-        #             WorkspaceSettings,
-        #             DockerResources,
-        #             AwsResources,
-        #         ),
-        #     ):
-        #         workspace_objects[obj_name] = obj
-        #         if isinstance(obj, DockerResources):
-        #             docker_resources_available = True
-        #         elif isinstance(obj, AwsResources):
-        #             aws_resources_available = True
+        infra_resources: dict[str, Any] = {}
+        # Get all the infra resources from the file
+        for obj_name, obj in python_objects.items():
+            # Check if the object is of type InfraBase
+            if isinstance(obj, InfraBase):
+                logger.debug(f"Found: {obj_name}")
+                infra_resources[obj_name] = obj
 
-        #     try:
-        #         if not docker_resources_available:
-        #             if obj.__class__.__module__.startswith("agno.docker"):
-        #                 create_default_docker_resources = True
-        #         if not aws_resources_available:
-        #             if obj.__class__.__module__.startswith("agno.aws"):
-        #                 create_default_aws_resources = True
-        #     except Exception:
-        #         pass
-
-        # if not docker_resources_available and create_default_docker_resources:
-        #     from agno.docker.resources import DockerResource, DockerApp
-
-        #     logger.debug("Creating default docker resources")
-        #     default_docker_resources = DockerResources()
-        #     add_default_docker_resources = False
-        #     for obj_name, obj in python_objects.items():
-        #         _obj_class = obj.__class__
-        #         if issubclass(_obj_class, DockerResource):
-        #             if default_docker_resources.resources is None:
-        #                 default_docker_resources.resources = []
-        #             default_docker_resources.resources.append(obj)
-        #             add_default_docker_resources = True
-        #             logger.debug(f"Added DockerResource: {obj_name}")
-        #         elif issubclass(_obj_class, DockerApp):
-        #             if default_docker_resources.apps is None:
-        #                 default_docker_resources.apps = []
-        #             default_docker_resources.apps.append(obj)
-        #             add_default_docker_resources = True
-        #             logger.debug(f"Added DockerApp: {obj_name}")
-
-        #     if add_default_docker_resources:
-        #         workspace_objects["default_docker_resources"] = default_docker_resources
-
-        # if not aws_resources_available and create_default_aws_resources:
-        #     from agno.aws.resources import AwsResource, AwsApp
-
-        #     logger.debug("Creating default aws resources")
-        #     default_aws_resources = AwsResources()
-        #     add_default_aws_resources = False
-        #     for obj_name, obj in python_objects.items():
-        #         _obj_class = obj.__class__
-        #         # logger.debug(f"Checking {_obj_class}: {obj_name}")
-        #         if issubclass(_obj_class, AwsResource):
-        #             if default_aws_resources.resources is None:
-        #                 default_aws_resources.resources = []
-        #             default_aws_resources.resources.append(obj)
-        #             add_default_aws_resources = True
-        #             logger.debug(f"Added AwsResource: {obj_name}")
-        #         elif issubclass(_obj_class, AwsApp):
-        #             if default_aws_resources.apps is None:
-        #                 default_aws_resources.apps = []
-        #             default_aws_resources.apps.append(obj)
-        #             add_default_aws_resources = True
-        #             logger.debug(f"Added AwsApp: {obj_name}")
-
-        #     if add_default_aws_resources:
-        #         workspace_objects["default_aws_resources"] = default_aws_resources
-
-        return workspace_objects
+        return infra_resources
     except Exception:
         logger.error(f"Error reading: {resource_file}")
         raise
@@ -299,7 +226,7 @@ class WorkspaceConfig(BaseModel):
 
             # logger.debug(f"workspace_objects: {workspace_objects}")
             for obj_name, obj in workspace_objects.items():
-                logger.debug(f"Loading {obj.__class__.__name__}: {obj_name}")
+                logger.debug(f"Reading {obj.__class__.__name__}: {obj_name}")
                 if isinstance(obj, WorkspaceSettings):
                     if self.validate_workspace_settings(obj):
                         self._workspace_settings = obj
@@ -379,12 +306,9 @@ class WorkspaceConfig(BaseModel):
 
         from sys import path as sys_path
         from agno.utils.load_env import load_env
-        from agno.aws.resources import AwsResources
-        from agno.docker.resources import DockerResources
 
-        # Objects to read from the file
-        docker_resource_groups: Optional[List[Any]] = None
-        aws_resource_groups: Optional[List[Any]] = None
+        # Workspace resources from the file
+        workspace_resources: Optional[List[Any]] = None
 
         resource_file_parent_dir = resource_file.parent.resolve()
         logger.debug(f"Loading .env from {resource_file_parent_dir}")
@@ -392,67 +316,51 @@ class WorkspaceConfig(BaseModel):
 
         temporary_ws_config = WorkspaceConfig(ws_root_path=resource_file_parent_dir)
 
-        # NOTE: When loading a workspace, relative imports or package imports do not work.
+        # NOTE: When loading a directory, relative imports or package imports do not work.
         # This is a known problem in python
         #     eg: https://stackoverflow.com/questions/6323860/sibling-package-imports/50193944#50193944
-        # To make them work, we add workspace_root to sys.path so is treated as a module
+        # To make them work, we add workspace_root to sys.path so it can be treated as a module
         logger.debug(f"Adding {resource_file_parent_dir} to path")
         sys_path.insert(0, str(resource_file_parent_dir))
 
         logger.debug(f"**--> Loading resources from {resource_file}")
         # Create a dict of objects from the file
-        workspace_objects = get_workspace_objects_from_file(resource_file)
+        infra_resources = get_infra_resources_from_file(resource_file)
 
-        # logger.debug(f"workspace_objects: {workspace_objects}")
-        for obj_name, obj in workspace_objects.items():
-            logger.debug(f"Loading {obj.__class__.__module__}: {obj_name}")
+        # logger.debug(f"Infra Resources in {resource_file}: {infra_resources}")
+        for obj_name, obj in infra_resources.items():
+            logger.debug(f"Reading {obj.__class__.__module__}: {obj_name}")
             if isinstance(obj, WorkspaceSettings):
                 if temporary_ws_config.validate_workspace_settings(obj):
                     temporary_ws_config._workspace_settings = obj
-            if isinstance(obj, DockerResources):
+            elif isinstance(obj, InfraBase):
                 if not obj.enabled:
                     logger.debug(f"Skipping {obj_name}: disabled")
                     continue
-                if docker_resource_groups is None:
-                    docker_resource_groups = []
-                docker_resource_groups.append(obj)
-            elif isinstance(obj, AwsResources):
-                if not obj.enabled:
-                    logger.debug(f"Skipping {obj_name}: disabled")
-                    continue
-                if aws_resource_groups is None:
-                    aws_resource_groups = []
-                aws_resource_groups.append(obj)
-
+                if workspace_resources is None:
+                    workspace_resources = []
+                workspace_resources.append(obj)
         logger.debug("**--> Resources loaded")
 
         # Resources filtered by infra
         filtered_infra_resources: List[InfraResources] = []
-        logger.debug(f"Getting resources for env: {env} | infra: {infra} | order: {order}")
+        logger.debug(f"Filtering resources for env: {env} | infra: {infra} | order: {order}")
         if infra is None:
-            if docker_resource_groups is not None:
-                filtered_infra_resources.extend(docker_resource_groups)
-            if order == "delete":
-                if aws_resource_groups is not None:
-                    filtered_infra_resources.extend(aws_resource_groups)
-            else:
-                if aws_resource_groups is not None:
-                    filtered_infra_resources.extend(aws_resource_groups)
-        elif infra == "docker":
-            if docker_resource_groups is not None:
-                filtered_infra_resources.extend(docker_resource_groups)
-        elif infra == "aws":
-            if aws_resource_groups is not None:
-                filtered_infra_resources.extend(aws_resource_groups)
+            if workspace_resources is not None:
+                filtered_infra_resources.extend(workspace_resources)
+        else:
+            # TODO: Filter by infra
+            if workspace_resources is not None:
+                filtered_infra_resources.extend(workspace_resources)
 
         # Resources filtered by env
-        env_filtered_resource_groups: List[InfraResources] = []
+        env_filtered_resources: List[InfraResources] = []
         if env is None:
-            env_filtered_resource_groups = filtered_infra_resources
+            env_filtered_resources = filtered_infra_resources
         else:
             for resource_group in filtered_infra_resources:
                 if resource_group.env == env:
-                    env_filtered_resource_groups.append(resource_group)
+                    env_filtered_resources.append(resource_group)
 
         # Updated resource groups with the workspace settings
         if temporary_ws_config._workspace_settings is None:
@@ -462,7 +370,8 @@ class WorkspaceConfig(BaseModel):
                 ws_name=temporary_ws_config.ws_root_path.stem,
             )
         if temporary_ws_config._workspace_settings is not None:
-            for resource_group in env_filtered_resource_groups:
-                logger.debug(f"Setting workspace settings for {resource_group.__class__.__name__}")
-                resource_group.set_workspace_settings(temporary_ws_config._workspace_settings)
-        return env_filtered_resource_groups
+            for resource in env_filtered_resources:
+                logger.debug(f"Setting workspace settings for {resource.__class__.__name__}")
+                resource.set_workspace_settings(temporary_ws_config._workspace_settings)
+        return env_filtered_resources
+

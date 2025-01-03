@@ -2,7 +2,7 @@
 
 ############################################################################
 # Run tests for the agno library
-# Usage: ./libs/agno/scripts/test.sh
+# Usage: ./libs/infra/agno_docker/scripts/test.sh
 ############################################################################
 
 CURR_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

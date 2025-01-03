@@ -2,7 +2,7 @@
 
 ############################################################################
 # Release agno_docker to pypi
-# Usage: ./libs/agno_docker/scripts/release_manual.sh
+# Usage: ./libs/infra/agno_docker/scripts/release_manual.sh
 # Note:
 #   build & twine must be available in the venv
 ############################################################################

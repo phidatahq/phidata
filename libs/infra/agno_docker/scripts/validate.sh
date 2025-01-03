@@ -2,7 +2,7 @@
 
 ############################################################################
 # Validate the agno_docker library using ruff and mypy
-# Usage: ./libs/agno_docker/scripts/validate.sh
+# Usage: ./libs/infra/agno_docker/scripts/validate.sh
 ############################################################################
 
 CURR_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

@@ -3,8 +3,8 @@
 ############################################################################
 # Generate requirements.txt from pyproject.toml
 # Usage:
-# ./libs/agno_docker/scripts/generate_requirements.sh: Generate requirements.txt
-# ./libs/agno_docker/scripts/generate_requirements.sh upgrade: Upgrade requirements.txt
+# ./libs/infra/agno_docker/scripts/generate_requirements.sh: Generate requirements.txt
+# ./libs/infra/agno_docker/scripts/generate_requirements.sh upgrade: Upgrade requirements.txt
 ############################################################################
 
 CURR_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

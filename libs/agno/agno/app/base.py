@@ -10,6 +10,8 @@ from agno.utils.log import logger
 
 
 class AppBase(InfraBase):
+    """Base class for all Infrastructure Apps."""
+
     # -*- App Name (required)
     name: str
 

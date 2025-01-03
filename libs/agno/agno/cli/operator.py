@@ -93,7 +93,7 @@ def initialize_agno(reset: bool = False, login: bool = False) -> Optional[AgnoCl
 
     logger.debug("Initializing Agno")
 
-    # Check if ~/.config/ag exists, if it is not a dir - delete it and create the dir
+    # Check if ~/.config/ag exists, if it is not a dir - delete it and create the directory
     if AGNO_CLI_CONFIG_DIR.exists():
         logger.debug(f"{AGNO_CLI_CONFIG_DIR} exists")
         if not AGNO_CLI_CONFIG_DIR.is_dir():

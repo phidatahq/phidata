@@ -3,7 +3,6 @@ from typing import Optional, List, Any
 
 from pydantic import BaseModel, ConfigDict
 
-from agno.infra.type import InfraType
 from agno.infra.base import InfraBase
 from agno.infra.resources import InfraResources
 from agno.api.schemas.team import TeamSchema
@@ -294,7 +293,7 @@ class WorkspaceConfig(BaseModel):
     def get_resources_from_file(
         resource_file: Path,
         env: Optional[str] = None,
-        infra: Optional[InfraType] = None,
+        infra: Optional[str] = None,
         order: str = "create",
     ) -> List[InfraResources]:
         if not resource_file.exists():
@@ -374,4 +373,3 @@ class WorkspaceConfig(BaseModel):
                 logger.debug(f"Setting workspace settings for {resource.__class__.__name__}")
                 resource.set_workspace_settings(temporary_ws_config._workspace_settings)
         return env_filtered_resources
-

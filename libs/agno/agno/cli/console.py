@@ -39,10 +39,6 @@ def print_subheading(msg: str) -> None:
     console.print(msg, style=subheading_style)
 
 
-def print_horizontal_line() -> None:
-    console.rule()
-
-
 def print_info(msg: str) -> None:
     console.print(msg, style=info_style)
 

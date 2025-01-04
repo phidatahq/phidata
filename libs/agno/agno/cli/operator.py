@@ -6,7 +6,6 @@ from typer import launch as typer_launch
 from agno.cli.settings import agno_cli_settings, AGNO_CLI_CONFIG_DIR
 from agno.cli.config import AgnoCliConfig
 from agno.cli.console import print_info, print_heading
-from agno.infra.type import InfraType
 from agno.infra.resources import InfraResources
 from agno.utils.log import logger
 
@@ -24,7 +23,7 @@ def authenticate_user() -> None:
     1. Authenticate the user by opening the agno sign-in url.
         Once authenticated, agno.com will post an auth token to a
         mini http server running on the auth_server_port.
-    2. Using the auth_token, authenticate the cli with the api.
+    2. Using the auth_token, authenticate the user with the api.
     3. After the user is authenticated update the AgnoCliConfig.
     4. Save the auth_token locally for future use.
     """
@@ -131,44 +130,11 @@ def initialize_agno(reset: bool = False, login: bool = False) -> Optional[AgnoCl
     return agno_config
 
 
-def sign_in_using_cli() -> None:
-    from getpass import getpass
-    from agno.api.user import sign_in_user
-    from agno.api.schemas.user import UserSchema, EmailPasswordAuthSchema
-
-    print_heading("Log in")
-    email_raw = input("email: ")
-    pass_raw = getpass()
-
-    if email_raw is None or pass_raw is None:
-        logger.error("Incorrect email or password")
-
-    try:
-        user: Optional[UserSchema] = sign_in_user(EmailPasswordAuthSchema(email=email_raw, password=pass_raw))
-    except Exception as e:
-        logger.exception(e)
-        logger.error("Could not authenticate, please try again")
-        return
-
-    if user is None:
-        logger.error("Could not get user, please try again")
-        return
-
-    agno_config: Optional[AgnoCliConfig] = AgnoCliConfig.from_saved_config()
-    if agno_config is None:
-        agno_config = AgnoCliConfig(user)
-        agno_config.save_config()
-    else:
-        agno_config.user = user
-
-    print_info("Welcome {}".format(user.email))
-
-
 def start_resources(
     agno_config: AgnoCliConfig,
     resources_file_path: Path,
     target_env: Optional[str] = None,
-    target_infra: Optional[InfraType] = None,
+    target_infra: Optional[str] = None,
     target_group: Optional[str] = None,
     target_name: Optional[str] = None,
     target_type: Optional[str] = None,
@@ -194,7 +160,7 @@ def start_resources(
         logger.error(f"File does not exist: {resources_file_path}")
         return
 
-    # Get resource groups to deploy
+    # Get resources to deploy
     resource_groups_to_create: List[InfraResources] = WorkspaceConfig.get_resources_from_file(
         resource_file=resources_file_path,
         env=target_env,
@@ -245,7 +211,7 @@ def stop_resources(
     agno_config: AgnoCliConfig,
     resources_file_path: Path,
     target_env: Optional[str] = None,
-    target_infra: Optional[InfraType] = None,
+    target_infra: Optional[str] = None,
     target_group: Optional[str] = None,
     target_name: Optional[str] = None,
     target_type: Optional[str] = None,
@@ -319,7 +285,7 @@ def patch_resources(
     agno_config: AgnoCliConfig,
     resources_file_path: Path,
     target_env: Optional[str] = None,
-    target_infra: Optional[InfraType] = None,
+    target_infra: Optional[str] = None,
     target_group: Optional[str] = None,
     target_name: Optional[str] = None,
     target_type: Optional[str] = None,

@@ -143,10 +143,6 @@ class AgnoCliConfig:
         # Return the updated_ws_config
         return existing_ws_config
 
-    ######################################################
-    # END
-    ######################################################
-
     def add_new_ws_to_config(
         self, ws_root_path: Path, ws_team: Optional[TeamSchema] = None
     ) -> Optional[WorkspaceConfig]:
@@ -193,11 +189,6 @@ class AgnoCliConfig:
         self.save_config()
         print_info("Workspace record deleted")
         print_info("Note: this does not delete any data locally or from agno.com, please delete them manually\n")
-
-    ######################################################
-    ######################################################
-    ## Get Workspace Data
-    ######################################################
 
     def get_ws_config_by_dir_name(self, ws_dir_name: str) -> Optional[WorkspaceConfig]:
         ws_root_str: Optional[str] = None

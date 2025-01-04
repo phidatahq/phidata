@@ -1,8 +1,8 @@
 from typing import Optional, Any, Dict
-from pydantic import BaseModel, ConfigDict
+from dataclasses import dataclass, field, asdict
 
-
-class AgentSession(BaseModel):
+@dataclass
+class AgentSession:
     """Agent Session that is stored in the database"""
 
     # Session UUID
@@ -11,20 +11,14 @@ class AgentSession(BaseModel):
     agent_id: Optional[str] = None
     # ID of the user interacting with this agent
     user_id: Optional[str] = None
-    # Agent Memory
     memory: Optional[Dict[str, Any]] = None
-    # Agent Metadata
     agent_data: Optional[Dict[str, Any]] = None
-    # User Metadata
     user_data: Optional[Dict[str, Any]] = None
-    # Session Metadata
     session_data: Optional[Dict[str, Any]] = None
     # The Unix timestamp when this session was created
     created_at: Optional[int] = None
     # The Unix timestamp when this session was last updated
     updated_at: Optional[int] = None
-
-    model_config = ConfigDict(from_attributes=True)
 
     def monitoring_data(self) -> Dict[str, Any]:
         # Google Gemini adds a "parts" field to the messages, which is not serializable
@@ -45,8 +39,13 @@ class AgentSession(BaseModel):
                         if isinstance(m, dict):
                             m.pop("parts", None)
 
-        monitoring_data = self.model_dump()
+        monitoring_data = asdict(self)
         return monitoring_data
 
     def telemetry_data(self) -> Dict[str, Any]:
-        return self.model_dump(include={"model", "created_at", "updated_at"})
+        # Return a subset of fields for telemetry data
+        return {
+            "model": self.agent_data.get("model") if self.agent_data else None,
+            "created_at": self.created_at,
+            "updated_at": self.updated_at
+        }

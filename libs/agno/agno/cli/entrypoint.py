@@ -98,31 +98,6 @@ def auth(
     authenticate_user()
 
 
-@agno_cli.command(short_help="Log in from the cli", hidden=True)
-def login(
-    print_debug_log: bool = typer.Option(
-        False,
-        "-d",
-        "--debug",
-        help="Print debug logs.",
-    ),
-):
-    """
-    \b
-    Log in from the cli
-
-    \b
-    Examples:
-    * `ag login`
-    """
-    if print_debug_log:
-        set_log_level_to_debug()
-
-    from agno.cli.operator import sign_in_using_cli
-
-    sign_in_using_cli()
-
-
 @agno_cli.command(short_help="Ping Agno servers")
 def ping(
     print_debug_log: bool = typer.Option(
@@ -268,7 +243,6 @@ def start(
     from agno.cli.config import AgnoCliConfig
     from agno.cli.console import log_config_not_available_msg
     from agno.cli.operator import start_resources, initialize_agno
-    from agno.infra.type import InfraType
 
     agno_config: Optional[AgnoCliConfig] = AgnoCliConfig.from_saved_config()
     if not agno_config:
@@ -278,8 +252,7 @@ def start(
             return
 
     target_env: Optional[str] = None
-    target_infra_str: Optional[str] = None
-    target_infra: Optional[InfraType] = None
+    target_infra: Optional[str] = None
     target_group: Optional[str] = None
     target_name: Optional[str] = None
     target_type: Optional[str] = None
@@ -287,20 +260,13 @@ def start(
     if env_filter is not None and isinstance(env_filter, str):
         target_env = env_filter
     if infra_filter is not None and isinstance(infra_filter, str):
-        target_infra_str = infra_filter
+        target_infra = infra_filter
     if group_filter is not None and isinstance(group_filter, str):
         target_group = group_filter
     if name_filter is not None and isinstance(name_filter, str):
         target_name = name_filter
     if type_filter is not None and isinstance(type_filter, str):
         target_type = type_filter
-
-    if target_infra_str is not None:
-        try:
-            target_infra = InfraType(target_infra_str.lower())
-        except KeyError:
-            logger.error(f"{target_infra_str} is not supported")
-            return
 
     resources_file_path: Path = Path(".").resolve().joinpath(resources_file)
     start_resources(
@@ -377,7 +343,6 @@ def stop(
     from agno.cli.config import AgnoCliConfig
     from agno.cli.console import log_config_not_available_msg
     from agno.cli.operator import stop_resources, initialize_agno
-    from agno.infra.type import InfraType
 
     agno_config: Optional[AgnoCliConfig] = AgnoCliConfig.from_saved_config()
     if not agno_config:
@@ -387,8 +352,7 @@ def stop(
             return
 
     target_env: Optional[str] = None
-    target_infra_str: Optional[str] = None
-    target_infra: Optional[InfraType] = None
+    target_infra: Optional[str] = None
     target_group: Optional[str] = None
     target_name: Optional[str] = None
     target_type: Optional[str] = None
@@ -396,20 +360,13 @@ def stop(
     if env_filter is not None and isinstance(env_filter, str):
         target_env = env_filter
     if infra_filter is not None and isinstance(infra_filter, str):
-        target_infra_str = infra_filter
+        target_infra = infra_filter
     if group_filter is not None and isinstance(group_filter, str):
         target_group = group_filter
     if name_filter is not None and isinstance(name_filter, str):
         target_name = name_filter
     if type_filter is not None and isinstance(type_filter, str):
         target_type = type_filter
-
-    if target_infra_str is not None:
-        try:
-            target_infra = InfraType(target_infra_str.lower())
-        except KeyError:
-            logger.error(f"{target_infra_str} is not supported")
-            return
 
     resources_file_path: Path = Path(".").resolve().joinpath(resources_file)
     stop_resources(
@@ -486,7 +443,6 @@ def patch(
     from agno.cli.config import AgnoCliConfig
     from agno.cli.console import log_config_not_available_msg
     from agno.cli.operator import patch_resources, initialize_agno
-    from agno.infra.type import InfraType
 
     agno_config: Optional[AgnoCliConfig] = AgnoCliConfig.from_saved_config()
     if not agno_config:
@@ -496,8 +452,7 @@ def patch(
             return
 
     target_env: Optional[str] = None
-    target_infra_str: Optional[str] = None
-    target_infra: Optional[InfraType] = None
+    target_infra: Optional[str] = None
     target_group: Optional[str] = None
     target_name: Optional[str] = None
     target_type: Optional[str] = None
@@ -512,13 +467,6 @@ def patch(
         target_name = name_filter
     if type_filter is not None and isinstance(type_filter, str):
         target_type = type_filter
-
-    if target_infra_str is not None:
-        try:
-            target_infra = InfraType(target_infra_str.lower())
-        except KeyError:
-            logger.error(f"{target_infra_str} is not supported")
-            return
 
     resources_file_path: Path = Path(".").resolve().joinpath(resources_file)
     patch_resources(

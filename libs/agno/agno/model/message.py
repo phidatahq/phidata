@@ -1,13 +1,14 @@
 import json
 from time import time
 from typing import Optional, Any, Dict, List, Union, Sequence
-from pydantic import BaseModel, ConfigDict, Field
+from dataclasses import dataclass, field, asdict
 
 from agno.utils.log import logger
 
 
-class MessageReferences(BaseModel):
-    """The references added to user message for RAG"""
+@dataclass
+class MessageReferences:
+    """References added to user message"""
 
     # The query used to retrieve the references.
     query: str
@@ -17,14 +18,14 @@ class MessageReferences(BaseModel):
     time: Optional[float] = None
 
 
-class Message(BaseModel):
+@dataclass
+class Message:
     """Message sent to the Model"""
 
     # The role of the message author.
-    # One of system, user, assistant, or tool.
+    # One of system, developer, user, assistant, or tool.
     role: str
-    # The contents of the message. content is required for all messages,
-    # and may be null for assistant messages with function calls.
+    # The contents of the message.
     content: Optional[Union[List[Any], str]] = None
     # An optional name for the participant.
     # Provides the model information to differentiate between participants of the same role.
@@ -39,26 +40,23 @@ class Message(BaseModel):
     images: Optional[Sequence[Any]] = None
     videos: Optional[Sequence[Any]] = None
 
-    # -*- Attributes not sent to the model
+    # --- Data not sent to the Model API ---
     # The name of the tool called
-    tool_name: Optional[str] = Field(None, alias="tool_call_name")
+    tool_name: Optional[str] = None
     # Arguments passed to the tool
-    tool_args: Optional[Any] = Field(None, alias="tool_call_arguments")
+    tool_args: Optional[Any] = None
     # The error of the tool call
     tool_call_error: Optional[bool] = None
     # If True, the agent will stop executing after this tool call.
     stop_after_tool_call: bool = False
-
-    # Metrics for the message. This is not sent to the Model API.
-    metrics: Dict[str, Any] = Field(default_factory=dict)
-
+    # When True, the message will be added to the agent's memory.
+    add_to_agent_memory: bool = True
+    # Metrics for the message.
+    metrics: Dict[str, Any] = field(default_factory=dict)
     # The references added to the message for RAG
     references: Optional[MessageReferences] = None
-
     # The Unix timestamp the message was created.
-    created_at: int = Field(default_factory=lambda: int(time()))
-
-    model_config = ConfigDict(extra="allow", populate_by_name=True)
+    created_at: int = field(default_factory=lambda: int(time()))
 
     def get_content_string(self) -> str:
         """Returns the content as a string."""
@@ -71,14 +69,12 @@ class Message(BaseModel):
         return ""
 
     def to_dict(self) -> Dict[str, Any]:
-        _dict = self.model_dump(
-            exclude_none=True,
-            include={"role", "content", "audio", "name", "tool_call_id", "tool_calls"},
-        )
-        # Manually add the content field even if it is None
-        if self.content is None:
-            _dict["content"] = None
-
+        fields = {"role", "content", "audio", "name", "tool_call_id", "tool_calls"}
+        _dict = {
+            field: getattr(self, field)
+            for field in fields
+            if getattr(self, field) is not None or field == "content"  # content is always included
+        }
         return _dict
 
     def log(self, level: Optional[str] = None):
@@ -122,8 +118,6 @@ class Message(BaseModel):
                     _logger("Message contains raw audio data")
             else:
                 _logger(f"Audio file added: {self.audio}")
-        # if self.model_extra and "images" in self.model_extra:
-        #     _logger("images: {}".format(self.model_extra["images"]))
 
     def content_is_valid(self) -> bool:
         """Check if the message content is valid."""

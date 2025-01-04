@@ -1,14 +1,11 @@
-import json
-from time import time
+from dataclasses import asdict, dataclass, field
 from enum import Enum
-from dataclasses import dataclass, field
-from typing import Optional, Any, Dict, List
+from time import time
+from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
-
-from agno.models.content import Video, Image, Audio
-from agno.reasoning.step import ReasoningStep
+from agno.models.content import Audio, Image, Video
 from agno.models.message import Message, MessageReferences
+from agno.reasoning.step import ReasoningStep
 
 
 class RunEvent(str, Enum):
@@ -27,17 +24,17 @@ class RunEvent(str, Enum):
     workflow_completed = "WorkflowCompleted"
 
 
-class RunResponseExtraData(BaseModel):
+@dataclass
+class RunResponseExtraData:
     references: Optional[List[MessageReferences]] = None
     add_messages: Optional[List[Message]] = None
     history: Optional[List[Message]] = None
     reasoning_steps: Optional[List[ReasoningStep]] = None
     reasoning_messages: Optional[List[Message]] = None
 
-    model_config = ConfigDict(arbitrary_types_allowed=True, extra="allow")
 
-
-class RunResponse(BaseModel):
+@dataclass
+class RunResponse:
     """Response returned by Agent.run() or Workflow.run() functions"""
 
     content: Optional[Any] = None
@@ -56,36 +53,27 @@ class RunResponse(BaseModel):
     audio: Optional[List[Audio]] = None  # Audio attached to the response
     response_audio: Optional[Dict] = None  # Model audio response
     extra_data: Optional[RunResponseExtraData] = None
-    created_at: int = Field(default_factory=lambda: int(time()))
-
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    def to_json(self) -> str:
-        _dict = self.model_dump(
-            exclude_none=True,
-            exclude={"messages"},
-        )
-        if self.messages is not None:
-            _dict["messages"] = [
-                m.model_dump(
-                    exclude_none=True,
-                    exclude={"parts"},  # Exclude what Gemini adds
-                )
-                for m in self.messages
-            ]
-        return json.dumps(_dict, indent=2)
+    created_at: int = field(default_factory=lambda: int(time()))
 
     def to_dict(self) -> Dict[str, Any]:
-        _dict = self.model_dump(
-            exclude_none=True,
-            exclude={"messages"},
-        )
+        _dict = {
+            k: v for k, v in asdict(self).items()
+            if v is not None and k != "messages"
+        }
         if self.messages is not None:
             _dict["messages"] = [m.to_dict() for m in self.messages]
         return _dict
 
+    def to_json(self) -> str:
+        import json
+
+        _dict = self.to_dict()
+        return json.dumps(_dict, indent=2)
+
     def get_content_as_string(self, **kwargs) -> str:
         import json
+
+        from pydantic import BaseModel
 
         if isinstance(self.content, str):
             return self.content

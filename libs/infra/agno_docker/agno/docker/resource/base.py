@@ -1,8 +1,8 @@
-from typing import Any, Optional, Dict
+from typing import Any, Dict, Optional
 
-from agno.resource.base import ResourceBase
-from agno.docker.api_client import DockerApiClient
 from agno.cli.console import print_info
+from agno.docker.api_client import DockerApiClient
+from agno.resource.base import ResourceBase
 from agno.utils.log import logger
 
 

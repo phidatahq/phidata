@@ -1,8 +1,9 @@
+import json
+from os import getenv
+from typing import Optional
+
 from agno.tools import Toolkit
 from agno.utils.log import logger
-from typing import Optional
-from os import getenv
-import json
 
 try:
     from atlassian import Confluence

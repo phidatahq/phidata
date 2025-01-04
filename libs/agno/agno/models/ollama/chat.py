@@ -1,6 +1,6 @@
 import json
 from dataclasses import dataclass, field
-from typing import Optional, List, Iterator, Dict, Any, Mapping, Union
+from typing import Any, Dict, Iterator, List, Mapping, Optional, Union
 
 from pydantic import BaseModel
 
@@ -13,7 +13,8 @@ from agno.utils.timer import Timer
 from agno.utils.tools import get_function_call_for_tool_call
 
 try:
-    from ollama import Client as OllamaClient, AsyncClient as AsyncOllamaClient
+    from ollama import AsyncClient as AsyncOllamaClient
+    from ollama import Client as OllamaClient
 except (ModuleNotFoundError, ImportError):
     raise ImportError("`ollama` not installed. Please install using `pip install ollama`")
 

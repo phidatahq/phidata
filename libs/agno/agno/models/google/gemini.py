@@ -1,28 +1,29 @@
-from os import getenv
-import time
 import json
-from pathlib import Path
+import time
 from dataclasses import dataclass, field
-from typing import Optional, List, Iterator, Dict, Any, Union, Callable
+from os import getenv
+from pathlib import Path
+from typing import Any, Callable, Dict, Iterator, List, Optional, Union
 
 from agno.models.base import Model
 from agno.models.message import Message
 from agno.models.response import ModelResponse
-from agno.tools.function import Function, FunctionCall
 from agno.tools import Tool, Toolkit
+from agno.tools.function import Function, FunctionCall
 from agno.utils.log import logger
 from agno.utils.timer import Timer
 from agno.utils.tools import get_function_call_for_tool_call
 
 try:
     import google.generativeai as genai
-    from google.generativeai import GenerativeModel
-    from google.generativeai.types.generation_types import GenerateContentResponse
-    from google.generativeai.types.content_types import FunctionDeclaration, Tool as GeminiTool
-    from google.generativeai.types import file_types
     from google.ai.generativelanguage_v1beta.types.generative_service import (
         GenerateContentResponse as ResultGenerateContentResponse,
     )
+    from google.generativeai import GenerativeModel
+    from google.generativeai.types import file_types
+    from google.generativeai.types.content_types import FunctionDeclaration
+    from google.generativeai.types.content_types import Tool as GeminiTool
+    from google.generativeai.types.generation_types import GenerateContentResponse
     from google.protobuf.struct_pb2 import Struct
 except (ModuleNotFoundError, ImportError):
     raise ImportError("`google-generativeai` not installed. Please install it using `pip install google-generativeai`")
@@ -179,8 +180,9 @@ class Gemini(Model):
                         # Download the image from the URL and add it as base64 encoded data
                         if isinstance(image, str) and (image.startswith("http://") or image.startswith("https://")):
                             try:
-                                import httpx
                                 import base64
+
+                                import httpx
 
                                 image_content = httpx.get(image).content
                                 image_data = {

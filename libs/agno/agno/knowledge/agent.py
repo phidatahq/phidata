@@ -1,13 +1,13 @@
-from typing import List, Optional, Iterator, Dict, Any
+from typing import Any, Dict, Iterator, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from agno.document import Document
-from agno.document.reader.base import Reader
-from agno.document.chunking.strategy import ChunkingStrategy
 from agno.document.chunking.fixed import FixedSizeChunking
-from agno.vectordb import VectorDb
+from agno.document.chunking.strategy import ChunkingStrategy
+from agno.document.reader.base import Reader
 from agno.utils.log import logger
+from agno.vectordb import VectorDb
 
 
 class AgentKnowledge(BaseModel):

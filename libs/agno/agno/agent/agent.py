@@ -1,48 +1,48 @@
 from __future__ import annotations
 
 import json
+from collections import defaultdict
+from dataclasses import asdict, dataclass, field
+from datetime import datetime
 from os import getenv
-from uuid import uuid4
 from pathlib import Path
 from textwrap import dedent
-from dataclasses import dataclass, field, asdict
-from datetime import datetime
-from collections import defaultdict
 from typing import (
     Any,
     AsyncIterator,
     Callable,
-    cast,
     Dict,
     Iterator,
     List,
     Literal,
     Optional,
-    overload,
     Sequence,
     Tuple,
     Type,
     Union,
+    cast,
+    overload,
 )
+from uuid import uuid4
 
-from agno.document import Document
-from agno.agent.session import AgentSession
-from agno.agent.step import AgentStep
 from agno.agent.reason import Reason
 from agno.agent.respond import Respond
-from agno.reasoning.step import ReasoningStep, ReasoningSteps, NextAction
-from agno.run.response import RunEvent, RunResponse, RunResponseExtraData
+from agno.agent.session import AgentSession
+from agno.agent.step import AgentStep
+from agno.document import Document
 from agno.knowledge.agent import AgentKnowledge
+from agno.memory.agent import AgentMemory, AgentRun, Memory, MemoryRetrieval, SessionSummary  # noqa: F401
 from agno.models.base import Model
-from agno.models.content import Image, Video, Audio
+from agno.models.content import Audio, Image, Video
 from agno.models.message import Message, MessageReferences
 from agno.models.response import ModelResponse, ModelResponseEvent
-from agno.memory.agent import AgentMemory, MemoryRetrieval, Memory, AgentRun, SessionSummary  # noqa: F401
+from agno.reasoning.step import NextAction, ReasoningStep, ReasoningSteps
+from agno.run.response import RunEvent, RunResponse, RunResponseExtraData
 from agno.storage.agent.base import AgentStorage
-from agno.tools import Tool, Toolkit, Function
+from agno.tools import Function, Tool, Toolkit
 from agno.utils.log import logger, set_log_level_to_debug, set_log_level_to_info
-from agno.utils.message import get_text_from_message
 from agno.utils.merge_dict import merge_dictionaries
+from agno.utils.message import get_text_from_message
 from agno.utils.timer import Timer
 
 
@@ -2387,7 +2387,7 @@ class Agent:
         if not (self.telemetry or self.monitoring):
             return
 
-        from agno.api.agent import create_agent_session, AgentSessionCreate
+        from agno.api.agent import AgentSessionCreate, create_agent_session
 
         try:
             agent_session: AgentSession = self.agent_session or self.get_agent_session()
@@ -2405,7 +2405,7 @@ class Agent:
         if not (self.telemetry or self.monitoring):
             return
 
-        from agno.api.agent import acreate_agent_session, AgentSessionCreate
+        from agno.api.agent import AgentSessionCreate, acreate_agent_session
 
         try:
             agent_session: AgentSession = self.agent_session or self.get_agent_session()
@@ -2453,7 +2453,7 @@ class Agent:
         if not (self.telemetry or self.monitoring):
             return
 
-        from agno.api.agent import create_agent_run, AgentRunCreate
+        from agno.api.agent import AgentRunCreate, create_agent_run
 
         try:
             run_data = self._create_run_data()
@@ -2475,7 +2475,7 @@ class Agent:
         if not (self.telemetry or self.monitoring):
             return
 
-        from agno.api.agent import acreate_agent_run, AgentRunCreate
+        from agno.api.agent import AgentRunCreate, acreate_agent_run
 
         try:
             run_data = self._create_run_data()
@@ -2518,12 +2518,12 @@ class Agent:
         console: Optional[Any] = None,
         **kwargs: Any,
     ) -> None:
-        from rich.live import Live
-        from rich.status import Status
-        from rich.markdown import Markdown
-        from rich.json import JSON
-        from rich.text import Text
         from rich.console import Group
+        from rich.json import JSON
+        from rich.live import Live
+        from rich.markdown import Markdown
+        from rich.status import Status
+        from rich.text import Text
 
         if markdown:
             self.markdown = True
@@ -2737,12 +2737,12 @@ class Agent:
         console: Optional[Any] = None,
         **kwargs: Any,
     ) -> None:
-        from rich.live import Live
-        from rich.status import Status
-        from rich.markdown import Markdown
-        from rich.json import JSON
-        from rich.text import Text
         from rich.console import Group
+        from rich.json import JSON
+        from rich.live import Live
+        from rich.markdown import Markdown
+        from rich.status import Status
+        from rich.text import Text
 
         if markdown:
             self.markdown = True

@@ -1,5 +1,5 @@
-import runpy
 import functools
+import runpy
 from pathlib import Path
 from typing import Optional
 
@@ -182,8 +182,8 @@ class PythonTools(Toolkit):
             warn()
 
             logger.debug(f"Installing package {package_name}")
-            import sys
             import subprocess
+            import sys
 
             subprocess.check_call([sys.executable, "-m", "pip", "install", package_name])
             return f"successfully installed package {package_name}"

@@ -1,12 +1,12 @@
 from hashlib import md5
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, Optional
 
 try:
     from chromadb import Client as ChromaDbClient
     from chromadb import PersistentClient as PersistentChromaDbClient
     from chromadb.api.client import ClientAPI
     from chromadb.api.models.Collection import Collection
-    from chromadb.api.types import QueryResult, GetResult
+    from chromadb.api.types import GetResult, QueryResult
 
 except ImportError:
     raise ImportError("The `chromadb` package is not installed. " "Please install it via `pip install chromadb`.")
@@ -14,10 +14,10 @@ except ImportError:
 from agno.document import Document
 from agno.embedder import Embedder
 from agno.embedder.openai import OpenAIEmbedder
+from agno.reranker.base import Reranker
+from agno.utils.log import logger
 from agno.vectordb.base import VectorDb
 from agno.vectordb.distance import Distance
-from agno.utils.log import logger
-from agno.reranker.base import Reranker
 
 
 class ChromaDb(VectorDb):

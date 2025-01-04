@@ -1,9 +1,10 @@
 from os import getenv
-from typing import Optional, List, Iterator
+from typing import Iterator, List, Optional
+
+from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
 
 from agno.models.message import Message
 from agno.models.openai import OpenAILike
-from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
 
 
 class Fireworks(OpenAILike):

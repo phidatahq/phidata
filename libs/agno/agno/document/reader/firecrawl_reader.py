@@ -1,10 +1,10 @@
-from typing import Dict, List, Optional, Literal
+from typing import Dict, List, Literal, Optional
+
+from firecrawl import FirecrawlApp
 
 from agno.document.base import Document
 from agno.document.reader.base import Reader
 from agno.utils.log import logger
-
-from firecrawl import FirecrawlApp
 
 
 class FirecrawlReader(Reader):

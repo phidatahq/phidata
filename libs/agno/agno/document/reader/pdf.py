@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import List, Union, IO, Any
+from typing import IO, Any, List, Union
 
 from agno.document.base import Document
 from agno.document.reader.base import Reader
@@ -170,8 +170,8 @@ class PDFUrlImageReader(Reader):
 
         try:
             import httpx
-            from pypdf import PdfReader as DocumentReader
             import rapidocr_onnxruntime as rapidocr
+            from pypdf import PdfReader as DocumentReader
         except ImportError:
             raise ImportError("`httpx`, `pypdf` or `rapidocr_onnxruntime` not installed")
 

@@ -1,11 +1,13 @@
 from os import getenv
-from typing import Optional, Dict, Any
-from agno.models.openai.like import OpenAILike
+from typing import Any, Dict, Optional
+
 import httpx
 
+from agno.models.openai.like import OpenAILike
+
 try:
-    from openai import AzureOpenAI as AzureOpenAIClient
     from openai import AsyncAzureOpenAI as AsyncAzureOpenAIClient
+    from openai import AzureOpenAI as AzureOpenAIClient
 except (ModuleNotFoundError, ImportError):
     raise ImportError("`azure openai` not installed. Please install using `pip install openai`")
 

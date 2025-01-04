@@ -2,8 +2,10 @@
 
 import json
 from os import getenv
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
+
 import requests
+
 from agno.tools import Toolkit
 from agno.utils.log import logger
 

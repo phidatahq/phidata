@@ -1,11 +1,11 @@
 from collections import OrderedDict
 from typing import Dict, List, Type, Union
 
-from agno.docker.resource.network import DockerNetwork
-from agno.docker.resource.image import DockerImage
-from agno.docker.resource.container import DockerContainer
-from agno.docker.resource.volume import DockerVolume
 from agno.docker.resource.base import DockerResource
+from agno.docker.resource.container import DockerContainer
+from agno.docker.resource.image import DockerImage
+from agno.docker.resource.network import DockerNetwork
+from agno.docker.resource.volume import DockerVolume
 
 # Use this as a type for an object that can hold any DockerResource
 DockerResourceType = Union[

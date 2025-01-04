@@ -1,5 +1,5 @@
-from typing import Optional
 from time import perf_counter
+from typing import Optional
 
 
 class Timer:

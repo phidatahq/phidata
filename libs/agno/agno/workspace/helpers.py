@@ -1,11 +1,12 @@
-from typing import Optional
 from pathlib import Path
+from typing import Optional
 
 from agno.utils.log import logger
 
 
 def get_workspace_dir_from_env() -> Optional[Path]:
     from os import getenv
+
     from agno.constants import WORKSPACE_DIR_ENV_VAR
 
     logger.debug(f"Reading {WORKSPACE_DIR_ENV_VAR} from environment variables")

@@ -1,4 +1,4 @@
-from typing import Optional, Dict
+from typing import Dict, Optional
 
 from agno.cli.settings import agno_cli_settings
 from agno.utils.json_io import read_json_file, write_json_file

@@ -1,14 +1,14 @@
-from typing import List, Optional, Union, Tuple
+from typing import List, Optional, Tuple, Union
 
 from agno.app.group import AppGroup
-from agno.resource.group import ResourceGroup
+from agno.docker.api_client import DockerApiClient
 from agno.docker.app.base import DockerApp
 from agno.docker.app.context import DockerBuildContext
-from agno.docker.api_client import DockerApiClient
 from agno.docker.resource.base import DockerResource
 from agno.infra.resources import InfraResources
-from agno.workspace.settings import WorkspaceSettings
+from agno.resource.group import ResourceGroup
 from agno.utils.log import logger
+from agno.workspace.settings import WorkspaceSettings
 
 
 class DockerResources(InfraResources):
@@ -39,7 +39,7 @@ class DockerResources(InfraResources):
         force: Optional[bool] = None,
         pull: Optional[bool] = None,
     ) -> Tuple[int, int]:
-        from agno.cli.console import print_info, print_heading, confirm_yes_no
+        from agno.cli.console import confirm_yes_no, print_heading, print_info
         from agno.docker.resource.types import DockerContainer, DockerResourceInstallOrder
 
         logger.debug("-*- Creating DockerResources")
@@ -219,7 +219,7 @@ class DockerResources(InfraResources):
         auto_confirm: Optional[bool] = False,
         force: Optional[bool] = None,
     ) -> Tuple[int, int]:
-        from agno.cli.console import print_info, print_heading, confirm_yes_no
+        from agno.cli.console import confirm_yes_no, print_heading, print_info
         from agno.docker.resource.types import DockerContainer, DockerResourceInstallOrder
 
         logger.debug("-*- Deleting DockerResources")
@@ -409,7 +409,7 @@ class DockerResources(InfraResources):
         force: Optional[bool] = None,
         pull: Optional[bool] = None,
     ) -> Tuple[int, int]:
-        from agno.cli.console import print_info, print_heading, confirm_yes_no
+        from agno.cli.console import confirm_yes_no, print_heading, print_info
         from agno.docker.resource.types import DockerContainer, DockerResourceInstallOrder
 
         logger.debug("-*- Updating DockerResources")

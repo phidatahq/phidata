@@ -1,6 +1,8 @@
-import requests
 import json
 from typing import Optional
+
+import requests
+
 from agno.tools.toolkit import Toolkit
 from agno.utils.log import logger
 

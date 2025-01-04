@@ -1,17 +1,17 @@
-from typing import List, Optional, Dict, Union
+from typing import Dict, List, Optional, Union
 
 from httpx import Response
 
 from agno.api.api import api, invalid_response
 from agno.api.routes import ApiRoutes
+from agno.api.schemas.team import TeamIdentifier
 from agno.api.schemas.user import UserSchema
 from agno.api.schemas.workspace import (
-    WorkspaceSchema,
     WorkspaceCreate,
-    WorkspaceUpdate,
     WorkspaceEvent,
+    WorkspaceSchema,
+    WorkspaceUpdate,
 )
-from agno.api.schemas.team import TeamIdentifier
 from agno.cli.settings import agno_cli_settings
 from agno.utils.log import logger
 

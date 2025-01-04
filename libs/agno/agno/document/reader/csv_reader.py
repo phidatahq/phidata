@@ -1,13 +1,13 @@
 import csv
+import io
 import os
 from pathlib import Path
-from typing import List, Union, IO, Any
+from typing import IO, Any, List, Union
 from urllib.parse import urlparse
 
 from agno.document.base import Document
 from agno.document.reader.base import Reader
 from agno.utils.log import logger
-import io
 
 
 class CSVReader(Reader):

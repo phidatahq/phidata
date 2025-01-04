@@ -1,4 +1,4 @@
-from typing import Optional, Any, List, Dict
+from typing import Any, Dict, List, Optional
 
 from agno.docker.api_client import DockerApiClient
 from agno.docker.resource.base import DockerResource
@@ -99,8 +99,8 @@ class DockerNetwork(DockerResource):
         Args:
             docker_client: The DockerApiClient for the current cluster
         """
-        from docker.models.networks import Network
         from docker.errors import NotFound
+        from docker.models.networks import Network
 
         logger.debug("Deleting: {}".format(self.get_resource_name()))
         network_object: Optional[Network] = self._read(docker_client)

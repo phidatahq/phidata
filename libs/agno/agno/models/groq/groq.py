@@ -1,6 +1,6 @@
-from os import getenv
 from dataclasses import dataclass, field
-from typing import Optional, List, Iterator, Dict, Any, Union
+from os import getenv
+from typing import Any, Dict, Iterator, List, Optional, Union
 
 import httpx
 
@@ -13,9 +13,10 @@ from agno.utils.timer import Timer
 from agno.utils.tools import get_function_call_for_tool_call
 
 try:
-    from groq import Groq as GroqClient, AsyncGroq as AsyncGroqClient
+    from groq import AsyncGroq as AsyncGroqClient
+    from groq import Groq as GroqClient
     from groq.types.chat import ChatCompletion, ChatCompletionMessage
-    from groq.types.chat.chat_completion_chunk import ChatCompletionChunk, ChoiceDeltaToolCall, ChoiceDelta
+    from groq.types.chat.chat_completion_chunk import ChatCompletionChunk, ChoiceDelta, ChoiceDeltaToolCall
     from groq.types.completion_usage import CompletionUsage
 except (ModuleNotFoundError, ImportError):
     raise ImportError("`groq` not installed. Please install using `pip install groq`")

@@ -1,7 +1,7 @@
-from typing import Optional, Dict, Any, List
+from typing import Any, Dict, List, Optional
 
-from agno.models.message import Message
 from agno.models.aws.bedrock import AwsBedrock
+from agno.models.message import Message
 
 
 class Claude(AwsBedrock):

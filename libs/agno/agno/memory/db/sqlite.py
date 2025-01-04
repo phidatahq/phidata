@@ -1,22 +1,22 @@
 from pathlib import Path
-from typing import Optional, List
+from typing import List, Optional
 
 try:
     from sqlalchemy import (
-        create_engine,
-        MetaData,
-        Table,
         Column,
-        String,
         DateTime,
-        text,
-        select,
+        Engine,
+        MetaData,
+        String,
+        Table,
+        create_engine,
         delete,
         inspect,
-        Engine,
+        select,
+        text,
     )
-    from sqlalchemy.orm import sessionmaker, scoped_session
     from sqlalchemy.exc import SQLAlchemyError
+    from sqlalchemy.orm import scoped_session, sessionmaker
 except ImportError:
     raise ImportError("`sqlalchemy` not installed. Please install it with `pip install sqlalchemy`")
 

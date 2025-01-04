@@ -5,9 +5,9 @@ from fastapi import FastAPI
 from rich import box
 from rich.panel import Panel
 
-from agno.api.playground import create_playground_endpoint, PlaygroundEndpointCreate
-from agno.cli.settings import agno_cli_settings
+from agno.api.playground import PlaygroundEndpointCreate, create_playground_endpoint
 from agno.cli.console import console
+from agno.cli.settings import agno_cli_settings
 from agno.utils.log import logger
 
 

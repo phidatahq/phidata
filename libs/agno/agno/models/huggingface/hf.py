@@ -1,6 +1,6 @@
-from os import getenv
 from dataclasses import dataclass, field
-from typing import Optional, List, Iterator, Dict, Any, Union
+from os import getenv
+from typing import Any, Dict, Iterator, List, Optional, Union
 
 import httpx
 from pydantic import BaseModel
@@ -14,15 +14,15 @@ from agno.utils.timer import Timer
 from agno.utils.tools import get_function_call_for_tool_call
 
 try:
-    from huggingface_hub import InferenceClient
-    from huggingface_hub import AsyncInferenceClient
     from huggingface_hub import (
+        AsyncInferenceClient,
         ChatCompletionOutput,
-        ChatCompletionStreamOutputDelta,
-        ChatCompletionStreamOutputDeltaToolCall,
-        ChatCompletionStreamOutput,
         ChatCompletionOutputMessage,
         ChatCompletionOutputUsage,
+        ChatCompletionStreamOutput,
+        ChatCompletionStreamOutputDelta,
+        ChatCompletionStreamOutputDeltaToolCall,
+        InferenceClient,
     )
 except (ModuleNotFoundError, ImportError):
     raise ImportError("`huggingface_hub` not installed. Please install using `pip install huggingface_hub`")

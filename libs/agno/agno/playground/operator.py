@@ -1,6 +1,6 @@
 from typing import List, Optional
 
-from agno.agent.agent import Agent, Tool, Toolkit, Function, AgentRun
+from agno.agent.agent import Agent, AgentRun, Function, Tool, Toolkit
 from agno.agent.session import AgentSession
 from agno.utils.log import logger
 from agno.workflow.session import WorkflowSession

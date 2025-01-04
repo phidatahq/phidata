@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Union, List, Iterator
+from typing import Iterator, List, Union
 
 from agno.document import Document
 from agno.document.reader.json import JSONReader

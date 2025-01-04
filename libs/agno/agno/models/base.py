@@ -1,9 +1,8 @@
 import collections.abc
-
 from types import GeneratorType
-from typing import List, Iterator, Optional, Dict, Any, Callable, Union, Sequence
+from typing import Any, Callable, Dict, Iterator, List, Optional, Sequence, Union
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, ValidationInfo
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
 from agno.models.message import Message
 from agno.models.response import ModelResponse, ModelResponseEvent

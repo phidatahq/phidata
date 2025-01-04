@@ -1,13 +1,13 @@
-from os import getenv
 import re
-from typing import Optional, Dict, Any, List
+from os import getenv
+from typing import Any, Dict, List, Optional
+
 from agno.tools import Toolkit
 from agno.utils.log import logger
 
-
 try:
-    from twilio.rest import Client
     from twilio.base.exceptions import TwilioRestException
+    from twilio.rest import Client
 except ImportError:
     raise ImportError("`twilio` not installed. Please install it using `pip install twilio`.")
 

@@ -1,11 +1,11 @@
 import json
-from textwrap import dedent
 from dataclasses import dataclass, field
-from typing import Optional, List, Iterator, Dict, Any, Mapping
+from textwrap import dedent
+from typing import Any, Dict, Iterator, List, Mapping, Optional
 
 from agno.models.message import Message
+from agno.models.ollama.chat import Metrics, Ollama
 from agno.models.response import ModelResponse
-from agno.models.ollama.chat import Ollama, Metrics
 from agno.utils.log import logger
 from agno.utils.tools import (
     extract_tool_call_from_string,

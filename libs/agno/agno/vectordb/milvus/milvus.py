@@ -1,5 +1,5 @@
 from hashlib import md5
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, Optional
 
 try:
     from pymilvus import MilvusClient  # type: ignore
@@ -9,9 +9,9 @@ except ImportError:
 from agno.document import Document
 from agno.embedder import Embedder
 from agno.embedder.openai import OpenAIEmbedder
+from agno.utils.log import logger
 from agno.vectordb.base import VectorDb
 from agno.vectordb.distance import Distance
-from agno.utils.log import logger
 
 
 class Milvus(VectorDb):

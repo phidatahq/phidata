@@ -1,17 +1,17 @@
 import time
-from typing import Optional, List
+from typing import List, Optional
 
 try:
-    from sqlalchemy import create_engine, Engine, MetaData, Table, Column, String, BigInteger, inspect, Index
+    from sqlalchemy import BigInteger, Column, Engine, Index, MetaData, String, Table, create_engine, inspect
     from sqlalchemy.dialects import postgresql
-    from sqlalchemy.orm import sessionmaker, scoped_session
+    from sqlalchemy.orm import scoped_session, sessionmaker
     from sqlalchemy.sql.expression import select, text
 except ImportError:
     raise ImportError("`sqlalchemy` not installed. Please install it with `pip install sqlalchemy`")
 
-from agno.workflow import WorkflowSession
 from agno.storage.workflow.base import WorkflowStorage
 from agno.utils.log import logger
+from agno.workflow import WorkflowSession
 
 
 class PgWorkflowStorage(WorkflowStorage):

@@ -1,9 +1,9 @@
 import json
 from os import getenv
-from typing import Optional, List, Iterator, Dict, Any
+from typing import Any, Dict, Iterator, List, Optional
 
 from agno.models.message import Message
-from agno.models.openai.chat import StreamData, Metrics
+from agno.models.openai.chat import Metrics, StreamData
 from agno.models.openai.like import OpenAILike
 from agno.models.response import ModelResponse
 from agno.tools.function import FunctionCall
@@ -11,11 +11,11 @@ from agno.utils.log import logger
 from agno.utils.tools import get_function_call_for_tool_call
 
 try:
-    from openai.types.completion_usage import CompletionUsage
     from openai.types.chat.chat_completion_chunk import (
         ChoiceDelta,
         ChoiceDeltaToolCall,
     )
+    from openai.types.completion_usage import CompletionUsage
 except ImportError:
     logger.error("`openai` not installed")
     raise

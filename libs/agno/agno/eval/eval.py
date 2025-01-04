@@ -1,8 +1,8 @@
-from uuid import uuid4
 from pathlib import Path
-from typing import Optional, Union, Callable, List
+from typing import Callable, List, Optional, Union
+from uuid import uuid4
 
-from pydantic import BaseModel, ConfigDict, field_validator, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from agno.agent import Agent, RunResponse
 from agno.utils.log import logger, set_log_level_to_debug
@@ -185,10 +185,11 @@ Your evaluation should be objective, thorough, and well-reasoned. Provide specif
         return self.result
 
     def print_result(self, answer: Optional[Union[str, Callable]] = None) -> Optional[EvalResult]:
-        from agno.cli.console import console
-        from rich.table import Table
-        from rich.progress import Progress, SpinnerColumn, TextColumn
         from rich.box import ROUNDED
+        from rich.progress import Progress, SpinnerColumn, TextColumn
+        from rich.table import Table
+
+        from agno.cli.console import console
 
         response_timer = Timer()
         response_timer.start()

@@ -1,15 +1,15 @@
 from pathlib import Path
-from typing import Optional, List, Any
+from typing import Any, List, Optional
 
 from pydantic import BaseModel, ConfigDict
 
-from agno.infra.base import InfraBase
-from agno.infra.resources import InfraResources
 from agno.api.schemas.team import TeamSchema
 from agno.api.schemas.workspace import WorkspaceSchema
-from agno.workspace.settings import WorkspaceSettings
-from agno.utils.py_io import get_python_objects_from_module
+from agno.infra.base import InfraBase
+from agno.infra.resources import InfraResources
 from agno.utils.log import logger
+from agno.utils.py_io import get_python_objects_from_module
+from agno.workspace.settings import WorkspaceSettings
 
 # List of directories to ignore when loading the workspace
 ignored_dirs = ["ignore", "test", "tests", "config"]
@@ -118,14 +118,14 @@ class WorkspaceConfig(BaseModel):
         from os import environ
 
         from agno.constants import (
+            AWS_REGION_ENV_VAR,
             SCRIPTS_DIR_ENV_VAR,
             STORAGE_DIR_ENV_VAR,
             WORKFLOWS_DIR_ENV_VAR,
-            WORKSPACE_NAME_ENV_VAR,
-            WORKSPACE_ROOT_ENV_VAR,
             WORKSPACE_DIR_ENV_VAR,
             WORKSPACE_ID_ENV_VAR,
-            AWS_REGION_ENV_VAR,
+            WORKSPACE_NAME_ENV_VAR,
+            WORKSPACE_ROOT_ENV_VAR,
         )
 
         if self.ws_root_path is not None:
@@ -167,6 +167,7 @@ class WorkspaceConfig(BaseModel):
             return []
 
         from sys import path as sys_path
+
         from agno.utils.load_env import load_env
 
         # Objects to read from the files in the workspace_dir_path
@@ -304,6 +305,7 @@ class WorkspaceConfig(BaseModel):
             raise ValueError(f"File {resource_file} is not a python file")
 
         from sys import path as sys_path
+
         from agno.utils.load_env import load_env
 
         # Workspace resources from the file

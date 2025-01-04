@@ -1,12 +1,12 @@
-from typing import Optional, List
+from typing import List, Optional
 
 try:
     from sqlalchemy.dialects import postgresql
-    from sqlalchemy.engine import create_engine, Engine
+    from sqlalchemy.engine import Engine, create_engine
     from sqlalchemy.inspection import inspect
-    from sqlalchemy.orm import sessionmaker, scoped_session
-    from sqlalchemy.schema import MetaData, Table, Column
-    from sqlalchemy.sql.expression import text, select, delete
+    from sqlalchemy.orm import scoped_session, sessionmaker
+    from sqlalchemy.schema import Column, MetaData, Table
+    from sqlalchemy.sql.expression import delete, select, text
     from sqlalchemy.types import DateTime, String
 except ImportError:
     raise ImportError("`sqlalchemy` not installed")

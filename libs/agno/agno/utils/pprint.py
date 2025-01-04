@@ -1,22 +1,23 @@
 import json
-from typing import Union, Iterable
+from typing import Iterable, Union
 
 from pydantic import BaseModel
 
 from agno.run.response import RunResponse
-from agno.utils.timer import Timer
 from agno.utils.log import logger
+from agno.utils.timer import Timer
 
 
 def pprint_run_response(
     run_response: Union[RunResponse, Iterable[RunResponse]], markdown: bool = False, show_time: bool = False
 ) -> None:
-    from rich.live import Live
-    from rich.table import Table
-    from rich.status import Status
     from rich.box import ROUNDED
-    from rich.markdown import Markdown
     from rich.json import JSON
+    from rich.live import Live
+    from rich.markdown import Markdown
+    from rich.status import Status
+    from rich.table import Table
+
     from agno.cli.console import console
 
     # If run_response is a single RunResponse, wrap it in a list to make it iterable

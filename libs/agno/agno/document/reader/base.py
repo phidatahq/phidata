@@ -1,10 +1,10 @@
 from typing import Any, List
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
-from agno.document.chunking.strategy import ChunkingStrategy
-from agno.document.chunking.fixed import FixedSizeChunking
 from agno.document.base import Document
+from agno.document.chunking.fixed import FixedSizeChunking
+from agno.document.chunking.strategy import ChunkingStrategy
 
 
 class Reader(BaseModel):

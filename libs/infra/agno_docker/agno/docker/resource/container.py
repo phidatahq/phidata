@@ -1,9 +1,9 @@
 from time import sleep
-from typing import Optional, Any, Dict, Union, List
+from typing import Any, Dict, List, Optional, Union
 
+from agno.cli.console import print_info
 from agno.docker.api_client import DockerApiClient
 from agno.docker.resource.base import DockerResource
-from agno.cli.console import print_info
 from agno.utils.log import logger
 
 
@@ -111,7 +111,7 @@ class DockerContainer(DockerResource):
 
     def run_container(self, docker_client: DockerApiClient) -> Optional[Any]:
         from docker import DockerClient
-        from docker.errors import ImageNotFound, APIError
+        from docker.errors import APIError, ImageNotFound
         from rich.progress import Progress, SpinnerColumn, TextColumn
 
         print_info("Starting container: {}".format(self.name))
@@ -271,8 +271,8 @@ class DockerContainer(DockerResource):
         Args:
             docker_client: The DockerApiClient for the current cluster
         """
-        from docker.models.containers import Container
         from docker.errors import NotFound
+        from docker.models.containers import Container
 
         logger.debug("Deleting: {}".format(self.get_resource_name()))
         container_name: Optional[str] = self.name

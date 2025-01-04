@@ -4,7 +4,7 @@ from urllib.parse import urlparse
 from uuid import uuid4
 
 from agno.agent import Agent
-from agno.models.content import Video, Image
+from agno.models.content import Image, Video
 from agno.tools import Toolkit
 from agno.utils.log import logger
 

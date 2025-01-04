@@ -1,6 +1,7 @@
-from agno.reranker.base import Reranker
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
+
 from agno.document import Document
+from agno.reranker.base import Reranker
 from agno.utils.log import logger
 
 try:

@@ -1,11 +1,11 @@
-from typing import Optional, Dict, List, Tuple, Any, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from agno.embedder.base import Embedder
 from agno.utils.log import logger
 
 try:
     import google.generativeai as genai
-    from google.generativeai.types.text_types import EmbeddingDict, BatchEmbeddingDict
+    from google.generativeai.types.text_types import BatchEmbeddingDict, EmbeddingDict
 except ImportError:
     logger.error("`google-generativeai` not installed. Please install it using `pip install google-generativeai`")
     raise

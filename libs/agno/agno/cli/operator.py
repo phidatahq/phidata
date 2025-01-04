@@ -1,11 +1,11 @@
 from pathlib import Path
-from typing import Optional, List
+from typing import List, Optional
 
 from typer import launch as typer_launch
 
-from agno.cli.settings import agno_cli_settings, AGNO_CLI_CONFIG_DIR
 from agno.cli.config import AgnoCliConfig
-from agno.cli.console import print_info, print_heading
+from agno.cli.console import print_heading, print_info
+from agno.cli.settings import AGNO_CLI_CONFIG_DIR, agno_cli_settings
 from agno.infra.resources import InfraResources
 from agno.utils.log import logger
 
@@ -27,13 +27,13 @@ def authenticate_user() -> None:
     3. After the user is authenticated update the AgnoCliConfig.
     4. Save the auth_token locally for future use.
     """
-    from agno.api.user import authenticate_and_get_user
     from agno.api.schemas.user import UserSchema
-    from agno.cli.credentials import save_auth_token
+    from agno.api.user import authenticate_and_get_user
     from agno.cli.auth_server import (
-        get_port_for_auth_server,
         get_auth_token_from_web_flow,
+        get_port_for_auth_server,
     )
+    from agno.cli.credentials import save_auth_token
 
     print_heading("Authenticating with agno.com ...")
 
@@ -83,8 +83,8 @@ def initialize_agno(reset: bool = False, login: bool = False) -> Optional[AgnoCl
     2. Authenticates the user if login == True.
     3. If AgnoCliConfig exists and auth is valid, returns AgnoCliConfig.
     """
-    from agno.utils.filesystem import delete_from_fs
     from agno.api.user import create_anon_user
+    from agno.utils.filesystem import delete_from_fs
 
     print_heading("Welcome to Agno!")
     if reset:

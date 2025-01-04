@@ -1,13 +1,13 @@
 import time
 from pathlib import Path
-from typing import Optional, List
+from typing import List, Optional
 
 try:
     from sqlalchemy.dialects import sqlite
-    from sqlalchemy.engine import create_engine, Engine
+    from sqlalchemy.engine import Engine, create_engine
     from sqlalchemy.inspection import inspect
     from sqlalchemy.orm import Session, sessionmaker
-    from sqlalchemy.schema import MetaData, Table, Column
+    from sqlalchemy.schema import Column, MetaData, Table
     from sqlalchemy.sql.expression import select
     from sqlalchemy.types import String
 except ImportError:

@@ -1,6 +1,6 @@
-from typing import Optional, Union, List, Dict
+from typing import Dict, List, Optional, Union
 
-from agno.docker.app.base import DockerApp, ContainerContext  # noqa: F401
+from agno.docker.app.base import ContainerContext, DockerApp  # noqa: F401
 
 
 class Jupyter(DockerApp):

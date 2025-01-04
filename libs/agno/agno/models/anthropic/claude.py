@@ -1,7 +1,7 @@
 import json
-from os import getenv
 from dataclasses import dataclass, field
-from typing import Optional, List, Iterator, Dict, Any, Union, Tuple
+from os import getenv
+from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 
 from agno.models.base import Model
 from agno.models.message import Message
@@ -13,12 +13,13 @@ from agno.utils.tools import get_function_call_for_tool_call
 
 try:
     from anthropic import Anthropic as AnthropicClient
-    from anthropic.types import Message as AnthropicMessage, TextBlock, ToolUseBlock, Usage, TextDelta
     from anthropic.lib.streaming._types import (
+        ContentBlockStopEvent,
         MessageStopEvent,
         RawContentBlockDeltaEvent,
-        ContentBlockStopEvent,
     )
+    from anthropic.types import Message as AnthropicMessage
+    from anthropic.types import TextBlock, TextDelta, ToolUseBlock, Usage
 except (ModuleNotFoundError, ImportError):
     raise ImportError("`anthropic` not installed. Please install using `pip install anthropic`")
 

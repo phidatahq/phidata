@@ -4,19 +4,19 @@ This is the entrypoint for the `agno ws` application.
 """
 
 from pathlib import Path
-from typing import Optional, cast, List
+from typing import List, Optional, cast
 
 import typer
 
 from agno.cli.console import (
-    print_info,
-    print_heading,
-    log_config_not_available_msg,
     log_active_workspace_not_available,
+    log_config_not_available_msg,
     print_available_workspaces,
+    print_heading,
+    print_info,
 )
-from agno.utils.log import logger, set_log_level_to_debug
 from agno.infra.type import InfraType
+from agno.utils.log import logger, set_log_level_to_debug
 
 ws_cli = typer.Typer(
     name="ws",
@@ -186,10 +186,10 @@ def up(
 
     from agno.cli.config import AgnoCliConfig
     from agno.cli.operator import initialize_agno
-    from agno.workspace.config import WorkspaceConfig
-    from agno.workspace.operator import start_workspace, setup_workspace
-    from agno.workspace.helpers import get_workspace_dir_path
     from agno.utils.resource_filter import parse_resource_filter
+    from agno.workspace.config import WorkspaceConfig
+    from agno.workspace.helpers import get_workspace_dir_path
+    from agno.workspace.operator import setup_workspace, start_workspace
 
     agno_config: Optional[AgnoCliConfig] = AgnoCliConfig.from_saved_config()
     if not agno_config:
@@ -371,10 +371,10 @@ def down(
 
     from agno.cli.config import AgnoCliConfig
     from agno.cli.operator import initialize_agno
-    from agno.workspace.config import WorkspaceConfig
-    from agno.workspace.operator import stop_workspace, setup_workspace
-    from agno.workspace.helpers import get_workspace_dir_path
     from agno.utils.resource_filter import parse_resource_filter
+    from agno.workspace.config import WorkspaceConfig
+    from agno.workspace.helpers import get_workspace_dir_path
+    from agno.workspace.operator import setup_workspace, stop_workspace
 
     agno_config: Optional[AgnoCliConfig] = AgnoCliConfig.from_saved_config()
     if not agno_config:
@@ -557,10 +557,10 @@ def patch(
 
     from agno.cli.config import AgnoCliConfig
     from agno.cli.operator import initialize_agno
-    from agno.workspace.config import WorkspaceConfig
-    from agno.workspace.operator import update_workspace, setup_workspace
-    from agno.workspace.helpers import get_workspace_dir_path
     from agno.utils.resource_filter import parse_resource_filter
+    from agno.workspace.config import WorkspaceConfig
+    from agno.workspace.helpers import get_workspace_dir_path
+    from agno.workspace.operator import setup_workspace, update_workspace
 
     agno_config: Optional[AgnoCliConfig] = AgnoCliConfig.from_saved_config()
     if not agno_config:
@@ -788,8 +788,8 @@ def config(
 
     from agno.cli.config import AgnoCliConfig
     from agno.cli.operator import initialize_agno
-    from agno.workspace.config import WorkspaceConfig
     from agno.utils.load_env import load_env
+    from agno.workspace.config import WorkspaceConfig
 
     agno_config: Optional[AgnoCliConfig] = AgnoCliConfig.from_saved_config()
     if not agno_config:

@@ -1,4 +1,4 @@
-from typing import List, Iterator
+from typing import Iterator, List
 
 from agno.document import Document
 from agno.document.reader.youtube_reader import YouTubeReader

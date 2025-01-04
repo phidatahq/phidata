@@ -1,4 +1,4 @@
-from typing import List, Optional, Callable, Any, Dict
+from typing import Any, Callable, Dict, List, Optional
 
 from agno.document import Document
 from agno.knowledge.agent import AgentKnowledge
@@ -19,8 +19,8 @@ class LangChainKnowledgeBase(AgentKnowledge):
         """Returns relevant documents matching the query"""
 
         try:
-            from langchain_core.retrievers import BaseRetriever
             from langchain_core.documents import Document as LangChainDocument
+            from langchain_core.retrievers import BaseRetriever
         except ImportError:
             raise ImportError(
                 "The `langchain` package is not installed. Please install it via `pip install langchain`."

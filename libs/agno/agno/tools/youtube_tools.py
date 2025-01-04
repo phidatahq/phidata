@@ -1,7 +1,7 @@
 import json
-from urllib.parse import urlparse, parse_qs, urlencode
+from typing import Any, Dict, List, Optional
+from urllib.parse import parse_qs, urlencode, urlparse
 from urllib.request import urlopen
-from typing import Optional, List, Dict, Any
 
 from agno.tools import Toolkit
 

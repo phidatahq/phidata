@@ -1,7 +1,7 @@
 from typing import List
 
-from agno.document.chunking.strategy import ChunkingStrategy
 from agno.document.base import Document
+from agno.document.chunking.strategy import ChunkingStrategy
 
 
 class DocumentChunking(ChunkingStrategy):

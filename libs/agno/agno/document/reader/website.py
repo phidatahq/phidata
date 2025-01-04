@@ -1,13 +1,13 @@
-import time
 import random
-from typing import Set, Dict, List, Tuple
+import time
+from typing import Dict, List, Set, Tuple
 from urllib.parse import urljoin, urlparse
+
+import httpx
 
 from agno.document.base import Document
 from agno.document.reader.base import Reader
 from agno.utils.log import logger
-
-import httpx
 
 try:
     from bs4 import BeautifulSoup  # noqa: F401

@@ -17,7 +17,7 @@ provides high-quality transcription capabilities.
 
 import json
 from pathlib import Path
-from typing import Optional, Union, Tuple, List, Dict, Any
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from agno.tools import Toolkit
 from agno.utils.log import logger

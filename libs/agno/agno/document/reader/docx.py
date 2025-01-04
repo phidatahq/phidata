@@ -1,10 +1,12 @@
+import io
 from pathlib import Path
 from typing import List, Union
+
+from docx import Document as DocxDocument  # type: ignore
+
 from agno.document.base import Document
 from agno.document.reader.base import Reader
 from agno.utils.log import logger
-import io
-from docx import Document as DocxDocument  # type: ignore
 
 
 class DocxReader(Reader):

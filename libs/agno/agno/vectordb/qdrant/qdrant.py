@@ -1,5 +1,5 @@
 from hashlib import md5
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, Optional
 
 try:
     from qdrant_client import QdrantClient  # noqa: F401
@@ -12,10 +12,10 @@ except ImportError:
 from agno.document import Document
 from agno.embedder import Embedder
 from agno.embedder.openai import OpenAIEmbedder
+from agno.reranker.base import Reranker
+from agno.utils.log import logger
 from agno.vectordb.base import VectorDb
 from agno.vectordb.distance import Distance
-from agno.utils.log import logger
-from agno.reranker.base import Reranker
 
 
 class Qdrant(VectorDb):

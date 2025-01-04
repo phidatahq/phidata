@@ -1,13 +1,13 @@
 import tarfile
 from pathlib import Path
-from typing import Optional, List, cast
+from typing import List, Optional, cast
 
 from rich import box
-from rich.text import Text
 from rich.panel import Panel
+from rich.text import Text
 
-from agno.cli.settings import agno_cli_settings
 from agno.api.playground import deploy_playground_archive
+from agno.cli.settings import agno_cli_settings
 from agno.utils.log import logger
 
 
@@ -176,9 +176,10 @@ def deploy_playground_app(
 
     agno_cli_settings.gate_alpha_feature()
 
-    from rich.live import Live
     from rich.console import Group
+    from rich.live import Live
     from rich.status import Status
+
     from agno.utils.timer import Timer
 
     if app is None:

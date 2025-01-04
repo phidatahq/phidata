@@ -1,11 +1,11 @@
-from typing import List, Optional, Dict
+from typing import Dict, List, Optional
 
 from httpx import Response
 
 from agno.api.api import api, invalid_response
 from agno.api.routes import ApiRoutes
-from agno.api.schemas.user import UserSchema
 from agno.api.schemas.team import TeamSchema
+from agno.api.schemas.user import UserSchema
 from agno.utils.log import logger
 
 

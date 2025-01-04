@@ -1,11 +1,13 @@
 from os import getenv
-from typing import Optional, Dict
+from typing import Dict, Optional
 
-from httpx import Client as HttpxClient, AsyncClient as HttpxAsyncClient, Response
+from httpx import AsyncClient as HttpxAsyncClient
+from httpx import Client as HttpxClient
+from httpx import Response
 
-from agno.constants import AGNO_API_KEY_ENV_VAR
-from agno.cli.settings import agno_cli_settings
 from agno.cli.credentials import read_auth_token
+from agno.cli.settings import agno_cli_settings
+from agno.constants import AGNO_API_KEY_ENV_VAR
 from agno.utils.log import logger
 
 

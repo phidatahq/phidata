@@ -1,25 +1,27 @@
 import json
 from dataclasses import dataclass, field
-from typing import Optional, List, Iterator, Dict, Any, Union, Callable
+from typing import Any, Callable, Dict, Iterator, List, Optional, Union
 
 from agno.models.base import Model
 from agno.models.message import Message
 from agno.models.response import ModelResponse
-from agno.tools.function import Function, FunctionCall
 from agno.tools import Tool, Toolkit
+from agno.tools.function import Function, FunctionCall
 from agno.utils.log import logger
 from agno.utils.timer import Timer
 from agno.utils.tools import get_function_call_for_tool_call
 
 try:
     from vertexai.generative_models import (
-        GenerativeModel,
-        GenerationResponse,
-        FunctionDeclaration,
-        Tool as GeminiTool,
         Candidate,
         Content,
+        FunctionDeclaration,
+        GenerationResponse,
+        GenerativeModel,
         Part,
+    )
+    from vertexai.generative_models import (
+        Tool as GeminiTool,
     )
 except (ModuleNotFoundError, ImportError):
     raise ImportError(

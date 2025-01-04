@@ -1,12 +1,13 @@
 from datetime import datetime
 from os import getenv
-from typing import Optional, Dict
+from typing import Dict, Optional
+
 from agno.tools import Toolkit
 from agno.utils.log import logger
 
 try:
-    import requests
     import pytz
+    import requests
 except ImportError:
     raise ImportError("`requests` and `pytz` not installed. Please install using `pip install requests pytz`")
 

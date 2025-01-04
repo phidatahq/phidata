@@ -1,4 +1,4 @@
-from typing import List, Iterator
+from typing import Iterator, List
 
 from agno.document import Document
 from agno.document.reader.s3.pdf import S3PDFReader

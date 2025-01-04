@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Optional, Dict
+from typing import Dict, Optional
 
 
 def load_env(env: Optional[Dict[str, str]] = None, dotenv_dir: Optional[Path] = None) -> None:

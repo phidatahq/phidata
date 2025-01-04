@@ -1,7 +1,7 @@
 import json
-from os import getenv
 from dataclasses import dataclass, field
-from typing import Optional, List, Iterator, Dict, Any, Tuple
+from os import getenv
+from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 from agno.models.base import Model
 from agno.models.message import Message
@@ -13,22 +13,22 @@ from agno.utils.tools import get_function_call_for_tool_call
 
 try:
     from cohere import Client as CohereClient
-    from cohere.types.tool import Tool as CohereTool
+    from cohere.types.api_meta import ApiMeta
+    from cohere.types.api_meta_tokens import ApiMetaTokens
     from cohere.types.non_streamed_chat_response import NonStreamedChatResponse
     from cohere.types.streamed_chat_response import (
         StreamedChatResponse,
+        StreamEndStreamedChatResponse,
         StreamStartStreamedChatResponse,
         TextGenerationStreamedChatResponse,
         ToolCallsChunkStreamedChatResponse,
         ToolCallsGenerationStreamedChatResponse,
-        StreamEndStreamedChatResponse,
     )
-    from cohere.types.tool_result import ToolResult
+    from cohere.types.tool import Tool as CohereTool
     from cohere.types.tool_parameter_definitions_value import (
         ToolParameterDefinitionsValue,
     )
-    from cohere.types.api_meta_tokens import ApiMetaTokens
-    from cohere.types.api_meta import ApiMeta
+    from cohere.types.tool_result import ToolResult
 except (ModuleNotFoundError, ImportError):
     raise ImportError("`cohere` not installed. Please install using `pip install cohere`")
 

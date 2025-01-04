@@ -1,8 +1,7 @@
-from time import time
-from enum import Enum
-from typing import Optional, Any, Dict
-
 from dataclasses import dataclass
+from enum import Enum
+from time import time
+from typing import Any, Dict, Optional
 
 
 class ModelResponseEvent(str, Enum):

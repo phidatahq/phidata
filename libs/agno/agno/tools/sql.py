@@ -1,13 +1,13 @@
 import json
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, Optional
 
 from agno.tools import Toolkit
 from agno.utils.log import logger
 
 try:
-    from sqlalchemy import create_engine, Engine
-    from sqlalchemy.orm import Session, sessionmaker
+    from sqlalchemy import Engine, create_engine
     from sqlalchemy.inspection import inspect
+    from sqlalchemy.orm import Session, sessionmaker
     from sqlalchemy.sql.expression import text
 except ImportError:
     raise ImportError("`sqlalchemy` not installed")

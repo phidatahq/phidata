@@ -1,11 +1,10 @@
 import json
-
 from dataclasses import dataclass, field
-from typing import Optional, List, Iterator, Dict, Any, Mapping, Tuple
+from typing import Any, Dict, Iterator, List, Mapping, Optional, Tuple
 
 from agno.models.message import Message
+from agno.models.ollama.chat import Metrics, Ollama
 from agno.models.response import ModelResponse
-from agno.models.ollama.chat import Ollama, Metrics
 from agno.utils.log import logger
 
 

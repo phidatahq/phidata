@@ -1,7 +1,7 @@
-from pydantic import BaseModel
-from typing import List, Optional, Any, Dict
+from typing import Any, Dict, List, Optional
 
 from fastapi import UploadFile
+from pydantic import BaseModel
 
 
 class AgentModel(BaseModel):

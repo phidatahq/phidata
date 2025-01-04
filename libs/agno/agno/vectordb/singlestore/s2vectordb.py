@@ -1,14 +1,14 @@
 import json
-from typing import Optional, List, Dict, Any
 from hashlib import md5
+from typing import Any, Dict, List, Optional
 
 try:
     from sqlalchemy.dialects import mysql
-    from sqlalchemy.engine import create_engine, Engine
+    from sqlalchemy.engine import Engine, create_engine
     from sqlalchemy.inspection import inspect
     from sqlalchemy.orm import Session, sessionmaker
-    from sqlalchemy.schema import MetaData, Table, Column
-    from sqlalchemy.sql.expression import text, func, select
+    from sqlalchemy.schema import Column, MetaData, Table
+    from sqlalchemy.sql.expression import func, select, text
     from sqlalchemy.types import DateTime
 except ImportError:
     raise ImportError("`sqlalchemy` not installed")
@@ -16,12 +16,12 @@ except ImportError:
 from agno.document import Document
 from agno.embedder import Embedder
 from agno.embedder.openai import OpenAIEmbedder
-from agno.vectordb.base import VectorDb
-from agno.vectordb.distance import Distance
+from agno.reranker.base import Reranker
 
 # from agno.vectordb.singlestore.index import Ivfflat, HNSWFlat
 from agno.utils.log import logger
-from agno.reranker.base import Reranker
+from agno.vectordb.base import VectorDb
+from agno.vectordb.distance import Distance
 
 
 class S2VectorDb(VectorDb):

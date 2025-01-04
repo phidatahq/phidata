@@ -1,15 +1,14 @@
 from base64 import b64encode
 from io import BytesIO
-from pathlib import Path
-from typing import Iterator
-
-from agno.models.content import Audio
-from typing import Optional, Literal
 from os import getenv, path
+from pathlib import Path
+from typing import Iterator, Literal, Optional
+from uuid import uuid4
+
+from agno.agent import Agent
+from agno.models.content import Audio
 from agno.tools import Toolkit
 from agno.utils.log import logger
-from agno.agent import Agent
-from uuid import uuid4
 
 try:
     from elevenlabs import ElevenLabs  # type: ignore

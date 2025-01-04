@@ -1,6 +1,6 @@
 import json
 from dataclasses import dataclass, field
-from typing import Optional, List, Iterator, Dict, Any, Tuple
+from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 from agno.aws.api_client import AwsApiClient
 from agno.models.base import Model
@@ -60,6 +60,7 @@ class AwsBedrock(Model):
 
         # Priority 2: Get aws_region from env
         from os import getenv
+
         from agno.constants import AWS_REGION_ENV_VAR
 
         aws_region_env = getenv(AWS_REGION_ENV_VAR)
@@ -74,6 +75,7 @@ class AwsBedrock(Model):
 
         # Priority 2: Get aws_profile from env
         from os import getenv
+
         from agno.constants import AWS_PROFILE_ENV_VAR
 
         aws_profile_env = getenv(AWS_PROFILE_ENV_VAR)

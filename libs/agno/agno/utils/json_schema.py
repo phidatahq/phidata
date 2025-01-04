@@ -1,4 +1,4 @@
-from typing import Any, Dict, Union, get_args, get_origin, Optional
+from typing import Any, Dict, Optional, Union, get_args, get_origin
 
 from agno.utils.log import logger
 

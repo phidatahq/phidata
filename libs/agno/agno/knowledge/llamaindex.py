@@ -1,12 +1,12 @@
-from typing import List, Optional, Callable, Dict, Any
+from typing import Any, Callable, Dict, List, Optional
 
 from agno.document import Document
 from agno.knowledge.agent import AgentKnowledge
 from agno.utils.log import logger
 
 try:
-    from llama_index.core.schema import NodeWithScore
     from llama_index.core.retrievers import BaseRetriever
+    from llama_index.core.schema import NodeWithScore
 except ImportError:
     raise ImportError(
         "The `llama-index-core` package is not installed. Please install it via `pip install llama-index-core`."

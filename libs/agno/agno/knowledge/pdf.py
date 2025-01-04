@@ -1,8 +1,8 @@
 from pathlib import Path
-from typing import Union, List, Iterator
+from typing import Iterator, List, Union
 
 from agno.document import Document
-from agno.document.reader.pdf import PDFReader, PDFUrlReader, PDFImageReader, PDFUrlImageReader
+from agno.document.reader.pdf import PDFImageReader, PDFReader, PDFUrlImageReader, PDFUrlReader
 from agno.knowledge.agent import AgentKnowledge
 from agno.utils.log import logger
 

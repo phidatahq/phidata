@@ -1,4 +1,5 @@
-from typing import List, Tuple, Optional, Dict
+from typing import Dict, List, Optional, Tuple
+
 from agno.embedder.base import Embedder
 from agno.utils.log import logger
 

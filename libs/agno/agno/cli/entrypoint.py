@@ -8,7 +8,7 @@ from typing import Optional
 import typer
 
 from agno.cli.ws.ws_cli import ws_cli
-from agno.utils.log import set_log_level_to_debug, logger
+from agno.utils.log import logger, set_log_level_to_debug
 
 agno_cli = typer.Typer(
     help="""\b
@@ -240,9 +240,10 @@ def start(
         set_log_level_to_debug()
 
     from pathlib import Path
+
     from agno.cli.config import AgnoCliConfig
     from agno.cli.console import log_config_not_available_msg
-    from agno.cli.operator import start_resources, initialize_agno
+    from agno.cli.operator import initialize_agno, start_resources
 
     agno_config: Optional[AgnoCliConfig] = AgnoCliConfig.from_saved_config()
     if not agno_config:
@@ -340,9 +341,10 @@ def stop(
         set_log_level_to_debug()
 
     from pathlib import Path
+
     from agno.cli.config import AgnoCliConfig
     from agno.cli.console import log_config_not_available_msg
-    from agno.cli.operator import stop_resources, initialize_agno
+    from agno.cli.operator import initialize_agno, stop_resources
 
     agno_config: Optional[AgnoCliConfig] = AgnoCliConfig.from_saved_config()
     if not agno_config:
@@ -440,9 +442,10 @@ def patch(
         set_log_level_to_debug()
 
     from pathlib import Path
+
     from agno.cli.config import AgnoCliConfig
     from agno.cli.console import log_config_not_available_msg
-    from agno.cli.operator import patch_resources, initialize_agno
+    from agno.cli.operator import initialize_agno, patch_resources
 
     agno_config: Optional[AgnoCliConfig] = AgnoCliConfig.from_saved_config()
     if not agno_config:
@@ -536,6 +539,7 @@ def restart(
     > `ag ws restart workspace.py`   -> Start resources defined in a workspace.py file
     """
     from time import sleep
+
     from agno.cli.console import print_info
 
     stop(

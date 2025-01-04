@@ -1,6 +1,6 @@
-from os import getenv
 from dataclasses import dataclass, field
-from typing import Optional, List, Iterator, Dict, Any, Union
+from os import getenv
+from typing import Any, Dict, Iterator, List, Optional, Union
 
 import httpx
 from packaging import version
@@ -15,16 +15,17 @@ from agno.utils.timer import Timer
 from agno.utils.tools import get_function_call_for_tool_call
 
 try:
-    from openai import OpenAI as OpenAIClient, AsyncOpenAI as AsyncOpenAIClient
-    from openai.types.completion_usage import CompletionUsage
+    from openai import AsyncOpenAI as AsyncOpenAIClient
+    from openai import OpenAI as OpenAIClient
     from openai.types.chat.chat_completion import ChatCompletion
-    from openai.types.chat.parsed_chat_completion import ParsedChatCompletion
     from openai.types.chat.chat_completion_chunk import (
         ChatCompletionChunk,
         ChoiceDelta,
         ChoiceDeltaToolCall,
     )
     from openai.types.chat.chat_completion_message import ChatCompletionMessage
+    from openai.types.chat.parsed_chat_completion import ParsedChatCompletion
+    from openai.types.completion_usage import CompletionUsage
 
     MIN_OPENAI_VERSION = "1.52.0"
 

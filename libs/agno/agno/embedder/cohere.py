@@ -1,11 +1,11 @@
-from typing import Optional, Dict, List, Tuple, Any, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from agno.embedder.base import Embedder
 from agno.utils.log import logger
 
 try:
     from cohere import Client as CohereClient
-    from cohere.types.embed_response import EmbeddingsFloatsEmbedResponse, EmbeddingsByTypeEmbedResponse
+    from cohere.types.embed_response import EmbeddingsByTypeEmbedResponse, EmbeddingsFloatsEmbedResponse
 except ImportError:
     raise ImportError("`cohere` not installed. Please install using `pip install cohere`.")
 

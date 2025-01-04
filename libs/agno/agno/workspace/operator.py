@@ -1,30 +1,30 @@
 from pathlib import Path
-from typing import Optional, Dict, List, cast
-
+from typing import Dict, List, Optional, cast
 
 from rich.prompt import Prompt
-from agno.api.workspace import log_workspace_event
+
+from agno.api.schemas.team import TeamIdentifier, TeamSchema
 from agno.api.schemas.workspace import (
-    WorkspaceSchema,
     WorkspaceCreate,
-    WorkspaceUpdate,
     WorkspaceEvent,
+    WorkspaceSchema,
+    WorkspaceUpdate,
 )
-from agno.api.schemas.team import TeamSchema, TeamIdentifier
+from agno.api.workspace import log_workspace_event
 from agno.cli.config import AgnoCliConfig
 from agno.cli.console import (
     console,
+    log_config_not_available_msg,
     print_heading,
     print_info,
     print_subheading,
-    log_config_not_available_msg,
 )
-from agno.infra.type import InfraType
 from agno.infra.resources import InfraResources
-from agno.workspace.config import WorkspaceConfig
-from agno.workspace.enums import WorkspaceStarterTemplate
+from agno.infra.type import InfraType
 from agno.utils.common import str_to_int
 from agno.utils.log import logger
+from agno.workspace.config import WorkspaceConfig
+from agno.workspace.enums import WorkspaceStarterTemplate
 
 TEMPLATE_TO_NAME_MAP: Dict[WorkspaceStarterTemplate, str] = {
     WorkspaceStarterTemplate.agent_app: "agent-app",
@@ -44,13 +44,14 @@ def create_workspace(
     This function clones a template or url on the users machine at the path:
         cwd/name
     """
-    import git
     from shutil import copytree
+
+    import git
 
     from agno.cli.operator import initialize_agno
     from agno.utils.filesystem import rmdir_recursive
-    from agno.workspace.helpers import get_workspace_dir_path
     from agno.utils.git import GitCloneProgress
+    from agno.workspace.helpers import get_workspace_dir_path
 
     current_dir: Path = Path(".").resolve()
 
@@ -182,6 +183,7 @@ def setup_workspace(ws_root_path: Path) -> Optional[WorkspaceConfig]:
     """
     from rich.live import Live
     from rich.status import Status
+
     from agno.cli.operator import initialize_agno
     from agno.utils.git import get_remote_origin_for_dir
     from agno.workspace.helpers import get_workspace_dir_path
@@ -311,7 +313,7 @@ def setup_workspace(ws_root_path: Path) -> Optional[WorkspaceConfig]:
 
         # 2.3 Update WorkspaceSchema if git_url is updated
         if git_remote_origin_url is not None and ws_schema is not None and ws_schema.git_url != git_remote_origin_url:
-            from agno.api.workspace import update_workspace_for_user, update_workspace_for_team
+            from agno.api.workspace import update_workspace_for_team, update_workspace_for_user
 
             logger.debug("Updating workspace")
             logger.debug(f"Existing git_url: {ws_schema.git_url}")

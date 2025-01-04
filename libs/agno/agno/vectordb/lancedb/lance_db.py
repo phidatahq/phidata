@@ -1,6 +1,6 @@
-from hashlib import md5
-from typing import List, Optional, Dict, Any
 import json
+from hashlib import md5
+from typing import Any, Dict, List, Optional
 
 try:
     import lancedb
@@ -10,11 +10,11 @@ except ImportError:
 
 from agno.document import Document
 from agno.embedder import Embedder
+from agno.reranker.base import Reranker
+from agno.utils.log import logger
 from agno.vectordb.base import VectorDb
 from agno.vectordb.distance import Distance
 from agno.vectordb.search import SearchType
-from agno.utils.log import logger
-from agno.reranker.base import Reranker
 
 
 class LanceDb(VectorDb):

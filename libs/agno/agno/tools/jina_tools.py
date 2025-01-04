@@ -1,8 +1,9 @@
-import httpx
 from os import getenv
-from typing import Optional, Dict
+from typing import Dict, Optional
 
-from pydantic import BaseModel, HttpUrl, Field
+import httpx
+from pydantic import BaseModel, Field, HttpUrl
+
 from agno.tools import Toolkit
 from agno.utils.log import logger
 

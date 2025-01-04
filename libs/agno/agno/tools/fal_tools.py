@@ -4,13 +4,12 @@ pip install fal-client
 
 from os import getenv
 from typing import Optional
-
-from agno.agent import Agent
-from agno.tools import Toolkit
-from agno.utils.log import logger
-from agno.models.content import Video, Image
 from uuid import uuid4
 
+from agno.agent import Agent
+from agno.models.content import Image, Video
+from agno.tools import Toolkit
+from agno.utils.log import logger
 
 try:
     import fal_client  # type: ignore

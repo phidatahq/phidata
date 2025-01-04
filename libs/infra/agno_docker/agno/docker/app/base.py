@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Optional, Dict, Any, Union, List, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 from agno.app.base import AppBase
 from agno.app.context import ContainerContext
@@ -306,8 +306,8 @@ class DockerApp(AppBase):
 
     def build_resources(self, build_context: DockerBuildContext) -> List["DockerResource"]:
         from agno.docker.resource.base import DockerResource
-        from agno.docker.resource.network import DockerNetwork
         from agno.docker.resource.container import DockerContainer
+        from agno.docker.resource.network import DockerNetwork
 
         logger.debug(f"------------ Building {self.get_app_name()} ------------")
         # -*- Get Container Context

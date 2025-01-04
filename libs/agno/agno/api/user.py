@@ -1,10 +1,10 @@
-from typing import Optional, Union, Dict, List
+from typing import Dict, List, Optional, Union
 
 from httpx import Response, codes
 
 from agno.api.api import api, invalid_response
 from agno.api.routes import ApiRoutes
-from agno.api.schemas.user import UserSchema, EmailPasswordAuthSchema
+from agno.api.schemas.user import EmailPasswordAuthSchema, UserSchema
 from agno.cli.config import AgnoCliConfig
 from agno.cli.settings import agno_cli_settings
 from agno.utils.log import logger

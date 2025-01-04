@@ -1,8 +1,8 @@
-from typing import List, Iterator, Optional
+from typing import Iterator, List, Optional
 
-from agno.document import Document
 from agno.aws.resource.s3.bucket import S3Bucket
 from agno.aws.resource.s3.object import S3Object
+from agno.document import Document
 from agno.knowledge.agent import AgentKnowledge
 
 

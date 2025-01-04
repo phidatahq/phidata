@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from typing import cast, List, Iterator, Optional
+from typing import Iterator, List, Optional, cast
 
 from agno.agent.step import AgentStep
 from agno.models.base import Model
 from agno.models.message import Message
-from agno.reasoning.step import ReasoningStep, ReasoningSteps, NextAction
-from agno.run.response import RunResponse, RunEvent
+from agno.reasoning.step import NextAction, ReasoningStep, ReasoningSteps
+from agno.run.response import RunEvent, RunResponse
 from agno.utils.log import logger
 
 

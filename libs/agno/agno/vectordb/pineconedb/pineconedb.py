@@ -1,16 +1,16 @@
-from typing import Optional, Dict, Union, List, Any
+from typing import Any, Dict, List, Optional, Union
 
 try:
-    from pinecone import Pinecone, ServerlessSpec, PodSpec
+    from pinecone import Pinecone, PodSpec, ServerlessSpec
     from pinecone.config import Config
 except ImportError:
     raise ImportError("The `pinecone` package is not installed, please install using `pip install pinecone`.")
 
 from agno.document import Document
 from agno.embedder import Embedder
-from agno.vectordb.base import VectorDb
-from agno.utils.log import logger
 from agno.reranker.base import Reranker
+from agno.utils.log import logger
+from agno.vectordb.base import VectorDb
 
 
 class PineconeDB(VectorDb):

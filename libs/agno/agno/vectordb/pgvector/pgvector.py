@@ -1,14 +1,14 @@
-from math import sqrt
 from hashlib import md5
-from typing import Optional, List, Union, Dict, Any, cast
+from math import sqrt
+from typing import Any, Dict, List, Optional, Union, cast
 
 try:
     from sqlalchemy.dialects import postgresql
-    from sqlalchemy.engine import create_engine, Engine
+    from sqlalchemy.engine import Engine, create_engine
     from sqlalchemy.inspection import inspect
-    from sqlalchemy.orm import sessionmaker, scoped_session, Session
-    from sqlalchemy.schema import MetaData, Table, Column, Index
-    from sqlalchemy.sql.expression import text, func, select, desc, bindparam
+    from sqlalchemy.orm import Session, scoped_session, sessionmaker
+    from sqlalchemy.schema import Column, Index, MetaData, Table
+    from sqlalchemy.sql.expression import bindparam, desc, func, select, text
     from sqlalchemy.types import DateTime, String
 except ImportError:
     raise ImportError("`sqlalchemy` not installed. Please install using `pip install sqlalchemy psycopg`")
@@ -20,12 +20,12 @@ except ImportError:
 
 from agno.document import Document
 from agno.embedder import Embedder
+from agno.reranker.base import Reranker
+from agno.utils.log import logger
 from agno.vectordb.base import VectorDb
 from agno.vectordb.distance import Distance
+from agno.vectordb.pgvector.index import HNSW, Ivfflat
 from agno.vectordb.search import SearchType
-from agno.vectordb.pgvector.index import Ivfflat, HNSW
-from agno.utils.log import logger
-from agno.reranker.base import Reranker
 
 
 class PgVector(VectorDb):

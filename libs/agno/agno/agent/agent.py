@@ -25,6 +25,8 @@ from typing import (
 )
 from uuid import uuid4
 
+from pydantic import BaseModel
+
 from agno.agent.reason import Reason
 from agno.agent.respond import Respond
 from agno.agent.session import AgentSession
@@ -37,6 +39,7 @@ from agno.models.content import Audio, Image, Video
 from agno.models.message import Message, MessageReferences
 from agno.models.response import ModelResponse, ModelResponseEvent
 from agno.reasoning.step import NextAction, ReasoningStep, ReasoningSteps
+from agno.run.messages import RunMessages
 from agno.run.response import RunEvent, RunResponse, RunResponseExtraData
 from agno.storage.agent.base import AgentStorage
 from agno.tools import Function, Tool, Toolkit
@@ -144,7 +147,7 @@ class Agent:
 
     # --- System message settings ---
     # Provide the system message as a string or function
-    system_message: Optional[Union[str, Callable]] = None
+    system_message: Optional[Union[str, Callable, Message]] = None
     # Role for the system message
     system_message_role: str = "system"
     # If True, create a default system message using agent settings and use that
@@ -180,7 +183,7 @@ class Agent:
     # --- User message settings ---
     # Provide the user message as a string, list, dict, or function
     # Note: this will ignore the message sent to the run function
-    user_message: Optional[Union[List, Dict, str, Callable]] = None
+    user_message: Optional[Union[List, Dict, str, Callable, Message]] = None
     # Role for the user message
     user_message_role: str = "user"
     # If True, create a default user message using references and chat history
@@ -192,7 +195,7 @@ class Agent:
     # Stream the intermediate steps from the Agent
     stream_intermediate_steps: bool = False
     # Provide a response model to get the response as a Pydantic model
-    response_model: Optional[Type[Any]] = None
+    response_model: Optional[Type[BaseModel]] = None
     # If True, the response from the Model is converted into the response_model
     # Otherwise, the response is returned as a JSON string
     parse_response: bool = True
@@ -668,12 +671,6 @@ class Agent:
                         self.memory.runs = [AgentRun(**m) for m in session.memory["runs"]]
                     except Exception as e:
                         logger.warning(f"Failed to load runs from memory: {e}")
-                # For backwards compatibility
-                if "chats" in session.memory:
-                    try:
-                        self.memory.runs = [AgentRun(**m) for m in session.memory["chats"]]
-                    except Exception as e:
-                        logger.warning(f"Failed to load chats from memory: {e}")
                 if "messages" in session.memory:
                     try:
                         self.memory.messages = [Message(**m) for m in session.memory["messages"]]
@@ -846,36 +843,37 @@ class Agent:
     def get_system_message(self) -> Optional[Message]:
         """Return the system message for the Agent.
 
-        1. If the system_prompt is provided, use that.
-        2. If the system_prompt_template is provided, build the system_message using the template.
-        3. If use_default_system_message is False, return None.
-        4. Build and return the default system message for the Agent.
+        1. If the system_message is provided, use that.
+        2. If create_default_system_message is False, return None.
+        3. Build and return the default system message for the Agent.
         """
 
         # 1. If the system_message is provided, use that.
         if self.system_message is not None:
-            sys_message = ""
-            if isinstance(self.system_message, str):
-                sys_message = self.system_message
-            elif callable(self.system_message):
-                sys_message = self.system_message(agent=self)
-                if not isinstance(sys_message, str):
-                    raise Exception("System prompt must return a string")
+            if isinstance(self.system_message, Message):
+                return self.system_message
+
+            sys_message_content = self.system_message
+            if callable(self.system_message):
+                sys_message_content = self.system_message(agent=self)
+                if not isinstance(sys_message_content, str):
+                    raise Exception("system_message must return a string")
 
             # Add the JSON output prompt if response_model is provided and structured_outputs is False
             if self.response_model is not None and not self.structured_outputs:
-                sys_message += f"\n{self.get_json_output_prompt()}"
+                sys_message_content += f"\n{self.get_json_output_prompt()}"
 
-            return Message(role=self.system_message_role, content=sys_message)
+            return Message(role=self.system_message_role, content=sys_message_content)
 
-        # 2. If use_default_system_message is False, return None.
-        if not self.use_default_system_message:
+        # 2. If create_default_system_message is False, return None.
+        if not self.create_default_system_message:
             return None
 
         if self.model is None:
             raise Exception("model not set")
 
-        # 3. Build the list of instructions for the system prompt.
+        # 3. Build and return the default system message for the Agent.
+        # 3.1 Build the list of instructions for the system prompt.
         instructions = []
         if self.instructions is not None:
             _instructions = self.instructions
@@ -887,33 +885,33 @@ class Agent:
             elif isinstance(_instructions, list):
                 instructions.extend(_instructions)
 
-        # 3.1 Add instructions for using the specific model
+        # 3.2 Add instructions from the Model
         model_instructions = self.model.get_instructions_for_model()
         if model_instructions is not None:
             instructions.extend(model_instructions)
-        # 3.5 Add instructions for using markdown
+        # 3.3 Add instructions for using markdown
         if self.markdown and self.response_model is None:
             instructions.append("Use markdown to format your answers.")
-        # 3.6 Add instructions for adding the current datetime
+        # 3.4 Add instructions for adding the current datetime
         if self.add_datetime_to_instructions:
             instructions.append(f"The current time is {datetime.now()}")
-        # 3.7 Add agent name if provided
+        # 3.5 Add agent name if provided
         if self.name is not None and self.add_name_to_instructions:
             instructions.append(f"Your name is: {self.name}.")
 
-        # 4. Build the default system message for the Agent.
+        # 3.6 Build the default system message for the Agent.
         system_message_lines: List[str] = []
-        # 4.1 First add the Agent description if provided
+        # 3.6.1 First add the Agent description if provided
         if self.description is not None:
             system_message_lines.append(f"{self.description}\n")
-        # 4.2 Then add the Agent task if provided
-        if self.task is not None:
-            system_message_lines.append(f"Your task is: {self.task}\n")
-        # 4.3 Then add the Agent role
+        # 3.6.2 Then add the Agent goal if provided
+        if self.goal is not None:
+            system_message_lines.append(f"Your goal is: {self.goal}\n")
+        # 3.6.3 Then add the Agent role
         if self.role is not None:
             system_message_lines.append(f"Your role is: {self.role}\n")
-        # 4.3 Then add instructions for transferring tasks to team members
-        if self.has_team() and self.add_transfer_instructions:
+        # 3.6.4 Then add instructions for transferring tasks to team members
+        if self.has_team and self.add_transfer_instructions:
             system_message_lines.extend(
                 [
                     "## You are the leader of a team of AI Agents.",
@@ -924,7 +922,7 @@ class Agent:
                     "",
                 ]
             )
-        # 4.4 Then add instructions for the Agent
+        # 3.6.5 Then add instructions for the Agent
         if len(instructions) > 0:
             system_message_lines.append("## Instructions")
             if len(instructions) > 1:
@@ -932,8 +930,7 @@ class Agent:
             else:
                 system_message_lines.append(instructions[0])
             system_message_lines.append("")
-
-        # 4.5 Then add the guidelines for the Agent
+        # 3.6.6 Then add the guidelines for the Agent
         if self.guidelines is not None and len(self.guidelines) > 0:
             system_message_lines.append("## Guidelines")
             if len(self.guidelines) > 1:
@@ -941,25 +938,20 @@ class Agent:
             else:
                 system_message_lines.append(self.guidelines[0])
             system_message_lines.append("")
-
-        # 4.6 Then add the prompt for the Model
+        # 3.6.7 Then add the prompt for the Model
         system_message_from_model = self.model.get_system_message_for_model()
         if system_message_from_model is not None:
             system_message_lines.append(system_message_from_model)
-
-        # 4.7 Then add the expected output
+        # 3.6.8 Then add the expected output
         if self.expected_output is not None:
             system_message_lines.append(f"## Expected output\n{self.expected_output}\n")
-
-        # 4.8 Then add additional context
+        # 3.6.9 Then add additional context
         if self.additional_context is not None:
             system_message_lines.append(f"{self.additional_context}\n")
-
-        # 4.9 Then add information about the team members
-        if self.has_team() and self.add_transfer_instructions:
+        # 3.6.10 Then add information about the team members
+        if self.has_team and self.add_transfer_instructions:
             system_message_lines.append(f"{self.get_transfer_instructions()}\n")
-
-        # 4.10 Then add memories to the system prompt
+        # 3.6.11 Then add memories to the system prompt
         if self.memory.create_user_memories:
             if self.memory.memories and len(self.memory.memories) > 0:
                 system_message_lines.append(
@@ -984,8 +976,7 @@ class Agent:
             system_message_lines.append(
                 "If you use the `update_memory` tool, remember to pass on the response to the user.\n"
             )
-
-        # 4.11 Then add a summary of the interaction to the system prompt
+        # 3.6.12 Then add a summary of the interaction to the system prompt
         if self.memory.create_session_summary:
             if self.memory.summary is not None:
                 system_message_lines.append("Here is a brief summary of your previous interactions if it helps:")
@@ -995,77 +986,14 @@ class Agent:
                     "\nNote: this information is from previous interactions and may be outdated. "
                     "You should ALWAYS prefer information from this conversation over the past summary.\n"
                 )
-
-        # 4.12 Then add the JSON output prompt if response_model is provided and structured_outputs is False
+        # 3.6.13 Then add the JSON output prompt if response_model is provided and structured_outputs is False
         if self.response_model is not None and not self.structured_outputs:
             system_message_lines.append(self.get_json_output_prompt() + "\n")
-
-        # Return the system prompt
+        # 3.6.14 Return the system prompt
         if len(system_message_lines) > 0:
             return Message(role=self.system_message_role, content=("\n".join(system_message_lines)).strip())
 
         return None
-
-    def get_relevant_docs_from_knowledge(
-        self, query: str, num_documents: Optional[int] = None, **kwargs
-    ) -> Optional[List[Dict[str, Any]]]:
-        """Return a list of references from the knowledge base"""
-
-        if self.retriever is not None:
-            reference_kwargs = {"agent": self, "query": query, "num_documents": num_documents, **kwargs}
-            return self.retriever(**reference_kwargs)
-
-        if self.knowledge is None:
-            return None
-
-        relevant_docs: List[Document] = self.knowledge.search(query=query, num_documents=num_documents, **kwargs)
-        if len(relevant_docs) == 0:
-            return None
-        return [doc.to_dict() for doc in relevant_docs]
-
-    def convert_documents_to_string(self, docs: List[Dict[str, Any]]) -> str:
-        if docs is None or len(docs) == 0:
-            return ""
-
-        if self.references_format == "yaml":
-            import yaml
-
-            return yaml.dump(docs)
-
-        return json.dumps(docs, indent=2)
-
-    def convert_context_to_string(self, context: Dict[str, Any]) -> str:
-        """Convert the context dictionary to a string representation.
-
-        Args:
-            context: Dictionary containing context data
-
-        Returns:
-            String representation of the context, or empty string if conversion fails
-        """
-        if context is None:
-            return ""
-
-        try:
-            return json.dumps(context, indent=2, default=str)
-        except (TypeError, ValueError, OverflowError) as e:
-            logger.warning(f"Failed to convert context to JSON: {e}")
-            # Attempt a fallback conversion for non-serializable objects
-            sanitized_context = {}
-            for key, value in context.items():
-                try:
-                    # Try to serialize each value individually
-                    json.dumps({key: value}, default=str)
-                    sanitized_context[key] = value
-                except Exception:
-                    # If serialization fails, convert to string representation
-                    sanitized_context[key] = str(value)
-
-            try:
-                return json.dumps(sanitized_context, indent=2)
-            except Exception as e:
-                logger.error(f"Failed to convert sanitized context to JSON: {e}")
-                return str(context)
 
     def get_user_message(
         self,
@@ -1078,16 +1006,13 @@ class Agent:
     ) -> Optional[Message]:
         """Return the user message for the Agent.
 
-        1. If the user_prompt is provided, use that.
-        2. If the user_prompt_template is provided, build the user_message using the template.
-        3. If the message is None, return None.
-        4. 4. If use_default_user_message is False or If the message is not a string, return the message as is.
-        5. If add_references is False or references is None, return the message as is.
-        6. Build the default user message for the Agent
+        1. If the user_message is provided, use that.
+        2. If create_default_user_message is False or if the message is a list, return the message as is.
+        3. Build the default user message for the Agent
         """
         # Get references from the knowledge base to use in the user message
         references = None
-        if self.add_references and message and isinstance(message, str):
+        if self.add_references and message and (isinstance(message, str) or isinstance(message, callable)):
             retrieval_timer = Timer()
             retrieval_timer.start()
             docs_from_knowledge = self.get_relevant_docs_from_knowledge(query=message, **kwargs)
@@ -1106,12 +1031,16 @@ class Agent:
 
         # 1. If the user_message is provided, use that.
         if self.user_message is not None:
+            if isinstance(self.user_message, Message):
+                return self.user_message
+
             user_message_content = self.user_message
             if callable(self.user_message):
                 user_message_kwargs = {"agent": self, "message": message, "references": references}
                 user_message_content = self.user_message(**user_message_kwargs)
                 if not isinstance(user_message_content, str):
-                    raise Exception("User prompt must return a string")
+                    raise Exception("user_message must return a string")
+
             return Message(
                 role=self.user_message_role,
                 content=user_message_content,
@@ -1121,17 +1050,16 @@ class Agent:
                 **kwargs,
             )
 
-        # 2. If the message is None, return None
+        # 2. If create_default_user_message is False or message is a list, return the message as is.
+        if not self.create_default_user_message or isinstance(message, list):
+            return Message(role=self.user_message_role, content=message, images=images, audio=audio, **kwargs)
+
+        # 3. Build the default user message for the Agent
+        # If the message is None, return None
         if message is None:
             return None
 
-        # 3. If use_default_user_message is False, return the message as is.
-        if not self.use_default_user_message or isinstance(message, list):
-            return Message(role=self.user_message_role, content=message, images=images, audio=audio, **kwargs)
-
-        # 4. Build the default user message for the Agent
-        user_prompt = message
-
+        user_msg_content = message
         # 4.1 Add references to user message
         if (
             self.add_references
@@ -1139,28 +1067,26 @@ class Agent:
             and references.references is not None
             and len(references.references) > 0
         ):
-            user_prompt += "\n\nUse the following references from the knowledge base if it helps:\n"
-            user_prompt += "<references>\n"
-            user_prompt += self.convert_documents_to_string(references.references) + "\n"
-            user_prompt += "</references>"
-
+            user_msg_content += "\n\nUse the following references from the knowledge base if it helps:\n"
+            user_msg_content += "<references>\n"
+            user_msg_content += self.convert_documents_to_string(references.references) + "\n"
+            user_msg_content += "</references>"
         # 4.2 Add context to user message
         if self.add_context and self.context is not None:
-            user_prompt += "\n\n<context>\n"
-            user_prompt += self.convert_context_to_string(self.context) + "\n"
-            user_prompt += "</context>"
-
+            user_msg_content += "\n\n<context>\n"
+            user_msg_content += self.convert_context_to_string(self.context) + "\n"
+            user_msg_content += "</context>"
         # Return the user message
         return Message(
             role=self.user_message_role,
-            content=user_prompt,
+            content=user_msg_content,
             audio=audio,
             images=images,
             videos=videos,
             **kwargs,
         )
 
-    def get_messages_for_run(
+    def get_run_messages(
         self,
         *,
         message: Optional[Union[str, List, Dict, Message]] = None,
@@ -1169,59 +1095,67 @@ class Agent:
         videos: Optional[Sequence[Any]] = None,
         messages: Optional[Sequence[Union[Dict, Message]]] = None,
         **kwargs: Any,
-    ) -> Tuple[Optional[Message], List[Message], List[Message]]:
-        """This function returns:
-            - the system message
-            - a list of user messages
-            - a list of messages to send to the model
+    ) -> RunMessages:
+        """This function returns a RunMessages object with the following attributes:
+            - system_message: The system message for this run
+            - user_message: The user message for this run
+            - messages: List of messages to send to the model
 
-        To build the messages sent to the model:
-        1. Add the system message to the messages list
-        2. Add extra messages to the messages list if provided
-        3. Add history to the messages list
-        4. Add the user messages to the messages list
+        To build the RunMessages object:
+        1. Add the system message to run_messages
+        2. Add extra messages to run_messages if provided
+        3. Add history to run_messages
+        4. Add the user message to run_messages
+        5. Add messages to run_messages if provided
 
         Returns:
-            Tuple[Message, List[Message], List[Message]]:
-                - Optional[Message]: the system message
-                - List[Message]: user messages
-                - List[Message]: messages to send to the model
+            RunMessages object with the following attributes:
+                - system_message: The system message for this run
+                - user_message: The user message for this run
+                - messages: List of all messages to send to the model
+
+        Typical usage:
+        run_messages = self.get_run_messages(
+            message=message, audio=audio, images=images, videos=videos, messages=messages, **kwargs
+        )
         """
 
-        # List of messages to send to the Model
-        messages_for_model: List[Message] = []
+        # Initialize the RunMessages object
+        run_messages = RunMessages()
 
-        # 3.1. Add the System Message to the messages list
+        # 1. Get the System Message
         system_message = self.get_system_message()
+        # Add the system message to run_messages
         if system_message is not None:
-            messages_for_model.append(system_message)
+            run_messages.system_message = system_message
+            run_messages.messages.append(system_message)
 
-        # 3.2 Add extra messages to the messages list if provided
+        # 2. Add extra messages to run_messages if provided
         if self.add_messages is not None:
-            _add_messages: List[Message] = []
+            messages_to_add_to_run_response: List[Message] = []
             for _m in self.add_messages:
                 if isinstance(_m, Message):
-                    _add_messages.append(_m)
-                    messages_for_model.append(_m)
+                    messages_to_add_to_run_response.append(_m)
+                    run_messages.messages.append(_m)
                 elif isinstance(_m, dict):
                     try:
                         _m_parsed = Message.model_validate(_m)
-                        _add_messages.append(_m_parsed)
-                        messages_for_model.append(_m_parsed)
+                        messages_to_add_to_run_response.append(_m_parsed)
+                        run_messages.messages.append(_m_parsed)
                     except Exception as e:
                         logger.warning(f"Failed to validate message: {e}")
-            if len(_add_messages) > 0:
-                # Add the extra messages to the run_response
-                logger.debug(f"Adding {len(_add_messages)} extra messages")
+            # Add the extra messages to the run_response
+            if len(messages_to_add_to_run_response) > 0:
+                logger.debug(f"Adding {len(messages_to_add_to_run_response)} extra messages")
                 if self.run_response.extra_data is None:
-                    self.run_response.extra_data = RunResponseExtraData(add_messages=_add_messages)
+                    self.run_response.extra_data = RunResponseExtraData(add_messages=messages_to_add_to_run_response)
                 else:
                     if self.run_response.extra_data.add_messages is None:
-                        self.run_response.extra_data.add_messages = _add_messages
+                        self.run_response.extra_data.add_messages = messages_to_add_to_run_response
                     else:
-                        self.run_response.extra_data.add_messages.extend(_add_messages)
+                        self.run_response.extra_data.add_messages.extend(messages_to_add_to_run_response)
 
-        # 3.3 Add history to the messages list
+        # 3. Add history to run_messages
         if self.add_history_to_messages:
             history: List[Message] = self.memory.get_messages_from_last_n_runs(
                 last_n=self.num_history_responses, skip_role=self.system_message_role
@@ -1235,100 +1169,41 @@ class Agent:
                         self.run_response.extra_data.history = history
                     else:
                         self.run_response.extra_data.history.extend(history)
-                messages_for_model += history
+                run_messages.messages += history
 
-        # 3.4. Add the User Messages to the messages list
-        user_messages: List[Message] = []
-        # 3.4.1 Build user message from message if provided
-        if message is not None:
-            # If message is provided as a Message, use it directly
-            if isinstance(message, Message):
-                user_messages.append(message)
-            # If message is provided as a str or list, build the Message object
-            elif isinstance(message, str) or isinstance(message, list):
-                # Get the user message
-                user_message: Optional[Message] = self.get_user_message(
-                    message=message, audio=audio, images=images, videos=videos, **kwargs
-                )
-                # Add user message to the messages list
-                if user_message is not None:
-                    user_messages.append(user_message)
-            # If message is provided as a dict, try to validate it as a Message
-            elif isinstance(message, dict):
-                try:
-                    user_messages.append(Message.model_validate(message))
-                except Exception as e:
-                    logger.warning(f"Failed to validate message: {e}")
-            else:
-                logger.warning(f"Invalid message type: {type(message)}")
-        # 3.4.2 Build user messages from messages list if provided
-        elif messages is not None and len(messages) > 0:
+        # 4.Add the user message to run_messages
+        user_message: Optional[Message] = None
+        # 4.1 Build user message if message is None, str or list
+        if message is None or isinstance(message, str) or isinstance(message, list):
+            user_message: Optional[Message] = self.get_user_message(
+                message=message, audio=audio, images=images, videos=videos, **kwargs
+            )
+        # 4.2 If message is provided as a Message, use it directly
+        elif isinstance(message, Message):
+            user_message = message
+        # 4.3 If message is provided as a dict, try to validate it as a Message
+        elif isinstance(message, dict):
+            try:
+                user_message = Message.model_validate(message)
+            except Exception as e:
+                logger.warning(f"Failed to validate message: {e}")
+        # Add the User Messag to run_messages
+        if user_message is not None:
+            run_messages.user_message = user_message
+            run_messages.messages.append(user_message)
+
+        # 5. Add messages to run_messages if provided
+        if messages is not None and len(messages) > 0:
             for _m in messages:
                 if isinstance(_m, Message):
-                    user_messages.append(_m)
+                    run_messages.messages.append(_m)
                 elif isinstance(_m, dict):
                     try:
-                        user_messages.append(Message.model_validate(_m))
+                        run_messages.messages.append(Message.model_validate(_m))
                     except Exception as e:
                         logger.warning(f"Failed to validate message: {e}")
-        # Add the User Messages to the messages list
-        messages_for_model.extend(user_messages)
-        # Update the run_response messages with the messages list
-        self.run_response.messages = messages_for_model
 
-        return system_message, user_messages, messages_for_model
-
-    def save_run_response_to_file(self, message: Optional[Union[str, List, Dict, Message]] = None) -> None:
-        if self.save_response_to_file is not None and self.run_response is not None:
-            message_str = None
-            if message is not None:
-                if isinstance(message, str):
-                    message_str = message
-                else:
-                    logger.warning("Did not use message in output file name: message is not a string")
-            try:
-                fn = self.save_response_to_file.format(
-                    name=self.name, session_id=self.session_id, user_id=self.user_id, message=message_str
-                )
-                fn_path = Path(fn)
-                if not fn_path.parent.exists():
-                    fn_path.parent.mkdir(parents=True, exist_ok=True)
-                if isinstance(self.run_response.content, str):
-                    fn_path.write_text(self.run_response.content)
-                else:
-                    fn_path.write_text(json.dumps(self.run_response.content, indent=2))
-            except Exception as e:
-                logger.warning(f"Failed to save output to file: {e}")
-
-    def update_run_response_with_reasoning(
-        self, reasoning_steps: List[ReasoningStep], reasoning_agent_messages: List[Message]
-    ):
-        if self.run_response.extra_data is None:
-            self.run_response.extra_data = RunResponseExtraData()
-
-        extra_data = self.run_response.extra_data
-
-        # Update reasoning_steps
-        if extra_data.reasoning_steps is None:
-            extra_data.reasoning_steps = reasoning_steps
-        else:
-            extra_data.reasoning_steps.extend(reasoning_steps)
-
-        # Update reasoning_messages
-        if extra_data.reasoning_messages is None:
-            extra_data.reasoning_messages = reasoning_agent_messages
-        else:
-            extra_data.reasoning_messages.extend(reasoning_agent_messages)
-
-    def aggregate_metrics_from_messages(self, messages: List[Message]) -> Dict[str, Any]:
-        aggregated_metrics: Dict[str, Any] = defaultdict(list)
-
-        # Use a defaultdict(list) to collect all values for each assisntant message
-        for m in messages:
-            if m.role == "assistant" and m.metrics is not None:
-                for k, v in m.metrics.items():
-                    aggregated_metrics[k].append(v)
-        return aggregated_metrics
+        return run_messages
 
     def create_run_response(
         self,
@@ -2215,8 +2090,121 @@ class Agent:
             return transfer_instructions
         return ""
 
+    def get_relevant_docs_from_knowledge(
+        self, query: str, num_documents: Optional[int] = None, **kwargs
+    ) -> Optional[List[Dict[str, Any]]]:
+        """Return a list of references from the knowledge base"""
+
+        if self.retriever is not None:
+            retriever_kwargs = {"agent": self, "query": query, "num_documents": num_documents, **kwargs}
+            return self.retriever(**retriever_kwargs)
+
+        if self.knowledge is None:
+            return None
+
+        relevant_docs: List[Document] = self.knowledge.search(query=query, num_documents=num_documents, **kwargs)
+        if len(relevant_docs) == 0:
+            return None
+        return [doc.to_dict() for doc in relevant_docs]
+
+    def convert_documents_to_string(self, docs: List[Dict[str, Any]]) -> str:
+        if docs is None or len(docs) == 0:
+            return ""
+
+        if self.references_format == "yaml":
+            import yaml
+
+            return yaml.dump(docs)
+
+        return json.dumps(docs, indent=2)
+
+    def convert_context_to_string(self, context: Dict[str, Any]) -> str:
+        """Convert the context dictionary to a string representation.
+
+        Args:
+            context: Dictionary containing context data
+
+        Returns:
+            String representation of the context, or empty string if conversion fails
+        """
+        if context is None:
+            return ""
+
+        try:
+            return json.dumps(context, indent=2, default=str)
+        except (TypeError, ValueError, OverflowError) as e:
+            logger.warning(f"Failed to convert context to JSON: {e}")
+            # Attempt a fallback conversion for non-serializable objects
+            sanitized_context = {}
+            for key, value in context.items():
+                try:
+                    # Try to serialize each value individually
+                    json.dumps({key: value}, default=str)
+                    sanitized_context[key] = value
+                except Exception:
+                    # If serialization fails, convert to string representation
+                    sanitized_context[key] = str(value)
+
+            try:
+                return json.dumps(sanitized_context, indent=2)
+            except Exception as e:
+                logger.error(f"Failed to convert sanitized context to JSON: {e}")
+                return str(context)
+
+    def save_run_response_to_file(self, message: Optional[Union[str, List, Dict, Message]] = None) -> None:
+        if self.save_response_to_file is not None and self.run_response is not None:
+            message_str = None
+            if message is not None:
+                if isinstance(message, str):
+                    message_str = message
+                else:
+                    logger.warning("Did not use message in output file name: message is not a string")
+            try:
+                fn = self.save_response_to_file.format(
+                    name=self.name, session_id=self.session_id, user_id=self.user_id, message=message_str
+                )
+                fn_path = Path(fn)
+                if not fn_path.parent.exists():
+                    fn_path.parent.mkdir(parents=True, exist_ok=True)
+                if isinstance(self.run_response.content, str):
+                    fn_path.write_text(self.run_response.content)
+                else:
+                    fn_path.write_text(json.dumps(self.run_response.content, indent=2))
+            except Exception as e:
+                logger.warning(f"Failed to save output to file: {e}")
+
+    def update_run_response_with_reasoning(
+        self, reasoning_steps: List[ReasoningStep], reasoning_agent_messages: List[Message]
+    ):
+        if self.run_response.extra_data is None:
+            self.run_response.extra_data = RunResponseExtraData()
+
+        extra_data = self.run_response.extra_data
+
+        # Update reasoning_steps
+        if extra_data.reasoning_steps is None:
+            extra_data.reasoning_steps = reasoning_steps
+        else:
+            extra_data.reasoning_steps.extend(reasoning_steps)
+
+        # Update reasoning_messages
+        if extra_data.reasoning_messages is None:
+            extra_data.reasoning_messages = reasoning_agent_messages
+        else:
+            extra_data.reasoning_messages.extend(reasoning_agent_messages)
+
+    def aggregate_metrics_from_messages(self, messages: List[Message]) -> Dict[str, Any]:
+        aggregated_metrics: Dict[str, Any] = defaultdict(list)
+
+        # Use a defaultdict(list) to collect all values for each assisntant message
+        for m in messages:
+            if m.role == "assistant" and m.metrics is not None:
+                for k, v in m.metrics.items():
+                    aggregated_metrics[k].append(v)
+        return aggregated_metrics
+
     ###########################################################################
-    # Handle images and videos
+    # Handle images, videos and audio
     ###########################################################################
 
     def add_image(self, image: Image) -> None:

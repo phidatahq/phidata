@@ -1,9 +1,7 @@
 from copy import deepcopy
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
-
-from pydantic import BaseModel, ConfigDict
 
 from agno.memory.classifier import MemoryClassifier
 from agno.memory.db import MemoryDb
@@ -16,12 +14,11 @@ from agno.run.response import RunResponse
 from agno.utils.log import logger
 
 
-class AgentRun(BaseModel):
+@dataclass
+class AgentRun:
     message: Optional[Message] = None
     messages: Optional[List[Message]] = None
     response: Optional[RunResponse] = None
-
-    model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
 class MemoryRetrieval(str, Enum):
@@ -30,19 +27,20 @@ class MemoryRetrieval(str, Enum):
     semantic = "semantic"
 
 
-class AgentMemory(BaseModel):
+@dataclass
+class AgentMemory:
     # Runs between the user and agent
     runs: List[AgentRun] = []
     # List of messages sent to the model
     messages: List[Message] = []
     update_system_message_on_change: bool = False
 
+    # Summary of the session
+    summary: Optional[SessionSummary] = None
     # Create and store session summaries
     create_session_summary: bool = False
     # Update session summaries after each run
     update_session_summary_after_run: bool = True
-    # Summary of the session
-    summary: Optional[SessionSummary] = None
     # Summarizer to generate session summaries
     summarizer: Optional[MemorySummarizer] = None
 
@@ -64,27 +62,32 @@ class AgentMemory(BaseModel):
     # True when memory is being updated
     updating_memory: bool = False
 
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
     def to_dict(self) -> Dict[str, Any]:
-        _memory_dict = self.model_dump(
-            exclude_none=True,
-            exclude={
-                "summary",
-                "summarizer",
-                "db",
-                "updating_memory",
-                "memories",
-                "classifier",
-                "manager",
-                "retrieval",
-            },
-        )
+        # Fields to include in the dictionary
+        fields = {
+            "runs",
+            "messages",
+            "update_system_message_on_change",
+            "create_session_summary",
+            "update_session_summary_after_run",
+            "create_user_memories",
+            "update_user_memories_after_run",
+            "user_id",
+            "num_memories",
+        }
+
+        # Convert dataclass to dict, including only specified fields and non-None values
+        memory_dict = {k: v for k, v in asdict(self).items() if k in fields and v is not None}
+
+        # Add summary if it exists
         if self.summary:
-            _memory_dict["summary"] = self.summary.to_dict()
+            memory_dict["summary"] = self.summary.to_dict()
+
+        # Add memories if they exist
         if self.memories:
-            _memory_dict["memories"] = [memory.to_dict() for memory in self.memories]
-        return _memory_dict
+            memory_dict["memories"] = [memory.to_dict() for memory in self.memories]
+
+        return memory_dict
 
     def add_run(self, agent_run: AgentRun) -> None:
         """Adds an AgentRun to the runs list."""
@@ -209,7 +212,10 @@ class AgentMemory(BaseModel):
 
     def load_user_memories(self) -> None:
         """Load memories from memory db for this user."""
+
         if self.db is None:
+            return
+        if not self.user_id:
             return
 
         try:
@@ -359,9 +365,9 @@ class AgentMemory(BaseModel):
         self.summary = None
         self.memories = None
 
-    def deep_copy(self):
+    def deep_copy(self) -> "AgentMemory":
         # Create a shallow copy of the object
-        copied_obj = self.__class__(**self.model_dump())
+        copied_obj = self.__class__(**self.to_dict())
 
         # Manually deepcopy fields that are known to be safe
         for field_name, field_value in self.__dict__.items():

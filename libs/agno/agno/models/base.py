@@ -1,8 +1,7 @@
 import collections.abc
+from dataclasses import dataclass, field
 from types import GeneratorType
 from typing import Any, Callable, Dict, Iterator, List, Optional, Sequence, Union
-
-from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
 from agno.models.message import Message
 from agno.models.response import ModelResponse, ModelResponseEvent
@@ -12,15 +11,16 @@ from agno.utils.log import logger
 from agno.utils.timer import Timer
 
 
-class Model(BaseModel):
+@dataclass
+class Model:
     # ID of the model to use.
-    id: str = Field(..., alias="model")
+    id: str
     # Name for this Model. This is not sent to the Model API.
     name: Optional[str] = None
     # Provider for this Model. This is not sent to the Model API.
-    provider: Optional[str] = Field(None, validate_default=True)
+    provider: Optional[str] = None
     # Metrics collected for this Model. This is not sent to the Model API.
-    metrics: Dict[str, Any] = Field(default_factory=dict)
+    metrics: Dict[str, Any] = field(default_factory=dict)
     response_format: Optional[Any] = None
 
     # A list of tools provided to the Model.
@@ -61,20 +61,18 @@ class Model(BaseModel):
     # Whether the Model supports structured outputs.
     supports_structured_outputs: bool = False
 
-    model_config = ConfigDict(arbitrary_types_allowed=True, populate_by_name=True)
-
-    @field_validator("provider", mode="before")
-    def set_provider(cls, v: Optional[str], info: ValidationInfo) -> str:
-        model_name = info.data.get("name")
-        model_id = info.data.get("id")
-        return v or f"{model_name} ({model_id})"
+    def __post_init__(self):
+        if self.provider is None:
+            self.provider = f"{self.name} ({self.id})"
 
     @property
     def request_kwargs(self) -> Dict[str, Any]:
         raise NotImplementedError
 
     def to_dict(self) -> Dict[str, Any]:
-        _dict = self.model_dump(include={"name", "id", "provider", "metrics"})
+        fields = {"name", "id", "provider", "metrics"}
+        _dict = {field: getattr(self, field) for field in fields if getattr(self, field) is not None}
+        # Add functions if they exist
         if self.functions:
             _dict["functions"] = {k: v.to_dict() for k, v in self.functions.items()}
             _dict["tool_call_limit"] = self.tool_call_limit

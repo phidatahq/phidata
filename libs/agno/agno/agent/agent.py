@@ -190,10 +190,6 @@ class Agent:
     create_default_user_message: bool = True
 
     # --- Agent Response Settings ---
-    # Stream the response from the Agent
-    stream: Optional[bool] = None
-    # Stream the intermediate steps from the Agent
-    stream_intermediate_steps: bool = False
     # Provide a response model to get the response as a Pydantic model
     response_model: Optional[Type[BaseModel]] = None
     # If True, the response from the Model is converted into the response_model
@@ -203,6 +199,12 @@ class Agent:
     structured_outputs: bool = False
     # Save the response to a file
     save_response_to_file: Optional[str] = None
+
+    # --- Agent Streaming ---
+    # Stream the response from the Agent
+    stream: Optional[bool] = None
+    # Stream the intermediate steps from the Agent
+    stream_intermediate_steps: bool = False
 
     # --- Agent Team ---
     # The team of agents that this agent can transfer tasks to.
@@ -296,12 +298,12 @@ class Agent:
         user_message: Optional[Union[List, Dict, str, Callable]] = None,
         user_message_role: str = "user",
         create_default_user_message: bool = True,
-        stream: Optional[bool] = None,
-        stream_intermediate_steps: bool = False,
         response_model: Optional[Type[Any]] = None,
         parse_response: bool = True,
         structured_outputs: bool = False,
         save_response_to_file: Optional[str] = None,
+        stream: Optional[bool] = None,
+        stream_intermediate_steps: bool = False,
         team: Optional[List[Agent]] = None,
         role: Optional[str] = None,
         respond_directly: bool = False,
@@ -376,12 +378,13 @@ class Agent:
         self.user_message_role = user_message_role
         self.create_default_user_message = create_default_user_message
 
-        self.stream = stream and response_model is None
-        self.stream_intermediate_steps = stream_intermediate_steps and self.stream
         self.response_model = response_model
         self.parse_response = parse_response
         self.structured_outputs = structured_outputs
         self.save_response_to_file = save_response_to_file
+
+        self.stream = stream
+        self.stream_intermediate_steps = stream_intermediate_steps
 
         self.team = team
         self.role = role
@@ -424,6 +427,10 @@ class Agent:
         else:
             set_log_level_to_info()
         return debug_mode
+
+    @property
+    def is_streamable(self) -> bool:
+        return self.response_model is None
 
     @property
     def has_team(self) -> bool:
@@ -1263,7 +1270,10 @@ class Agent:
         # 1.1 Set agent_id and session_id
         self.set_agent_id()
         self.set_session_id()
-        # 1.2 Create a run_id and RunResponse
+        # 1.2 Set streaming and stream intermediate steps
+        self.stream = self.stream and self.is_streamable
+        self.stream_intermediate_steps = stream_intermediate_steps and self.stream
+        # 1.3 Create a run_id and RunResponse
         self.run_id = str(uuid4())
         self.run_response = RunResponse(run_id=self.run_id, session_id=self.session_id, agent_id=self.agent_id)
 

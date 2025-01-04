@@ -13,3 +13,6 @@ print_heading "Formatting agno_docker"
 
 print_heading "Running: ruff format ${AGNO_DOCKER_DIR}"
 ruff format ${AGNO_DOCKER_DIR}
+
+print_heading "Running: ruff check --select I --fix ${AGNO_DOCKER_DIR}"
+ruff check --select I --fix ${AGNO_DOCKER_DIR}

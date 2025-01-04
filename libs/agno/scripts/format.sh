@@ -13,3 +13,6 @@ print_heading "Formatting agno"
 
 print_heading "Running: ruff format ${AGNO_DIR}"
 ruff format ${AGNO_DIR}
+
+print_heading "Running: ruff check --select I --fix ${AGNO_DIR}"
+ruff check --select I --fix ${AGNO_DIR}

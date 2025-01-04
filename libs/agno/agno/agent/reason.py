@@ -57,7 +57,9 @@ class Reason(AgentStep):
             return
         if reasoning_agent.response_model is not None and not isinstance(reasoning_agent.response_model, type):
             if not issubclass(reasoning_agent.response_model, ReasoningSteps):
-                logger.warning("Reasoning agent response model should be `ReasoningSteps`, continuing regular session...")
+                logger.warning(
+                    "Reasoning agent response model should be `ReasoningSteps`, continuing regular session..."
+                )
             return
 
         # Ensure the reasoning model and agent do not show tool calls

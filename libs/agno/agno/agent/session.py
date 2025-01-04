@@ -52,5 +52,5 @@ class AgentSession:
         return {
             "model": self.agent_data.get("model") if self.agent_data else None,
             "created_at": self.created_at,
-            "updated_at": self.updated_at
+            "updated_at": self.updated_at,
         }

@@ -30,13 +30,13 @@ from agno.agent.session import AgentSession
 from agno.agent.step import AgentStep
 from agno.agent.reason import Reason
 from agno.agent.respond import Respond
-from agno.model.content import Image, Video, Audio
 from agno.reasoning.step import ReasoningStep, ReasoningSteps, NextAction
 from agno.run.response import RunEvent, RunResponse, RunResponseExtraData
 from agno.knowledge.agent import AgentKnowledge
-from agno.model.base import Model
-from agno.model.message import Message, MessageReferences
-from agno.model.response import ModelResponse, ModelResponseEvent
+from agno.models.base import Model
+from agno.models.content import Image, Video, Audio
+from agno.models.message import Message, MessageReferences
+from agno.models.response import ModelResponse, ModelResponseEvent
 from agno.memory.agent import AgentMemory, MemoryRetrieval, Memory, AgentRun, SessionSummary  # noqa: F401
 from agno.storage.agent.base import AgentStorage
 from agno.tools import Tool, Toolkit, Function
@@ -632,7 +632,7 @@ class Agent:
         # Use the default Model (OpenAIChat) if no model is provided
         if self.model is None:
             try:
-                from agno.model.openai import OpenAIChat
+                from agno.models.openai import OpenAIChat
             except ModuleNotFoundError as e:
                 logger.exception(e)
                 logger.error(
@@ -713,9 +713,11 @@ class Agent:
                 logger.debug("Memories loaded")
 
     def get_agent_data(self) -> Dict[str, Any]:
-        agent_data = self.agent_data or {}
+        agent_data = {}
         if self.name is not None:
             agent_data["name"] = self.name
+        if self.agent_id is not None:
+            agent_data["agent_id"] = self.agent_id
         if self.model is not None:
             agent_data["model"] = self.model.to_dict()
         return agent_data

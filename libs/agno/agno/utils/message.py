@@ -1,6 +1,6 @@
 from typing import Dict, List, Union
 
-from agno.model.message import Message
+from agno.models.message import Message
 
 
 def get_text_from_message(message: Union[List, Dict, str, Message]) -> str:

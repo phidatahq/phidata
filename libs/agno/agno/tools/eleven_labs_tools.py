@@ -3,7 +3,7 @@ from io import BytesIO
 from pathlib import Path
 from typing import Iterator
 
-from agno.model.content import Audio
+from agno.models.content import Audio
 from typing import Optional, Literal
 from os import getenv, path
 from agno.tools import Toolkit

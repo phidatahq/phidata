@@ -3,9 +3,9 @@ from __future__ import annotations
 from typing import cast, List, Iterator, Optional
 
 from agno.agent.step.base import AgentStep
-from agno.model.base import Model
-from agno.model.message import Message
-from agno.model.response import ModelResponse, ModelResponseEvent
+from agno.models.base import Model
+from agno.models.message import Message
+from agno.models.response import ModelResponse, ModelResponseEvent
 from agno.run.response import RunResponse, RunEvent
 
 

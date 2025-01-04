@@ -5,8 +5,8 @@ from typing import Optional
 from uuid import uuid4
 
 from agno.agent import Agent
-from agno.model.content import Video, Image
-from agno.model.response import FileType
+from agno.models.content import Video, Image
+from agno.models.response import FileType
 from agno.tools import Toolkit
 from agno.utils.log import logger
 

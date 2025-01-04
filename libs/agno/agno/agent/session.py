@@ -1,5 +1,5 @@
 from typing import Optional, Any, Dict
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, asdict
 
 @dataclass
 class AgentSession:
@@ -11,9 +11,13 @@ class AgentSession:
     agent_id: Optional[str] = None
     # ID of the user interacting with this agent
     user_id: Optional[str] = None
+    # Agent Memory
     memory: Optional[Dict[str, Any]] = None
+    # Agent Data: agent_id, name and model
     agent_data: Optional[Dict[str, Any]] = None
+    # User Data: name and model
     user_data: Optional[Dict[str, Any]] = None
+    # Session Data: name and model
     session_data: Optional[Dict[str, Any]] = None
     # The Unix timestamp when this session was created
     created_at: Optional[int] = None

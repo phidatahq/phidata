@@ -66,7 +66,7 @@ class Eval(BaseModel):
             return self.accuracy_evaluator
 
         try:
-            from agno.model.openai import OpenAIChat
+            from agno.models.openai import OpenAIChat
         except ImportError as e:
             logger.exception(e)
             logger.error(

@@ -1,13 +1,14 @@
 import json
 from time import time
 from enum import Enum
+from dataclasses import dataclass, field
 from typing import Optional, Any, Dict, List
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from agno.model.content import Video, Image, Audio
+from agno.models.content import Video, Image, Audio
 from agno.reasoning.step import ReasoningStep
-from agno.model.message import Message, MessageReferences
+from agno.models.message import Message, MessageReferences
 
 
 class RunEvent(str, Enum):

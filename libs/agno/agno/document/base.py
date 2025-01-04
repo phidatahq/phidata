@@ -1,23 +1,21 @@
 from typing import Optional, Dict, Any, List
-
-from pydantic import BaseModel, ConfigDict
+from dataclasses import dataclass, field, asdict
 
 from agno.embedder import Embedder
 
 
-class Document(BaseModel):
-    """Model for managing a document"""
+@dataclass
+class Document:
+    """Dataclass for managing a document"""
 
     content: str
     id: Optional[str] = None
     name: Optional[str] = None
-    meta_data: Dict[str, Any] = {}
+    meta_data: Dict[str, Any] = field(default_factory=dict)
     embedder: Optional[Embedder] = None
     embedding: Optional[List[float]] = None
     usage: Optional[Dict[str, Any]] = None
     reranking_score: Optional[float] = None
-
-    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     def embed(self, embedder: Optional[Embedder] = None) -> None:
         """Embed the document using the provided embedder"""
@@ -30,17 +28,21 @@ class Document(BaseModel):
 
     def to_dict(self) -> Dict[str, Any]:
         """Returns a dictionary representation of the document"""
-
-        return self.model_dump(include={"name", "meta_data", "content"}, exclude_none=True)
+        fields = {"name", "meta_data", "content"}
+        return {
+            field: getattr(self, field)
+            for field in fields
+            if getattr(self, field) is not None or field == "content"  # content is always included
+        }
 
     @classmethod
     def from_dict(cls, document: Dict[str, Any]) -> "Document":
         """Returns a Document object from a dictionary representation"""
-
-        return cls.model_validate(**document)
+        return cls(**document)
 
     @classmethod
     def from_json(cls, document: str) -> "Document":
         """Returns a Document object from a json string representation"""
+        import json
 
-        return cls.model_validate_json(document)
+        return cls(**json.loads(document))

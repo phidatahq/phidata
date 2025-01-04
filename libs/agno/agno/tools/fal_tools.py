@@ -8,7 +8,7 @@ from typing import Optional
 from agno.agent import Agent
 from agno.tools import Toolkit
 from agno.utils.log import logger
-from agno.model.content import Video, Image
+from agno.models.content import Video, Image
 from uuid import uuid4
 
 

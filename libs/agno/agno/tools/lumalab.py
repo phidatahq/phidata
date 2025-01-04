@@ -6,7 +6,7 @@ from typing import Optional, Dict, Any, Literal, TypedDict
 from agno.agent import Agent
 from agno.tools import Toolkit
 from agno.utils.log import logger
-from agno.model.content import Video
+from agno.models.content import Video
 
 try:
     from lumaai import LumaAI  # type: ignore

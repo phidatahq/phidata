@@ -1,7 +1,7 @@
 from typing import Any, Dict, Optional, Callable, get_type_hints, Type, TypeVar, Union, List
 from pydantic import BaseModel, Field, validate_call
 
-from agno.model.message import Message
+from agno.models.message import Message
 from agno.utils.log import logger
 
 T = TypeVar("T")

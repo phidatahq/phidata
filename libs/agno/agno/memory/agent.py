@@ -10,7 +10,7 @@ from agno.memory.manager import MemoryManager
 from agno.memory.memory import Memory
 from agno.memory.summary import SessionSummary
 from agno.memory.summarizer import MemorySummarizer
-from agno.model.message import Message
+from agno.models.message import Message
 from agno.run.response import RunResponse
 from agno.utils.log import logger
 

@@ -2,9 +2,9 @@ from typing import List, Optional
 
 from agno.document.chunking.strategy import ChunkingStrategy
 from agno.document.base import Document
-from agno.model.openai import OpenAIChat
-from agno.model.base import Model
-from agno.model.message import Message
+from agno.models.openai import OpenAIChat
+from agno.models.base import Model
+from agno.models.message import Message
 
 
 class AgenticChunking(ChunkingStrategy):

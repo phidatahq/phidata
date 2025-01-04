@@ -441,6 +441,640 @@ class Agent:
         """Get an identifier for the agent"""
         return self.name or self.agent_id
 
+    def _run(
+        self,
+        message: Optional[Union[str, List, Dict, Message]] = None,
+        *,
+        stream: bool = False,
+        audio: Optional[Any] = None,
+        images: Optional[Sequence[Any]] = None,
+        videos: Optional[Sequence[Any]] = None,
+        messages: Optional[Sequence[Union[Dict, Message]]] = None,
+        stream_intermediate_steps: bool = False,
+        **kwargs: Any,
+    ) -> Iterator[RunResponse]:
+        """Run the Agent and yield the RunResponse.
+
+        Steps:
+        1. Prepare the Agent for the run
+        2. Update the Model and resolve context
+        3. Read existing session from storage
+        4. Prepare messages for this run
+        5. Prepare the steps for this run
+        6. Start the Run by yielding a RunStarted event
+        7. Run the Agent Steps
+        8. Update the RunResponse messages and metrics
+        9. Update Agent Memory
+        10. Save session to storage
+        11. Save output to file if save_response_to_file is set
+        """
+        # 1. Prepare the Agent for the run
+        # 1.1 Set agent_id and session_id
+        self.set_agent_id()
+        self.set_session_id()
+        # 1.2 Set streaming and stream intermediate steps
+        self.stream = self.stream or (stream and self.is_streamable)
+        self.stream_intermediate_steps = self.stream_intermediate_steps or (stream_intermediate_steps and self.stream)
+        # 1.3 Create a run_id and RunResponse
+        self.run_id = str(uuid4())
+        self.run_response = RunResponse(run_id=self.run_id, session_id=self.session_id, agent_id=self.agent_id)
+
+        logger.debug(f"*********** Agent Run Start: {self.run_response.run_id} ***********")
+
+        # 2. Update the Model and resolve context
+        self.update_model()
+        self.run_response.model = self.model.id if self.model is not None else None
+        if self.context is not None and self.resolve_context:
+            self.resolve_context()
+
+        # 3. Read existing session from storage
+        self.read_from_storage()
+
+        # 4. Prepare messages for this run
+        system_message, user_messages, messages_for_run = self.get_messages_for_run(
+            message=message, audio=audio, images=images, videos=videos, messages=messages, **kwargs
+        )
+
+        # 5. Prepare the steps for this run
+        if len(self.steps) == 0:
+            if self.reasoning:
+                self.steps.append(Reason())
+            self.steps.append(Respond())
+
+        # Get the index of the last "user" message in messages_for_run
+        # We track this so we can add messages after this index to the RunResponse and Memory
+        index_of_last_user_message = len(messages_for_run)
+
+        # 6. Start the Run by yielding a RunStarted event
+        if self.stream_intermediate_steps:
+            yield self.create_run_response("Run started", RunEvent.run_started)
+
+        # 7. Run the Agent Steps
+        for step in self.steps:
+            try:
+                logger.debug(f"Step: {step.__class__.__name__} Started")
+                logger.debug(f"Messages for run: {messages_for_run}")
+                yield from step.run(
+                    agent=self,
+                    messages=messages_for_run,
+                    user_messages=user_messages,
+                    system_message=system_message,
+                )
+                logger.debug(f"Step: {step.__class__.__name__} Completed")
+            except Exception as e:
+                logger.error(f"Step: {step.__class__.__name__} Error: {e}")
+                raise
+
+        # 8. Update the RunResponse messages and metrics
+        # Build a list of messages that should be added to the RunResponse
+        messages_for_run_response = [m for m in messages_for_run if m.add_to_agent_memory]
+        self.run_response.messages = messages_for_run_response
+        self.run_response.metrics = self.aggregate_metrics_from_messages(messages_for_run_response)
+
+        # 9. Update Agent Memory
+        # Add the system message to the memory
+        if system_message is not None:
+            self.memory.add_system_message(system_message, system_message_role=self.system_message_role)
+        # Build a list of messages that should be added to the AgentMemory
+        messages_for_memory = user_messages
+        # Add messages from messages_for_run after the last user message
+        for m in messages_for_run[index_of_last_user_message:]:
+            if m.add_to_agent_memory:
+                messages_for_memory.append(m)
+        self.memory.add_messages(messages=messages_for_memory)
+
+        # Yield a UpdatingMemory event
+        if self.stream_intermediate_steps:
+            yield self.create_run_response(
+                content="Memory updated",
+                event=RunEvent.updating_memory,
+            )
+
+        # Create an AgentRun object to add to memory
+        agent_run = AgentRun(response=self.run_response)
+        if message is not None:
+            user_message_for_memory: Optional[Message] = None
+            if isinstance(message, str):
+                user_message_for_memory = Message(role=self.user_message_role, content=message)
+            elif isinstance(message, Message):
+                user_message_for_memory = message
+            if user_message_for_memory is not None:
+                agent_run.message = user_message_for_memory
+                # Update the memories with the user message if needed
+                if self.memory.create_user_memories and self.memory.update_user_memories_after_run:
+                    self.memory.update_memory(input=user_message_for_memory.get_content_string())
+        elif messages is not None and len(messages) > 0:
+            for _m in messages:
+                _um = None
+                if isinstance(_m, Message):
+                    _um = _m
+                elif isinstance(_m, dict):
+                    try:
+                        _um = Message.model_validate(_m)
+                    except Exception as e:
+                        logger.warning(f"Failed to validate message: {e}")
+                else:
+                    logger.warning(f"Unsupported message type: {type(_m)}")
+                    continue
+                if _um:
+                    if agent_run.messages is None:
+                        agent_run.messages = []
+                    agent_run.messages.append(_um)
+                    if self.memory.create_user_memories and self.memory.update_user_memories_after_run:
+                        self.memory.update_memory(input=_um.get_content_string())
+                else:
+                    logger.warning("Unable to add message to memory")
+        # Add AgentRun to memory
+        self.memory.add_run(agent_run)
+        # Update the session summary if needed
+        if self.memory.create_session_summary and self.memory.update_session_summary_after_run:
+            self.memory.update_summary()
+
+        # 10. Save session to storage
+        self.write_to_storage()
+
+        # 11. Save output to file if save_response_to_file is set
+        self.save_run_response_to_file(message=message)
+
+        # Set the run_input
+        if message is not None:
+            if isinstance(message, str):
+                self.run_input = message
+            elif isinstance(message, Message):
+                self.run_input = message.to_dict()
+            else:
+                self.run_input = message
+        elif messages is not None:
+            self.run_input = [m.to_dict() if isinstance(m, Message) else m for m in messages]
+        # Log Agent Run
+        self.log_agent_run()
+
+        logger.debug(f"*********** Agent Run End: {self.run_response.run_id} ***********")
+        if self.stream_intermediate_steps:
+            yield self.create_run_response(
+                content=self.run_response.content,
+                event=RunEvent.run_completed,
+            )
+        # -*- Yield final response if not streaming so that run() can get the response
+        if not self.stream:
+            yield self.run_response
+
+    @overload
+    def run(
+        self,
+        message: Optional[Union[str, List, Dict, Message]] = None,
+        *,
+        stream: Literal[False] = False,
+        audio: Optional[Any] = None,
+        images: Optional[Sequence[Any]] = None,
+        videos: Optional[Sequence[Any]] = None,
+        messages: Optional[Sequence[Union[Dict, Message]]] = None,
+        **kwargs: Any,
+    ) -> RunResponse: ...
+
+    @overload
+    def run(
+        self,
+        message: Optional[Union[str, List, Dict, Message]] = None,
+        *,
+        stream: Literal[True] = True,
+        audio: Optional[Any] = None,
+        images: Optional[Sequence[Any]] = None,
+        videos: Optional[Sequence[Any]] = None,
+        messages: Optional[Sequence[Union[Dict, Message]]] = None,
+        stream_intermediate_steps: bool = False,
+        **kwargs: Any,
+    ) -> Iterator[RunResponse]: ...
+
+    def run(
+        self,
+        message: Optional[Union[str, List, Dict, Message]] = None,
+        *,
+        stream: bool = False,
+        audio: Optional[Any] = None,
+        images: Optional[Sequence[Any]] = None,
+        videos: Optional[Sequence[Any]] = None,
+        messages: Optional[Sequence[Union[Dict, Message]]] = None,
+        stream_intermediate_steps: bool = False,
+        **kwargs: Any,
+    ) -> Union[RunResponse, Iterator[RunResponse]]:
+        """Run the Agent with a message and return the response."""
+
+        # If a response_model is set, return the response as a structured output
+        if self.response_model is not None and self.parse_response:
+            # Set stream=False and run the agent
+            logger.debug("Setting stream=False as response_model is set")
+            run_response: RunResponse = next(
+                self._run(
+                    message=message,
+                    stream=False,
+                    audio=audio,
+                    images=images,
+                    videos=videos,
+                    messages=messages,
+                    stream_intermediate_steps=stream_intermediate_steps,
+                    **kwargs,
+                )
+            )
+
+            # If the model natively supports structured outputs, the content is already in the structured format
+            if self.structured_outputs:
+                # Do a final check confirming the content is in the response_model format
+                if isinstance(run_response.content, self.response_model):
+                    return run_response
+
+            # Otherwise convert the response to the structured format
+            if isinstance(run_response.content, str):
+                try:
+                    structured_output = None
+                    try:
+                        structured_output = self.response_model.model_validate_json(run_response.content)
+                    except ValidationError as exc:
+                        logger.warning(f"Failed to convert response to pydantic model: {exc}")
+                        # Check if response starts with ```json
+                        if run_response.content.startswith("```json"):
+                            run_response.content = run_response.content.replace("```json\n", "").replace("\n```", "")
+                            try:
+                                structured_output = self.response_model.model_validate_json(run_response.content)
+                            except ValidationError as exc:
+                                logger.warning(f"Failed to convert response to pydantic model: {exc}")
+
+                    # -*- Update Agent response
+                    if structured_output is not None:
+                        run_response.content = structured_output
+                        run_response.content_type = self.response_model.__name__
+                        if self.run_response is not None:
+                            self.run_response.content = structured_output
+                            self.run_response.content_type = self.response_model.__name__
+                    else:
+                        logger.warning("Failed to convert response to response_model")
+                except Exception as e:
+                    logger.warning(f"Failed to convert response to output model: {e}")
+            else:
+                logger.warning("Something went wrong. Run response content is not a string")
+            return run_response
+        else:
+            if stream and self.is_streamable:
+                resp = self._run(
+                    message=message,
+                    stream=True,
+                    audio=audio,
+                    images=images,
+                    videos=videos,
+                    messages=messages,
+                    stream_intermediate_steps=stream_intermediate_steps,
+                    **kwargs,
+                )
+                return resp
+            else:
+                resp = self._run(
+                    message=message,
+                    stream=False,
+                    audio=audio,
+                    images=images,
+                    videos=videos,
+                    messages=messages,
+                    stream_intermediate_steps=stream_intermediate_steps,
+                    **kwargs,
+                )
+                return next(resp)
+
+    async def _arun(
+        self,
+        message: Optional[Union[str, List, Dict, Message]] = None,
+        *,
+        stream: bool = False,
+        audio: Optional[Any] = None,
+        images: Optional[Sequence[Any]] = None,
+        videos: Optional[Sequence[Any]] = None,
+        messages: Optional[Sequence[Union[Dict, Message]]] = None,
+        stream_intermediate_steps: bool = False,
+        **kwargs: Any,
+    ) -> AsyncIterator[RunResponse]:
+        """Async Run the Agent with a message and return the response.
+
+        Steps:
+        1. Update the Model (set defaults, add tools, etc.)
+        2. Read existing session from storage
+        3. Prepare messages for this run
+        4. Reason about the task if reasoning is enabled
+        5. Generate a response from the Model (includes running function calls)
+        6. Update Memory
+        7. Save session to storage
+        8. Save output to file if save_output_to_file is set
+        """
+        # Check if streaming is enabled
+        self.stream = stream and self.is_streamable
+        # Check if streaming intermediate steps is enabled
+        self.stream_intermediate_steps = stream_intermediate_steps and self.stream
+        # Create the run_response object
+        self.run_id = str(uuid4())
+        self.run_response = RunResponse(run_id=self.run_id, session_id=self.session_id, agent_id=self.agent_id)
+
+        logger.debug(f"*********** Async Agent Run Start: {self.run_response.run_id} ***********")
+
+        # 1. Update the Model (set defaults, add tools, etc.)
+        self.update_model()
+        self.run_response.model = self.model.id if self.model is not None else None
+
+        # 2. Read existing session from storage
+        self.read_from_storage()
+
+        # 3. Prepare messages for this run
+        system_message, user_messages, messages_for_model = self.get_messages_for_run(
+            message=message, audio=audio, images=images, videos=videos, messages=messages, **kwargs
+        )
+
+        # 4. Reason about the task if reasoning is enabled
+        if self.reasoning:
+            areason_generator = self.areason(
+                system_message=system_message,
+                user_messages=user_messages,
+                messages_for_model=messages_for_model,
+                stream_intermediate_steps=self.stream_intermediate_steps,
+            )
+
+            if self.stream:
+                async for item in areason_generator:
+                    yield item
+            else:
+                # Consume the generator without yielding
+                async for _ in areason_generator:
+                    pass
+
+        # Get the number of messages in messages_for_model that form the input for this run
+        # We track these to skip when updating memory
+        num_input_messages = len(messages_for_model)
+
+        # Yield a RunStarted event
+        if self.stream_intermediate_steps:
+            yield self.generic_run_response("Run started", RunEvent.run_started)
+
+        # 5. Generate a response from the Model (includes running function calls)
+        model_response: ModelResponse
+        self.model = cast(Model, self.model)
+        if stream and self.is_streamable:
+            model_response = ModelResponse(content="")
+            model_response_stream = self.model.aresponse_stream(messages=messages_for_model)
+            async for model_response_chunk in model_response_stream:  # type: ignore
+                if model_response_chunk.event == ModelResponseEvent.assistant_response.value:
+                    if model_response_chunk.content is not None and model_response.content is not None:
+                        model_response.content += model_response_chunk.content
+                        self.run_response.content = model_response_chunk.content
+                        self.run_response.created_at = model_response_chunk.created_at
+                        yield self.run_response
+                elif model_response_chunk.event == ModelResponseEvent.tool_call_started.value:
+                    # Add tool call to the run_response
+                    tool_call_dict = model_response_chunk.tool_call
+                    if tool_call_dict is not None:
+                        if self.run_response.tools is None:
+                            self.run_response.tools = []
+                        self.run_response.tools.append(tool_call_dict)
+                    if self.stream_intermediate_steps:
+                        yield self.generic_run_response(
+                            content=model_response_chunk.content,
+                            event=RunEvent.tool_call_started,
+                        )
+                elif model_response_chunk.event == ModelResponseEvent.tool_call_completed.value:
+                    # Update the existing tool call in the run_response
+                    tool_call_dict = model_response_chunk.tool_call
+                    if tool_call_dict is not None and self.run_response.tools:
+                        tool_call_id = tool_call_dict["tool_call_id"]
+                        # Use a dictionary comprehension to create a mapping of tool_call_id to index
+                        tool_call_index_map = {tc["tool_call_id"]: i for i, tc in enumerate(self.run_response.tools)}
+                        # Update the tool call if it exists
+                        if tool_call_id in tool_call_index_map:
+                            self.run_response.tools[tool_call_index_map[tool_call_id]] = tool_call_dict
+                    if self.stream_intermediate_steps:
+                        yield self.generic_run_response(
+                            content=model_response_chunk.content,
+                            event=RunEvent.tool_call_completed,
+                        )
+        else:
+            model_response = await self.model.aresponse(messages=messages_for_model)
+            # Handle structured outputs
+            if self.response_model is not None and self.structured_outputs and model_response.parsed is not None:
+                self.run_response.content = model_response.parsed
+                self.run_response.content_type = self.response_model.__name__
+            else:
+                self.run_response.content = model_response.content
+            self.run_response.messages = messages_for_model
+            self.run_response.created_at = model_response.created_at
+
+        # Build a list of messages that belong to this particular run
+        run_messages = user_messages + messages_for_model[num_input_messages:]
+        if system_message is not None:
+            run_messages.insert(0, system_message)
+        # Update the run_response
+        self.run_response.messages = run_messages
+        self.run_response.metrics = self._aggregate_metrics_from_run_messages(run_messages)
+        # Update the run_response content if streaming as run_response will only contain the last chunk
+        if self.stream:
+            self.run_response.content = model_response.content
+            if model_response.audio is not None:
+                self.run_response.response_audio = model_response.audio
+
+        # 6. Update Memory
+        if self.stream_intermediate_steps:
+            yield self.generic_run_response(
+                content="Updating memory",
+                event=RunEvent.updating_memory,
+            )
+
+        # Add the system message to the memory
+        if system_message is not None:
+            self.memory.add_system_message(system_message, system_message_role=self.system_message_role)
+        # Add the user messages and model response messages to memory
+        self.memory.add_messages(messages=(user_messages + messages_for_model[num_input_messages:]))
+
+        # Create an AgentRun object to add to memory
+        agent_run = AgentRun(response=self.run_response)
+        if message is not None:
+            user_message_for_memory: Optional[Message] = None
+            if isinstance(message, str):
+                user_message_for_memory = Message(role=self.user_message_role, content=message)
+            elif isinstance(message, Message):
+                user_message_for_memory = message
+            if user_message_for_memory is not None:
+                agent_run.message = user_message_for_memory
+                # Update the memories with the user message if needed
+                if self.memory.create_user_memories and self.memory.update_user_memories_after_run:
+                    await self.memory.aupdate_memory(input=user_message_for_memory.get_content_string())
+        elif messages is not None and len(messages) > 0:
+            for _m in messages:
+                _um = None
+                if isinstance(_m, Message):
+                    _um = _m
+                elif isinstance(_m, dict):
+                    try:
+                        _um = Message.model_validate(_m)
+                    except Exception as e:
+                        logger.warning(f"Failed to validate message: {e}")
+                else:
+                    logger.warning(f"Unsupported message type: {type(_m)}")
+                    continue
+                if _um:
+                    if agent_run.messages is None:
+                        agent_run.messages = []
+                    agent_run.messages.append(_um)
+                    if self.memory.create_user_memories and self.memory.update_user_memories_after_run:
+                        await self.memory.aupdate_memory(input=_um.get_content_string())
+                else:
+                    logger.warning("Unable to add message to memory")
+        # Add AgentRun to memory
+        self.memory.add_run(agent_run)
+
+        # Update the session summary if needed
+        if self.memory.create_session_summary and self.memory.update_session_summary_after_run:
+            await self.memory.aupdate_summary()
+
+        # 7. Save session to storage
+        self.write_to_storage()
+
+        # 8. Save output to file if save_response_to_file is set
+        self.save_run_response_to_file(message=message)
+
+        # 9. Set the run_input
+        if message is not None:
+            if isinstance(message, str):
+                self.run_input = message
+            elif isinstance(message, Message):
+                self.run_input = message.to_dict()
+            else:
+                self.run_input = message
+        elif messages is not None:
+            self.run_input = [m.to_dict() if isinstance(m, Message) else m for m in messages]
+
+        # Log Agent Run
+        await self.alog_agent_run()
+
+        logger.debug(f"*********** Async Agent Run End: {self.run_response.run_id} ***********")
+        if self.stream_intermediate_steps:
+            yield self.generic_run_response(
+                content=self.run_response.content,
+                event=RunEvent.run_completed,
+            )
+
+        # -*- Yield final response if not streaming so that run() can get the response
+        if not self.stream:
+            yield self.run_response
+
+    async def arun(
+        self,
+        message: Optional[Union[str, List, Dict, Message]] = None,
+        *,
+        stream: bool = False,
+        audio: Optional[Any] = None,
+        images: Optional[Sequence[Any]] = None,
+        videos: Optional[Sequence[Any]] = None,
+        messages: Optional[Sequence[Union[Dict, Message]]] = None,
+        stream_intermediate_steps: bool = False,
+        **kwargs: Any,
+    ) -> Any:
+        """Async Run the Agent with a message and return the response."""
+
+        # If a response_model is set, return the response as a structured output
+        if self.response_model is not None and self.parse_response:
+            # Set stream=False and run the agent
+            logger.debug("Setting stream=False as response_model is set")
+            run_response = await self._arun(
+                message=message,
+                stream=False,
+                audio=audio,
+                images=images,
+                videos=videos,
+                messages=messages,
+                stream_intermediate_steps=stream_intermediate_steps,
+                **kwargs,
+            ).__anext__()
+
+            # If the model natively supports structured outputs, the content is already in the structured format
+            if self.structured_outputs:
+                # Do a final check confirming the content is in the response_model format
+                if isinstance(run_response.content, self.response_model):
+                    return run_response
+
+            # Otherwise convert the response to the structured format
+            if isinstance(run_response.content, str):
+                try:
+                    structured_output = None
+                    try:
+                        structured_output = self.response_model.model_validate_json(run_response.content)
+                    except ValidationError as exc:
+                        logger.warning(f"Failed to convert response to pydantic model: {exc}")
+                        # Check if response starts with ```json
+                        if run_response.content.startswith("```json"):
+                            run_response.content = run_response.content.replace("```json\n", "").replace("\n```", "")
+                            try:
+                                structured_output = self.response_model.model_validate_json(run_response.content)
+                            except ValidationError as exc:
+                                logger.warning(f"Failed to convert response to pydantic model: {exc}")
+
+                    # -*- Update Agent response
+                    if structured_output is not None:
+                        run_response.content = structured_output
+                        run_response.content_type = self.response_model.__name__
+                        if self.run_response is not None:
+                            self.run_response.content = structured_output
+                            self.run_response.content_type = self.response_model.__name__
+                except Exception as e:
+                    logger.warning(f"Failed to convert response to output model: {e}")
+            else:
+                logger.warning("Something went wrong. Run response content is not a string")
+            return run_response
+        else:
+            if stream and self.is_streamable:
+                resp = self._arun(
+                    message=message,
+                    stream=True,
+                    audio=audio,
+                    images=images,
+                    videos=videos,
+                    messages=messages,
+                    stream_intermediate_steps=stream_intermediate_steps,
+                    **kwargs,
+                )
+                return resp
+            else:
+                resp = self._arun(
+                    message=message,
+                    stream=False,
+                    audio=audio,
+                    images=images,
+                    videos=videos,
+                    messages=messages,
+                    stream_intermediate_steps=stream_intermediate_steps,
+                    **kwargs,
+                )
+                return await resp.__anext__()
+
+    def create_run_response(
+        self,
+        content: Optional[str] = None,
+        *,
+        event: RunEvent = RunEvent.run_response,
+        content_type: Optional[str] = None,
+        created_at: Optional[int] = None,
+    ) -> RunResponse:
+        rr = RunResponse(
+            run_id=self.run_id,
+            session_id=self.session_id,
+            agent_id=self.agent_id,
+            content=content,
+            tools=self.run_response.tools,
+            images=self.run_response.images,
+            videos=self.run_response.videos,
+            model=self.run_response.model,
+            messages=self.run_response.messages,
+            extra_data=self.run_response.extra_data,
+            event=event.value,
+        )
+        if content_type is not None:
+            rr.content_type = content_type
+        if created_at is not None:
+            rr.created_at = created_at
+        return rr
+
     def get_tools(self) -> Optional[List[Union[Tool, Toolkit, Callable, Dict, Function]]]:
         tools: List[Union[Tool, Toolkit, Callable, Dict, Function]] = []
 
@@ -1212,726 +1846,6 @@ class Agent:
 
         return run_messages
 
-    def create_run_response(
-        self,
-        content: Optional[str] = None,
-        *,
-        event: RunEvent = RunEvent.run_response,
-        content_type: Optional[str] = None,
-        created_at: Optional[int] = None,
-    ) -> RunResponse:
-        rr = RunResponse(
-            run_id=self.run_id,
-            session_id=self.session_id,
-            agent_id=self.agent_id,
-            content=content,
-            tools=self.run_response.tools,
-            images=self.run_response.images,
-            videos=self.run_response.videos,
-            model=self.run_response.model,
-            messages=self.run_response.messages,
-            extra_data=self.run_response.extra_data,
-            event=event.value,
-        )
-        if content_type is not None:
-            rr.content_type = content_type
-        if created_at is not None:
-            rr.created_at = created_at
-        return rr
-
-    def _run(
-        self,
-        message: Optional[Union[str, List, Dict, Message]] = None,
-        *,
-        stream: bool = False,
-        audio: Optional[Any] = None,
-        images: Optional[Sequence[Any]] = None,
-        videos: Optional[Sequence[Any]] = None,
-        messages: Optional[Sequence[Union[Dict, Message]]] = None,
-        stream_intermediate_steps: bool = False,
-        **kwargs: Any,
-    ) -> Iterator[RunResponse]:
-        """Run the Agent and yield the RunResponse.
-
-        Steps:
-        1. Prepare the Agent for the run
-        2. Update the Model and resolve context
-        3. Read existing session from storage
-        4. Prepare messages for this run
-        5. Prepare the steps for this run
-        6. Start the Run by yielding a RunStarted event
-        7. Run the Agent Steps
-        8. Update the RunResponse messages and metrics
-        9. Update Agent Memory
-        10. Save session to storage
-        11. Save output to file if save_response_to_file is set
-        """
-        # 1. Prepare the Agent for the run
-        # 1.1 Set agent_id and session_id
-        self.set_agent_id()
-        self.set_session_id()
-        # 1.2 Set streaming and stream intermediate steps
-        self.stream = self.stream and self.is_streamable
-        self.stream_intermediate_steps = stream_intermediate_steps and self.stream
-        # 1.3 Create a run_id and RunResponse
-        self.run_id = str(uuid4())
-        self.run_response = RunResponse(run_id=self.run_id, session_id=self.session_id, agent_id=self.agent_id)
-
-        logger.debug(f"*********** Agent Run Start: {self.run_response.run_id} ***********")
-
-        # 2. Update the Model and resolve context
-        self.update_model()
-        self.run_response.model = self.model.id if self.model is not None else None
-        if self.context is not None and self.resolve_context:
-            self.resolve_context()
-
-        # 3. Read existing session from storage
-        self.read_from_storage()
-
-        # 4. Prepare messages for this run
-        system_message, user_messages, messages_for_run = self.get_messages_for_run(
-            message=message, audio=audio, images=images, videos=videos, messages=messages, **kwargs
-        )
-
-        # 5. Prepare the steps for this run
-        if len(self.steps) == 0:
-            if self.reasoning:
-                self.steps.append(Reason())
-            self.steps.append(Respond())
-
-        # Get the index of the last "user" message in messages_for_run
-        # We track this so we can add messages after this index to the RunResponse and Memory
-        index_of_last_user_message = len(messages_for_run)
-
-        # 6. Start the Run by yielding a RunStarted event
-        if self.stream_intermediate_steps:
-            yield self.create_run_response("Run started", RunEvent.run_started)
-
-        # 7. Run the Agent Steps
-        for step in self.steps:
-            try:
-                logger.debug(f"Step: {step.__class__.__name__} Started")
-                logger.debug(f"Messages for run: {messages_for_run}")
-                yield from step.run(
-                    agent=self,
-                    messages=messages_for_run,
-                    user_messages=user_messages,
-                    system_message=system_message,
-                )
-                logger.debug(f"Step: {step.__class__.__name__} Completed")
-            except Exception as e:
-                logger.error(f"Step: {step.__class__.__name__} Error: {e}")
-                raise
-
-        # 8. Update the RunResponse messages and metrics
-        # Build a list of messages that should be added to the RunResponse
-        messages_for_run_response = [m for m in messages_for_run if m.add_to_agent_memory]
-        self.run_response.messages = messages_for_run_response
-        self.run_response.metrics = self.aggregate_metrics_from_messages(messages_for_run_response)
-
-        # 9. Update Agent Memory
-        # Add the system message to the memory
-        if system_message is not None:
-            self.memory.add_system_message(system_message, system_message_role=self.system_message_role)
-        # Build a list of messages that should be added to the AgentMemory
-        messages_for_memory = user_messages
-        # Add messages from messages_for_run after the last user message
-        for m in messages_for_run[index_of_last_user_message:]:
-            if m.add_to_agent_memory:
-                messages_for_memory.append(m)
-        self.memory.add_messages(messages=messages_for_memory)
-
-        # Yield a UpdatingMemory event
-        if self.stream_intermediate_steps:
-            yield self.create_run_response(
-                content="Memory updated",
-                event=RunEvent.updating_memory,
-            )
-
-        # Create an AgentRun object to add to memory
-        agent_run = AgentRun(response=self.run_response)
-        if message is not None:
-            user_message_for_memory: Optional[Message] = None
-            if isinstance(message, str):
-                user_message_for_memory = Message(role=self.user_message_role, content=message)
-            elif isinstance(message, Message):
-                user_message_for_memory = message
-            if user_message_for_memory is not None:
-                agent_run.message = user_message_for_memory
-                # Update the memories with the user message if needed
-                if self.memory.create_user_memories and self.memory.update_user_memories_after_run:
-                    self.memory.update_memory(input=user_message_for_memory.get_content_string())
-        elif messages is not None and len(messages) > 0:
-            for _m in messages:
-                _um = None
-                if isinstance(_m, Message):
-                    _um = _m
-                elif isinstance(_m, dict):
-                    try:
-                        _um = Message.model_validate(_m)
-                    except Exception as e:
-                        logger.warning(f"Failed to validate message: {e}")
-                else:
-                    logger.warning(f"Unsupported message type: {type(_m)}")
-                    continue
-                if _um:
-                    if agent_run.messages is None:
-                        agent_run.messages = []
-                    agent_run.messages.append(_um)
-                    if self.memory.create_user_memories and self.memory.update_user_memories_after_run:
-                        self.memory.update_memory(input=_um.get_content_string())
-                else:
-                    logger.warning("Unable to add message to memory")
-        # Add AgentRun to memory
-        self.memory.add_run(agent_run)
-        # Update the session summary if needed
-        if self.memory.create_session_summary and self.memory.update_session_summary_after_run:
-            self.memory.update_summary()
-
-        # 10. Save session to storage
-        self.write_to_storage()
-
-        # 11. Save output to file if save_response_to_file is set
-        self.save_run_response_to_file(message=message)
-
-        # Set the run_input
-        if message is not None:
-            if isinstance(message, str):
-                self.run_input = message
-            elif isinstance(message, Message):
-                self.run_input = message.to_dict()
-            else:
-                self.run_input = message
-        elif messages is not None:
-            self.run_input = [m.to_dict() if isinstance(m, Message) else m for m in messages]
-        # Log Agent Run
-        self.log_agent_run()
-
-        logger.debug(f"*********** Agent Run End: {self.run_response.run_id} ***********")
-        if self.stream_intermediate_steps:
-            yield self.create_run_response(
-                content=self.run_response.content,
-                event=RunEvent.run_completed,
-            )
-        # -*- Yield final response if not streaming so that run() can get the response
-        if not self.stream:
-            yield self.run_response
-
-    @overload
-    def run(
-        self,
-        message: Optional[Union[str, List, Dict, Message]] = None,
-        *,
-        stream: Literal[False] = False,
-        audio: Optional[Any] = None,
-        images: Optional[Sequence[Any]] = None,
-        videos: Optional[Sequence[Any]] = None,
-        messages: Optional[Sequence[Union[Dict, Message]]] = None,
-        **kwargs: Any,
-    ) -> RunResponse: ...
-
-    @overload
-    def run(
-        self,
-        message: Optional[Union[str, List, Dict, Message]] = None,
-        *,
-        stream: Literal[True] = True,
-        audio: Optional[Any] = None,
-        images: Optional[Sequence[Any]] = None,
-        videos: Optional[Sequence[Any]] = None,
-        messages: Optional[Sequence[Union[Dict, Message]]] = None,
-        stream_intermediate_steps: bool = False,
-        **kwargs: Any,
-    ) -> Iterator[RunResponse]: ...
-
-    def run(
-        self,
-        message: Optional[Union[str, List, Dict, Message]] = None,
-        *,
-        stream: bool = False,
-        audio: Optional[Any] = None,
-        images: Optional[Sequence[Any]] = None,
-        videos: Optional[Sequence[Any]] = None,
-        messages: Optional[Sequence[Union[Dict, Message]]] = None,
-        stream_intermediate_steps: bool = False,
-        **kwargs: Any,
-    ) -> Union[RunResponse, Iterator[RunResponse]]:
-        """Run the Agent with a message and return the response."""
-
-        # If a response_model is set, return the response as a structured output
-        if self.response_model is not None and self.parse_response:
-            # Set stream=False and run the agent
-            logger.debug("Setting stream=False as response_model is set")
-            run_response: RunResponse = next(
-                self._run(
-                    message=message,
-                    stream=False,
-                    audio=audio,
-                    images=images,
-                    videos=videos,
-                    messages=messages,
-                    stream_intermediate_steps=stream_intermediate_steps,
-                    **kwargs,
-                )
-            )
-
-            # If the model natively supports structured outputs, the content is already in the structured format
-            if self.structured_outputs:
-                # Do a final check confirming the content is in the response_model format
-                if isinstance(run_response.content, self.response_model):
-                    return run_response
-
-            # Otherwise convert the response to the structured format
-            if isinstance(run_response.content, str):
-                try:
-                    structured_output = None
-                    try:
-                        structured_output = self.response_model.model_validate_json(run_response.content)
-                    except ValidationError as exc:
-                        logger.warning(f"Failed to convert response to pydantic model: {exc}")
-                        # Check if response starts with ```json
-                        if run_response.content.startswith("```json"):
-                            run_response.content = run_response.content.replace("```json\n", "").replace("\n```", "")
-                            try:
-                                structured_output = self.response_model.model_validate_json(run_response.content)
-                            except ValidationError as exc:
-                                logger.warning(f"Failed to convert response to pydantic model: {exc}")
-
-                    # -*- Update Agent response
-                    if structured_output is not None:
-                        run_response.content = structured_output
-                        run_response.content_type = self.response_model.__name__
-                        if self.run_response is not None:
-                            self.run_response.content = structured_output
-                            self.run_response.content_type = self.response_model.__name__
-                    else:
-                        logger.warning("Failed to convert response to response_model")
-                except Exception as e:
-                    logger.warning(f"Failed to convert response to output model: {e}")
-            else:
-                logger.warning("Something went wrong. Run response content is not a string")
-            return run_response
-        else:
-            if stream and self.is_streamable:
-                resp = self._run(
-                    message=message,
-                    stream=True,
-                    audio=audio,
-                    images=images,
-                    videos=videos,
-                    messages=messages,
-                    stream_intermediate_steps=stream_intermediate_steps,
-                    **kwargs,
-                )
-                return resp
-            else:
-                resp = self._run(
-                    message=message,
-                    stream=False,
-                    audio=audio,
-                    images=images,
-                    videos=videos,
-                    messages=messages,
-                    stream_intermediate_steps=stream_intermediate_steps,
-                    **kwargs,
-                )
-                return next(resp)
-
-    async def _arun(
-        self,
-        message: Optional[Union[str, List, Dict, Message]] = None,
-        *,
-        stream: bool = False,
-        audio: Optional[Any] = None,
-        images: Optional[Sequence[Any]] = None,
-        videos: Optional[Sequence[Any]] = None,
-        messages: Optional[Sequence[Union[Dict, Message]]] = None,
-        stream_intermediate_steps: bool = False,
-        **kwargs: Any,
-    ) -> AsyncIterator[RunResponse]:
-        """Async Run the Agent with a message and return the response.
-
-        Steps:
-        1. Update the Model (set defaults, add tools, etc.)
-        2. Read existing session from storage
-        3. Prepare messages for this run
-        4. Reason about the task if reasoning is enabled
-        5. Generate a response from the Model (includes running function calls)
-        6. Update Memory
-        7. Save session to storage
-        8. Save output to file if save_output_to_file is set
-        """
-        # Check if streaming is enabled
-        self.stream = stream and self.is_streamable
-        # Check if streaming intermediate steps is enabled
-        self.stream_intermediate_steps = stream_intermediate_steps and self.stream
-        # Create the run_response object
-        self.run_id = str(uuid4())
-        self.run_response = RunResponse(run_id=self.run_id, session_id=self.session_id, agent_id=self.agent_id)
-
-        logger.debug(f"*********** Async Agent Run Start: {self.run_response.run_id} ***********")
-
-        # 1. Update the Model (set defaults, add tools, etc.)
-        self.update_model()
-        self.run_response.model = self.model.id if self.model is not None else None
-
-        # 2. Read existing session from storage
-        self.read_from_storage()
-
-        # 3. Prepare messages for this run
-        system_message, user_messages, messages_for_model = self.get_messages_for_run(
-            message=message, audio=audio, images=images, videos=videos, messages=messages, **kwargs
-        )
-
-        # 4. Reason about the task if reasoning is enabled
-        if self.reasoning:
-            areason_generator = self.areason(
-                system_message=system_message,
-                user_messages=user_messages,
-                messages_for_model=messages_for_model,
-                stream_intermediate_steps=self.stream_intermediate_steps,
-            )
-
-            if self.stream:
-                async for item in areason_generator:
-                    yield item
-            else:
-                # Consume the generator without yielding
-                async for _ in areason_generator:
-                    pass
-
-        # Get the number of messages in messages_for_model that form the input for this run
-        # We track these to skip when updating memory
-        num_input_messages = len(messages_for_model)
-
-        # Yield a RunStarted event
-        if self.stream_intermediate_steps:
-            yield self.generic_run_response("Run started", RunEvent.run_started)
-
-        # 5. Generate a response from the Model (includes running function calls)
-        model_response: ModelResponse
-        self.model = cast(Model, self.model)
-        if stream and self.is_streamable:
-            model_response = ModelResponse(content="")
-            model_response_stream = self.model.aresponse_stream(messages=messages_for_model)
-            async for model_response_chunk in model_response_stream:  # type: ignore
-                if model_response_chunk.event == ModelResponseEvent.assistant_response.value:
-                    if model_response_chunk.content is not None and model_response.content is not None:
-                        model_response.content += model_response_chunk.content
-                        self.run_response.content = model_response_chunk.content
-                        self.run_response.created_at = model_response_chunk.created_at
-                        yield self.run_response
-                elif model_response_chunk.event == ModelResponseEvent.tool_call_started.value:
-                    # Add tool call to the run_response
-                    tool_call_dict = model_response_chunk.tool_call
-                    if tool_call_dict is not None:
-                        if self.run_response.tools is None:
-                            self.run_response.tools = []
-                        self.run_response.tools.append(tool_call_dict)
-                    if self.stream_intermediate_steps:
-                        yield self.generic_run_response(
-                            content=model_response_chunk.content,
-                            event=RunEvent.tool_call_started,
-                        )
-                elif model_response_chunk.event == ModelResponseEvent.tool_call_completed.value:
-                    # Update the existing tool call in the run_response
-                    tool_call_dict = model_response_chunk.tool_call
-                    if tool_call_dict is not None and self.run_response.tools:
-                        tool_call_id = tool_call_dict["tool_call_id"]
-                        # Use a dictionary comprehension to create a mapping of tool_call_id to index
-                        tool_call_index_map = {tc["tool_call_id"]: i for i, tc in enumerate(self.run_response.tools)}
-                        # Update the tool call if it exists
-                        if tool_call_id in tool_call_index_map:
-                            self.run_response.tools[tool_call_index_map[tool_call_id]] = tool_call_dict
-                    if self.stream_intermediate_steps:
-                        yield self.generic_run_response(
-                            content=model_response_chunk.content,
-                            event=RunEvent.tool_call_completed,
-                        )
-        else:
-            model_response = await self.model.aresponse(messages=messages_for_model)
-            # Handle structured outputs
-            if self.response_model is not None and self.structured_outputs and model_response.parsed is not None:
-                self.run_response.content = model_response.parsed
-                self.run_response.content_type = self.response_model.__name__
-            else:
-                self.run_response.content = model_response.content
-            self.run_response.messages = messages_for_model
-            self.run_response.created_at = model_response.created_at
-
-        # Build a list of messages that belong to this particular run
-        run_messages = user_messages + messages_for_model[num_input_messages:]
-        if system_message is not None:
-            run_messages.insert(0, system_message)
-        # Update the run_response
-        self.run_response.messages = run_messages
-        self.run_response.metrics = self._aggregate_metrics_from_run_messages(run_messages)
-        # Update the run_response content if streaming as run_response will only contain the last chunk
-        if self.stream:
-            self.run_response.content = model_response.content
-            if model_response.audio is not None:
-                self.run_response.response_audio = model_response.audio
-
-        # 6. Update Memory
-        if self.stream_intermediate_steps:
-            yield self.generic_run_response(
-                content="Updating memory",
-                event=RunEvent.updating_memory,
-            )
-
-        # Add the system message to the memory
-        if system_message is not None:
-            self.memory.add_system_message(system_message, system_message_role=self.system_message_role)
-        # Add the user messages and model response messages to memory
-        self.memory.add_messages(messages=(user_messages + messages_for_model[num_input_messages:]))
-
-        # Create an AgentRun object to add to memory
-        agent_run = AgentRun(response=self.run_response)
-        if message is not None:
-            user_message_for_memory: Optional[Message] = None
-            if isinstance(message, str):
-                user_message_for_memory = Message(role=self.user_message_role, content=message)
-            elif isinstance(message, Message):
-                user_message_for_memory = message
-            if user_message_for_memory is not None:
-                agent_run.message = user_message_for_memory
-                # Update the memories with the user message if needed
-                if self.memory.create_user_memories and self.memory.update_user_memories_after_run:
-                    await self.memory.aupdate_memory(input=user_message_for_memory.get_content_string())
-        elif messages is not None and len(messages) > 0:
-            for _m in messages:
-                _um = None
-                if isinstance(_m, Message):
-                    _um = _m
-                elif isinstance(_m, dict):
-                    try:
-                        _um = Message.model_validate(_m)
-                    except Exception as e:
-                        logger.warning(f"Failed to validate message: {e}")
-                else:
-                    logger.warning(f"Unsupported message type: {type(_m)}")
-                    continue
-                if _um:
-                    if agent_run.messages is None:
-                        agent_run.messages = []
-                    agent_run.messages.append(_um)
-                    if self.memory.create_user_memories and self.memory.update_user_memories_after_run:
-                        await self.memory.aupdate_memory(input=_um.get_content_string())
-                else:
-                    logger.warning("Unable to add message to memory")
-        # Add AgentRun to memory
-        self.memory.add_run(agent_run)
-
-        # Update the session summary if needed
-        if self.memory.create_session_summary and self.memory.update_session_summary_after_run:
-            await self.memory.aupdate_summary()
-
-        # 7. Save session to storage
-        self.write_to_storage()
-
-        # 8. Save output to file if save_response_to_file is set
-        self.save_run_response_to_file(message=message)
-
-        # 9. Set the run_input
-        if message is not None:
-            if isinstance(message, str):
-                self.run_input = message
-            elif isinstance(message, Message):
-                self.run_input = message.to_dict()
-            else:
-                self.run_input = message
-        elif messages is not None:
-            self.run_input = [m.to_dict() if isinstance(m, Message) else m for m in messages]
-
-        # Log Agent Run
-        await self.alog_agent_run()
-
-        logger.debug(f"*********** Async Agent Run End: {self.run_response.run_id} ***********")
-        if self.stream_intermediate_steps:
-            yield self.generic_run_response(
-                content=self.run_response.content,
-                event=RunEvent.run_completed,
-            )
-
-        # -*- Yield final response if not streaming so that run() can get the response
-        if not self.stream:
-            yield self.run_response
-
-    async def arun(
-        self,
-        message: Optional[Union[str, List, Dict, Message]] = None,
-        *,
-        stream: bool = False,
-        audio: Optional[Any] = None,
-        images: Optional[Sequence[Any]] = None,
-        videos: Optional[Sequence[Any]] = None,
-        messages: Optional[Sequence[Union[Dict, Message]]] = None,
-        stream_intermediate_steps: bool = False,
-        **kwargs: Any,
-    ) -> Any:
-        """Async Run the Agent with a message and return the response."""
-
-        # If a response_model is set, return the response as a structured output
-        if self.response_model is not None and self.parse_response:
-            # Set stream=False and run the agent
-            logger.debug("Setting stream=False as response_model is set")
-            run_response = await self._arun(
-                message=message,
-                stream=False,
-                audio=audio,
-                images=images,
-                videos=videos,
-                messages=messages,
-                stream_intermediate_steps=stream_intermediate_steps,
-                **kwargs,
-            ).__anext__()
-
-            # If the model natively supports structured outputs, the content is already in the structured format
-            if self.structured_outputs:
-                # Do a final check confirming the content is in the response_model format
-                if isinstance(run_response.content, self.response_model):
-                    return run_response
-
-            # Otherwise convert the response to the structured format
-            if isinstance(run_response.content, str):
-                try:
-                    structured_output = None
-                    try:
-                        structured_output = self.response_model.model_validate_json(run_response.content)
-                    except ValidationError as exc:
-                        logger.warning(f"Failed to convert response to pydantic model: {exc}")
-                        # Check if response starts with ```json
-                        if run_response.content.startswith("```json"):
-                            run_response.content = run_response.content.replace("```json\n", "").replace("\n```", "")
-                            try:
-                                structured_output = self.response_model.model_validate_json(run_response.content)
-                            except ValidationError as exc:
-                                logger.warning(f"Failed to convert response to pydantic model: {exc}")
-
-                    # -*- Update Agent response
-                    if structured_output is not None:
-                        run_response.content = structured_output
-                        run_response.content_type = self.response_model.__name__
-                        if self.run_response is not None:
-                            self.run_response.content = structured_output
-                            self.run_response.content_type = self.response_model.__name__
-                except Exception as e:
-                    logger.warning(f"Failed to convert response to output model: {e}")
-            else:
-                logger.warning("Something went wrong. Run response content is not a string")
-            return run_response
-        else:
-            if stream and self.is_streamable:
-                resp = self._arun(
-                    message=message,
-                    stream=True,
-                    audio=audio,
-                    images=images,
-                    videos=videos,
-                    messages=messages,
-                    stream_intermediate_steps=stream_intermediate_steps,
-                    **kwargs,
-                )
-                return resp
-            else:
-                resp = self._arun(
-                    message=message,
-                    stream=False,
-                    audio=audio,
-                    images=images,
-                    videos=videos,
-                    messages=messages,
-                    stream_intermediate_steps=stream_intermediate_steps,
-                    **kwargs,
-                )
-                return await resp.__anext__()
-
-    def rename(self, name: str) -> None:
-        """Rename the Agent and save to storage"""
-
-        # -*- Read from storage
-        self.read_from_storage()
-        # -*- Rename Agent
-        self.name = name
-        # -*- Save to storage
-        self.write_to_storage()
-        # -*- Log Agent session
-        self.log_agent_session()
-
-    def rename_session(self, session_name: str) -> None:
-        """Rename the current session and save to storage"""
-
-        # -*- Read from storage
-        self.read_from_storage()
-        # -*- Rename session
-        self.session_name = session_name
-        # -*- Save to storage
-        self.write_to_storage()
-        # -*- Log Agent session
-        self.log_agent_session()
-
-    def generate_session_name(self) -> str:
-        """Generate a name for the session using the first 6 messages from the memory"""
-
-        if self.model is None:
-            raise Exception("Model not set")
-
-        gen_session_name_prompt = "Conversation\n"
-        messages_for_generating_session_name = []
-        try:
-            message_pars = self.memory.get_message_pairs()
-            for message_pair in message_pars[:3]:
-                messages_for_generating_session_name.append(message_pair[0])
-                messages_for_generating_session_name.append(message_pair[1])
-        except Exception as e:
-            logger.warning(f"Failed to generate name: {e}")
-
-        for message in messages_for_generating_session_name:
-            gen_session_name_prompt += f"{message.role.upper()}: {message.content}\n"
-
-        gen_session_name_prompt += "\n\nConversation Name: "
-
-        system_message = Message(
-            role=self.system_message_role,
-            content="Please provide a suitable name for this conversation in maximum 5 words. "
-            "Remember, do not exceed 5 words.",
-        )
-        user_message = Message(role=self.user_message_role, content=gen_session_name_prompt)
-        generate_name_messages = [system_message, user_message]
-        generated_name: ModelResponse = self.model.response(messages=generate_name_messages)
-        content = generated_name.content
-        if content is None:
-            logger.error("Generated name is None. Trying again.")
-            return self.generate_session_name()
-        if len(content.split()) > 15:
-            logger.error("Generated name is too long. Trying again.")
-            return self.generate_session_name()
-        return content.replace('"', "").strip()
-
-    def auto_rename_session(self) -> None:
-        """Automatically rename the session and save to storage"""
-
-        # -*- Read from storage
-        self.read_from_storage()
-        # -*- Generate name for session
-        generated_session_name = self.generate_session_name()
-        logger.debug(f"Generated Session Name: {generated_session_name}")
-        # -*- Rename thread
-        self.session_name = generated_session_name
-        # -*- Save to storage
-        self.write_to_storage()
-        # -*- Log Agent Session
-        self.log_agent_session()
-
-    def delete_session(self, session_id: str):
-        """Delete the current session and save to storage"""
-        if self.storage is None:
-            return
-        # -*- Delete session
-        self.storage.delete_session(session_id=session_id)
-        # -*- Save to storage
-        self.write_to_storage()
-
     def deep_copy(self, *, update: Optional[Dict[str, Any]] = None) -> "Agent":
         """Create and return a deep copy of this Agent, optionally updating fields.
 
@@ -2212,6 +2126,92 @@ class Agent:
                 for k, v in m.metrics.items():
                     aggregated_metrics[k].append(v)
         return aggregated_metrics
+
+    def rename(self, name: str) -> None:
+        """Rename the Agent and save to storage"""
+
+        # -*- Read from storage
+        self.read_from_storage()
+        # -*- Rename Agent
+        self.name = name
+        # -*- Save to storage
+        self.write_to_storage()
+        # -*- Log Agent session
+        self.log_agent_session()
+
+    def rename_session(self, session_name: str) -> None:
+        """Rename the current session and save to storage"""
+
+        # -*- Read from storage
+        self.read_from_storage()
+        # -*- Rename session
+        self.session_name = session_name
+        # -*- Save to storage
+        self.write_to_storage()
+        # -*- Log Agent session
+        self.log_agent_session()
+
+    def generate_session_name(self) -> str:
+        """Generate a name for the session using the first 6 messages from the memory"""
+
+        if self.model is None:
+            raise Exception("Model not set")
+
+        gen_session_name_prompt = "Conversation\n"
+        messages_for_generating_session_name = []
+        try:
+            message_pars = self.memory.get_message_pairs()
+            for message_pair in message_pars[:3]:
+                messages_for_generating_session_name.append(message_pair[0])
+                messages_for_generating_session_name.append(message_pair[1])
+        except Exception as e:
+            logger.warning(f"Failed to generate name: {e}")
+
+        for message in messages_for_generating_session_name:
+            gen_session_name_prompt += f"{message.role.upper()}: {message.content}\n"
+
+        gen_session_name_prompt += "\n\nConversation Name: "
+
+        system_message = Message(
+            role=self.system_message_role,
+            content="Please provide a suitable name for this conversation in maximum 5 words. "
+            "Remember, do not exceed 5 words.",
+        )
+        user_message = Message(role=self.user_message_role, content=gen_session_name_prompt)
+        generate_name_messages = [system_message, user_message]
+        generated_name: ModelResponse = self.model.response(messages=generate_name_messages)
+        content = generated_name.content
+        if content is None:
+            logger.error("Generated name is None. Trying again.")
+            return self.generate_session_name()
+        if len(content.split()) > 15:
+            logger.error("Generated name is too long. Trying again.")
+            return self.generate_session_name()
+        return content.replace('"', "").strip()
+
+    def auto_rename_session(self) -> None:
+        """Automatically rename the session and save to storage"""
+
+        # -*- Read from storage
+        self.read_from_storage()
+        # -*- Generate name for session
+        generated_session_name = self.generate_session_name()
+        logger.debug(f"Generated Session Name: {generated_session_name}")
+        # -*- Rename thread
+        self.session_name = generated_session_name
+        # -*- Save to storage
+        self.write_to_storage()
+        # -*- Log Agent Session
+        self.log_agent_session()
+
+    def delete_session(self, session_id: str):
+        """Delete the current session and save to storage"""
+        if self.storage is None:
+            return
+        # -*- Delete session
+        self.storage.delete_session(session_id=session_id)
+        # -*- Save to storage
+        self.write_to_storage()
 
     ###########################################################################
     # Handle images, videos and audio

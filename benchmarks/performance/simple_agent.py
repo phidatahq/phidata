@@ -48,9 +48,9 @@ def measure_agent_performance(num_runs=3):
     print(f"Max time: {max(times):.6f} seconds")
     print(f"Standard deviation: {statistics.stdev(times):.6f} seconds")
 
-    print("\ncProfile Results:")
+    # print("\ncProfile Results:")
     stats = pstats.Stats(profiler)
-    stats.sort_stats('cumulative').print_stats(20)  # Show top 20 functions by cumulative time
+    # stats.sort_stats('cumulative').print_stats(20)  # Show top 20 functions by cumulative time
 
 if __name__ == "__main__":
     measure_agent_performance()

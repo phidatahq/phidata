@@ -5,7 +5,7 @@ from typing import Any, Callable, Dict, Iterator, List, Optional, Sequence, Unio
 
 from agno.models.message import Message
 from agno.models.response import ModelResponse, ModelResponseEvent
-from agno.tools import Tool, Toolkit
+from agno.tools import Toolkit
 from agno.tools.function import Function, FunctionCall, ToolCallException
 from agno.utils.log import logger
 from agno.utils.timer import Timer
@@ -122,13 +122,13 @@ class Model:
         return tools_for_api
 
     def add_tool(
-        self, tool: Union[Tool, Toolkit, Callable, Dict, Function], strict: bool = False, agent: Optional[Any] = None
+        self, tool: Union[Toolkit, Callable, Dict, Function], strict: bool = False, agent: Optional[Any] = None
     ) -> None:
         if self.tools is None:
             self.tools = []
 
-        # If the tool is a Tool or Dict, add it directly to the Model
-        if isinstance(tool, Tool) or isinstance(tool, Dict):
+        # If the tool is a Dict, add it directly to the Model
+        if isinstance(tool, Dict):
             if tool not in self.tools:
                 self.tools.append(tool)
                 logger.debug(f"Added tool {tool} to model.")

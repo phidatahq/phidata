@@ -1,5 +1,5 @@
 from copy import deepcopy
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -30,9 +30,9 @@ class MemoryRetrieval(str, Enum):
 @dataclass
 class AgentMemory:
     # Runs between the user and agent
-    runs: List[AgentRun] = []
+    runs: List[AgentRun] = field(default_factory=list)
     # List of messages sent to the model
-    messages: List[Message] = []
+    messages: List[Message] = field(default_factory=list)
     update_system_message_on_change: bool = False
 
     # Summary of the session

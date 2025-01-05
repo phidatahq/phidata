@@ -1,6 +1,7 @@
+from __future__ import annotations
+
 from typing import Any, AsyncIterator, Iterator, List, Optional
 
-from agno.models.message import Message
 from agno.run.messages import RunMessages
 from agno.run.response import RunResponse
 
@@ -12,7 +13,7 @@ class AgentStep:
 
     def run(
         self,
-        agent: Any,
+        agent: "Agent",  # type: ignore  # noqa: F821
         run_messages: RunMessages,
     ) -> Iterator[RunResponse]:
         """

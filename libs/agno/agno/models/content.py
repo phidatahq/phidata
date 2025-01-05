@@ -4,21 +4,21 @@ from typing import Optional
 
 @dataclass
 class Media:
-    id: str
+    id: Optional[str] = None
     original_prompt: Optional[str] = None
     revised_prompt: Optional[str] = None
 
 
 @dataclass
 class Video(Media):
-    url: str  # Remote location for file
+    url: Optional[str] = None
     eta: Optional[str] = None
     length: Optional[str] = None
 
 
 @dataclass
 class Image(Media):
-    url: str  # Remote location for file
+    url: Optional[str] = None
     alt_text: Optional[str] = None
 
 

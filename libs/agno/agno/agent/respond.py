@@ -1,26 +1,24 @@
 from __future__ import annotations
 
-from typing import Iterator, List, Optional, cast
+from typing import Iterator, cast
 
 from agno.agent.step import AgentStep
 from agno.models.base import Model
-from agno.models.message import Message
 from agno.models.response import ModelResponse, ModelResponseEvent
+from agno.run.messages import RunMessages
 from agno.run.response import RunEvent, RunResponse
 
 
 class Respond(AgentStep):
-    def __init__(self, instructions: str):
-        self.instructions = instructions
+    def __init__(self):
+        pass
 
     def run(
         self,
         agent: "Agent",  # type: ignore  # noqa: F821
-        messages: List[Message],
-        user_messages: List[Message],
-        system_message: Optional[Message] = None,
+        run_messages: RunMessages,
     ) -> Iterator[RunResponse]:
-        from phi.agent import Agent
+        from agno.agent import Agent
 
         agent = cast(Agent, agent)
 
@@ -28,7 +26,7 @@ class Respond(AgentStep):
         agent.model = cast(Model, agent.model)
         if agent.stream:
             model_response = ModelResponse(content="")
-            for model_response_chunk in agent.model.response_stream(messages=messages):
+            for model_response_chunk in agent.model.response_stream(messages=run_messages.messages):
                 # If the model response is an assistant_response, yield a RunResponse with the content
                 if model_response_chunk.event == ModelResponseEvent.assistant_response.value:
                     if model_response_chunk.content is not None and model_response.content is not None:
@@ -73,7 +71,7 @@ class Respond(AgentStep):
                         )
         else:
             # Get the model response
-            model_response = agent.model.response(messages=messages)
+            model_response = agent.model.response(messages=run_messages.messages)
             # Handle structured outputs
             if agent.response_model is not None and agent.structured_outputs and model_response.parsed is not None:
                 # Update the agent.run_response content with the structured output
@@ -87,7 +85,7 @@ class Respond(AgentStep):
             if model_response.audio is not None:
                 agent.run_response.audio = model_response.audio
             # Update the agent.run_response messages with the messages
-            agent.run_response.messages = messages
+            agent.run_response.messages = run_messages.messages
             # Update the agent.run_response created_at with the model response created_at
             agent.run_response.created_at = model_response.created_at
             # Yield the agent.run_response

@@ -318,7 +318,7 @@ class Agent:
         self.agent_id = agent_id
         self.introduction = introduction
 
-        self.steps = steps
+        self.steps = steps if steps is not None else []
 
         self.user_id = user_id
         self.user_data = user_data
@@ -516,12 +516,7 @@ class Agent:
             try:
                 logger.debug(f"Step: {step.__class__.__name__} Started")
                 logger.debug(f"Messages for run: {run_messages}")
-                yield from step.run(
-                    agent=self,
-                    messages=run_messages.messages,
-                    user_messages=run_messages.user_message,
-                    system_message=run_messages.system_message,
-                )
+                yield from step.run(agent=self, run_messages=run_messages)
                 logger.debug(f"Step: {step.__class__.__name__} Completed")
             except Exception as e:
                 logger.error(f"Step: {step.__class__.__name__} Error: {e}")

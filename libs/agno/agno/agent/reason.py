@@ -6,6 +6,7 @@ from agno.agent.step import AgentStep
 from agno.models.base import Model
 from agno.models.message import Message
 from agno.reasoning.step import NextAction, ReasoningStep, ReasoningSteps
+from agno.run.messages import RunMessages
 from agno.run.response import RunEvent, RunResponse
 from agno.utils.log import logger
 
@@ -26,11 +27,9 @@ class Reason(AgentStep):
     def run(
         self,
         agent: "Agent",  # type: ignore  # noqa: F821
-        messages: List[Message],
-        user_messages: List[Message],
-        system_message: Optional[Message] = None,
+        run_messages: RunMessages,
     ) -> Iterator[RunResponse]:
-        from phi.agent import Agent
+        from agno.agent import Agent
 
         agent = cast(Agent, agent)
 

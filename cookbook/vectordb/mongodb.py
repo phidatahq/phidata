@@ -45,7 +45,3 @@ knowledge_base = PDFUrlKnowledgeBase(
 knowledge_base.load(recreate=True)  
 agent = Agent(knowledge_base=knowledge_base, use_tools=True, show_tool_calls=True)
 agent.print_response("How to make Thai curry?", markdown=True)
-# Lets try with recreate=False
-knowledge_base.load(recreate=False)  
-agent = Agent(knowledge_base=knowledge_base, use_tools=True, show_tool_calls=True)
-agent.print_response("How to make Thai curry?", markdown=True)

@@ -1,7 +1,7 @@
 [project]
 name = "agno"
 version = "0.0.1"
-description = "Agno: model-agnostic framework for building Agents"
+description = "Agno: a model-agnostic framework for building AI Agents"
 requires-python = ">=3.7"
 readme = "README.md"
 authors = [
@@ -69,8 +69,6 @@ exclude = ["scratch*", "wip*", "tmp*"]
 
 [[tool.mypy.overrides]]
 module = [
-  "agno.aws.*",
-  "agno.docker.*",
   "altair.*",
   "anthropic.*",
   "apify_client.*",

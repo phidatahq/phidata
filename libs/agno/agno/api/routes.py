@@ -30,11 +30,3 @@ class ApiRoutes:
     # Playground paths
     PLAYGROUND_ENDPOINT_CREATE: str = "/v1/playground/endpoint/create"
     PLAYGROUND_APP_DEPLOY: str = "/v1/playground/app/deploy"
-
-    # Assistant paths
-    ASSISTANT_RUN_CREATE: str = "/v1/assistant/run/create"
-    ASSISTANT_EVENT_CREATE: str = "/v1/assistant/event/create"
-
-    # Prompt paths
-    PROMPT_REGISTRY_SYNC: str = "/v1/prompt/registry/sync"
-    PROMPT_TEMPLATE_SYNC: str = "/v1/prompt/template/sync"

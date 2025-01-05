@@ -8,11 +8,11 @@ from typing import Optional
 import typer
 
 from agno.cli.ws.ws_cli import ws_cli
-from agno.utils.log import logger, set_log_level_to_debug
+from agno.utils.log import set_log_level_to_debug
 
 agno_cli = typer.Typer(
     help="""\b
-Agno is an AI toolkit for engineers.
+Agno is a model-agnostic framework for building AI Agents.
 \b
 Usage:
 1. Run `ag ws create` to create a new workspace
@@ -162,8 +162,6 @@ def set(
     Set the current directory as the active workspace.
     This command can be run from within the workspace directory
         OR with a -ws flag to set another workspace as primary.
-
-    Set a workspace as active
 
     \b
     Examples:
@@ -463,7 +461,7 @@ def patch(
     if env_filter is not None and isinstance(env_filter, str):
         target_env = env_filter
     if infra_filter is not None and isinstance(infra_filter, str):
-        target_infra_str = infra_filter
+        target_infra = infra_filter
     if group_filter is not None and isinstance(group_filter, str):
         target_group = group_filter
     if name_filter is not None and isinstance(name_filter, str):

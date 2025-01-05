@@ -27,8 +27,8 @@ class AgnoCliSettings(BaseSettings):
     api_enabled: bool = True
     alpha_features: bool = False
     api_url: str = Field("https://api.agno.com", validate_default=True)
-    signin_url: str = Field("https://agno.com/login", validate_default=True)
-    playground_url: str = Field("https://agno.com/playground", validate_default=True)
+    signin_url: str = Field("https://app.agno.com/login", validate_default=True)
+    playground_url: str = Field("https://app.agno.com/playground", validate_default=True)
 
     model_config = SettingsConfigDict(env_prefix="AGNO_")
 
@@ -48,9 +48,9 @@ class AgnoCliSettings(BaseSettings):
         if api_runtime == "dev":
             return "http://localhost:3000/login"
         elif api_runtime == "stg":
-            return "https://agno.so/login"
+            return "https://stg.agno.com/login"
         else:
-            return "https://agno.com/login"
+            return "https://app.agno.com/login"
 
     @field_validator("playground_url", mode="before")
     def update_playground_url(cls, v, info: ValidationInfo):
@@ -58,9 +58,9 @@ class AgnoCliSettings(BaseSettings):
         if api_runtime == "dev":
             return "http://localhost:3000/playground"
         elif api_runtime == "stg":
-            return "https://agno.so/playground"
+            return "https://stg.agno.com/playground"
         else:
-            return "https://agno.com/playground"
+            return "https://app.agno.com/playground"
 
     @field_validator("api_url", mode="before")
     def update_api_url(cls, v, info: ValidationInfo):
@@ -72,7 +72,7 @@ class AgnoCliSettings(BaseSettings):
                 return "http://host.docker.internal:7070"
             return "http://localhost:7070"
         elif api_runtime == "stg":
-            return "https://api.agno.so"
+            return "https://api.stg.agno.com"
         else:
             return "https://api.agno.com"
 

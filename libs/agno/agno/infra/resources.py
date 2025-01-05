@@ -4,7 +4,9 @@ from agno.infra.base import InfraBase
 
 
 class InfraResources(InfraBase):
-    """Infrastructure resources that can be created, updated or deleted as a group."""
+    """InfraResources is a group of InfraResource and InfraApp objects
+    that are managed together.
+    """
 
     apps: Optional[List[Any]] = None
     resources: Optional[List[Any]] = None

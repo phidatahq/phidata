@@ -5,7 +5,9 @@ from pydantic import BaseModel
 from agno.api.schemas.workspace import WorkspaceSchema
 
 
-class ContainerContext(BaseModel):
+class InfraContext(BaseModel):
+    """InfraContext is a context object passed when creating Infra resources."""
+
     workspace_name: str
     # Path to the workspace directory inside the container
     workspace_root: str

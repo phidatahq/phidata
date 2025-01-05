@@ -1,9 +1,9 @@
 from typing import Optional
 
-from agno.app.base import AppBase, ContainerContext, ResourceBase  # noqa: F401
+from agno.infra.app import ContainerContext, InfraApp, ResourceBase  # noqa: F401
 
 
-class DbApp(AppBase):
+class DbApp(InfraApp):
     db_user: Optional[str] = None
     db_password: Optional[str] = None
     db_database: Optional[str] = None

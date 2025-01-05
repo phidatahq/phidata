@@ -1,12 +1,11 @@
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import List, Optional
 
 from typer import launch as typer_launch
 
 from agno.cli.config import AgnoCliConfig
 from agno.cli.console import print_heading, print_info
 from agno.cli.settings import AGNO_CLI_CONFIG_DIR, agno_cli_settings
-from agno.infra.base import InfraBase
 from agno.infra.resources import InfraResources
 from agno.utils.log import logger
 
@@ -162,7 +161,7 @@ def start_resources(
         return
 
     # Get resources to deploy
-    resources_to_create: Dict[str, InfraBase] = WorkspaceConfig.get_resources_from_file(
+    resources_to_create: List[InfraResources] = WorkspaceConfig.get_resources_from_file(
         resource_file=resources_file_path,
         env=target_env,
         infra=target_infra,

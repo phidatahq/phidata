@@ -9,7 +9,7 @@ from agno.workspace.settings import WorkspaceSettings
 class InfraBase(BaseModel):
     """Base class for all Infrastructure resources.
 
-    Any Infrastructure Resource or App inherits from this class.
+    All InfraResource, InfraApp and InfraResources classes inherit this class.
     """
 
     # Name of the resource

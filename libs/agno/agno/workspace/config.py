@@ -4,7 +4,9 @@ from typing import Any, Dict, List, Optional
 
 from agno.api.schemas.team import TeamSchema
 from agno.api.schemas.workspace import WorkspaceSchema
+from agno.infra.app import InfraApp
 from agno.infra.base import InfraBase
+from agno.infra.resource import InfraResource
 from agno.infra.resources import InfraResources
 from agno.utils.log import logger
 from agno.workspace.settings import WorkspaceSettings
@@ -253,7 +255,7 @@ class WorkspaceConfig:
         env: Optional[str] = None,
         infra: Optional[str] = None,
         order: str = "create",
-    ) -> Dict[str, InfraBase]:
+    ) -> List[InfraResources]:
         if not resource_file.exists():
             raise FileNotFoundError(f"File {resource_file} does not exist")
         if not resource_file.is_file():
@@ -282,7 +284,7 @@ class WorkspaceConfig:
         logger.debug(f"**--> Reading Infra resources from {resource_file}")
 
         # Get all infra resources from the file
-        all_infra_resources: Dict[str, InfraBase] = {}
+        infra_objects: Dict[str, InfraBase] = {}
         try:
             # Get all python objects from the file
             python_objects = get_python_objects_from_module(resource_file)
@@ -293,29 +295,29 @@ class WorkspaceConfig:
                     if not obj.enabled:
                         logger.debug(f"Skipping {obj_name}: disabled")
                         continue
-                    all_infra_resources[obj_name] = obj
+                    infra_objects[obj_name] = obj
         except Exception:
             logger.error(f"Error reading: {resource_file}")
             raise
 
         # Filter resources by infra
-        filtered_resources_by_infra: Dict[str, InfraBase] = {}
+        filtered_infra_objects_by_infra_type: Dict[str, InfraBase] = {}
         logger.debug(f"Filtering resources for env: {env} | infra: {infra} | order: {order}")
         if infra is None:
-            filtered_resources_by_infra = all_infra_resources
+            filtered_infra_objects_by_infra_type = infra_objects
         else:
-            for resource_name, resource in all_infra_resources.items():
+            for resource_name, resource in infra_objects.items():
                 if resource.infra == infra:
-                    filtered_resources_by_infra[resource_name] = resource
+                    filtered_infra_objects_by_infra_type[resource_name] = resource
 
         # Filter resources by env
-        filtered_resources_by_env: Dict[str, InfraBase] = {}
+        filtered_infra_objects_by_env: Dict[str, InfraBase] = {}
         if env is None:
-            filtered_resources_by_env = filtered_resources_by_infra
+            filtered_infra_objects_by_env = filtered_infra_objects_by_infra_type
         else:
-            for resource_name, resource in filtered_resources_by_infra.items():
+            for resource_name, resource in filtered_infra_objects_by_infra_type.items():
                 if resource.env == env:
-                    filtered_resources_by_env[resource_name] = resource
+                    filtered_infra_objects_by_env[resource_name] = resource
 
         # Updated resources with the workspace settings
         # Create a temporary workspace settings object if it does not exist
@@ -326,7 +328,29 @@ class WorkspaceConfig:
             )
         # Update the resources with the workspace settings
         if temporary_ws_config._workspace_settings is not None:
-            for resource_name, resource in filtered_resources_by_env.items():
+            for resource_name, resource in filtered_infra_objects_by_env.items():
                 logger.debug(f"Setting workspace settings for {resource.__class__.__name__}")
                 resource.set_workspace_settings(temporary_ws_config._workspace_settings)
-        return filtered_resources_by_env
+
+        # Create a list of InfraResources from the filtered resources
+        infra_resources_list: List[InfraResources] = []
+        infra_objects_for_default_group: List[InfraBase] = []
+        for resource_name, resource in filtered_infra_objects_by_env.items():
+            if isinstance(resource, InfraResources):
+                infra_resources_list.append(resource)
+            else:
+                infra_objects_for_default_group.append(resource)
+        # Create a default InfraResources group if there are resources for it
+        if len(infra_objects_for_default_group) > 0:
+            default_infra_resources = InfraResources(name="default")
+            for infra_object in infra_objects_for_default_group:
+                if isinstance(infra_object, InfraResource):
+                    if default_infra_resources.resources is None:
+                        default_infra_resources.resources = []
+                    default_infra_resources.resources.append(infra_object)
+                elif isinstance(infra_object, InfraApp):
+                    if default_infra_resources.apps is None:
+                        default_infra_resources.apps = []
+                    default_infra_resources.apps.append(infra_object)
+            infra_resources_list.append(default_infra_resources)
+        return infra_resources_list

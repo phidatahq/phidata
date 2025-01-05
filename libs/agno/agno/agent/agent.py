@@ -29,7 +29,7 @@ from pydantic import BaseModel
 from agno.agent.media import Audio, Image, Video
 from agno.agent.session import AgentSession
 from agno.agent.step import AgentStep
-from agno.memory.agent import AgentMemory, AgentRun, Memory, MemoryRetrieval, SessionSummary  # noqa: F401
+from agno.memory.agent import AgentMemory, AgentRun
 from agno.models.base import Model
 from agno.models.message import Message, MessageReferences
 from agno.run.messages import RunMessages
@@ -37,7 +37,6 @@ from agno.run.response import RunEvent, RunResponse, RunResponseExtraData
 from agno.storage.agent.base import AgentStorage
 from agno.tools import Function, Toolkit
 from agno.utils.log import logger, set_log_level_to_debug, set_log_level_to_info
-from agno.utils.merge_dict import merge_dictionaries
 from agno.utils.message import get_text_from_message
 from agno.utils.timer import Timer
 
@@ -1223,6 +1222,9 @@ class Agent:
 
     def load_agent_session(self, session: AgentSession):
         """Load the existing Agent from an AgentSession (from the database)"""
+        from agno.memory.memory import Memory
+        from agno.memory.summary import SessionSummary
+        from agno.utils.merge_dict import merge_dictionaries
 
         # Get the agent_id, user_id and session_id from the database
         if self.agent_id is None and session.agent_id is not None:

@@ -1,7 +1,12 @@
+from __future__ import annotations
+
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
+from agno.memory.summary import SessionSummary
+from agno.models.message import Message
+from agno.run.response import RunResponse
 from agno.utils.log import logger
 
 if TYPE_CHECKING:
@@ -10,9 +15,6 @@ if TYPE_CHECKING:
     from agno.memory.manager import MemoryManager
     from agno.memory.memory import Memory
     from agno.memory.summarizer import MemorySummarizer
-    from agno.memory.summary import SessionSummary
-    from agno.models.message import Message
-    from agno.run.response import RunResponse
 
 
 @dataclass
@@ -43,7 +45,7 @@ class AgentMemory:
     # Update session summaries after each run
     update_session_summary_after_run: bool = True
     # Summarizer to generate session summaries
-    summarizer: Optional[MemorySummarizer] = None
+    summarizer: Optional["MemorySummarizer"] = None
 
     # Create and store personalized memories for this user
     create_user_memories: bool = False
@@ -51,7 +53,7 @@ class AgentMemory:
     update_user_memories_after_run: bool = True
 
     # MemoryDb to store personalized memories
-    db: Optional[MemoryDb] = None
+    db: Optional["MemoryDb"] = None
     # User ID for the personalized memories
     user_id: Optional[str] = None
     retrieval: MemoryRetrieval = MemoryRetrieval.last_n

@@ -4,7 +4,6 @@ from agno.agent.agent import (
     AgentSession,
     AgentStorage,
     Function,
-    MemoryRetrieval,
     Message,
     RunEvent,
     RunResponse,

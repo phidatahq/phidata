@@ -109,6 +109,10 @@ class InfraBase(BaseModel):
             return secret_file_data.get(secret_name)
         return None
 
+    def get_infra_resources(self) -> Optional[Any]:
+        """This method returns an InfraResources object for this resource"""
+        raise NotImplementedError("get_infra_resources method not implemented")
+
     def set_aws_env_vars(self, env_dict: Dict[str, str], aws_region: Optional[str] = None) -> None:
         from agno.constants import (
             AWS_DEFAULT_REGION_ENV_VAR,

@@ -15,7 +15,6 @@ from agno.cli.console import (
     print_heading,
     print_info,
 )
-from agno.infra.type import InfraType
 from agno.utils.log import logger, set_log_level_to_debug
 
 ws_cli = typer.Typer(

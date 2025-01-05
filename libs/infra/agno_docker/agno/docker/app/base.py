@@ -246,14 +246,14 @@ class DockerApp(InfraApp):
                 "mode": "ro",
             }
 
-        # Add ~/.phi as a volume
-        if self.mount_phi_config:
-            phi_config_host_path = str(Path.home().joinpath(".phi"))
-            phi_config_container_path = f"{self.workspace_dir_container_path}/.phi"
-            logger.debug(f"Mounting: {phi_config_host_path}")
-            logger.debug(f"      to: {phi_config_container_path}")
-            container_volumes[phi_config_host_path] = {
-                "bind": phi_config_container_path,
+        # Add ~/.config/ag as a volume
+        if self.mount_agno_config:
+            agno_config_host_path = str(Path.home().joinpath(".config/ag"))
+            agno_config_container_path = f"{self.workspace_dir_container_path}/.config/ag"
+            logger.debug(f"Mounting: {agno_config_host_path}")
+            logger.debug(f"      to: {agno_config_container_path}")
+            container_volumes[agno_config_host_path] = {
+                "bind": agno_config_container_path,
                 "mode": "ro",
             }
 
@@ -346,3 +346,11 @@ class DockerApp(InfraApp):
 
         logger.debug(f"------------ {self.get_app_name()} Built ------------")
         return app_resources
+
+    def get_infra_resources(self) -> Optional[Any]:
+        from agno.docker.resources import DockerResources
+
+        return DockerResources(
+            name=self.get_app_name(),
+            apps=[self],
+        )

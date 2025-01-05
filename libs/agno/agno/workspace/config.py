@@ -335,23 +335,12 @@ class WorkspaceConfig:
 
         # Create a list of InfraResources from the filtered resources
         infra_resources_list: List[InfraResources] = []
-        infra_objects_for_default_group: List[InfraBase] = []
         for resource_name, resource in filtered_infra_objects_by_env.items():
+            # If the resource is an InfraResources object, add it to the list
             if isinstance(resource, InfraResources):
                 infra_resources_list.append(resource)
+            # Otherwise, get the InfraResources object from the resource
             else:
-                infra_objects_for_default_group.append(resource)
-        # Create a default InfraResources group if there are resources for it
-        if len(infra_objects_for_default_group) > 0:
-            default_infra_resources = InfraResources(name="default")
-            for infra_object in infra_objects_for_default_group:
-                if isinstance(infra_object, InfraResource):
-                    if default_infra_resources.resources is None:
-                        default_infra_resources.resources = []
-                    default_infra_resources.resources.append(infra_object)
-                elif isinstance(infra_object, InfraApp):
-                    if default_infra_resources.apps is None:
-                        default_infra_resources.apps = []
-                    default_infra_resources.apps.append(infra_object)
-            infra_resources_list.append(default_infra_resources)
+                infra_resources_list.append(resource.get_infra_resources())
+
         return infra_resources_list

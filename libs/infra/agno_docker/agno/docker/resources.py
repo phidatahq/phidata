@@ -118,12 +118,16 @@ class DockerResources(InfraResources):
 
                 # Add the resource to be created after its dependencies
                 if docker_resource not in final_docker_resources:
-                    logger.debug(f"-*- Adding {docker_resource.name}")
+                    logger.debug(
+                        f"-*- Adding {docker_resource.get_resource_type()}: {docker_resource.get_resource_name()}"
+                    )
                     final_docker_resources.append(docker_resource)
             else:
                 # Add the resource to be created if it has no dependencies
                 if docker_resource not in final_docker_resources:
-                    logger.debug(f"-*- Adding {docker_resource.name}")
+                    logger.debug(
+                        f"-*- Adding {docker_resource.get_resource_type()}: {docker_resource.get_resource_name()}"
+                    )
                     final_docker_resources.append(docker_resource)
 
         # Track the total number of DockerResources to create for validation

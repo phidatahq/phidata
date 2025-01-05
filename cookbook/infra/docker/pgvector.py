@@ -1,3 +1,5 @@
+"""Run using `ag start cookbook/infra/docker/pgvector.py`"""
+
 from agno.docker.app.postgres.pgvector import PgVectorDb
 
 
@@ -6,6 +8,6 @@ pgvector = PgVectorDb(
     pg_user="agno",
     pg_password="agno",
     pg_database="agno",
-    # Connect to this db on port 9320
-    host_port=9320,
+    # Connect to this db on port 5432
+    host_port=5432,
 )

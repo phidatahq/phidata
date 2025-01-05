@@ -27,7 +27,7 @@ class Model:
     # Tools are functions the model may generate JSON inputs for.
     # If you provide a dict, it is not called by the model.
     # Always add tools using the add_tool() method.
-    tools: Optional[List[Union[Tool, Dict]]] = None
+    tools: Optional[List[Dict]] = None
     # Controls which (if any) function is called by the model.
     # "none" means the model will not call a function and instead generates a message.
     # "auto" means the model can pick between generating a message or calling a function.
@@ -115,10 +115,7 @@ class Model:
 
         tools_for_api = []
         for tool in self.tools:
-            if isinstance(tool, Tool):
-                tools_for_api.append(tool.to_dict())
-            elif isinstance(tool, Dict):
-                tools_for_api.append(tool)
+            tools_for_api.append(tool)
         return tools_for_api
 
     def add_tool(

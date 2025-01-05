@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, AsyncIterator, Iterator, List, Optional
+from typing import AsyncIterator, Iterator
 
 from agno.run.messages import RunMessages
 from agno.run.response import RunResponse
@@ -24,7 +24,7 @@ class AgentStep:
             run_messages (RunMessages): The messages to process during the step.
 
         Returns:
-            Iterator[RunResponse]: An iterator over RunResponse objects.
+            Iterator[RunResponse]: An iterator of RunResponse objects.
 
         Raises:
             NotImplementedError: If the method is not implemented by a subclass.
@@ -33,7 +33,7 @@ class AgentStep:
 
     async def arun(
         self,
-        agent: Any,
+        agent: "Agent",  # type: ignore  # noqa: F821
         run_messages: RunMessages,
     ) -> AsyncIterator[RunResponse]:
         """
@@ -44,7 +44,7 @@ class AgentStep:
             run_messages (RunMessages): The messages to process during the step.
 
         Returns:
-            Iterator[RunResponse]: An iterator over RunResponse objects.
+            AsyncIterator[RunResponse]: An async iterator of RunResponse objects.
 
         Raises:
             NotImplementedError: If the method is not implemented by a subclass.

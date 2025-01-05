@@ -1769,15 +1769,20 @@ class Agent:
         # 2. Add extra messages to run_messages if provided
         if self.add_messages is not None:
             messages_to_add_to_run_response: List[Message] = []
+            if run_messages.extra_messages is None:
+                run_messages.extra_messages = []
+
             for _m in self.add_messages:
                 if isinstance(_m, Message):
                     messages_to_add_to_run_response.append(_m)
                     run_messages.messages.append(_m)
+                    run_messages.extra_messages.append(_m)
                 elif isinstance(_m, dict):
                     try:
                         _m_parsed = Message.model_validate(_m)
                         messages_to_add_to_run_response.append(_m_parsed)
                         run_messages.messages.append(_m_parsed)
+                        run_messages.extra_messages.append(_m_parsed)
                     except Exception as e:
                         logger.warning(f"Failed to validate message: {e}")
             # Add the extra messages to the run_response
@@ -1833,9 +1838,11 @@ class Agent:
             for _m in messages:
                 if isinstance(_m, Message):
                     run_messages.messages.append(_m)
+                    run_messages.extra_messages.append(_m)
                 elif isinstance(_m, dict):
                     try:
                         run_messages.messages.append(Message.model_validate(_m))
+                        run_messages.extra_messages.append(Message.model_validate(_m))
                     except Exception as e:
                         logger.warning(f"Failed to validate message: {e}")
 

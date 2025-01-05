@@ -22,6 +22,10 @@ class Respond(AgentStep):
 
         agent = cast(Agent, agent)
 
+        # Yield a step started event
+        if agent.stream_intermediate_steps:
+            yield agent.create_run_response(content="Response started", event=RunEvent.step_started)
+
         model_response: ModelResponse
         agent.model = cast(Model, agent.model)
         if agent.stream:
@@ -29,7 +33,7 @@ class Respond(AgentStep):
             for model_response_chunk in agent.model.response_stream(messages=run_messages.messages):
                 # If the model response is an assistant_response, yield a RunResponse with the content
                 if model_response_chunk.event == ModelResponseEvent.assistant_response.value:
-                    if model_response_chunk.content is not None and model_response.content is not None:
+                    if model_response_chunk.content is not None:
                         model_response.content += model_response_chunk.content
                         # Update the agent.run_response with the content
                         agent.run_response.content = model_response.content

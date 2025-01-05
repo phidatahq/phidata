@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from typing import Iterator, List, Optional, cast
+from typing import Iterator, cast
 
-from agno.agent.step.base import AgentStep
+from agno.agent.step import AgentStep
 from agno.models.base import Model
 from agno.models.message import Message
 from agno.models.response import ModelResponse, ModelResponseEvent
+from agno.run.messages import RunMessages
 from agno.run.response import RunEvent, RunResponse
 
 
@@ -16,13 +17,15 @@ class Task(AgentStep):
     def run(
         self,
         agent: "Agent",  # type: ignore  # noqa: F821
-        messages: List[Message],
-        user_messages: List[Message],
-        system_message: Optional[Message] = None,
+        run_messages: RunMessages,
     ) -> Iterator[RunResponse]:
         from phi.agent import Agent
 
         agent = cast(Agent, agent)
+
+        # Yield a step started event
+        if agent.stream_intermediate_steps:
+            yield agent.create_run_response(content="Task started", event=RunEvent.step_started)
 
         # If instructions are provided, add them to the messages
         if self.instructions:

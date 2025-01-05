@@ -161,7 +161,7 @@ def start_resources(
         return
 
     # Get resources to deploy
-    resources_to_create: List[InfraResources] = WorkspaceConfig.get_resources_from_file(
+    resource_groups_to_create: List[InfraResources] = WorkspaceConfig.get_resources_from_file(
         resource_file=resources_file_path,
         env=target_env,
         infra=target_infra,

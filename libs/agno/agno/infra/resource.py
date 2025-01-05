@@ -6,13 +6,13 @@ from agno.utils.log import logger
 
 
 class InfraResource(InfraBase):
-    """Base class for all Infrastructure Resources."""
+    """Base class for Infrastructure Resources."""
 
-    # Name of the resource
-    name: Optional[str] = None
-    # Type of the resource
+    # Resource name (required)
+    name: str
+    # Resource type
     resource_type: Optional[str] = None
-    # List of resource types to match against for filtering
+    # List of resource types to match for filtering
     resource_type_list: Optional[List[str]] = None
 
     # -*- Cached Data
@@ -20,6 +20,21 @@ class InfraResource(InfraBase):
     resource_created: bool = False
     resource_updated: bool = False
     resource_deleted: bool = False
+
+    def read(self, client: Any) -> bool:
+        raise NotImplementedError
+
+    def is_active(self, client: Any) -> bool:
+        raise NotImplementedError
+
+    def create(self, client: Any) -> bool:
+        raise NotImplementedError
+
+    def update(self, client: Any) -> bool:
+        raise NotImplementedError
+
+    def delete(self, client: Any) -> bool:
+        raise NotImplementedError
 
     def get_resource_name(self) -> str:
         return self.name or self.__class__.__name__
@@ -184,22 +199,7 @@ class InfraResource(InfraBase):
         return hash(f"{self.get_resource_type()}:{self.get_resource_name()}")
 
     def __eq__(self, other):
-        if isinstance(other, ResourceBase):
+        if isinstance(other, InfraResource):
             if other.get_resource_type() == self.get_resource_type():
                 return self.get_resource_name() == other.get_resource_name()
         return False
-
-    def read(self, client: Any) -> bool:
-        raise NotImplementedError
-
-    def is_active(self, client: Any) -> bool:
-        raise NotImplementedError
-
-    def create(self, client: Any) -> bool:
-        raise NotImplementedError
-
-    def update(self, client: Any) -> bool:
-        raise NotImplementedError
-
-    def delete(self, client: Any) -> bool:
-        raise NotImplementedError

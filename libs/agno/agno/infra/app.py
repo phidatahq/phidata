@@ -3,14 +3,14 @@ from typing import Any, Dict, List, Optional, Union
 from pydantic import Field, field_validator
 from pydantic_core.core_schema import ValidationInfo
 
-from agno.app.context import ContainerContext
 from agno.infra.base import InfraBase
-from agno.resource.base import ResourceBase
+from agno.infra.context import InfraContext
+from agno.infra.resource import InfraResource
 from agno.utils.log import logger
 
 
 class InfraApp(InfraBase):
-    """Base class for all Infrastructure Apps."""
+    """Base class for Infrastructure Apps."""
 
     # -*- App Name (required)
     name: str
@@ -58,7 +58,7 @@ class InfraApp(InfraBase):
     host_port: Optional[int] = Field(None, validate_default=True)
 
     # -*- Extra Resources created "before" the App resources
-    resources: Optional[List[ResourceBase]] = None
+    resources: Optional[List[InfraResource]] = None
 
     #  -*- Other args
     print_env_on_load: bool = False
@@ -70,7 +70,7 @@ class InfraApp(InfraBase):
     # in the env_vars dict or env_file
     container_env: Optional[Dict[str, Any]] = None
     # Variable used to cache the container context
-    container_context: Optional[ContainerContext] = None
+    container_context: Optional[InfraContext] = None
 
     # -*- Cached Data
     cached_resources: Optional[List[Any]] = None
@@ -108,44 +108,44 @@ class InfraApp(InfraBase):
         logger.debug(f"@build_resource_group not defined for {self.get_app_name()}")
         return None
 
-    def get_dependencies(self) -> Optional[List[ResourceBase]]:
+    def get_dependencies(self) -> Optional[List[InfraResource]]:
         return (
-            [dep for dep in self.depends_on if isinstance(dep, ResourceBase)] if self.depends_on is not None else None
+            [dep for dep in self.depends_on if isinstance(dep, InfraResource)] if self.depends_on is not None else None
         )
 
-    def add_app_properties_to_resources(self, resources: List[ResourceBase]) -> List[ResourceBase]:
+    def add_app_properties_to_resources(self, resources: List[InfraResource]) -> List[InfraResource]:
         updated_resources = []
         app_properties = self.model_dump(exclude_defaults=True)
         app_group = self.get_group_name()
         app_output_dir = self.get_app_name()
 
-        app_skip_create = app_properties.get("skip_create", None)
-        app_skip_read = app_properties.get("skip_read", None)
-        app_skip_update = app_properties.get("skip_update", None)
-        app_skip_delete = app_properties.get("skip_delete", None)
-        app_recreate_on_update = app_properties.get("recreate_on_update", None)
-        app_use_cache = app_properties.get("use_cache", None)
-        app_force = app_properties.get("force", None)
-        app_debug_mode = app_properties.get("debug_mode", None)
-        app_wait_for_create = app_properties.get("wait_for_create", None)
-        app_wait_for_update = app_properties.get("wait_for_update", None)
-        app_wait_for_delete = app_properties.get("wait_for_delete", None)
-        app_save_output = app_properties.get("save_output", None)
+        app_skip_create = app_properties.get("skip_create")
+        app_skip_read = app_properties.get("skip_read")
+        app_skip_update = app_properties.get("skip_update")
+        app_skip_delete = app_properties.get("skip_delete")
+        app_recreate_on_update = app_properties.get("recreate_on_update")
+        app_use_cache = app_properties.get("use_cache")
+        app_force = app_properties.get("force")
+        app_debug_mode = app_properties.get("debug_mode")
+        app_wait_for_create = app_properties.get("wait_for_create")
+        app_wait_for_update = app_properties.get("wait_for_update")
+        app_wait_for_delete = app_properties.get("wait_for_delete")
+        app_save_output = app_properties.get("save_output")
 
         for resource in resources:
             resource_properties = resource.model_dump(exclude_defaults=True)
-            resource_skip_create = resource_properties.get("skip_create", None)
-            resource_skip_read = resource_properties.get("skip_read", None)
-            resource_skip_update = resource_properties.get("skip_update", None)
-            resource_skip_delete = resource_properties.get("skip_delete", None)
-            resource_recreate_on_update = resource_properties.get("recreate_on_update", None)
-            resource_use_cache = resource_properties.get("use_cache", None)
-            resource_force = resource_properties.get("force", None)
-            resource_debug_mode = resource_properties.get("debug_mode", None)
-            resource_wait_for_create = resource_properties.get("wait_for_create", None)
-            resource_wait_for_update = resource_properties.get("wait_for_update", None)
-            resource_wait_for_delete = resource_properties.get("wait_for_delete", None)
-            resource_save_output = resource_properties.get("save_output", None)
+            resource_skip_create = resource_properties.get("skip_create")
+            resource_skip_read = resource_properties.get("skip_read")
+            resource_skip_update = resource_properties.get("skip_update")
+            resource_skip_delete = resource_properties.get("skip_delete")
+            resource_recreate_on_update = resource_properties.get("recreate_on_update")
+            resource_use_cache = resource_properties.get("use_cache")
+            resource_force = resource_properties.get("force")
+            resource_debug_mode = resource_properties.get("debug_mode")
+            resource_wait_for_create = resource_properties.get("wait_for_create")
+            resource_wait_for_update = resource_properties.get("wait_for_update")
+            resource_wait_for_delete = resource_properties.get("wait_for_delete")
+            resource_save_output = resource_properties.get("save_output")
 
             # If skip_create on resource is not set, use app level skip_create (if set on app)
             if resource_skip_create is None and app_skip_create is not None:
@@ -203,7 +203,7 @@ class InfraApp(InfraBase):
             updated_resources.append(resource)
         return updated_resources
 
-    def get_resources(self, build_context: Any) -> List[ResourceBase]:
+    def get_resources(self, build_context: Any) -> List[InfraResource]:
         if self.cached_resources is not None and len(self.cached_resources) > 0:
             return self.cached_resources
 

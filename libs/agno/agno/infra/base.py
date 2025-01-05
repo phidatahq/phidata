@@ -7,14 +7,12 @@ from agno.workspace.settings import WorkspaceSettings
 
 
 class InfraBase(BaseModel):
-    """Base class for all Infrastructure resources.
+    """Base class for all InfraResource, InfraApp and InfraResources objects."""
 
-    All InfraResource, InfraApp and InfraResources classes inherit this class.
-    """
-
-    # Name of the resource
+    # Name of the infrastructure resource
     name: Optional[str] = None
-    # Group of the resource
+    # Group for the infrastructure resource
+    # Used for filtering infrastructure resources by group
     group: Optional[str] = None
     # Environment filter for this resource
     env: Optional[str] = None
@@ -23,7 +21,7 @@ class InfraBase(BaseModel):
     # Whether this resource is enabled
     enabled: bool = True
 
-    #  -*- Resource Control
+    # Resource Control
     skip_create: bool = False
     skip_read: bool = False
     skip_update: bool = False
@@ -31,17 +29,17 @@ class InfraBase(BaseModel):
     recreate_on_update: bool = False
     # Skip create if resource with the same name is active
     use_cache: bool = True
-    # Force create/update/delete implementation
+    # Force create/update/delete even if a resource with the same name is active
     force: Optional[bool] = None
 
-    # -*- Wait for resource to be created, updated or deleted
+    # Wait for resource to be created, updated or deleted
     wait_for_create: bool = True
     wait_for_update: bool = True
     wait_for_delete: bool = True
     waiter_delay: int = 30
     waiter_max_attempts: int = 50
 
-    # -*- Environment Variables for the resource (if applicable)
+    # Environment Variables for the resource (if applicable)
     # Add env variables to resource where applicable
     env_vars: Optional[Dict[str, Any]] = None
     # Read env from a file in yaml format
@@ -52,10 +50,11 @@ class InfraBase(BaseModel):
     secrets_file: Optional[Path] = None
     # Read secret variables from AWS Secrets
     aws_secrets: Optional[Any] = None
-    # -*- Debug Mode
+
+    # Debug Mode
     debug_mode: bool = False
 
-    #  -*- Store resource to output directory
+    # Store resource to output directory
     # If True, save resource output to json files
     save_output: bool = False
     # The directory for the input files in the workspace directory
@@ -63,13 +62,13 @@ class InfraBase(BaseModel):
     # The directory for the output files in the workspace directory
     output_dir: Optional[str] = None
 
-    #  -*- Dependencies
+    # Dependencies for the resource
     depends_on: Optional[List[Any]] = None
 
-    # -*- Workspace Settings
+    # Workspace Settings
     workspace_settings: Optional[WorkspaceSettings] = None
 
-    # -*- Cached Data
+    # Cached Data
     cached_env_file_data: Optional[Dict[str, Any]] = None
     cached_secret_file_data: Optional[Dict[str, Any]] = None
 

@@ -1,7 +1,7 @@
 """Run `pip install openai duckduckgo-search agno` to install dependencies."""
 
 from agno.agent import Agent
-from agno.model.openai import OpenAIChat
+from agno.models.openai import OpenAIChat
 from agno.tools.duckduckgo import DuckDuckGo
 
 web_agent = Agent(

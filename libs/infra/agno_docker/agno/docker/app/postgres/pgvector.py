@@ -3,7 +3,7 @@ from agno.docker.app.postgres.postgres import PostgresDb
 
 class PgVectorDb(PostgresDb):
     # -*- App Name
-    name: str = "pgvector-db"
+    name: str = "pgvector"
 
     # -*- Image Configuration
     image_name: str = "phidata/pgvector"

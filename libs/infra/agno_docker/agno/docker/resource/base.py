@@ -2,11 +2,11 @@ from typing import Any, Dict, Optional
 
 from agno.cli.console import print_info
 from agno.docker.api_client import DockerApiClient
-from agno.resource.base import ResourceBase
+from agno.infra.resource import InfraResource
 from agno.utils.log import logger
 
 
-class DockerResource(ResourceBase):
+class DockerResource(InfraResource):
     """Base class for Docker Resources."""
 
     # Fields received from the DockerApiClient

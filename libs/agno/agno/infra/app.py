@@ -4,7 +4,7 @@ from pydantic import Field, field_validator
 from pydantic_core.core_schema import ValidationInfo
 
 from agno.infra.base import InfraBase
-from agno.infra.context import InfraContext
+from agno.infra.context import ContainerContext
 from agno.infra.resource import InfraResource
 from agno.utils.log import logger
 
@@ -70,7 +70,7 @@ class InfraApp(InfraBase):
     # in the env_vars dict or env_file
     container_env: Optional[Dict[str, Any]] = None
     # Variable used to cache the container context
-    container_context: Optional[InfraContext] = None
+    container_context: Optional[ContainerContext] = None
 
     # -*- Cached Data
     cached_resources: Optional[List[Any]] = None

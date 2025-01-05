@@ -108,3 +108,18 @@ class InfraBase(BaseModel):
         if secret_file_data is not None:
             return secret_file_data.get(secret_name)
         return None
+
+    def set_aws_env_vars(self, env_dict: Dict[str, str], aws_region: Optional[str] = None) -> None:
+        from agno.constants import (
+            AWS_DEFAULT_REGION_ENV_VAR,
+            AWS_REGION_ENV_VAR,
+        )
+
+        if aws_region is not None:
+            # logger.debug(f"Setting AWS Region to {aws_region}")
+            env_dict[AWS_REGION_ENV_VAR] = aws_region
+            env_dict[AWS_DEFAULT_REGION_ENV_VAR] = aws_region
+        elif self.workspace_settings is not None and self.workspace_settings.aws_region is not None:
+            # logger.debug(f"Setting AWS Region to {aws_region} using workspace_settings")
+            env_dict[AWS_REGION_ENV_VAR] = self.workspace_settings.aws_region
+            env_dict[AWS_DEFAULT_REGION_ENV_VAR] = self.workspace_settings.aws_region

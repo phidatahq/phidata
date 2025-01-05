@@ -1,16 +1,16 @@
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
-from agno.app.base import AppBase
-from agno.app.context import ContainerContext
-from agno.docker.app.context import DockerBuildContext
+from agno.docker.context import DockerBuildContext
+from agno.infra.app import InfraApp
+from agno.infra.context import ContainerContext
 from agno.utils.log import logger
 
 if TYPE_CHECKING:
     from agno.docker.resource.base import DockerResource
 
 
-class DockerApp(AppBase):
+class DockerApp(InfraApp):
     # -*- Workspace Configuration
     # Path to the workspace directory inside the container
     workspace_dir_container_path: str = "/app"
@@ -37,9 +37,9 @@ class DockerApp(AppBase):
     # Path to mount the resources_dir
     resources_dir_container_path: str = "/mnt/resources"
 
-    # -*- Phi Volume
-    # Mount ~/.phi directory from host machine to the container
-    mount_phi_config: bool = True
+    # -*- Agno Volume
+    # Mount ~/.config/ag directory from host machine to the container
+    mount_agno_config: bool = True
 
     # -*- Container Configuration
     container_name: Optional[str] = None
@@ -123,22 +123,6 @@ class DockerApp(AppBase):
             workspace_parent=workspace_parent_in_container,
         )
 
-        if self.workspace_settings is not None and self.workspace_settings.scripts_dir is not None:
-            self.container_context.scripts_dir = f"{workspace_root_in_container}/{self.workspace_settings.scripts_dir}"
-
-        if self.workspace_settings is not None and self.workspace_settings.storage_dir is not None:
-            self.container_context.storage_dir = f"{workspace_root_in_container}/{self.workspace_settings.storage_dir}"
-
-        if self.workspace_settings is not None and self.workspace_settings.workflows_dir is not None:
-            self.container_context.workflows_dir = (
-                f"{workspace_root_in_container}/{self.workspace_settings.workflows_dir}"
-            )
-
-        if self.workspace_settings is not None and self.workspace_settings.workspace_dir is not None:
-            self.container_context.workspace_dir = (
-                f"{workspace_root_in_container}/{self.workspace_settings.workspace_dir}"
-            )
-
         if self.workspace_settings is not None and self.workspace_settings.ws_schema is not None:
             self.container_context.workspace_schema = self.workspace_settings.ws_schema
 
@@ -149,13 +133,9 @@ class DockerApp(AppBase):
 
     def get_container_env(self, container_context: ContainerContext) -> Dict[str, str]:
         from agno.constants import (
-            PHI_RUNTIME_ENV_VAR,
+            AGNO_RUNTIME_ENV_VAR,
             PYTHONPATH_ENV_VAR,
             REQUIREMENTS_FILE_PATH_ENV_VAR,
-            SCRIPTS_DIR_ENV_VAR,
-            STORAGE_DIR_ENV_VAR,
-            WORKFLOWS_DIR_ENV_VAR,
-            WORKSPACE_DIR_ENV_VAR,
             WORKSPACE_ID_ENV_VAR,
             WORKSPACE_ROOT_ENV_VAR,
         )
@@ -169,12 +149,8 @@ class DockerApp(AppBase):
                 "MOUNT_WORKSPACE": str(self.mount_workspace),
                 "PRINT_ENV_ON_LOAD": str(self.print_env_on_load),
                 "RESOURCES_DIR_CONTAINER_PATH": str(self.resources_dir_container_path),
-                PHI_RUNTIME_ENV_VAR: "docker",
+                AGNO_RUNTIME_ENV_VAR: "docker",
                 REQUIREMENTS_FILE_PATH_ENV_VAR: container_context.requirements_file or "",
-                SCRIPTS_DIR_ENV_VAR: container_context.scripts_dir or "",
-                STORAGE_DIR_ENV_VAR: container_context.storage_dir or "",
-                WORKFLOWS_DIR_ENV_VAR: container_context.workflows_dir or "",
-                WORKSPACE_DIR_ENV_VAR: container_context.workspace_dir or "",
                 WORKSPACE_ROOT_ENV_VAR: container_context.workspace_root or "",
             }
         )

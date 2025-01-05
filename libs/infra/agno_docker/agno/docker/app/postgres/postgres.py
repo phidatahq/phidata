@@ -1,7 +1,7 @@
 from typing import Dict, Optional
 
-from agno.app.db_app import DbApp
 from agno.docker.app.base import ContainerContext, DockerApp  # noqa: F401
+from agno.infra.db_app import DbApp
 
 
 class PostgresDb(DockerApp, DbApp):
@@ -10,7 +10,7 @@ class PostgresDb(DockerApp, DbApp):
 
     # -*- Image Configuration
     image_name: str = "postgres"
-    image_tag: str = "15.4"
+    image_tag: str = "17.2"
 
     # -*- App Ports
     # Open a container port if open_port=True

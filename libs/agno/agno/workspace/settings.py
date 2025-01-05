@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Optional
 
-from pydantic import Field, ValidationInfo, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from agno.api.schemas.workspace import WorkspaceSchema
@@ -48,6 +47,10 @@ class WorkspaceSettings(BaseSettings):
     # Set to True if Agno should continue patching
     # resources after a resource patch has failed
     continue_on_patch_failure: bool = False
+
+    # AWS settings
+    # Region for AWS resources
+    aws_region: Optional[str] = None
 
     # Other Settings
     # Use cached resource if available, i.e. skip resource creation if the resource already exists

@@ -234,7 +234,7 @@ class Agent:
     # Run ID: DO NOT SET MANUALLY
     run_id: Optional[str] = None
     # Input to the Agent run: DO NOT SET MANUALLY
-    run_input: Optional[Union[str, List, Dict]] = None
+    run_messages: RunMessages = field(default_factory=RunMessages)
     # Response from the Agent run: DO NOT SET MANUALLY
     run_response: RunResponse = field(default_factory=RunResponse)
     # --- Generated Media ---
@@ -401,7 +401,7 @@ class Agent:
         self.telemetry = telemetry if telemetry is not None else (getenv("AGNO_TELEMETRY", "true").lower() == "true")
 
         self.run_id = None
-        self.run_input = None
+        self.run_messages = None
         self.run_response = None
         self.images = None
         self.videos = None
@@ -459,8 +459,8 @@ class Agent:
         1. Prepare the Agent for the run
         2. Update the Model and resolve context
         3. Read existing session from storage
-        4. Prepare messages for this run
-        5. Prepare the steps for this run
+        4. Prepare run messages
+        5. Prepare run steps
         6. Start the Run by yielding a RunStarted event
         7. Run the Agent Steps
         8. Update the RunResponse messages and metrics
@@ -490,12 +490,13 @@ class Agent:
         # 3. Read existing session from storage
         self.read_from_storage()
 
-        # 4. Prepare messages for this run
-        system_message, user_messages, messages_for_run = self.get_messages_for_run(
+        # 4. Prepare run messages
+        run_messages: RunMessages = self.get_run_messages(
             message=message, audio=audio, images=images, videos=videos, messages=messages, **kwargs
         )
+        self.run_messages = run_messages
 
-        # 5. Prepare the steps for this run
+        # 5. Prepare run steps
         if len(self.steps) == 0:
             if self.reasoning:
                 self.steps.append(Reason())
@@ -503,7 +504,7 @@ class Agent:
 
         # Get the index of the last "user" message in messages_for_run
         # We track this so we can add messages after this index to the RunResponse and Memory
-        index_of_last_user_message = len(messages_for_run)
+        index_of_last_user_message = len(run_messages.messages)
 
         # 6. Start the Run by yielding a RunStarted event
         if self.stream_intermediate_steps:
@@ -513,12 +514,12 @@ class Agent:
         for step in self.steps:
             try:
                 logger.debug(f"Step: {step.__class__.__name__} Started")
-                logger.debug(f"Messages for run: {messages_for_run}")
+                logger.debug(f"Messages for run: {run_messages}")
                 yield from step.run(
                     agent=self,
-                    messages=messages_for_run,
-                    user_messages=user_messages,
-                    system_message=system_message,
+                    messages=run_messages.messages,
+                    user_messages=run_messages.user_message,
+                    system_message=run_messages.system_message,
                 )
                 logger.debug(f"Step: {step.__class__.__name__} Completed")
             except Exception as e:
@@ -527,18 +528,18 @@ class Agent:
 
         # 8. Update the RunResponse messages and metrics
         # Build a list of messages that should be added to the RunResponse
-        messages_for_run_response = [m for m in messages_for_run if m.add_to_agent_memory]
+        messages_for_run_response = [m for m in run_messages.messages if m.add_to_agent_memory]
         self.run_response.messages = messages_for_run_response
         self.run_response.metrics = self.aggregate_metrics_from_messages(messages_for_run_response)
 
         # 9. Update Agent Memory
         # Add the system message to the memory
-        if system_message is not None:
-            self.memory.add_system_message(system_message, system_message_role=self.system_message_role)
+        if run_messages.system_message is not None:
+            self.memory.add_system_message(run_messages.system_message, system_message_role=self.system_message_role)
         # Build a list of messages that should be added to the AgentMemory
-        messages_for_memory = user_messages
+        messages_for_memory = [run_messages.user_message]
         # Add messages from messages_for_run after the last user message
-        for m in messages_for_run[index_of_last_user_message:]:
+        for m in run_messages.messages[index_of_last_user_message:]:
             if m.add_to_agent_memory:
                 messages_for_memory.append(m)
         self.memory.add_messages(messages=messages_for_memory)
@@ -552,36 +553,37 @@ class Agent:
 
         # Create an AgentRun object to add to memory
         agent_run = AgentRun(response=self.run_response)
-        if message is not None:
-            user_message_for_memory: Optional[Message] = None
-            if isinstance(message, str):
-                user_message_for_memory = Message(role=self.user_message_role, content=message)
-            elif isinstance(message, Message):
-                user_message_for_memory = message
-            if user_message_for_memory is not None:
-                agent_run.message = user_message_for_memory
-                # Update the memories with the user message if needed
-                if self.memory.create_user_memories and self.memory.update_user_memories_after_run:
-                    self.memory.update_memory(input=user_message_for_memory.get_content_string())
-        elif messages is not None and len(messages) > 0:
-            for _m in messages:
-                _um = None
-                if isinstance(_m, Message):
-                    _um = _m
-                elif isinstance(_m, dict):
+        agent_run.message = run_messages.user_message
+        # Update the memories with the user message if needed
+        if (
+            self.memory.create_user_memories
+            and self.memory.update_user_memories_after_run
+            and run_messages.user_message is not None
+        ):
+            self.memory.update_memory(input=run_messages.user_message.get_content_string())
+
+        if messages is not None and len(messages) > 0:
+            for m in messages:
+                # Parse the message and convert to a Message object if possible
+                mp = None
+                if isinstance(m, Message):
+                    mp = m
+                elif isinstance(m, dict):
                     try:
-                        _um = Message.model_validate(_m)
+                        mp = Message.model_validate(m)
                     except Exception as e:
                         logger.warning(f"Failed to validate message: {e}")
                 else:
-                    logger.warning(f"Unsupported message type: {type(_m)}")
+                    logger.warning(f"Unsupported message type: {type(m)}")
                     continue
-                if _um:
+
+                # Add the message to the AgentRun
+                if mp:
                     if agent_run.messages is None:
                         agent_run.messages = []
-                    agent_run.messages.append(_um)
+                    agent_run.messages.append(mp)
                     if self.memory.create_user_memories and self.memory.update_user_memories_after_run:
-                        self.memory.update_memory(input=_um.get_content_string())
+                        self.memory.update_memory(input=mp.get_content_string())
                 else:
                     logger.warning("Unable to add message to memory")
         # Add AgentRun to memory
@@ -596,16 +598,6 @@ class Agent:
         # 11. Save output to file if save_response_to_file is set
         self.save_run_response_to_file(message=message)
 
-        # Set the run_input
-        if message is not None:
-            if isinstance(message, str):
-                self.run_input = message
-            elif isinstance(message, Message):
-                self.run_input = message.to_dict()
-            else:
-                self.run_input = message
-        elif messages is not None:
-            self.run_input = [m.to_dict() if isinstance(m, Message) else m for m in messages]
         # Log Agent Run
         self.log_agent_run()
 
@@ -615,6 +607,7 @@ class Agent:
                 content=self.run_response.content,
                 event=RunEvent.run_completed,
             )
+
         # -*- Yield final response if not streaming so that run() can get the response
         if not self.stream:
             yield self.run_response

@@ -8,6 +8,7 @@ from os import getenv
 from pathlib import Path
 from textwrap import dedent
 from typing import (
+    TYPE_CHECKING,
     Any,
     AsyncIterator,
     Callable,
@@ -19,25 +20,18 @@ from typing import (
     Sequence,
     Type,
     Union,
-    cast,
     overload,
 )
 from uuid import uuid4
 
 from pydantic import BaseModel
 
-from agno.agent.reason import Reason
-from agno.agent.respond import Respond
+from agno.agent.media import Audio, Image, Video
 from agno.agent.session import AgentSession
 from agno.agent.step import AgentStep
-from agno.document import Document
-from agno.knowledge.agent import AgentKnowledge
 from agno.memory.agent import AgentMemory, AgentRun, Memory, MemoryRetrieval, SessionSummary  # noqa: F401
 from agno.models.base import Model
-from agno.models.content import Audio, Image, Video
 from agno.models.message import Message, MessageReferences
-from agno.models.response import ModelResponse
-from agno.reasoning.step import ReasoningStep
 from agno.run.messages import RunMessages
 from agno.run.response import RunEvent, RunResponse, RunResponseExtraData
 from agno.storage.agent.base import AgentStorage
@@ -46,6 +40,10 @@ from agno.utils.log import logger, set_log_level_to_debug, set_log_level_to_info
 from agno.utils.merge_dict import merge_dictionaries
 from agno.utils.message import get_text_from_message
 from agno.utils.timer import Timer
+
+if TYPE_CHECKING:
+    from agno.knowledge.agent import AgentKnowledge
+    from agno.reasoning.step import ReasoningStep
 
 
 @dataclass(init=False)
@@ -469,6 +467,9 @@ class Agent:
         10. Save session to storage
         11. Save output to file if save_response_to_file is set
         """
+        from agno.agent.step.reason import Reason
+        from agno.agent.step.respond import Respond
+
         # 1. Prepare the Agent for the run
         # 1.1 Set agent_id and session_id
         self.set_agent_id()
@@ -516,7 +517,6 @@ class Agent:
         for step in self.steps:
             try:
                 logger.debug(f"Step: {step.__class__.__name__} Started")
-                logger.debug(f"Messages for run: {run_messages}")
                 yield from step.run(agent=self, run_messages=run_messages)
                 logger.debug(f"Step: {step.__class__.__name__} Completed")
             except Exception as e:
@@ -2023,6 +2023,7 @@ class Agent:
         self, query: str, num_documents: Optional[int] = None, **kwargs
     ) -> Optional[List[Dict[str, Any]]]:
         """Return a list of references from the knowledge base"""
+        from agno.document import Document
 
         if self.retriever is not None:
             retriever_kwargs = {"agent": self, "query": query, "num_documents": num_documents, **kwargs}
@@ -2184,7 +2185,7 @@ class Agent:
         )
         user_message = Message(role=self.user_message_role, content=gen_session_name_prompt)
         generate_name_messages = [system_message, user_message]
-        generated_name: ModelResponse = self.model.response(messages=generate_name_messages)
+        generated_name = self.model.response(messages=generate_name_messages)
         content = generated_name.content
         if content is None:
             logger.error("Generated name is None. Trying again.")
@@ -2354,6 +2355,8 @@ class Agent:
         Returns:
             str: A string indicating the status of the addition.
         """
+        from agno.document import Document
+
         if self.knowledge is None:
             return "Knowledge base not available"
         document_name = self.name
@@ -2528,6 +2531,8 @@ class Agent:
         from rich.markdown import Markdown
         from rich.status import Status
         from rich.text import Text
+
+        from agno.reasoning.step import ReasoningStep
 
         if markdown:
             self.markdown = True
@@ -2747,6 +2752,8 @@ class Agent:
         from rich.markdown import Markdown
         from rich.status import Status
         from rich.text import Text
+
+        from agno.reasoning.step import ReasoningStep
 
         if markdown:
             self.markdown = True

@@ -3,7 +3,7 @@ from enum import Enum
 from time import time
 from typing import Any, Dict, List, Optional
 
-from agno.models.content import Audio, Image, Video
+from agno.agent.media import Audio, Image, Video
 from agno.models.message import Message, MessageReferences
 from agno.reasoning.step import ReasoningStep
 

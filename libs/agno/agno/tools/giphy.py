@@ -5,7 +5,7 @@ from typing import Optional
 import httpx
 
 from agno.agent import Agent
-from agno.models.content import Image
+from agno.agent.media import Image
 from agno.tools import Toolkit
 from agno.utils.log import logger
 

@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from typing import Iterator, cast
 
-from agno.agent.respond import Respond
 from agno.agent.step import AgentStep
+from agno.agent.step.respond import Respond
 from agno.models.message import Message
 from agno.run.messages import RunMessages
 from agno.run.response import RunEvent, RunResponse

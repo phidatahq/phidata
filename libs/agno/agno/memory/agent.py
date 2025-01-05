@@ -1,17 +1,18 @@
-from copy import deepcopy
 from dataclasses import asdict, dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
-from agno.memory.classifier import MemoryClassifier
-from agno.memory.db import MemoryDb
-from agno.memory.manager import MemoryManager
-from agno.memory.memory import Memory
-from agno.memory.summarizer import MemorySummarizer
-from agno.memory.summary import SessionSummary
-from agno.models.message import Message
-from agno.run.response import RunResponse
 from agno.utils.log import logger
+
+if TYPE_CHECKING:
+    from agno.memory.classifier import MemoryClassifier
+    from agno.memory.db import MemoryDb
+    from agno.memory.manager import MemoryManager
+    from agno.memory.memory import Memory
+    from agno.memory.summarizer import MemorySummarizer
+    from agno.memory.summary import SessionSummary
+    from agno.models.message import Message
+    from agno.run.response import RunResponse
 
 
 @dataclass
@@ -247,6 +248,7 @@ class AgentMemory:
 
     def should_update_memory(self, input: str) -> bool:
         """Determines if a message should be added to the memory db."""
+        from agno.memory.classifier import MemoryClassifier
 
         if self.classifier is None:
             self.classifier = MemoryClassifier()
@@ -259,6 +261,7 @@ class AgentMemory:
 
     async def ashould_update_memory(self, input: str) -> bool:
         """Determines if a message should be added to the memory db."""
+        from agno.memory.classifier import MemoryClassifier
 
         if self.classifier is None:
             self.classifier = MemoryClassifier()
@@ -271,6 +274,7 @@ class AgentMemory:
 
     def update_memory(self, input: str, force: bool = False) -> Optional[str]:
         """Creates a memory from a message and adds it to the memory db."""
+        from agno.memory.manager import MemoryManager
 
         if input is None or not isinstance(input, str):
             return "Invalid message content"
@@ -303,6 +307,7 @@ class AgentMemory:
 
     async def aupdate_memory(self, input: str, force: bool = False) -> Optional[str]:
         """Creates a memory from a message and adds it to the memory db."""
+        from agno.memory.manager import MemoryManager
 
         if input is None or not isinstance(input, str):
             return "Invalid message content"
@@ -335,6 +340,7 @@ class AgentMemory:
 
     def update_summary(self) -> Optional[SessionSummary]:
         """Creates a summary of the session"""
+        from agno.memory.summarizer import MemorySummarizer
 
         self.updating_memory = True
 
@@ -347,6 +353,7 @@ class AgentMemory:
 
     async def aupdate_summary(self) -> Optional[SessionSummary]:
         """Creates a summary of the session"""
+        from agno.memory.summarizer import MemorySummarizer
 
         self.updating_memory = True
 
@@ -366,6 +373,8 @@ class AgentMemory:
         self.memories = None
 
     def deep_copy(self) -> "AgentMemory":
+        from copy import deepcopy
+
         # Create a shallow copy of the object
         copied_obj = self.__class__(**self.to_dict())
 

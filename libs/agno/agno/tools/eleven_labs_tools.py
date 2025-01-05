@@ -6,7 +6,7 @@ from typing import Iterator, Literal, Optional
 from uuid import uuid4
 
 from agno.agent import Agent
-from agno.models.content import Audio
+from agno.agent.media import Audio
 from agno.tools import Toolkit
 from agno.utils.log import logger
 

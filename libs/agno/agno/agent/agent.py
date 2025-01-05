@@ -8,7 +8,6 @@ from os import getenv
 from pathlib import Path
 from textwrap import dedent
 from typing import (
-    TYPE_CHECKING,
     Any,
     AsyncIterator,
     Callable,
@@ -29,9 +28,11 @@ from pydantic import BaseModel
 from agno.agent.media import Audio, Image, Video
 from agno.agent.session import AgentSession
 from agno.agent.step import AgentStep
+from agno.knowledge.agent import AgentKnowledge
 from agno.memory.agent import AgentMemory, AgentRun
 from agno.models.base import Model
 from agno.models.message import Message, MessageReferences
+from agno.reasoning.step import ReasoningStep
 from agno.run.messages import RunMessages
 from agno.run.response import RunEvent, RunResponse, RunResponseExtraData
 from agno.storage.agent.base import AgentStorage
@@ -39,10 +40,6 @@ from agno.tools import Function, Toolkit
 from agno.utils.log import logger, set_log_level_to_debug, set_log_level_to_info
 from agno.utils.message import get_text_from_message
 from agno.utils.timer import Timer
-
-if TYPE_CHECKING:
-    from agno.knowledge.agent import AgentKnowledge
-    from agno.reasoning.step import ReasoningStep
 
 
 @dataclass(init=False)
@@ -486,7 +483,7 @@ class Agent:
         self.update_model()
         self.run_response.model = self.model.id if self.model is not None else None
         if self.context is not None and self.resolve_context:
-            self.resolve_context()
+            self.resolve_run_context()
 
         # 3. Read existing session from storage
         self.read_from_storage()
@@ -783,6 +780,9 @@ class Agent:
         10. Save session to storage
         11. Save output to file if save_response_to_file is set
         """
+        from agno.agent.step.reason import Reason
+        from agno.agent.step.respond import Respond
+
         # 1. Prepare the Agent for the run
         # 1.1 Set agent_id and session_id
         self.set_agent_id()
@@ -800,7 +800,7 @@ class Agent:
         self.update_model()
         self.run_response.model = self.model.id if self.model is not None else None
         if self.context is not None and self.resolve_context:
-            self.resolve_context()
+            self.resolve_run_context()
 
         # 3. Read existing session from storage
         self.read_from_storage()
@@ -1152,7 +1152,7 @@ class Agent:
         if self.session_id is not None:
             self.model.session_id = self.session_id
 
-    def resolve_context(self) -> None:
+    def resolve_run_context(self) -> None:
         from inspect import signature
 
         logger.debug("Resolving context")

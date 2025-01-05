@@ -869,7 +869,10 @@ class OpenAIChat(Model):
                 if response_delta.tool_calls is not None:
                     if stream_data.response_tool_calls is None:
                         stream_data.response_tool_calls = []
-                    stream_data.response_tool_calls.extend(response_delta.tool_calls)
+                    if(isinstance(response_delta.tool_calls, list)):
+                        stream_data.response_tool_calls.extend(response_delta.tool_calls)
+                    else:
+                        stream_data.response_tool_calls.append(response_delta.tool_calls)
 
             if response.usage is not None:
                 self.add_response_usage_to_metrics(metrics=metrics, response_usage=response.usage)

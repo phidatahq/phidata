@@ -17,15 +17,12 @@ from typing import (
     Literal,
     Optional,
     Sequence,
-    Tuple,
     Type,
     Union,
     cast,
     overload,
 )
 from uuid import uuid4
-
-from pydantic import BaseModel
 
 from agno.agent.reason import Reason
 from agno.agent.respond import Respond
@@ -190,8 +187,10 @@ class Agent:
     create_default_user_message: bool = True
 
     # --- Agent Response Settings ---
+    # Number of retries to attempt
+    retries: int = 0
     # Provide a response model to get the response as a Pydantic model
-    response_model: Optional[Type[BaseModel]] = None
+    response_model: Optional[Type[Any]] = None
     # If True, the response from the Model is converted into the response_model
     # Otherwise, the response is returned as a JSON string
     parse_response: bool = True
@@ -298,6 +297,7 @@ class Agent:
         user_message: Optional[Union[List, Dict, str, Callable]] = None,
         user_message_role: str = "user",
         create_default_user_message: bool = True,
+        retries: int = 0,
         response_model: Optional[Type[Any]] = None,
         parse_response: bool = True,
         structured_outputs: bool = False,
@@ -378,6 +378,7 @@ class Agent:
         self.user_message_role = user_message_role
         self.create_default_user_message = create_default_user_message
 
+        self.retries = retries
         self.response_model = response_model
         self.parse_response = parse_response
         self.structured_outputs = structured_outputs
@@ -462,8 +463,8 @@ class Agent:
         4. Prepare run messages
         5. Prepare run steps
         6. Start the Run by yielding a RunStarted event
-        7. Run the Agent Steps
-        8. Update the RunResponse messages and metrics
+        7. Run Agent Steps
+        8. Update RunResponse
         9. Update Agent Memory
         10. Save session to storage
         11. Save output to file if save_response_to_file is set
@@ -510,7 +511,7 @@ class Agent:
         if self.stream_intermediate_steps:
             yield self.create_run_response("Run started", RunEvent.run_started)
 
-        # 7. Run the Agent Steps
+        # 7. Run Agent Steps
         for step in self.steps:
             try:
                 logger.debug(f"Step: {step.__class__.__name__} Started")
@@ -526,10 +527,12 @@ class Agent:
                 logger.error(f"Step: {step.__class__.__name__} Error: {e}")
                 raise
 
-        # 8. Update the RunResponse messages and metrics
+        # 8. Update RunResponse
         # Build a list of messages that should be added to the RunResponse
         messages_for_run_response = [m for m in run_messages.messages if m.add_to_agent_memory]
+        # Update the RunResponse messages
         self.run_response.messages = messages_for_run_response
+        # Update the RunResponse metrics
         self.run_response.metrics = self.aggregate_metrics_from_messages(messages_for_run_response)
 
         # 9. Update Agent Memory
@@ -561,7 +564,6 @@ class Agent:
             and run_messages.user_message is not None
         ):
             self.memory.update_memory(input=run_messages.user_message.get_content_string())
-
         if messages is not None and len(messages) > 0:
             for m in messages:
                 # Parse the message and convert to a Message object if possible
@@ -649,88 +651,108 @@ class Agent:
         videos: Optional[Sequence[Any]] = None,
         messages: Optional[Sequence[Union[Dict, Message]]] = None,
         stream_intermediate_steps: bool = False,
+        retries: Optional[int] = None,
         **kwargs: Any,
     ) -> Union[RunResponse, Iterator[RunResponse]]:
-        """Run the Agent with a message and return the response."""
+        """Run the Agent and return the response."""
 
-        # If a response_model is set, return the response as a structured output
-        if self.response_model is not None and self.parse_response:
-            # Set stream=False and run the agent
-            logger.debug("Setting stream=False as response_model is set")
-            run_response: RunResponse = next(
-                self._run(
-                    message=message,
-                    stream=False,
-                    audio=audio,
-                    images=images,
-                    videos=videos,
-                    messages=messages,
-                    stream_intermediate_steps=stream_intermediate_steps,
-                    **kwargs,
-                )
-            )
+        last_exception = None
+        num_attempts = (retries if retries is not None else self.retries) + 1
+        for attempt in range(num_attempts):
+            try:
+                # If a response_model is set, return the response as a structured output
+                if self.response_model is not None and self.parse_response:
+                    # Set stream=False and run the agent
+                    logger.debug("Setting stream=False as response_model is set")
+                    self.stream = False
+                    run_response: RunResponse = next(
+                        self._run(
+                            message=message,
+                            stream=False,
+                            audio=audio,
+                            images=images,
+                            videos=videos,
+                            messages=messages,
+                            stream_intermediate_steps=stream_intermediate_steps,
+                            **kwargs,
+                        )
+                    )
 
-            # If the model natively supports structured outputs, the content is already in the structured format
-            if self.structured_outputs:
-                # Do a final check confirming the content is in the response_model format
-                if isinstance(run_response.content, self.response_model):
-                    return run_response
+                    # If the model natively supports structured outputs, the content is already in the structured format
+                    if self.structured_outputs:
+                        # Do a final check confirming the content is in the response_model format
+                        if isinstance(run_response.content, self.response_model):
+                            return run_response
 
-            # Otherwise convert the response to the structured format
-            if isinstance(run_response.content, str):
-                try:
-                    structured_output = None
-                    try:
-                        structured_output = self.response_model.model_validate_json(run_response.content)
-                    except ValidationError as exc:
-                        logger.warning(f"Failed to convert response to pydantic model: {exc}")
-                        # Check if response starts with ```json
-                        if run_response.content.startswith("```json"):
-                            run_response.content = run_response.content.replace("```json\n", "").replace("\n```", "")
+                    # Otherwise convert the response to the structured format
+                    if isinstance(run_response.content, str):
+                        try:
+                            structured_output = None
                             try:
                                 structured_output = self.response_model.model_validate_json(run_response.content)
-                            except ValidationError as exc:
-                                logger.warning(f"Failed to convert response to pydantic model: {exc}")
+                            except Exception as e:
+                                logger.warning(f"Failed to convert response to pydantic model: {e}")
+                                # Check if response starts with ```json
+                                if run_response.content.startswith("```json"):
+                                    run_response.content = run_response.content.replace("```json\n", "").replace(
+                                        "\n```", ""
+                                    )
+                                    try:
+                                        structured_output = self.response_model.model_validate_json(
+                                            run_response.content
+                                        )
+                                    except Exception as e:
+                                        logger.warning(f"Failed to convert response to pydantic model: {e}")
 
-                    # -*- Update Agent response
-                    if structured_output is not None:
-                        run_response.content = structured_output
-                        run_response.content_type = self.response_model.__name__
-                        if self.run_response is not None:
-                            self.run_response.content = structured_output
-                            self.run_response.content_type = self.response_model.__name__
+                            # -*- Update Agent response
+                            if structured_output is not None:
+                                run_response.content = structured_output
+                                run_response.content_type = self.response_model.__name__
+                                if self.run_response is not None:
+                                    self.run_response.content = structured_output
+                                    self.run_response.content_type = self.response_model.__name__
+                            else:
+                                logger.warning("Failed to convert response to response_model")
+                        except Exception as e:
+                            logger.warning(f"Failed to convert response to output model: {e}")
                     else:
-                        logger.warning("Failed to convert response to response_model")
-                except Exception as e:
-                    logger.warning(f"Failed to convert response to output model: {e}")
-            else:
-                logger.warning("Something went wrong. Run response content is not a string")
-            return run_response
-        else:
-            if stream and self.is_streamable:
-                resp = self._run(
-                    message=message,
-                    stream=True,
-                    audio=audio,
-                    images=images,
-                    videos=videos,
-                    messages=messages,
-                    stream_intermediate_steps=stream_intermediate_steps,
-                    **kwargs,
-                )
-                return resp
-            else:
-                resp = self._run(
-                    message=message,
-                    stream=False,
-                    audio=audio,
-                    images=images,
-                    videos=videos,
-                    messages=messages,
-                    stream_intermediate_steps=stream_intermediate_steps,
-                    **kwargs,
-                )
-                return next(resp)
+                        logger.warning("Something went wrong. Run response content is not a string")
+                    return run_response
+                else:
+                    if stream and self.is_streamable:
+                        resp = self._run(
+                            message=message,
+                            stream=True,
+                            audio=audio,
+                            images=images,
+                            videos=videos,
+                            messages=messages,
+                            stream_intermediate_steps=stream_intermediate_steps,
+                            **kwargs,
+                        )
+                        return resp
+                    else:
+                        resp = self._run(
+                            message=message,
+                            stream=False,
+                            audio=audio,
+                            images=images,
+                            videos=videos,
+                            messages=messages,
+                            stream_intermediate_steps=stream_intermediate_steps,
+                            **kwargs,
+                        )
+                        return next(resp)
+            except Exception as e:
+                last_exception = e
+                logger.warning(f"Attempt {attempt + 1}/{num_attempts} failed: {str(e)}")
+                if attempt < num_attempts - 1:  # Don't sleep on the last attempt
+                    import time
+
+                    time.sleep(1)  # Add a small delay between retries
+
+        # If we get here, all retries failed
+        raise Exception(f"Failed after {num_attempts} attempts. Last error: {str(last_exception)}")
 
     async def _arun(
         self,

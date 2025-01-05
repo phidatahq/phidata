@@ -1,8 +1,8 @@
 """Run `pip install openai agno memory_profiler` to install dependencies."""
 
 from rich.pretty import pprint
-from agno.agent.agent import Agent, RunResponse
-from agno.model.openai import OpenAIChat
+from agno.agent import Agent, RunResponse
+from agno.models.openai import OpenAIChat
 import time
 import statistics
 import cProfile

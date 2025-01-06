@@ -80,13 +80,13 @@ class Workflow(BaseModel):
     @field_validator("workflow_id", mode="before")
     def set_workflow_id(cls, v: Optional[str]) -> str:
         workflow_id = v or str(uuid4())
-        logger.debug(f"*********** Worfklow ID: {workflow_id} ***********")
+        logger.debug(f"*********** Workflow ID: {workflow_id} ***********")
         return workflow_id
 
     @field_validator("session_id", mode="before")
     def set_session_id(cls, v: Optional[str]) -> str:
         session_id = v or str(uuid4())
-        logger.debug(f"*********** Worflow Session ID: {session_id} ***********")
+        logger.debug(f"*********** Workflow Session ID: {session_id} ***********")
         return session_id
 
     @field_validator("debug_mode", mode="before")

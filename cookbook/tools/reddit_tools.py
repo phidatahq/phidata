@@ -1,3 +1,28 @@
+"""
+Steps to get Reddit credentials:
+
+1. Create/Login to Reddit account
+   - Go to https://www.reddit.com
+
+2. Create a Reddit App
+   - Go to https://www.reddit.com/prefs/apps
+   - Click "Create App" or "Create Another App" button
+   - Fill in required details:
+     * Name: Your app name
+     * App type: Select "script"
+     * Description: Brief description
+     * About url: Your website (can be http://localhost)
+     * Redirect uri: http://localhost:8080
+   - Click "Create app" button
+
+3. Get credentials
+   - client_id: Found under your app name (looks like a random string)
+   - client_secret: Listed as "secret"
+   - user_agent: Format as: "platform:app_id:version (by /u/username)"
+   - username: Your Reddit username
+   - password: Your Reddit account password
+
+"""
 from phi.agent import Agent
 from phi.tools.reddit import RedditTools
 

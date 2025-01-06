@@ -96,7 +96,7 @@ def setup(
     \b
     Examples:
     > `ag ws setup`           -> Setup the current directory as a workspace
-    > `ag ws setup ai-app`   -> Setup the `ai-app` folder as a workspace
+    > `ag ws setup ai-app`    -> Setup the `ai-app` folder as a workspace
     """
     if print_debug_log:
         set_log_level_to_debug()
@@ -193,9 +193,9 @@ def up(
     agno_config: Optional[AgnoCliConfig] = AgnoCliConfig.from_saved_config()
     if not agno_config:
         agno_config = initialize_agno()
-    if not agno_config:
-        log_config_not_available_msg()
-        return
+        if not agno_config:
+            log_config_not_available_msg()
+            return
     agno_config = cast(AgnoCliConfig, agno_config)
 
     # Workspace to start
@@ -237,8 +237,7 @@ def up(
         return
 
     target_env: Optional[str] = None
-    target_infra_str: Optional[str] = None
-    target_infra: Optional[InfraType] = None
+    target_infra: Optional[str] = None
     target_group: Optional[str] = None
     target_name: Optional[str] = None
     target_type: Optional[str] = None
@@ -249,7 +248,7 @@ def up(
             raise TypeError(f"Invalid resource_filter. Expected: str, Received: {type(resource_filter)}")
         (
             target_env,
-            target_infra_str,
+            target_infra,
             target_group,
             target_name,
             target_type,
@@ -258,8 +257,8 @@ def up(
     # derive env:infra:name:type:group from command options
     if target_env is None and env_filter is not None and isinstance(env_filter, str):
         target_env = env_filter
-    if target_infra_str is None and infra_filter is not None and isinstance(infra_filter, str):
-        target_infra_str = infra_filter
+    if target_infra is None and infra_filter is not None and isinstance(infra_filter, str):
+        target_infra = infra_filter
     if target_group is None and group_filter is not None and isinstance(group_filter, str):
         target_group = group_filter
     if target_name is None and name_filter is not None and isinstance(name_filter, str):
@@ -270,26 +269,9 @@ def up(
     # derive env:infra:name:type:group from defaults
     if target_env is None:
         target_env = ws_to_start.workspace_settings.default_env if ws_to_start.workspace_settings else None
-    if target_infra_str is None:
-        target_infra_str = ws_to_start.workspace_settings.default_infra if ws_to_start.workspace_settings else None
-    if target_infra_str is not None:
-        try:
-            target_infra = cast(InfraType, InfraType(target_infra_str.lower()))
-        except KeyError:
-            logger.error(f"{target_infra_str} is not supported")
-            return
+    if target_infra is None:
+        target_infra = ws_to_start.workspace_settings.default_infra if ws_to_start.workspace_settings else None
 
-    logger.debug("Starting workspace")
-    logger.debug(f"\ttarget_env   : {target_env}")
-    logger.debug(f"\ttarget_infra : {target_infra}")
-    logger.debug(f"\ttarget_group : {target_group}")
-    logger.debug(f"\ttarget_name  : {target_name}")
-    logger.debug(f"\ttarget_type  : {target_type}")
-    logger.debug(f"\tdry_run      : {dry_run}")
-    logger.debug(f"\tauto_confirm : {auto_confirm}")
-    logger.debug(f"\tforce        : {force}")
-    logger.debug(f"\tpull         : {pull}")
-    print_heading("Starting workspace: {}".format(str(ws_to_start.ws_root_path.stem)))
     start_workspace(
         agno_config=agno_config,
         ws_config=ws_to_start,
@@ -378,9 +360,9 @@ def down(
     agno_config: Optional[AgnoCliConfig] = AgnoCliConfig.from_saved_config()
     if not agno_config:
         agno_config = initialize_agno()
-    if not agno_config:
-        log_config_not_available_msg()
-        return
+        if not agno_config:
+            log_config_not_available_msg()
+            return
 
     # Workspace to stop
     ws_to_stop: Optional[WorkspaceConfig] = None
@@ -421,8 +403,7 @@ def down(
         return
 
     target_env: Optional[str] = None
-    target_infra_str: Optional[str] = None
-    target_infra: Optional[InfraType] = None
+    target_infra: Optional[str] = None
     target_group: Optional[str] = None
     target_name: Optional[str] = None
     target_type: Optional[str] = None
@@ -433,7 +414,7 @@ def down(
             raise TypeError(f"Invalid resource_filter. Expected: str, Received: {type(resource_filter)}")
         (
             target_env,
-            target_infra_str,
+            target_infra,
             target_group,
             target_name,
             target_type,
@@ -442,8 +423,8 @@ def down(
     # derive env:infra:name:type:group from command options
     if target_env is None and env_filter is not None and isinstance(env_filter, str):
         target_env = env_filter
-    if target_infra_str is None and infra_filter is not None and isinstance(infra_filter, str):
-        target_infra_str = infra_filter
+    if target_infra is None and infra_filter is not None and isinstance(infra_filter, str):
+        target_infra = infra_filter
     if target_group is None and group_filter is not None and isinstance(group_filter, str):
         target_group = group_filter
     if target_name is None and name_filter is not None and isinstance(name_filter, str):
@@ -454,25 +435,9 @@ def down(
     # derive env:infra:name:type:group from defaults
     if target_env is None:
         target_env = ws_to_stop.workspace_settings.default_env if ws_to_stop.workspace_settings else None
-    if target_infra_str is None:
-        target_infra_str = ws_to_stop.workspace_settings.default_infra if ws_to_stop.workspace_settings else None
-    if target_infra_str is not None:
-        try:
-            target_infra = cast(InfraType, InfraType(target_infra_str.lower()))
-        except KeyError:
-            logger.error(f"{target_infra_str} is not supported")
-            return
+    if target_infra is None:
+        target_infra = ws_to_stop.workspace_settings.default_infra if ws_to_stop.workspace_settings else None
 
-    logger.debug("Stopping workspace")
-    logger.debug(f"\ttarget_env   : {target_env}")
-    logger.debug(f"\ttarget_infra : {target_infra}")
-    logger.debug(f"\ttarget_group : {target_group}")
-    logger.debug(f"\ttarget_name  : {target_name}")
-    logger.debug(f"\ttarget_type  : {target_type}")
-    logger.debug(f"\tdry_run      : {dry_run}")
-    logger.debug(f"\tauto_confirm : {auto_confirm}")
-    logger.debug(f"\tforce        : {force}")
-    print_heading("Stopping workspace: {}".format(str(ws_to_stop.ws_root_path.stem)))
     stop_workspace(
         agno_config=agno_config,
         ws_config=ws_to_stop,
@@ -564,9 +529,9 @@ def patch(
     agno_config: Optional[AgnoCliConfig] = AgnoCliConfig.from_saved_config()
     if not agno_config:
         agno_config = initialize_agno()
-    if not agno_config:
-        log_config_not_available_msg()
-        return
+        if not agno_config:
+            log_config_not_available_msg()
+            return
 
     # Workspace to patch
     ws_to_patch: Optional[WorkspaceConfig] = None
@@ -607,8 +572,7 @@ def patch(
         return
 
     target_env: Optional[str] = None
-    target_infra_str: Optional[str] = None
-    target_infra: Optional[InfraType] = None
+    target_infra: Optional[str] = None
     target_group: Optional[str] = None
     target_name: Optional[str] = None
     target_type: Optional[str] = None
@@ -619,7 +583,7 @@ def patch(
             raise TypeError(f"Invalid resource_filter. Expected: str, Received: {type(resource_filter)}")
         (
             target_env,
-            target_infra_str,
+            target_infra,
             target_group,
             target_name,
             target_type,
@@ -628,8 +592,8 @@ def patch(
     # derive env:infra:name:type:group from command options
     if target_env is None and env_filter is not None and isinstance(env_filter, str):
         target_env = env_filter
-    if target_infra_str is None and infra_filter is not None and isinstance(infra_filter, str):
-        target_infra_str = infra_filter
+    if target_infra is None and infra_filter is not None and isinstance(infra_filter, str):
+        target_infra = infra_filter
     if target_group is None and group_filter is not None and isinstance(group_filter, str):
         target_group = group_filter
     if target_name is None and name_filter is not None and isinstance(name_filter, str):
@@ -640,26 +604,9 @@ def patch(
     # derive env:infra:name:type:group from defaults
     if target_env is None:
         target_env = ws_to_patch.workspace_settings.default_env if ws_to_patch.workspace_settings else None
-    if target_infra_str is None:
-        target_infra_str = ws_to_patch.workspace_settings.default_infra if ws_to_patch.workspace_settings else None
-    if target_infra_str is not None:
-        try:
-            target_infra = cast(InfraType, InfraType(target_infra_str.lower()))
-        except KeyError:
-            logger.error(f"{target_infra_str} is not supported")
-            return
+    if target_infra is None:
+        target_infra = ws_to_patch.workspace_settings.default_infra if ws_to_patch.workspace_settings else None
 
-    logger.debug("Patching workspace")
-    logger.debug(f"\ttarget_env   : {target_env}")
-    logger.debug(f"\ttarget_infra : {target_infra}")
-    logger.debug(f"\ttarget_group : {target_group}")
-    logger.debug(f"\ttarget_name  : {target_name}")
-    logger.debug(f"\ttarget_type  : {target_type}")
-    logger.debug(f"\tdry_run      : {dry_run}")
-    logger.debug(f"\tauto_confirm : {auto_confirm}")
-    logger.debug(f"\tforce        : {force}")
-    logger.debug(f"\tpull         : {pull}")
-    print_heading("Updating workspace: {}".format(str(ws_to_patch.ws_root_path.stem)))
     update_workspace(
         agno_config=agno_config,
         ws_config=ws_to_patch,
@@ -793,9 +740,9 @@ def config(
     agno_config: Optional[AgnoCliConfig] = AgnoCliConfig.from_saved_config()
     if not agno_config:
         agno_config = initialize_agno()
-    if not agno_config:
-        log_config_not_available_msg()
-        return
+        if not agno_config:
+            log_config_not_available_msg()
+            return
 
     active_ws_config: Optional[WorkspaceConfig] = agno_config.get_active_ws_config()
     if active_ws_config is None:
@@ -847,9 +794,9 @@ def delete(
     agno_config: Optional[AgnoCliConfig] = AgnoCliConfig.from_saved_config()
     if not agno_config:
         agno_config = initialize_agno()
-    if not agno_config:
-        log_config_not_available_msg()
-        return
+        if not agno_config:
+            log_config_not_available_msg()
+            return
 
     ws_to_delete: List[Path] = []
     # Delete workspace by name if provided

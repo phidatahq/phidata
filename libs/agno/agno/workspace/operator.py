@@ -20,7 +20,6 @@ from agno.cli.console import (
     print_subheading,
 )
 from agno.infra.resources import InfraResources
-from agno.infra.type import InfraType
 from agno.utils.common import str_to_int
 from agno.utils.log import logger
 from agno.workspace.config import WorkspaceConfig
@@ -380,7 +379,7 @@ def start_workspace(
     agno_config: AgnoCliConfig,
     ws_config: WorkspaceConfig,
     target_env: Optional[str] = None,
-    target_infra: Optional[InfraType] = None,
+    target_infra: Optional[str] = None,
     target_group: Optional[str] = None,
     target_name: Optional[str] = None,
     target_type: Optional[str] = None,
@@ -393,6 +392,17 @@ def start_workspace(
     if ws_config is None:
         logger.error("WorkspaceConfig invalid")
         return
+
+    print_heading("Starting workspace: {}".format(str(ws_config.ws_root_path.stem)))
+    logger.debug(f"\ttarget_env   : {target_env}")
+    logger.debug(f"\ttarget_infra : {target_infra}")
+    logger.debug(f"\ttarget_group : {target_group}")
+    logger.debug(f"\ttarget_name  : {target_name}")
+    logger.debug(f"\ttarget_type  : {target_type}")
+    logger.debug(f"\tdry_run      : {dry_run}")
+    logger.debug(f"\tauto_confirm : {auto_confirm}")
+    logger.debug(f"\tforce        : {force}")
+    logger.debug(f"\tpull         : {pull}")
 
     # Set the local environment variables before processing configs
     ws_config.set_local_env()
@@ -477,7 +487,7 @@ def stop_workspace(
     agno_config: AgnoCliConfig,
     ws_config: WorkspaceConfig,
     target_env: Optional[str] = None,
-    target_infra: Optional[InfraType] = None,
+    target_infra: Optional[str] = None,
     target_group: Optional[str] = None,
     target_name: Optional[str] = None,
     target_type: Optional[str] = None,
@@ -489,6 +499,16 @@ def stop_workspace(
     if ws_config is None:
         logger.error("WorkspaceConfig invalid")
         return
+
+    print_heading("Stopping workspace: {}".format(str(ws_config.ws_root_path.stem)))
+    logger.debug(f"\ttarget_env   : {target_env}")
+    logger.debug(f"\ttarget_infra : {target_infra}")
+    logger.debug(f"\ttarget_group : {target_group}")
+    logger.debug(f"\ttarget_name  : {target_name}")
+    logger.debug(f"\ttarget_type  : {target_type}")
+    logger.debug(f"\tdry_run      : {dry_run}")
+    logger.debug(f"\tauto_confirm : {auto_confirm}")
+    logger.debug(f"\tforce        : {force}")
 
     # Set the local environment variables before processing configs
     ws_config.set_local_env()
@@ -572,7 +592,7 @@ def update_workspace(
     agno_config: AgnoCliConfig,
     ws_config: WorkspaceConfig,
     target_env: Optional[str] = None,
-    target_infra: Optional[InfraType] = None,
+    target_infra: Optional[str] = None,
     target_group: Optional[str] = None,
     target_name: Optional[str] = None,
     target_type: Optional[str] = None,
@@ -585,6 +605,17 @@ def update_workspace(
     if ws_config is None:
         logger.error("WorkspaceConfig invalid")
         return
+
+    print_heading("Updating workspace: {}".format(str(ws_config.ws_root_path.stem)))
+    logger.debug(f"\ttarget_env   : {target_env}")
+    logger.debug(f"\ttarget_infra : {target_infra}")
+    logger.debug(f"\ttarget_group : {target_group}")
+    logger.debug(f"\ttarget_name  : {target_name}")
+    logger.debug(f"\ttarget_type  : {target_type}")
+    logger.debug(f"\tdry_run      : {dry_run}")
+    logger.debug(f"\tauto_confirm : {auto_confirm}")
+    logger.debug(f"\tforce        : {force}")
+    logger.debug(f"\tpull         : {pull}")
 
     # Set the local environment variables before processing configs
     ws_config.set_local_env()

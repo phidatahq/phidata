@@ -90,7 +90,6 @@ class WorkspaceConfig:
 
         from agno.constants import (
             AWS_REGION_ENV_VAR,
-            WORKSPACE_DIR_ENV_VAR,
             WORKSPACE_ID_ENV_VAR,
             WORKSPACE_NAME_ENV_VAR,
             WORKSPACE_ROOT_ENV_VAR,
@@ -98,10 +97,6 @@ class WorkspaceConfig:
 
         if self.ws_root_path is not None:
             environ[WORKSPACE_ROOT_ENV_VAR] = str(self.ws_root_path)
-
-            workspace_dir_path: Optional[Path] = self.workspace_dir_path
-            if workspace_dir_path is not None:
-                environ[WORKSPACE_DIR_ENV_VAR] = str(workspace_dir_path)
 
             if self.workspace_settings is not None:
                 environ[WORKSPACE_NAME_ENV_VAR] = str(self.workspace_settings.ws_name)
@@ -129,13 +124,9 @@ class WorkspaceConfig:
         from sys import path as sys_path
 
         from agno.utils.load_env import load_env
-
-        # Objects to read from the files in the workspace_dir_path
-        docker_resource_groups: Optional[List[Any]] = None
-        aws_resource_groups: Optional[List[Any]] = None
+        from agno.utils.py_io import get_python_objects_from_module
 
         logger.debug("**--> Loading WorkspaceConfig")
-
         logger.debug(f"Loading .env from {self.ws_root_path}")
         load_env(dotenv_dir=self.ws_root_path)
 
@@ -148,9 +139,6 @@ class WorkspaceConfig:
 
         workspace_dir_path: Optional[Path] = self.workspace_dir_path
         if workspace_dir_path is not None:
-            from agno.aws.resources import AwsResources
-            from agno.docker.resources import DockerResources
-
             logger.debug(f"--^^-- Loading workspace from: {workspace_dir_path}")
             # Create a dict of objects in the workspace directory
             workspace_objects = {}
@@ -171,84 +159,70 @@ class WorkspaceConfig:
                     python_objects = get_python_objects_from_module(resource_file)
                     # logger.debug(f"python_objects: {python_objects}")
                     for obj_name, obj in python_objects.items():
-                        if isinstance(
-                            obj,
-                            (
-                                WorkspaceSettings,
-                                DockerResources,
-                                AwsResources,
-                            ),
-                        ):
+                        if isinstance(obj, WorkspaceSettings):
+                            logger.debug(f"Found: {obj.__class__.__module__}: {obj_name}")
+                            if self.validate_workspace_settings(obj):
+                                self._workspace_settings = obj
+                                if self.ws_schema is not None and self._workspace_settings is not None:
+                                    self._workspace_settings.ws_schema = self.ws_schema
+                                    logger.debug("Added WorkspaceSchema to WorkspaceSettings")
+                        elif isinstance(obj, InfraBase):
+                            logger.debug(f"Found: {obj.__class__.__module__}: {obj_name}")
+                            if not obj.enabled:
+                                logger.debug(f"Skipping {obj_name}: disabled")
+                                continue
                             workspace_objects[obj_name] = obj
                 except Exception:
                     logger.warning(f"Error in {resource_file}")
                     raise
-
-            # logger.debug(f"workspace_objects: {workspace_objects}")
-            for obj_name, obj in workspace_objects.items():
-                logger.debug(f"Reading {obj.__class__.__name__}: {obj_name}")
-                if isinstance(obj, WorkspaceSettings):
-                    if self.validate_workspace_settings(obj):
-                        self._workspace_settings = obj
-                        if self.ws_schema is not None and self._workspace_settings is not None:
-                            self._workspace_settings.ws_schema = self.ws_schema
-                            logger.debug("Added WorkspaceSchema to WorkspaceSettings")
-                elif isinstance(obj, DockerResources):
-                    if not obj.enabled:
-                        logger.debug(f"Skipping {obj_name}: disabled")
-                        continue
-                    if docker_resource_groups is None:
-                        docker_resource_groups = []
-                    docker_resource_groups.append(obj)
-                elif isinstance(obj, AwsResources):
-                    if not obj.enabled:
-                        logger.debug(f"Skipping {obj_name}: disabled")
-                        continue
-                    if aws_resource_groups is None:
-                        aws_resource_groups = []
-                    aws_resource_groups.append(obj)
-
+            logger.debug(f"workspace_objects: {workspace_objects}")
         logger.debug("**--> WorkspaceConfig loaded")
         logger.debug(f"Removing {self.ws_root_path} from path")
         sys_path.remove(str(self.ws_root_path))
 
-        # Resources filtered by infra
-        filtered_infra_resources: List[InfraResources] = []
-        logger.debug(f"Getting resources for env: {env} | infra: {infra} | order: {order}")
+        # Filter resources by infra
+        filtered_ws_objects_by_infra_type: Dict[str, InfraBase] = {}
+        logger.debug(f"Filtering resources for env: {env} | infra: {infra} | order: {order}")
         if infra is None:
-            if docker_resource_groups is not None:
-                filtered_infra_resources.extend(docker_resource_groups)
-            if order == "delete":
-                if aws_resource_groups is not None:
-                    filtered_infra_resources.extend(aws_resource_groups)
-            else:
-                if aws_resource_groups is not None:
-                    filtered_infra_resources.extend(aws_resource_groups)
-        elif infra == "docker":
-            if docker_resource_groups is not None:
-                filtered_infra_resources.extend(docker_resource_groups)
-        elif infra == "aws":
-            if aws_resource_groups is not None:
-                filtered_infra_resources.extend(aws_resource_groups)
-
-        # Resources filtered by env
-        env_filtered_resource_groups: List[InfraResources] = []
-        if env is None:
-            env_filtered_resource_groups = filtered_infra_resources
+            filtered_ws_objects_by_infra_type = workspace_objects
         else:
-            for resource_group in filtered_infra_resources:
-                if resource_group.env == env:
-                    env_filtered_resource_groups.append(resource_group)
+            for resource_name, resource in workspace_objects.items():
+                if resource.infra == infra:
+                    filtered_ws_objects_by_infra_type[resource_name] = resource
 
-        # Updated resource groups with the workspace settings
+        # Filter resources by env
+        filtered_infra_objects_by_env: Dict[str, InfraBase] = {}
+        if env is None:
+            filtered_infra_objects_by_env = filtered_ws_objects_by_infra_type
+        else:
+            for resource_name, resource in filtered_ws_objects_by_infra_type.items():
+                if resource.env == env:
+                    filtered_infra_objects_by_env[resource_name] = resource
+
+        # Updated resources with the workspace settings
+        # Create a temporary workspace settings object if it does not exist
         if self._workspace_settings is None:
-            # TODO: Create a temporary workspace settings object
-            logger.debug("WorkspaceConfig._workspace_settings is None")
+            self._workspace_settings = WorkspaceSettings(
+                ws_root=self.ws_root_path,
+                ws_name=self.ws_root_path.stem,
+            )
+        # Update the resources with the workspace settings
         if self._workspace_settings is not None:
-            for resource_group in env_filtered_resource_groups:
-                logger.debug(f"Setting workspace settings for {resource_group.__class__.__name__}")
-                resource_group.set_workspace_settings(self._workspace_settings)
-        return env_filtered_resource_groups
+            for resource_name, resource in filtered_infra_objects_by_env.items():
+                logger.debug(f"Setting workspace settings for {resource.__class__.__name__}")
+                resource.set_workspace_settings(self._workspace_settings)
+
+        # Create a list of InfraResources from the filtered resources
+        infra_resources_list: List[InfraResources] = []
+        for resource_name, resource in filtered_infra_objects_by_env.items():
+            # If the resource is an InfraResources object, add it to the list
+            if isinstance(resource, InfraResources):
+                infra_resources_list.append(resource)
+            # Otherwise, get the InfraResources object from the resource
+            else:
+                infra_resources_list.append(resource.get_infra_resources())
+
+        return infra_resources_list
 
     @staticmethod
     def get_resources_from_file(

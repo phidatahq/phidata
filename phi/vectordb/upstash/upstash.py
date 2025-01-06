@@ -31,17 +31,6 @@ class Upstash(VectorDb):
         namespace (Optional[str], optional): The namespace to use. Defaults to DEFAULT_NAMESPACE.
         reranker (Optional[Reranker], optional): The reranker to use. Defaults to None.
         **kwargs: Additional keyword arguments.
-
-    Attributes:
-        url (str): The Upstash Vector database URL.
-        token (str): The Upstash Vector API token.
-        retries (int): Number of retry attempts.
-        retry_interval (float): Time interval between retries.
-        dimension (Optional[int]): The dimension of the embeddings.
-        namespace (str): The namespace to use.
-        embedder (Embedder): The embedder instance.
-        reranker (Optional[Reranker]): The reranker instance.
-        kwargs (Dict[str, Any]): Additional keyword arguments.
     """
 
     def __init__(

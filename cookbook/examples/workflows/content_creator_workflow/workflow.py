@@ -52,7 +52,7 @@ class LinkedInPost(BaseModel):
     """
 
     content: str
-    media_url: Optional[str] = None  # Optional media attachment URL
+    media_url: Optional[List[str]] = None  # Optional media attachment URL
 
 
 class ContentPlanningWorkflow(Workflow):

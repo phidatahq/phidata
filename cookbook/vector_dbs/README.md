@@ -18,6 +18,13 @@ pip install -U qdrant-client pypdf openai phidata
 
 ## Test your VectorDB
 
+### Cassandra DB
+
+```shell
+python cookbook/vector_dbs/chroma_db.py
+```
+
+
 ### ChromaDB
 
 ```shell

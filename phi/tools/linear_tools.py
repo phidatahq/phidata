@@ -22,7 +22,6 @@ class LinearTool(Toolkit):
         if not self.api_token:
             api_error_message = "API token 'LINEAR_API_KEY' is missing. Please set it as an environment variable."
             logger.error(api_error_message)
-            raise ValueError(api_error_message)
 
         self.endpoint = "https://api.linear.app/graphql"
         self.headers = {"Authorization": f"{self.api_token}"}
@@ -359,7 +358,7 @@ class LinearTool(Toolkit):
 
         query = """
         query HighPriorityIssues {
-        issues(filter: { 
+        issues(filter: {
           priority: { lte: 2 }
         }) {
           nodes {

@@ -1,3 +1,29 @@
+"""
+Steps to get Reddit credentials:
+
+1. Create/Login to Reddit account
+   - Go to https://www.reddit.com
+
+2. Create a Reddit App
+   - Go to https://www.reddit.com/prefs/apps
+   - Click "Create App" or "Create Another App" button
+   - Fill in required details:
+     * Name: Your app name
+     * App type: Select "script"
+     * Description: Brief description
+     * About url: Your website (can be http://localhost)
+     * Redirect uri: http://localhost:8080
+   - Click "Create app" button
+
+3. Get credentials
+   - client_id: Found under your app name (looks like a random string)
+   - client_secret: Listed as "secret"
+   - user_agent: Format as: "platform:app_id:version (by /u/username)"
+   - username: Your Reddit username
+   - password: Your Reddit account password
+
+"""
+
 import json
 from os import getenv
 from typing import Optional, Dict, List, Union
@@ -7,7 +33,7 @@ from phi.utils.log import logger
 try:
     import praw  # type: ignore
 except ImportError:
-    raise ImportError("`praw` not installed.")
+    raise ImportError("praw` not installed. Please install using `pip install praw`")
 
 
 class RedditTools(Toolkit):

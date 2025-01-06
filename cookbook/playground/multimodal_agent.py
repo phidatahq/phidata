@@ -16,6 +16,7 @@ from phi.model.response import FileType
 from phi.playground import Playground, serve_playground_app
 from phi.storage.agent.sqlite import SqlAgentStorage
 from phi.tools.fal_tools import FalTools
+from phi.tools.desi_vocal_tools import DesiVocalTools
 
 image_agent_storage_file: str = "tmp/image_agent.db"
 
@@ -128,10 +129,48 @@ audio_agent = Agent(
     storage=SqlAgentStorage(table_name="audio_agent", db_file=image_agent_storage_file),
 )
 
-
-app = Playground(agents=[image_agent, ml_gif_agent, ml_video_agent, fal_agent, gif_agent, audio_agent]).get_app(
-    use_async=False
+image_to_image_agent = Agent(
+    name="Image to Image Agent",
+    agent_id="image_to_image_agent",
+    model=OpenAIChat(id="gpt-4o"),
+    tools=[FalTools()],
+    markdown=True,
+    debug=True,
+    show_tool_calls=True,
+    instructions=[
+        "You have to use the `image_to_image` tool to generate the image.",
+        "You are an AI agent that can generate images using the Fal AI API.",
+        "You will be given a prompt and an image URL.",
+        "Don't provide the URL of the image in the response. Only describe what image was generated.",
+    ],
+    storage=SqlAgentStorage(table_name="image_to_image_agent", db_file=image_agent_storage_file),
 )
+
+hindi_audio_agent = Agent(
+    name="Hindi Audio Generator Agent",
+    agent_id="hindi_audio_agent",
+    model=OpenAIChat(id="gpt-4o"),
+    tools=[DesiVocalTools()],
+    description="You are an AI agent that can generate audio using the DesiVocal API.",
+    instructions=[
+        "When the user asks you to generate audio, use the `text_to_speech` tool to generate the audio."
+        "Send the prompt in hindi language.",
+        "You'll generate the appropriate prompt to send to the tool to generate audio.",
+        "You don't need to find the appropriate voice first, I already specified the voice to user."
+        "Don't return file name or file url in your response or markdown just tell the audio was created successfully.",
+        "The audio should be short.",
+    ],
+    markdown=True,
+    debug_mode=True,
+    add_history_to_messages=True,
+    add_datetime_to_instructions=True,
+    storage=SqlAgentStorage(table_name="hindi_audio_agent", db_file=image_agent_storage_file),
+)
+
+
+app = Playground(
+    agents=[image_agent, ml_gif_agent, ml_video_agent, fal_agent, gif_agent, audio_agent, hindi_audio_agent,image_to_image_agent]
+).get_app(use_async=False)
 
 if __name__ == "__main__":
     serve_playground_app("multimodal_agent:app", reload=True)

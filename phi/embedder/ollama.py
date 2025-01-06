@@ -5,9 +5,8 @@ from phi.utils.log import logger
 
 try:
     from ollama import Client as OllamaClient
-except ImportError:
-    logger.error("`ollama` not installed")
-    raise
+except (ModuleNotFoundError, ImportError):
+    raise ImportError("`ollama` not installed. Please install using `pip install ollama`")
 
 
 class OllamaEmbedder(Embedder):

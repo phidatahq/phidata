@@ -1,8 +1,7 @@
 import json
 from typing import List, Optional
 from dotenv import load_dotenv
-from pydantic import BaseModel
-
+from pydantic import BaseModel, Field
 from phi.agent import Agent, RunResponse
 from phi.run.response import RunEvent
 from phi.workflow import Workflow
@@ -34,8 +33,8 @@ class Tweet(BaseModel):
     """
 
     content: str
-    is_hook: bool = False  # Marks if this tweet is the "hook" (first tweet)
-    media_urls: Optional[List[str]] = []  # Associated media URLs, if any
+    is_hook: bool = Field(default=False, description="Marks if this tweet is the 'hook' (first tweet)")
+    media_urls: Optional[List[str]] = Field(default_factory=list, description="Associated media URLs, if any")
 
 
 class Thread(BaseModel):
@@ -77,7 +76,6 @@ class ContentPlanningWorkflow(Workflow):
             tasks_config["analyze_blog"]["description"],  # Task-specific instructions for blog analysis
         ],
         response_model=BlogAnalyzer,  # Expects response to follow the BlogAnalyzer Pydantic model
-        structured_outputs=True,
     )
 
     # Twitter Thread Planner: Creates a Twitter thread from the blog content, each tweet is concise, engaging,
@@ -90,7 +88,6 @@ class ContentPlanningWorkflow(Workflow):
             tasks_config["create_twitter_thread_plan"]["description"],
         ],
         response_model=Thread,  # Expects response to follow the Thread Pydantic model
-        structured_outputs=True,
     )
 
     # LinkedIn Post Planner: Converts blog content into a structured LinkedIn post, optimized for a professional
@@ -103,7 +100,6 @@ class ContentPlanningWorkflow(Workflow):
             tasks_config["create_linkedin_post_plan"]["description"],
         ],
         response_model=LinkedInPost,  # Expects response to follow the LinkedInPost Pydantic model
-        structured_outputs=True,
     )
 
     def scrape_blog_post(self, blog_post_url: str, use_cache: bool = True):

@@ -94,7 +94,7 @@ Ensure the selected research papers directly address the topic and offer valuabl
 
 exa_search_agent = Agent(
     model=OpenAIChat(id="gpt-4o"),
-    description=f"""
+    description="""
 You are a web search expert specializing in extracting high-quality information.
 
 Your task is to:

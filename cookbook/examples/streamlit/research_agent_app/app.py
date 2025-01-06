@@ -151,7 +151,6 @@ def main() -> None:
         # Only generate the report if we have content
         if arxiv_content or exa_content:
             with st.spinner("Generating Report"):
-                final_report = ""
                 final_report_container = st.empty()
                 research_report = research_editor.run(report_input)
                 final_report_container.markdown(research_report.content)

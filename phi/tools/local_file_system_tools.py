@@ -51,6 +51,10 @@ class LocalFileSystemTools(Toolkit):
         try:
             filename = filename or str(uuid4())
             directory = directory or self.target_directory
+            if filename and "." in filename:
+                filename, file_ext = os.path.splitext(filename)
+                extension = extension or file_ext.lstrip(".")
+
             extension = (extension or self.default_extension).lstrip(".")
 
             # Create directory if it doesn't exist
@@ -59,13 +63,11 @@ class LocalFileSystemTools(Toolkit):
 
             # Construct full filename with extension
             full_filename = f"{filename}.{extension}"
-            file_path = os.path.join(directory, full_filename)
+            file_path = dir_path / full_filename
 
-            with open(file_path, "w", encoding="utf-8") as f:
-                f.write(content)
+            file_path.write_text(content)
 
-            logger.info(f"Successfully wrote file to: {file_path}")
-            return file_path
+            return f"Successfully wrote file to: {file_path}"
 
         except Exception as e:
             error_msg = f"Failed to write file: {str(e)}"

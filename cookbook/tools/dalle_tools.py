@@ -1,4 +1,5 @@
 """Run `pip install openai` to install dependencies."""
+
 from pathlib import Path
 
 from phi.agent import Agent
@@ -21,4 +22,5 @@ agent_custom = Agent(
 )
 
 response = agent_custom.run("Create a panoramic nature scene showing a peaceful mountain lake at sunset", markdown=True)
-download_image(url=response.images[0].url, save_path=Path(__file__).parent.joinpath("tmp/nature.jpg"))
+if response.images:
+    download_image(url=response.images[0].url, save_path=Path(__file__).parent.joinpath("tmp/nature.jpg"))

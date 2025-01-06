@@ -18,4 +18,7 @@ agent = Agent(
     ],
 )
 
-agent.print_response("a cat dressed as a wizard with a background of a mystic forest. Make it look like 'https://fal.media/files/koala/Chls9L2ZnvuipUTEwlnJC.png'", stream=True)
+agent.print_response(
+    "a cat dressed as a wizard with a background of a mystic forest. Make it look like 'https://fal.media/files/koala/Chls9L2ZnvuipUTEwlnJC.png'",
+    stream=True,
+)

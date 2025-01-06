@@ -17,8 +17,8 @@ def download_image(url, save_path):
         response.raise_for_status()  # Raise an exception for HTTP errors
 
         # Check if the response contains image content
-        content_type = response.headers.get('Content-Type')
-        if not content_type or not content_type.startswith('image'):
+        content_type = response.headers.get("Content-Type")
+        if not content_type or not content_type.startswith("image"):
             print(f"URL does not point to an image. Content-Type: {content_type}")
             return False
 
@@ -26,7 +26,7 @@ def download_image(url, save_path):
         path.parent.mkdir(parents=True, exist_ok=True)
 
         # Write the image to the local file in binary mode
-        with open(save_path, 'wb') as file:
+        with open(save_path, "wb") as file:
             for chunk in response.iter_content(chunk_size=8192):
                 if chunk:
                     file.write(chunk)

@@ -11,6 +11,19 @@ except ImportError:
 
 
 class DuckDuckGo(Toolkit):
+    """
+    DuckDuckGo is a toolkit for searching DuckDuckGo easily.
+
+    Args:
+        search (bool): Enable DuckDuckGo search function.
+        news (bool): Enable DuckDuckGo news function.
+        fixed_max_results (Optional[int]): A fixed number of maximum results.
+        headers (Optional[Any]): Headers to be used in the search request.
+        proxy (Optional[str]): Proxy to be used in the search request.
+        proxies (Optional[Any]): A list of proxies to be used in the search request.
+        timeout (Optional[int]): The maximum number of seconds to wait for a response.
+    """
+
     def __init__(
         self,
         search: bool = True,

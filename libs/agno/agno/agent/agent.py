@@ -844,12 +844,7 @@ class Agent:
         for step in self.steps:
             try:
                 logger.debug(f"Step: {step.__class__.__name__} Started")
-                _arun_generator = step.arun(
-                    agent=self,
-                    messages=run_messages.messages,
-                    user_messages=run_messages.user_message,
-                    system_message=run_messages.system_message,
-                )
+                _arun_generator = step.arun(agent=self, run_messages=run_messages)
                 async for item in _arun_generator:
                     yield item
                 logger.debug(f"Step: {step.__class__.__name__} Completed")

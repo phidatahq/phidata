@@ -112,7 +112,7 @@ class Respond(AgentStep):
         agent.model = cast(Model, agent.model)
         if agent.stream:
             model_response = ModelResponse(content="")
-            model_response_stream = self.model.aresponse_stream(messages=run_messages.messages)
+            model_response_stream = agent.model.aresponse_stream(messages=run_messages.messages)
             async for model_response_chunk in model_response_stream:  # type: ignore
                 # If the model response is an assistant_response, yield a RunResponse with the content
                 if model_response_chunk.event == ModelResponseEvent.assistant_response.value:

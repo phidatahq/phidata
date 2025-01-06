@@ -1,6 +1,6 @@
 [project]
 name = "phidata"
-version = "2.7.5"
+version = "2.7.6"
 description = "Build multi-modal Agents with memory, knowledge and tools."
 requires-python = ">=3.7"
 readme = "README.md"
@@ -102,9 +102,10 @@ module = [
   "boto3.*",
   "botocore.*",
   "bs4.*",
+  "cassio.*",
   "chonkie.*",
   "chromadb.*",
-  "clip.*",
+  "clickhouse_connect.*",
   "clip.*",
   "cohere.*",
   "crawl4ai.*",

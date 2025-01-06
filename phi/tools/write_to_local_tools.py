@@ -6,7 +6,7 @@ from uuid import uuid4
 import os
 
 
-class WriteToLocal(Toolkit):
+class LocalFileSystemTools(Toolkit):
     def __init__(
         self,
         target_directory: Optional[str] = None,

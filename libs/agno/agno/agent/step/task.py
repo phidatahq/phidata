@@ -18,7 +18,7 @@ class Task(AgentStep):
         agent: "Agent",  # type: ignore  # noqa: F821
         run_messages: RunMessages,
     ) -> Iterator[RunResponse]:
-        from phi.agent import Agent
+        from agno.agent import Agent
 
         agent = cast(Agent, agent)
 

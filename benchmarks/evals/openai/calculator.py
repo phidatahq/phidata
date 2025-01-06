@@ -1,9 +1,9 @@
 from typing import Optional
 
-from phi.agent import Agent
-from phi.eval import Eval, EvalResult
-from phi.model.openai import OpenAIChat
-from phi.tools.calculator import Calculator
+from agno.agent import Agent
+from agno.eval import Eval, EvalResult
+from agno.model.openai import OpenAIChat
+from agno.tools.calculator import Calculator
 
 
 def multiply_and_exponentiate():

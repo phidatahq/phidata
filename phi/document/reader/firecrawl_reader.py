@@ -1,3 +1,4 @@
+from os import getenv
 from typing import Dict, List, Optional, Literal
 
 from phi.document.base import Document
@@ -85,6 +86,9 @@ class FirecrawlReader(Reader):
         Returns:
             A list of documents
         """
+        api_key = getenv("FIRECRAWL_API_KEY")
+        if not api_key:
+            raise ValueError("FIRECRAWL_API_KEY environment variable is not set")
 
         if self.mode == "scrape":
             return self.scrape(url)

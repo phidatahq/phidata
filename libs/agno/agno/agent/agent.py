@@ -498,7 +498,14 @@ class Agent:
         if self.steps is None:
             self.steps = []
             if self.reasoning:
-                self.steps.append(Reason())
+                self.steps.append(
+                    Reason(
+                        model=self.reasoning_model,
+                        agent=self.reasoning_agent,
+                        min_steps=self.reasoning_min_steps,
+                        max_steps=self.reasoning_max_steps,
+                    )
+                )
             self.steps.append(Respond())
 
         # Get the index of the last "user" message in messages_for_run
@@ -815,7 +822,14 @@ class Agent:
         if self.steps is None:
             self.steps = []
             if self.reasoning:
-                self.steps.append(Reason())
+                self.steps.append(
+                    Reason(
+                        model=self.reasoning_model,
+                        agent=self.reasoning_agent,
+                        min_steps=self.reasoning_min_steps,
+                        max_steps=self.reasoning_max_steps,
+                    )
+                )
             self.steps.append(Respond())
 
         # Get the index of the last "user" message in messages_for_run
@@ -830,14 +844,13 @@ class Agent:
         for step in self.steps:
             try:
                 logger.debug(f"Step: {step.__class__.__name__} Started")
-                logger.debug(f"Messages for run: {run_messages}")
-                _areun_generator = step.arun(
+                _arun_generator = step.arun(
                     agent=self,
                     messages=run_messages.messages,
                     user_messages=run_messages.user_message,
                     system_message=run_messages.system_message,
                 )
-                async for item in _areun_generator:
+                async for item in _arun_generator:
                     yield item
                 logger.debug(f"Step: {step.__class__.__name__} Completed")
             except Exception as e:

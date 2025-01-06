@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Iterator, List, Optional, cast
+from typing import AsyncIterator, Iterator, List, Optional, cast
 
 from agno.agent.step import AgentStep
 from agno.models.base import Model
@@ -78,6 +78,119 @@ class Reason(AgentStep):
             try:
                 # Run the reasoning agent
                 reasoning_agent_response: RunResponse = reasoning_agent.run(messages=run_messages.get_input_messages())
+                if reasoning_agent_response.content is None or reasoning_agent_response.messages is None:
+                    logger.warning("Reasoning error. Reasoning response is empty, continuing regular session...")
+                    break
+
+                if reasoning_agent_response.content.reasoning_steps is None:
+                    logger.warning("Reasoning error. Reasoning steps are empty, continuing regular session...")
+                    break
+
+                reasoning_steps: List[ReasoningStep] = reasoning_agent_response.content.reasoning_steps
+                all_reasoning_steps.extend(reasoning_steps)
+                # Yield reasoning steps
+                if agent.stream_intermediate_steps:
+                    for reasoning_step in reasoning_steps:
+                        yield agent.create_run_response(
+                            content=reasoning_step,
+                            content_type=reasoning_step.__class__.__name__,
+                            event=RunEvent.reasoning_step,
+                        )
+
+                # Find the index of the first assistant message
+                first_assistant_index = next(
+                    (i for i, m in enumerate(reasoning_agent_response.messages) if m.role == "assistant"),
+                    len(reasoning_agent_response.messages),
+                )
+                # Extract reasoning messages starting from the message after the first assistant message
+                reasoning_messages = reasoning_agent_response.messages[first_assistant_index:]
+
+                # Add reasoning step to the Agent's run_response
+                agent.update_run_response_with_reasoning(
+                    reasoning_steps=reasoning_steps, reasoning_agent_messages=reasoning_agent_response.messages
+                )
+
+                # Get the next action
+                next_action = self.get_next_action(reasoning_steps[-1])
+                if next_action == NextAction.FINAL_ANSWER:
+                    break
+            except Exception as e:
+                logger.error(f"Reasoning error: {e}")
+                break
+
+        logger.debug(f"Total Reasoning steps: {len(all_reasoning_steps)}")
+        logger.debug("==== Reasoning finished====")
+
+        # Update the messages_for_model to include reasoning messages
+        self.update_messages_with_reasoning(reasoning_messages=reasoning_messages, messages_for_model=messages)
+
+        # Yield the final reasoning completed event
+        if agent.stream_intermediate_steps:
+            yield RunResponse(
+                run_id=agent.run_id,
+                session_id=agent.session_id,
+                agent_id=agent.agent_id,
+                content=ReasoningSteps(reasoning_steps=all_reasoning_steps),
+                content_type=ReasoningSteps.__class__.__name__,
+                event=RunEvent.reasoning_completed.value,
+            )
+
+    async def arun(
+        self,
+        agent: "Agent",  # type: ignore  # noqa: F821
+        run_messages: RunMessages,
+    ) -> AsyncIterator[RunResponse]:
+        from agno.agent import Agent
+
+        agent = cast(Agent, agent)
+
+        # Yield a step started event
+        if agent.stream_intermediate_steps:
+            yield agent.create_run_response(content="Reasoning started", event=RunEvent.step_started)
+
+        # Initialize reasoning
+        reasoning_messages: List[Message] = []
+        all_reasoning_steps: List[ReasoningStep] = []
+
+        # Get the reasoning model
+        reasoning_model: Optional[Model] = self.reasoning_model
+        if reasoning_model is None and agent.model is not None:
+            reasoning_model = agent.model.__class__(id=agent.model.id)
+        if reasoning_model is None:
+            logger.warning("Reasoning error. Reasoning model is None, continuing regular session...")
+            return
+
+        # Get the reasoning agent
+        reasoning_agent: Optional[Agent] = self.reasoning_agent
+        if reasoning_agent is None:
+            reasoning_agent = self.get_reasoning_agent(reasoning_model=reasoning_model, agent=agent)
+        if reasoning_agent is None:
+            logger.warning("Reasoning error. Reasoning agent is None, continuing regular session...")
+            return
+
+        # Ensure the reasoning agent response model is ReasoningSteps
+        if reasoning_agent.response_model is not None and not isinstance(reasoning_agent.response_model, type):
+            if not issubclass(reasoning_agent.response_model, ReasoningSteps):
+                logger.warning(
+                    "Reasoning agent response model should be `ReasoningSteps`, continuing regular session..."
+                )
+            return
+
+        # Ensure the reasoning model and agent do not show tool calls
+        reasoning_agent.show_tool_calls = False
+        reasoning_agent.model.show_tool_calls = False  # type: ignore
+
+        step_count = 1
+        next_action = NextAction.CONTINUE
+        logger.debug("==== Starting Reasoning ====")
+        while next_action == NextAction.CONTINUE and step_count < agent.reasoning_max_steps:
+            step_count += 1
+            logger.debug(f"==== Step {step_count} ====")
+            try:
+                # Run the reasoning agent
+                reasoning_agent_response: RunResponse = await reasoning_agent.arun(
+                    messages=run_messages.get_input_messages()
+                )
                 if reasoning_agent_response.content is None or reasoning_agent_response.messages is None:
                     logger.warning("Reasoning error. Reasoning response is empty, continuing regular session...")
                     break

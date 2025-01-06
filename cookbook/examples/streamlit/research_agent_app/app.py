@@ -2,7 +2,7 @@ import json
 from typing import Optional
 import streamlit as st
 import pandas as pd
-from cookbook.examples.agents.research_agent_app.ai_research_agent import (
+from cookbook.examples.streamlit.research_agent_app.research_blog_writer import (
     SearchTerms,
     search_term_generator,
     arxiv_search_agent,

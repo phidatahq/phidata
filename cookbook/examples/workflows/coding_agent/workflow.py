@@ -27,7 +27,7 @@ class CodeGenWorkflow(Workflow):
     A workflow to generate, test, and validate code solutions using LCEL.
     """
 
-    system_prompt = """
+    system_prompt: str = """
     You are a coding assistant with expertise in LCEL, LangChain expression language.
 
     Here is the LCEL documentation:

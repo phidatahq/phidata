@@ -29,5 +29,5 @@ export EXA_API_KEY=***
 ### 4. Run Streamlit App
 
 ```shell
-streamlit run cookbook/examples/research/app.py
+streamlit run cookbook/examples/streamlit/research_agent_app/app.py
 ```

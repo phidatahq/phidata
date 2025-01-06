@@ -34,7 +34,7 @@ wip
 dist
 
 # ignore virtualenvs
-.venv
+.venv*
 venv*
 phienv*
 aienv*

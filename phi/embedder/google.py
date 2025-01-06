@@ -1,3 +1,4 @@
+from types import ModuleType
 from typing import Optional, Dict, List, Tuple, Any, Union
 
 from phi.embedder.base import Embedder
@@ -19,7 +20,7 @@ class GeminiEmbedder(Embedder):
     api_key: Optional[str] = None
     request_params: Optional[Dict[str, Any]] = None
     client_params: Optional[Dict[str, Any]] = None
-    gemini_client: Optional[genai.embed_content] = None
+    gemini_client: Optional[ModuleType] = None
 
     @property
     def client(self):
@@ -31,7 +32,7 @@ class GeminiEmbedder(Embedder):
         if self.client_params:
             _client_params.update(self.client_params)
         self.gemini_client = genai
-        self.gemini_client.configure(**_client_params)
+        self.gemini_client.configure(**_client_params)  # type: ignore
         return self.gemini_client
 
     def _response(self, text: str) -> Union[EmbeddingDict, BatchEmbeddingDict]:

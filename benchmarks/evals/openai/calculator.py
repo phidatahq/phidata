@@ -2,7 +2,7 @@ from typing import Optional
 
 from agno.agent import Agent
 from agno.eval import Eval, EvalResult
-from agno.model.openai import OpenAIChat
+from agno.models.openai import OpenAIChat
 from agno.tools.calculator import Calculator
 
 

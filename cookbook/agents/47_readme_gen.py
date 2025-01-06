@@ -16,6 +16,7 @@ readme_gen_agent = Agent(
         "You have to pass the repo_name as argument to the tool. It should be in the format of owner/repo_name. If given url extract owner/repo_name from it."
         "Also call the `get_repository_languages` tool to get the languages used in the repository."
         "Write a useful README for a open source project, including how to clone and install the project, run the project etc. Also add badges for the license, size of the repo, etc"
+        "Don't include the project's languages-used in the README"
         "Write the produced README to the local filesystem",
     ],
 )

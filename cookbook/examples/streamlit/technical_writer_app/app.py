@@ -32,7 +32,7 @@ def main() -> None:
         st.session_state["topic"] = input_topic
 
     # Checkboxes for search
-    st.sidebar.markdown("## Assistants")
+    st.sidebar.markdown("## Agents")
     search_exa = st.sidebar.checkbox("Exa Search", value=True)
     search_arxiv = st.sidebar.checkbox("ArXiv Search", value=False)
     search_pubmed = st.sidebar.checkbox("PubMed Search", disabled=True)  # noqa

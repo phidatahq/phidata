@@ -144,6 +144,10 @@ class ChromaDb(VectorDb):
         else:
             logger.error("Collection does not exist")
 
+    def upsert_available(self) -> bool:
+        """Check if upsert is available in ChromaDB."""
+        return True
+
     def upsert(self, documents: List[Document], filters: Optional[Dict[str, Any]] = None) -> None:
         """Upsert documents into the collection.
 

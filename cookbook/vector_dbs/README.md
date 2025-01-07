@@ -21,7 +21,7 @@ pip install -U qdrant-client pypdf openai phidata
 ### Cassandra DB
 
 ```shell
-python cookbook/vector_dbs/chroma_db.py
+python cookbook/vector_dbs/cassandraDb.py
 ```
 
 
@@ -29,6 +29,39 @@ python cookbook/vector_dbs/chroma_db.py
 
 ```shell
 python cookbook/vector_dbs/chroma_db.py
+```
+
+### Clickhouse
+
+> Install [docker desktop](https://docs.docker.com/desktop/install/mac-install/) first.
+
+- Run using a helper script
+
+```shell
+./cookbook/run_clickhouse.sh
+```
+
+- OR run using the docker run command
+
+```shell
+docker run -d \
+  -e CLICKHOUSE_DB=ai \
+  -e CLICKHOUSE_USER=ai \
+  -e CLICKHOUSE_PASSWORD=ai \
+  -e CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1 \
+  -v clickhouse_data:/var/lib/clickhouse/ \
+  -v clickhouse_log:/var/log/clickhouse-server/ \
+  -p 8123:8123 \
+  -p 9000:9000 \
+  --ulimit nofile=262144:262144 \
+  --name clickhouse-server \
+  clickhouse/clickhouse-server
+```
+
+#### Run the agent
+
+```shell
+python cookbook/vector_dbs/clickhouse.py
 ```
 
 ### LanceDB

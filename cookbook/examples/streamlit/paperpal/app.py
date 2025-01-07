@@ -2,7 +2,7 @@ import json
 from typing import Optional
 import streamlit as st
 import pandas as pd
-from cookbook.examples.streamlit.technical_writer_app.technical_writer import (
+from cookbook.examples.streamlit.paperpal.technical_writer import (
     SearchTerms,
     search_term_generator,
     arxiv_search_agent,

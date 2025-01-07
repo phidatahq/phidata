@@ -23,6 +23,7 @@ class GithubTools(Toolkit):
         get_pull_request: bool = True,
         get_pull_request_changes: bool = True,
         create_issue: bool = True,
+        get_repository_languages: bool = True,
     ):
         super().__init__(name="github")
 
@@ -45,9 +46,15 @@ class GithubTools(Toolkit):
             self.register(self.get_pull_request_changes)
         if create_issue:
             self.register(self.create_issue)
+        if get_repository_languages:
+            self.register(self.get_repository_languages)
 
     def authenticate(self):
         """Authenticate with GitHub using the provided access token."""
+
+        if not self.access_token:  # Fixes lint type error
+            raise ValueError("GitHub access token is required")
+
         auth = Auth.Token(self.access_token)
         if self.base_url:
             logger.debug(f"Authenticating with GitHub Enterprise at {self.base_url}")
@@ -128,6 +135,24 @@ class GithubTools(Toolkit):
             return json.dumps(repo_info, indent=2)
         except GithubException as e:
             logger.error(f"Error getting repository: {e}")
+            return json.dumps({"error": str(e)})
+
+    def get_repository_languages(self, repo_name: str) -> str:
+        """Get the languages used in a repository.
+
+        Args:
+            repo_name (str): The full name of the repository (e.g., 'owner/repo').
+
+        Returns:
+            A JSON-formatted string containing the list of languages.
+        """
+        logger.debug(f"Getting languages for repository: {repo_name}")
+        try:
+            repo = self.g.get_repo(repo_name)
+            languages = repo.get_languages()
+            return json.dumps(languages, indent=2)
+        except GithubException as e:
+            logger.error(f"Error getting repository languages: {e}")
             return json.dumps({"error": str(e)})
 
     def list_pull_requests(self, repo_name: str, state: str = "open") -> str:

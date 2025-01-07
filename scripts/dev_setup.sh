@@ -32,8 +32,8 @@ print_heading "Installing agno"
 print_info "VIRTUAL_ENV=${VENV_DIR} uv pip install -r ${AGNO_DIR}/requirements.txt"
 VIRTUAL_ENV=${VENV_DIR} uv pip install -r ${AGNO_DIR}/requirements.txt
 
-print_heading "Installing agno in editable mode with dev dependencies"
-VIRTUAL_ENV=${VENV_DIR} uv pip install -e ${AGNO_DIR}[dev]
+print_heading "Installing agno in editable mode with all dependencies"
+VIRTUAL_ENV=${VENV_DIR} uv pip install -e ${AGNO_DIR}[all]
 
 print_heading "Installing agno-docker"
 print_info "VIRTUAL_ENV=${VENV_DIR} uv pip install -r ${AGNO_DOCKER_DIR}/requirements.txt"

@@ -22,14 +22,22 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = [
-  "mypy",
-  "pytest",
-  "ruff",
-  "timeout-decorator",
-  "types-pyyaml",
-  "fastapi",
-  "uvicorn",
+dev = ["mypy", "pytest", "ruff", "timeout-decorator", "types-pyyaml", "fastapi", "uvicorn"]
+anthropic = ["anthropic"]
+cohere = ["cohere"]
+google = ["google-generativeai"]
+groq = ["groq"]
+mistral = ["mistralai"]
+openai = ["openai"]
+
+all = [
+    "agno[dev]",
+    "agno[anthropic]",
+    "agno[cohere]",
+    "agno[google]",
+    "agno[groq]",
+    "agno[mistral]",
+    "agno[openai]",
 ]
 
 [project.scripts]

@@ -1,4 +1,4 @@
-# AI Research Blog Writer Workflow
+# AI Research Blog Workflow
 
 Inspired by the fantastic work by [Matt Shumer (@mattshumer_)](https://twitter.com/mattshumer_/status/1772286375817011259).
 We've created a constrained Research Workflow that uses GPT-4 Assistants to write a report by searching:
@@ -16,7 +16,7 @@ source ~/.venvs/aienv/bin/activate
 ### 2. Install requirements
 
 ```shell
-pip install -r cookbook/examples/streamlit/research_agent_app/requirements.txt
+pip install -r cookbook/examples/research/requirements.txt
 ```
 
 ### 3. Export `OPENAI_API_KEY` and `EXA_API_KEY`
@@ -29,5 +29,5 @@ export EXA_API_KEY=***
 ### 4. Run Streamlit App
 
 ```shell
-streamlit run cookbook/examples/streamlit/research_agent_app/app.py
+streamlit run cookbook/examples/research/app.py
 ```

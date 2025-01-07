@@ -467,9 +467,6 @@ class Ollama(Model):
         if assistant_message.content is not None:
             # add the content to the model response
             model_response.content = assistant_message.get_content_string()
-        if assistant_message.audio is not None:
-            # add the audio to the model response
-            model_response.audio = assistant_message.audio
 
         # -*- Handle tool calls
         if (
@@ -530,9 +527,6 @@ class Ollama(Model):
         if assistant_message.content is not None:
             # add the content to the model response
             model_response.content = assistant_message.get_content_string()
-        if assistant_message.audio is not None:
-            # add the audio to the model response
-            model_response.audio = ModelResponseAudio(data=assistant_message.audio.get("data", ""), transcript=assistant_message.audio.get("transcript", ""))
 
         # -*- Handle tool calls
         if (

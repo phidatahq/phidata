@@ -38,6 +38,6 @@ class Audio(Media):
         return data
 
 
-class ModelResponseAudio(BaseModel):
+class ResponseAudio(BaseModel):
     base64_audio: str
     transcript: Optional[str] = None

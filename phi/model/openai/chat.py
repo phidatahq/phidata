@@ -8,7 +8,7 @@ from pydantic import BaseModel
 
 from phi.model.base import Model
 from phi.model.message import Message
-from phi.model.response import ModelResponse
+from phi.model.response import ModelResponse, ModelResponseAudio
 from phi.tools.function import FunctionCall
 from phi.utils.log import logger
 from phi.utils.timer import Timer
@@ -633,7 +633,9 @@ class OpenAIChat(Model):
             model_response.content = assistant_message.get_content_string()
         if assistant_message.audio is not None:
             # add the audio to the model response
-            model_response.audio = assistant_message.audio
+            model_response.audio = ModelResponseAudio(
+                data=assistant_message.audio.get("data", ""), transcript=assistant_message.audio.get("transcript", "")
+            )
 
         # -*- Handle tool calls
         tool_role = "tool"
@@ -711,7 +713,9 @@ class OpenAIChat(Model):
             model_response.content = assistant_message.get_content_string()
         if assistant_message.audio is not None:
             # add the audio to the model response
-            model_response.audio = assistant_message.audio
+            model_response.audio = ModelResponseAudio(
+                data=assistant_message.audio.get("data", ""), transcript=assistant_message.audio.get("transcript", "")
+            )
 
         # -*- Handle tool calls
         tool_role = "tool"
@@ -875,9 +879,13 @@ class OpenAIChat(Model):
                     yield ModelResponse(content=response_delta.content)
 
                 if hasattr(response_delta, "audio"):
-                    response_audio = response_delta.audio
-                    stream_data.response_audio = response_audio
-                    yield ModelResponse(audio=response_audio)
+                    stream_data.response_audio = response_delta.audio
+                    yield ModelResponse(
+                        audio=ModelResponseAudio(
+                            data=response_delta.audio.get("data", ""),
+                            transcript=response_delta.audio.get("transcript", ""),
+                        )
+                    )
 
                 if response_delta.tool_calls is not None:
                     if stream_data.response_tool_calls is None:
@@ -950,9 +958,13 @@ class OpenAIChat(Model):
                     yield ModelResponse(content=response_delta.content)
 
                 if hasattr(response_delta, "audio"):
-                    response_audio = response_delta.audio
-                    stream_data.response_audio = response_audio
-                    yield ModelResponse(audio=response_audio)
+                    stream_data.response_audio = response_delta.audio
+                    yield ModelResponse(
+                        audio=ModelResponseAudio(
+                            data=response_delta.audio.get("data", ""),
+                            transcript=response_delta.audio.get("transcript", ""),
+                        )
+                    )
 
                 if response_delta.tool_calls is not None:
                     if stream_data.response_tool_calls is None:

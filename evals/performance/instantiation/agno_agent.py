@@ -1,12 +1,13 @@
-"""Run `pip install openai agno memory_profiler` to install dependencies."""
+"""Run `pip install agno openai memory_profiler` to install dependencies."""
 
 from agno.agent import Agent
+from agno.models.openai import OpenAIChat
 from agno.eval.perf import PerfEval
 
 def instantiate_agent():
-    return Agent(system_message='Be concise, reply with one sentence.')
+    return Agent(model=OpenAIChat(id='gpt-4o'), system_message='Be concise, reply with one sentence.')
 
-agent_instantiation = PerfEval(func=instantiate_agent, num_iterations=10, show_results=True)
+agno_instantiation_perf = PerfEval(func=instantiate_agent, num_iterations=10)
 
 if __name__ == "__main__":
-    agent_instantiation.run()
+    agno_instantiation_perf.run(print_results=True)

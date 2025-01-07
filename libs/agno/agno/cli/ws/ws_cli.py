@@ -12,7 +12,6 @@ from agno.cli.console import (
     log_active_workspace_not_available,
     log_config_not_available_msg,
     print_available_workspaces,
-    print_heading,
     print_info,
 )
 from agno.utils.log import logger, set_log_level_to_debug

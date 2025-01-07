@@ -2542,8 +2542,6 @@ class Agent:
         from rich.status import Status
         from rich.text import Text
 
-        from agno.reasoning.step import ReasoningStep
-
         if markdown:
             self.markdown = True
 
@@ -2762,8 +2760,6 @@ class Agent:
         from rich.markdown import Markdown
         from rich.status import Status
         from rich.text import Text
-
-        from agno.reasoning.step import ReasoningStep
 
         if markdown:
             self.markdown = True

@@ -51,6 +51,8 @@ plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
 module = [
+  "agno.*",
   "boto3.*",
+  "botocore.*",
 ]
 ignore_missing_imports = true

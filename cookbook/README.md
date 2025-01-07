@@ -4,8 +4,7 @@ Here you’ll find examples that’ll help you use Agno, from basic agents and w
 If you have more, please contribute to this list.
 
 The cookbooks are organised as follows:
- - [Agents 101](./agents_101): A basic point to get started with Agno agents.
- - [Advanced examples](./advanced_examples): More interesting and complex agents and RAG examples.
+ - [Advanced examples](./advanced_examples): Interesting use-cases and complex agents and RAG examples.
  - [Playground / Agent UI](./playground): Run a playground app and view it on the Agno Agent UI.
  - [Agent concepts](./agent_concepts): General agent concepts.
  - [Knowledge bases](./knowledge): All about agent knowledge bases.

@@ -1,3 +1,7 @@
+"""Please install dependencies using:
+pip install openai moviepy ffmpeg
+"""
+
 from phi.agent import Agent
 from phi.model.openai import OpenAIChat
 from phi.tools.moviepy_video_tools import MoviePyVideoTools

@@ -24,7 +24,7 @@ try:
         ChoiceDelta,
         ChoiceDeltaToolCall,
     )
-    from openai.types.chat.chat_completion_message import ChatCompletionMessage
+    from openai.types.chat.chat_completion_message import ChatCompletionMessage, ChatCompletionAudio
 
     MIN_OPENAI_VERSION = "1.52.0"
 
@@ -562,6 +562,7 @@ class OpenAIChat(Model):
             except Exception as e:
                 logger.warning(f"Error processing tool calls: {e}")
         if hasattr(response_message, "audio") and response_message.audio is not None:
+            # If the audio output modality is requested, we can extract a audio response
             try:
                 assistant_message.audio = response_message.audio.model_dump()
             except Exception as e:
@@ -594,6 +595,12 @@ class OpenAIChat(Model):
         # -*- Parse response
         response_message: ChatCompletionMessage = response.choices[0].message
         response_usage: Optional[CompletionUsage] = response.usage
+        response_audio: Optional[ChatCompletionAudio] = response_message.audio
+
+        # -*- Parse transcript if available
+        if response_audio:
+            if response_audio.transcript and not response_message.content:
+                response_message.content = response_message.audio.transcript
 
         # -*- Parse structured outputs
         try:
@@ -666,6 +673,12 @@ class OpenAIChat(Model):
         # -*- Parse response
         response_message: ChatCompletionMessage = response.choices[0].message
         response_usage: Optional[CompletionUsage] = response.usage
+        response_audio: Optional[ChatCompletionAudio] = response_message.audio
+
+        # -*- Parse transcript if available
+        if response_audio:
+            if response_audio.transcript and not response_message.content:
+                response_message.content = response_message.audio.transcript
 
         # -*- Parse structured outputs
         try:

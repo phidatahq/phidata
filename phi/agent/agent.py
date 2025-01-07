@@ -497,7 +497,7 @@ class Agent(BaseModel):
                     "Please provide a `model` or install `openai`."
                 )
                 exit(1)
-            self.model = OpenAIChat()
+            self.model = OpenAIChat()  # We default to OpenAIChat as a base model
 
         # Set response_format if it is not set on the Model
         if self.response_model is not None and self.model.response_format is None:
@@ -1813,12 +1813,15 @@ class Agent(BaseModel):
 
                     if model_response_chunk.audio is not None:
                         if model_response.audio is None:
-                            model_response.audio = {"data": "", "transcript": ""}
+                            model_response.audio = ModelResponseAudio(data="", transcript="")
 
-                        # TODO: Stream the audio out
+                        model_response.audio.data += model_response_chunk.audio.get("data", "")
+                        model_response.audio.transcript += model_response_chunk.audio.get("transcript", "")
 
-                        model_response.audio["data"] += model_response_chunk.audio.get("data", "")
-                        model_response.audio["transcript"] += model_response_chunk.audio.get("transcript", "")
+                        # Yield the audio and transcript bit by bit
+                        self.run_response.audio = model_response_chunk.audio.get("data", "")
+                        self.run_response.content = model_response_chunk.audio.get("transcript", "")
+
                         yield self.run_response
 
                 elif model_response_chunk.event == ModelResponseEvent.tool_call_started.value:
@@ -2172,7 +2175,7 @@ class Agent(BaseModel):
 
                     if model_response_chunk.audio is not None:
                         if model_response.audio is None:
-                            model_response.audio = {"data": "", "transcript": ""}
+                            model_response.audio = ModelResponseAudio(data="", transcript="")
 
                         self.run_res
                         # Append to the transcript

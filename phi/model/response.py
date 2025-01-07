@@ -12,6 +12,10 @@ class ModelResponseEvent(str, Enum):
     tool_call_completed = "ToolCallCompleted"
     assistant_response = "AssistantResponse"
 
+@dataclass
+class ModelResponseAudio:
+    data: str
+    transcript: str
 
 @dataclass
 class ModelResponse:
@@ -19,7 +23,7 @@ class ModelResponse:
 
     content: Optional[str] = None
     parsed: Optional[Any] = None
-    audio: Optional[Dict[str, Any]] = None
+    audio: Optional[ModelResponseAudio] = None  # If audio output modality is used, model response as audio
     tool_call: Optional[Dict[str, Any]] = None
     event: str = ModelResponseEvent.assistant_response.value
     created_at: int = int(time())

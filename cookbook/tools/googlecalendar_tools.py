@@ -13,7 +13,7 @@ Steps to get the Google OAuth Credentials (Reference : https://developers.google
 
 2. Go To API & Service -> OAuth Consent Screen
 
-3.Select User Type . If you're google workspace user select Internal else Select External
+3.Select User Type .
     - If you are Google Workspace User select Internal
     - Else Select External
 

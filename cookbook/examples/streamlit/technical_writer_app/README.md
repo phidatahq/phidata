@@ -1,8 +1,6 @@
-# Paperpal Blog Writer Workflow
+# Paperpal Workflow
 
-Paperpal is technical blog writer Agents to writes a detailed blog on research topics referencing research papers by utilizing models and external tools:
-- Exa
-- ArXiv
+Paperpal is a research and technical blog writer workflow that writes a detailed blog on research topics referencing research papers by utilizing models and external tools: Exa and ArXiv
 
 ### 1. Create a virtual environment
 

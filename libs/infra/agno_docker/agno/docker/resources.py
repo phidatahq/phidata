@@ -11,6 +11,7 @@ from agno.workspace.settings import WorkspaceSettings
 
 class DockerResources(InfraResources):
     env: str = "dev"
+    infra: str = "docker"
     network: str = "agno"
     # URL for the Docker server. For example, unix:///var/run/docker.sock or tcp://127.0.0.1:1234
     base_url: Optional[str] = None

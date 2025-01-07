@@ -73,7 +73,7 @@ class DockerImage(DockerResource):
     # will be set in the container being built.
     use_config_proxy: Optional[bool] = None
 
-    # Set skip_delete=True so that the image is not deleted when the `phi ws down` command is run
+    # Set skip_delete=True so that the image is not deleted when the `ag ws down` command is run
     skip_delete: bool = True
     image_build_id: Optional[str] = None
 

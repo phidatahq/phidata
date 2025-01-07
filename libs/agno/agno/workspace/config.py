@@ -1,12 +1,11 @@
-from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
+
+from pydantic import BaseModel, ConfigDict
 
 from agno.api.schemas.team import TeamSchema
 from agno.api.schemas.workspace import WorkspaceSchema
-from agno.infra.app import InfraApp
 from agno.infra.base import InfraBase
-from agno.infra.resource import InfraResource
 from agno.infra.resources import InfraResources
 from agno.utils.log import logger
 from agno.workspace.settings import WorkspaceSettings
@@ -15,8 +14,7 @@ from agno.workspace.settings import WorkspaceSettings
 ignored_dirs = ["ignore", "test", "tests", "config"]
 
 
-@dataclass
-class WorkspaceConfig:
+class WorkspaceConfig(BaseModel):
     """The WorkspaceConfig holds the configuration for an Agno workspace."""
 
     # Root directory of the workspace.
@@ -33,8 +31,10 @@ class WorkspaceConfig:
     # WorkspaceSettings
     _workspace_settings: Optional[WorkspaceSettings] = None
 
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     def to_dict(self) -> dict:
-        return asdict(self)
+        return self.model_dump(include={"ws_root_path", "ws_schema", "ws_team", "ws_api_key"})
 
     @property
     def workspace_dir_path(self) -> Optional[Path]:
@@ -141,7 +141,7 @@ class WorkspaceConfig:
         if workspace_dir_path is not None:
             logger.debug(f"--^^-- Loading workspace from: {workspace_dir_path}")
             # Create a dict of objects in the workspace directory
-            workspace_objects = {}
+            workspace_objects: Dict[str, InfraResources] = {}
             resource_files = workspace_dir_path.rglob("*.py")
             for resource_file in resource_files:
                 if resource_file.name == "__init__.py":
@@ -166,7 +166,7 @@ class WorkspaceConfig:
                                 if self.ws_schema is not None and self._workspace_settings is not None:
                                     self._workspace_settings.ws_schema = self.ws_schema
                                     logger.debug("Added WorkspaceSchema to WorkspaceSettings")
-                        elif isinstance(obj, InfraBase):
+                        elif isinstance(obj, InfraResources):
                             logger.debug(f"Found: {obj.__class__.__module__}: {obj_name}")
                             if not obj.enabled:
                                 logger.debug(f"Skipping {obj_name}: disabled")
@@ -181,7 +181,7 @@ class WorkspaceConfig:
         sys_path.remove(str(self.ws_root_path))
 
         # Filter resources by infra
-        filtered_ws_objects_by_infra_type: Dict[str, InfraBase] = {}
+        filtered_ws_objects_by_infra_type: Dict[str, InfraResources] = {}
         logger.debug(f"Filtering resources for env: {env} | infra: {infra} | order: {order}")
         if infra is None:
             filtered_ws_objects_by_infra_type = workspace_objects
@@ -191,7 +191,7 @@ class WorkspaceConfig:
                     filtered_ws_objects_by_infra_type[resource_name] = resource
 
         # Filter resources by env
-        filtered_infra_objects_by_env: Dict[str, InfraBase] = {}
+        filtered_infra_objects_by_env: Dict[str, InfraResources] = {}
         if env is None:
             filtered_infra_objects_by_env = filtered_ws_objects_by_infra_type
         else:
@@ -206,6 +206,7 @@ class WorkspaceConfig:
                 ws_root=self.ws_root_path,
                 ws_name=self.ws_root_path.stem,
             )
+            logger.debug(f"Created WorkspaceSettings: {self._workspace_settings}")
         # Update the resources with the workspace settings
         if self._workspace_settings is not None:
             for resource_name, resource in filtered_infra_objects_by_env.items():
@@ -218,9 +219,6 @@ class WorkspaceConfig:
             # If the resource is an InfraResources object, add it to the list
             if isinstance(resource, InfraResources):
                 infra_resources_list.append(resource)
-            # Otherwise, get the InfraResources object from the resource
-            else:
-                infra_resources_list.append(resource.get_infra_resources())
 
         return infra_resources_list
 

@@ -31,7 +31,7 @@ class DockerApiClient:
             logger.info(
                 '- If file does not exist, please run: `sudo ln -s "$HOME/.docker/run/docker.sock" /var/run/docker.sock`'
             )
-            logger.info("- More info: https://docs.phidata.com/faq/could-not-connect-to-docker")
+            logger.info("- More info: https://docs.agno.com/faq/could-not-connect-to-docker")
             exit(0)
         return self._api_client
 

@@ -350,11 +350,6 @@ def setup_workspace(ws_root_path: Path) -> Optional[WorkspaceConfig]:
         print_info("\tag ws up")
         print_info("2. Stop workspace:")
         print_info("\tag ws down")
-        if ws_config.workspace_settings is not None:
-            scripts_dir = ws_config.workspace_settings.scripts_dir
-            install_ws_file = f"sh {ws_root_path}/{scripts_dir}/install.sh"
-            print_info("3. Install workspace dependencies:")
-            print_info(f"\t{install_ws_file}")
 
         if ws_config.ws_schema is not None and agno_config.user is not None:
             log_workspace_event(

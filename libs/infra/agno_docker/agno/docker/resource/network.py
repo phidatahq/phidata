@@ -28,7 +28,7 @@ class DockerNetwork(DockerResource):
     # ingress (bool) – If set, create an ingress network which provides the routing-mesh in swarm mode.
     ingress: Optional[bool] = None
 
-    # Set skip_delete=True so that the network is not deleted when the `phi ws down` command is run
+    # Set skip_delete=True so that the network is not deleted when the `ag ws down` command is run
     skip_delete: bool = True
     skip_update: bool = True
 

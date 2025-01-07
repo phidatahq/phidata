@@ -2,9 +2,7 @@ import csv
 import logging
 import os
 import time
-
 from pydantic import BaseModel, Field
-
 from phi.run.response import RunResponse
 from phi.workflow import Workflow
 from phi.agent import Agent
@@ -140,7 +138,6 @@ class QAWorkflow(Workflow):
             logger.info(f"Asking question: {question}")
             generated_answer = self.generate_answer(question)
             # Judge the answer
-            logger.info("Judging answer")
             judgement = self.judge_answer(question, ground_truth, generated_answer)
             # Store the results
             results.append(
@@ -152,7 +149,6 @@ class QAWorkflow(Workflow):
                     "Reasoning": judgement.reasoning,
                 }
             )
-            break
 
         ans_end = time.time()
         duration_ans = ans_end - ans_start
@@ -160,7 +156,7 @@ class QAWorkflow(Workflow):
 
         # Write results to output CSV
         with open(output_csv_path, "w", newline="") as csv_file:
-            fieldnames = ["Question", "Ground Truth Answer", "Generated Answer", "Judgment"]
+            fieldnames = ["Question", "Ground_Truth_Answer", "Generated_Answer", "Judgement", "Reasoning"]
             writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
             writer.writeheader()
             writer.writerows(results)

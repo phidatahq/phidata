@@ -50,12 +50,7 @@ class OllamaEmbedder(Embedder):
             return []
 
     def get_embedding_and_usage(self, text: str) -> Tuple[List[float], Optional[Dict]]:
-        embedding = []
+        embedding = self.get_embedding()
         usage = None
-        try:
-            response = self._response(text=text)
-            if response is not None:
-                embedding = response.get("embedding", [])
-        except Exception as e:
-            logger.warning(e)
+
         return embedding, usage

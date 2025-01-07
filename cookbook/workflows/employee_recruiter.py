@@ -125,6 +125,10 @@ class EmployeeRecruitmentWorkflow(Workflow):
 
     def run(self, candidate_resume_urls: List[str], job_description: str) -> RunResponse:
         selected_candidates = []
+
+        if not candidate_resume_urls:
+            raise Exception("candidate_resume_urls cannot be empty")
+
         for resume_url in candidate_resume_urls:
             # Extract text from PDF resume
             if resume_url in self.session_state:
@@ -168,10 +172,10 @@ if __name__ == "__main__":
     workflow = EmployeeRecruitmentWorkflow()
     result = workflow.run(
         candidate_resume_urls=[
-            "candidate resume url",
+            # Add resume URLs here
         ],
         job_description="""
-            We are hiring for backend and systems engineers! 
+            We are hiring for backend and systems engineers!
             Join our team building the future of agentic software
 
             Apply if:
@@ -181,7 +185,6 @@ if __name__ == "__main__":
             🏆 Want to be a part of the biggest technological shift since the internet.
             🌟 Bonus: experience with infrastructure as code.
             🌟 Bonus: starred Phidata repo.
-
-            """,
+        """,
     )
     print(result.content)

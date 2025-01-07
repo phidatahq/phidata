@@ -13,7 +13,7 @@ from cookbook.examples.streamlit.technical_writer_app.technical_writer import (
 
 # Streamlit App Configuration
 st.set_page_config(
-    page_title="Blog Writer Workflow",
+    page_title="AI Researcher Workflow",
     page_icon=":orange_heart:",
 )
 st.title("Paperpal")
@@ -35,9 +35,9 @@ def main() -> None:
     st.sidebar.markdown("## Agents")
     search_exa = st.sidebar.checkbox("Exa Search", value=True)
     search_arxiv = st.sidebar.checkbox("ArXiv Search", value=False)
-    search_pubmed = st.sidebar.checkbox("PubMed Search", disabled=True)  # noqa
-    search_google_scholar = st.sidebar.checkbox("Google Scholar Search", disabled=True)  # noqa
-    use_cache = st.sidebar.toggle("Use Cache", value=False, disabled=True)  # noqa
+    # search_pubmed = st.sidebar.checkbox("PubMed Search", disabled=True)  # noqa
+    # search_google_scholar = st.sidebar.checkbox("Google Scholar Search", disabled=True)  # noqa
+    # use_cache = st.sidebar.toggle("Use Cache", value=False, disabled=True)  # noqa
     num_search_terms = st.sidebar.number_input(
         "Number of Search Terms", value=2, min_value=2, max_value=3, help="This will increase latency."
     )

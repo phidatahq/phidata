@@ -73,7 +73,7 @@ class CodeGenWorkflow(Workflow):
             logger.info(f"---ATTEMPT {attempt + 1}---")
             try:
                 formatted_prompt = self.system_prompt.format(context=context, question=question)
-                response = self.coding_agent.run(formatted_prompt)
+                response = self.coding_agent.run(formatted_prompt, stream=False)
                 structured_response = response.content
 
                 logger.info("---GENERATED CODE---")
@@ -173,7 +173,7 @@ class CodeGenWorkflow(Workflow):
         Ensure all imports are correct and the code is executable.
         """
         self.coding_agent.system_message = error_prompt
-        response = self.coding_agent.run(error_prompt)
+        response = self.coding_agent.run(error_prompt, stream=False)
         return response.content
 
 
@@ -183,20 +183,14 @@ if __name__ == "__main__":
     question = "How to structure output of an LCEL chain as a JSON object?"
 
     concatenated_content = scrape_and_process(url)  # scrape the url and structure the data
-
     workflow = CodeGenWorkflow()
     responses = workflow.run(question=question, context=concatenated_content)
 
     final_content = None
-    if responses:
-        for response in responses:
-            if response.event == RunEvent.workflow_completed:
-                break
-        final_content = response.content
-
-    if final_content is None:
-        logger.info(f"---NO RESPONSE GENERATED FOR QUESTION: {question}---")
-        final_content = CodeSolution(prefix="", imports="", code="")
+    for response in responses:
+        if response.event == RunEvent.workflow_completed:
+            break
+    final_content = response.content
 
     result = evaluate_response(question, final_content)
     logger.info(result)

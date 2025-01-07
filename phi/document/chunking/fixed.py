@@ -24,8 +24,13 @@ class FixedSizeChunking(ChunkingStrategy):
         chunk_number = 1
         chunk_meta_data = document.meta_data
 
+        # If the document length is less than overlap, it cannot be chunked.
+        if len(content) <= self.overlap:
+            return [document]
+        
+        # run the chunking only if the length of the content is greater than the overlap.
         start = 0
-        while start < content_length:
+        while start + self.overlap < content_length:
             end = min(start + self.chunk_size, content_length)
 
             # Ensure we're not splitting a word in half

@@ -167,7 +167,7 @@ class Agent(BaseModel):
     # If True, build a default system message using agent settings and use that
     use_default_system_message: bool = True
     # Role for the system message
-    system_message_role: str = "developer"
+    system_message_role: str = "system"
 
     # -*- Settings for building the default system message
     # A description of the Agent that is added to the start of the system message.

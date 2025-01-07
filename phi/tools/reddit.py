@@ -11,10 +11,9 @@ except ImportError:
 
 
 class RedditTools(Toolkit):
-    reddit: Optional[praw.Reddit]
-
     def __init__(
         self,
+        reddit_instance: Optional[praw.Reddit] = None,
         client_id: Optional[str] = None,
         client_secret: Optional[str] = None,
         user_agent: Optional[str] = None,
@@ -29,36 +28,40 @@ class RedditTools(Toolkit):
     ):
         super().__init__(name="reddit")
 
-        # Get credentials from environment variables if not provided
-        self.client_id = client_id or getenv("REDDIT_CLIENT_ID")
-        self.client_secret = client_secret or getenv("REDDIT_CLIENT_SECRET")
-        self.user_agent = user_agent or getenv("REDDIT_USER_AGENT", "RedditTools v1.0")
-        self.username = username or getenv("REDDIT_USERNAME")
-        self.password = password or getenv("REDDIT_PASSWORD")
-
-        self.reddit = None
-        # Check if we have all required credentials
-        if all([self.client_id, self.client_secret]):
-            # Initialize with read-only access if no user credentials
-            if not all([self.username, self.password]):
-                logger.info("Initializing Reddit client with read-only access")
-                self.reddit = praw.Reddit(
-                    client_id=self.client_id,
-                    client_secret=self.client_secret,
-                    user_agent=self.user_agent,
-                )
-            # Initialize with user authentication if credentials provided
-            else:
-                logger.info(f"Initializing Reddit client with user authentication for u/{self.username}")
-                self.reddit = praw.Reddit(
-                    client_id=self.client_id,
-                    client_secret=self.client_secret,
-                    user_agent=self.user_agent,
-                    username=self.username,
-                    password=self.password,
-                )
+        if reddit_instance is not None:
+            logger.info("Using provided Reddit instance")
+            self.reddit = reddit_instance
         else:
-            logger.warning("Missing Reddit API credentials")
+            # Get credentials from environment variables if not provided
+            self.client_id = client_id or getenv("REDDIT_CLIENT_ID")
+            self.client_secret = client_secret or getenv("REDDIT_CLIENT_SECRET")
+            self.user_agent = user_agent or getenv("REDDIT_USER_AGENT", "RedditTools v1.0")
+            self.username = username or getenv("REDDIT_USERNAME")
+            self.password = password or getenv("REDDIT_PASSWORD")
+
+            self.reddit = None
+            # Check if we have all required credentials
+            if all([self.client_id, self.client_secret]):
+                # Initialize with read-only access if no user credentials
+                if not all([self.username, self.password]):
+                    logger.info("Initializing Reddit client with read-only access")
+                    self.reddit = praw.Reddit(
+                        client_id=self.client_id,
+                        client_secret=self.client_secret,
+                        user_agent=self.user_agent,
+                    )
+                # Initialize with user authentication if credentials provided
+                else:
+                    logger.info(f"Initializing Reddit client with user authentication for u/{self.username}")
+                    self.reddit = praw.Reddit(
+                        client_id=self.client_id,
+                        client_secret=self.client_secret,
+                        user_agent=self.user_agent,
+                        username=self.username,
+                        password=self.password,
+                    )
+            else:
+                logger.warning("Missing Reddit API credentials")
 
         if get_user_info:
             self.register(self.get_user_info)

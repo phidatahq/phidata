@@ -177,7 +177,7 @@ class QAWorkflow(Workflow):
 if __name__ == "__main__":
     flow_start = time.time()
 
-    evaluation_set_path = "LLM_Evaluation_Set.csv"  # Path to your evaluation set
+    evaluation_set_path = "QA_Evaluation_Set.csv"  # Path to your evaluation set
     output_results_path = "Evaluation_Results.csv"
     # Run the QA Workflow
     qa_workflow = QAWorkflow()

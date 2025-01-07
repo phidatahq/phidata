@@ -1,6 +1,6 @@
 import os
 from pydantic import BaseModel, Field
-from cookbook.examples.workflows.coding_agent.utils import scrape_and_process, evaluate_response
+from utils import scrape_and_process, evaluate_response
 from phi.agent import Agent, RunResponse
 from phi.model.openai import OpenAIChat
 from phi.workflow import Workflow, RunEvent
@@ -62,7 +62,7 @@ class CodeGenWorkflow(Workflow):
             question (str): User's question.
             context (str): Contextual information/documentation.
 
-        Yields:
+        Return:
             RunResponse: Response containing the generated code solution.
         """
         attempt = 0
@@ -84,11 +84,10 @@ class CodeGenWorkflow(Workflow):
                 result = self.check_code(structured_response)
 
                 if result == "success":
-                    yield RunResponse(
+                    return RunResponse(
                         content=structured_response,
                         event=RunEvent.workflow_completed,
                     )
-                    return
 
             except Exception as e:
                 logger.error(f"---CODE BLOCK CHECK: FAILED IN ATTEMPT {attempt + 1}---")
@@ -106,7 +105,7 @@ class CodeGenWorkflow(Workflow):
                 )
 
         logger.error("---MAXIMUM ATTEMPTS REACHED: FAILED TO FIX CODE---")
-        yield RunResponse(
+        return RunResponse(
             content=generated_code,
         )
 
@@ -182,15 +181,15 @@ if __name__ == "__main__":
     url = "https://python.langchain.com/docs/how_to/sequence/#related"
     question = "How to structure output of an LCEL chain as a JSON object?"
 
-    concatenated_content = scrape_and_process(url)  # scrape the url and structure the data
+    concatenated_content = scrape_and_process(url)  # Scrape the URL and structure the data
     workflow = CodeGenWorkflow()
-    responses = workflow.run(question=question, context=concatenated_content)
+    final_content = workflow.run(question=question, context=concatenated_content)
 
-    final_content = None
-    for response in responses:
-        if response.event == RunEvent.workflow_completed:
-            break
-    final_content = response.content
+    if final_content is None:
+        logger.info(f"---NO RESPONSE GENERATED FOR QUESTION: {question}---")
+        final_content = RunResponse(
+            content=CodeSolution(prefix="", imports="", code=""),
+        )
 
-    result = evaluate_response(question, final_content)
+    result = evaluate_response(question, final_content.content)
     logger.info(result)

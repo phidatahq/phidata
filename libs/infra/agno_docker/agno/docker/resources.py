@@ -366,7 +366,6 @@ class DockerResources(InfraResources):
         from agno.docker.resource.types import DockerContainer, DockerResourceInstallOrder
 
         logger.debug("-*- Updating DockerResources")
-
         # Build a list of DockerResources to update
         resources_to_update: List[DockerResource] = []
 

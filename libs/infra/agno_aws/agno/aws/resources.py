@@ -1,18 +1,18 @@
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional, Tuple
 
-from agno.app.group import AppGroup
 from agno.aws.api_client import AwsApiClient
 from agno.aws.app.base import AwsApp
-from agno.aws.app.context import AwsBuildContext
+from agno.aws.context import AwsBuildContext
 from agno.aws.resource.base import AwsResource
 from agno.infra.resources import InfraResources
-from agno.resource.group import ResourceGroup
 from agno.utils.log import logger
 
 
 class AwsResources(InfraResources):
-    apps: Optional[List[Union[AwsApp, AppGroup]]] = None
-    resources: Optional[List[Union[AwsResource, ResourceGroup]]] = None
+    infra: str = "aws"
+
+    apps: Optional[List[AwsApp]] = None
+    resources: Optional[List[AwsResource]] = None
 
     aws_region: Optional[str] = None
     aws_profile: Optional[str] = None
@@ -84,54 +84,29 @@ class AwsResources(InfraResources):
         logger.debug("-*- Creating AwsResources")
         # Build a list of AwsResources to create
         resources_to_create: List[AwsResource] = []
+
+        # Add resources to resources_to_create
         if self.resources is not None:
             for r in self.resources:
-                if isinstance(r, ResourceGroup):
-                    resources_from_resource_group = r.get_resources()
-                    if len(resources_from_resource_group) > 0:
-                        for resource_from_resource_group in resources_from_resource_group:
-                            if isinstance(resource_from_resource_group, AwsResource):
-                                resource_from_resource_group.set_workspace_settings(
-                                    workspace_settings=self.workspace_settings
-                                )
-                                if resource_from_resource_group.group is None and self.name is not None:
-                                    resource_from_resource_group.group = self.name
-                                if resource_from_resource_group.should_create(
-                                    group_filter=group_filter,
-                                    name_filter=name_filter,
-                                    type_filter=type_filter,
-                                ):
-                                    resources_to_create.append(resource_from_resource_group)
-                elif isinstance(r, AwsResource):
+                r.set_workspace_settings(workspace_settings=self.workspace_settings)
+                if r.group is None and self.name is not None:
+                    r.group = self.name
+                if r.should_create(
+                    group_filter=group_filter,
+                    name_filter=name_filter,
+                    type_filter=type_filter,
+                ):
                     r.set_workspace_settings(workspace_settings=self.workspace_settings)
-                    if r.group is None and self.name is not None:
-                        r.group = self.name
-                    if r.should_create(
-                        group_filter=group_filter,
-                        name_filter=name_filter,
-                        type_filter=type_filter,
-                    ):
-                        r.set_workspace_settings(workspace_settings=self.workspace_settings)
-                        resources_to_create.append(r)
+                    resources_to_create.append(r)
 
         # Build a list of AwsApps to create
         apps_to_create: List[AwsApp] = []
         if self.apps is not None:
             for app in self.apps:
-                if isinstance(app, AppGroup):
-                    apps_from_app_group = app.get_apps()
-                    if len(apps_from_app_group) > 0:
-                        for app_from_app_group in apps_from_app_group:
-                            if isinstance(app_from_app_group, AwsApp):
-                                if app_from_app_group.group is None and self.name is not None:
-                                    app_from_app_group.group = self.name
-                                if app_from_app_group.should_create(group_filter=group_filter):
-                                    apps_to_create.append(app_from_app_group)
-                elif isinstance(app, AwsApp):
-                    if app.group is None and self.name is not None:
-                        app.group = self.name
-                    if app.should_create(group_filter=group_filter):
-                        apps_to_create.append(app)
+                if app.group is None and self.name is not None:
+                    app.group = self.name
+                if app.should_create(group_filter=group_filter):
+                    apps_to_create.append(app)
 
         # Get the list of AwsResources from the AwsApps
         if len(apps_to_create) > 0:
@@ -269,57 +244,31 @@ class AwsResources(InfraResources):
         from agno.cli.console import confirm_yes_no, print_heading, print_info
 
         logger.debug("-*- Deleting AwsResources")
-
         # Build a list of AwsResources to delete
         resources_to_delete: List[AwsResource] = []
+
+        # Add resources to resources_to_delete
         if self.resources is not None:
             for r in self.resources:
-                if isinstance(r, ResourceGroup):
-                    resources_from_resource_group = r.get_resources()
-                    if len(resources_from_resource_group) > 0:
-                        for resource_from_resource_group in resources_from_resource_group:
-                            if isinstance(resource_from_resource_group, AwsResource):
-                                resource_from_resource_group.set_workspace_settings(
-                                    workspace_settings=self.workspace_settings
-                                )
-                                if resource_from_resource_group.group is None and self.name is not None:
-                                    resource_from_resource_group.group = self.name
-                                if resource_from_resource_group.should_delete(
-                                    group_filter=group_filter,
-                                    name_filter=name_filter,
-                                    type_filter=type_filter,
-                                ):
-                                    resources_to_delete.append(resource_from_resource_group)
-                elif isinstance(r, AwsResource):
+                r.set_workspace_settings(workspace_settings=self.workspace_settings)
+                if r.group is None and self.name is not None:
+                    r.group = self.name
+                if r.should_delete(
+                    group_filter=group_filter,
+                    name_filter=name_filter,
+                    type_filter=type_filter,
+                ):
                     r.set_workspace_settings(workspace_settings=self.workspace_settings)
-                    if r.group is None and self.name is not None:
-                        r.group = self.name
-                    if r.should_delete(
-                        group_filter=group_filter,
-                        name_filter=name_filter,
-                        type_filter=type_filter,
-                    ):
-                        r.set_workspace_settings(workspace_settings=self.workspace_settings)
-                        resources_to_delete.append(r)
+                    resources_to_delete.append(r)
 
         # Build a list of AwsApps to delete
         apps_to_delete: List[AwsApp] = []
         if self.apps is not None:
             for app in self.apps:
-                if isinstance(app, AppGroup):
-                    apps_from_app_group = app.get_apps()
-                    if len(apps_from_app_group) > 0:
-                        for app_from_app_group in apps_from_app_group:
-                            if isinstance(app_from_app_group, AwsApp):
-                                if app_from_app_group.group is None and self.name is not None:
-                                    app_from_app_group.group = self.name
-                                if app_from_app_group.should_delete(group_filter=group_filter):
-                                    apps_to_delete.append(app_from_app_group)
-                elif isinstance(app, AwsApp):
-                    if app.group is None and self.name is not None:
-                        app.group = self.name
-                    if app.should_delete(group_filter=group_filter):
-                        apps_to_delete.append(app)
+                if app.group is None and self.name is not None:
+                    app.group = self.name
+                if app.should_delete(group_filter=group_filter):
+                    apps_to_delete.append(app)
 
         # Get the list of AwsResources from the AwsApps
         if len(apps_to_delete) > 0:
@@ -454,54 +403,29 @@ class AwsResources(InfraResources):
 
         # Build a list of AwsResources to update
         resources_to_update: List[AwsResource] = []
+
+        # Add resources to resources_to_update
         if self.resources is not None:
             for r in self.resources:
-                if isinstance(r, ResourceGroup):
-                    resources_from_resource_group = r.get_resources()
-                    if len(resources_from_resource_group) > 0:
-                        for resource_from_resource_group in resources_from_resource_group:
-                            if isinstance(resource_from_resource_group, AwsResource):
-                                resource_from_resource_group.set_workspace_settings(
-                                    workspace_settings=self.workspace_settings
-                                )
-                                if resource_from_resource_group.group is None and self.name is not None:
-                                    resource_from_resource_group.group = self.name
-                                if resource_from_resource_group.should_update(
-                                    group_filter=group_filter,
-                                    name_filter=name_filter,
-                                    type_filter=type_filter,
-                                ):
-                                    resources_to_update.append(resource_from_resource_group)
-                elif isinstance(r, AwsResource):
+                r.set_workspace_settings(workspace_settings=self.workspace_settings)
+                if r.group is None and self.name is not None:
+                    r.group = self.name
+                if r.should_update(
+                    group_filter=group_filter,
+                    name_filter=name_filter,
+                    type_filter=type_filter,
+                ):
                     r.set_workspace_settings(workspace_settings=self.workspace_settings)
-                    if r.group is None and self.name is not None:
-                        r.group = self.name
-                    if r.should_update(
-                        group_filter=group_filter,
-                        name_filter=name_filter,
-                        type_filter=type_filter,
-                    ):
-                        r.set_workspace_settings(workspace_settings=self.workspace_settings)
-                        resources_to_update.append(r)
+                    resources_to_update.append(r)
 
         # Build a list of AwsApps to update
         apps_to_update: List[AwsApp] = []
         if self.apps is not None:
             for app in self.apps:
-                if isinstance(app, AppGroup):
-                    apps_from_app_group = app.get_apps()
-                    if len(apps_from_app_group) > 0:
-                        for app_from_app_group in apps_from_app_group:
-                            if isinstance(app_from_app_group, AwsApp):
-                                if app_from_app_group.group is None and self.name is not None:
-                                    app_from_app_group.group = self.name
-                                if app_from_app_group.should_update(group_filter=group_filter):
-                                    apps_to_update.append(app_from_app_group)
-                elif isinstance(app, AwsApp):
-                    if app.group is None and self.name is not None:
-                        app.group = self.name
-                    if app.should_update(group_filter=group_filter):
-                        apps_to_update.append(app)
+                if app.group is None and self.name is not None:
+                    app.group = self.name
+                if app.should_update(group_filter=group_filter):
+                    apps_to_update.append(app)
 
         # Get the list of AwsResources from the AwsApps
         if len(apps_to_update) > 0:

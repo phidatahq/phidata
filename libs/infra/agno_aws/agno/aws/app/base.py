@@ -3,9 +3,9 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 from pydantic import Field, field_validator
 from pydantic_core.core_schema import ValidationInfo
 
-from agno.app.base import AppBase  # noqa: F401
-from agno.app.context import ContainerContext
-from agno.aws.app.context import AwsBuildContext
+from agno.aws.context import AwsBuildContext
+from agno.infra.app import InfraApp
+from agno.infra.context import ContainerContext
 from agno.utils.log import logger
 
 if TYPE_CHECKING:
@@ -20,7 +20,7 @@ if TYPE_CHECKING:
     from agno.aws.resource.elb.target_group import TargetGroup
 
 
-class AwsApp(AppBase):
+class AwsApp(InfraApp):
     # -*- Workspace Configuration
     # Path to the workspace directory inside the container
     workspace_dir_container_path: str = "/app"
@@ -178,10 +178,6 @@ class AwsApp(AppBase):
             AGNO_RUNTIME_ENV_VAR,
             PYTHONPATH_ENV_VAR,
             REQUIREMENTS_FILE_PATH_ENV_VAR,
-            SCRIPTS_DIR_ENV_VAR,
-            STORAGE_DIR_ENV_VAR,
-            WORKFLOWS_DIR_ENV_VAR,
-            WORKSPACE_DIR_ENV_VAR,
             WORKSPACE_ID_ENV_VAR,
             WORKSPACE_ROOT_ENV_VAR,
         )
@@ -194,10 +190,6 @@ class AwsApp(AppBase):
                 "PRINT_ENV_ON_LOAD": str(self.print_env_on_load),
                 AGNO_RUNTIME_ENV_VAR: "ecs",
                 REQUIREMENTS_FILE_PATH_ENV_VAR: container_context.requirements_file or "",
-                SCRIPTS_DIR_ENV_VAR: container_context.scripts_dir or "",
-                STORAGE_DIR_ENV_VAR: container_context.storage_dir or "",
-                WORKFLOWS_DIR_ENV_VAR: container_context.workflows_dir or "",
-                WORKSPACE_DIR_ENV_VAR: container_context.workspace_dir or "",
                 WORKSPACE_ROOT_ENV_VAR: container_context.workspace_root or "",
             }
         )

@@ -58,7 +58,7 @@ class QAWorkflow(Workflow):
 
     qa_agent: Agent = Agent(
         model=OpenAIChat(id="gpt-4o"),
-        description="You are a helpful assistant that can answer questions for a given question from the knowledge base.",
+        description="You are a helpful agent that can answer questions for a given question from the knowledge base.",
         instructions=[
             "Use the following pieces of retrieved context to answer the question.",
             "Your goal is to answer the user's question in detail.",
@@ -115,6 +115,8 @@ class QAWorkflow(Workflow):
         and answers the given question.
         Args:
             evaluation_csv_path (str): The ground truth based on which quality of qa agent will be judged.
+            output_csv_path (str): Results will be saved here.
+            knowledge_base_recreate: If set to True will recreate the Knowledge Base
         """
 
         load_start = time.time()
@@ -132,8 +134,8 @@ class QAWorkflow(Workflow):
         ans_start = time.time()
         # Running the qa_agent on the evaluation set
         for entry in evaluation_data:
-            question = entry["Question"]
-            ground_truth = entry["Answer"]
+            question = entry.get("Question")
+            ground_truth = entry.get("Answer")
             # Generate Answer from the QA Agent
             logger.info(f"Asking question: {question}")
             generated_answer = self.generate_answer(question)

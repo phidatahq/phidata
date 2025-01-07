@@ -1,11 +1,4 @@
-from time import monotonic, sleep
-from phi.agent import Agent
-from phi.knowledge.pdf import PDFUrlKnowledgeBase
-from pymongo.operations import SearchIndexModel
-from pymongo.collection import Collection
 import time
-import os
-#os.environ["OPENAI_API_KEY"] = ""
 from typing import List, Optional, Dict, Any
 
 from phi.document import Document
@@ -15,14 +8,18 @@ from phi.vectordb.base import VectorDb
 from phi.utils.log import logger
 from phi.vectordb.distance import Distance
 
-from hashlib import md5
+try:
+    from hashlib import md5
 
+except ImportError:
+    raise ImportError("`hashlib` not installed. Please install using `pip install hashlib`")
 try:
     from pymongo import MongoClient, errors
+    from pymongo.operations import SearchIndexModel
+    from pymongo.collection import Collection
+
 except ImportError:
     raise ImportError("`pymongo` not installed. Please install using `pip install pymongo`")
-
-import os
 
 class MongoDBVector(VectorDb):
     """

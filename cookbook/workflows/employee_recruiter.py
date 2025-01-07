@@ -146,7 +146,7 @@ class EmployeeRecruitmentWorkflow(Workflow):
             else:
                 logger.error(f"Could not process resume from URL: {resume_url}")
 
-            if screening_result.content.score > 7.0:
+            if screening_result and screening_result.content and screening_result.content.score > 7.0:
                 selected_candidates.append(screening_result.content)
 
         for selected_candidate in selected_candidates:
@@ -154,7 +154,7 @@ class EmployeeRecruitmentWorkflow(Workflow):
             scheduled_call = self.interview_scheduler_agent.run(input)
             logger.info(scheduled_call.content)
 
-            if scheduled_call.content.url and scheduled_call.content.call_time:
+            if scheduled_call.content and scheduled_call.content.url and scheduled_call.content.call_time:
                 input = f"Write an email to Candidate name: {selected_candidate.name}, Candidate email: {selected_candidate.email} for the call scheduled at {scheduled_call.content.call_time} with the url {scheduled_call.content.url} and congratulate them for the interview from John Doe designation Senior Software Engineer and email john@phidata.com"
                 email = self.email_writer_agent.run(input)
                 logger.info(email.content)

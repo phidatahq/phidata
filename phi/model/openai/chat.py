@@ -599,7 +599,7 @@ class OpenAIChat(Model):
         # -*- Parse transcript if available
         if response_audio:
             if response_audio.transcript and not response_message.content:
-                response_message.content = response_message.audio.transcript
+                response_message.content = response_audio.transcript
 
         # -*- Parse structured outputs
         try:
@@ -677,7 +677,7 @@ class OpenAIChat(Model):
         # -*- Parse transcript if available
         if response_audio:
             if response_audio.transcript and not response_message.content:
-                response_message.content = response_message.audio.transcript
+                response_message.content = response_audio.transcript
 
         # -*- Parse structured outputs
         try:

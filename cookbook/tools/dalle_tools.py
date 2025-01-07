@@ -1,7 +1,10 @@
 """Run `pip install openai` to install dependencies."""
 
+from pathlib import Path
+
 from phi.agent import Agent
 from phi.tools.dalle import Dalle
+from phi.utils.images import download_image
 
 # Create an Agent with the DALL-E tool
 agent = Agent(tools=[Dalle()], name="DALL-E Image Generator")
@@ -18,4 +21,6 @@ agent_custom = Agent(
     show_tool_calls=True,
 )
 
-agent_custom.print_response("Create a panoramic nature scene showing a peaceful mountain lake at sunset", markdown=True)
+response = agent_custom.run("Create a panoramic nature scene showing a peaceful mountain lake at sunset", markdown=True)
+if response.images:
+    download_image(url=response.images[0].url, save_path=Path(__file__).parent.joinpath("tmp/nature.jpg"))

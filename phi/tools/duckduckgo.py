@@ -62,7 +62,9 @@ class DuckDuckGo(Toolkit):
             The result from DuckDuckGo.
         """
         logger.debug(f"Searching DDG for: {query}")
-        ddgs = DDGS(headers=self.headers, proxy=self.proxy, proxies=self.proxies, timeout=self.timeout, verify=self.verify_ssl)
+        ddgs = DDGS(
+            headers=self.headers, proxy=self.proxy, proxies=self.proxies, timeout=self.timeout, verify=self.verify_ssl
+        )
         if not self.modifier:
             return json.dumps(ddgs.text(keywords=query, max_results=(self.fixed_max_results or max_results)), indent=2)
         return json.dumps(

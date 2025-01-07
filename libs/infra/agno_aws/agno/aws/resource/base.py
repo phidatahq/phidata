@@ -2,11 +2,13 @@ from typing import Any, Optional
 
 from agno.aws.api_client import AwsApiClient
 from agno.cli.console import print_info
-from agno.resource.base import ResourceBase
+from agno.infra.resource import InfraResource
 from agno.utils.log import logger
 
 
-class AwsResource(ResourceBase):
+class AwsResource(InfraResource):
+    """Base class for AWS Resources."""
+
     service_name: str
     service_client: Optional[Any] = None
     service_resource: Optional[Any] = None

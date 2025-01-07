@@ -51,6 +51,8 @@ class WorkspaceSettings(BaseSettings):
     # AWS settings
     # Region for AWS resources
     aws_region: Optional[str] = None
+    # Profile for AWS resources
+    aws_profile: Optional[str] = None
 
     # Other Settings
     # Use cached resource if available, i.e. skip resource creation if the resource already exists

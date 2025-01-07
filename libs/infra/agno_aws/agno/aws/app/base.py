@@ -149,22 +149,6 @@ class AwsApp(InfraApp):
             workspace_parent=workspace_parent_in_container,
         )
 
-        if self.workspace_settings is not None and self.workspace_settings.scripts_dir is not None:
-            self.container_context.scripts_dir = f"{workspace_root_in_container}/{self.workspace_settings.scripts_dir}"
-
-        if self.workspace_settings is not None and self.workspace_settings.storage_dir is not None:
-            self.container_context.storage_dir = f"{workspace_root_in_container}/{self.workspace_settings.storage_dir}"
-
-        if self.workspace_settings is not None and self.workspace_settings.workflows_dir is not None:
-            self.container_context.workflows_dir = (
-                f"{workspace_root_in_container}/{self.workspace_settings.workflows_dir}"
-            )
-
-        if self.workspace_settings is not None and self.workspace_settings.workspace_dir is not None:
-            self.container_context.workspace_dir = (
-                f"{workspace_root_in_container}/{self.workspace_settings.workspace_dir}"
-            )
-
         if self.workspace_settings is not None and self.workspace_settings.ws_schema is not None:
             self.container_context.workspace_schema = self.workspace_settings.ws_schema
 

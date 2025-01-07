@@ -2,7 +2,7 @@ import json
 from typing import Optional
 import streamlit as st
 import pandas as pd
-from cookbook.examples.streamlit.research_agent_app.research_blog_writer import (
+from cookbook.examples.streamlit.technical_writer_app.technical_writer import (
     SearchTerms,
     search_term_generator,
     arxiv_search_agent,
@@ -13,10 +13,10 @@ from cookbook.examples.streamlit.research_agent_app.research_blog_writer import 
 
 # Streamlit App Configuration
 st.set_page_config(
-    page_title="Research Workflow",
+    page_title="Blog Writer Workflow",
     page_icon=":orange_heart:",
 )
-st.title("AI Research Workflow")
+st.title("Paperpal")
 st.markdown("##### :orange_heart: built by [phidata](https://github.com/phidatahq/phidata)")
 
 
@@ -26,8 +26,8 @@ def main() -> None:
         ":female-scientist: Enter a topic",
         value="LLM evals in multi-agentic space",
     )
-    # Button to generate report
-    generate_report = st.sidebar.button("Generate Report")
+    # Button to generate blog
+    generate_report = st.sidebar.button("Generate Blog")
     if generate_report:
         st.session_state["topic"] = input_topic
 
@@ -39,7 +39,7 @@ def main() -> None:
     search_google_scholar = st.sidebar.checkbox("Google Scholar Search", disabled=True)  # noqa
     use_cache = st.sidebar.toggle("Use Cache", value=False, disabled=True)  # noqa
     num_search_terms = st.sidebar.number_input(
-        "Number of Search Terms", value=1, min_value=1, max_value=3, help="This will increase latency."
+        "Number of Search Terms", value=2, min_value=2, max_value=3, help="This will increase latency."
     )
 
     st.sidebar.markdown("---")
@@ -150,7 +150,7 @@ def main() -> None:
 
         # Only generate the report if we have content
         if arxiv_content or exa_content:
-            with st.spinner("Generating Report"):
+            with st.spinner("Generating Blog"):
                 final_report_container = st.empty()
                 research_report = research_editor.run(report_input)
                 final_report_container.markdown(research_report.content)

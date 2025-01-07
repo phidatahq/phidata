@@ -8,6 +8,11 @@ from phi.embedder.openai import OpenAIEmbedder
 # OPENAI_API_KEY must be set in the environment
 VECTOR_DB_DIMENSION = 1536
 
+# How to connect to an Upstash Vector index
+# - Create a new index in Upstash Console with the correct dimension
+# - Fetch the URL and token from Upstash Console
+# - Replace the values below or use environment variables
+
 # Initialize Upstash DB
 vector_db = Upstash(
     url="UPSTASH_VECTOR_REST_URL",

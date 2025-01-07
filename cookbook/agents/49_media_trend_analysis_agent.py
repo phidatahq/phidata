@@ -78,7 +78,7 @@ agent = Agent(
 analysis_prompt = """\
 Analyze media trends for:
 Keywords: ai agents
-Sources: verge.com ,linkedin.com 
+Sources: verge.com ,linkedin.com, x.com
 """
 
 agent.print_response(analysis_prompt, stream=True)

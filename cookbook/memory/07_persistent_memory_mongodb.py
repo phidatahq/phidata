@@ -2,7 +2,8 @@
 This recipe shows how to store agent sessions in a MongoDB database.
 Steps:
 1. Run: `pip install openai pymongo phidata` to install dependencies
-2. Run: `python cookbook/memory/05_persistent_memory_mongodb.py` to run the agent
+2. Make sure you are running a local instance of mongodb
+3. Run: `python cookbook/memory/07_persistent_memory_mongodb.py` to run the agent
 """
 
 import json

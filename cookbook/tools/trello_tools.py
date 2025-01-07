@@ -1,3 +1,19 @@
+"""
+To use Trello Tools, you need to set up authentication:
+
+1. Get your API Key:
+   - Go to https://trello.com/power-ups/admin
+   - Create a new workspace or select an existing one
+
+2. Api Key and Secret:
+   - On the left side click on API Key
+   - Copy the generated API Key and secret
+
+3. Generate Token:
+   - On the same page click on option to manually generate a Token
+   - Authorize the account and copy the generated Token
+"""
+
 from phi.tools.trello_tools import TrelloTools
 from phi.agent import Agent
 

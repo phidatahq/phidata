@@ -107,12 +107,12 @@ class Upstash(VectorDb):
 
     def create(self) -> None:
         """You can create indexes in Upstash Console."""
-        logger.info("You can create indexes in Upstash Console.")
+        logger.info("Indexes can only be created through the Upstash Console. Please create an index before using this vector database.")
         pass
 
     def drop(self) -> None:
         """You can drop indexes in Upstash Console."""
-        logger.info("You can drop indexes in Upstash Console.")
+        logger.info("Indexes can only be dropped through the Upstash Console. Make sure you have an existing index before performing operations.")
         pass
 
     def drop_namespace(self, namespace: Optional[str] = None) -> None:

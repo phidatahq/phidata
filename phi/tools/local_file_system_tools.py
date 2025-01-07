@@ -73,7 +73,7 @@ class LocalFileSystemTools(Toolkit):
             error_msg = f"Failed to write file: {str(e)}"
             logger.error(error_msg)
             return f"Error: {error_msg}"
-        
+
     def read_file(self, filename: str, directory: Optional[str] = None) -> str:
         """
         Read content from a local file.

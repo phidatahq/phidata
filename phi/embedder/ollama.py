@@ -50,7 +50,7 @@ class OllamaEmbedder(Embedder):
             return []
 
     def get_embedding_and_usage(self, text: str) -> Tuple[List[float], Optional[Dict]]:
-        embedding = self.get_embedding()
+        embedding = self.get_embedding(text=text)
         usage = None
 
         return embedding, usage

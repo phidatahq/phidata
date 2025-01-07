@@ -44,9 +44,9 @@ class DesiVocalTools(Toolkit):
                     {
                         "id": voice_id,
                         "name": voice_info["name"],
-                        "gender": voice_info['audio_gender'],
-                        "type": voice_info['voice_type'],
-                        "language": ', '.join(voice_info['languages']),
+                        "gender": voice_info["audio_gender"],
+                        "type": voice_info["voice_type"],
+                        "language": ", ".join(voice_info["languages"]),
                         "preview_url": next(iter(voice_info["preview_path"].values()))
                         if voice_info["preview_path"]
                         else None,

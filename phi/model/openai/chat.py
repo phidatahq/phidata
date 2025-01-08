@@ -24,7 +24,7 @@ try:
         ChoiceDelta,
         ChoiceDeltaToolCall,
     )
-    from openai.types.chat.chat_completion_message import ChatCompletionMessage
+    from openai.types.chat.chat_completion_message import ChatCompletionMessage, ChatCompletionAudio
 
     MIN_OPENAI_VERSION = "1.52.0"
 
@@ -308,6 +308,9 @@ class OpenAIChat(Model):
         Returns:
             Dict[str, Any]: The formatted message.
         """
+        if message.role == "system":
+            message.role = "developer"
+
         if message.role == "user":
             if message.images is not None:
                 message = self.add_images_to_message(message=message, images=message.images)
@@ -594,6 +597,12 @@ class OpenAIChat(Model):
         # -*- Parse response
         response_message: ChatCompletionMessage = response.choices[0].message
         response_usage: Optional[CompletionUsage] = response.usage
+        response_audio: Optional[ChatCompletionAudio] = response_message.audio
+
+        # -*- Parse transcript if available
+        if response_audio:
+            if response_audio.transcript and not response_message.content:
+                response_message.content = response_audio.transcript
 
         # -*- Parse structured outputs
         try:
@@ -666,6 +675,12 @@ class OpenAIChat(Model):
         # -*- Parse response
         response_message: ChatCompletionMessage = response.choices[0].message
         response_usage: Optional[CompletionUsage] = response.usage
+        response_audio: Optional[ChatCompletionAudio] = response_message.audio
+
+        # -*- Parse transcript if available
+        if response_audio:
+            if response_audio.transcript and not response_message.content:
+                response_message.content = response_audio.transcript
 
         # -*- Parse structured outputs
         try:

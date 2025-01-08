@@ -8,11 +8,10 @@ class RecursiveChunking(ChunkingStrategy):
     """Chunking strategy that recursively splits text into chunks by finding natural break points"""
 
     def __init__(self, chunk_size: int = 5000, overlap: int = 0):
-
         # overlap must be lesser than chunk size
         if overlap >= chunk_size:
             raise ValueError(f"Invalid parameters: overlap ({overlap}) must be less than chunk size ({chunk_size}).")
-        
+
         self.chunk_size = chunk_size
         self.overlap = overlap
 

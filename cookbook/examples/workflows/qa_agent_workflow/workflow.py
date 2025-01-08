@@ -80,7 +80,8 @@ class QAWorkflow(Workflow):
         Loads the scraped and chunked content into the knowledge base.
         """
         logger.info("Loading knowledge base...")
-        self.qa_agent.knowledge.load(recreate=recreate)
+        if self.qa_agent.knowledge is not None:
+            self.qa_agent.knowledge.load(recreate=recreate)
         logger.info("Knowledge base loaded successfully.")
 
     def judge_answer(self, question, ground_truth, generated_answer):

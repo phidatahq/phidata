@@ -83,7 +83,7 @@ class CodeGenWorkflow(Workflow):
                 generated_code = structured_response
 
                 logger.info("---CHECKING CODE---")
-                result = self.check_code(structured_response)
+                result = self.check_code(structured_response)  # type: ignore
 
                 if result == "success":
                     return RunResponse(
@@ -103,7 +103,7 @@ class CodeGenWorkflow(Workflow):
                     context=context,
                     question=question,
                     error_message=error_message,
-                    generated_code=generated_code,
+                    generated_code=generated_code,  # type: ignore
                 )
 
         logger.error("---MAXIMUM ATTEMPTS REACHED: FAILED TO FIX CODE---")
@@ -173,9 +173,10 @@ class CodeGenWorkflow(Workflow):
         Answer with a description of the code solution, followed by the imports, and finally the functioning code block.
         Ensure all imports are correct and the code is executable.
         """
-        self.coding_agent.system_message = error_prompt
-        response = self.coding_agent.run(error_prompt, stream=False)
-        return response.content
+        self.coding_agent.system_prompt = error_prompt
+        response: RunResponse = self.coding_agent.run(error_prompt)
+        solution: CodeSolution = response.content  # type: ignore
+        return solution
 
 
 if __name__ == "__main__":

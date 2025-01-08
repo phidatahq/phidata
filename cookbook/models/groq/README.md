@@ -98,7 +98,7 @@ Take note that by default, OpenAI embeddings are used and an API key will be req
 ### 9. Run Playground with some Agents
 
 ```shell
-python cookbook/models/groq/knowledge.py
+python cookbook/models/groq/agent_team.py
 ```
 
 ### 10. Run in async mode

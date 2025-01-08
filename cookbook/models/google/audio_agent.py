@@ -12,7 +12,7 @@ agent = Agent(
 # Please download a sample audio file to test this Agent and upload using:
 audio_path = Path(__file__).parent.joinpath("sample_audio.mp3")
 audio_file = upload_file(audio_path)
-print(f"Uploaded audio: {audio_file}")
+print(f"Using audio as input: {audio_file}")
 
 agent.print_response(
     "Tell me about this audio",

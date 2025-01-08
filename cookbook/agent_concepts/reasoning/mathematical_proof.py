@@ -1,5 +1,5 @@
-from phi.agent import Agent
-from phi.model.openai import OpenAIChat
+from agno.agent import Agent
+from agno.models.openai import OpenAIChat
 
 task = "Prove that for any positive integer n, the sum of the first n odd numbers is equal to n squared. Provide a detailed proof."
 

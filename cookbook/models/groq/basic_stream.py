@@ -1,6 +1,6 @@
 from typing import Iterator  # noqa
-from phi.agent import Agent, RunResponse  # noqa
-from phi.model.groq import Groq
+from agno.agent import Agent, RunResponse  # noqa
+from agno.models.groq import Groq
 
 agent = Agent(model=Groq(id="llama-3.3-70b-versatile"), markdown=True)
 

@@ -6,17 +6,17 @@
 Docs on Agent UI: https://docs.phidata.com/agent-ui
 """
 
-from phi.agent import Agent
-from phi.model.openai import OpenAIChat
-from phi.tools.dalle import Dalle
-from phi.tools.eleven_labs_tools import ElevenLabsTools
-from phi.tools.giphy import GiphyTools
-from phi.tools.models_labs import ModelsLabs
-from phi.model.response import FileType
-from phi.playground import Playground, serve_playground_app
-from phi.storage.agent.sqlite import SqlAgentStorage
-from phi.tools.fal_tools import FalTools
-from phi.tools.desi_vocal_tools import DesiVocalTools
+from agno.agent import Agent
+from agno.models.openai import OpenAIChat
+from agno.tools.dalle import Dalle
+from agno.tools.eleven_labs_tools import ElevenLabsTools
+from agno.tools.giphy import GiphyTools
+from agno.tools.models_labs import ModelsLabs
+from agno.models.response import FileType
+from agno.playground import Playground, serve_playground_app
+from agno.storage.agent.sqlite import SqlAgentStorage
+from agno.tools.fal_tools import FalTools
+from agno.tools.desi_vocal_tools import DesiVocalTools
 
 image_agent_storage_file: str = "tmp/image_agent.db"
 

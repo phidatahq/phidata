@@ -1,6 +1,6 @@
-from phi.agent import Agent
-from phi.model.xai import xAI
-from phi.tools.yfinance import YFinanceTools
+from agno.agent import Agent
+from agno.models.xai import xAI
+from agno.tools.yfinance import YFinanceTools
 
 agent = Agent(
     model=xAI(id="grok-beta"),

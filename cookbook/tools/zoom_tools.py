@@ -1,12 +1,12 @@
 import os
 import time
-from phi.utils.log import logger
+from agno.utils.log import logger
 import requests
 from typing import Optional
 
-from phi.agent import Agent
-from phi.model.openai import OpenAIChat
-from phi.tools.zoom import ZoomTool
+from agno.agent import Agent
+from agno.models.openai import OpenAIChat
+from agno.tools.zoom import ZoomTool
 
 # Get environment variables
 ACCOUNT_ID = os.getenv("ZOOM_ACCOUNT_ID")

@@ -1,8 +1,8 @@
 from typing import Iterator
 from rich.pretty import pprint
-from phi.agent import Agent, RunResponse
-from phi.model.openai import OpenAIChat
-from phi.tools.dalle import Dalle
+from agno.agent import Agent, RunResponse
+from agno.models.openai import OpenAIChat
+from agno.tools.dalle import Dalle
 
 image_agent = Agent(
     model=OpenAIChat(id="gpt-4o"),

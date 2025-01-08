@@ -1,8 +1,8 @@
 """Run `pip install yfinance` to install dependencies."""
 
-from phi.agent import Agent
-from phi.model.deepseek import DeepSeekChat
-from phi.tools.yfinance import YFinanceTools
+from agno.agent import Agent
+from agno.models.deepseek import DeepSeekChat
+from agno.tools.yfinance import YFinanceTools
 
 agent = Agent(
     model=DeepSeekChat(id="deepseek-chat"),

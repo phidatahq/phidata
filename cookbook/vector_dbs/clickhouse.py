@@ -1,7 +1,7 @@
-from phi.agent import Agent
-from phi.knowledge.pdf import PDFUrlKnowledgeBase
-from phi.storage.agent.sqlite import SqlAgentStorage
-from phi.vectordb.clickhouse import ClickhouseDb
+from agno.agent import Agent
+from agno.knowledge.pdf import PDFUrlKnowledgeBase
+from agno.storage.agent.sqlite import SqlAgentStorage
+from agno.vectordb.clickhouse import ClickhouseDb
 
 agent = Agent(
     storage=SqlAgentStorage(table_name="recipe_agent"),

@@ -1,9 +1,9 @@
 from pydantic import BaseModel, Field
 
-from phi.agent.agent import Agent
-from phi.model.openai.chat import OpenAIChat
-from phi.run.response import RunResponse
-from phi.workflow.workflow import Workflow
+from agno.agent.agent import Agent
+from agno.models.openai.chat import OpenAIChat
+from agno.run.response import RunResponse
+from agno.workflow.workflow import Workflow
 
 
 class Feedback(BaseModel):

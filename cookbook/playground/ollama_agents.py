@@ -1,12 +1,12 @@
 """Run `pip install ollama duckduckgo-search yfinance pypdf sqlalchemy 'fastapi[standard]' youtube-transcript-api phidata` to install dependencies."""
 
-from phi.agent import Agent
-from phi.model.ollama import Ollama
-from phi.playground import Playground, serve_playground_app
-from phi.storage.agent.sqlite import SqlAgentStorage
-from phi.tools.duckduckgo import DuckDuckGo
-from phi.tools.yfinance import YFinanceTools
-from phi.tools.youtube_tools import YouTubeTools
+from agno.agent import Agent
+from agno.models.ollama import Ollama
+from agno.playground import Playground, serve_playground_app
+from agno.storage.agent.sqlite import SqlAgentStorage
+from agno.tools.duckduckgo import DuckDuckGo
+from agno.tools.yfinance import YFinanceTools
+from agno.tools.youtube_tools import YouTubeTools
 
 local_agent_storage_file: str = "tmp/local_agents.db"
 common_instructions = [

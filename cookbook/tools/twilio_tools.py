@@ -1,6 +1,6 @@
-from phi.agent import Agent
-from phi.model.openai import OpenAIChat
-from phi.tools.twilio import TwilioTools
+from agno.agent import Agent
+from agno.models.openai import OpenAIChat
+from agno.tools.twilio import TwilioTools
 
 """
 Example showing how to use the Twilio Tools with Phi.

@@ -3,9 +3,9 @@
 import os
 
 from typing import Iterator  # noqa
-from phi.agent import Agent, RunResponse  # noqa
-from phi.model.mistral import MistralChat
-from phi.tools.yfinance import YFinanceTools
+from agno.agent import Agent, RunResponse  # noqa
+from agno.models.mistral import MistralChat
+from agno.tools.yfinance import YFinanceTools
 
 mistral_api_key = os.getenv("MISTRAL_API_KEY")
 

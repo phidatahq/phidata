@@ -1,6 +1,6 @@
-from phi.agent import Agent
-from phi.knowledge.csv import CSVUrlKnowledgeBase
-from phi.vectordb.pgvector import PgVector
+from agno.agent import Agent
+from agno.knowledge.csv import CSVUrlKnowledgeBase
+from agno.vectordb.pgvector import PgVector
 
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 

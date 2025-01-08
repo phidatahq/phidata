@@ -1,7 +1,7 @@
 import httpx
 from pathlib import Path
-from phi.agent import Agent
-from phi.tools.csv_tools import CsvTools
+from agno.agent import Agent
+from agno.tools.csv_tools import CsvTools
 
 url = "https://phidata-public.s3.amazonaws.com/demo_data/IMDB-Movie-Data.csv"
 response = httpx.get(url)

@@ -1,8 +1,8 @@
 """Run `pip install duckduckgo-search sqlalchemy openai` to install dependencies."""
 
-from phi.agent import Agent
-from phi.tools.duckduckgo import DuckDuckGo
-from phi.storage.agent.sqlite import SqlAgentStorage
+from agno.agent import Agent
+from agno.tools.duckduckgo import DuckDuckGo
+from agno.storage.agent.sqlite import SqlAgentStorage
 
 agent = Agent(
     storage=SqlAgentStorage(table_name="agent_sessions", db_file="tmp/data.db"),

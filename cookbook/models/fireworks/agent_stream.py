@@ -1,9 +1,9 @@
 """Run `pip install yfinance` to install dependencies."""
 
 from typing import Iterator  # noqa
-from phi.agent import Agent, RunResponse  # noqa
-from phi.model.fireworks import Fireworks
-from phi.tools.yfinance import YFinanceTools
+from agno.agent import Agent, RunResponse  # noqa
+from agno.models.fireworks import Fireworks
+from agno.tools.yfinance import YFinanceTools
 
 agent = Agent(
     model=Fireworks(id="accounts/fireworks/models/firefunction-v2"),

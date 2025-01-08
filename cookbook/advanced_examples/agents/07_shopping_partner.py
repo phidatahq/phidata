@@ -1,6 +1,6 @@
-from phi.agent import Agent
-from phi.model.openai import OpenAIChat
-from phi.tools.firecrawl import FirecrawlTools
+from agno.agent import Agent
+from agno.models.openai import OpenAIChat
+from agno.tools.firecrawl import FirecrawlTools
 
 agent = Agent(
     name="shopping partner",

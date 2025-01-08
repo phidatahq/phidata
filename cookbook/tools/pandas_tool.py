@@ -1,5 +1,5 @@
-from phi.agent import Agent
-from phi.tools.pandas import PandasTools
+from agno.agent import Agent
+from agno.tools.pandas import PandasTools
 
 # Create an agent with PandasTools
 agent = Agent(tools=[PandasTools()])

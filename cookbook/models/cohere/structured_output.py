@@ -1,8 +1,8 @@
 from typing import List
 from rich.pretty import pprint  # noqa
 from pydantic import BaseModel, Field
-from phi.agent import Agent, RunResponse  # noqa
-from phi.model.cohere import CohereChat
+from agno.agent import Agent, RunResponse  # noqa
+from agno.models.cohere import CohereChat
 
 
 class MovieScript(BaseModel):

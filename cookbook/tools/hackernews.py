@@ -1,5 +1,5 @@
-from phi.agent import Agent
-from phi.tools.hackernews import HackerNews
+from agno.agent import Agent
+from agno.tools.hackernews import HackerNews
 
 agent = Agent(
     name="Hackernews Team",

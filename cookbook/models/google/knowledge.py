@@ -1,10 +1,10 @@
 """Run `pip install duckduckgo-search sqlalchemy pgvector pypdf openai google.generativeai` to install dependencies."""
 
-from phi.agent import Agent
-from phi.model.google import Gemini
-from phi.knowledge.pdf import PDFUrlKnowledgeBase
-from phi.vectordb.pgvector import PgVector
-from phi.embedder.google import GeminiEmbedder
+from agno.embedder.google import GeminiEmbedder
+from agno.agent import Agent
+from agno.models.google import Gemini
+from agno.knowledge.pdf import PDFUrlKnowledgeBase
+from agno.vectordb.pgvector import PgVector
 
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 

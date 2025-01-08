@@ -12,10 +12,10 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.json import JSON
 
-from phi.agent import Agent, AgentMemory
-from phi.model.openai import OpenAIChat
-from phi.memory.db.sqlite import SqliteMemoryDb
-from phi.storage.agent.sqlite import SqlAgentStorage
+from agno.agent import Agent, AgentMemory
+from agno.models.openai import OpenAIChat
+from agno.memory.db.sqlite import SqliteMemoryDb
+from agno.storage.agent.sqlite import SqlAgentStorage
 
 agent_memory_file: str = "tmp/agent_memory.db"
 agent_storage_file: str = "tmp/agent_storage.db"

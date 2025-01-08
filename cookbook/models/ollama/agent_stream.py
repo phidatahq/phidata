@@ -1,10 +1,10 @@
 """Run `pip install yfinance` to install dependencies."""
 
 from typing import Iterator  # noqa
-from phi.agent import Agent, RunResponse  # noqa
-from phi.model.ollama import Ollama
-from phi.tools.crawl4ai_tools import Crawl4aiTools
-from phi.tools.yfinance import YFinanceTools
+from agno.agent import Agent, RunResponse  # noqa
+from agno.models.ollama import Ollama
+from agno.tools.crawl4ai_tools import Crawl4aiTools
+from agno.tools.yfinance import YFinanceTools
 
 agent = Agent(
     model=Ollama(id="llama3.1:8b"),

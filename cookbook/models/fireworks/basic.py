@@ -1,5 +1,5 @@
-from phi.agent import Agent, RunResponse  # noqa
-from phi.model.fireworks import Fireworks
+from agno.agent import Agent, RunResponse  # noqa
+from agno.models.fireworks import Fireworks
 
 agent = Agent(model=Fireworks(id="accounts/fireworks/models/firefunction-v2"), markdown=True)
 

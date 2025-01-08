@@ -1,5 +1,5 @@
-from phi.agent import Agent
-from phi.tools.email import EmailTools
+from agno.agent import Agent
+from agno.tools.email import EmailTools
 
 receiver_email = "<receiver_email>"
 sender_email = "<sender_email>"

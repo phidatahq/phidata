@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from phi.agent import Agent
-from phi.model.ollama import Ollama
+from agno.agent import Agent
+from agno.models.ollama import Ollama
 
 agent = Agent(
     model=Ollama(id="llama3.2-vision"),

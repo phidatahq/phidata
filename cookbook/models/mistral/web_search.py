@@ -2,9 +2,9 @@
 
 import os
 
-from phi.agent import Agent
-from phi.model.mistral import MistralChat
-from phi.tools.duckduckgo import DuckDuckGo
+from agno.agent import Agent
+from agno.models.mistral import MistralChat
+from agno.tools.duckduckgo import DuckDuckGo
 
 mistral_api_key = os.getenv("MISTRAL_API_KEY")
 

@@ -1,8 +1,8 @@
 """Run `pip install duckduckgo-search openai` to install dependencies."""
 
-from phi.agent import Agent
-from phi.tools.duckduckgo import DuckDuckGo
-from phi.storage.agent.yaml import YamlFileAgentStorage
+from agno.agent import Agent
+from agno.tools.duckduckgo import DuckDuckGo
+from agno.storage.agent.yaml import YamlFileAgentStorage
 
 agent = Agent(
     storage=YamlFileAgentStorage(dir_path="tmp/agent_sessions_yaml"),

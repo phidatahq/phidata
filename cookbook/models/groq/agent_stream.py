@@ -1,9 +1,9 @@
 """Run `pip install yfinance` to install dependencies."""
 
 from typing import Iterator  # noqa
-from phi.agent import Agent, RunResponse  # noqa
-from phi.model.groq import Groq
-from phi.tools.yfinance import YFinanceTools
+from agno.agent import Agent, RunResponse  # noqa
+from agno.models.groq import Groq
+from agno.tools.yfinance import YFinanceTools
 
 agent = Agent(
     model=Groq(id="llama-3.3-70b-versatile"),

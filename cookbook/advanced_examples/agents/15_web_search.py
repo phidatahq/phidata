@@ -1,8 +1,8 @@
 """Run `pip install openai duckduckgo-search phidata` to install dependencies."""
 
-from phi.agent import Agent
-from phi.model.openai import OpenAIChat
-from phi.tools.duckduckgo import DuckDuckGo
+from agno.agent import Agent
+from agno.models.openai import OpenAIChat
+from agno.tools.duckduckgo import DuckDuckGo
 
 web_agent = Agent(
     name="Web Agent",

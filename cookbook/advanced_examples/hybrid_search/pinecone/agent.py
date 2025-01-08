@@ -3,9 +3,9 @@ import typer
 from typing import Optional
 from rich.prompt import Prompt
 
-from phi.agent import Agent
-from phi.knowledge.pdf import PDFUrlKnowledgeBase
-from phi.vectordb.pineconedb import PineconeDB
+from agno.agent import Agent
+from agno.knowledge.pdf import PDFUrlKnowledgeBase
+from agno.vectordb.pineconedb import PineconeDB
 
 import nltk  # type: ignore
 

@@ -1,5 +1,5 @@
-from phi.agent import Agent
-from phi.model.groq import Groq
+from agno.agent import Agent
+from agno.models.groq import Groq
 
 agent = Agent(model=Groq(id="llama-3.2-90b-vision-preview"))
 

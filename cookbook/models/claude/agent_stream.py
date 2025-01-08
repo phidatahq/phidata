@@ -1,9 +1,9 @@
 """Run `pip install yfinance` to install dependencies."""
 
 from typing import Iterator  # noqa
-from phi.agent import Agent, RunResponse  # noqa
-from phi.model.anthropic import Claude
-from phi.tools.yfinance import YFinanceTools
+from agno.agent import Agent, RunResponse  # noqa
+from agno.models.anthropic import Claude
+from agno.tools.yfinance import YFinanceTools
 
 agent = Agent(
     model=Claude(id="claude-3-5-sonnet-20241022"),

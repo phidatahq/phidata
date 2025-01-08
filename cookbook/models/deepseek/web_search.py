@@ -1,8 +1,8 @@
 """Run `pip install duckduckgo-search` to install dependencies."""
 
-from phi.agent import Agent
-from phi.model.deepseek import DeepSeekChat
-from phi.tools.duckduckgo import DuckDuckGo
+from agno.agent import Agent
+from agno.models.deepseek import DeepSeekChat
+from agno.tools.duckduckgo import DuckDuckGo
 
 agent = Agent(
     model=DeepSeekChat(id="deepseek-chat"),

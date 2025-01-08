@@ -1,8 +1,8 @@
 """Run `pip install yfinance` to install dependencies."""
 
-from phi.agent import Agent, RunResponse  # noqa
-from phi.model.ollama import Hermes
-from phi.tools.yfinance import YFinanceTools
+from agno.agent import Agent, RunResponse  # noqa
+from agno.models.ollama import Hermes
+from agno.tools.yfinance import YFinanceTools
 
 agent = Agent(
     model=Hermes(id="hermes3"),

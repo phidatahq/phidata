@@ -1,5 +1,5 @@
-from phi.agent import Agent
-from phi.tools.github import GithubTools
+from agno.agent import Agent
+from agno.tools.github import GithubTools
 
 agent = Agent(
     instructions=[

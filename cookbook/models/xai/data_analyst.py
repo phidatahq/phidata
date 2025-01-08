@@ -1,8 +1,8 @@
 """Build a Data Analyst Agent using xAI."""
 
 import json
-from phi.model.xai import xAI
-from phi.agent.duckdb import DuckDbAgent
+from agno.models.xai import xAI
+from agno.agent.duckdb import DuckDbAgent
 
 data_analyst = DuckDbAgent(
     model=xAI(id="grok-beta"),

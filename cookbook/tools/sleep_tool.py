@@ -1,5 +1,5 @@
-from phi.agent import Agent
-from phi.tools.sleep import Sleep
+from agno.agent import Agent
+from agno.tools.sleep import Sleep
 
 # Create an Agent with the Sleep tool
 agent = Agent(tools=[Sleep()], name="Sleep Agent")

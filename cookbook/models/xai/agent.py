@@ -1,8 +1,8 @@
 """Run `pip install yfinance` to install dependencies."""
 
-from phi.agent import Agent, RunResponse  # noqa
-from phi.model.xai import xAI
-from phi.tools.yfinance import YFinanceTools
+from agno.agent import Agent, RunResponse  # noqa
+from agno.models.xai import xAI
+from agno.tools.yfinance import YFinanceTools
 
 agent = Agent(
     model=xAI(id="grok-beta"),

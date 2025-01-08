@@ -1,5 +1,5 @@
-from phi.agent import Agent, RunResponse  # noqa
-from phi.model.vertexai import Gemini
+from agno.agent import Agent, RunResponse  # noqa
+from agno.models.vertexai import Gemini
 
 agent = Agent(model=Gemini(id="gemini-2.0-flash-exp"), markdown=True)
 

@@ -2,8 +2,8 @@ import json
 from typing import Iterator
 
 import httpx
-from phi.agent import Agent
-from phi.tools import tool
+from agno.agent import Agent
+from agno.tools import tool
 
 
 @tool(show_result=True)

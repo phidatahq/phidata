@@ -1,6 +1,6 @@
-from phi.agent import Agent
-from phi.model.openai import OpenAIChat
-from phi.cli.console import console
+from agno.agent import Agent
+from agno.models.openai import OpenAIChat
+from agno.cli.console import console
 
 task = "9.11 and 9.9 -- which is bigger?"
 

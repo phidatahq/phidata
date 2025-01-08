@@ -1,4 +1,4 @@
-from phi.embedder.mistral import MistralEmbedder
+from agno.embedder.mistral import MistralEmbedder
 
 embedder = MistralEmbedder()
 

@@ -1,7 +1,7 @@
 from typing import Iterator
 
-from phi.agent import Agent
-from phi.tools import tool, FunctionCall, RetryAgentRun
+from agno.agent import Agent
+from agno.tools import tool, FunctionCall, RetryAgentRun
 
 num_calls = 0
 

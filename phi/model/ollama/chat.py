@@ -6,7 +6,7 @@ from pydantic import BaseModel
 
 from phi.model.base import Model
 from phi.model.message import Message
-from phi.model.response import ModelResponse, ModelResponseAudio
+from phi.model.response import ModelResponse
 from phi.tools.function import FunctionCall
 from phi.utils.log import logger
 from phi.utils.timer import Timer

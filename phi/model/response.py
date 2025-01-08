@@ -12,11 +12,13 @@ class ModelResponseEvent(str, Enum):
     tool_call_completed = "ToolCallCompleted"
     assistant_response = "AssistantResponse"
 
+
 @dataclass
 class ModelResponseAudio:
     data: str
     transcript: str
     id: Optional[str] = None
+
 
 @dataclass
 class ModelResponse:

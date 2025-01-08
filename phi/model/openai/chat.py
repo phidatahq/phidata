@@ -599,7 +599,7 @@ class OpenAIChat(Model):
         # -*- Parse transcript if available
         if response_audio:
             if response_audio.transcript and not response_message.content:
-                response_message.content = response_message.audio.transcript
+                response_message.content = response_audio.transcript
 
         # -*- Parse structured outputs
         try:
@@ -633,7 +633,9 @@ class OpenAIChat(Model):
         if assistant_message.audio is not None:
             # add the audio to the model response
             model_response.audio = ModelResponseAudio(
-                id=assistant_message.audio.get("id"), data=assistant_message.audio.get("data", ""), transcript=assistant_message.audio.get("transcript", "")
+                id=assistant_message.audio.get("id"),
+                data=assistant_message.audio.get("data", ""),
+                transcript=assistant_message.audio.get("transcript", ""),
             )
 
         # -*- Handle tool calls
@@ -679,7 +681,7 @@ class OpenAIChat(Model):
         # -*- Parse transcript if available
         if response_audio:
             if response_audio.transcript and not response_message.content:
-                response_message.content = response_message.audio.transcript
+                response_message.content = response_audio.transcript
 
         # -*- Parse structured outputs
         try:

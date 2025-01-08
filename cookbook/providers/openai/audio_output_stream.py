@@ -7,14 +7,16 @@ from phi.agent import Agent, RunResponse  # noqa
 from phi.model.openai import OpenAIChat
 
 # Audio Configuration
-SAMPLE_RATE = 24000       # Hz (24kHz)
-CHANNELS = 1              # Mono (Change to 2 if Stereo)
-SAMPLE_WIDTH = 2          # Bytes (16 bits)
+SAMPLE_RATE = 24000  # Hz (24kHz)
+CHANNELS = 1  # Mono (Change to 2 if Stereo)
+SAMPLE_WIDTH = 2  # Bytes (16 bits)
 
 # Provide the agent with the audio file and audio configuration and get result as text + audio
 agent = Agent(
     model=OpenAIChat(
-        id="gpt-4o-audio-preview", modalities=["text", "audio"], audio={"voice": "alloy", "format": "pcm16"}  # Only pcm16 is supported with streaming
+        id="gpt-4o-audio-preview",
+        modalities=["text", "audio"],
+        audio={"voice": "alloy", "format": "pcm16"},  # Only pcm16 is supported with streaming
     ),
 )
 output_stream: Iterator[RunResponse] = agent.run("Tell me a 10 second story", stream=True)
@@ -31,14 +33,14 @@ with wave.open(str(filename), "wb") as wav_file:
 
     # Iterate over generated audio
     for response in output_stream:
-        print(response.response_audio.transcript, end='', flush=True)
-        if hasattr(response, 'response_audio') and response.response_audio:
-            try:
-                pcm_bytes = base64.b64decode(response.response_audio.base64_audio)
-                wav_file.writeframes(pcm_bytes)
-            except base64.binascii.Error as e:
-                print(f"Error decoding audio: {e}")
-        else:
-            print("No audio found in the response.")
-
+        if response.response_audio:
+            print(response.response_audio.transcript, end="", flush=True)
+            if hasattr(response, "response_audio") and response.response_audio:
+                try:
+                    pcm_bytes = base64.b64decode(response.response_audio.base64_audio)
+                    wav_file.writeframes(pcm_bytes)
+                except Exception as e:
+                    print(f"Error decoding audio: {e}")
+            else:
+                print("No audio found in the response.")
 print()

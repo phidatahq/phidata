@@ -123,16 +123,16 @@ class Function(BaseModel):
             }
 
             # Parse docstring for parameters
-            parsed_doc = parse(getdoc(c))
-            param_docs = parsed_doc.params
-
             param_descriptions = {}
+            if docstring := getdoc(c):
+                parsed_doc = parse(docstring)
+                param_docs = parsed_doc.params
 
-            if param_docs is not None:
-                for param in param_docs:
-                    param_name = param.arg_name
+                if param_docs is not None:
+                    for param in param_docs:
+                        param_name = param.arg_name
 
-                    param_descriptions[param_name] = param.description or ""
+                        param_descriptions[param_name] = param.description or ""
 
             # Get JSON schema for parameters only
             parameters = get_json_schema(
@@ -194,16 +194,16 @@ class Function(BaseModel):
             }
 
             # Parse docstring for parameters
-            parsed_doc = parse(getdoc(self.entrypoint))
-            param_docs = parsed_doc.params
-
             param_descriptions = {}
+            if docstring := getdoc(self.entrypoint):
+                parsed_doc = parse(docstring)
+                param_docs = parsed_doc.params
 
-            if param_docs is not None:
-                for param in param_docs:
-                    param_name = param.arg_name
+                if param_docs is not None:
+                    for param in param_docs:
+                        param_name = param.arg_name
 
-                    param_descriptions[param_name] = param.description or ""
+                        param_descriptions[param_name] = param.description or ""
 
             # logger.info(f"Arguments for {self.name}: {param_type_hints}")
 

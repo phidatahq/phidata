@@ -477,6 +477,69 @@ class OpenAIChat(Model):
             return model_response
         return None
 
+    async def ahandle_tool_calls(
+        self,
+        assistant_message: Message,
+        messages: List[Message],
+        model_response: ModelResponse,
+        tool_role: str = "tool",
+    ) -> Optional[ModelResponse]:
+        """
+        Handle tool calls in the assistant message.
+
+        Args:
+            assistant_message (Message): The assistant message.
+            messages (List[Message]): The list of messages.
+            model_response (ModelResponse): The model response.
+            tool_role (str): The role of the tool call. Defaults to "tool".
+
+        Returns:
+            Optional[ModelResponse]: The model response after handling tool calls.
+        """
+        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
+            if model_response.content is None:
+                model_response.content = ""
+            function_call_results: List[Message] = []
+            function_calls_to_run: List[FunctionCall] = []
+            for tool_call in assistant_message.tool_calls:
+                _tool_call_id = tool_call.get("id")
+                _function_call = get_function_call_for_tool_call(tool_call, self.functions)
+                if _function_call is None:
+                    messages.append(
+                        Message(
+                            role="tool",
+                            tool_call_id=_tool_call_id,
+                            content="Could not find function to call.",
+                        )
+                    )
+                    continue
+                if _function_call.error is not None:
+                    messages.append(
+                        Message(
+                            role="tool",
+                            tool_call_id=_tool_call_id,
+                            content=_function_call.error,
+                        )
+                    )
+                    continue
+                function_calls_to_run.append(_function_call)
+
+            if self.show_tool_calls:
+                model_response.content += "\nRunning:"
+                for _f in function_calls_to_run:
+                    model_response.content += f"\n - {_f.get_call_str()}"
+                model_response.content += "\n\n"
+
+            await self.arun_function_calls(
+                function_calls=function_calls_to_run, function_call_results=function_call_results, tool_role=tool_role
+            )
+
+            if len(function_call_results) > 0:
+                messages.extend(function_call_results)
+
+            return model_response
+        return None
+
     def update_usage_metrics(
         self, assistant_message: Message, metrics: Metrics, response_usage: Optional[CompletionUsage]
     ) -> None:
@@ -599,7 +662,7 @@ class OpenAIChat(Model):
         # -*- Parse transcript if available
         if response_audio:
             if response_audio.transcript and not response_message.content:
-                response_message.content = response_message.audio.transcript
+                response_message.content = response_audio.transcript
 
         # -*- Parse structured outputs
         try:
@@ -677,7 +740,7 @@ class OpenAIChat(Model):
         # -*- Parse transcript if available
         if response_audio:
             if response_audio.transcript and not response_message.content:
-                response_message.content = response_message.audio.transcript
+                response_message.content = response_audio.transcript
 
         # -*- Parse structured outputs
         try:
@@ -714,16 +777,28 @@ class OpenAIChat(Model):
 
         # -*- Handle tool calls
         tool_role = "tool"
-        if (
-            self.handle_tool_calls(
-                assistant_message=assistant_message,
-                messages=messages,
-                model_response=model_response,
-                tool_role=tool_role,
-            )
-            is not None
-        ):
-            return await self.ahandle_post_tool_call_messages(messages=messages, model_response=model_response)
+        if self.async_tools:
+            if (
+                await self.ahandle_tool_calls(
+                    assistant_message=assistant_message,
+                    messages=messages,
+                    model_response=model_response,
+                    tool_role=tool_role,
+                )
+                is not None
+            ):
+                return await self.ahandle_post_tool_call_messages(messages=messages, model_response=model_response)
+        else:
+            if (
+                self.handle_tool_calls(
+                    assistant_message=assistant_message,
+                    messages=messages,
+                    model_response=model_response,
+                    tool_role=tool_role,
+                )
+                is not None
+            ):
+                return await self.ahandle_post_tool_call_messages(messages=messages, model_response=model_response)
 
         logger.debug("---------- OpenAI Async Response End ----------")
         return model_response

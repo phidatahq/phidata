@@ -125,6 +125,8 @@ class Agent(BaseModel):
     #   forces the model to call that tool.
     # "none" is the default when no tools are present. "auto" is the default if tools are present.
     tool_choice: Optional[Union[str, Dict[str, Any]]] = None
+    # Allow async execution of tools
+    async_tools: bool = False
 
     # -*- Agent Context
     # Context available for tools and prompt functions
@@ -520,6 +522,8 @@ class Agent(BaseModel):
                     self.model.add_tool(tool=tool, strict=True, agent=self)
                 else:
                     self.model.add_tool(tool=tool, agent=self)
+                if self.async_tools:
+                    self.model.async_tools = True
 
         # Set show_tool_calls if it is not set on the Model
         if self.model.show_tool_calls is None and self.show_tool_calls is not None:

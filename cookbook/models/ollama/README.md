@@ -91,10 +91,10 @@ python cookbook/models/ollama/knowledge.py
 
 ### 9. Run Agent that interprets an image
 
-Run the llama3.2 vision model
+Pull the llama3.2 vision model
 
 ```shell
-ollama run llama3.2-vision
+ollama pull llama3.2-vision
 ```
 
 Message `/bye` to exit the chat model

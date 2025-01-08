@@ -15,14 +15,11 @@ from phi.embedder.openai import OpenAIEmbedder
 from phi.document.chunking.recursive import RecursiveChunking
 from typing import List
 from dotenv import load_dotenv
+from phi.utils.log import logger
 
 load_dotenv()
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 
 class EvaluationJudge(BaseModel):
@@ -126,7 +123,7 @@ class QAWorkflow(Workflow):
         duration_load = load_end - load_start
         logger.info(f"Loading of the website done in {duration_load:.2f} seconds")
 
-        with open(evaluation_json_path, "r") as json_file:
+        with open(evaluation_path, "r") as json_file:
             evaluation_data = json.load(json_file)
 
         results = []

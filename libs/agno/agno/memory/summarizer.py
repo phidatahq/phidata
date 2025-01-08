@@ -24,7 +24,7 @@ class MemorySummarizer(BaseModel):
                     "Agno uses `openai` as the default model provider. " "Please provide a `model` or install `openai`."
                 )
                 exit(1)
-            self.model = OpenAIChat()
+            self.model = OpenAIChat(id="gpt-4o")
 
         # Set response_format if it is not set on the Model
         if self.use_structured_outputs:

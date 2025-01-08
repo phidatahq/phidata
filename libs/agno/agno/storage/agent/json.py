@@ -1,6 +1,7 @@
 import json
 import time
 from pathlib import Path
+from dataclasses import asdict
 from typing import List, Optional, Union
 
 from agno.agent import AgentSession
@@ -31,7 +32,7 @@ class JsonFileAgentStorage(AgentStorage):
                 data = self.deserialize(f.read())
                 if user_id and data["user_id"] != user_id:
                     return None
-                return AgentSession.model_validate(data)
+                return AgentSession(**data)
         except FileNotFoundError:
             return None
 
@@ -52,13 +53,13 @@ class JsonFileAgentStorage(AgentStorage):
             with open(file, "r", encoding="utf-8") as f:
                 data = self.deserialize(f.read())
                 if (not user_id or data["user_id"] == user_id) and (not agent_id or data["agent_id"] == agent_id):
-                    sessions.append(AgentSession.model_validate(data))
+                    sessions.append(AgentSession(**data))
         return sessions
 
     def upsert(self, session: AgentSession) -> Optional[AgentSession]:
         """Insert or update an AgentSession in storage."""
         try:
-            data = session.model_dump()
+            data = asdict(session)
             data["updated_at"] = int(time.time())
             if "created_at" not in data:
                 data["created_at"] = data["updated_at"]

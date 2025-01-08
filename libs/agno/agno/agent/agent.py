@@ -396,12 +396,13 @@ class Agent:
         )
 
         self.run_id = None
+        self.run_input = None
         self.run_messages = None
         self.run_response = None
         self.images = None
         self.videos = None
         self.audio = None
-        self.agent_session: AgentSession = None
+        self.agent_session: Optional[AgentSession] = None
 
     def set_agent_id(self) -> str:
         if self.agent_id is None:
@@ -519,7 +520,7 @@ class Agent:
 
         # 6. Start the Run by yielding a RunStarted event
         if self.stream_intermediate_steps:
-            yield self.create_run_response("Run started", RunEvent.run_started)
+            yield self.create_run_response("Run started", event=RunEvent.run_started)
 
         # 7. Run Agent Steps
         for step in self.steps:
@@ -541,15 +542,15 @@ class Agent:
 
         # 9. Update Agent Memory
         # Add the system message to the memory
-        if run_messages.system_message is not None:
+        if run_messages.system_message is not None and self.memory is not None:
             self.memory.add_system_message(run_messages.system_message, system_message_role=self.system_message_role)
         # Build a list of messages that should be added to the AgentMemory
-        messages_for_memory = [run_messages.user_message]
+        messages_for_memory: List = [run_messages.user_message]
         # Add messages from messages_for_run after the last user message
         for m in run_messages.messages[index_of_last_user_message:]:
             if m.add_to_agent_memory:
                 messages_for_memory.append(m)
-        self.memory.add_messages(messages=messages_for_memory)
+        self.memory.add_messages(messages=messages_for_memory) if self.memory and messages_for_memory else None
 
         # Yield a UpdatingMemory event
         if self.stream_intermediate_steps:
@@ -562,12 +563,13 @@ class Agent:
         agent_run = AgentRun(response=self.run_response)
         agent_run.message = run_messages.user_message
         # Update the memories with the user message if needed
-        if (
-            self.memory.create_user_memories
-            and self.memory.update_user_memories_after_run
-            and run_messages.user_message is not None
-        ):
-            self.memory.update_memory(input=run_messages.user_message.get_content_string())
+        if self.memory:
+            if (
+                self.memory.create_user_memories
+                and self.memory.update_user_memories_after_run
+                and run_messages.user_message is not None
+            ):
+                self.memory.update_memory(input=run_messages.user_message.get_content_string())
         if messages is not None and len(messages) > 0:
             for m in messages:
                 # Parse the message and convert to a Message object if possible
@@ -576,7 +578,7 @@ class Agent:
                     mp = m
                 elif isinstance(m, dict):
                     try:
-                        mp = Message.model_validate(m)
+                        mp = Message(**m)
                     except Exception as e:
                         logger.warning(f"Failed to validate message: {e}")
                 else:
@@ -588,14 +590,14 @@ class Agent:
                     if agent_run.messages is None:
                         agent_run.messages = []
                     agent_run.messages.append(mp)
-                    if self.memory.create_user_memories and self.memory.update_user_memories_after_run:
+                    if self.memory and self.memory.create_user_memories and self.memory.update_user_memories_after_run:
                         self.memory.update_memory(input=mp.get_content_string())
                 else:
                     logger.warning("Unable to add message to memory")
         # Add AgentRun to memory
-        self.memory.add_run(agent_run)
+        self.memory.add_run(agent_run) if self.memory else None
         # Update the session summary if needed
-        if self.memory.create_session_summary and self.memory.update_session_summary_after_run:
+        if self.memory and self.memory.create_session_summary and self.memory.update_session_summary_after_run:
             self.memory.update_summary()
 
         # 10. Save session to storage
@@ -844,13 +846,13 @@ class Agent:
 
         # 6. Start the Run by yielding a RunStarted event
         if self.stream_intermediate_steps:
-            yield self.create_run_response("Run started", RunEvent.run_started)
+            yield self.create_run_response("Run started", event=RunEvent.run_started)
 
         # 7. Run Agent Steps
         for step in self.steps:
             try:
                 logger.debug(f"Step: {step.__class__.__name__} Started")
-                _arun_generator = step.arun(agent=self, run_messages=run_messages)
+                _arun_generator = await step.arun(agent=self, run_messages=run_messages)
                 async for item in _arun_generator:
                     yield item
                 logger.debug(f"Step: {step.__class__.__name__} Completed")
@@ -868,15 +870,15 @@ class Agent:
 
         # 9. Update Agent Memory
         # Add the system message to the memory
-        if run_messages.system_message is not None:
+        if self.memory and run_messages.system_message is not None:
             self.memory.add_system_message(run_messages.system_message, system_message_role=self.system_message_role)
         # Build a list of messages that should be added to the AgentMemory
-        messages_for_memory = [run_messages.user_message]
+        messages_for_memory: List = [run_messages.user_message]
         # Add messages from messages_for_run after the last user message
         for m in run_messages.messages[index_of_last_user_message:]:
             if m.add_to_agent_memory:
                 messages_for_memory.append(m)
-        self.memory.add_messages(messages=messages_for_memory)
+        self.memory.add_messages(messages=messages_for_memory) if self.memory and messages_for_memory else None
 
         # Yield a UpdatingMemory event
         if self.stream_intermediate_steps:
@@ -889,12 +891,13 @@ class Agent:
         agent_run = AgentRun(response=self.run_response)
         agent_run.message = run_messages.user_message
         # Update the memories with the user message if needed
-        if (
-            self.memory.create_user_memories
-            and self.memory.update_user_memories_after_run
-            and run_messages.user_message is not None
-        ):
-            await self.memory.aupdate_memory(input=run_messages.user_message.get_content_string())
+        if self.memory:
+            if (
+                self.memory.create_user_memories
+                and self.memory.update_user_memories_after_run
+                and run_messages.user_message is not None
+            ):
+                await self.memory.aupdate_memory(input=run_messages.user_message.get_content_string())
         if messages is not None and len(messages) > 0:
             for m in messages:
                 # Parse the message and convert to a Message object if possible
@@ -903,7 +906,7 @@ class Agent:
                     mp = m
                 elif isinstance(m, dict):
                     try:
-                        mp = Message.model_validate(m)
+                        mp = Message(**m)
                     except Exception as e:
                         logger.warning(f"Failed to validate message: {e}")
                 else:
@@ -915,14 +918,14 @@ class Agent:
                     if agent_run.messages is None:
                         agent_run.messages = []
                     agent_run.messages.append(mp)
-                    if self.memory.create_user_memories and self.memory.update_user_memories_after_run:
+                    if self.memory and self.memory.create_user_memories and self.memory.update_user_memories_after_run:
                         await self.memory.aupdate_memory(input=mp.get_content_string())
                 else:
                     logger.warning("Unable to add message to memory")
         # Add AgentRun to memory
-        self.memory.add_run(agent_run)
+        self.memory.add_run(agent_run) if self.memory else None
         # Update the session summary if needed
-        if self.memory.create_session_summary and self.memory.update_session_summary_after_run:
+        if self.memory and self.memory.create_session_summary and self.memory.update_session_summary_after_run:
             await self.memory.aupdate_summary()
 
         # 10. Save session to storage
@@ -1070,12 +1073,12 @@ class Agent:
             session_id=self.session_id,
             agent_id=self.agent_id,
             content=content,
-            tools=self.run_response.tools,
-            images=self.run_response.images,
-            videos=self.run_response.videos,
-            model=self.run_response.model,
-            messages=self.run_response.messages,
-            extra_data=self.run_response.extra_data,
+            tools=self.run_response.tools if self.run_response is not None else None,
+            images=self.run_response.images if self.run_response is not None else None,
+            videos=self.run_response.videos if self.run_response is not None else None,
+            model=self.run_response.model if self.run_response is not None else None,
+            messages=self.run_response.messages if self.run_response is not None else None,
+            extra_data=self.run_response.extra_data if self.run_response is not None else None,
             event=event.value,
         )
         if content_type is not None:
@@ -1097,7 +1100,7 @@ class Agent:
             tools.append(self.get_chat_history)
         if self.read_tool_call_history:
             tools.append(self.get_tool_call_history)
-        if self.memory.create_user_memories:
+        if self.memory and self.memory.create_user_memories:
             tools.append(self.update_memory)
 
         # Add tools for accessing knowledge
@@ -1126,7 +1129,7 @@ class Agent:
                     "Please provide a `model` or install `openai`."
                 )
                 exit(1)
-            self.model = OpenAIChat()
+            self.model = OpenAIChat(id="gpt-4o")
 
         # Set response_format if it is not set on the Model
         if self.response_model is not None and self.model.response_format is None:
@@ -1188,7 +1191,7 @@ class Agent:
                     self.context[ctx_key] = ctx_value
 
     def load_user_memories(self) -> None:
-        if self.memory.create_user_memories:
+        if self.memory and self.memory.create_user_memories:
             if self.user_id is not None:
                 self.memory.user_id = self.user_id
 
@@ -1199,7 +1202,7 @@ class Agent:
                 logger.debug("Memories loaded")
 
     def get_agent_data(self) -> Dict[str, Any]:
-        agent_data = {}
+        agent_data: Dict[Any, Any] = {}
         if self.name is not None:
             agent_data["name"] = self.name
         if self.agent_id is not None:
@@ -1209,17 +1212,17 @@ class Agent:
         return agent_data
 
     def get_session_data(self) -> Dict[str, Any]:
-        session_data = {}
+        session_data: Dict[Any, Any] = {}
         if self.session_name is not None:
             session_data["session_name"] = self.session_name
-        if len(self.session_state) > 0:
+        if self.session_state and len(self.session_state) > 0:
             session_data["session_state"] = self.session_state
         if self.images is not None:
-            session_data["images"] = [asdict(img) for img in self.images]
+            session_data["images"] = [asdict(img) for img in self.images]  # type: ignore
         if self.videos is not None:
-            session_data["videos"] = [asdict(vid) for vid in self.videos]
+            session_data["videos"] = [asdict(vid) for vid in self.videos]  # type: ignore
         if self.audio is not None:
-            session_data["audio"] = [asdict(aud) for aud in self.audio]
+            session_data["audio"] = [asdict(aud) for aud in self.audio]  # type: ignore
         return session_data
 
     def get_agent_session(self) -> AgentSession:
@@ -1228,7 +1231,7 @@ class Agent:
             session_id=self.session_id,
             agent_id=self.agent_id,
             user_id=self.user_id,
-            memory=self.memory.to_dict(),
+            memory=self.memory.to_dict() if self.memory is not None else None,
             agent_data=self.get_agent_data(),
             user_data=self.user_data,
             session_data=self.get_session_data(),
@@ -1290,7 +1293,7 @@ class Agent:
                     and len(session_state_from_db) > 0
                 ):
                     # If the session_state is already set, merge the session_state from the database with the current session_state
-                    if len(self.session_state) > 0:
+                    if self.session_state and len(self.session_state) > 0:
                         # This updates session_state_from_db
                         merge_dictionaries(session_state_from_db, self.session_state)
                     # Update the current session_state
@@ -1317,7 +1320,7 @@ class Agent:
                     self.audio.extend([Audio.model_validate(aud) for aud in audio_from_db])
 
         # Read memory from the database
-        if session.memory is not None:
+        if self.memory and session.memory is not None:
             try:
                 if "runs" in session.memory:
                     try:
@@ -1362,14 +1365,14 @@ class Agent:
         Returns:
             Optional[AgentSession]: The saved AgentSession or None if not saved.
         """
-        if self.storage is not None:
+        if self.storage is not None and self.get_agent_session() is not None:
             self.agent_session = self.storage.upsert(session=self.get_agent_session())
         return self.agent_session
 
     def add_introduction(self, introduction: str) -> None:
         """Add an introduction to the chat history"""
 
-        if introduction is not None:
+        if self.memory and introduction is not None:
             # Add an introduction as the first response from the Agent
             if len(self.memory.runs) == 0:
                 self.memory.add_run(
@@ -1674,11 +1677,12 @@ class Agent:
                     query=message, references=docs_from_knowledge, time=round(retrieval_timer.elapsed, 4)
                 )
                 # Add the references to the run_response
-                if self.run_response.extra_data is None:
-                    self.run_response.extra_data = RunResponseExtraData()
-                if self.run_response.extra_data.references is None:
-                    self.run_response.extra_data.references = []
-                self.run_response.extra_data.references.append(references)
+                if self.run_response is not None:
+                    if self.run_response.extra_data is None:
+                        self.run_response.extra_data = RunResponseExtraData()
+                    if self.run_response.extra_data.references is None:
+                        self.run_response.extra_data.references = []
+                    self.run_response.extra_data.references.append(references)
             retrieval_timer.stop()
             logger.debug(f"Time to get references: {retrieval_timer.elapsed:.4f}s")
 
@@ -1804,13 +1808,14 @@ class Agent:
             # Add the extra messages to the run_response
             if len(messages_to_add_to_run_response) > 0:
                 logger.debug(f"Adding {len(messages_to_add_to_run_response)} extra messages")
-                if self.run_response.extra_data is None:
-                    self.run_response.extra_data = RunResponseExtraData(add_messages=messages_to_add_to_run_response)
-                else:
-                    if self.run_response.extra_data.add_messages is None:
-                        self.run_response.extra_data.add_messages = messages_to_add_to_run_response
+                if self.run_response:
+                    if self.run_response.extra_data is None:
+                        self.run_response.extra_data = RunResponseExtraData(add_messages=messages_to_add_to_run_response)
                     else:
-                        self.run_response.extra_data.add_messages.extend(messages_to_add_to_run_response)
+                        if self.run_response.extra_data.add_messages is None:
+                            self.run_response.extra_data.add_messages = messages_to_add_to_run_response
+                        else:
+                            self.run_response.extra_data.add_messages.extend(messages_to_add_to_run_response)
 
         # 3. Add history to run_messages
         if self.add_history_to_messages:
@@ -1819,13 +1824,14 @@ class Agent:
             )
             if len(history) > 0:
                 logger.debug(f"Adding {len(history)} messages from history")
-                if self.run_response.extra_data is None:
-                    self.run_response.extra_data = RunResponseExtraData(history=history)
-                else:
-                    if self.run_response.extra_data.history is None:
-                        self.run_response.extra_data.history = history
+                if self.run_response is not None:
+                    if self.run_response.extra_data is None:
+                        self.run_response.extra_data = RunResponseExtraData(history=history)
                     else:
-                        self.run_response.extra_data.history.extend(history)
+                        if self.run_response.extra_data.history is None:
+                            self.run_response.extra_data.history = history
+                        else:
+                            self.run_response.extra_data.history.extend(history)
                 run_messages.messages += history
 
         # 4.Add user message to run_messages
@@ -2349,11 +2355,12 @@ class Agent:
                 query=query, references=docs_from_knowledge, time=round(retrieval_timer.elapsed, 4)
             )
             # Add the references to the run_response
-            if self.run_response.extra_data is None:
-                self.run_response.extra_data = RunResponseExtraData()
-            if self.run_response.extra_data.references is None:
-                self.run_response.extra_data.references = []
-            self.run_response.extra_data.references.append(references)
+            if self.run_response:
+                if self.run_response.extra_data is None:
+                    self.run_response.extra_data = RunResponseExtraData()
+                if self.run_response.extra_data.references is None:
+                    self.run_response.extra_data.references = []
+                self.run_response.extra_data.references.append(references)
         retrieval_timer.stop()
         logger.debug(f"Time to get references: {retrieval_timer.elapsed:.4f}s")
 
@@ -2465,7 +2472,7 @@ class Agent:
             run_data.update(
                 {
                     "run_input": self.run_input,
-                    "run_response": self.run_response.to_dict(),
+                    "run_response": self.run_response.to_dict() if self.run_response is not None else None,
                     "run_response_format": run_response_format,
                 }
             )

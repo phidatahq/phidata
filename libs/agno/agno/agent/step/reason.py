@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import AsyncIterator, Iterator, List, Optional, cast
+from typing import Iterator, List, Optional, cast, Any
 
 from agno.agent.step import AgentStep
 from agno.models.base import Model
@@ -122,7 +122,9 @@ class Reason(AgentStep):
         logger.debug("==== Reasoning finished====")
 
         # Update the messages_for_model to include reasoning messages
-        self.update_messages_with_reasoning(reasoning_messages=reasoning_messages, messages_for_model=messages)
+        self.update_messages_with_reasoning(
+            reasoning_messages=reasoning_messages, messages_for_model=run_messages.messages
+        )
 
         # Yield the final reasoning completed event
         if agent.stream_intermediate_steps:
@@ -139,7 +141,7 @@ class Reason(AgentStep):
         self,
         agent: "Agent",  # type: ignore  # noqa: F821
         run_messages: RunMessages,
-    ) -> AsyncIterator[RunResponse]:
+    ) -> Any:
         from agno.agent import Agent
 
         agent = cast(Agent, agent)
@@ -235,7 +237,9 @@ class Reason(AgentStep):
         logger.debug("==== Reasoning finished====")
 
         # Update the messages_for_model to include reasoning messages
-        self.update_messages_with_reasoning(reasoning_messages=reasoning_messages, messages_for_model=messages)
+        self.update_messages_with_reasoning(
+            reasoning_messages=reasoning_messages, messages_for_model=run_messages.messages
+        )
 
         # Yield the final reasoning completed event
         if agent.stream_intermediate_steps:

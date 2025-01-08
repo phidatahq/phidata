@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import AsyncIterator, Iterator, cast
+from typing import Iterator, cast, Any
 
 from agno.agent.step import AgentStep
 from agno.models.base import Model
@@ -29,7 +29,8 @@ class Respond(AgentStep):
         model_response: ModelResponse
         agent.model = cast(Model, agent.model)
         if agent.stream:
-            model_response = ModelResponse(content="")
+            model_response = ModelResponse()
+            model_response.content = ""
             for model_response_chunk in agent.model.response_stream(messages=run_messages.messages):
                 # If the model response is an assistant_response, yield a RunResponse with the content
                 if model_response_chunk.event == ModelResponseEvent.assistant_response.value:
@@ -99,7 +100,7 @@ class Respond(AgentStep):
         self,
         agent: "Agent",  # type: ignore  # noqa: F821
         run_messages: RunMessages,
-    ) -> AsyncIterator[RunResponse]:
+    ) -> Any:
         from agno.agent import Agent
 
         agent = cast(Agent, agent)

@@ -161,7 +161,7 @@ class SqlAgentStorage(AgentStorage):
                 if user_id:
                     stmt = stmt.where(self.table.c.user_id == user_id)
                 result = sess.execute(stmt).fetchone()
-                return AgentSession.model_validate(result) if result is not None else None
+                return AgentSession(**result) if result is not None else None
         except Exception as e:
             logger.debug(f"Exception reading from table: {e}")
             logger.debug(f"Table does not exist: {self.table.name}")
@@ -223,7 +223,7 @@ class SqlAgentStorage(AgentStorage):
                 stmt = stmt.order_by(self.table.c.created_at.desc())
                 # execute query
                 rows = sess.execute(stmt).fetchall()
-                return [AgentSession.model_validate(row) for row in rows] if rows is not None else []
+                return [AgentSession(**row) for row in rows] if rows is not None else []
         except Exception as e:
             logger.debug(f"Exception reading from table: {e}")
             logger.debug(f"Table does not exist: {self.table.name}")

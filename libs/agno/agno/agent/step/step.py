@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import AsyncIterator, Iterator
+from typing import Iterator, Any
 
 from agno.run.messages import RunMessages
 from agno.run.response import RunResponse
@@ -29,13 +29,13 @@ class AgentStep:
         Raises:
             NotImplementedError: If the method is not implemented by a subclass.
         """
-        raise NotImplementedError("run_step method not implemented")
+        raise NotImplementedError("run method not implemented")
 
     async def arun(
         self,
         agent: "Agent",  # type: ignore  # noqa: F821
         run_messages: RunMessages,
-    ) -> AsyncIterator[RunResponse]:
+    ) -> Any:
         """
         Runs the AgentStep for the given agent and the provided messages asynchronously.
 
@@ -49,4 +49,4 @@ class AgentStep:
         Raises:
             NotImplementedError: If the method is not implemented by a subclass.
         """
-        raise NotImplementedError("areun method not implemented")
+        raise NotImplementedError("arun method not implemented")

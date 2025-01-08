@@ -62,8 +62,6 @@ class QAWorkflow(Workflow):
         ],
         knowledge=knowledge,
         search_knowledge=True,
-        show_tool_calls=True,
-        debug_mode=True,
     )
 
     judge_agent: Agent = Agent(
@@ -103,7 +101,7 @@ class QAWorkflow(Workflow):
         answer: RunResponse = RunResponse(content=None)
         answer = self.qa_agent.run(question)
         logger.info(f"Generating answer\n{answer.content}:\n")
-        return RunResponse(content=answer.content)
+        return answer
 
     def run(self, evaluation_path, output_path, knowledge_base_recreate=True):
         """

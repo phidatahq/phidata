@@ -3,16 +3,16 @@ from typing import List, Optional
 from agno.document.base import Document
 from agno.document.chunking.strategy import ChunkingStrategy
 from agno.models.base import Model
+from agno.models.defaults import DEFAULT_OPENAI_MODEL_ID
 from agno.models.message import Message
 from agno.models.openai import OpenAIChat
-from agno.utils.model_id import model_id
 
 
 class AgenticChunking(ChunkingStrategy):
     """Chunking strategy that uses an LLM to determine natural breakpoints in the text"""
 
     def __init__(self, model: Optional[Model] = None, max_chunk_size: int = 5000):
-        self.model = model or OpenAIChat(model_id)
+        self.model = model or OpenAIChat(DEFAULT_OPENAI_MODEL_ID)
         self.max_chunk_size = max_chunk_size
 
     def chunk(self, document: Document) -> List[Document]:

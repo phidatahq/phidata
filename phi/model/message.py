@@ -73,11 +73,12 @@ class Message(BaseModel):
     def to_dict(self) -> Dict[str, Any]:
         _dict = self.model_dump(
             exclude_none=True,
-            include={"role", "content", "name", "tool_call_id", "tool_calls"},
+            include={"role", "content", "audio", "name", "tool_call_id", "tool_calls"},
         )
         # Manually add the content field even if it is None
         if self.content is None:
             _dict["content"] = None
+
         return _dict
 
     def log(self, level: Optional[str] = None):

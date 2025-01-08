@@ -14,9 +14,8 @@ from phi.utils.tools import get_function_call_for_tool_call
 
 try:
     from ollama import Client as OllamaClient, AsyncClient as AsyncOllamaClient
-except ImportError:
-    logger.error("`ollama` not installed")
-    raise
+except (ModuleNotFoundError, ImportError):
+    raise ImportError("`ollama` not installed. Please install using `pip install ollama`")
 
 
 @dataclass
@@ -135,6 +134,11 @@ class Ollama(Model):
             request_params["keep_alive"] = self.keep_alive
         if self.tools is not None:
             request_params["tools"] = self.get_tools_for_api()
+            # Ensure types are valid strings
+            for tool in request_params["tools"]:
+                for prop, obj in tool["function"]["parameters"]["properties"].items():
+                    if isinstance(obj["type"], list):
+                        obj["type"] = obj["type"][0]
         if self.request_params is not None:
             request_params.update(self.request_params)
         return request_params
@@ -718,3 +722,7 @@ class Ollama(Model):
             async for post_tool_call_response in self.ahandle_post_tool_call_messages_stream(messages=messages):
                 yield post_tool_call_response
         logger.debug("---------- Ollama Async Response End ----------")
+
+    def model_copy(self, *, update: Optional[dict[str, Any]] = None, deep: bool = False) -> "Ollama":
+        new_model = Ollama(**self.model_dump(exclude={"client"}), client=self.client)
+        return new_model

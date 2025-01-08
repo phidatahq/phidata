@@ -53,7 +53,7 @@ class Function(BaseModel):
     # The parameters the functions accepts, described as a JSON Schema object.
     # To describe a function that accepts no parameters, provide the value {"type": "object", "properties": {}}.
     parameters: Dict[str, Any] = Field(
-        default_factory=lambda: {"type": "object", "properties": {}},
+        default_factory=lambda: {"type": "object", "properties": {}, "required": []},
         description="JSON Schema object describing function parameters",
     )
     strict: Optional[bool] = None
@@ -139,6 +139,12 @@ class Function(BaseModel):
             return
 
         parameters = {"type": "object", "properties": {}, "required": []}
+
+        params_set_by_user = False
+        # If the user set the parameters (i.e. they are different from the default), we should keep them
+        if self.parameters != parameters:
+            params_set_by_user = True
+
         try:
             sig = signature(self.entrypoint)
             type_hints = get_type_hints(self.entrypoint)
@@ -158,7 +164,6 @@ class Function(BaseModel):
 
             # Get JSON schema for parameters only
             parameters = get_json_schema(type_hints=param_type_hints, strict=strict)
-
             # If strict=True mark all fields as required
             # See: https://platform.openai.com/docs/guides/structured-outputs/supported-schemas#all-fields-must-be-required
             if strict:
@@ -175,8 +180,9 @@ class Function(BaseModel):
         except Exception as e:
             logger.warning(f"Could not parse args for {self.name}: {e}", exc_info=True)
 
-        self.description = getdoc(self.entrypoint)
-        self.parameters = parameters
+        self.description = self.description or getdoc(self.entrypoint)
+        if not params_set_by_user:
+            self.parameters = parameters
         self.entrypoint = validate_call(self.entrypoint)
 
     def get_type_name(self, t: Type[T]):

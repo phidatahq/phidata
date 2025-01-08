@@ -1,7 +1,9 @@
+from os import getenv
 from dataclasses import dataclass, field
 from typing import Optional, List, Iterator, Dict, Any, Union
 
 import httpx
+from packaging import version
 from pydantic import BaseModel
 
 from phi.model.base import Model
@@ -22,10 +24,20 @@ try:
         ChoiceDelta,
         ChoiceDeltaToolCall,
     )
-    from openai.types.chat.chat_completion_message import ChatCompletionMessage
-except ImportError:
-    logger.error("`openai` not installed")
-    raise
+    from openai.types.chat.chat_completion_message import ChatCompletionMessage, ChatCompletionAudio
+
+    MIN_OPENAI_VERSION = "1.52.0"
+
+    # Check the installed openai version
+    from openai import __version__ as installed_version
+
+    if version.parse(installed_version) < version.parse(MIN_OPENAI_VERSION):
+        logger.warning(
+            f"`openai` version must be >= {MIN_OPENAI_VERSION}, but found {installed_version}. "
+            f"Please upgrade using `pip install --upgrade openai`."
+        )
+except (ModuleNotFoundError, ImportError):
+    raise ImportError("`openai` not installed. Please install using `pip install openai`")
 
 
 @dataclass
@@ -59,6 +71,7 @@ class Metrics:
 @dataclass
 class StreamData:
     response_content: str = ""
+    response_audio: Optional[dict] = None
     response_tool_calls: Optional[List[ChoiceDeltaToolCall]] = None
 
 
@@ -118,6 +131,11 @@ class OpenAIChat(Model):
 
     def get_client_params(self) -> Dict[str, Any]:
         client_params: Dict[str, Any] = {}
+
+        self.api_key = self.api_key or getenv("OPENAI_API_KEY")
+        if not self.api_key:
+            logger.error("OPENAI_API_KEY not set. Please set the OPENAI_API_KEY environment variable.")
+
         if self.api_key is not None:
             client_params["api_key"] = self.api_key
         if self.organization is not None:
@@ -293,8 +311,9 @@ class OpenAIChat(Model):
         if message.role == "user":
             if message.images is not None:
                 message = self.add_images_to_message(message=message, images=message.images)
-            if message.audio is not None:
-                message = self.add_audio_to_message(message=message, audio=message.audio)
+
+        if message.audio is not None:
+            message = self.add_audio_to_message(message=message, audio=message.audio)
 
         return message.to_dict()
 
@@ -542,7 +561,7 @@ class OpenAIChat(Model):
                 assistant_message.tool_calls = [t.model_dump() for t in response_message.tool_calls]
             except Exception as e:
                 logger.warning(f"Error processing tool calls: {e}")
-        if response_message.audio is not None:
+        if hasattr(response_message, "audio") and response_message.audio is not None:
             try:
                 assistant_message.audio = response_message.audio.model_dump()
             except Exception as e:
@@ -575,6 +594,12 @@ class OpenAIChat(Model):
         # -*- Parse response
         response_message: ChatCompletionMessage = response.choices[0].message
         response_usage: Optional[CompletionUsage] = response.usage
+        response_audio: Optional[ChatCompletionAudio] = response_message.audio
+
+        # -*- Parse transcript if available
+        if response_audio:
+            if response_audio.transcript and not response_message.content:
+                response_message.content = response_message.audio.transcript
 
         # -*- Parse structured outputs
         try:
@@ -647,6 +672,12 @@ class OpenAIChat(Model):
         # -*- Parse response
         response_message: ChatCompletionMessage = response.choices[0].message
         response_usage: Optional[CompletionUsage] = response.usage
+        response_audio: Optional[ChatCompletionAudio] = response_message.audio
+
+        # -*- Parse transcript if available
+        if response_audio:
+            if response_audio.transcript and not response_message.content:
+                response_message.content = response_message.audio.transcript
 
         # -*- Parse structured outputs
         try:
@@ -837,17 +868,20 @@ class OpenAIChat(Model):
                     metrics.time_to_first_token = metrics.response_timer.elapsed
 
                 response_delta: ChoiceDelta = response.choices[0].delta
-                response_content: Optional[str] = response_delta.content
-                response_tool_calls: Optional[List[ChoiceDeltaToolCall]] = response_delta.tool_calls
 
-                if response_content is not None:
-                    stream_data.response_content += response_content
-                    yield ModelResponse(content=response_content)
+                if response_delta.content is not None:
+                    stream_data.response_content += response_delta.content
+                    yield ModelResponse(content=response_delta.content)
 
-                if response_tool_calls is not None:
+                if hasattr(response_delta, "audio"):
+                    response_audio = response_delta.audio
+                    stream_data.response_audio = response_audio
+                    yield ModelResponse(audio=response_audio)
+
+                if response_delta.tool_calls is not None:
                     if stream_data.response_tool_calls is None:
                         stream_data.response_tool_calls = []
-                    stream_data.response_tool_calls.extend(response_tool_calls)
+                    stream_data.response_tool_calls.extend(response_delta.tool_calls)
 
             if response.usage is not None:
                 self.add_response_usage_to_metrics(metrics=metrics, response_usage=response.usage)
@@ -857,6 +891,9 @@ class OpenAIChat(Model):
         assistant_message = Message(role="assistant")
         if stream_data.response_content != "":
             assistant_message.content = stream_data.response_content
+
+        if stream_data.response_audio is not None:
+            assistant_message.audio = stream_data.response_audio
 
         if stream_data.response_tool_calls is not None:
             _tool_calls = self.build_tool_calls(stream_data.response_tool_calls)
@@ -900,23 +937,26 @@ class OpenAIChat(Model):
         # -*- Generate response
         metrics.response_timer.start()
         async for response in self.ainvoke_stream(messages=messages):
-            if len(response.choices) > 0:
+            if response.choices and len(response.choices) > 0:
                 metrics.completion_tokens += 1
                 if metrics.completion_tokens == 1:
                     metrics.time_to_first_token = metrics.response_timer.elapsed
 
                 response_delta: ChoiceDelta = response.choices[0].delta
-                response_content = response_delta.content
-                response_tool_calls = response_delta.tool_calls
 
-                if response_content is not None:
-                    stream_data.response_content += response_content
-                    yield ModelResponse(content=response_content)
+                if response_delta.content is not None:
+                    stream_data.response_content += response_delta.content
+                    yield ModelResponse(content=response_delta.content)
 
-                if response_tool_calls is not None:
+                if hasattr(response_delta, "audio"):
+                    response_audio = response_delta.audio
+                    stream_data.response_audio = response_audio
+                    yield ModelResponse(audio=response_audio)
+
+                if response_delta.tool_calls is not None:
                     if stream_data.response_tool_calls is None:
                         stream_data.response_tool_calls = []
-                    stream_data.response_tool_calls.extend(response_tool_calls)
+                    stream_data.response_tool_calls.extend(response_delta.tool_calls)
 
             if response.usage is not None:
                 self.add_response_usage_to_metrics(metrics=metrics, response_usage=response.usage)
@@ -926,6 +966,9 @@ class OpenAIChat(Model):
         assistant_message = Message(role="assistant")
         if stream_data.response_content != "":
             assistant_message.content = stream_data.response_content
+
+        if stream_data.response_audio is not None:
+            assistant_message.audio = stream_data.response_audio
 
         if stream_data.response_tool_calls is not None:
             _tool_calls = self.build_tool_calls(stream_data.response_tool_calls)

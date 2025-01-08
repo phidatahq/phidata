@@ -16,9 +16,5 @@ image_agent.print_response("Generate an image of a white siamese cat")
 images = image_agent.get_images()
 if images and isinstance(images, list):
     for image_response in images:
-        image_data = image_response.get("data")  # type: ignore
-        if image_data:
-            for image in image_data:
-                image_url = image.get("url")  # type: ignore
-                if image_url:
-                    print(image_url)
+        image_url = image_response.url
+        print(image_url)

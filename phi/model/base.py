@@ -102,9 +102,6 @@ class Model(BaseModel):
     def response_stream(self, messages: List[Message]) -> Iterator[ModelResponse]:
         raise NotImplementedError
 
-    async def aresponse_stream(self, messages: List[Message]) -> Any:
-        raise NotImplementedError
-
     def _log_messages(self, messages: List[Message]) -> None:
         """
         Log messages for debugging.

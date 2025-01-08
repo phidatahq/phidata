@@ -34,8 +34,6 @@ class MongoMemoryDb(MemoryDb):
         self._client: Optional[MongoClient] = client
         if self._client is None and db_url is not None:
             self._client = MongoClient(db_url)
-        elif self._client is None:
-            self._client = MongoClient()
 
         if self._client is None:
             raise ValueError("Must provide either db_url or client")

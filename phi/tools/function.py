@@ -57,7 +57,7 @@ def get_entrypoint_docstring(entrypoint: Callable) -> str:
     if parsed.short_description:
         lines.append(parsed.short_description)
     if parsed.long_description:
-        lines.extend(parsed.long_description.split('\n'))
+        lines.extend(parsed.long_description.split("\n"))
 
     return "\n".join(lines)
 
@@ -116,51 +116,40 @@ class Function(BaseModel):
                 del type_hints["agent"]
             # logger.info(f"Type hints for {function_name}: {type_hints}")
 
-
-            # Check if function has named parameters besides **kwargs
-            named_params = [
-                name for name in sig.parameters
+            param_type_hints = {
+                name: type_hints[name]
+                for name in sig.parameters
                 if name in type_hints and name != "return" and name != "agent"
-            ]
+            }
 
-            if named_params:
-                param_type_hints = {
-                    name: type_hints[name]
-                    for name in named_params
-                }
-                # Get JSON schema for parameters only
-                parameters = get_json_schema(type_hints=param_type_hints, strict=strict)
+            # Parse docstring for parameters
+            parsed_doc = parse(getdoc(c))
+            param_docs = parsed_doc.params
 
-                # If strict=True mark all fields as required
-                # See: https://platform.openai.com/docs/guides/structured-outputs/supported-schemas#all-fields-must-be-required
-                if strict:
-                    parameters["required"] = [name for name in parameters["properties"] if name != "agent"]
-                else:
-                    # Mark a field as required if it has no default value
-                    parameters["required"] = [
-                        name
-                        for name, param in sig.parameters.items()
-                        if param.default == param.empty and name != "self" and name != "agent"
-                    ]
+            param_descriptions = {}
+
+            if param_docs:
+                for param in param_docs:
+                    param_name = param.arg_name
+
+                    param_descriptions[param_name] = param.description or ""
+
+            # Get JSON schema for parameters only
+            parameters = get_json_schema(
+                type_hints=param_type_hints, param_descriptions=param_descriptions, strict=strict
+            )
+
+            # If strict=True mark all fields as required
+            # See: https://platform.openai.com/docs/guides/structured-outputs/supported-schemas#all-fields-must-be-required
+            if strict:
+                parameters["required"] = [name for name in parameters["properties"] if name != "agent"]
             else:
-                # If only **kwargs are present, parse docstring for parameters
-                parsed_doc = parse(getdoc(c))
-                param_docs = parsed_doc.params
-
-                param_type_hints = {}
-
-                if param_docs:
-                    for param in param_docs:
-                        param_name = param.arg_name
-                        param_type_str = param.type_name or "str"  # Default to string if type not specified
-
-                        # Map type string to actual Python type
-                        param_type = cls._map_type_string_to_type(param_type_str)
-
-                        param_type_hints[param_name] = param_type
-
-                # Get JSON schema for parameters only
-                parameters = get_json_schema(type_hints=param_type_hints, strict=strict)
+                # Mark a field as required if it has no default value
+                parameters["required"] = [
+                    name
+                    for name, param in sig.parameters.items()
+                    if param.default == param.empty and name != "self" and name != "agent"
+                ]
 
             # logger.debug(f"JSON schema for {function_name}: {parameters}")
         except Exception as e:
@@ -197,54 +186,43 @@ class Function(BaseModel):
                 del type_hints["agent"]
             # logger.info(f"Type hints for {self.name}: {type_hints}")
 
-            # Check if function has named parameters besides **kwargs
-            named_params = [
-                name for name, param in sig.parameters.items()
-                if param.kind in (param.POSITIONAL_OR_KEYWORD, param.KEYWORD_ONLY) and name != "return" and name != "agent"
-            ]
+            # Filter out return type and only process parameters
+            param_type_hints = {
+                name: type_hints[name]
+                for name in sig.parameters
+                if name in type_hints and name != "return" and name != "agent"
+            }
 
-            if named_params:
-                # Filter out return type and only process parameters
-                param_type_hints = {
-                    name: type_hints[name]
-                    for name in named_params
-                }
-                # logger.info(f"Arguments for {self.name}: {param_type_hints}")
+            # Parse docstring for parameters
+            parsed_doc = parse(getdoc(self.entrypoint))
+            param_docs = parsed_doc.params
 
-                # Get JSON schema for parameters only
-                parameters = get_json_schema(type_hints=param_type_hints, strict=strict)
+            param_descriptions = {}
 
-                # If strict=True mark all fields as required
-                # See: https://platform.openai.com/docs/guides/structured-outputs/supported-schemas#all-fields-must-be-required
-                if strict:
-                    parameters["required"] = [name for name in parameters["properties"] if name != "agent"]
-                else:
-                    # Mark a field as required if it has no default value
-                    parameters["required"] = [
-                        name
-                        for name, param in sig.parameters.items()
-                        if param.default == param.empty and name != "self" and name != "agent"
-                    ]
+            if param_docs:
+                for param in param_docs:
+                    param_name = param.arg_name
+
+                    param_descriptions[param_name] = param.description or ""
+
+            # logger.info(f"Arguments for {self.name}: {param_type_hints}")
+
+            # Get JSON schema for parameters only
+            parameters = get_json_schema(
+                type_hints=param_type_hints, param_descriptions=param_descriptions, strict=strict
+            )
+
+            # If strict=True mark all fields as required
+            # See: https://platform.openai.com/docs/guides/structured-outputs/supported-schemas#all-fields-must-be-required
+            if strict:
+                parameters["required"] = [name for name in parameters["properties"] if name != "agent"]
             else:
-                # If only **kwargs are present, parse docstring for parameters
-                parsed_doc = parse(getdoc(self.entrypoint))
-                param_docs = parsed_doc.params
-
-                param_type_hints = {}
-
-                if param_docs:
-                    for param in param_docs:
-                        param_name = param.arg_name
-                        param_type_str = param.type_name or "str"  # Default to string if type not specified
-
-                        # Map type string to actual Python type
-                        param_type = self._map_type_string_to_type(param_type_str)
-
-                        param_type_hints[param_name] = param_type
-
-                # Get JSON schema for parameters only
-                parameters = get_json_schema(type_hints=param_type_hints, strict=strict)
-
+                # Mark a field as required if it has no default value
+                parameters["required"] = [
+                    name
+                    for name, param in sig.parameters.items()
+                    if param.default == param.empty and name != "self" and name != "agent"
+                ]
 
             # logger.debug(f"JSON schema for {self.name}: {parameters}")
         except Exception as e:
@@ -262,34 +240,6 @@ class Function(BaseModel):
             return name
         else:
             return t.__name__
-
-    @staticmethod
-    def _map_type_string_to_type(type_str: str) -> Any:
-        """
-        Maps type string from docstring to actual Python type.
-
-        Args:
-            type_str (str): The type as a string (e.g., 'str', 'int').
-
-        Returns:
-            Any: The corresponding Python type.
-        """
-        type_mapping = {
-            "int": int,
-            "integer": int,
-            "float": float,
-            "number": float,
-            "str": str,
-            "string": str,
-            "bool": bool,
-            "boolean": bool,
-            "list": List,
-            "array": List,
-            "dict": Dict,
-            "object": Dict,
-            # Add more mappings as needed
-        }
-        return type_mapping.get(type_str.lower(), str)  # Default to str if type not found
 
     def get_definition_for_prompt_dict(self) -> Optional[Dict[str, Any]]:
         """Returns a function definition that can be used in a prompt."""

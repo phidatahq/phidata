@@ -4,17 +4,23 @@ from phi.agent import Agent
 from phi.model.azure import AzureOpenAIChat
 from phi.knowledge.pdf import PDFUrlKnowledgeBase
 from phi.vectordb.pgvector import PgVector
+from phi.embedder.azure_openai import AzureOpenAIEmbedder
 
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 
 knowledge_base = PDFUrlKnowledgeBase(
     urls=["https://phi-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
-    vector_db=PgVector(table_name="recipes", db_url=db_url),
+    vector_db=PgVector(
+        table_name="recipes",
+        db_url=db_url,
+        embedder=AzureOpenAIEmbedder(),
+    )
 )
 knowledge_base.load(recreate=False)  # Comment out after first run
 
 agent = Agent(
     model=AzureOpenAIChat(id="gpt-4o"),
+    
     knowledge_base=knowledge_base,
     use_tools=True,
     show_tool_calls=True,

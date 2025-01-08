@@ -30,13 +30,13 @@ pip install -U ollama duckduckgo-search duckdb yfinance phidata
 - Streaming on
 
 ```shell
-python cookbook/providers/ollama_tools/basic_stream.py
+python cookbook/models/ollama_tools/basic_stream.py
 ```
 
 - Streaming off
 
 ```shell
-python cookbook/providers/ollama_tools/basic.py
+python cookbook/models/ollama_tools/basic.py
 ```
 
 ### 5. Run Agent with Tools
@@ -44,47 +44,47 @@ python cookbook/providers/ollama_tools/basic.py
 - Yahoo Finance with streaming on
 
 ```shell
-python cookbook/providers/ollama_tools/agent_stream.py
+python cookbook/models/ollama_tools/agent_stream.py
 ```
 
 - Yahoo Finance without streaming
 
 ```shell
-python cookbook/providers/ollama_tools/agent.py
+python cookbook/models/ollama_tools/agent.py
 ```
 
 - Finance Agent
 
 ```shell
-python cookbook/providers/ollama_tools/finance_agent.py
+python cookbook/models/ollama_tools/finance_agent.py
 ```
 
 - Data Analyst
 
 ```shell
-python cookbook/providers/ollama_tools/data_analyst.py
+python cookbook/models/ollama_tools/data_analyst.py
 ```
 
 - Web Search
 
 ```shell
-python cookbook/providers/ollama_tools/web_search.py
+python cookbook/models/ollama_tools/web_search.py
 ```
 
 ### 6. Run Agent that returns structured output
 
 ```shell
-python cookbook/providers/ollama_tools/structured_output.py
+python cookbook/models/ollama_tools/structured_output.py
 ```
 
 ### 7. Run Agent that uses storage
 
 ```shell
-python cookbook/providers/ollama_tools/storage.py
+python cookbook/models/ollama_tools/storage.py
 ```
 
 ### 8. Run Agent that uses knowledge
 
 ```shell
-python cookbook/providers/ollama_tools/knowledge.py
+python cookbook/models/ollama_tools/knowledge.py
 ```

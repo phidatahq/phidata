@@ -114,6 +114,7 @@ def get_playground_router(
         session_id: Optional[str] = Form(None),
         user_id: Optional[str] = Form(None),
         files: Optional[List[UploadFile]] = File(None),
+        image: Optional[UploadFile] = File(None),
     ):
         logger.debug(f"AgentRunRequest: {message} {agent_id} {stream} {monitor} {session_id} {user_id} {files}")
         agent = get_agent_by_id(agent_id, agents)
@@ -139,35 +140,31 @@ def get_playground_router(
         else:
             new_agent_instance.monitoring = False
 
+        base64_image: Optional[List[Union[str, Dict]]] = None
+        if image:
+            base64_image = process_image(image)
+
         if files:
             for file in files:
                 if file.content_type == "application/pdf":
-                    if agent.knowledge is None:
-                        raise HTTPException(status_code=404, detail="KnowledgeBase not found")
                     contents = file.file.read()
                     pdf_file = BytesIO(contents)
                     pdf_file.name = file.filename
                     file_content = PDFReader().read(pdf_file)
                     agent.knowledge.load_documents(file_content)
                 elif file.content_type == "text/csv":
-                    if agent.knowledge is None:
-                        raise HTTPException(status_code=404, detail="KnowledgeBase not found")
                     contents = file.file.read()
                     csv_file = BytesIO(contents)
                     csv_file.name = file.filename
                     file_content = CSVReader().read(csv_file)
                     agent.knowledge.load_documents(file_content)
                 elif file.content_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
-                    if agent.knowledge is None:
-                        raise HTTPException(status_code=404, detail="KnowledgeBase not found")
                     contents = file.file.read()
                     docx_file = BytesIO(contents)
                     docx_file.name = file.filename
                     file_content = DocxReader().read(docx_file)
                     agent.knowledge.load_documents(file_content)
                 elif file.content_type == "text/plain":
-                    if agent.knowledge is None:
-                        raise HTTPException(status_code=404, detail="KnowledgeBase not found")
                     contents = file.file.read()
                     text_file = BytesIO(contents)
                     text_file.name = file.filename
@@ -178,7 +175,7 @@ def get_playground_router(
 
         if stream:
             return StreamingResponse(
-                chat_response_streamer(new_agent_instance, message),
+                chat_response_streamer(new_agent_instance, message, images=base64_image),
                 media_type="text/event-stream",
             )
         else:
@@ -186,6 +183,7 @@ def get_playground_router(
                 RunResponse,
                 new_agent_instance.run(
                     message,
+                    images=base64_image,
                     stream=False,
                 ),
             )
@@ -483,11 +481,16 @@ def get_async_playground_router(
         session_id: Optional[str] = Form(None),
         user_id: Optional[str] = Form(None),
         files: Optional[List[UploadFile]] = File(None),
+        image: Optional[UploadFile] = File(None),
     ):
         logger.debug(f"AgentRunRequest: {message} {session_id} {user_id} {agent_id}")
         agent = get_agent_by_id(agent_id, agents)
         if agent is None:
             raise HTTPException(status_code=404, detail="Agent not found")
+        
+        if files:
+            if agent.knowledge is None:
+                raise HTTPException(status_code=404, detail="KnowledgeBase not found")
 
         if session_id is not None:
             logger.debug(f"Continuing session: {session_id}")
@@ -504,35 +507,31 @@ def get_async_playground_router(
         else:
             new_agent_instance.monitoring = False
 
+        base64_image: Optional[List[Union[str, Dict]]] = None
+        if image:
+            base64_image = await process_image(image)
+
         if files:
             for file in files:
                 if file.content_type == "application/pdf":
-                    if agent.knowledge is None:
-                        raise HTTPException(status_code=404, detail="KnowledgeBase not found")
                     contents = await file.read()
                     pdf_file = BytesIO(contents)
                     pdf_file.name = file.filename
                     file_content = PDFReader().read(pdf_file)
                     agent.knowledge.load_documents(file_content)
                 elif file.content_type == "text/csv":
-                    if agent.knowledge is None:
-                        raise HTTPException(status_code=404, detail="KnowledgeBase not found")
                     contents = await file.read()
                     csv_file = BytesIO(contents)
                     csv_file.name = file.filename
                     file_content = CSVReader().read(csv_file)
                     agent.knowledge.load_documents(file_content)
                 elif file.content_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
-                    if agent.knowledge is None:
-                        raise HTTPException(status_code=404, detail="KnowledgeBase not found")
                     contents = await file.read()
                     docx_file = BytesIO(contents)
                     docx_file.name = file.filename
                     file_content = DocxReader().read(docx_file)
                     agent.knowledge.load_documents(file_content)
                 elif file.content_type == "text/plain":
-                    if agent.knowledge is None:
-                        raise HTTPException(status_code=404, detail="KnowledgeBase not found")
                     contents = await file.read()
                     text_file = BytesIO(contents)
                     text_file.name = file.filename
@@ -543,7 +542,7 @@ def get_async_playground_router(
 
         if stream:
             return StreamingResponse(
-                chat_response_streamer(new_agent_instance, message),
+                chat_response_streamer(new_agent_instance, message, images=base64_image),
                 media_type="text/event-stream",
             )
         else:
@@ -551,6 +550,7 @@ def get_async_playground_router(
                 RunResponse,
                 await new_agent_instance.arun(
                     message,
+                    images=base64_image,
                     stream=False,
                 ),
             )

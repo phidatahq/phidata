@@ -168,7 +168,7 @@ class QAWorkflow(Workflow):
 if __name__ == "__main__":
     flow_start = time.time()
 
-    evaluation_set_path = "qa_evaluation_Set.json"  # Path to your evaluation set
+    evaluation_set_path = "qa_evaluation_set.json"  # Path to your evaluation set
     output_results_path = "evaluation_results.json"
     # Run the QA Workflow
     qa_workflow = QAWorkflow()

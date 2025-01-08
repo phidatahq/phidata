@@ -1,4 +1,5 @@
 import csv
+import json
 import logging
 import os
 import time
@@ -105,17 +106,17 @@ class QAWorkflow(Workflow):
 
     def generate_answer(self, question):
         answer: RunResponse = RunResponse(content=None)
-        logger.info(f"Generating answer for {question}:\n")
         answer = self.qa_agent.run(question)
+        logger.info(f"Generating answer\n{answer.content}:\n")
         return RunResponse(content=answer.content)
 
-    def run(self, evaluation_csv_path, output_csv_path, knowledge_base_recreate=True):
+    def run(self, evaluation_path, output_path, knowledge_base_recreate=True):
         """
         Runs the workflow: scrapes the websites, chunks the content, stores it in the vector database,
-        and answers the given question.
+        answers the given set of questions and judges them.
         Args:
-            evaluation_csv_path (str): The ground truth based on which quality of qa agent will be judged.
-            output_csv_path (str): Results will be saved here.
+            evaluation_path (str): The ground truth based on which quality of qa agent will be judged.
+            output_path (str): Results will be saved here.
             knowledge_base_recreate: If set to True will recreate the Knowledge Base
         """
 
@@ -125,9 +126,8 @@ class QAWorkflow(Workflow):
         duration_load = load_end - load_start
         logger.info(f"Loading of the website done in {duration_load:.2f} seconds")
 
-        with open(evaluation_csv_path, "r") as csv_file:
-            reader = csv.DictReader(csv_file)
-            evaluation_data = [row for row in reader]
+        with open(evaluation_json_path, "r") as json_file:
+            evaluation_data = json.load(json_file)
 
         results = []
 
@@ -145,7 +145,6 @@ class QAWorkflow(Workflow):
             results.append(
                 {
                     "Question": question,
-                    "Ground_Truth_Answer": ground_truth,
                     "Generated_Answer": generated_answer.content,
                     "Judgement": judgement.criteria,
                     "Reasoning": judgement.reasoning,
@@ -157,13 +156,10 @@ class QAWorkflow(Workflow):
         logger.info(f"Answer generated in {duration_ans:.2f} seconds")
 
         # Write results to output CSV
-        with open(output_csv_path, "w", newline="") as csv_file:
-            fieldnames = ["Question", "Ground_Truth_Answer", "Generated_Answer", "Judgement", "Reasoning"]
-            writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
-            writer.writeheader()
-            writer.writerows(results)
+        with open(output_path, "w") as json_file:
+            json.dump(results, json_file, indent=4)
 
-        logger.info(f"Evaluation results saved to {output_csv_path}")
+        logger.info(f"Evaluation results saved to {output_path}")
 
         response_content = {
             "results": results,
@@ -177,11 +173,11 @@ class QAWorkflow(Workflow):
 if __name__ == "__main__":
     flow_start = time.time()
 
-    evaluation_set_path = "QA_Evaluation_Set.csv"  # Path to your evaluation set
-    output_results_path = "Evaluation_Results.csv"
+    evaluation_set_path = "QA_Evaluation_Set.json"  # Path to your evaluation set
+    output_results_path = "Evaluation_Results.json"
     # Run the QA Workflow
     qa_workflow = QAWorkflow()
-    qa_response = qa_workflow.run(evaluation_csv_path=evaluation_set_path, output_csv_path=output_results_path)
+    qa_response = qa_workflow.run(evaluation_path=evaluation_set_path, output_path=output_results_path)
     logger.info(qa_response.content)
 
     flow_end = time.time()

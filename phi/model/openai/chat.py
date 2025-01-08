@@ -854,7 +854,7 @@ class OpenAIChat(Model):
         metrics.response_timer.start()
         for response in self.invoke_stream(messages=messages):
             if len(response.choices) > 0:
-                if metrics.completion_tokens == None:
+                if metrics.completion_tokens is None:
                     metrics.completion_tokens = 0
                 metrics.completion_tokens += 1
                 if metrics.completion_tokens == 1:

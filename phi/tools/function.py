@@ -250,11 +250,10 @@ class Function(BaseModel):
         except Exception as e:
             logger.warning(f"Could not parse args for {self.name}: {e}", exc_info=True)
 
-        self.description = self.description or getdoc(self.entrypoint)
+        self.description = self.description or get_entrypoint_docstring(self.entrypoint)
         if not params_set_by_user:
             self.parameters = parameters
 
-        print(self.description)
         self.entrypoint = validate_call(self.entrypoint)
 
     def get_type_name(self, t: Type[T]):

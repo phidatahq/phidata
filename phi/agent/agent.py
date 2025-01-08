@@ -1886,7 +1886,7 @@ class Agent(BaseModel):
                     transcript=model_response.audio.transcript,
                 )
 
-        # 6. Update Memory
+        # 6. Update Memory event
         if self.stream_intermediate_steps:
             yield self.generic_run_response(
                 content="Updating memory",

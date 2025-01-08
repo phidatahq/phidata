@@ -16,6 +16,7 @@ class ModelResponseEvent(str, Enum):
 class ModelResponseAudio:
     data: str
     transcript: str
+    id: Optional[str] = None
 
 @dataclass
 class ModelResponse:

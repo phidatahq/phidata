@@ -314,7 +314,6 @@ class OpenAIChat(Model):
 
         if message.audio is not None:
             message = self.add_audio_to_message(message=message, audio=message.audio)
-
         return message.to_dict()
 
     def invoke(self, messages: List[Message]) -> Union[ChatCompletion, ParsedChatCompletion]:
@@ -634,7 +633,7 @@ class OpenAIChat(Model):
         if assistant_message.audio is not None:
             # add the audio to the model response
             model_response.audio = ModelResponseAudio(
-                data=assistant_message.audio.get("data", ""), transcript=assistant_message.audio.get("transcript", "")
+                id=assistant_message.audio.get("id"), data=assistant_message.audio.get("data", ""), transcript=assistant_message.audio.get("transcript", "")
             )
 
         # -*- Handle tool calls
@@ -867,7 +866,7 @@ class OpenAIChat(Model):
         # -*- Generate response
         metrics.response_timer.start()
         for response in self.invoke_stream(messages=messages):
-            if len(response.choices) > 0:
+            if response.choices and len(response.choices) > 0:
                 metrics.completion_tokens += 1
                 if metrics.completion_tokens == 1:
                     metrics.time_to_first_token = metrics.response_timer.elapsed
@@ -894,6 +893,7 @@ class OpenAIChat(Model):
 
             if response.usage is not None:
                 self.add_response_usage_to_metrics(metrics=metrics, response_usage=response.usage)
+
         metrics.response_timer.stop()
 
         # -*- Create assistant message

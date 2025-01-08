@@ -502,11 +502,13 @@ class Model(BaseModel):
         # If `data` is in the audio, this means the audio is raw data
         # And an input audio
         elif "data" in audio:
-            # Create a message with audio
-            message.content = [
-                {"type": "text", "text": message.content},
-                {"type": "input_audio", "input_audio": audio},
-            ]
+            # Only initial messages are still string. History messages are already in the format below
+            if isinstance(message.content, str):
+                # Create a message with audio
+                message.content = [
+                    {"type": "text", "text": message.content},
+                    {"type": "input_audio", "input_audio": audio},
+                ]
         return message
 
     def get_system_message_for_model(self) -> Optional[str]:

@@ -128,7 +128,7 @@ class Function(BaseModel):
 
             param_descriptions = {}
 
-            if param_docs:
+            if param_docs is not None:
                 for param in param_docs:
                     param_name = param.arg_name
 
@@ -199,7 +199,7 @@ class Function(BaseModel):
 
             param_descriptions = {}
 
-            if param_docs:
+            if param_docs is not None:
                 for param in param_docs:
                     param_name = param.arg_name
 

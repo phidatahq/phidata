@@ -1,4 +1,5 @@
 import time
+from dataclasses import asdict
 from decimal import Decimal
 from typing import Any, Dict, List, Optional
 
@@ -137,7 +138,7 @@ class DynamoDbAgentStorage(AgentStorage):
             if item is not None:
                 # Convert Decimal to int or float
                 item = self._deserialize_item(item)
-                return AgentSession.model_validate(item)
+                return AgentSession(**item)
         except Exception as e:
             logger.error(f"Error reading session_id '{session_id}' with user_id '{user_id}': {e}")
         return None
@@ -205,7 +206,7 @@ class DynamoDbAgentStorage(AgentStorage):
                 items = response.get("Items", [])
                 for item in items:
                     item = self._deserialize_item(item)
-                    sessions.append(AgentSession.model_validate(item))
+                    sessions.append(AgentSession(**item))
             elif agent_id is not None:
                 # Query using agent_id index
                 response = self.table.query(
@@ -216,7 +217,7 @@ class DynamoDbAgentStorage(AgentStorage):
                 items = response.get("Items", [])
                 for item in items:
                     item = self._deserialize_item(item)
-                    sessions.append(AgentSession.model_validate(item))
+                    sessions.append(AgentSession(**item))
             else:
                 # Scan the whole table
                 response = self.table.scan(
@@ -225,7 +226,7 @@ class DynamoDbAgentStorage(AgentStorage):
                 items = response.get("Items", [])
                 for item in items:
                     item = self._deserialize_item(item)
-                    sessions.append(AgentSession.model_validate(item))
+                    sessions.append(AgentSession(**item))
         except Exception as e:
             logger.error(f"Error retrieving sessions: {e}")
         return sessions
@@ -241,7 +242,7 @@ class DynamoDbAgentStorage(AgentStorage):
             Optional[AgentSession]: The upserted AgentSession, or None if operation failed.
         """
         try:
-            item = session.model_dump()
+            item = asdict(session)
 
             # Add timestamps
             current_time = int(time.time())

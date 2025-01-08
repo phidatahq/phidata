@@ -199,25 +199,25 @@ class ChromaDb(VectorDb):
         search_results: List[Document] = []
 
         ids = result.get("ids", [[]])[0]
-        distances = result.get("distances", [[]])[0]  # type: ignore
-        metadatas = result.get("metadatas", [[]])[0]  # type: ignore
+        metadata = result.get("metadatas", [[]])[0]  # type: ignore
         documents = result.get("documents", [[]])[0]  # type: ignore
         embeddings = result.get("embeddings")
+        distances = result.get("distances", [[]])[0]  # type: ignore
         uris = result.get("uris")
         data = result.get("data")
+        metadata["distances"] = distances
+        metadata["uris"] = uris
+        metadata["data"] = data
 
         try:
             # Use zip to iterate over multiple lists simultaneously
-            for id_, distance, metadata, document in zip(ids, distances, metadatas, documents):
+            for id_, distance, metadata, document in zip(ids, distances, metadata, documents):
                 search_results.append(
                     Document(
                         id=id_,
-                        distances=distance,
-                        metadatas=metadata,
+                        meta_data=metadata,
                         content=document,
-                        embeddings=embeddings,
-                        uris=uris,
-                        data=data,
+                        embedding=embeddings,
                     )
                 )
         except Exception as e:

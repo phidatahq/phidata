@@ -126,7 +126,7 @@ class S2AgentStorage(AgentStorage):
     def read(self, session_id: str, user_id: Optional[str] = None) -> Optional[AgentSession]:
         with self.Session.begin() as sess:
             existing_row: Optional[Row[Any]] = self._read(session=sess, session_id=session_id, user_id=user_id)
-            return AgentSession.model_validate(existing_row) if existing_row is not None else None
+            return AgentSession(**existing_row) if existing_row is not None else None
 
     def get_all_session_ids(self, user_id: Optional[str] = None, agent_id: Optional[str] = None) -> List[str]:
         session_ids: List[str] = []
@@ -165,7 +165,7 @@ class S2AgentStorage(AgentStorage):
                 rows = sess.execute(stmt).fetchall()
                 for row in rows:
                     if row.session_id is not None:
-                        sessions.append(AgentSession.model_validate(row))
+                        sessions.append(AgentSession(**row))
         except Exception:
             logger.debug(f"Table does not exist: {self.table.name}")
         return sessions

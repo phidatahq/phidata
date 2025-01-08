@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import AsyncIterator, Iterator, cast
+from typing import Iterator, cast, Any
 
 from agno.agent.step import AgentStep
 from agno.agent.step.respond import Respond
@@ -43,7 +43,7 @@ class Task(AgentStep):
         self,
         agent: "Agent",  # type: ignore  # noqa: F821
         run_messages: RunMessages,
-    ) -> AsyncIterator[RunResponse]:
+    ) -> Any:
         from agno.agent import Agent
 
         agent = cast(Agent, agent)

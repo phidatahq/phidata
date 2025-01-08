@@ -5,13 +5,14 @@ from agno.document.chunking.strategy import ChunkingStrategy
 from agno.models.base import Model
 from agno.models.message import Message
 from agno.models.openai import OpenAIChat
+from agno.utils.model_id import model_id
 
 
 class AgenticChunking(ChunkingStrategy):
     """Chunking strategy that uses an LLM to determine natural breakpoints in the text"""
 
     def __init__(self, model: Optional[Model] = None, max_chunk_size: int = 5000):
-        self.model = model or OpenAIChat()
+        self.model = model or OpenAIChat(model_id)
         self.max_chunk_size = max_chunk_size
 
     def chunk(self, document: Document) -> List[Document]:

@@ -1,5 +1,5 @@
 import collections.abc
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from types import GeneratorType
 from typing import Any, Callable, Dict, Iterator, List, Optional, Sequence, Union
 
@@ -265,22 +265,16 @@ class Model:
             # -*- Yield function call result
             yield ModelResponse(
                 content=f"{function_call.get_call_str()} completed in {function_call_timer.elapsed:.4f}s.",
-                tool_call=asdict(
-                    function_call_result,
-                    dict_factory=lambda x: {
-                        k: v
-                        for (k, v) in x
-                        if k
-                        in {
-                            "content",
-                            "tool_call_id",
-                            "tool_name",
-                            "tool_args",
-                            "tool_call_error",
-                            "metrics",
-                            "created_at",
-                        }
-                    },
+                tool_call=function_call_result.model_dump(
+                    include={
+                        "content",
+                        "tool_call_id",
+                        "tool_name",
+                        "tool_args",
+                        "tool_call_error",
+                        "metrics",
+                        "created_at",
+                    }
                 ),
                 event=ModelResponseEvent.tool_call_completed.value,
             )

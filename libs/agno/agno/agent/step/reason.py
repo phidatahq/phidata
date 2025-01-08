@@ -128,13 +128,10 @@ class Reason(AgentStep):
 
         # Yield the final reasoning completed event
         if agent.stream_intermediate_steps:
-            yield RunResponse(
-                run_id=agent.run_id,
-                session_id=agent.session_id,
-                agent_id=agent.agent_id,
+            yield agent.create_run_response(
                 content=ReasoningSteps(reasoning_steps=all_reasoning_steps),
                 content_type=ReasoningSteps.__class__.__name__,
-                event=RunEvent.reasoning_completed.value,
+                event=RunEvent.step_completed,
             )
 
     async def arun(
@@ -243,13 +240,10 @@ class Reason(AgentStep):
 
         # Yield the final reasoning completed event
         if agent.stream_intermediate_steps:
-            yield RunResponse(
-                run_id=agent.run_id,
-                session_id=agent.session_id,
-                agent_id=agent.agent_id,
+            yield agent.create_run_response(
                 content=ReasoningSteps(reasoning_steps=all_reasoning_steps),
                 content_type=ReasoningSteps.__class__.__name__,
-                event=RunEvent.reasoning_completed.value,
+                event=RunEvent.step_completed,
             )
 
     def get_reasoning_agent(

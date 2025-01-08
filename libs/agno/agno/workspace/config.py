@@ -90,6 +90,7 @@ class WorkspaceConfig(BaseModel):
 
         from agno.constants import (
             AWS_REGION_ENV_VAR,
+            WORKSPACE_DIR_ENV_VAR,
             WORKSPACE_ID_ENV_VAR,
             WORKSPACE_NAME_ENV_VAR,
             WORKSPACE_ROOT_ENV_VAR,
@@ -97,6 +98,10 @@ class WorkspaceConfig(BaseModel):
 
         if self.ws_root_path is not None:
             environ[WORKSPACE_ROOT_ENV_VAR] = str(self.ws_root_path)
+
+            workspace_dir_path: Optional[Path] = self.workspace_dir_path
+            if workspace_dir_path is not None:
+                environ[WORKSPACE_DIR_ENV_VAR] = str(workspace_dir_path)
 
             if self.workspace_settings is not None:
                 environ[WORKSPACE_NAME_ENV_VAR] = str(self.workspace_settings.ws_name)
@@ -313,6 +318,8 @@ class WorkspaceConfig(BaseModel):
                 infra_resources_list.append(resource)
             # Otherwise, get the InfraResources object from the resource
             else:
-                infra_resources_list.append(resource.get_infra_resources())
+                _infra_resources = resource.get_infra_resources()
+                if _infra_resources is not None and isinstance(_infra_resources, InfraResources):
+                    infra_resources_list.append(_infra_resources)
 
         return infra_resources_list

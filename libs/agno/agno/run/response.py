@@ -18,6 +18,7 @@ class RunEvent(str, Enum):
     tool_call_completed = "ToolCallCompleted"
     step_started = "StepStarted"
     step_completed = "StepCompleted"
+    reasoning_step = "ReasoningStep"
     updating_memory = "UpdatingMemory"
     workflow_started = "WorkflowStarted"
     workflow_completed = "WorkflowCompleted"

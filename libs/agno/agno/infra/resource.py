@@ -41,7 +41,7 @@ class InfraResource(InfraBase):
 
     def get_resource_type(self) -> str:
         if self.resource_type is None:
-            return self.__class_ResourceGroup_.__name__
+            return self.__class__.__name__
         return self.resource_type
 
     def get_resource_type_list(self) -> List[str]:

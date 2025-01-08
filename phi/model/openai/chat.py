@@ -308,6 +308,9 @@ class OpenAIChat(Model):
         Returns:
             Dict[str, Any]: The formatted message.
         """
+        if message.role == "system":
+            message.role = "developer"
+
         if message.role == "user":
             if message.images is not None:
                 message = self.add_images_to_message(message=message, images=message.images)
@@ -599,7 +602,7 @@ class OpenAIChat(Model):
         # -*- Parse transcript if available
         if response_audio:
             if response_audio.transcript and not response_message.content:
-                response_message.content = response_message.audio.transcript
+                response_message.content = response_audio.transcript
 
         # -*- Parse structured outputs
         try:
@@ -677,7 +680,7 @@ class OpenAIChat(Model):
         # -*- Parse transcript if available
         if response_audio:
             if response_audio.transcript and not response_message.content:
-                response_message.content = response_message.audio.transcript
+                response_message.content = response_audio.transcript
 
         # -*- Parse structured outputs
         try:

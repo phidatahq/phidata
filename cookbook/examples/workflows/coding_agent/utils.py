@@ -26,7 +26,7 @@ def scrape_and_process(url: str) -> str:
     try:
         # Scrape content from the URL
         scraped_content = WebsiteTools().read_url(url)
-        scraped_content = json.loads(scraped_content)
+        scraped_content_json = json.loads(scraped_content)
     except Exception as e:
         logger.error(f"Error scraping URL: {e}")
         return ""
@@ -35,7 +35,7 @@ def scrape_and_process(url: str) -> str:
     seen = set()
 
     # Process the scraped content
-    for cont in scraped_content:
+    for cont in scraped_content_json:
         try:
             content = cont.get("content")
             if content and content not in seen:

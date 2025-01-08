@@ -35,8 +35,8 @@ class MongoDBVector(VectorDb):
         embedder: Embedder = OpenAIEmbedder(),
         distance_metric: str = Distance.cosine,
         overwrite: bool = False,
-        wait_until_index_ready: float = None,
-        wait_after_insert: float = None,
+        wait_until_index_ready: Optional[float] = None,
+        wait_after_insert: Optional[float] = None,
         **kwargs,
     ):
         """
@@ -72,7 +72,7 @@ class MongoDBVector(VectorDb):
         """Create or retrieve the MongoDB client."""
         try:
             logger.debug("Creating MongoDB Client")
-            client = MongoClient(self.connection_string, **self.kwargs)
+            client: MongoClient = MongoClient(self.connection_string, **self.kwargs)
             # Trigger a connection to verify the client
             client.admin.command("ping")
             logger.info("Connected to MongoDB successfully.")
@@ -158,7 +158,7 @@ class MongoDBVector(VectorDb):
                     break
             except Exception as e:
                 logger.error(f"Error checking index status: {e}")
-            if time.time() - start_time > self.wait_until_index_ready:
+            if time.time() - start_time > self.wait_until_index_ready:  # type: ignore
                 raise TimeoutError("Timeout waiting for search index to become ready.")
             time.sleep(1)
 
@@ -267,7 +267,7 @@ class MongoDBVector(VectorDb):
                 {"$set": {"score": {"$meta": "vectorSearchScore"}}},
             ]
             pipeline.append({"$project": {"embedding": 0}})
-            agg = list(self._collection.aggregate(pipeline))
+            agg = list(self._collection.aggregate(pipeline))  # type: ignore
             docs = []
             for doc in agg:
                 docs.append(

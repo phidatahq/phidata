@@ -2,7 +2,6 @@
 
 from phi.agent import Agent
 from phi.knowledge.pdf import PDFUrlKnowledgeBase
-import os
 
 # os.environ["OPENAI_API_KEY"] = ""
 from phi.vectordb.mongodb import MongoDBVector

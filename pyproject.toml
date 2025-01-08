@@ -146,6 +146,7 @@ module = [
   "psycopg2.*",
   "pyarrow.*",
   "pycountry.*",
+  "pymongo.*",
   "pypdf.*",
   "pytz.*",
   "qdrant_client.*",

@@ -21,6 +21,7 @@ try:
 except ImportError:
     raise ImportError("`pymongo` not installed. Please install using `pip install pymongo`")
 
+
 class MongoDBVector(VectorDb):
     """
     MongoDB Vector Database implementation with elegant handling of Atlas Search index creation.
@@ -34,8 +35,8 @@ class MongoDBVector(VectorDb):
         embedder: Embedder = OpenAIEmbedder(),
         distance_metric: str = Distance.cosine,
         overwrite: bool = False,
-        wait_until_index_ready: float = None,
-        wait_after_insert: float = None,
+        wait_until_index_ready: Optional[float] = None,
+        wait_after_insert: Optional[float] = None,
         **kwargs,
     ):
         """
@@ -71,9 +72,9 @@ class MongoDBVector(VectorDb):
         """Create or retrieve the MongoDB client."""
         try:
             logger.debug("Creating MongoDB Client")
-            client = MongoClient(self.connection_string, **self.kwargs)
+            client: MongoClient = MongoClient(self.connection_string, **self.kwargs)
             # Trigger a connection to verify the client
-            client.admin.command('ping')
+            client.admin.command("ping")
             logger.info("Connected to MongoDB successfully.")
             return client
         except errors.ConnectionFailure as e:
@@ -85,7 +86,7 @@ class MongoDBVector(VectorDb):
 
     def _get_or_create_collection(self) -> Collection:
         """Get or create the MongoDB collection, handling Atlas Search index creation."""
-        
+
         self._collection = self._db[self.collection_name]
 
         if not self.collection_exists():
@@ -120,7 +121,7 @@ class MongoDBVector(VectorDb):
                             "type": "vector",
                             "numDimensions": 1536,
                             "path": "embedding",
-                            "similarity": self.distance_metric, #cosine
+                            "similarity": self.distance_metric,  # cosine
                         },
                     ]
                 },
@@ -157,7 +158,7 @@ class MongoDBVector(VectorDb):
                     break
             except Exception as e:
                 logger.error(f"Error checking index status: {e}")
-            if time.time() - start_time > self.wait_until_index_ready:
+            if time.time() - start_time > self.wait_until_index_ready:  # type: ignore
                 raise TimeoutError("Timeout waiting for search index to become ready.")
             time.sleep(1)
 
@@ -171,7 +172,7 @@ class MongoDBVector(VectorDb):
 
     def doc_exists(self, document: Document) -> bool:
         """Check if a document exists in the MongoDB collection based on its content."""
-        doc_id = md5(document.content.encode('utf-8')).hexdigest()
+        doc_id = md5(document.content.encode("utf-8")).hexdigest()
         try:
             exists = self._collection.find_one({"_id": doc_id}) is not None
             logger.debug(f"Document {'exists' if exists else 'does not exist'}: {doc_id}")
@@ -219,7 +220,7 @@ class MongoDBVector(VectorDb):
                 # lets wait for 5 minutes.... just in case
                 # feel free to 'optimize'... :)
                 if self.wait_after_insert and self.wait_after_insert > 0:
-                    time.sleep(self.wait_after_insert) 
+                    time.sleep(self.wait_after_insert)
             except errors.BulkWriteError as e:
                 logger.warning(f"Bulk write error while inserting documents: {e.details}")
             except Exception as e:
@@ -245,9 +246,7 @@ class MongoDBVector(VectorDb):
         """Indicate that upsert functionality is available."""
         return True
 
-    def search(
-        self, query: str, limit: int = 5, filters: Optional[Dict[str, Any]] = None
-    ) -> List[Document]:
+    def search(self, query: str, limit: int = 5, filters: Optional[Dict[str, Any]] = None) -> List[Document]:
         """Search the MongoDB collection for documents relevant to the query."""
         query_embedding = self.embedder.get_embedding(query)
         if query_embedding is None:
@@ -268,7 +267,7 @@ class MongoDBVector(VectorDb):
                 {"$set": {"score": {"$meta": "vectorSearchScore"}}},
             ]
             pipeline.append({"$project": {"embedding": 0}})
-            agg = list(self._collection.aggregate(pipeline))
+            agg = list(self._collection.aggregate(pipeline))  # type: ignore
             docs = []
             for doc in agg:
                 docs.append(
@@ -366,7 +365,7 @@ class MongoDBVector(VectorDb):
             raise ValueError(f"Failed to generate embedding for document: {document.id}")
 
         cleaned_content = document.content.replace("\x00", "\ufffd")
-        doc_id = md5(cleaned_content.encode('utf-8')).hexdigest()
+        doc_id = md5(cleaned_content.encode("utf-8")).hexdigest()
         doc_data = {
             "_id": doc_id,
             "name": document.name,

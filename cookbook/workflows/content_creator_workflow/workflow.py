@@ -8,9 +8,9 @@ from phi.workflow import Workflow
 from phi.model.openai import OpenAIChat
 from phi.tools.firecrawl import FirecrawlTools
 from phi.utils.log import logger
-from cookbook.examples.workflows.content_creator_workflow.scheduler import schedule
-from cookbook.examples.workflows.content_creator_workflow.prompts import agents_config, tasks_config
-from cookbook.examples.workflows.content_creator_workflow.config import PostType
+from cookbook.workflows.content_creator_workflow.scheduler import schedule
+from cookbook.workflows.content_creator_workflow.prompts import agents_config, tasks_config
+from cookbook.workflows.content_creator_workflow.config import PostType
 
 # Load environment variables
 load_dotenv()
@@ -34,7 +34,7 @@ class Tweet(BaseModel):
 
     content: str
     is_hook: bool = Field(default=False, description="Marks if this tweet is the 'hook' (first tweet)")
-    media_urls: Optional[List[str]] = Field(default_factory=list, description="Associated media URLs, if any")
+    media_urls: Optional[List[str]] = Field(default_factory=list, description="Associated media URLs, if any")  # type: ignore
 
 
 class Thread(BaseModel):

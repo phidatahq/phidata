@@ -308,6 +308,9 @@ class OpenAIChat(Model):
         Returns:
             Dict[str, Any]: The formatted message.
         """
+        if message.role == "system":
+            message.role = "developer"
+
         if message.role == "user":
             if message.images is not None:
                 message = self.add_images_to_message(message=message, images=message.images)

@@ -4,7 +4,7 @@ from typing import Optional, Dict, Any
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
-from cookbook.examples.workflows.content_creator_workflow.config import TYPEFULLY_API_URL, HEADERS, PostType
+from cookbook.workflows.content_creator_workflow.config import TYPEFULLY_API_URL, HEADERS, PostType
 from phi.utils.log import logger
 
 load_dotenv()

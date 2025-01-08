@@ -5,6 +5,7 @@ Steps:
 2. Make sure you are running a local instance of mongodb
 3. Run: `python cookbook/storage/mongodb_storage.py` to run the agent
 """
+
 from phi.agent import Agent
 from phi.tools.duckduckgo import DuckDuckGo
 from phi.storage.agent.mongodb import MongoAgentStorage

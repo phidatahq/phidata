@@ -1,8 +1,8 @@
 from pathlib import Path
 
-from phi.agent.python import PythonAgent
-from phi.model.openai import OpenAIChat
-from phi.file.local.csv import CsvFile
+from agno.agent.python import PythonAgent
+from agno.models.openai import OpenAIChat
+from agno.file.local.csv import CsvFile
 
 cwd = Path(__file__).parent.resolve()
 tmp = cwd.joinpath("tmp")

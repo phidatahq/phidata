@@ -54,7 +54,7 @@ def authenticate_and_get_user(auth_token: str, existing_user: Optional[UserSchem
             user_data = r.json()
             if not isinstance(user_data, dict):
                 return None
-            
+
             return UserSchema.model_validate(user_data)
 
         except Exception as e:

@@ -10,7 +10,7 @@ class TeamSchema(BaseModel):
     name: str
     url: str
 
-    
+
 class TeamIdentifier(BaseModel):
     id_team: Optional[str] = None
     team_url: Optional[str] = None

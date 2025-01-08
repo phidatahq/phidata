@@ -74,20 +74,31 @@ class CodeGenWorkflow(Workflow):
         while attempt < self.max_retries:
             logger.info(f"---ATTEMPT {attempt + 1}---")
             try:
-                formatted_prompt = self.system_prompt.format(context=context, question=question)
-                response = self.coding_agent.run(formatted_prompt, stream=False)
-                structured_response = response.content
+                if attempt == 0:
+                    # First attempt: Generate initial code
+                    formatted_prompt = self.system_prompt.format(context=context, question=question)
+                    response = self.coding_agent.run(formatted_prompt, stream=False)
+                    logger.info("---GENERATED CODE---")
+                    generated_code = response.content
+                else:
+                    # Subsequent attempts: Fix the code
+                    logger.info(f"---FIXING CODE (ATTEMPT {attempt + 1})---")
+                    fixed_code = self.fix_code(
+                        context=context,
+                        question=question,
+                        error_message=error_message,
+                        previous_code=generated_code,  # type: ignore
+                    )
+                    generated_code = fixed_code
 
-                logger.info("---GENERATED CODE---")
-
-                generated_code = structured_response
-
+                # Check the generated or fixed code
                 logger.info("---CHECKING CODE---")
-                result = self.check_code(structured_response)  # type: ignore
+                result = self.check_code(generated_code)  # type: ignore
 
                 if result == "success":
+                    logger.info("---CODE CHECK SUCCESSFUL---")
                     return RunResponse(
-                        content=structured_response,
+                        content=generated_code,
                         event=RunEvent.workflow_completed,
                     )
 
@@ -96,16 +107,10 @@ class CodeGenWorkflow(Workflow):
                 error_message = str(e)
                 logger.error(f"Error: {error_message}")
 
+            # Increment attempt counter
             attempt += 1
-            if attempt < self.max_retries:
-                logger.info(f"---FIXING CODE (ATTEMPT {attempt + 1})---")
-                generated_code = self.fix_code(
-                    context=context,
-                    question=question,
-                    error_message=error_message,
-                    generated_code=generated_code,  # type: ignore
-                )
 
+            # If all attempts fail
         logger.error("---MAXIMUM ATTEMPTS REACHED: FAILED TO FIX CODE---")
         return RunResponse(
             content=generated_code,
@@ -140,7 +145,7 @@ class CodeGenWorkflow(Workflow):
         logger.info("---NO CODE TEST FAILURES---")
         return "success"
 
-    def fix_code(self, context: str, question: str, error_message: str, generated_code: CodeSolution) -> CodeSolution:
+    def fix_code(self, context: str, question: str, error_message: str, previous_code: CodeSolution) -> CodeSolution:
         """
         Fix the code by providing error context to the agent.
 
@@ -148,7 +153,7 @@ class CodeGenWorkflow(Workflow):
             context (str): The context/documentation.
             question (str): User's question.
             error_message (str): Error message from the previous attempt.
-            generated_code (CodeSolution): The previously generated code solution.
+            previous_code (CodeSolution): The previously generated code solution.
 
         Returns:
             CodeSolution: The fixed code solution.
@@ -166,9 +171,9 @@ class CodeGenWorkflow(Workflow):
         {question}
 
         Previous code attempt:
-        {generated_code.prefix}
-        {generated_code.imports}
-        {generated_code.code}
+        {previous_code.prefix}
+        {previous_code.imports}
+        {previous_code.code}
 
         Answer with a description of the code solution, followed by the imports, and finally the functioning code block.
         Ensure all imports are correct and the code is executable.

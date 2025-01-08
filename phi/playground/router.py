@@ -151,25 +151,29 @@ def get_playground_router(
                     pdf_file = BytesIO(contents)
                     pdf_file.name = file.filename
                     file_content = PDFReader().read(pdf_file)
-                    agent.knowledge.load_documents(file_content)
+                    if agent.knowledge is not None:
+                        agent.knowledge.load_documents(file_content)
                 elif file.content_type == "text/csv":
                     contents = file.file.read()
                     csv_file = BytesIO(contents)
                     csv_file.name = file.filename
                     file_content = CSVReader().read(csv_file)
-                    agent.knowledge.load_documents(file_content)
+                    if agent.knowledge is not None:
+                        agent.knowledge.load_documents(file_content)
                 elif file.content_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
                     contents = file.file.read()
                     docx_file = BytesIO(contents)
                     docx_file.name = file.filename
                     file_content = DocxReader().read(docx_file)
-                    agent.knowledge.load_documents(file_content)
+                    if agent.knowledge is not None:
+                        agent.knowledge.load_documents(file_content)
                 elif file.content_type == "text/plain":
                     contents = file.file.read()
                     text_file = BytesIO(contents)
                     text_file.name = file.filename
                     file_content = TextReader().read(text_file)
-                    agent.knowledge.load_documents(file_content)
+                    if agent.knowledge is not None:
+                        agent.knowledge.load_documents(file_content)
                 else:
                     raise HTTPException(status_code=400, detail="Unsupported file type")
 
@@ -518,25 +522,29 @@ def get_async_playground_router(
                     pdf_file = BytesIO(contents)
                     pdf_file.name = file.filename
                     file_content = PDFReader().read(pdf_file)
-                    agent.knowledge.load_documents(file_content)
+                    if agent.knowledge is not None:
+                        agent.knowledge.load_documents(file_content)
                 elif file.content_type == "text/csv":
                     contents = await file.read()
                     csv_file = BytesIO(contents)
                     csv_file.name = file.filename
                     file_content = CSVReader().read(csv_file)
-                    agent.knowledge.load_documents(file_content)
+                    if agent.knowledge is not None:
+                        agent.knowledge.load_documents(file_content)
                 elif file.content_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
                     contents = await file.read()
                     docx_file = BytesIO(contents)
                     docx_file.name = file.filename
                     file_content = DocxReader().read(docx_file)
-                    agent.knowledge.load_documents(file_content)
+                    if agent.knowledge is not None:
+                        agent.knowledge.load_documents(file_content)
                 elif file.content_type == "text/plain":
                     contents = await file.read()
                     text_file = BytesIO(contents)
                     text_file.name = file.filename
                     file_content = TextReader().read(text_file)
-                    agent.knowledge.load_documents(file_content)
+                    if agent.knowledge is not None:
+                        agent.knowledge.load_documents(file_content)
                 else:
                     raise HTTPException(status_code=400, detail="Unsupported file type")
 

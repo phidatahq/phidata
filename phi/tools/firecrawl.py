@@ -50,7 +50,6 @@ class FirecrawlTools(Toolkit):
             self.register(self.cancel_crawl)
         if map:
             self.register(self.map_website)
-        # self.register(self.crawl_website_with_websocket)
 
     def scrape_website(self, url: str) -> str:
         """Use this function to scrape the given website using Firecrawl.

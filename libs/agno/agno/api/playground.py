@@ -12,6 +12,7 @@ from agno.cli.credentials import read_auth_token
 from agno.cli.settings import agno_cli_settings
 from agno.constants import AGNO_API_KEY_ENV_VAR
 from agno.utils.log import logger
+from dataclasses import asdict
 
 
 def create_playground_endpoint(playground: PlaygroundEndpointCreate) -> bool:
@@ -20,7 +21,7 @@ def create_playground_endpoint(playground: PlaygroundEndpointCreate) -> bool:
         try:
             r: Response = api_client.post(
                 ApiRoutes.PLAYGROUND_ENDPOINT_CREATE,
-                json={"playground": playground.model_dump(exclude_none=True)},
+                json={"playground": asdict(playground)},
             )
             if invalid_response(r):
                 return False

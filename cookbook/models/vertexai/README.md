@@ -24,13 +24,13 @@ pip install -U google-cloud-aiplatform duckduckgo-search yfinance phidata
 - Streaming on
 
 ```shell
-python cookbook/providers/vertexai/basic_stream.py
+python cookbook/models/vertexai/basic_stream.py
 ```
 
 - Streaming off
 
 ```shell
-python cookbook/providers/vertexai/basic.py
+python cookbook/models/vertexai/basic.py
 ```
 
 ### 5. Run Agent with Tools
@@ -38,47 +38,47 @@ python cookbook/providers/vertexai/basic.py
 - Yahoo Finance with streaming on
 
 ```shell
-python cookbook/providers/vertexai/agent_stream.py
+python cookbook/models/vertexai/agent_stream.py
 ```
 
 - Yahoo Finance without streaming
 
 ```shell
-python cookbook/providers/vertexai/agent.py
+python cookbook/models/vertexai/agent.py
 ```
 
 - Finance Agent
 
 ```shell
-python cookbook/providers/vertexai/finance_agent.py
+python cookbook/models/vertexai/finance_agent.py
 ```
 
 - Web Search Agent
 
 ```shell
-python cookbook/providers/vertexai/web_search.py
+python cookbook/models/vertexai/web_search.py
 ```
 
 - Data Analysis Agent
 
 ```shell
-python cookbook/providers/vertexai/data_analyst.py
+python cookbook/models/vertexai/data_analyst.py
 ```
 
 ### 6. Run Agent that returns structured output
 
 ```shell
-python cookbook/providers/vertexai/structured_output.py
+python cookbook/models/vertexai/structured_output.py
 ```
 
 ### 7. Run Agent that uses storage
 
 ```shell
-python cookbook/providers/vertexai/storage.py
+python cookbook/models/vertexai/storage.py
 ```
 
 ### 8. Run Agent that uses knowledge
 
 ```shell
-python cookbook/providers/vertexai/knowledge.py
+python cookbook/models/vertexai/knowledge.py
 ```

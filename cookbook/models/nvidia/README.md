@@ -26,13 +26,13 @@ pip install -U openai phidata
 - Streaming on
 
 ```shell
-python cookbook/providers/nvidia/basic_stream.py
+python cookbook/models/nvidia/basic_stream.py
 ```
 
 - Streaming off
 
 ```shell
-python cookbook/providers/nvidia/basic.py
+python cookbook/models/nvidia/basic.py
 ```
 ## Disclaimer:
 

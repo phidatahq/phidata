@@ -30,13 +30,13 @@ pip install -U ollama duckduckgo-search duckdb yfinance phidata
 - Streaming on
 
 ```shell
-python cookbook/providers/hermes/basic_stream.py
+python cookbook/models/hermes/basic_stream.py
 ```
 
 - Streaming off
 
 ```shell
-python cookbook/providers/hermes/basic.py
+python cookbook/models/hermes/basic.py
 ```
 
 ### 5. Run Agent with Tools
@@ -44,35 +44,35 @@ python cookbook/providers/hermes/basic.py
 - Yahoo Finance with streaming on
 
 ```shell
-python cookbook/providers/hermes/agent_stream.py
+python cookbook/models/hermes/agent_stream.py
 ```
 
 - Yahoo Finance without streaming
 
 ```shell
-python cookbook/providers/hermes/agent.py
+python cookbook/models/hermes/agent.py
 ```
 
 - Finance Agent
 
 ```shell
-python cookbook/providers/hermes/finance_agent.py
+python cookbook/models/hermes/finance_agent.py
 ```
 
 - Data Analyst
 
 ```shell
-python cookbook/providers/hermes/data_analyst.py
+python cookbook/models/hermes/data_analyst.py
 ```
 
 ### 6. Run Agent that returns structured output
 
 ```shell
-python cookbook/providers/hermes/structured_output.py
+python cookbook/models/hermes/structured_output.py
 ```
 
 ### 7. Run Agent that uses web search
 
 ```shell
-python cookbook/providers/hermes/web_search.py
+python cookbook/models/hermes/web_search.py
 ```

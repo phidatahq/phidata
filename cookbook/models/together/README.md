@@ -26,13 +26,13 @@ pip install -U together openai duckduckgo-search duckdb yfinance phidata
 - Streaming on
 
 ```shell
-python cookbook/providers/together/basic_stream.py
+python cookbook/models/together/basic_stream.py
 ```
 
 - Streaming off
 
 ```shell
-python cookbook/providers/together/basic.py
+python cookbook/models/together/basic.py
 ```
 
 ### 5. Run Agent with Tools
@@ -40,35 +40,35 @@ python cookbook/providers/together/basic.py
 - Yahoo Finance with streaming on
 
 ```shell
-python cookbook/providers/together/agent_stream.py
+python cookbook/models/together/agent_stream.py
 ```
 
 - Yahoo Finance without streaming
 
 ```shell
-python cookbook/providers/together/agent.py
+python cookbook/models/together/agent.py
 ```
 
 - Finance Agent
 
 ```shell
-python cookbook/providers/together/finance_agent.py
+python cookbook/models/together/finance_agent.py
 ```
 
 - Data Analyst
 
 ```shell
-python cookbook/providers/together/data_analyst.py
+python cookbook/models/together/data_analyst.py
 ```
 
 - DuckDuckGo Search
 ```shell
-python cookbook/providers/together/web_search.py
+python cookbook/models/together/web_search.py
 ```
 
 ### 6. Run Agent that returns structured output
 
 ```shell
-python cookbook/providers/together/structured_output.py
+python cookbook/models/together/structured_output.py
 ```
 

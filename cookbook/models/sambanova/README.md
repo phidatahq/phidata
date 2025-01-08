@@ -26,13 +26,13 @@ pip install -U openai phidata
 - Streaming on
 
 ```shell
-python cookbook/providers/sambanova/basic_stream.py
+python cookbook/models/sambanova/basic_stream.py
 ```
 
 - Streaming off
 
 ```shell
-python cookbook/providers/sambanova/basic.py
+python cookbook/models/sambanova/basic.py
 ```
 ## Disclaimer:
 

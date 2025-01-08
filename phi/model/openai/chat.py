@@ -772,11 +772,14 @@ class OpenAIChat(Model):
                 self.metrics.get("completion_tokens_details", {}).get(k, 0) + v
 
     def add_response_usage_to_metrics(self, metrics: Metrics, response_usage: CompletionUsage):
-        metrics.input_tokens = response_usage.prompt_tokens
-        metrics.prompt_tokens = response_usage.prompt_tokens
-        metrics.output_tokens = response_usage.completion_tokens
-        metrics.completion_tokens = response_usage.completion_tokens
-        metrics.total_tokens = response_usage.total_tokens
+        if response_usage.prompt_tokens is not None:
+            metrics.input_tokens = response_usage.prompt_tokens
+            metrics.prompt_tokens = response_usage.prompt_tokens
+        if response_usage.completion_tokens is not None:
+            metrics.output_tokens = response_usage.completion_tokens
+            metrics.completion_tokens = response_usage.completion_tokens
+        if response_usage.total_tokens is not None:
+            metrics.total_tokens = response_usage.total_tokens
         if response_usage.prompt_tokens_details is not None:
             if isinstance(response_usage.prompt_tokens_details, dict):
                 metrics.prompt_tokens_details = response_usage.prompt_tokens_details
@@ -866,6 +869,8 @@ class OpenAIChat(Model):
         metrics.response_timer.start()
         for response in self.invoke_stream(messages=messages):
             if len(response.choices) > 0:
+                if metrics.completion_tokens is None:
+                    metrics.completion_tokens = 0
                 metrics.completion_tokens += 1
                 if metrics.completion_tokens == 1:
                     metrics.time_to_first_token = metrics.response_timer.elapsed

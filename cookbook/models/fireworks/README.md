@@ -26,13 +26,13 @@ pip install -U openai duckduckgo-search duckdb yfinance phidata
 - Streaming on
 
 ```shell
-python cookbook/providers/fireworks/basic_stream.py
+python cookbook/models/fireworks/basic_stream.py
 ```
 
 - Streaming off
 
 ```shell
-python cookbook/providers/fireworks/basic.py
+python cookbook/models/fireworks/basic.py
 ```
 
 ### 5. Run Agent with Tools
@@ -40,37 +40,37 @@ python cookbook/providers/fireworks/basic.py
 - Yahoo Finance with streaming on
 
 ```shell
-python cookbook/providers/fireworks/agent_stream.py
+python cookbook/models/fireworks/agent_stream.py
 ```
 
 - Yahoo Finance without streaming
 
 ```shell
-python cookbook/providers/fireworks/agent.py
+python cookbook/models/fireworks/agent.py
 ```
 
 - Web Search
 
 ```shell
-python cookbook/providers/fireworks/web_search.py
+python cookbook/models/fireworks/web_search.py
 ```
 
 - Data Analyst
 
 ```shell
-python cookbook/providers/fireworks/data_analyst.py
+python cookbook/models/fireworks/data_analyst.py
 ```
 
 - Finance Agent
 
 ```shell
-python cookbook/providers/fireworks/finance_agent.py
+python cookbook/models/fireworks/finance_agent.py
 ```
 
 ### 6. Run Agent that returns structured output
 
 ```shell
-python cookbook/providers/fireworks/structured_output.py
+python cookbook/models/fireworks/structured_output.py
 ```
 
 

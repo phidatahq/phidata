@@ -26,13 +26,13 @@ pip install -U openai duckduckgo-search duckdb yfinance phidata
 - Streaming on
 
 ```shell
-python cookbook/providers/openrouter/basic_stream.py
+python cookbook/models/openrouter/basic_stream.py
 ```
 
 - Streaming off
 
 ```shell
-python cookbook/providers/openrouter/basic.py
+python cookbook/models/openrouter/basic.py
 ```
 
 ### 5. Run Agent with Tools
@@ -40,37 +40,37 @@ python cookbook/providers/openrouter/basic.py
 - Yahoo Finance with streaming on
 
 ```shell
-python cookbook/providers/openrouter/agent_stream.py
+python cookbook/models/openrouter/agent_stream.py
 ```
 
 - Yahoo Finance without streaming
 
 ```shell
-python cookbook/providers/openrouter/agent.py
+python cookbook/models/openrouter/agent.py
 ```
 
 - Web Search Agent
 
 ```shell
-python cookbook/providers/openrouter/web_search.py
+python cookbook/models/openrouter/web_search.py
 ```
 
 - Data Analyst
 
 ```shell
-python cookbook/providers/openrouter/data_analyst.py
+python cookbook/models/openrouter/data_analyst.py
 ```
 
 - Finance Agent
 
 ```shell
-python cookbook/providers/openrouter/finance_agent.py
+python cookbook/models/openrouter/finance_agent.py
 ```
 
 ### 6. Run Agent that returns structured output
 
 ```shell
-python cookbook/providers/openrouter/structured_output.py
+python cookbook/models/openrouter/structured_output.py
 ```
 
 

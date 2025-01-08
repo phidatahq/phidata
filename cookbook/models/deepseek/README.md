@@ -26,13 +26,13 @@ pip install -U openai duckduckgo-search duckdb yfinance phidata
 - Streaming on
 
 ```shell
-python cookbook/providers/deepseek/basic_stream.py
+python cookbook/models/deepseek/basic_stream.py
 ```
 
 - Streaming off
 
 ```shell
-python cookbook/providers/deepseek/basic.py
+python cookbook/models/deepseek/basic.py
 ```
 
 ### 5. Run Agent with Tools
@@ -40,36 +40,36 @@ python cookbook/providers/deepseek/basic.py
 - DuckDuckGo Search with streaming on
 
 ```shell
-python cookbook/providers/deepseek/agent_stream.py
+python cookbook/models/deepseek/agent_stream.py
 ```
 
 - DuckDuckGo Search without streaming
 
 ```shell
-python cookbook/providers/deepseek/agent.py
+python cookbook/models/deepseek/agent.py
 ```
 
 - Finance Agent
 
 ```shell
-python cookbook/providers/deepseek/finance_agent.py
+python cookbook/models/deepseek/finance_agent.py
 ```
 
 - Data Analyst
 
 ```shell
-python cookbook/providers/deepseek/data_analyst.py
+python cookbook/models/deepseek/data_analyst.py
 ```
 
 - Web Search
 
 ```shell
-python cookbook/providers/deepseek/web_search.py
+python cookbook/models/deepseek/web_search.py
 ```
 
 ### 6. Run Agent that returns structured output
 
 ```shell
-python cookbook/providers/deepseek/structured_output.py
+python cookbook/models/deepseek/structured_output.py
 ```
 

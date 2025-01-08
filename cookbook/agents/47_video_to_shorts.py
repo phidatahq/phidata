@@ -4,12 +4,14 @@
 2. Run the script using: `python cookbook/agents/47_video_to_shorts.py`
 """
 
-from phi.agent import Agent
-from phi.model.google import Gemini
-from google.generativeai import upload_file, get_file
 import time
 import subprocess
 from pathlib import Path
+
+from google.generativeai import upload_file, get_file
+
+from phi.agent import Agent
+from phi.model.google import Gemini
 from phi.utils.log import logger
 
 video_path = "sample.mp4"
@@ -22,6 +24,16 @@ agent = Agent(
     markdown=True,
     debug_mode=True,
     structured_outputs=True,
+    instructions=[
+        "Analyze the provided video directly—do NOT reference or analyze any external sources or YouTube videos.",
+        "Identify engaging moments that meet the specified criteria for short-form content.",
+        """Provide your analysis in a **table format** with these columns:
+   - Start Time | End Time | Description | Importance Score""",
+        "Ensure all timestamps use MM:SS format and importance scores range from 1-10. ",
+        "Focus only on segments between 15 and 60 seconds long.",
+        "Base your analysis solely on the provided video content.",
+        "Deliver actionable insights to improve the identified segments for short-form optimization.",
+    ],
 )
 
 # 2. Upload and process video
@@ -56,16 +68,6 @@ For each video, you'll:
    - A clear description of why the segment would be engaging
    - Suggestions on how to enhance the segment for short-form content
    - An importance score (1-10) based on engagement potential
-
-Instructions:
-1. Analyze the provided video directly—do NOT reference or analyze any external sources or YouTube videos.
-2. Identify engaging moments that meet the specified criteria for short-form content.
-3. Provide your analysis in a **table format** with these columns:
-   - Start Time | End Time | Description | Importance Score
-4. Ensure all timestamps use MM:SS format and importance scores range from 1-10.
-5. Focus only on segments between 15 and 60 seconds long.
-6. Base your analysis solely on the provided video content.
-7. Deliver actionable insights to improve the identified segments for short-form optimization.
 
 Your goal is to identify moments that are visually compelling, emotionally engaging, and perfectly optimized for short-form platforms.
 """

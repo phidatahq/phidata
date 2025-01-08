@@ -4,12 +4,17 @@ from phi.agent import Agent
 from phi.model.google import Gemini
 from phi.knowledge.pdf import PDFUrlKnowledgeBase
 from phi.vectordb.pgvector import PgVector
+from phi.embedder.google import GeminiEmbedder
 
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 
 knowledge_base = PDFUrlKnowledgeBase(
     urls=["https://phi-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
-    vector_db=PgVector(table_name="recipes", db_url=db_url),
+    vector_db=PgVector(
+        table_name="recipes",
+        db_url=db_url,
+        embedder=GeminiEmbedder(),
+    )
 )
 knowledge_base.load(recreate=True)  # Comment out after first run
 

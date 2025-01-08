@@ -30,13 +30,13 @@ pip install -U boto3 duckduckgo-search duckdb yfinance phidata
 - Streaming on
 
 ```shell
-python cookbook/providers/bedrock/basic_stream.py
+python cookbook/models/bedrock/basic_stream.py
 ```
 
 - Streaming off
 
 ```shell
-python cookbook/providers/bedrock/basic.py
+python cookbook/models/bedrock/basic.py
 ```
 
 ### 5. Run Agent with Tools
@@ -44,47 +44,47 @@ python cookbook/providers/bedrock/basic.py
 - YFinance Agent with streaming on
 
 ```shell
-python cookbook/providers/bedrock/agent_stream.py
+python cookbook/models/bedrock/agent_stream.py
 ```
 
 - YFinance Agent without streaming
 
 ```shell
-python cookbook/providers/bedrock/agent.py
+python cookbook/models/bedrock/agent.py
 ```
 
 - Data Analyst
 
 ```shell
-python cookbook/providers/bedrock/data_analyst.py
+python cookbook/models/bedrock/data_analyst.py
 ```
 
 - Web Search
 
 ```shell
-python cookbook/providers/bedrock/web_search.py
+python cookbook/models/bedrock/web_search.py
 ```
 
 - Finance Agent
 
 ```shell
-python cookbook/providers/bedrock/finance.py
+python cookbook/models/bedrock/finance.py
 ```
 
 ### 6. Run Agent that returns structured output
 
 ```shell
-python cookbook/providers/bedrock/structured_output.py
+python cookbook/models/bedrock/structured_output.py
 ```
 
 ### 7. Run Agent that uses storage
 
 ```shell
-python cookbook/providers/bedrock/storage.py
+python cookbook/models/bedrock/storage.py
 ```
 
 ### 8. Run Agent that uses knowledge
 
 ```shell
-python cookbook/providers/bedrock/knowledge.py
+python cookbook/models/bedrock/knowledge.py
 ```

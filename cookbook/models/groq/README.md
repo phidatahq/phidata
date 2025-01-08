@@ -26,13 +26,13 @@ pip install -U groq duckduckgo-search duckdb yfinance phidata
 - Streaming on
 
 ```shell
-python cookbook/providers/groq/basic_stream.py
+python cookbook/models/groq/basic_stream.py
 ```
 
 - Streaming off
 
 ```shell
-python cookbook/providers/groq/basic.py
+python cookbook/models/groq/basic.py
 ```
 
 ### 5. Run Agent with Tools
@@ -40,37 +40,37 @@ python cookbook/providers/groq/basic.py
 - DuckDuckGo Search with streaming on
 
 ```shell
-python cookbook/providers/groq/agent_stream.py
+python cookbook/models/groq/agent_stream.py
 ```
 
 - DuckDuckGo Search without streaming
 
 ```shell
-python cookbook/providers/groq/agent.py
+python cookbook/models/groq/agent.py
 ```
 
 - Finance Agent
 
 ```shell
-python cookbook/providers/groq/finance_agent.py
+python cookbook/models/groq/finance_agent.py
 ```
 
 - Data Analyst
 
 ```shell
-python cookbook/providers/groq/data_analyst.py
+python cookbook/models/groq/data_analyst.py
 ```
 
 - Web Search
 
 ```shell
-python cookbook/providers/groq/web_search.py
+python cookbook/models/groq/web_search.py
 ```
 
 ### 6. Run Agent that returns structured output
 
 ```shell
-python cookbook/providers/groq/structured_output.py
+python cookbook/models/groq/structured_output.py
 ```
 
 ### 7. Run Agent that uses storage
@@ -84,11 +84,37 @@ Please run pgvector in a docker container using:
 Then run the following:
 
 ```shell
-python cookbook/providers/groq/storage.py
+python cookbook/models/groq/storage.py
 ```
 
 ### 8. Run Agent that uses knowledge
 
 ```shell
-python cookbook/providers/groq/knowledge.py
+python cookbook/models/groq/knowledge.py
+```
+Take note that by default, OpenAI embeddings are used and an API key will be required. Alternatively, there are other embedders available that can be used. See more examples in `/cookbook/knowledge/embedders`
+
+
+### 9. Run Playground with some Agents
+
+```shell
+python cookbook/models/groq/knowledge.py
+```
+
+### 10. Run in async mode
+
+```shell
+python cookbook/models/groq/async/basic_stream.py
+```
+```shell
+python cookbook/models/groq/async/basic.py
+```
+```shell
+python cookbook/models/groq/async/data_analyst.py
+```
+```shell
+python cookbook/models/groq/async/finance_agent.py
+```
+```shell
+python cookbook/models/groq/async/hackernews.py
 ```

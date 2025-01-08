@@ -28,13 +28,13 @@ pip install -U anthropic duckduckgo-search duckdb yfinance phidata
 - Streaming on
 
 ```shell
-python cookbook/providers/claude/basic_stream.py
+python cookbook/models/claude/basic_stream.py
 ```
 
 - Streaming off
 
 ```shell
-python cookbook/providers/claude/basic.py
+python cookbook/models/claude/basic.py
 ```
 
 ### 5. Run Agent with Tools
@@ -42,47 +42,54 @@ python cookbook/providers/claude/basic.py
 - YFinance Agent with streaming on
 
 ```shell
-python cookbook/providers/claude/agent_stream.py
+python cookbook/models/claude/agent_stream.py
 ```
 
 - YFinance Agent without streaming
 
 ```shell
-python cookbook/providers/claude/agent.py
+python cookbook/models/claude/agent.py
 ```
 
 - Data Analyst
 
 ```shell
-python cookbook/providers/claude/data_analyst.py
+python cookbook/models/claude/data_analyst.py
 ```
 
 - Web Search
 
 ```shell
-python cookbook/providers/claude/web_search.py
+python cookbook/models/claude/web_search.py
 ```
 
 - Finance Agent
 
 ```shell
-python cookbook/providers/claude/finance.py
+python cookbook/models/claude/finance.py
 ```
 
 ### 6. Run Agent that returns structured output
 
 ```shell
-python cookbook/providers/claude/structured_output.py
+python cookbook/models/claude/structured_output.py
 ```
 
 ### 7. Run Agent that uses storage
 
 ```shell
-python cookbook/providers/claude/storage.py
+python cookbook/models/claude/storage.py
 ```
 
 ### 8. Run Agent that uses knowledge
 
+Take note that claude uses OpenAI embeddings under the hood, and you will need an OpenAI API Key
 ```shell
-python cookbook/providers/claude/knowledge.py
+export OPENAI_API_KEY=***
 ```
+
+```shell
+python cookbook/models/claude/knowledge.py
+```
+
+

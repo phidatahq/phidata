@@ -26,11 +26,11 @@ pip install -U openai phidata
 - Streaming on
 
 ```shell
-python cookbook/providers/google_openai/basic_stream.py
+python cookbook/models/google_openai/basic_stream.py
 ```
 
 - Streaming off
 
 ```shell
-python cookbook/providers/google_openai/basic.py
+python cookbook/models/google_openai/basic.py
 ```

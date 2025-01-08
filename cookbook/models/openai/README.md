@@ -26,13 +26,13 @@ pip install -U openai duckduckgo-search duckdb yfinance phidata
 - Streaming on
 
 ```shell
-python cookbook/providers/openai/basic_stream.py
+python cookbook/models/openai/basic_stream.py
 ```
 
 - Streaming off
 
 ```shell
-python cookbook/providers/openai/basic.py
+python cookbook/models/openai/basic.py
 ```
 
 ### 5. Run Agent with Tools
@@ -40,53 +40,53 @@ python cookbook/providers/openai/basic.py
 - Yahoo Finance with streaming on
 
 ```shell
-python cookbook/providers/openai/agent_stream.py
+python cookbook/models/openai/agent_stream.py
 ```
 
 - Yahoo Finance without streaming
 
 ```shell
-python cookbook/providers/openai/agent.py
+python cookbook/models/openai/agent.py
 ```
 
 - Finance Agent
 
 ```shell
-python cookbook/providers/openai/finance_agent.py
+python cookbook/models/openai/finance_agent.py
 ```
 
 - Data Analyst
 
 ```shell
-python cookbook/providers/openai/data_analyst.py
+python cookbook/models/openai/data_analyst.py
 ```
 
 - Web Search
 
 ```shell
-python cookbook/providers/openai/web_search.py
+python cookbook/models/openai/web_search.py
 ```
 
 ### 6. Run Agent that returns structured output
 
 ```shell
-python cookbook/providers/openai/structured_output.py
+python cookbook/models/openai/structured_output.py
 ```
 
 ### 7. Run Agent uses memory
 
 ```shell
-python cookbook/providers/openai/memory.py
+python cookbook/models/openai/memory.py
 ```
 
 ### 8. Run Agent that uses storage
 
 ```shell
-python cookbook/providers/openai/storage.py
+python cookbook/models/openai/storage.py
 ```
 
 ### 9. Run Agent that uses knowledge
 
 ```shell
-python cookbook/providers/openai/knowledge.py
+python cookbook/models/openai/knowledge.py
 ```

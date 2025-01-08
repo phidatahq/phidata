@@ -26,13 +26,13 @@ pip install -U mistralai duckduckgo-search duckdb yfinance phidata
 - Streaming on
 
 ```shell
-python cookbook/providers/mistral/basic_stream.py
+python cookbook/models/mistral/basic_stream.py
 ```
 
 - Streaming off
 
 ```shell
-python cookbook/providers/mistral/basic.py
+python cookbook/models/mistral/basic.py
 ```
 
 ### 5. Run Agent with Tools
@@ -40,35 +40,35 @@ python cookbook/providers/mistral/basic.py
 - Yahoo Finance with streaming on
 
 ```shell
-python cookbook/providers/mistral/agent_stream.py
+python cookbook/models/mistral/agent_stream.py
 ```
 
 - Yahoo Finance without streaming
 
 ```shell
-python cookbook/providers/mistral/agent.py
+python cookbook/models/mistral/agent.py
 ```
 
 - Finance Agent
 
 ```shell
-python cookbook/providers/mistral/finance_agent.py
+python cookbook/models/mistral/finance_agent.py
 ```
 
 - Data Analyst
 
 ```shell
-python cookbook/providers/mistral/data_analyst.py
+python cookbook/models/mistral/data_analyst.py
 ```
 
 ### 6. Run Agent that returns structured output
 
 ```shell
-python cookbook/providers/mistral/structured_output.py
+python cookbook/models/mistral/structured_output.py
 ```
 
 ### 7. Run Agent that uses web search
 
 ```shell
-python cookbook/providers/mistral/web_search.py
+python cookbook/models/mistral/web_search.py
 ```

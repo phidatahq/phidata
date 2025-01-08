@@ -30,13 +30,13 @@ pip install -U ollama duckduckgo-search duckdb yfinance phidata
 - Streaming on
 
 ```shell
-python cookbook/providers/ollama/basic_stream.py
+python cookbook/models/ollama/basic_stream.py
 ```
 
 - Streaming off
 
 ```shell
-python cookbook/providers/ollama/basic.py
+python cookbook/models/ollama/basic.py
 ```
 
 ### 5. Run Agent with Tools
@@ -44,47 +44,60 @@ python cookbook/providers/ollama/basic.py
 - Yahoo Finance with streaming on
 
 ```shell
-python cookbook/providers/ollama/agent_stream.py
+python cookbook/models/ollama/agent_stream.py
 ```
 
 - Yahoo Finance without streaming
 
 ```shell
-python cookbook/providers/ollama/agent.py
+python cookbook/models/ollama/agent.py
 ```
 
 - Finance Agent
 
 ```shell
-python cookbook/providers/ollama/finance_agent.py
+python cookbook/models/ollama/finance_agent.py
 ```
 
 - Data Analyst
 
 ```shell
-python cookbook/providers/ollama/data_analyst.py
+python cookbook/models/ollama/data_analyst.py
 ```
 
 - Web Search
 
 ```shell
-python cookbook/providers/ollama/web_search.py
+python cookbook/models/ollama/web_search.py
 ```
 
 ### 6. Run Agent that returns structured output
 
 ```shell
-python cookbook/providers/ollama/structured_output.py
+python cookbook/models/ollama/structured_output.py
 ```
 
 ### 7. Run Agent that uses storage
 
 ```shell
-python cookbook/providers/ollama/storage.py
+python cookbook/models/ollama/storage.py
 ```
 
 ### 8. Run Agent that uses knowledge
 
 ```shell
-python cookbook/providers/ollama/knowledge.py
+python cookbook/models/ollama/knowledge.py
+```
+
+### 9. Run Agent that interprets an image
+
+Run the llama3.2 vision model
+
+```shell
+ollama run llama3.2-vision
+```
+
+Message `/bye` to exit the chat model
+```shell
+python cookbook/models/ollama/image_agent.py
 ```

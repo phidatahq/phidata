@@ -26,13 +26,13 @@ pip install -U google-generativeai duckduckgo-search yfinance phidata
 - Streaming on
 
 ```shell
-python cookbook/providers/google/basic_stream.py
+python cookbook/models/google/basic_stream.py
 ```
 
 - Streaming off
 
 ```shell
-python cookbook/providers/google/basic.py
+python cookbook/models/google/basic.py
 ```
 
 ### 5. Run Agent with Tools
@@ -40,47 +40,53 @@ python cookbook/providers/google/basic.py
 - Yahoo Finance with streaming on
 
 ```shell
-python cookbook/providers/google/agent_stream.py
+python cookbook/models/google/agent_stream.py
 ```
 
 - Yahoo Finance without streaming
 
 ```shell
-python cookbook/providers/google/agent.py
+python cookbook/models/google/agent.py
 ```
 
 - Finance Agent
 
 ```shell
-python cookbook/providers/google/finance_agent.py
+python cookbook/models/google/finance_agent.py
 ```
 
 - Web Search Agent
 
 ```shell
-python cookbook/providers/google/web_search.py
+python cookbook/models/google/web_search.py
 ```
 
 - Data Analysis Agent
 
 ```shell
-python cookbook/providers/google/data_analyst.py
+python cookbook/models/google/data_analyst.py
 ```
 
 ### 6. Run Agent that returns structured output
 
 ```shell
-python cookbook/providers/google/structured_output.py
+python cookbook/models/google/structured_output.py
 ```
 
 ### 7. Run Agent that uses storage
 
 ```shell
-python cookbook/providers/google/storage.py
+python cookbook/models/google/storage.py
 ```
 
 ### 8. Run Agent that uses knowledge
 
 ```shell
-python cookbook/providers/google/knowledge.py
+python cookbook/models/google/knowledge.py
+```
+
+### 9. Run Agent that interprets an audio file
+
+```shell
+python cookbook/models/google/audio_agent.py
 ```

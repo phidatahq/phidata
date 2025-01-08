@@ -68,7 +68,7 @@ def main() -> None:
             with st.container():
                 search_terms_container = st.empty()
                 search_generator_input = {"topic": report_topic, "num_terms": num_search_terms}
-                search_terms = search_term_generator.run(json.dumps(search_generator_input))
+                search_terms = search_term_generator.run(json.dumps(search_generator_input)).content
                 if search_terms:
                     search_terms_container.json(search_terms.model_dump())
             status.update(label="Search Terms Generated", state="complete", expanded=False)
@@ -88,7 +88,11 @@ def main() -> None:
                         exa_search_results = exa_search_agent.run(search_terms.model_dump_json(indent=4))
                         if isinstance(exa_search_results, str):
                             raise ValueError("Unexpected string response from exa_search_agent")
-                        if exa_search_results and len(exa_search_results.content.results) > 0:
+                        if (
+                            exa_search_results
+                            and exa_search_results.content
+                            and len(exa_search_results.content.results) > 0
+                        ):
                             exa_content = exa_search_results.model_dump_json(indent=4)
                             exa_container.json(exa_search_results.content.results)
                             status.update(label="Exa Search Complete", state="complete", expanded=False)
@@ -102,11 +106,11 @@ def main() -> None:
                 with st.container():
                     arxiv_container = st.empty()
                     arxiv_search_results = arxiv_search_agent.run(search_terms.model_dump_json(indent=4))
-                    if arxiv_search_results and arxiv_search_results.content.results:
+                    if arxiv_search_results and arxiv_search_results.content and arxiv_search_results.content.results:
                         arxiv_container.json([result.model_dump() for result in arxiv_search_results.content.results])
                 status.update(label="ArXiv Search Complete", state="complete", expanded=False)
 
-            if arxiv_search_results and arxiv_search_results.content.results:
+            if arxiv_search_results and arxiv_search_results.content and arxiv_search_results.content.results:
                 paper_summaries = []
                 for result in arxiv_search_results.content.results:
                     summary = {

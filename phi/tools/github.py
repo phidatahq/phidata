@@ -23,10 +23,8 @@ class GithubTools(Toolkit):
         get_pull_request: bool = True,
         get_pull_request_changes: bool = True,
         create_issue: bool = True,
-         feat/ghub-repo-create
         create_repository: bool = True,
-        get_repository_languages: bool = True,
-         main
+        get_repository_languages: bool = True
     ):
         super().__init__(name="github")
 
@@ -49,13 +47,11 @@ class GithubTools(Toolkit):
             self.register(self.get_pull_request_changes)
         if create_issue:
             self.register(self.create_issue)
-        feat/ghub-repo-create
         if create_repository:
             self.register(self.create_repository)
 
         if get_repository_languages:
             self.register(self.get_repository_languages)
-        main
 
     def authenticate(self):
         """Authenticate with GitHub using the provided access token."""
@@ -123,6 +119,7 @@ class GithubTools(Toolkit):
         private: bool = False,
         description: Optional[str] = None,
         auto_init: bool = False,
+        organization: Optional[str] = None,
     ) -> str:
         """Create a new repository on GitHub.
 
@@ -131,6 +128,7 @@ class GithubTools(Toolkit):
             private (bool, optional): Whether the repository is private. Defaults to False.
             description (str, optional): A short description of the repository.
             auto_init (bool, optional): Whether to initialize the repository with a README. Defaults to False.
+            organization (str, optional): Name of organization to create repo in. If None, creates in user account.
 
         Returns:
             A JSON-formatted string containing the created repository details.
@@ -138,12 +136,24 @@ class GithubTools(Toolkit):
         logger.debug(f"Creating repository: {name}")
         try:
             description = description if description is not None else ""
-            repo = self.g.get_user().create_repo(
-                name=name,
-                private=private,
-                description=description,
-                auto_init=auto_init,
-            )
+            
+            if organization:
+                logger.debug(f"Creating in organization: {organization}")
+                org = self.g.get_organization(organization)
+                repo = org.create_repo(
+                    name=name,
+                    private=private,
+                    description=description,
+                    auto_init=auto_init,
+                )
+            else:
+                repo = self.g.get_user().create_repo(
+                    name=name,
+                    private=private,
+                    description=description,
+                    auto_init=auto_init,
+                )
+                
             repo_info = {
                 "name": repo.full_name,
                 "url": repo.html_url,

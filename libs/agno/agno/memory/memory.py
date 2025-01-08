@@ -1,9 +1,9 @@
-from dataclasses import asdict, dataclass
 from typing import Any, Dict, Optional
 
+from pydantic import BaseModel
 
-@dataclass
-class Memory:
+
+class Memory(BaseModel):
     """Model for Agent Memories"""
 
     memory: str
@@ -12,4 +12,4 @@ class Memory:
     input: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
-        return {k: v for k, v in asdict(self).items() if v is not None}
+        return self.model_dump(exclude_none=True)

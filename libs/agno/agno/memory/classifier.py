@@ -26,7 +26,7 @@ class MemoryClassifier(BaseModel):
                     "Agno uses `openai` as the default model provider. " "Please provide a `model` or install `openai`."
                 )
                 exit(1)
-            self.model = OpenAIChat()
+            self.model = OpenAIChat(id="gpt-4o")
 
     def get_system_message(self) -> Message:
         # -*- Return a system message for classification

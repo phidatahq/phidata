@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+
+from pydantic import BaseModel, ConfigDict
 
 from agno.memory.summary import SessionSummary
 from agno.models.message import Message
@@ -17,11 +18,12 @@ if TYPE_CHECKING:
     from agno.memory.summarizer import MemorySummarizer
 
 
-@dataclass
-class AgentRun:
+class AgentRun(BaseModel):
     message: Optional[Message] = None
     messages: Optional[List[Message]] = None
     response: Optional[RunResponse] = None
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
 class MemoryRetrieval(str, Enum):
@@ -30,12 +32,11 @@ class MemoryRetrieval(str, Enum):
     semantic = "semantic"
 
 
-@dataclass
-class AgentMemory:
+class AgentMemory(BaseModel):
     # Runs between the user and agent
-    runs: List[AgentRun] = field(default_factory=list)
+    runs: List[AgentRun] = []
     # List of messages sent to the model
-    messages: List[Message] = field(default_factory=list)
+    messages: List[Message] = []
     update_system_message_on_change: bool = False
 
     # Summary of the session
@@ -65,32 +66,30 @@ class AgentMemory:
     # True when memory is being updated
     updating_memory: bool = False
 
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     def to_dict(self) -> Dict[str, Any]:
-        # Fields to include in the dictionary
-        fields = {
-            "runs",
-            "messages",
-            "update_system_message_on_change",
-            "create_session_summary",
-            "update_session_summary_after_run",
-            "create_user_memories",
-            "update_user_memories_after_run",
-            "user_id",
-            "num_memories",
-        }
-
-        # Convert dataclass to dict, including only specified fields and non-None values
-        memory_dict = {k: v for k, v in asdict(self).items() if k in fields and v is not None}
-
+        _memory_dict = self.model_dump(
+            exclude_none=True,
+            include={
+                "runs",
+                "messages",
+                "update_system_message_on_change",
+                "create_session_summary",
+                "update_session_summary_after_run",
+                "create_user_memories",
+                "update_user_memories_after_run",
+                "user_id",
+                "num_memories",
+            },
+        )
         # Add summary if it exists
         if self.summary:
-            memory_dict["summary"] = self.summary.to_dict()
-
+            _memory_dict["summary"] = self.summary.to_dict()
         # Add memories if they exist
         if self.memories:
-            memory_dict["memories"] = [memory.to_dict() for memory in self.memories]
-
-        return memory_dict
+            _memory_dict["memories"] = [memory.to_dict() for memory in self.memories]
+        return _memory_dict
 
     def add_run(self, agent_run: AgentRun) -> None:
         """Adds an AgentRun to the runs list."""

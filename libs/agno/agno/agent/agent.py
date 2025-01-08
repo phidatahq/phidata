@@ -106,7 +106,7 @@ class Agent:
     # A list of tools provided to the Model.
     # Tools are functions the model may generate JSON inputs for.
     # If you provide a dict, it is not called by the model.
-    tools: Optional[List[Union[Toolkit, Callable, Function, Dict]]] = (None,)
+    tools: Optional[List[Union[Toolkit, Callable, Function, Dict]]] = None
     # Show tool calls in Agent response.
     show_tool_calls: bool = False
     # Maximum number of tool calls allowed.
@@ -323,7 +323,7 @@ class Agent:
         self.add_context = add_context
         self.resolve_context = resolve_context
 
-        self.memory: AgentMemory = memory if memory is not None else AgentMemory()
+        self.memory: AgentMemory = memory
         self.add_history_to_messages = add_history_to_messages
         self.num_history_responses = num_history_responses
 
@@ -423,6 +423,10 @@ class Agent:
             set_log_level_to_info()
         return debug_mode
 
+    def initialize_memory(self) -> None:
+        if self.memory is None:
+            self.memory = AgentMemory()
+
     @property
     def is_streamable(self) -> bool:
         return self.response_model is None
@@ -467,9 +471,10 @@ class Agent:
         from agno.agent.step.respond import Respond
 
         # 1. Prepare the Agent for the run
-        # 1.1 Set agent_id and session_id
+        # 1.1 Set agent_id, session_id and initialize memory
         self.set_agent_id()
         self.set_session_id()
+        self.initialize_memory()
         # 1.2 Set streaming and stream intermediate steps
         self.stream = self.stream or (stream and self.is_streamable)
         self.stream_intermediate_steps = self.stream_intermediate_steps or (stream_intermediate_steps and self.stream)
@@ -791,9 +796,10 @@ class Agent:
         from agno.agent.step.respond import Respond
 
         # 1. Prepare the Agent for the run
-        # 1.1 Set agent_id and session_id
+        # 1.1 Set agent_id, session_id and initialize memory
         self.set_agent_id()
         self.set_session_id()
+        self.initialize_memory()
         # 1.2 Set streaming and stream intermediate steps
         self.stream = self.stream or (stream and self.is_streamable)
         self.stream_intermediate_steps = self.stream_intermediate_steps or (stream_intermediate_steps and self.stream)
@@ -1296,19 +1302,19 @@ class Agent:
                 if images_from_db is not None and isinstance(images_from_db, list):
                     if self.images is None:
                         self.images = []
-                    self.images.extend([Image(**img) for img in images_from_db])
+                    self.images.extend([Image.model_validate(img) for img in images_from_db])
             if "videos" in session.session_data:
                 videos_from_db = session.session_data.get("videos")
                 if videos_from_db is not None and isinstance(videos_from_db, list):
                     if self.videos is None:
                         self.videos = []
-                    self.videos.extend([Video(**vid) for vid in videos_from_db])
+                    self.videos.extend([Video.model_validate(vid) for vid in videos_from_db])
             if "audio" in session.session_data:
                 audio_from_db = session.session_data.get("audio")
                 if audio_from_db is not None and isinstance(audio_from_db, list):
                     if self.audio is None:
                         self.audio = []
-                    self.audio.extend([Audio(**aud) for aud in audio_from_db])
+                    self.audio.extend([Audio.model_validate(aud) for aud in audio_from_db])
 
         # Read memory from the database
         if session.memory is not None:

@@ -2,8 +2,8 @@ import json
 import httpx
 import asyncio
 
-from phi.agent import Agent
-from phi.model.groq import Groq
+from agno.agent import Agent
+from agno.models.groq import Groq
 
 
 def get_top_hackernews_stories(num_stories: int = 10) -> str:

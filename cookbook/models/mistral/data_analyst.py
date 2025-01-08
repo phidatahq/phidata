@@ -3,9 +3,9 @@
 import os
 
 from textwrap import dedent
-from phi.agent import Agent
-from phi.model.mistral import MistralChat
-from phi.tools.duckdb import DuckDbTools
+from agno.agent import Agent
+from agno.models.mistral import MistralChat
+from agno.tools.duckdb import DuckDbTools
 
 mistral_api_key = os.getenv("MISTRAL_API_KEY")
 

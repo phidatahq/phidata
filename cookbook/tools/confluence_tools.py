@@ -1,5 +1,5 @@
-from phi.agent import Agent
-from phi.tools.confluence import ConfluenceTools
+from agno.agent import Agent
+from agno.tools.confluence import ConfluenceTools
 
 
 agent = Agent(

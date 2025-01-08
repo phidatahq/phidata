@@ -1,8 +1,8 @@
 """Run `pip install duckduckgo-search` to install dependencies."""
 
-from phi.agent import Agent
-from phi.model.cohere import CohereChat
-from phi.tools.duckduckgo import DuckDuckGo
+from agno.agent import Agent
+from agno.models.cohere import CohereChat
+from agno.tools.duckduckgo import DuckDuckGo
 
 agent = Agent(
     model=CohereChat(id="command-r-08-2024"),

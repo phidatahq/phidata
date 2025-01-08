@@ -7,8 +7,8 @@ from pathlib import Path
 from shutil import rmtree
 
 import httpx
-from phi.agent import Agent
-from phi.knowledge.llamaindex import LlamaIndexKnowledgeBase
+from agno.agent import Agent
+from agno.knowledge.llamaindex import LlamaIndexKnowledgeBase
 from llama_index.core import (
     SimpleDirectoryReader,
     StorageContext,

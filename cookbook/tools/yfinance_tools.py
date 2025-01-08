@@ -1,5 +1,5 @@
-from phi.agent import Agent
-from phi.tools.yfinance import YFinanceTools
+from agno.agent import Agent
+from agno.tools.yfinance import YFinanceTools
 
 agent = Agent(
     tools=[YFinanceTools(stock_price=True, analyst_recommendations=True, stock_fundamentals=True)],

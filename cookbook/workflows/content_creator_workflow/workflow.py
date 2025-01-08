@@ -2,15 +2,17 @@ import json
 from typing import List, Optional
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
-from phi.agent import Agent, RunResponse
-from phi.run.response import RunEvent
-from phi.workflow import Workflow
-from phi.model.openai import OpenAIChat
-from phi.tools.firecrawl import FirecrawlTools
-from phi.utils.log import logger
+
 from cookbook.workflows.content_creator_workflow.scheduler import schedule
 from cookbook.workflows.content_creator_workflow.prompts import agents_config, tasks_config
 from cookbook.workflows.content_creator_workflow.config import PostType
+from agno.agent import Agent, RunResponse
+from agno.run.response import RunEvent
+from agno.workflow import Workflow
+from agno.models.openai import OpenAIChat
+from agno.tools.firecrawl import FirecrawlTools
+from agno.utils.log import logger
+
 
 # Load environment variables
 load_dotenv()

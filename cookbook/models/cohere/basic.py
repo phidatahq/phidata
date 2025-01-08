@@ -1,5 +1,5 @@
-from phi.agent import Agent, RunResponse  # noqa
-from phi.model.cohere import CohereChat
+from agno.agent import Agent, RunResponse  # noqa
+from agno.models.cohere import CohereChat
 
 agent = Agent(model=CohereChat(id="command-r-08-2024"), markdown=True)
 

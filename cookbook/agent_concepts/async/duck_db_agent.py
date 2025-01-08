@@ -1,6 +1,6 @@
 import json
 import asyncio
-from phi.agent.duckdb import DuckDbAgent
+from agno.agent.duckdb import DuckDbAgent
 
 data_analyst = DuckDbAgent(
     semantic_model=json.dumps(

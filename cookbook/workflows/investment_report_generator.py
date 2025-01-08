@@ -7,12 +7,12 @@ from typing import Iterator
 from pathlib import Path
 from shutil import rmtree
 
-from phi.agent import Agent, RunResponse
-from phi.storage.workflow.sqlite import SqlWorkflowStorage
-from phi.tools.yfinance import YFinanceTools
-from phi.utils.log import logger
-from phi.utils.pprint import pprint_run_response
-from phi.workflow import Workflow
+from agno.agent import Agent, RunResponse
+from agno.storage.workflow.sqlite import SqlWorkflowStorage
+from agno.tools.yfinance import YFinanceTools
+from agno.utils.log import logger
+from agno.utils.pprint import pprint_run_response
+from agno.workflow import Workflow
 
 
 reports_dir = Path(__file__).parent.joinpath("reports", "investment")

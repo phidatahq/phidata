@@ -1,7 +1,7 @@
 # pip install qdrant-client
-from phi.vectordb.qdrant import Qdrant
-from phi.agent import Agent
-from phi.knowledge.pdf import PDFUrlKnowledgeBase
+from agno.vectordb.qdrant import Qdrant
+from agno.agent import Agent
+from agno.knowledge.pdf import PDFUrlKnowledgeBase
 
 # run qdrant client locally
 """

@@ -1,4 +1,4 @@
-from phi.agent import Agent
+from agno.agent import Agent
 from composio_phidata import Action, ComposioToolSet  # type: ignore
 
 toolset = ComposioToolSet()

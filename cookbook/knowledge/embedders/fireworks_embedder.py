@@ -1,6 +1,6 @@
-from phi.agent import AgentKnowledge
-from phi.vectordb.pgvector import PgVector
-from phi.embedder.fireworks import FireworksEmbedder
+from agno.agent import AgentKnowledge
+from agno.vectordb.pgvector import PgVector
+from agno.embedder.fireworks import FireworksEmbedder
 
 embeddings = FireworksEmbedder().get_embedding("The quick brown fox jumps over the lazy dog.")
 

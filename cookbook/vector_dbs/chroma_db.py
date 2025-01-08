@@ -1,8 +1,8 @@
 # install chromadb - `pip install chromadb`
 
-from phi.agent import Agent
-from phi.knowledge.pdf import PDFUrlKnowledgeBase
-from phi.vectordb.chroma import ChromaDb
+from agno.agent import Agent
+from agno.knowledge.pdf import PDFUrlKnowledgeBase
+from agno.vectordb.chroma import ChromaDb
 
 # Initialize ChromaDB
 vector_db = ChromaDb(collection="recipes", path="tmp/chromadb", persistent_client=True)

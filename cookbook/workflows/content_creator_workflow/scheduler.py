@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 
 from cookbook.workflows.content_creator_workflow.config import TYPEFULLY_API_URL, HEADERS, PostType
-from phi.utils.log import logger
+from agno.utils.log import logger
 
 load_dotenv()
 

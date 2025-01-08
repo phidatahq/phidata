@@ -1,8 +1,8 @@
 from pathlib import Path
 
-from phi.agent import Agent
-from phi.knowledge.json import JSONKnowledgeBase
-from phi.vectordb.pgvector import PgVector
+from agno.agent import Agent
+from agno.knowledge.json import JSONKnowledgeBase
+from agno.vectordb.pgvector import PgVector
 
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 

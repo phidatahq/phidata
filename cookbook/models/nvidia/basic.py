@@ -1,5 +1,5 @@
-from phi.agent import Agent, RunResponse  # noqa
-from phi.model.nvidia import Nvidia
+from agno.agent import Agent, RunResponse  # noqa
+from agno.models.nvidia import Nvidia
 
 agent = Agent(model=Nvidia(id="nvidia/llama-3.1-nemotron-70b-instruct"), markdown=True)
 

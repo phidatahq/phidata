@@ -1,11 +1,11 @@
 """Run `pip install lancedb` to install dependencies."""
 
-from phi.knowledge.pdf import PDFUrlKnowledgeBase
-from phi.vectordb.lancedb import LanceDb
-from phi.embedder.ollama import OllamaEmbedder
-from phi.agent import Agent
-from phi.storage.agent.sqlite import SqlAgentStorage
-from phi.model.ollama import Ollama
+from agno.knowledge.pdf import PDFUrlKnowledgeBase
+from agno.vectordb.lancedb import LanceDb
+from agno.embedder.ollama import OllamaEmbedder
+from agno.agent import Agent
+from agno.storage.agent.sqlite import SqlAgentStorage
+from agno.models.ollama import Ollama
 
 # Define the database URL where the vector database will be stored
 db_url = "/tmp/lancedb"

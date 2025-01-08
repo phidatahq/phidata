@@ -1,7 +1,7 @@
-from phi.agent import Agent
-from phi.model.openai import OpenAIChat
-from phi.tools.youtube_tools import YouTubeTools
-from phi.tools.exa import ExaTools
+from agno.agent import Agent
+from agno.models.openai import OpenAIChat
+from agno.tools.youtube_tools import YouTubeTools
+from agno.tools.exa import ExaTools
 
 study_partner = Agent(
     name="StudyScout",  # Fixed typo in name

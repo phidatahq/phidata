@@ -1,6 +1,6 @@
-from phi.agent import AgentKnowledge
-from phi.vectordb.pgvector import PgVector
-from phi.embedder.openai import OpenAIEmbedder
+from agno.agent import AgentKnowledge
+from agno.vectordb.pgvector import PgVector
+from agno.embedder.openai import OpenAIEmbedder
 
 embeddings = OpenAIEmbedder().get_embedding("Embed me")
 

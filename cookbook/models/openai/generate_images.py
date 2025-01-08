@@ -1,6 +1,6 @@
-from phi.agent import Agent
-from phi.tools.dalle import Dalle
-from phi.model.openai import OpenAIChat
+from agno.agent import Agent
+from agno.tools.dalle import Dalle
+from agno.models.openai import OpenAIChat
 
 image_agent = Agent(
     model=OpenAIChat(id="gpt-4o"),

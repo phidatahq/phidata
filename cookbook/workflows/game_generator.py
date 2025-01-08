@@ -9,15 +9,15 @@ from typing import Iterator
 
 from pydantic import BaseModel, Field
 
-from phi.agent import Agent, RunResponse
-from phi.model.openai import OpenAIChat
-from phi.run.response import RunEvent
-from phi.storage.workflow.sqlite import SqlWorkflowStorage
-from phi.utils.log import logger
-from phi.utils.pprint import pprint_run_response
-from phi.utils.string import hash_string_sha256
-from phi.utils.web import open_html_file
-from phi.workflow import Workflow
+from agno.agent import Agent, RunResponse
+from agno.models.openai import OpenAIChat
+from agno.run.response import RunEvent
+from agno.storage.workflow.sqlite import SqlWorkflowStorage
+from agno.utils.log import logger
+from agno.utils.pprint import pprint_run_response
+from agno.utils.string import hash_string_sha256
+from agno.utils.web import open_html_file
+from agno.workflow import Workflow
 
 
 games_dir = Path(__file__).parent.joinpath("games")

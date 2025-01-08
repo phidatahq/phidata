@@ -1,9 +1,9 @@
 """Run `pip install yfinance` to install dependencies."""
 
 from typing import Iterator  # noqa
-from phi.agent import Agent, RunResponse  # noqa
-from phi.model.cohere import CohereChat
-from phi.tools.yfinance import YFinanceTools
+from agno.agent import Agent, RunResponse  # noqa
+from agno.models.cohere import CohereChat
+from agno.tools.yfinance import YFinanceTools
 
 agent = Agent(
     model=CohereChat(id="command-r-08-2024"),

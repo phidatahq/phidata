@@ -1,5 +1,5 @@
-from phi.agent import Agent
-from phi.tools.duckduckgo import DuckDuckGo
+from agno.agent import Agent
+from agno.tools.duckduckgo import DuckDuckGo
 
 # We will search DDG but limit the site to Politifact
 agent = Agent(tools=[DuckDuckGo(modifier="site:politifact.com")], show_tool_calls=True)

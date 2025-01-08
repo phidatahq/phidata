@@ -1,8 +1,8 @@
 """Run `pip install duckduckgo-search` to install dependencies."""
 
-from phi.agent import Agent
-from phi.model.groq import Groq
-from phi.tools.duckduckgo import DuckDuckGo
+from agno.agent import Agent
+from agno.models.groq import Groq
+from agno.tools.duckduckgo import DuckDuckGo
 
 agent = Agent(
     model=Groq(id="llama-3.3-70b-versatile"),

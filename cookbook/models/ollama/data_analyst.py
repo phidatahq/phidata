@@ -1,9 +1,9 @@
 """Run `pip install duckdb` to install dependencies."""
 
 from textwrap import dedent
-from phi.agent import Agent
-from phi.model.ollama import Ollama
-from phi.tools.duckdb import DuckDbTools
+from agno.agent import Agent
+from agno.models.ollama import Ollama
+from agno.tools.duckdb import DuckDbTools
 
 duckdb_tools = DuckDbTools(create_tables=False, export_tables=False, summarize_tables=False)
 duckdb_tools.create_table_from_path(

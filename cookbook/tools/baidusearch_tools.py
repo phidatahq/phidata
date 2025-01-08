@@ -1,5 +1,5 @@
-from phi.agent import Agent
-from phi.tools.baidusearch import BaiduSearch
+from agno.agent import Agent
+from agno.tools.baidusearch import BaiduSearch
 
 agent = Agent(
     tools=[BaiduSearch()],

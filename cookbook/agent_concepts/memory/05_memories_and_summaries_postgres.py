@@ -7,10 +7,10 @@ Steps:
 
 from rich.pretty import pprint
 
-from phi.agent import Agent, AgentMemory
-from phi.model.openai import OpenAIChat
-from phi.memory.db.postgres import PgMemoryDb
-from phi.storage.agent.postgres import PgAgentStorage
+from agno.agent import Agent, AgentMemory
+from agno.models.openai import OpenAIChat
+from agno.memory.db.postgres import PgMemoryDb
+from agno.storage.agent.postgres import PgAgentStorage
 
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 agent = Agent(

@@ -1,5 +1,5 @@
-from phi.agent import Agent
-from phi.tools.phi import PhiTools
+from agno.agent import Agent
+from agno.tools.phi import PhiTools
 
 # Create an Agent with the Phi tool
 agent = Agent(tools=[PhiTools()], name="Phi Workspace Manager")

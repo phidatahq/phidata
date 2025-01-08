@@ -1,8 +1,8 @@
 """Run `pip install yfinance` to install dependencies."""
 
-from phi.agent import Agent
-from phi.model.google import Gemini
-from phi.tools.yfinance import YFinanceTools
+from agno.agent import Agent
+from agno.models.google import Gemini
+from agno.tools.yfinance import YFinanceTools
 
 finance_agent = Agent(
     model=Gemini(id="gemini-2.0-flash-exp"),

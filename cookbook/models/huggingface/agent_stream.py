@@ -1,5 +1,5 @@
-from phi.agent import Agent
-from phi.model.huggingface import HuggingFaceChat
+from agno.agent import Agent
+from agno.models.huggingface import HuggingFaceChat
 import os
 from getpass import getpass
 

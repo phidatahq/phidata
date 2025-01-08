@@ -1,8 +1,8 @@
 # install lancedb - `pip install lancedb`
 
-from phi.agent import Agent
-from phi.knowledge.pdf import PDFUrlKnowledgeBase
-from phi.vectordb.lancedb import LanceDb
+from agno.agent import Agent
+from agno.knowledge.pdf import PDFUrlKnowledgeBase
+from agno.vectordb.lancedb import LanceDb
 
 # Initialize LanceDB
 # By default, it stores data in /tmp/lancedb

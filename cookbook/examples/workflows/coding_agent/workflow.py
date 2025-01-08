@@ -1,11 +1,13 @@
 import os
+from dotenv import load_dotenv
+
 from pydantic import BaseModel, Field
-from utils import scrape_and_process, evaluate_response
+
 from phi.agent import Agent, RunResponse
 from phi.model.openai import OpenAIChat
 from phi.workflow import Workflow, RunEvent
 from phi.utils.log import logger
-from dotenv import load_dotenv
+from cookbook.examples.workflows.coding_agent.utils import scrape_and_process, evaluate_response
 
 load_dotenv()
 
@@ -48,7 +50,7 @@ class CodeGenWorkflow(Workflow):
     coding_agent: Agent = Agent(
         model=OpenAIChat(id="gpt-4o"),
         description="A coding assistant that provides accurate and executable code solutions using LCEL, LangChain expression language.",
-        system_message=system_prompt,
+        system_prompt=system_prompt,
         response_model=CodeSolution,
         structured_outputs=True,
     )

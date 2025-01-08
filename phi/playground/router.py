@@ -487,7 +487,7 @@ def get_async_playground_router(
         agent = get_agent_by_id(agent_id, agents)
         if agent is None:
             raise HTTPException(status_code=404, detail="Agent not found")
-        
+
         if files:
             if agent.knowledge is None:
                 raise HTTPException(status_code=404, detail="KnowledgeBase not found")

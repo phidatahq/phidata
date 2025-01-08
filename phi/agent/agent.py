@@ -497,7 +497,7 @@ class Agent(BaseModel):
                     "Please provide a `model` or install `openai`."
                 )
                 exit(1)
-            self.model = OpenAIChat()
+            self.model = OpenAIChat()  # We default to OpenAIChat as a base model
 
         # Set response_format if it is not set on the Model
         if self.response_model is not None and self.model.response_format is None:
@@ -2145,7 +2145,10 @@ class Agent(BaseModel):
         self.model = cast(Model, self.model)
         if stream and self.is_streamable:
             model_response = ModelResponse(content="")
-            model_response_stream = self.model.aresponse_stream(messages=messages_for_model)
+            if hasattr(self.model, "aresponse_stream"):
+                model_response_stream = self.model.aresponse_stream(messages=messages_for_model)
+            else:
+                raise NotImplementedError(f"{self.model.id} does not support streaming")
             async for model_response_chunk in model_response_stream:  # type: ignore
                 if model_response_chunk.event == ModelResponseEvent.assistant_response.value:
                     if model_response_chunk.content is not None and model_response.content is not None:

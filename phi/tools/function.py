@@ -131,8 +131,9 @@ class Function(BaseModel):
                 if param_docs is not None:
                     for param in param_docs:
                         param_name = param.arg_name
+                        param_type = param.type_name
 
-                        param_descriptions[param_name] = param.description or ""
+                        param_descriptions[param_name] = f"({param_type}) {param.description}"
 
             # Get JSON schema for parameters only
             parameters = get_json_schema(
@@ -202,8 +203,9 @@ class Function(BaseModel):
                 if param_docs is not None:
                     for param in param_docs:
                         param_name = param.arg_name
+                        param_type = param.type_name
 
-                        param_descriptions[param_name] = param.description or ""
+                        param_descriptions[param_name] = f"({param_type}) {param.description}"
 
             # logger.info(f"Arguments for {self.name}: {param_type_hints}")
 

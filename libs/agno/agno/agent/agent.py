@@ -221,7 +221,7 @@ class Agent:
     # Enable debug logs
     debug_mode: bool = False
     # monitoring=True logs Agent information to agno.com for monitoring
-    monitoring: bool = field(default_factory=lambda: getenv("AGNO_MONITORING", "false").lower() == "true")
+    monitoring: bool = field(default_factory=lambda: getenv("AGNO_MONITOR", "false").lower() == "true")
     # telemetry=True logs minimal telemetry for analytics
     # This helps us improve the Agent and provide better support
     telemetry: bool = field(default_factory=lambda: getenv("AGNO_TELEMETRY", "true").lower() == "true")
@@ -303,8 +303,8 @@ class Agent:
         add_transfer_instructions: bool = True,
         team_response_separator: str = "\n",
         debug_mode: bool = False,
-        monitoring: Optional[bool] = None,
-        telemetry: Optional[bool] = None,
+        monitoring: bool = False,
+        telemetry: bool = True,
     ):
         self.model = model
         self.name = name
@@ -387,14 +387,15 @@ class Agent:
         self.team_response_separator = team_response_separator
 
         self.debug_mode = debug_mode
-        self.set_log_level(debug_mode)
+        self.monitoring = monitoring
+        self.telemetry = telemetry
 
-        self.monitoring: bool = (
-            monitoring if monitoring is not None else (getenv("AGNO_MONITORING", "false").lower() == "true")
-        )
-        self.telemetry: bool = (
-            telemetry if telemetry is not None else (getenv("AGNO_TELEMETRY", "true").lower() == "true")
-        )
+        # self.monitoring: bool = (
+        #     monitoring if monitoring is not None else (getenv("AGNO_MONITORING", "false").lower() == "true")
+        # )
+        # self.telemetry: bool = (
+        #     telemetry if telemetry is not None else (getenv("AGNO_TELEMETRY", "true").lower() == "true")
+        # )
 
         self.run_id = None
         self.run_input = None
@@ -418,13 +419,23 @@ class Agent:
         logger.debug(f"*********** Session ID: {self.session_id} ***********")
         return self.session_id
 
-    def set_log_level(self, debug_mode: bool) -> bool:
-        if debug_mode or getenv("AGNO_DEBUG", "false").lower() == "true":
+    def set_monitor_and_debug(self) -> None:
+        if self.debug_mode or getenv("AGNO_DEBUG", "false").lower() == "true":
+            self.debug_mode = True
             set_log_level_to_debug()
             logger.debug("Debug logs enabled")
         else:
             set_log_level_to_info()
-        return debug_mode
+
+        if self.monitoring or getenv("AGNO_MONITOR", "true").lower() == "true":
+            self.monitoring = True
+        else:
+            self.monitoring = False
+
+        if self.telemetry or getenv("AGNO_TELEMETRY", "true").lower() == "true":
+            self.telemetry = True
+        else:
+            self.telemetry = False
 
     def initialize_memory(self) -> None:
         if self.memory is None:
@@ -475,6 +486,7 @@ class Agent:
 
         # 1. Prepare the Agent for the run
         # 1.1 Set agent_id, session_id and initialize memory
+        self.set_monitor_and_debug()
         self.set_agent_id()
         self.set_session_id()
         self.initialize_memory()
@@ -804,6 +816,7 @@ class Agent:
 
         # 1. Prepare the Agent for the run
         # 1.1 Set agent_id, session_id and initialize memory
+        self.set_monitor_and_debug()
         self.set_agent_id()
         self.set_session_id()
         self.initialize_memory()

@@ -396,7 +396,7 @@ class Agent(BaseModel):
                     yield "No response from the member agent."
                 elif isinstance(member_agent_run_response.content, str):
                     yield member_agent_run_response.content
-                elif issubclass(member_agent_run_response.content, BaseModel):
+                elif issubclass(type(member_agent_run_response.content), BaseModel):
                     try:
                         yield member_agent_run_response.content.model_dump_json(indent=2)
                     except Exception as e:

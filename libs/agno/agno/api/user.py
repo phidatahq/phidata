@@ -9,6 +9,7 @@ from agno.cli.config import AgnoCliConfig
 from agno.cli.settings import agno_cli_settings
 from agno.utils.log import logger
 
+from dataclasses import asdict
 
 def user_ping() -> bool:
     if not agno_cli_settings.api_enabled:
@@ -54,8 +55,9 @@ def authenticate_and_get_user(auth_token: str, existing_user: Optional[UserSchem
             user_data = r.json()
             if not isinstance(user_data, dict):
                 return None
+            
+            return UserSchema(**user_data)
 
-            return UserSchema.model_validate(user_data)
         except Exception as e:
             logger.debug(f"Could not authenticate user: {e}")
     return None
@@ -83,7 +85,8 @@ def sign_in_user(sign_in_data: EmailPasswordAuthSchema) -> Optional[UserSchema]:
             if not isinstance(user_data, dict):
                 return None
 
-            current_user: UserSchema = UserSchema.model_validate(user_data)
+            current_user: UserSchema = UserSchema(**user_data)
+
             if current_user is not None:
                 save_auth_token(agno_auth_token)
                 return current_user
@@ -107,7 +110,7 @@ def user_is_authenticated() -> bool:
     with api.AuthenticatedClient() as api_client:
         try:
             r: Response = api_client.post(
-                ApiRoutes.USER_AUTHENTICATE, json=user.model_dump(include={"id_user", "email"})
+                ApiRoutes.USER_AUTHENTICATE, json={k: v for k, v in asdict(user).items() if k in {"id_user", "email"}}
             )
             if invalid_response(r):
                 return False
@@ -149,7 +152,7 @@ def create_anon_user() -> Optional[UserSchema]:
             if not isinstance(user_data, dict):
                 return None
 
-            current_user: UserSchema = UserSchema.model_validate(user_data)
+            current_user: UserSchema = UserSchema(**user_data)
             if current_user is not None:
                 save_auth_token(agno_auth_token)
                 return current_user

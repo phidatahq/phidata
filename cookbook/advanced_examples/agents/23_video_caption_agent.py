@@ -32,6 +32,4 @@ video_caption_agent = Agent(
 )
 
 
-video_caption_agent.print_response(
-    "Generate captions for {video with location} and embed them in the video"
-)
+video_caption_agent.print_response("Generate captions for {video with location} and embed them in the video")

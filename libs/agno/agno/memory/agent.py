@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from dataclasses import asdict
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
@@ -132,7 +131,7 @@ class AgentMemory(BaseModel):
 
     def get_messages(self) -> List[Dict[str, Any]]:
         """Returns the messages list as a list of dictionaries."""
-        return [asdict(message) for message in self.messages]
+        return [message.model_dump() for message in self.messages]
 
     def get_messages_from_last_n_runs(
         self, last_n: Optional[int] = None, skip_role: Optional[str] = None

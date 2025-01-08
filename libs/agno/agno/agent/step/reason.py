@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Iterator, List, Optional, cast, Any
+from typing import Any, Iterator, List, Optional, cast
 
 from agno.agent.step import AgentStep
 from agno.models.base import Model

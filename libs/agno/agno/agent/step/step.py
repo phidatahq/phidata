@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Iterator, Any
+from typing import Any, Iterator
 
 from agno.run.messages import RunMessages
 from agno.run.response import RunResponse

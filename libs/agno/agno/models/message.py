@@ -1,13 +1,13 @@
 import json
-from dataclasses import dataclass, field
 from time import time
 from typing import Any, Dict, List, Optional, Sequence, Union
+
+from pydantic import BaseModel, ConfigDict, Field
 
 from agno.utils.log import logger
 
 
-@dataclass
-class MessageReferences:
+class MessageReferences(BaseModel):
     """References added to user message"""
 
     # The query used to retrieve the references.
@@ -18,8 +18,7 @@ class MessageReferences:
     time: Optional[float] = None
 
 
-@dataclass
-class Message:
+class Message(BaseModel):
     """Message sent to the Model"""
 
     # The role of the message author.
@@ -52,11 +51,13 @@ class Message:
     # When True, the message will be added to the agent's memory.
     add_to_agent_memory: bool = True
     # Metrics for the message.
-    metrics: Dict[str, Any] = field(default_factory=dict)
+    metrics: Dict[str, Any] = Field(default_factory=dict)
     # The references added to the message for RAG
     references: Optional[MessageReferences] = None
     # The Unix timestamp the message was created.
-    created_at: int = field(default_factory=lambda: int(time()))
+    created_at: int = Field(default_factory=lambda: int(time()))
+
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
 
     def get_content_string(self) -> str:
         """Returns the content as a string."""
@@ -69,12 +70,14 @@ class Message:
         return ""
 
     def to_dict(self) -> Dict[str, Any]:
-        fields = {"role", "content", "audio", "name", "tool_call_id", "tool_calls"}
-        _dict = {
-            field: getattr(self, field)
-            for field in fields
-            if getattr(self, field) is not None or field == "content"  # content is always included
-        }
+        _dict = self.model_dump(
+            exclude_none=True,
+            include={"role", "content", "audio", "name", "tool_call_id", "tool_calls"},
+        )
+        # Manually add the content field even if it is None
+        if self.content is None:
+            _dict["content"] = None
+
         return _dict
 
     def log(self, level: Optional[str] = None):

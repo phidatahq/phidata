@@ -129,8 +129,8 @@ class AwsApp(InfraApp):
     def get_container_context(self) -> Optional[ContainerContext]:
         logger.debug("Building ContainerContext")
 
-        if self.container_context is not None:
-            return self.container_context
+        if self.container_context is not None:  # type: ignore
+            return self.container_context  # type: ignore
 
         workspace_name = self.workspace_name
         if workspace_name is None:
@@ -150,10 +150,10 @@ class AwsApp(InfraApp):
         )
 
         if self.workspace_settings is not None and self.workspace_settings.ws_schema is not None:
-            self.container_context.workspace_schema = self.workspace_settings.ws_schema
+            self.container_context.workspace_schema = self.workspace_settings.ws_schema  # type: ignore
 
         if self.requirements_file is not None:
-            self.container_context.requirements_file = f"{workspace_root_in_container}/{self.requirements_file}"
+            self.container_context.requirements_file = f"{workspace_root_in_container}/{self.requirements_file}"  # type: ignore
 
         return self.container_context
 

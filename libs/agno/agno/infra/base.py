@@ -69,6 +69,7 @@ class InfraBase(BaseModel):
     workspace_settings: Optional[WorkspaceSettings] = None
 
     # Cached Data
+    cached_workspace_dir: Optional[Path] = None
     cached_env_file_data: Optional[Dict[str, Any]] = None
     cached_secret_file_data: Optional[Dict[str, Any]] = None
 
@@ -84,6 +85,20 @@ class InfraBase(BaseModel):
     @property
     def workspace_name(self) -> Optional[str]:
         return self.workspace_settings.ws_name if self.workspace_settings is not None else None
+
+    @property
+    def workspace_dir(self) -> Optional[Path]:
+        if self.cached_workspace_dir is not None:
+            return self.cached_workspace_dir
+
+        if self.workspace_root is not None:
+            from agno.workspace.helpers import get_workspace_dir_path
+
+            workspace_dir = get_workspace_dir_path(self.workspace_root)
+            if workspace_dir is not None:
+                self.cached_workspace_dir = workspace_dir
+                return workspace_dir
+        return None
 
     def set_workspace_settings(self, workspace_settings: Optional[WorkspaceSettings] = None) -> None:
         if workspace_settings is not None:

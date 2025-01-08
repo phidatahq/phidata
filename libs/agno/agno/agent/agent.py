@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from collections import defaultdict
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from datetime import datetime
 from os import getenv
 from pathlib import Path
@@ -71,7 +71,7 @@ class Agent:
     # Session name
     session_name: Optional[str] = None
     # Session state stored in the database
-    session_state: Optional[Dict[str, Any]] = None
+    session_state: Dict[str, Any] = field(default_factory=dict)
 
     # --- Agent Context ---
     # Context available for tools and prompt functions
@@ -548,11 +548,13 @@ class Agent:
         if run_messages.system_message is not None:
             self.memory.add_system_message(run_messages.system_message, system_message_role=self.system_message_role)
         # Build a list of messages that should be added to the AgentMemory
-        messages_for_memory: List[Message] = [run_messages.user_message]
+        messages_for_memory: List[Message] = (
+            [run_messages.user_message] if run_messages.user_message is not None else []
+        )
         # Add messages from messages_for_run after the last user message
-        for m in run_messages.messages[index_of_last_user_message:]:
-            if m.add_to_agent_memory:
-                messages_for_memory.append(m)
+        for _rm in run_messages.messages[index_of_last_user_message:]:
+            if _rm.add_to_agent_memory:
+                messages_for_memory.append(_rm)
         if len(messages_for_memory) > 0:
             self.memory.add_messages(messages=messages_for_memory)
 
@@ -574,18 +576,18 @@ class Agent:
         ):
             self.memory.update_memory(input=run_messages.user_message.get_content_string())
         if messages is not None and len(messages) > 0:
-            for m in messages:
+            for _im in messages:
                 # Parse the message and convert to a Message object if possible
                 mp = None
-                if isinstance(m, Message):
-                    mp = m
-                elif isinstance(m, dict):
+                if isinstance(_im, Message):
+                    mp = _im
+                elif isinstance(_im, dict):
                     try:
-                        mp = Message(**m)
+                        mp = Message(**_im)
                     except Exception as e:
                         logger.warning(f"Failed to validate message: {e}")
                 else:
-                    logger.warning(f"Unsupported message type: {type(m)}")
+                    logger.warning(f"Unsupported message type: {type(_im)}")
                     continue
 
                 # Add the message to the AgentRun
@@ -877,11 +879,13 @@ class Agent:
         if run_messages.system_message is not None:
             self.memory.add_system_message(run_messages.system_message, system_message_role=self.system_message_role)
         # Build a list of messages that should be added to the AgentMemory
-        messages_for_memory: List[Message] = [run_messages.user_message]
+        messages_for_memory: List[Message] = (
+            [run_messages.user_message] if run_messages.user_message is not None else []
+        )
         # Add messages from messages_for_run after the last user message
-        for m in run_messages.messages[index_of_last_user_message:]:
-            if m.add_to_agent_memory:
-                messages_for_memory.append(m)
+        for _rm in run_messages.messages[index_of_last_user_message:]:
+            if _rm.add_to_agent_memory:
+                messages_for_memory.append(_rm)
         if len(messages_for_memory) > 0:
             self.memory.add_messages(messages=messages_for_memory)
 
@@ -903,18 +907,18 @@ class Agent:
         ):
             await self.memory.aupdate_memory(input=run_messages.user_message.get_content_string())
         if messages is not None and len(messages) > 0:
-            for m in messages:
+            for _im in messages:
                 # Parse the message and convert to a Message object if possible
                 mp = None
-                if isinstance(m, Message):
-                    mp = m
-                elif isinstance(m, dict):
+                if isinstance(_im, Message):
+                    mp = _im
+                elif isinstance(_im, dict):
                     try:
-                        mp = Message(**m)
+                        mp = Message(**_im)
                     except Exception as e:
                         logger.warning(f"Failed to validate message: {e}")
                 else:
-                    logger.warning(f"Unsupported message type: {type(m)}")
+                    logger.warning(f"Unsupported message type: {type(_im)}")
                     continue
 
                 # Add the message to the AgentRun
@@ -1093,6 +1097,7 @@ class Agent:
         return rr
 
     def get_tools(self) -> Optional[List[Union[Toolkit, Callable, Dict, Function]]]:
+        self.memory = cast(AgentMemory, self.memory)
         tools: List[Union[Toolkit, Callable, Dict, Function]] = []
 
         # Add provided tools
@@ -1234,6 +1239,8 @@ class Agent:
     def get_agent_session(self) -> AgentSession:
         """Get an AgentSession object, which can be saved to the database"""
         self.memory = cast(AgentMemory, self.memory)
+        self.session_id = cast(str, self.session_id)
+        self.agent_id = cast(str, self.agent_id)
         return AgentSession(
             session_id=self.session_id,
             agent_id=self.agent_id,
@@ -1512,13 +1519,17 @@ class Agent:
         2. If create_default_system_message is False, return None.
         3. Build and return the default system message for the Agent.
         """
+        self.memory = cast(AgentMemory, self.memory)
+
         # 1. If the system_message is provided, use that.
         if self.system_message is not None:
             if isinstance(self.system_message, Message):
                 return self.system_message
 
-            sys_message_content = self.system_message
-            if callable(self.system_message):
+            sys_message_content: str
+            if isinstance(self.system_message, str):
+                sys_message_content = self.system_message
+            elif callable(self.system_message):
                 sys_message_content = self.system_message(agent=self)
                 if not isinstance(sys_message_content, str):
                     raise Exception("system_message must return a string")
@@ -1678,13 +1689,21 @@ class Agent:
         # Get references from the knowledge base to use in the user message
         references = None
         self.run_response = cast(RunResponse, self.run_response)
-        if self.add_references and message and (isinstance(message, str) or isinstance(message, callable)):
+        if self.add_references and message:
+            message_str: str
+            if isinstance(message, str):
+                message_str = message
+            elif callable(message):
+                message_str = message(agent=self)
+            else:
+                raise Exception("message must be a string or a callable when add_references is True")
+
             retrieval_timer = Timer()
             retrieval_timer.start()
-            docs_from_knowledge = self.get_relevant_docs_from_knowledge(query=message, **kwargs)
+            docs_from_knowledge = self.get_relevant_docs_from_knowledge(query=message_str, **kwargs)
             if docs_from_knowledge is not None:
                 references = MessageReferences(
-                    query=message, references=docs_from_knowledge, time=round(retrieval_timer.elapsed, 4)
+                    query=message_str, references=docs_from_knowledge, time=round(retrieval_timer.elapsed, 4)
                 )
                 # Add the references to the run_response
                 if self.run_response.extra_data is None:
@@ -1788,6 +1807,7 @@ class Agent:
         """
         # Initialize the RunMessages object
         run_messages = RunMessages()
+        self.memory = cast(AgentMemory, self.memory)
         self.run_response = cast(RunResponse, self.run_response)
 
         # 1. Add system message to run_messages
@@ -1846,9 +1866,7 @@ class Agent:
         user_message: Optional[Message] = None
         # 4.1 Build user message if message is None, str or list
         if message is None or isinstance(message, str) or isinstance(message, list):
-            user_message: Optional[Message] = self.get_user_message(
-                message=message, audio=audio, images=images, videos=videos, **kwargs
-            )
+            user_message = self.get_user_message(message=message, audio=audio, images=images, videos=videos, **kwargs)
         # 4.2 If message is provided as a Message, use it directly
         elif isinstance(message, Message):
             user_message = message
@@ -1868,10 +1886,14 @@ class Agent:
             for _m in messages:
                 if isinstance(_m, Message):
                     run_messages.messages.append(_m)
+                    if run_messages.extra_messages is None:
+                        run_messages.extra_messages = []
                     run_messages.extra_messages.append(_m)
                 elif isinstance(_m, dict):
                     try:
                         run_messages.messages.append(Message.model_validate(_m))
+                        if run_messages.extra_messages is None:
+                            run_messages.extra_messages = []
                         run_messages.extra_messages.append(Message.model_validate(_m))
                     except Exception as e:
                         logger.warning(f"Failed to validate message: {e}")
@@ -1942,16 +1964,13 @@ class Agent:
         return field_value
 
     def get_transfer_function(self, member_agent: Agent, index: int) -> Function:
-        # TODO: this needs fixing as session_data is not available anymore
         def _transfer_task_to_agent(
             task_description: str, expected_output: str, additional_information: str
         ) -> Iterator[str]:
-            # Update the member agent session_data to include leader_session_id, leader_agent_id and leader_run_id
-            if member_agent.session_data is None:
-                member_agent.session_data = {}
-            member_agent.session_data["leader_session_id"] = self.session_id
-            member_agent.session_data["leader_agent_id"] = self.agent_id
-            member_agent.session_data["leader_run_id"] = self.run_id
+            # Update the member agent session_state to include leader_session_id, leader_agent_id and leader_run_id
+            member_agent.session_state["leader_session_id"] = self.session_id
+            member_agent.session_state["leader_agent_id"] = self.agent_id
+            member_agent.session_state["leader_run_id"] = self.run_id
 
             # -*- Run the agent
             member_agent_messages = f"{task_description}\n\nThe expected output is: {expected_output}"
@@ -1969,15 +1988,13 @@ class Agent:
                 "session_id": member_agent_session_id,
                 "agent_id": member_agent_agent_id,
             }
-            # Update the leader agent session_data to include member_agent_info
-            if self.session_data is None:
-                self.session_data = {"members": [member_agent_info]}
+            # Update the leader agent session_state to include member_agent_info
+            if "members" not in self.session_state:
+                self.session_state["members"] = [member_agent_info]
             else:
-                if "members" not in self.session_data:
-                    self.session_data["members"] = []
                 # Check if member_agent_info is already in the list
-                if member_agent_info not in self.session_data["members"]:
-                    self.session_data["members"].append(member_agent_info)
+                if member_agent_info not in self.session_state["members"]:
+                    self.session_state["members"].append(member_agent_info)
 
             if self.stream and member_agent.is_streamable:
                 member_agent_run_response_stream = member_agent.run(member_agent_messages, stream=True)
@@ -2136,6 +2153,7 @@ class Agent:
     def update_run_response_with_reasoning(
         self, reasoning_steps: List[ReasoningStep], reasoning_agent_messages: List[Message]
     ):
+        self.run_response = cast(RunResponse, self.run_response)
         if self.run_response.extra_data is None:
             self.run_response.extra_data = RunResponseExtraData()
 
@@ -2195,9 +2213,10 @@ class Agent:
 
         gen_session_name_prompt = "Conversation\n"
         messages_for_generating_session_name = []
+        self.memory = cast(AgentMemory, self.memory)
         try:
-            message_pars = self.memory.get_message_pairs()
-            for message_pair in message_pars[:3]:
+            message_pairs = self.memory.get_message_pairs()
+            for message_pair in message_pairs[:3]:
                 messages_for_generating_session_name.append(message_pair[0])
                 messages_for_generating_session_name.append(message_pair[1])
         except Exception as e:
@@ -2311,6 +2330,7 @@ class Agent:
             - To get the first chat, use num_chats=None and pick the first message.
         """
         history: List[Dict[str, Any]] = []
+        self.memory = cast(AgentMemory, self.memory)
         all_chats = self.memory.get_message_pairs()
         if len(all_chats) == 0:
             return ""
@@ -2338,6 +2358,7 @@ class Agent:
             - To get the last tool call, use num_calls=1.
             - To get all tool calls, use num_calls=None.
         """
+        self.memory = cast(AgentMemory, self.memory)
         tool_calls = self.memory.get_tool_calls(num_calls)
         if len(tool_calls) == 0:
             return ""
@@ -2412,6 +2433,7 @@ class Agent:
         Returns:
             str: A string indicating the status of the task.
         """
+        self.memory = cast(AgentMemory, self.memory)
         try:
             return self.memory.update_memory(input=task, force=True) or "Memory updated successfully"
         except Exception as e:

@@ -1,8 +1,8 @@
 from typing import List
 from rich.pretty import pprint  # noqa
 from pydantic import BaseModel, Field
-from phi.agent import Agent, RunResponse  # noqa
-from phi.model.deepseek import DeepSeekChat
+from agno.agent import Agent, RunResponse  # noqa
+from agno.models.deepseek import DeepSeekChat
 
 
 class MovieScript(BaseModel):

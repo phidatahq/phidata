@@ -3,10 +3,10 @@
 2. Run: `python cookbook/teams/01_hn_team.py` to run the agent
 """
 
-from phi.agent import Agent
-from phi.tools.hackernews import HackerNews
-from phi.tools.duckduckgo import DuckDuckGo
-from phi.tools.newspaper4k import Newspaper4k
+from agno.agent import Agent
+from agno.tools.hackernews import HackerNews
+from agno.tools.duckduckgo import DuckDuckGo
+from agno.tools.newspaper4k import Newspaper4k
 
 hn_researcher = Agent(
     name="HackerNews Researcher",

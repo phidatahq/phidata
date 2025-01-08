@@ -4,9 +4,9 @@ from pathlib import Path
 from textwrap import dedent
 from datetime import datetime
 
-from phi.agent import Agent
-from phi.model.groq import Groq
-from phi.tools.exa import ExaTools
+from agno.agent import Agent
+from agno.models.groq import Groq
+from agno.tools.exa import ExaTools
 
 cwd = Path(__file__).parent.resolve()
 tmp = cwd.joinpath("tmp")

@@ -1,8 +1,8 @@
 """Run `pip install yfinance ollama phidata` to install dependencies."""
 
-from phi.agent import Agent
-from phi.model.ollama import OllamaTools
-from phi.tools.yfinance import YFinanceTools
+from agno.agent import Agent
+from agno.models.ollama import OllamaTools
+from agno.tools.yfinance import YFinanceTools
 
 agent = Agent(
     model=OllamaTools(id="llama3.1:8b"),

@@ -1,5 +1,5 @@
-from phi.agent import Agent
-from phi.tools.sql import SQLTools
+from agno.agent import Agent
+from agno.tools.sql import SQLTools
 
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 

@@ -1,8 +1,8 @@
 from typing import List
 from rich.pretty import pprint  # noqa
 from pydantic import BaseModel, Field
-from phi.agent import Agent, RunResponse  # noqa
-from phi.model.together import Together
+from agno.agent import Agent, RunResponse  # noqa
+from agno.models.together import Together
 
 
 class MovieScript(BaseModel):

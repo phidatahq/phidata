@@ -1,6 +1,6 @@
-from phi.agent import AgentKnowledge
-from phi.vectordb.pgvector import PgVector
-from phi.embedder.azure_openai import AzureOpenAIEmbedder
+from agno.agent import AgentKnowledge
+from agno.vectordb.pgvector import PgVector
+from agno.embedder.azure_openai import AzureOpenAIEmbedder
 
 embeddings = AzureOpenAIEmbedder().get_embedding("The quick brown fox jumps over the lazy dog.")
 

@@ -12,11 +12,11 @@ to deploy a PostgreSQL database.
 
 """
 
-from phi.agent import Agent
-from phi.embedder.ollama import OllamaEmbedder
-from phi.knowledge.pdf import PDFUrlKnowledgeBase
-from phi.model.ollama import OllamaTools
-from phi.vectordb.pgvector import PgVector
+from agno.agent import Agent
+from agno.embedder.ollama import OllamaEmbedder
+from agno.knowledge.pdf import PDFUrlKnowledgeBase
+from agno.models.ollama import OllamaTools
+from agno.vectordb.pgvector import PgVector
 
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 

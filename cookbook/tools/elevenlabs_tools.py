@@ -2,9 +2,9 @@
 pip install elevenlabs
 """
 
-from phi.agent import Agent
-from phi.model.openai import OpenAIChat
-from phi.tools.eleven_labs_tools import ElevenLabsTools
+from agno.agent import Agent
+from agno.models.openai import OpenAIChat
+from agno.tools.eleven_labs_tools import ElevenLabsTools
 
 audio_agent = Agent(
     model=OpenAIChat(id="gpt-4o"),

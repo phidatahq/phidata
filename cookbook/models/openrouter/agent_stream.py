@@ -1,9 +1,9 @@
 """Run `pip install yfinance` to install dependencies."""
 
 from typing import Iterator  # noqa
-from phi.agent import Agent, RunResponse  # noqa
-from phi.model.openrouter import OpenRouter
-from phi.tools.yfinance import YFinanceTools
+from agno.agent import Agent, RunResponse  # noqa
+from agno.models.openrouter import OpenRouter
+from agno.tools.yfinance import YFinanceTools
 
 agent = Agent(
     model=OpenRouter(id="gpt-4o"),

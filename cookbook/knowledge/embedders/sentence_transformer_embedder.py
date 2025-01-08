@@ -1,6 +1,6 @@
-from phi.agent import AgentKnowledge
-from phi.vectordb.pgvector import PgVector
-from phi.embedder.sentence_transformer import SentenceTransformerEmbedder
+from agno.agent import AgentKnowledge
+from agno.vectordb.pgvector import PgVector
+from agno.embedder.sentence_transformer import SentenceTransformerEmbedder
 
 embeddings = SentenceTransformerEmbedder().get_embedding("The quick brown fox jumps over the lazy dog.")
 

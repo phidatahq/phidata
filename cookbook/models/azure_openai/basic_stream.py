@@ -1,7 +1,7 @@
 from typing import Iterator  # noqa
 
-from phi.agent import Agent, RunResponse  # noqa
-from phi.model.azure import AzureOpenAIChat
+from agno.agent import Agent, RunResponse  # noqa
+from agno.models.azure import AzureOpenAIChat
 
 agent = Agent(model=AzureOpenAIChat(id="gpt-4o"), markdown=True)
 

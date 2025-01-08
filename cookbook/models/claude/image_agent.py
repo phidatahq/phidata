@@ -1,6 +1,6 @@
-from phi.agent import Agent
-from phi.model.anthropic import Claude
-from phi.tools.duckduckgo import DuckDuckGo
+from agno.agent import Agent
+from agno.models.anthropic import Claude
+from agno.tools.duckduckgo import DuckDuckGo
 
 agent = Agent(
     model=Claude(id="claude-3-5-sonnet-20241022"),

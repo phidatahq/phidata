@@ -3,11 +3,11 @@
 2. Run: `python cookbook/rag/03_traditional_rag_lancedb.py` to run the agent
 """
 
-from phi.agent import Agent
-from phi.model.openai import OpenAIChat
-from phi.embedder.openai import OpenAIEmbedder
-from phi.knowledge.pdf import PDFUrlKnowledgeBase
-from phi.vectordb.lancedb import LanceDb, SearchType
+from agno.agent import Agent
+from agno.models.openai import OpenAIChat
+from agno.embedder.openai import OpenAIEmbedder
+from agno.knowledge.pdf import PDFUrlKnowledgeBase
+from agno.vectordb.lancedb import LanceDb, SearchType
 
 # Create a knowledge base of PDFs from URLs
 knowledge_base = PDFUrlKnowledgeBase(

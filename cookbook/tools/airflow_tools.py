@@ -1,5 +1,5 @@
-from phi.agent import Agent
-from phi.tools.airflow import AirflowToolkit
+from agno.agent import Agent
+from agno.tools.airflow import AirflowToolkit
 
 agent = Agent(
     tools=[AirflowToolkit(dags_dir="dags", save_dag=True, read_dag=True)], show_tool_calls=True, markdown=True

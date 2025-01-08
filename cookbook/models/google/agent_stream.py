@@ -1,9 +1,9 @@
 """Run `pip install yfinance` to install dependencies."""
 
 from typing import Iterator  # noqa
-from phi.agent import Agent, RunResponse  # noqa
-from phi.model.google import Gemini
-from phi.tools.yfinance import YFinanceTools
+from agno.agent import Agent, RunResponse  # noqa
+from agno.models.google import Gemini
+from agno.tools.yfinance import YFinanceTools
 
 agent = Agent(
     model=Gemini(id="gemini-2.0-flash-exp"),

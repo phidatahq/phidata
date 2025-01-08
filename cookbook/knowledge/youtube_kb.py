@@ -1,8 +1,8 @@
 import os
 from os import getenv
-from phi.agent import Agent
-from phi.knowledge.youtube import YouTubeKnowledgeBase, YouTubeReader
-from phi.vectordb.qdrant import Qdrant
+from agno.agent import Agent
+from agno.knowledge.youtube import YouTubeKnowledgeBase, YouTubeReader
+from agno.vectordb.qdrant import Qdrant
 
 api_key = getenv("QDRANT_API_KEY")
 qdrant_url = getenv("QDRANT_URL")

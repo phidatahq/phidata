@@ -1,6 +1,6 @@
-from phi.agent import Agent
-from phi.model.openai import OpenAIChat
-from phi.tools.yfinance import YFinanceTools
+from agno.agent import Agent
+from agno.models.openai import OpenAIChat
+from agno.tools.yfinance import YFinanceTools
 
 reasoning_agent = Agent(
     model=OpenAIChat(id="gpt-4o"),

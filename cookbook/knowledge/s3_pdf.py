@@ -1,6 +1,6 @@
-from phi.agent import Agent
-from phi.knowledge.s3.pdf import S3PDFKnowledgeBase
-from phi.vectordb.pgvector import PgVector
+from agno.agent import Agent
+from agno.knowledge.s3.pdf import S3PDFKnowledgeBase
+from agno.vectordb.pgvector import PgVector
 
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 

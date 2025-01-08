@@ -1,7 +1,7 @@
-from phi.agent import Agent
-from phi.model.openai import OpenAIChat
-from phi.tools.github import GithubTools
-from phi.tools.local_file_system_tools import LocalFileSystemTools
+from agno.agent import Agent
+from agno.models.openai import OpenAIChat
+from agno.tools.github import GithubTools
+from agno.tools.local_file_system_tools import LocalFileSystemTools
 
 readme_gen_agent = Agent(
     model=OpenAIChat(id="gpt-4o"),

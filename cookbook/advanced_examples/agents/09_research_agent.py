@@ -2,10 +2,10 @@
 pip install openai duckduckgo-search newspaper4k lxml_html_clean phidata
 """
 
-from phi.agent import Agent
-from phi.model.openai import OpenAIChat
-from phi.tools.duckduckgo import DuckDuckGo
-from phi.tools.newspaper4k import Newspaper4k
+from agno.agent import Agent
+from agno.models.openai import OpenAIChat
+from agno.tools.duckduckgo import DuckDuckGo
+from agno.tools.newspaper4k import Newspaper4k
 
 agent = Agent(
     model=OpenAIChat(id="gpt-4o"),

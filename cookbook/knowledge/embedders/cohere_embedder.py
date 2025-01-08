@@ -1,6 +1,6 @@
-from phi.agent import AgentKnowledge
-from phi.vectordb.pgvector import PgVector
-from phi.embedder.cohere import CohereEmbedder
+from agno.agent import AgentKnowledge
+from agno.vectordb.pgvector import PgVector
+from agno.embedder.cohere import CohereEmbedder
 
 embeddings = CohereEmbedder().get_embedding("The quick brown fox jumps over the lazy dog.")
 # Print the embeddings and their dimensions

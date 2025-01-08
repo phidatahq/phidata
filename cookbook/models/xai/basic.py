@@ -1,5 +1,5 @@
-from phi.agent import Agent, RunResponse  # noqa
-from phi.model.xai import xAI
+from agno.agent import Agent, RunResponse  # noqa
+from agno.models.xai import xAI
 
 agent = Agent(model=xAI(id="grok-beta"), markdown=True)
 

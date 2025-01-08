@@ -1,7 +1,7 @@
-from phi.agent import Agent
-from phi.model.openai import OpenAIChat
-from phi.tools.moviepy_video_tools import MoviePyVideoTools
-from phi.tools.openai import OpenAITools
+from agno.agent import Agent
+from agno.models.openai import OpenAIChat
+from agno.tools.moviepy_video_tools import MoviePyVideoTools
+from agno.tools.openai import OpenAITools
 
 
 video_tools = MoviePyVideoTools(process_video=True, generate_captions=True, embed_captions=True)

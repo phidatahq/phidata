@@ -1,4 +1,4 @@
-from phi.agent import Agent
+from agno.agent import Agent
 
 
 def get_system_prompt(agent: Agent) -> str:

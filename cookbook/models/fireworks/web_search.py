@@ -1,8 +1,8 @@
 """Run `pip install duckduckgo-search` to install dependencies."""
 
-from phi.agent import Agent
-from phi.model.fireworks import Fireworks
-from phi.tools.duckduckgo import DuckDuckGo
+from agno.agent import Agent
+from agno.models.fireworks import Fireworks
+from agno.tools.duckduckgo import DuckDuckGo
 
 agent = Agent(
     model=Fireworks(id="accounts/fireworks/models/firefunction-v2"),

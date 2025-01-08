@@ -6,8 +6,8 @@ from rich.console import Console
 from rich.prompt import Prompt
 from rich.pretty import pprint
 
-from phi.agent import Agent
-from phi.tools import tool, FunctionCall, StopAgentRun, RetryAgentRun  # noqa
+from agno.agent import Agent
+from agno.tools import tool, FunctionCall, StopAgentRun, RetryAgentRun  # noqa
 
 # This is the console instance used by the print_response method
 # We can use this to stop and restart the live display and ask for user confirmation

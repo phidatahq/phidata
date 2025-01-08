@@ -1,7 +1,7 @@
 from mem0 import MemoryClient
-from phi.agent import Agent, RunResponse
-from phi.model.openai import OpenAIChat
-from phi.utils.pprint import pprint_run_response
+from agno.agent import Agent, RunResponse
+from agno.models.openai import OpenAIChat
+from agno.utils.pprint import pprint_run_response
 
 client = MemoryClient()
 

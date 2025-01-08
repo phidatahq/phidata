@@ -1,5 +1,5 @@
-from phi.agent import Agent
-from phi.model.openai import OpenAIChat
+from agno.agent import Agent
+from agno.models.openai import OpenAIChat
 
 task = (
     "Read the following abstract of a scientific paper and provide a critical evaluation of its methodology,"

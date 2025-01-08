@@ -1,8 +1,8 @@
 import asyncio
 from typing import List
 from pydantic import BaseModel, Field
-from phi.agent import Agent
-from phi.model.ollama import Ollama
+from agno.agent import Agent
+from agno.models.ollama import Ollama
 
 
 class MovieScript(BaseModel):

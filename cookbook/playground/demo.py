@@ -3,15 +3,15 @@
 from textwrap import dedent
 from datetime import datetime
 
-from phi.agent import Agent
-from phi.model.openai import OpenAIChat
-from phi.playground import Playground, serve_playground_app
-from phi.storage.agent.sqlite import SqlAgentStorage
-from phi.tools.dalle import Dalle
-from phi.tools.duckduckgo import DuckDuckGo
-from phi.tools.exa import ExaTools
-from phi.tools.yfinance import YFinanceTools
-from phi.tools.youtube_tools import YouTubeTools
+from agno.agent import Agent
+from agno.models.openai import OpenAIChat
+from agno.playground import Playground, serve_playground_app
+from agno.storage.agent.sqlite import SqlAgentStorage
+from agno.tools.dalle import Dalle
+from agno.tools.duckduckgo import DuckDuckGo
+from agno.tools.exa import ExaTools
+from agno.tools.yfinance import YFinanceTools
+from agno.tools.youtube_tools import YouTubeTools
 
 agent_storage_file: str = "tmp/agents.db"
 

@@ -1,8 +1,8 @@
 """Run `pip install yfinance` to install dependencies."""
 
-from phi.agent import Agent
-from phi.model.azure import AzureOpenAIChat
-from phi.tools.yfinance import YFinanceTools
+from agno.agent import Agent
+from agno.models.azure import AzureOpenAIChat
+from agno.tools.yfinance import YFinanceTools
 
 agent = Agent(
     model=AzureOpenAIChat(id="gpt-4o"),

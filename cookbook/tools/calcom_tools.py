@@ -1,8 +1,8 @@
 from datetime import datetime
 
-from phi.agent import Agent
-from phi.model.openai import OpenAIChat
-from phi.tools.calcom import CalCom
+from agno.agent import Agent
+from agno.models.openai import OpenAIChat
+from agno.tools.calcom import CalCom
 
 """
 Example showing how to use the Cal.com Tools with Phi.

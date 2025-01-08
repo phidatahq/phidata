@@ -1,4 +1,4 @@
-from phi.agent import Agent
+from agno.agent import Agent
 
 Agent().print_response(
     [

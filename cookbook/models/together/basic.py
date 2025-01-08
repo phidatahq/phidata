@@ -1,5 +1,5 @@
-from phi.agent import Agent, RunResponse  # noqa
-from phi.model.together import Together
+from agno.agent import Agent, RunResponse  # noqa
+from agno.models.together import Together
 
 agent = Agent(model=Together(id="meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo"), markdown=True)
 

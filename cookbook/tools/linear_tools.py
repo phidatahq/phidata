@@ -1,5 +1,5 @@
-from phi.agent import Agent
-from phi.tools.linear_tools import LinearTool
+from agno.agent import Agent
+from agno.tools.linear_tools import LinearTool
 
 agent = Agent(
     name="Linear Tool Agent",

@@ -1,5 +1,5 @@
-from phi.agent import Agent
-from phi.model.openai import OpenAIChat
+from agno.agent import Agent
+from agno.models.openai import OpenAIChat
 
 agent = Agent(
     model=OpenAIChat(id="gpt-4o"),

@@ -1,6 +1,6 @@
-from phi.agent import Agent
-from phi.model.openai import OpenAIChat
-from phi.tools.exa import ExaTools
+from agno.agent import Agent
+from agno.models.openai import OpenAIChat
+from agno.tools.exa import ExaTools
 
 agent = Agent(
     description="you help user with book recommendations",

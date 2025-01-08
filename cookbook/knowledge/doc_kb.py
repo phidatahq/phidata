@@ -1,7 +1,7 @@
-from phi.agent import Agent
-from phi.document.base import Document
-from phi.knowledge.document import DocumentKnowledgeBase
-from phi.vectordb.pgvector import PgVector
+from agno.agent import Agent
+from agno.document.base import Document
+from agno.knowledge.document import DocumentKnowledgeBase
+from agno.vectordb.pgvector import PgVector
 
 
 fun_facts = """

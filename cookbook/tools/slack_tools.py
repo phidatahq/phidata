@@ -1,7 +1,7 @@
 """Run `pip install openai slack-sdk` to install dependencies."""
 
-from phi.agent import Agent
-from phi.tools.slack import SlackTools
+from agno.agent import Agent
+from agno.tools.slack import SlackTools
 
 
 slack_tools = SlackTools()

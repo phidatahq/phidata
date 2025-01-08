@@ -1,5 +1,5 @@
-from phi.agent import Agent
-from phi.model.google import Gemini
+from agno.agent import Agent
+from agno.models.google import Gemini
 
 task = (
     "Three missionaries and three cannibals need to cross a river. "

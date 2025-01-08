@@ -2,9 +2,9 @@ from os import getenv
 
 from sqlalchemy.engine import create_engine
 
-from phi.agent import Agent
-from phi.knowledge.pdf import PDFUrlKnowledgeBase
-from phi.vectordb.singlestore import S2VectorDb
+from agno.agent import Agent
+from agno.knowledge.pdf import PDFUrlKnowledgeBase
+from agno.vectordb.singlestore import S2VectorDb
 
 USERNAME = getenv("SINGLESTORE_USERNAME")
 PASSWORD = getenv("SINGLESTORE_PASSWORD")

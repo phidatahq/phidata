@@ -1,9 +1,9 @@
+from dataclasses import asdict, dataclass
 from typing import Any, List, Optional
 
-from dataclasses import asdict, dataclass
 
 @dataclass
-class File():
+class File:
     name: Optional[str] = None
     description: Optional[str] = None
     columns: Optional[List[str]] = None

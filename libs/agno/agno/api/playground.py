@@ -13,6 +13,7 @@ from agno.cli.settings import agno_cli_settings
 from agno.constants import AGNO_API_KEY_ENV_VAR
 from agno.utils.log import logger
 
+
 def create_playground_endpoint(playground: PlaygroundEndpointCreate) -> bool:
     logger.debug("--**-- Creating Playground Endpoint")
     with api.AuthenticatedClient() as api_client:

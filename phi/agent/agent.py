@@ -61,7 +61,7 @@ class Agent(BaseModel):
     images: Optional[List[Image]] = None
     # Videos associated with this agent
     videos: Optional[List[Video]] = None
-    # AudioArtifact associated with this agent
+    # Audio associated with this agent
     audio: Optional[List[Audio]] = None
 
     # Data associated with this agent

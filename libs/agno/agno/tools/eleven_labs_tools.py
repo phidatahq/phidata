@@ -143,7 +143,7 @@ class ElevenLabsTools(Toolkit):
                 )
             )
 
-            return "AudioArtifact generated successfully"
+            return "Audio generated successfully"
 
         except Exception as e:
             logger.error(f"Failed to generate audio: {e}")
@@ -178,7 +178,7 @@ class ElevenLabsTools(Toolkit):
                 )
             )
 
-            return "AudioArtifact generated successfully"
+            return "Audio generated successfully"
 
         except Exception as e:
             logger.error(f"Failed to generate audio: {e}")

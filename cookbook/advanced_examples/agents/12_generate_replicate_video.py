@@ -5,7 +5,7 @@ from agno.tools.replicate import ReplicateTools
 """Create an agent specialized for Replicate AI content generation"""
 
 video_agent = Agent(
-    name="VideoArtifact Generator Agent",
+    name="Video Generator Agent",
     model=OpenAIChat(id="gpt-4o"),
     tools=[
         ReplicateTools(model="tencent/hunyuan-video:847dfa8b01e739637fc76f480ede0c1d76408e1d694b830b5dfb8e547bf98405")

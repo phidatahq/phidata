@@ -79,14 +79,14 @@ class Dalle(Toolkit):
                 size=self.size,
                 style=self.style,
             )
-            logger.debug("ImageArtifact generated successfully")
+            logger.debug("Image generated successfully")
 
             # Update the run response with the image URLs
             for img in response.data:
                 agent.add_image(
                     ImageArtifact(id=str(uuid4()), url=img.url, original_prompt=prompt, revised_prompt=img.revised_prompt)
                 )
-            return "ImageArtifact has been generated successfully and will be displayed below"
+            return "Image has been generated successfully and will be displayed below"
         except Exception as e:
             logger.error(f"Failed to generate image: {e}")
             return f"Error: {e}"

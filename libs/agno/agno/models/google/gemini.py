@@ -150,13 +150,13 @@ class Gemini(Model):
             except Exception as e:
                 logger.warning(f"Failed to download image from {image}: {e}")
                 return None
-        # Case 2: ImageArtifact is a local path
+        # Case 2: Image is a local path
         # Open the image file and add it as base64 encoded data
         elif image.filepath is not None:
             try:
                 import PIL.Image
             except ImportError:
-                logger.error("`PIL.ImageArtifact not installed. Please install it using 'pip install pillow'`")
+                logger.error("`PIL.Image not installed. Please install it using 'pip install pillow'`")
                 raise
 
             try:
@@ -164,14 +164,14 @@ class Gemini(Model):
                 if image_path.exists() and image_path.is_file():
                     image_data = PIL.Image.open(image_path)  # type: ignore
                 else:
-                    logger.error(f"ImageArtifact file {image_path} does not exist.")
+                    logger.error(f"Image file {image_path} does not exist.")
                     raise
                 return image_data  # type: ignore
             except Exception as e:
                 logger.warning(f"Failed to load image from {image_path}: {e}")
                 return None
 
-        # Case 3: ImageArtifact is a bytes object
+        # Case 3: Image is a bytes object
         # Add it as base64 encoded data
         elif image.content is not None and isinstance(image.content, bytes):
             import base64
@@ -229,7 +229,7 @@ class Gemini(Model):
             if message.videos is not None and message.role == "user":
                 try:
                     for video in message.videos:
-                        # Case 1: VideoArtifact is a file_types.File object (Recommended)
+                        # Case 1: Video is a file_types.File object (Recommended)
                         # Add it as a File object
                         if isinstance(video, file_types.File):
                             # Google recommends that if using a single video, place the text prompt after the video.
@@ -268,7 +268,7 @@ class Gemini(Model):
 
             if message.audio is not None and message.role == "user":
                 try:
-                    # Case 1: AudioArtifact is a file_types.File object (Recommended)
+                    # Case 1: Audio is a file_types.File object (Recommended)
                     # Add it as a File object
                     if isinstance(message.audio, file_types.File):
                         # Google recommends that if using a single audio, place the text prompt after the audio.
@@ -286,7 +286,7 @@ class Gemini(Model):
                         else:
                             logger.error(f"Audio file {audio_path} does not exist.")
                             raise
-                    # Case 3: AudioArtifact is a bytes object
+                    # Case 3: Audio is a bytes object
                     # Add it as base64 encoded data
                     elif isinstance(message.audio, bytes):
                         audio_file = {"mime_type": "audio/mp3", "data": message.audio}

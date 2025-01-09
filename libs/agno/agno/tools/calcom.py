@@ -108,7 +108,7 @@ class CalCom(Toolkit):
             querystring = {
                 "startTime": f"{start_date}T00:00:00Z",
                 "endTime": f"{end_date}T23:59:59Z",
-                "eventTypeId": self.event_type_id,
+                "eventTypeId": str(self.event_type_id),
             }
 
             response = requests.get(url, headers=self._get_headers(), params=querystring)

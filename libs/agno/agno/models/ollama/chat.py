@@ -1,5 +1,5 @@
 import json
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, Iterator, List, Mapping, Optional, Union
 
 from pydantic import BaseModel
@@ -52,6 +52,7 @@ class MessageData:
     response_usage: Optional[Mapping[str, Any]] = None
 
 
+@dataclass
 class Ollama(Model):
     """
     A class for interacting with Ollama models.
@@ -734,5 +735,7 @@ class Ollama(Model):
         logger.debug("---------- Ollama Async Response End ----------")
 
     def model_copy(self, *, update: Optional[Mapping[str, Any]] = None, deep: bool = False) -> "Ollama":
-        new_model = Ollama(**self.model_dump(exclude={"client"}), client=self.client)
-        return new_model
+        data = asdict(self)
+        data.pop("client", None)
+
+        return Ollama(client=self.client, **data)

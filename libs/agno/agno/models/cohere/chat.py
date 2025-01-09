@@ -25,6 +25,7 @@ try:
         ToolCallsGenerationStreamedChatResponse,
     )
     from cohere.types.tool import Tool as CohereTool
+    from cohere.types.tool_call import ToolCall
     from cohere.types.tool_parameter_definitions_value import (
         ToolParameterDefinitionsValue,
     )
@@ -286,7 +287,7 @@ class CohereChat(Model):
         self,
         assistant_message: Message,
         messages: List[Message],
-        response_tool_calls: List[Any],
+        response_tool_calls: Optional[List[ToolCall]],
         model_response: ModelResponse,
     ) -> Optional[Any]:
         """

@@ -383,27 +383,24 @@ class Model:
             async for model_response in self.aresponse_stream(messages=messages):  # type: ignore
                 yield model_response
 
-    def _process_string_image(self, image: str) -> Dict[str, Any]:
-        """Process string-based image (base64, URL, or file path)."""
+    def _process_image_url(self, image_url: str) -> Dict[str, Any]:
+        """Process image (base64 or URL)."""
 
-        # Process Base64 encoded image
-        if image.startswith("data:image"):
-            return {"type": "image_url", "image_url": {"url": image}}
+        if image_url.startswith("data:image") or image_url.startswith(("http://", "https://")):
+            return {"type": "image_url", "image_url": {"url": image_url}}
 
-        # Process URL image
-        if image.startswith(("http://", "https://")):
-            return {"type": "image_url", "image_url": {"url": image}}
-
+    def _process_image_path(self, image_path: str) -> Dict[str, Any]:
+        """Process image ( file path)."""
         # Process local file image
         import base64
         import mimetypes
         from pathlib import Path
 
-        path = Path(image)
+        path = Path(image_path)
         if not path.exists():
-            raise FileNotFoundError(f"Image file not found: {image}")
+            raise FileNotFoundError(f"Image file not found: {image_path}")
 
-        mime_type = mimetypes.guess_type(image)[0] or "image/jpeg"
+        mime_type = mimetypes.guess_type(image_path)[0] or "image/jpeg"
         with open(path, "rb") as image_file:
             base64_image = base64.b64encode(image_file.read()).decode("utf-8")
             image_url = f"data:{mime_type};base64,{base64_image}"
@@ -417,20 +414,20 @@ class Model:
         image_url = f"data:image/jpeg;base64,{base64_image}"
         return {"type": "image_url", "image_url": {"url": image_url}}
 
-    def process_image(self, image: Any) -> Optional[Dict[str, Any]]:
+    def process_image(self, image: ImageInput) -> Optional[Dict[str, Any]]:
         """Process an image based on the format."""
 
-        if isinstance(image, dict):
-            return {"type": "image_url", "image_url": image}
+        if image.url is not None:
+            return self._process_image_url(image.url)
 
-        if isinstance(image, str):
-            return self._process_string_image(image)
+        elif image.filepath is not None:
+            return self._process_image_path(image.filepath)
 
-        if isinstance(image, bytes):
+        elif image.content is not None:
             return self._process_bytes_image(image)
-
-        logger.warning(f"Unsupported image type: {type(image)}")
-        return None
+        else:
+            logger.warning(f"Unsupported image type: {type(image)}")
+            return None
 
     def add_images_to_message(self, message: Message, images: Optional[Sequence[ImageInput]] = None) -> Message:
         """
@@ -462,7 +459,6 @@ class Model:
         # Add images to the message content
         for image in images:
             try:
-                print("HERE", type(image))
                 image_data = self.process_image(image)
                 if image_data:
                     message_content_with_image.append(image_data)

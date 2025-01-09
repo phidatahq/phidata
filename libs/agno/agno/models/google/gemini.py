@@ -173,7 +173,7 @@ class Gemini(Model):
 
         # Case 3: ImageArtifact is a bytes object
         # Add it as base64 encoded data
-        elif image.content is not None:
+        elif image.content is not None and isinstance(image.content, bytes):
             import base64
 
             image_data = {"mime_type": "image/jpeg", "data": base64.b64encode(image.content).decode("utf-8")}

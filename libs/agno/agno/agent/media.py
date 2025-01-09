@@ -1,6 +1,5 @@
 from typing import Any, Optional
 
-from google.generativeai.types import file_types
 from pydantic import BaseModel, model_validator
 
 
@@ -41,7 +40,7 @@ class AudioArtifact(Media):
 class ImageInput(BaseModel):
     url: Optional[str] = None  # Remote location for image
     filepath: Optional[str] = None  # Absolute local location for image
-    content: Optional[bytes | file_types.File] = None  # Actual image bytes content
+    content: Optional[Any] = None  # Actual image bytes content
     id: Optional[str] = None
 
     @property

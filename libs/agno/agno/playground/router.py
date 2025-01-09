@@ -25,8 +25,11 @@ from agno.playground.schemas import (
     AgentModel,
     AgentRenameRequest,
     AgentSessionsResponse,
+    WorkflowGetResponse,
     WorkflowRenameRequest,
     WorkflowRunRequest,
+    WorkflowSessionResponse,
+    WorkflowsGetResponse,
 )
 from agno.utils.log import logger
 from agno.workflow.session import WorkflowSession
@@ -267,29 +270,33 @@ def get_playground_router(
 
         return JSONResponse(status_code=404, content="Session not found.")
 
-    @playground_router.get("/workflows")
+    @playground_router.get("/workflows", response_model=List[WorkflowsGetResponse])
     def get_workflows():
         if workflows is None:
             return []
 
         return [
-            {"id": workflow.workflow_id, "name": workflow.name, "description": workflow.description}
+            WorkflowsGetResponse(
+                workflow_id=workflow.workflow_id,
+                name=workflow.name,
+                description=workflow.description,
+            )
             for workflow in workflows
         ]
 
-    @playground_router.get("/workflows/{workflow_id}")
+    @playground_router.get("/workflows/{workflow_id}", response_model=WorkflowGetResponse)
     def get_workflow(workflow_id: str):
         workflow = get_workflow_by_id(workflow_id, workflows)
         if workflow is None:
             raise HTTPException(status_code=404, detail="Workflow not found")
 
-        return {
-            "workflow_id": workflow.workflow_id,
-            "name": workflow.name,
-            "description": workflow.description,
-            "parameters": workflow._run_parameters or {},
-            "storage": workflow.storage.__class__.__name__ if workflow.storage else None,
-        }
+        return WorkflowGetResponse(
+            workflow_id=workflow.workflow_id,
+            name=workflow.name,
+            description=workflow.description,
+            parameters=workflow._run_parameters or {},
+            storage=workflow.storage.__class__.__name__ if workflow.storage else None,
+        )
 
     @playground_router.post("/workflows/{workflow_id}/run")
     def create_workflow_run(workflow_id: str, body: WorkflowRunRequest):
@@ -317,7 +324,7 @@ def get_playground_router(
             # Handle unexpected runtime errors
             raise HTTPException(status_code=500, detail=f"Error running workflow: {str(e)}")
 
-    @playground_router.get("/workflows/{workflow_id}/sessions")
+    @playground_router.get("/workflows/{workflow_id}/sessions", response_model=List[WorkflowSessionResponse])
     def get_all_workflow_sessions(workflow_id: str, user_id: str = Query(None)):
         # Retrieve the workflow by ID
         workflow = get_workflow_by_id(workflow_id, workflows)
@@ -338,16 +345,16 @@ def get_playground_router(
 
         # Return the sessions
         return [
-            {
-                "title": get_session_title_from_workflow_session(session),
-                "session_id": session.session_id,
-                "session_name": session.session_data.get("session_name") if session.session_data else None,
-                "created_at": session.created_at,
-            }
+            WorkflowSessionResponse(
+                title=get_session_title_from_workflow_session(session),
+                session_id=session.session_id,
+                session_name=session.session_data.get("session_name") if session.session_data else None,
+                created_at=session.created_at,
+            )
             for session in all_workflow_sessions
         ]
 
-    @playground_router.get("/workflows/{workflow_id}/sessions/{session_id}")
+    @playground_router.get("/workflows/{workflow_id}/sessions/{session_id}", response_model=WorkflowSession)
     def get_workflow_session(workflow_id: str, session_id: str, user_id: str = Query(None)):
         # Retrieve the workflow by ID
         workflow = get_workflow_by_id(workflow_id, workflows)
@@ -626,28 +633,33 @@ def get_async_playground_router(
 
         return JSONResponse(status_code=404, content="Session not found.")
 
-    @playground_router.get("/workflows")
+    @playground_router.get("/workflows", response_model=List[WorkflowsGetResponse])
     async def get_workflows():
         if workflows is None:
             return []
 
         return [
-            {"id": workflow.workflow_id, "name": workflow.name, "description": workflow.description}
+            WorkflowsGetResponse(
+                workflow_id=workflow.workflow_id,
+                name=workflow.name,
+                description=workflow.description,
+            )
             for workflow in workflows
         ]
 
-    @playground_router.get("/workflows/{workflow_id}")
+    @playground_router.get("/workflows/{workflow_id}", response_model=WorkflowGetResponse)
     async def get_workflow(workflow_id: str):
         workflow = get_workflow_by_id(workflow_id, workflows)
         if workflow is None:
             raise HTTPException(status_code=404, detail="Workflow not found")
-        return {
-            "workflow_id": workflow.workflow_id,
-            "name": workflow.name,
-            "description": workflow.description,
-            "parameters": workflow._run_parameters or {},
-            "storage": workflow.storage.__class__.__name__ if workflow.storage else None,
-        }
+        
+        return WorkflowGetResponse(
+            workflow_id=workflow.workflow_id,
+            name=workflow.name,
+            description=workflow.description,
+            parameters=workflow._run_parameters or {},
+            storage=workflow.storage.__class__.__name__ if workflow.storage else None,
+        )
 
     @playground_router.post("/workflows/{workflow_id}/run")
     async def create_workflow_run(workflow_id: str, body: WorkflowRunRequest):
@@ -680,7 +692,7 @@ def get_async_playground_router(
             # Handle unexpected runtime errors
             raise HTTPException(status_code=500, detail=f"Error running workflow: {str(e)}")
 
-    @playground_router.get("/workflows/{workflow_id}/sessions")
+    @playground_router.get("/workflows/{workflow_id}/sessions", response_model=List[WorkflowSessionResponse])
     async def get_all_workflow_sessions(workflow_id: str, user_id: str = Query(None)):
         # Retrieve the workflow by ID
         workflow = get_workflow_by_id(workflow_id, workflows)
@@ -701,12 +713,12 @@ def get_async_playground_router(
 
         # Return the sessions
         return [
-            {
-                "title": get_session_title_from_workflow_session(session),
-                "session_id": session.session_id,
-                "session_name": session.session_data.get("session_name") if session.session_data else None,
-                "created_at": session.created_at,
-            }
+            WorkflowSessionResponse(
+                title=get_session_title_from_workflow_session(session),
+                session_id=session.session_id,
+                session_name=session.session_data.get("session_name") if session.session_data else None,
+                created_at=session.created_at,
+            )
             for session in all_workflow_sessions
         ]
 

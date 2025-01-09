@@ -517,8 +517,28 @@ class Model:
         self.function_call_stack = None
         self.session_id = None
 
-    def deep_copy(self, *, update: Optional[Dict[str, Any]] = None) -> "Model":
-        new_model = self.model_copy(deep=True, update=update)
+    def __deepcopy__(self, memo):
+        """Create a deep copy of the Model instance.
+
+        Args:
+            memo (dict): Dictionary of objects already copied during the current copying pass.
+
+        Returns:
+            Model: A new Model instance with deeply copied attributes.
+        """
+        from copy import deepcopy
+
+        # Create a new instance without calling __init__
+        cls = self.__class__
+        new_model = cls.__new__(cls)
+        memo[id(self)] = new_model
+
+        # Deep copy all attributes
+        for k, v in self.__dict__.items():
+            if k in {"metrics", "functions", "function_call_stack", "session_id"}:
+                continue
+            setattr(new_model, k, deepcopy(v, memo))
+
         # Clear the new model to remove any references to the old model
         new_model.clear()
         return new_model

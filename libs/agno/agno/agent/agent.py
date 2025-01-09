@@ -1946,11 +1946,11 @@ class Agent:
         from copy import copy, deepcopy
 
         # For memory and model, use their deep_copy methods
-        if field_name in ("memory", "model"):
+        if field_name == "memory":
             return field_value.deep_copy()
 
         # For compound types, attempt a deep copy
-        if isinstance(field_value, (list, dict, set, AgentStorage)):
+        elif isinstance(field_value, (list, dict, set, AgentStorage, Model)):
             try:
                 return deepcopy(field_value)
             except Exception as e:
@@ -1962,7 +1962,7 @@ class Agent:
                     return field_value
 
         # For pydantic models, attempt a deep copy
-        if isinstance(field_value, BaseModel):
+        elif isinstance(field_value, BaseModel):
             try:
                 return field_value.model_copy(deep=True)
             except Exception as e:

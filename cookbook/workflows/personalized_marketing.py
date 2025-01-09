@@ -1,7 +1,19 @@
+"""
+This workflow demonstrates how to create a personalized marketing email for a given company.
+
+Steps to run the workflow:
+
+1. Set up OpenAI and Resend API keys in the environment variables.
+2. Update the `company_info` dictionary with the details of the companies you want to target. (Note: If email address is not scraped from the website, the provided email address will be used as a fallback.)
+4. Customize the email template with placeholders for the subject line, recipient name, sender name, and other details.
+4. Run the workflow by executing the script.
+5. The workflow will scrape the website of each company, extract relevant information, and generate and send a personalized email.
+"""
+
 from typing import Optional, Iterator, Dict, Any, List
 
 from pydantic import BaseModel, Field
-from pydantic.error_wrappers import ValidationError
+from pydantic import ValidationError
 
 from phi.agent import Agent
 from phi.model.openai import OpenAIChat
@@ -21,14 +33,14 @@ company_info: Dict = {
     },
 }
 
-sender_details: Dict = {
+sender_details_dict: Dict = {
     "name": "<insert-sender-name>",
     "email": "<insert-sender-email>",
     "organization": "<insert-sender-organization>",
     "calendar Link": "<insert-calendar-link>",
     "service_offered": "<insert-service-offered>",
 }
-
+sender_details = ", ".join(f"{k}: {v}" for k, v in sender_details_dict.items())
 
 # Email template with placeholders
 email_template = """
@@ -102,12 +114,12 @@ class PersonalisedMarketing(Workflow):
             "Introduce yourself and your purpose for reaching out.",
             "Be extremely polite and professional.",
             "Offer the services of your organization and suggest a meeting or call.",
-            "Send the email as: " + " ".join(sender_details),
+            f"Send the email as: {sender_details}",
             "Use the following template to structure your email:",
             email_template,
             "Then finally, use the resend tool to send the email.",
         ],
-        tools=[ResendTools()],
+        tools=[ResendTools(sender_details_dict["email"])],
         markdown=False,
     )
 

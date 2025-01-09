@@ -205,6 +205,8 @@ class Function(BaseModel):
                         param_name = param.arg_name
                         param_type = param.type_name
 
+                        # TODO: We should use type hints first, then map param types in docs to json schema types.
+                        # This is temporary to not lose information
                         param_descriptions[param_name] = f"({param_type}) {param.description}"
 
             # logger.info(f"Arguments for {self.name}: {param_type_hints}")
@@ -229,6 +231,7 @@ class Function(BaseModel):
             # logger.debug(f"JSON schema for {self.name}: {parameters}")
         except Exception as e:
             logger.warning(f"Could not parse args for {self.name}: {e}", exc_info=True)
+
 
         self.description = self.description or get_entrypoint_docstring(self.entrypoint)
         if not params_set_by_user:

@@ -5,7 +5,7 @@ from agno.embedder.base import Embedder
 from agno.utils.log import logger
 
 try:
-    from mistralai import Mistral
+    from mistralai.client import MistralClient
     from mistralai.models.embeddingresponse import EmbeddingResponse
 except ImportError:
     raise ImportError("`mistralai` not installed")
@@ -23,10 +23,10 @@ class MistralEmbedder(Embedder):
     timeout: Optional[int] = None
     client_params: Optional[Dict[str, Any]] = None
     # -*- Provide the MistralClient manually
-    mistral_client: Optional[Mistral] = None
+    mistral_client: Optional[MistralClient] = None
 
     @property
-    def client(self) -> Mistral:
+    def client(self) -> MistralClient:
         if self.mistral_client:
             return self.mistral_client
 
@@ -41,16 +41,10 @@ class MistralEmbedder(Embedder):
             _client_params["timeout"] = self.timeout
         if self.client_params:
             _client_params.update(self.client_params)
-        return Mistral(**_client_params)
+        return MistralClient(**_client_params)
 
     def _response(self, text: str) -> EmbeddingResponse:
-        _request_params: Dict[str, Any] = {
-            "inputs": text,
-            "model": self.model,
-        }
-        if self.request_params:
-            _request_params.update(self.request_params)
-        return self.client.embeddings.create(**_request_params)
+        return self.client.embeddings(input=text, model=self.model)
 
     def get_embedding(self, text: str) -> List[float]:
         response: EmbeddingResponse = self._response(text=text)

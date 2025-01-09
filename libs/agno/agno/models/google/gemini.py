@@ -8,8 +8,7 @@ from typing import Any, Callable, Dict, Iterator, List, Optional, Union
 from agno.models.base import Model
 from agno.models.message import Message
 from agno.models.response import ModelResponse
-from agno.tools import Tool, Toolkit
-from agno.tools.function import Function, FunctionCall
+from agno.tools import Function, FunctionCall, Toolkit
 from agno.utils.log import logger
 from agno.utils.timer import Timer
 from agno.utils.tools import get_function_call_for_tool_call
@@ -357,7 +356,7 @@ class Gemini(Model):
 
     def add_tool(
         self,
-        tool: Union["Tool", "Toolkit", Callable, dict, "Function"],
+        tool: Union[Toolkit, Callable, Dict, Function],
         strict: bool = False,
         agent: Optional[Any] = None,
     ) -> None:
@@ -366,13 +365,15 @@ class Gemini(Model):
 
         Args:
             tool: The tool to add. Can be a Tool, Toolkit, Callable, dict, or Function.
+            strict: If True, raise an error if the tool is not a Toolkit or Callable.
+            agent: The agent to associate with the tool.
         """
         if self.function_declarations is None:
             self.function_declarations = []
 
         # If the tool is a Tool or Dict, log a warning.
-        if isinstance(tool, Tool) or isinstance(tool, Dict):
-            logger.warning("Tool of type 'Tool' or 'dict' is not yet supported by Gemini.")
+        if isinstance(tool, Dict):
+            logger.warning("Tool of type 'dict' is not yet supported by Gemini.")
 
         # If the tool is a Callable or Toolkit, add its functions to the Model
         elif callable(tool) or isinstance(tool, Toolkit) or isinstance(tool, Function):

@@ -122,7 +122,7 @@ class ZoomTool(Toolkit):
 
         url = f"https://api.zoom.us/v2/users/{user_id}/meetings"
         headers = {"Authorization": f"Bearer {token}"}
-        params = {"type": "upcoming", "page_size": 30}
+        params = {"type": "upcoming", "page_size": str(30)}
 
         try:
             response = requests.get(url, headers=headers, params=params)

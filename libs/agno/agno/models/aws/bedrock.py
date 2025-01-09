@@ -2,7 +2,7 @@ import json
 from dataclasses import dataclass, field
 from typing import Any, Dict, Iterator, List, Optional, Tuple
 
-from agno.aws.api_client import AwsApiClient
+from agno.aws.api_client import AwsApiClient  # type: ignore
 from agno.models.base import Model
 from agno.models.message import Message
 from agno.models.response import ModelResponse

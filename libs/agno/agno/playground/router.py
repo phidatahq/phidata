@@ -1,4 +1,6 @@
 import base64
+import json
+from dataclasses import asdict
 from typing import AsyncGenerator, Dict, Generator, List, Optional, Union, cast
 
 from fastapi import APIRouter, HTTPException, UploadFile
@@ -134,7 +136,7 @@ def get_playground_router(
             )
         else:
             run_response = cast(RunResponse, new_agent_instance.run(body.message, images=base64_image, stream=False))
-            return run_response.model_dump_json()
+            return json.dumps(asdict(run_response))
 
     @playground_router.post("/agent/sessions/all")
     def get_agent_sessions(body: AgentSessionsRequest):
@@ -443,7 +445,7 @@ def get_async_playground_router(
             run_response = cast(
                 RunResponse, await new_agent_instance.arun(body.message, images=base64_image, stream=False)
             )
-            return run_response.model_dump_json()
+            return json.dumps(asdict(run_response))
 
     @playground_router.post("/agent/sessions/all")
     async def get_agent_sessions(body: AgentSessionsRequest):

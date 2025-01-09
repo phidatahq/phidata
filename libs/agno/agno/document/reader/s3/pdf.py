@@ -5,7 +5,7 @@ from agno.document.reader.base import Reader
 from agno.utils.log import logger
 
 try:
-    from agno.aws.resource.s3.object import S3Object
+    from agno.aws.resource.s3.object import S3Object  # type: ignore
 except (ModuleNotFoundError, ImportError):
     raise ImportError("`agno-aws` not installed. Please install using `pip install agno-aws`")
 

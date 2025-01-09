@@ -1,6 +1,6 @@
 from typing import List, Optional
 
-from agno.agent.agent import Agent, AgentRun, Function, Tool, Toolkit
+from agno.agent.agent import Agent, AgentRun, Function, Toolkit
 from agno.agent.session import AgentSession
 from agno.utils.log import logger
 from agno.workflow.session import WorkflowSession
@@ -13,8 +13,6 @@ def format_tools(agent_tools):
         for tool in agent_tools:
             if isinstance(tool, dict):
                 formatted_tools.append(tool)
-            elif isinstance(tool, Tool):
-                formatted_tools.append(tool.to_dict())
             elif isinstance(tool, Toolkit):
                 for f_name, f in tool.functions.items():
                     formatted_tools.append(f.to_dict())

@@ -11,4 +11,4 @@ class File:
     type: str = "FILE"
 
     def get_metadata(self) -> dict[str, Any]:
-        return asdict(self)
+        return {k: v for k, v in asdict(self).items() if v is not None}

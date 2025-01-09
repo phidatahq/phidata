@@ -1,21 +1,19 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from pydantic import BaseModel, ConfigDict
 
+from agno.memory.classifier import MemoryClassifier
+from agno.memory.db import MemoryDb
+from agno.memory.manager import MemoryManager
+from agno.memory.memory import Memory
+from agno.memory.summarizer import MemorySummarizer
 from agno.memory.summary import SessionSummary
 from agno.models.message import Message
 from agno.run.response import RunResponse
 from agno.utils.log import logger
-
-if TYPE_CHECKING:
-    from agno.memory.classifier import MemoryClassifier
-    from agno.memory.db import MemoryDb
-    from agno.memory.manager import MemoryManager
-    from agno.memory.memory import Memory
-    from agno.memory.summarizer import MemorySummarizer
 
 
 class AgentRun(BaseModel):
@@ -46,7 +44,7 @@ class AgentMemory(BaseModel):
     # Update session summaries after each run
     update_session_summary_after_run: bool = True
     # Summarizer to generate session summaries
-    summarizer: Optional["MemorySummarizer"] = None
+    summarizer: Optional[MemorySummarizer] = None
 
     # Create and store personalized memories for this user
     create_user_memories: bool = False
@@ -54,7 +52,7 @@ class AgentMemory(BaseModel):
     update_user_memories_after_run: bool = True
 
     # MemoryDb to store personalized memories
-    db: Optional["MemoryDb"] = None
+    db: Optional[MemoryDb] = None
     # User ID for the personalized memories
     user_id: Optional[str] = None
     retrieval: MemoryRetrieval = MemoryRetrieval.last_n

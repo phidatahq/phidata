@@ -10,6 +10,7 @@ certifi==2024.12.14
     #   httpx
 click==8.1.8
     # via typer
+docstring-parser==0.16
 gitdb==4.0.11
     # via gitpython
 gitpython==3.1.43

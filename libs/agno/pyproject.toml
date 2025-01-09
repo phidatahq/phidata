@@ -38,6 +38,9 @@ exa = ["exa_py"]
 yfinance = ["yfinance"]
 ddg = ["duckduckgo-search"]
 
+# Performance
+memory_profiler = ["memory_profiler"]
+
 all = [
     "agno[dev]",
     "agno[anthropic]",
@@ -49,6 +52,7 @@ all = [
     "agno[exa]",
     "agno[yfinance]",
     "agno[ddg]",
+    "agno[memory_profiler]",
 ]
 
 [project.scripts]

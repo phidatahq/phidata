@@ -1123,7 +1123,7 @@ class Agent:
             tools.append(self.get_chat_history)
         if self.read_tool_call_history:
             tools.append(self.get_tool_call_history)
-        if self.memory.create_user_memories:
+        if self.memory and self.memory.create_user_memories:
             tools.append(self.update_memory)
 
         # Add tools for accessing knowledge

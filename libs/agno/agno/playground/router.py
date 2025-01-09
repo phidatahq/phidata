@@ -420,8 +420,10 @@ def get_async_playground_router(
             agent_tools = agent.get_tools()
             formatted_tools = format_tools(agent_tools)
 
+            print(agent.model)
+
             name = agent.model.name or agent.model.__class__.__name__ if agent.model else None
-            provider = agent.model.provider or agent.model.__class__.__name__ if agent.model else None
+            provider = agent.model.provider or agent.model.__class__.__name__ if agent.model else ""
             model_id = agent.model.id if agent.model else None
 
             if provider and model_id:

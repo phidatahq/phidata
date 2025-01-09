@@ -23,12 +23,18 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["mypy", "pytest", "ruff", "timeout-decorator", "types-pyyaml", "fastapi", "uvicorn"]
+
+# Models
 anthropic = ["anthropic"]
 cohere = ["cohere"]
 google = ["google-generativeai"]
 groq = ["groq"]
 mistral = ["mistralai"]
 openai = ["openai"]
+
+# Tools
+exa = ["exa_py"]
+yfinance = ["yfinance"]
 
 all = [
     "agno[dev]",
@@ -38,6 +44,8 @@ all = [
     "agno[groq]",
     "agno[mistral]",
     "agno[openai]",
+    "agno[exa]",
+    "agno[yfinance]",
 ]
 
 [project.scripts]

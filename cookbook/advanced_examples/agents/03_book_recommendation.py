@@ -1,6 +1,6 @@
-from phi.agent import Agent
-from phi.model.openai import OpenAIChat
-from phi.tools.exa import ExaTools
+from agno.agent import Agent
+from agno.models.openai import OpenAIChat
+from agno.tools.exa import ExaTools
 
 agent = Agent(
     description="you help user with book recommendations",
@@ -13,12 +13,16 @@ agent = Agent(
         "When the user mentions an author, recommend similar authors or series they may enjoy.",
         "Highlight notable accomplishments of the book, such as awards, best-seller status, or critical acclaim.",
         "Provide a short summary or teaser for each book recommended.",
+        "Use exa to search for books",
         "Offer up to 5 book recommendations for each request, ensuring they are diverse and relevant.",
         "Leverage online resources like Goodreads, StoryGraph, and LibraryThing for accurate and varied suggestions.",
         "Focus on being concise, relevant, and thoughtful in your recommendations.",
     ],
     tools=[ExaTools()],
+    show_tool_calls=True,
+    markdown=True,
 )
 agent.print_response(
-    "I really found anxious people and lessons in chemistry interesting, can you suggest me more such books"
+    "I really found anxious people and lessons in chemistry interesting, can you suggest me more such books",
+    stream=True,
 )

@@ -1,6 +1,6 @@
-from phi.agent import Agent
-from phi.model.openai import OpenAIChat
-from phi.tools.exa import ExaTools
+from agno.agent import Agent
+from agno.models.openai import OpenAIChat
+from agno.tools.exa import ExaTools
 
 agent = Agent(
     description="you help the user plan their weekends",
@@ -18,7 +18,10 @@ agent = Agent(
         "Keep responses concise, clear, and formatted for easy reading.",
     ],
     tools=[ExaTools()],
+    show_tool_calls=True,
+    markdown=True,
 )
 agent.print_response(
-    "I want to plan my coming weekend filled with fun activities and christmas themed activities in Bangalore for 21 and 22 Dec 2024."
+    "I want to plan my coming weekend filled with fun activities and christmas themed activities in Bangalore for 21 and 22 Dec 2024.",
+    stream=True,
 )

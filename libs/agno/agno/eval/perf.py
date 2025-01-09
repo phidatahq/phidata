@@ -83,14 +83,14 @@ class PerfEval:
     func: Optional[Callable] = None
     # Number of iterations to run
     num_iterations: int = 3
-    # Show summary of results
-    show_summary: bool = False
-    # Show detailed results
-    show_results: bool = False
+    # Print summary of results
+    print_summary: bool = False
+    # Print detailed results
+    print_results: bool = False
     # Result of the evaluation
     result: Optional[PerfResult] = None
 
-    def run(self) -> PerfResult:
+    def run(self, *, print_summary: bool = False, print_results: bool = False) -> PerfResult:
         from rich.console import Console
         from rich.live import Live
         from rich.status import Status
@@ -98,6 +98,8 @@ class PerfEval:
         console = Console()
         run_times = []
         memory_usages = []
+        self.print_summary = print_summary
+        self.print_results = print_results
 
         # Add a spinner while running the evaluations
         with Live(console=console, transient=True) as live_log:
@@ -134,9 +136,9 @@ class PerfEval:
         self.result = PerfResult(run_times=run_times, memory_usages=memory_usages)
 
         # Show results
-        if self.show_summary or self.show_results:
+        if self.print_summary or self.print_results:
             self.result.print_summary(console)
-        if self.show_results:
+        if self.print_results:
             self.result.print_runs(console)
 
         return self.result

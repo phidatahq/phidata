@@ -35,19 +35,6 @@ class AgentRunRequest(BaseModel):
 
 class AgentRenameRequest(BaseModel):
     name: str
-    agent_id: str
-    session_id: str
-
-
-class AgentSessionDeleteRequest(BaseModel):
-    agent_id: str
-    session_id: str
-    user_id: Optional[str] = None
-
-
-class AgentSessionsRequest(BaseModel):
-    agent_id: str
-    user_id: Optional[str] = None
 
 
 class AgentSessionsResponse(BaseModel):
@@ -55,10 +42,6 @@ class AgentSessionsResponse(BaseModel):
     session_id: Optional[str] = None
     session_name: Optional[str] = None
     created_at: Optional[int] = None
-
-
-class WorkflowSessionsRequest(BaseModel):
-    user_id: Optional[str] = None
 
 
 class WorkflowRenameRequest(BaseModel):

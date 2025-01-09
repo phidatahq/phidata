@@ -76,6 +76,7 @@ class StreamData:
     response_tool_calls: Optional[List[ChoiceDeltaToolCall]] = None
 
 
+@dataclass
 class OpenAIChat(Model):
     """
     A class for interacting with OpenAI models.

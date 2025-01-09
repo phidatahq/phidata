@@ -62,7 +62,7 @@ class Model:
     supports_structured_outputs: bool = False
 
     def __post_init__(self):
-        if self.provider is None:
+        if self.provider is None and self.name is not None:
             self.provider = f"{self.name} ({self.id})"
 
     @property

@@ -36,6 +36,7 @@ openai = ["openai"]
 # Tools
 exa = ["exa_py"]
 yfinance = ["yfinance"]
+ddg = ["duckduckgo-search"]
 
 all = [
     "agno[dev]",
@@ -47,6 +48,7 @@ all = [
     "agno[openai]",
     "agno[exa]",
     "agno[yfinance]",
+    "agno[ddg]",
 ]
 
 [project.scripts]

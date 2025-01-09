@@ -54,6 +54,7 @@ class Metrics:
         logger.debug("**************** METRICS END ******************")
 
 
+@dataclass
 class Claude(Model):
     """
     A class representing Anthropic Claude model.

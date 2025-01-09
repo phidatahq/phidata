@@ -1,4 +1,5 @@
 import json
+from dataclasses import dataclass
 from os import getenv
 from typing import Any, Dict, Iterator, List, Optional
 
@@ -21,6 +22,7 @@ except ImportError:
     raise
 
 
+@dataclass
 class Together(OpenAILike):
     """
     A class for interacting with Together models.

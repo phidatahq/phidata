@@ -46,6 +46,7 @@ class StreamData:
     response_timer: Timer = field(default_factory=Timer)
 
 
+@dataclass
 class CohereChat(Model):
     id: str = "command-r-plus"
     name: str = "cohere"

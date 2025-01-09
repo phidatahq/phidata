@@ -1,9 +1,11 @@
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 from agno.models.aws.bedrock import AwsBedrock
 from agno.models.message import Message
 
 
+@dataclass
 class Claude(AwsBedrock):
     """
     AWS Bedrock Claude model.

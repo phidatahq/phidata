@@ -1,9 +1,11 @@
+from dataclasses import dataclass
 from os import getenv
 from typing import Optional
 
 from agno.models.openai.like import OpenAILike
 
 
+@dataclass
 class xAI(OpenAILike):
     """
     Class for interacting with the xAI API.

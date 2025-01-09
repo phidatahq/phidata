@@ -29,6 +29,7 @@ class StreamData:
     response_timer: Timer = field(default_factory=Timer)
 
 
+@dataclass
 class MistralChat(Model):
     """
     MistralChat is a model that uses the Mistral API to generate responses to messages.

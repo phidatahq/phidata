@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 from os import getenv
 from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 
+from agno.agent.media import ImageInput
 from agno.models.base import Model
 from agno.models.message import Message
 from agno.models.response import ModelResponse
@@ -148,14 +149,14 @@ class Claude(Model):
 
                 if message.role == "user" and message.images is not None:
                     for image in message.images:
-                        image_content = self.add_image(image)
+                        image_content = self.format_image_for_message(image)
                         if image_content:
                             content.append(image_content)
 
                 chat_messages.append({"role": message.role, "content": content})  # type: ignore
         return chat_messages, " ".join(system_messages)
 
-    def add_image(self, image: Union[str, bytes]) -> Optional[Dict[str, Any]]:
+    def format_image_for_message(self, image: ImageInput) -> Optional[Dict[str, Any]]:
         """
         Add an image to a message by converting it to base64 encoded format.
 
@@ -171,33 +172,30 @@ class Claude(Model):
         type_mapping = {"jpeg": "image/jpeg", "png": "image/png", "gif": "image/gif", "webp": "image/webp"}
 
         try:
-            content = None
-            # Case 1: Image is a string
-            if isinstance(image, str):
-                # Case 1.1: Image is a URL
-                if image.startswith(("http://", "https://")):
-                    import httpx
 
-                    content = httpx.get(image).content
-                # Case 1.2: Image is a local file path
+            # Case 1: Image is a URL
+            if image.url is not None:
+                content_bytes = image.image_url_content
+
+            # Case 2: Image is a local file path
+            elif image.filepath is not None:
+                from pathlib import Path
+
+                path = Path(image)
+                if path.exists() and path.is_file():
+                    with open(image, "rb") as f:
+                        content_bytes = f.read()
                 else:
-                    from pathlib import Path
-
-                    path = Path(image)
-                    if path.exists() and path.is_file():
-                        with open(image, "rb") as f:
-                            content = f.read()
-                    else:
-                        logger.error(f"Image file not found: {image}")
-                        return None
-            # Case 2: Image is a bytes object
-            elif isinstance(image, bytes):
-                content = image
+                    logger.error(f"Image file not found: {image}")
+                    return None
+            # Case 3: Image is a bytes object
+            elif image.content is not None:
+                content_bytes = image.content
             else:
                 logger.error(f"Unsupported image type: {type(image)}")
                 return None
 
-            img_type = imghdr.what(None, h=content)
+            img_type = imghdr.what(None, h=content_bytes)
             if not img_type:
                 logger.error("Unable to determine image type")
                 return None
@@ -212,7 +210,7 @@ class Claude(Model):
                 "source": {
                     "type": "base64",
                     "media_type": media_type,
-                    "data": base64.b64encode(content).decode("utf-8"),
+                    "data": base64.b64encode(content_bytes).decode("utf-8"),
                 },
             }
 

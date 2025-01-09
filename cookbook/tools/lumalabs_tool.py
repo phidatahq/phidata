@@ -5,7 +5,7 @@ from agno.tools.lumalab import LumaLabTools
 """Create an agent specialized for Luma AI video generation"""
 
 luma_agent = Agent(
-    name="Luma Video Agent",
+    name="Luma VideoArtifact Agent",
     agent_id="luma-video-agent",
     llm=OpenAIChat(model="gpt-4o"),
     tools=[LumaLabTools()],  # Using the LumaLab tool we created
@@ -15,10 +15,10 @@ luma_agent = Agent(
     instructions=[
         "You are an agent designed to generate videos using the Luma AI API.",
         "You can generate videos in two ways:",
-        "1. Text-to-Video Generation:",
+        "1. Text-to-VideoArtifact Generation:",
         "   - Use the generate_video function for creating videos from text prompts",
         "   - Default parameters: loop=False, aspect_ratio='16:9', keyframes=None",
-        "2. Image-to-Video Generation:",
+        "2. Image-to-VideoArtifact Generation:",
         "   - Use the image_to_video function when starting from one or two images",
         "   - Required parameters: prompt, start_image_url",
         "   - Optional parameters: end_image_url, loop=False, aspect_ratio='16:9'",

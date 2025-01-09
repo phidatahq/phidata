@@ -14,7 +14,7 @@ video_tools = MoviePyVideoTools(process_video=True, generate_captions=True, embe
 openai_tools = OpenAITools()
 
 video_caption_agent = Agent(
-    name="Video Caption Generator Agent",
+    name="VideoArtifact Caption Generator Agent",
     model=OpenAIChat(
         id="gpt-4o",
     ),

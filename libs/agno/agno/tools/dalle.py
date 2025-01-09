@@ -3,7 +3,7 @@ from typing import Literal, Optional
 from uuid import uuid4
 
 from agno.agent import Agent
-from agno.agent.media import Image
+from agno.agent.media import ImageArtifact
 from agno.tools import Toolkit
 from agno.utils.log import logger
 
@@ -79,14 +79,14 @@ class Dalle(Toolkit):
                 size=self.size,
                 style=self.style,
             )
-            logger.debug("Image generated successfully")
+            logger.debug("ImageArtifact generated successfully")
 
             # Update the run response with the image URLs
             for img in response.data:
                 agent.add_image(
-                    Image(id=str(uuid4()), url=img.url, original_prompt=prompt, revised_prompt=img.revised_prompt)
+                    ImageArtifact(id=str(uuid4()), url=img.url, original_prompt=prompt, revised_prompt=img.revised_prompt)
                 )
-            return "Image has been generated successfully and will be displayed below"
+            return "ImageArtifact has been generated successfully and will be displayed below"
         except Exception as e:
             logger.error(f"Failed to generate image: {e}")
             return f"Error: {e}"

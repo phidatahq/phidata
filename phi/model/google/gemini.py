@@ -223,7 +223,7 @@ class Gemini(Model):
             if message.videos is not None and message.role == "user":
                 try:
                     for video in message.videos:
-                        # Case 1: Video is a file_types.File object (Recommended)
+                        # Case 1: VideoArtifact is a file_types.File object (Recommended)
                         # Add it as a File object
                         if isinstance(video, file_types.File):
                             # Google recommends that if using a single video, place the text prompt after the video.
@@ -262,7 +262,7 @@ class Gemini(Model):
 
             if message.audio is not None and message.role == "user":
                 try:
-                    # Case 1: Audio is a file_types.File object (Recommended)
+                    # Case 1: AudioArtifact is a file_types.File object (Recommended)
                     # Add it as a File object
                     if isinstance(message.audio, file_types.File):
                         # Google recommends that if using a single audio, place the text prompt after the audio.
@@ -280,7 +280,7 @@ class Gemini(Model):
                         else:
                             logger.error(f"Audio file {audio_path} does not exist.")
                             raise
-                    # Case 3: Audio is a bytes object
+                    # Case 3: AudioArtifact is a bytes object
                     # Add it as base64 encoded data
                     elif isinstance(message.audio, bytes):
                         audio_file = {"mime_type": "audio/mp3", "data": message.audio}

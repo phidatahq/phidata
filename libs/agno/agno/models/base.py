@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 from types import GeneratorType
 from typing import Any, Callable, Dict, Iterator, List, Optional, Sequence, Union
 
+from agno.agent.media import ImageInput
 from agno.models.message import Message
 from agno.models.response import ModelResponse, ModelResponseEvent
 from agno.tools import Toolkit
@@ -431,10 +432,11 @@ class Model:
         logger.warning(f"Unsupported image type: {type(image)}")
         return None
 
-    def add_images_to_message(self, message: Message, images: Optional[Sequence[Any]] = None) -> Message:
+    def add_images_to_message(self, message: Message, images: Optional[Sequence[ImageInput]] = None) -> Message:
         """
         Add images to a message for the model. By default, we use the OpenAI image format but other Models
         can override this method to use a different image format.
+
         Args:
             message: The message for the Model
             images: Sequence of images in various formats:
@@ -460,6 +462,7 @@ class Model:
         # Add images to the message content
         for image in images:
             try:
+                print("HERE", type(image))
                 image_data = self.process_image(image)
                 if image_data:
                     message_content_with_image.append(image_data)

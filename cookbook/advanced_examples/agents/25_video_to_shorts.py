@@ -42,7 +42,7 @@ while video_file.state.name == "PROCESSING":
     time.sleep(2)
     video_file = get_file(video_file.name)
 
-# 3. Multimodal Query for Video Analysis
+# 3. Multimodal Query for VideoArtifact Analysis
 query = """
 
 You are an expert in video content creation, specializing in crafting engaging short-form content for platforms like YouTube Shorts and Instagram Reels. Your task is to analyze the provided video and identify segments that maximize viewer engagement.
@@ -60,7 +60,7 @@ For each video, you'll:
    - Optimal length (strictly 15–60 seconds)
    - Natural start and end points that ensure smooth transitions
    - Engaging pacing that maintains viewer attention
-   - Audio-visual harmony for an immersive experience
+   - AudioArtifact-visual harmony for an immersive experience
    - Vertical format compatibility and adjustments if necessary
 
 3. Provide a detailed analysis of each segment, including:
@@ -72,7 +72,7 @@ For each video, you'll:
 Your goal is to identify moments that are visually compelling, emotionally engaging, and perfectly optimized for short-form platforms.
 """
 
-# 4. Generate Video Analysis
+# 4. Generate VideoArtifact Analysis
 response = agent.run(query, videos=[video_file])
 
 # 5. Create output directory

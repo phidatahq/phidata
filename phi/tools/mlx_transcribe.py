@@ -1,5 +1,5 @@
 """
-MLX Transcribe Tools - Audio Transcription using Apple's MLX Framework
+MLX Transcribe Tools - AudioArtifact Transcription using Apple's MLX Framework
 
 Requirements:
     - ffmpeg: Required for audio processing

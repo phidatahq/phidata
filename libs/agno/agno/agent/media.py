@@ -1,5 +1,6 @@
 from typing import Any, Optional
 
+from google.generativeai.types import file_types
 from pydantic import BaseModel, model_validator
 
 
@@ -9,21 +10,22 @@ class Media(BaseModel):
     revised_prompt: Optional[str] = None
 
 
-class Video(Media):
+class VideoArtifact(Media):
     url: str  # Remote location for file
     eta: Optional[str] = None
     length: Optional[str] = None
 
 
-class Image(Media):
+class ImageArtifact(Media):
     url: str  # Remote location for file
     alt_text: Optional[str] = None
 
 
-class Audio(Media):
+class AudioArtifact(Media):
     url: Optional[str] = None  # Remote location for file
     base64_audio: Optional[str] = None  # Base64-encoded audio data
     length: Optional[str] = None
+    mime_type: Optional[str] = None
 
     @model_validator(mode="before")
     def validate_exclusive_audio(cls, data: Any):
@@ -34,4 +36,36 @@ class Audio(Media):
             raise ValueError("Provide either `url` or `base64_audio`, not both.")
         if not data.get("url") and not data.get("base64_audio"):
             raise ValueError("Either `url` or `base64_audio` must be provided.")
+        return data
+
+class ImageInput(BaseModel):
+    url: Optional[str] = None  # Remote location for image
+    filepath: Optional[str] = None  # Absolute local location for image
+    content: Optional[bytes | file_types.File] = None  # Actual image bytes content
+    id: Optional[str] = None
+
+    @property
+    def image_url_content(self) -> bytes:
+        import httpx
+
+        return httpx.get(self.url).content
+
+    @model_validator(mode="before")
+    def validate_exclusive_image(cls, data: Any):
+        """
+        Ensure that exactly one of `url`, `filepath`, or `content` is provided.
+        """
+        # Extract the values from the input data
+        url = data.get("url")
+        filepath = data.get("filepath")
+        content = data.get("content")
+
+        # Count how many fields are set (not None)
+        count = len([field for field in [url, filepath, content] if field is not None])
+
+        if count == 0:
+            raise ValueError("One of `url`, `filepath`, or `content` must be provided.")
+        elif count > 1:
+            raise ValueError("Only one of `url`, `filepath`, or `content` should be provided.")
+
         return data

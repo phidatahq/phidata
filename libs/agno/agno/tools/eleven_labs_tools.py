@@ -6,7 +6,7 @@ from typing import Iterator, Literal, Optional
 from uuid import uuid4
 
 from agno.agent import Agent
-from agno.agent.media import Audio
+from agno.agent.media import AudioArtifact
 from agno.tools import Toolkit
 from agno.utils.log import logger
 
@@ -136,14 +136,14 @@ class ElevenLabsTools(Toolkit):
 
             # Attach to the agent
             agent.add_audio(
-                Audio(
+                AudioArtifact(
                     id=str(uuid4()),
                     base64_audio=base64_audio,
                     mime_type="audio/mpeg",
                 )
             )
 
-            return "Audio generated successfully"
+            return "AudioArtifact generated successfully"
 
         except Exception as e:
             logger.error(f"Failed to generate audio: {e}")
@@ -171,14 +171,14 @@ class ElevenLabsTools(Toolkit):
 
             # Attach to the agent
             agent.add_audio(
-                Audio(
+                AudioArtifact(
                     id=str(uuid4()),
                     base64_audio=base64_audio,
                     mime_type="audio/mpeg",
                 )
             )
 
-            return "Audio generated successfully"
+            return "AudioArtifact generated successfully"
 
         except Exception as e:
             logger.error(f"Failed to generate audio: {e}")

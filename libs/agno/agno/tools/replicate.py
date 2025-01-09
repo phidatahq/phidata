@@ -4,7 +4,7 @@ from urllib.parse import urlparse
 from uuid import uuid4
 
 from agno.agent import Agent
-from agno.agent.media import Image, Video
+from agno.agent.media import ImageArtifact, VideoArtifact
 from agno.tools import Toolkit
 from agno.utils.log import logger
 
@@ -51,7 +51,7 @@ class ReplicateTools(Toolkit):
 
         if ext in image_extensions:
             agent.add_image(
-                Image(
+                ImageArtifact(
                     id=media_id,
                     url=output.url,
                 )
@@ -59,7 +59,7 @@ class ReplicateTools(Toolkit):
             media_type = "image"
         elif ext in video_extensions:
             agent.add_video(
-                Video(
+                VideoArtifact(
                     id=media_id,
                     url=output.url,
                 )

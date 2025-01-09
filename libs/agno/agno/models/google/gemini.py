@@ -5,6 +5,7 @@ from os import getenv
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterator, List, Optional, Union
 
+from agno.agent.media import ImageInput
 from agno.models.base import Model
 from agno.models.message import Message
 from agno.models.response import ModelResponse
@@ -133,6 +134,54 @@ class Gemini(Model):
             request_params["tools"] = [GeminiTool(function_declarations=self.function_declarations)]
         return request_params
 
+    def format_image_for_message(self, image: ImageInput) -> Optional[Dict[str, Any]]:
+        # Case 1: Image is a URL
+        # Download the image from the URL and add it as base64 encoded data
+        if image.url is not None:
+            try:
+                import base64
+
+                content_bytes = image.image_url_content
+                image_data = {
+                    "mime_type": "image/jpeg",
+                    "data": base64.b64encode(content_bytes).decode("utf-8"),
+                }
+                return image_data
+            except Exception as e:
+                logger.warning(f"Failed to download image from {image}: {e}")
+                return None
+        # Case 2: ImageArtifact is a local path
+        # Open the image file and add it as base64 encoded data
+        elif image.filepath is not None:
+            try:
+                import PIL.Image
+            except ImportError:
+                logger.error("`PIL.ImageArtifact not installed. Please install it using 'pip install pillow'`")
+                raise
+
+            try:
+                image_path = Path(image.filepath)
+                if image_path.exists() and image_path.is_file():
+                    image_data = PIL.Image.open(image_path)  # type: ignore
+                else:
+                    logger.error(f"ImageArtifact file {image_path} does not exist.")
+                    raise
+                return image_data  # type: ignore
+            except Exception as e:
+                logger.warning(f"Failed to load image from {image_path}: {e}")
+                return None
+
+        # Case 3: ImageArtifact is a bytes object
+        # Add it as base64 encoded data
+        elif image.content is not None:
+            import base64
+
+            image_data = {"mime_type": "image/jpeg", "data": base64.b64encode(image.content).decode("utf-8")}
+            return image_data
+        else:
+            logger.warning(f"Unknown image type: {type(image)}")
+            return None
+
     def format_messages(self, messages: List[Message]) -> List[Dict[str, Any]]:
         """
         Converts a list of Message objects to the Gemini-compatible format.
@@ -168,63 +217,19 @@ class Gemini(Model):
             # Add images to the message for the model
             if message.images is not None and message.role == "user":
                 for image in message.images:
-                    # Case 1: Image is a file_types.File object (Recommended)
-                    # Add it as a File object
-                    if isinstance(image, file_types.File):
+                    if image.content is not None and isinstance(image.content, file_types.File):
                         # Google recommends that if using a single image, place the text prompt after the image.
-                        message_parts.insert(0, image)
-                    # Case 2: If image is a string, it is a URL or a local path
-                    elif isinstance(image, str) or isinstance(image, Path):
-                        # Case 2.1: Image is a URL
-                        # Download the image from the URL and add it as base64 encoded data
-                        if isinstance(image, str) and (image.startswith("http://") or image.startswith("https://")):
-                            try:
-                                import base64
-
-                                import httpx
-
-                                image_content = httpx.get(image).content
-                                image_data = {
-                                    "mime_type": "image/jpeg",
-                                    "data": base64.b64encode(image_content).decode("utf-8"),
-                                }
-                                message_parts.append(image_data)  # type: ignore
-                            except Exception as e:
-                                logger.warning(f"Failed to download image from {image}: {e}")
-                                continue
-                        # Case 2.2: Image is a local path
-                        # Open the image file and add it as base64 encoded data
-                        else:
-                            try:
-                                import PIL.Image
-                            except ImportError:
-                                logger.error("`PIL.Image not installed. Please install it using 'pip install pillow'`")
-                                raise
-
-                            try:
-                                image_path = image if isinstance(image, Path) else Path(image)
-                                if image_path.exists() and image_path.is_file():
-                                    image_data = PIL.Image.open(image_path)  # type: ignore
-                                else:
-                                    logger.error(f"Image file {image_path} does not exist.")
-                                    raise
-                                message_parts.append(image_data)  # type: ignore
-                            except Exception as e:
-                                logger.warning(f"Failed to load image from {image_path}: {e}")
-                                continue
-                    # Case 3: Image is a bytes object
-                    # Add it as base64 encoded data
-                    elif isinstance(image, bytes):
-                        image_data = {"mime_type": "image/jpeg", "data": base64.b64encode(image).decode("utf-8")}
-                        message_parts.append(image_data)
+                        message_parts.insert(0, image.content)
                     else:
-                        logger.warning(f"Unknown image type: {type(image)}")
-                        continue
+                        image_content = self.format_image_for_message(image)
+                        if image_content:
+                            message_parts.append(image_content)
 
+            # Add videos to the message for the model
             if message.videos is not None and message.role == "user":
                 try:
                     for video in message.videos:
-                        # Case 1: Video is a file_types.File object (Recommended)
+                        # Case 1: VideoArtifact is a file_types.File object (Recommended)
                         # Add it as a File object
                         if isinstance(video, file_types.File):
                             # Google recommends that if using a single video, place the text prompt after the video.
@@ -263,7 +268,7 @@ class Gemini(Model):
 
             if message.audio is not None and message.role == "user":
                 try:
-                    # Case 1: Audio is a file_types.File object (Recommended)
+                    # Case 1: AudioArtifact is a file_types.File object (Recommended)
                     # Add it as a File object
                     if isinstance(message.audio, file_types.File):
                         # Google recommends that if using a single audio, place the text prompt after the audio.
@@ -281,7 +286,7 @@ class Gemini(Model):
                         else:
                             logger.error(f"Audio file {audio_path} does not exist.")
                             raise
-                    # Case 3: Audio is a bytes object
+                    # Case 3: AudioArtifact is a bytes object
                     # Add it as base64 encoded data
                     elif isinstance(message.audio, bytes):
                         audio_file = {"mime_type": "audio/mp3", "data": message.audio}

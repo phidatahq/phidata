@@ -3,7 +3,7 @@ from typing import Any, List, Optional
 
 
 @dataclass
-class File:
+class File():
     name: Optional[str] = None
     description: Optional[str] = None
     columns: Optional[List[str]] = None

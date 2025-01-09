@@ -9,6 +9,7 @@ authors = [
 ]
 
 dependencies = [
+  "docstring-parser",
   "gitpython",
   "httpx",
   "pydantic",

@@ -1,8 +1,8 @@
 import asyncio
 from rich.pretty import pprint
-from phi.agent import Agent
-from phi.model.openai import OpenAIChat
-from phi.tools.duckduckgo import DuckDuckGo
+from agno.agent import Agent
+from agno.models.openai import OpenAIChat
+from agno.tools.duckduckgo import DuckDuckGo
 
 providers = ["openai", "anthropic", "ollama", "cohere", "google"]
 instructions = [

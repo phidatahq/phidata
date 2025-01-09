@@ -1,9 +1,9 @@
 """Run `pip install ollama sqlalchemy 'fastapi[standard]'` to install dependencies."""
 
-from phi.agent import Agent
-from phi.model.ollama import Ollama
-from phi.playground import Playground, serve_playground_app
-from phi.storage.agent.sqlite import SqlAgentStorage
+from agno.agent import Agent
+from agno.models.ollama import Ollama
+from agno.playground import Playground, serve_playground_app
+from agno.storage.agent.sqlite import SqlAgentStorage
 
 
 local_agent_storage_file: str = "tmp/local_agents.db"

@@ -1,8 +1,8 @@
 """Run `pip install duckduckgo-search boto3 openai` to install dependencies."""
 
-from phi.agent import Agent
-from phi.tools.duckduckgo import DuckDuckGo
-from phi.storage.agent.dynamodb import DynamoDbAgentStorage
+from agno.agent import Agent
+from agno.tools.duckduckgo import DuckDuckGo
+from agno.storage.agent.dynamodb import DynamoDbAgentStorage
 
 agent = Agent(
     storage=DynamoDbAgentStorage(table_name="agent_sessions", region_name="us-east-1"),

@@ -2,10 +2,10 @@ import typer
 from typing import Optional
 from rich.prompt import Prompt
 
-from phi.agent import Agent
-from phi.knowledge.pdf import PDFUrlKnowledgeBase
-from phi.vectordb.lancedb import LanceDb
-from phi.vectordb.search import SearchType
+from agno.agent import Agent
+from agno.knowledge.pdf import PDFUrlKnowledgeBase
+from agno.vectordb.lancedb import LanceDb
+from agno.vectordb.search import SearchType
 
 # LanceDB Vector DB
 vector_db = LanceDb(

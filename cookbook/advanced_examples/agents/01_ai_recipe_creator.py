@@ -1,7 +1,7 @@
-from phi.agent import Agent
-from phi.knowledge.pdf import PDFUrlKnowledgeBase
-from phi.vectordb.pgvector import PgVector
-from phi.tools.exa import ExaTools
+from agno.agent import Agent
+from agno.knowledge.pdf import PDFUrlKnowledgeBase
+from agno.vectordb.pgvector import PgVector
+from agno.tools.exa import ExaTools
 
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 

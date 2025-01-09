@@ -18,9 +18,9 @@ Example Usage:
 """
 
 from pathlib import Path
-from phi.agent import Agent
-from phi.model.openai import OpenAIChat
-from phi.tools.mlx_transcribe import MLXTranscribe
+from agno.agent import Agent
+from agno.models.openai import OpenAIChat
+from agno.tools.mlx_transcribe import MLXTranscribe
 
 # Get audio files from storage/audio directory
 phidata_root_dir = Path(__file__).parent.parent.parent.resolve()

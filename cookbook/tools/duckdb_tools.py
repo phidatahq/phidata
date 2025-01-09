@@ -1,5 +1,5 @@
-from phi.agent import Agent
-from phi.tools.duckdb import DuckDbTools
+from agno.agent import Agent
+from agno.tools.duckdb import DuckDbTools
 
 agent = Agent(
     tools=[DuckDbTools()],

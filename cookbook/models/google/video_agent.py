@@ -1,8 +1,8 @@
 import time
 from pathlib import Path
 
-from phi.agent import Agent
-from phi.model.google import Gemini
+from agno.agent import Agent
+from agno.models.google import Gemini
 from google.generativeai import upload_file, get_file
 
 agent = Agent(

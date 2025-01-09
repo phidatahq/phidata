@@ -1,8 +1,8 @@
 from pathlib import Path
 
-from phi.agent import Agent
-from phi.model.google import Gemini
-from phi.tools.duckduckgo import DuckDuckGo
+from agno.agent import Agent
+from agno.models.google import Gemini
+from agno.tools.duckduckgo import DuckDuckGo
 from google.generativeai import upload_file
 
 agent = Agent(

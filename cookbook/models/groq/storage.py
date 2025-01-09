@@ -1,9 +1,9 @@
 """Run `pip install duckduckgo-search sqlalchemy groq` to install dependencies."""
 
-from phi.agent import Agent
-from phi.model.groq import Groq
-from phi.tools.duckduckgo import DuckDuckGo
-from phi.storage.agent.postgres import PgAgentStorage
+from agno.agent import Agent
+from agno.models.groq import Groq
+from agno.tools.duckduckgo import DuckDuckGo
+from agno.storage.agent.postgres import PgAgentStorage
 
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 

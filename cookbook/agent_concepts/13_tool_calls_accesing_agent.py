@@ -1,6 +1,6 @@
 import json
 import httpx
-from phi.agent import Agent
+from agno.agent import Agent
 
 
 def get_top_hackernews_stories(agent: Agent) -> str:

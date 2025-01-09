@@ -1,6 +1,6 @@
 from typing import Iterator  # noqa
-from phi.agent import Agent, RunResponse  # noqa
-from phi.model.google import GeminiOpenAIChat
+from agno.agent import Agent, RunResponse  # noqa
+from agno.models.google import GeminiOpenAIChat
 
 agent = Agent(model=GeminiOpenAIChat(id="gemini-1.5-flash"), markdown=True)
 

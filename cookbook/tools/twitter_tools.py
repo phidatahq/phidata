@@ -1,5 +1,5 @@
-from phi.agent import Agent
-from phi.tools.twitter import TwitterTools
+from agno.agent import Agent
+from agno.tools.twitter import TwitterTools
 
 # Export the following environment variables or provide them as arguments to the TwitterTools constructor
 # - TWITTER_CONSUMER_KEY

@@ -1,7 +1,7 @@
-from phi.agent import Agent
-from phi.model.ollama import OllamaTools
-from phi.tools.duckduckgo import DuckDuckGo
-from phi.tools.yfinance import YFinanceTools
+from agno.agent import Agent
+from agno.models.ollama import OllamaTools
+from agno.tools.duckduckgo import DuckDuckGo
+from agno.tools.yfinance import YFinanceTools
 
 web_agent = Agent(
     name="Web Agent",

@@ -3,13 +3,13 @@
 2. Run the script: `python cookbook/providers/ollama/agent_ui.py`
 """
 
-from phi.agent import Agent
-from phi.model.ollama import Ollama
-from phi.playground import Playground, serve_playground_app
-from phi.storage.agent.sqlite import SqlAgentStorage
-from phi.tools.duckduckgo import DuckDuckGo
-from phi.tools.yfinance import YFinanceTools
-from phi.tools.youtube_tools import YouTubeTools
+from agno.agent import Agent
+from agno.models.ollama import Ollama
+from agno.playground import Playground, serve_playground_app
+from agno.storage.agent.sqlite import SqlAgentStorage
+from agno.tools.duckduckgo import DuckDuckGo
+from agno.tools.yfinance import YFinanceTools
+from agno.tools.youtube_tools import YouTubeTools
 
 ollama_agents_storage: str = "tmp/ollama_agents.db"
 common_instructions = [

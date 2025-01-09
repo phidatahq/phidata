@@ -9,14 +9,14 @@ from typing import Optional, Dict, Iterator
 
 from pydantic import BaseModel, Field
 
-from phi.agent import Agent
-from phi.model.openai import OpenAIChat
-from phi.workflow import Workflow, RunResponse, RunEvent
-from phi.storage.workflow.sqlite import SqlWorkflowStorage
-from phi.tools.duckduckgo import DuckDuckGo
-from phi.tools.newspaper4k import Newspaper4k
-from phi.utils.pprint import pprint_run_response
-from phi.utils.log import logger
+from agno.agent import Agent
+from agno.models.openai import OpenAIChat
+from agno.workflow import Workflow, RunResponse, RunEvent
+from agno.storage.workflow.sqlite import SqlWorkflowStorage
+from agno.tools.duckduckgo import DuckDuckGo
+from agno.tools.newspaper4k import Newspaper4k
+from agno.utils.pprint import pprint_run_response
+from agno.utils.log import logger
 
 
 class NewsArticle(BaseModel):

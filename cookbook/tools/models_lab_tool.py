@@ -1,7 +1,7 @@
 """Run `pip install requests` to install dependencies."""
 
-from phi.agent import Agent
-from phi.tools.models_labs import ModelsLabs
+from agno.agent import Agent
+from agno.tools.models_labs import ModelsLabs
 
 # Create an Agent with the ModelsLabs tool
 agent = Agent(tools=[ModelsLabs()], name="ModelsLabs Agent")

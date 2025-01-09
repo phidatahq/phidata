@@ -1,6 +1,6 @@
-from phi.agent import Agent
-from phi.model.openai import OpenAIChat
-from phi.tools.giphy import GiphyTools
+from agno.agent import Agent
+from agno.models.openai import OpenAIChat
+from agno.tools.giphy import GiphyTools
 
 """Create an agent specialized in creating gifs using Giphy """
 

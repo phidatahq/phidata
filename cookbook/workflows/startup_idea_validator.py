@@ -8,13 +8,13 @@ from typing import Optional, Iterator
 
 from pydantic import BaseModel, Field
 
-from phi.agent import Agent
-from phi.model.openai import OpenAIChat
-from phi.tools.googlesearch import GoogleSearch
-from phi.workflow import Workflow, RunResponse, RunEvent
-from phi.storage.workflow.sqlite import SqlWorkflowStorage
-from phi.utils.pprint import pprint_run_response
-from phi.utils.log import logger
+from agno.agent import Agent
+from agno.models.openai import OpenAIChat
+from agno.tools.googlesearch import GoogleSearch
+from agno.workflow import Workflow, RunResponse, RunEvent
+from agno.storage.workflow.sqlite import SqlWorkflowStorage
+from agno.utils.pprint import pprint_run_response
+from agno.utils.log import logger
 
 
 class IdeaClarification(BaseModel):

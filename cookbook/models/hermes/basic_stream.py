@@ -1,6 +1,6 @@
 from typing import Iterator  # noqa
-from phi.agent import Agent, RunResponse  # noqa
-from phi.model.ollama import Hermes
+from agno.agent import Agent, RunResponse  # noqa
+from agno.models.ollama import Hermes
 
 agent = Agent(model=Hermes(id="hermes3"), markdown=True)
 

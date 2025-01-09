@@ -1,10 +1,10 @@
 """Run `pip install duckduckgo-search sqlalchemy pgvector pypdf openai ollama` to install dependencies."""
 
-from phi.agent import Agent
-from phi.model.ollama import Ollama
-from phi.embedder.ollama import OllamaEmbedder
-from phi.knowledge.pdf import PDFUrlKnowledgeBase
-from phi.vectordb.pgvector import PgVector
+from agno.agent import Agent
+from agno.models.ollama import Ollama
+from agno.embedder.ollama import OllamaEmbedder
+from agno.knowledge.pdf import PDFUrlKnowledgeBase
+from agno.vectordb.pgvector import PgVector
 
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 

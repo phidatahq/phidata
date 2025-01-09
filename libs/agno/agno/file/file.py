@@ -1,9 +1,9 @@
+from dataclasses import asdict, dataclass
 from typing import Any, List, Optional
 
-from pydantic import BaseModel
 
-
-class File(BaseModel):
+@dataclass
+class File():
     name: Optional[str] = None
     description: Optional[str] = None
     columns: Optional[List[str]] = None
@@ -11,4 +11,4 @@ class File(BaseModel):
     type: str = "FILE"
 
     def get_metadata(self) -> dict[str, Any]:
-        return self.model_dump(exclude_none=True)
+        return {k: v for k, v in asdict(self).items() if v is not None}

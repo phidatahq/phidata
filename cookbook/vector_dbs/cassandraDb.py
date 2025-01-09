@@ -1,6 +1,6 @@
-from phi.agent import Agent
-from phi.knowledge.pdf import PDFUrlKnowledgeBase
-from phi.vectordb.cassandra.cassandra import CassandraDb
+from agno.agent import Agent
+from agno.knowledge.pdf import PDFUrlKnowledgeBase
+from agno.vectordb.cassandra.cassandra import CassandraDb
 import os
 
 try:
@@ -9,8 +9,8 @@ except (ImportError, ModuleNotFoundError):
     raise ImportError(
         "Could not import cassandra-driver python package.Please install it with pip install cassandra-driver."
     )
-from phi.embedder.mistral import MistralEmbedder
-from phi.model.mistral import MistralChat
+from agno.embedder.mistral import MistralEmbedder
+from agno.models.mistral import MistralChat
 
 cluster = Cluster()
 session = cluster.connect("testkeyspace")

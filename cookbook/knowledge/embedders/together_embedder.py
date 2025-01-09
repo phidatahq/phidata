@@ -1,6 +1,6 @@
-from phi.agent import AgentKnowledge
-from phi.vectordb.pgvector import PgVector
-from phi.embedder.together import TogetherEmbedder
+from agno.agent import AgentKnowledge
+from agno.vectordb.pgvector import PgVector
+from agno.embedder.together import TogetherEmbedder
 
 embeddings = TogetherEmbedder().get_embedding("The quick brown fox jumps over the lazy dog.")
 

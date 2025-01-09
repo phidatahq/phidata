@@ -1,5 +1,5 @@
-from phi.agent import Agent, RunResponse  # noqa
-from phi.model.deepseek import DeepSeekChat
+from agno.agent import Agent, RunResponse  # noqa
+from agno.models.deepseek import DeepSeekChat
 
 agent = Agent(model=DeepSeekChat(id="deepseek-chat"), markdown=True)
 

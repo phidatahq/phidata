@@ -2,9 +2,9 @@
 
 from pathlib import Path
 
-from phi.agent import Agent
-from phi.tools.dalle import Dalle
-from phi.utils.images import download_image
+from agno.utils.images import download_image
+from agno.agent import Agent
+from agno.tools.dalle import Dalle
 
 # Create an Agent with the DALL-E tool
 agent = Agent(tools=[Dalle()], name="DALL-E Image Generator")

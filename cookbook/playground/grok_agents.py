@@ -3,13 +3,13 @@
 2. Run the script: `python cookbook/playground/grok_agents.py`
 """
 
-from phi.agent import Agent
-from phi.model.xai import xAI
-from phi.playground import Playground, serve_playground_app
-from phi.storage.agent.sqlite import SqlAgentStorage
-from phi.tools.duckduckgo import DuckDuckGo
-from phi.tools.yfinance import YFinanceTools
-from phi.tools.youtube_tools import YouTubeTools
+from agno.agent import Agent
+from agno.models.xai import xAI
+from agno.playground import Playground, serve_playground_app
+from agno.storage.agent.sqlite import SqlAgentStorage
+from agno.tools.duckduckgo import DuckDuckGo
+from agno.tools.yfinance import YFinanceTools
+from agno.tools.youtube_tools import YouTubeTools
 
 xai_agent_storage: str = "tmp/xai_agents.db"
 common_instructions = [

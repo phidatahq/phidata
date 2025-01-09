@@ -11,9 +11,9 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.json import JSON
 
-from phi.agent import Agent
-from phi.model.openai import OpenAIChat
-from phi.storage.agent.sqlite import SqlAgentStorage
+from agno.agent import Agent
+from agno.models.openai import OpenAIChat
+from agno.storage.agent.sqlite import SqlAgentStorage
 
 
 agent = Agent(

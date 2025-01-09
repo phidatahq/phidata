@@ -4,9 +4,9 @@ from os import getenv
 
 from sqlalchemy.engine import create_engine
 
-from phi.agent import Agent
-from phi.tools.duckduckgo import DuckDuckGo
-from phi.storage.agent.singlestore import S2AgentStorage
+from agno.agent import Agent
+from agno.tools.duckduckgo import DuckDuckGo
+from agno.storage.agent.singlestore import S2AgentStorage
 
 # Configure SingleStore DB connection
 USERNAME = getenv("SINGLESTORE_USERNAME")

@@ -1,8 +1,8 @@
 """Run `pip install duckduckgo-search` to install dependencies."""
 
-from phi.agent import Agent
-from phi.model.azure import AzureOpenAIChat
-from phi.tools.duckduckgo import DuckDuckGo
+from agno.agent import Agent
+from agno.models.azure import AzureOpenAIChat
+from agno.tools.duckduckgo import DuckDuckGo
 
 agent = Agent(
     model=AzureOpenAIChat(id="gpt-4o"),

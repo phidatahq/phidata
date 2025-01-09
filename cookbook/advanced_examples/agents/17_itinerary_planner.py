@@ -1,6 +1,6 @@
-from phi.model.openai import OpenAIChat
-from phi.agent import Agent
-from phi.tools.exa import ExaTools
+from agno.models.openai import OpenAIChat
+from agno.agent import Agent
+from agno.tools.exa import ExaTools
 
 itinerary_agent = Agent(
     name="GlobeHopper",

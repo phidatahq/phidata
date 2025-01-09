@@ -1,7 +1,7 @@
 import base64
 import requests
-from phi.agent import Agent, RunResponse  # noqa
-from phi.model.openai import OpenAIChat
+from agno.agent import Agent, RunResponse  # noqa
+from agno.models.openai import OpenAIChat
 
 # Fetch the audio file and convert it to a base64 encoded string
 url = "https://openaiassets.blob.core.windows.net/$web/API/docs/audio/alloy.wav"

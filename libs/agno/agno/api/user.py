@@ -56,6 +56,7 @@ def authenticate_and_get_user(auth_token: str, existing_user: Optional[UserSchem
                 return None
 
             return UserSchema.model_validate(user_data)
+
         except Exception as e:
             logger.debug(f"Could not authenticate user: {e}")
     return None
@@ -84,6 +85,7 @@ def sign_in_user(sign_in_data: EmailPasswordAuthSchema) -> Optional[UserSchema]:
                 return None
 
             current_user: UserSchema = UserSchema.model_validate(user_data)
+
             if current_user is not None:
                 save_auth_token(agno_auth_token)
                 return current_user

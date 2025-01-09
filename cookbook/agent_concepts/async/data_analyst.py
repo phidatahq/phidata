@@ -2,9 +2,9 @@
 
 import asyncio
 from textwrap import dedent
-from phi.agent import Agent
-from phi.model.openai import OpenAIChat
-from phi.tools.duckdb import DuckDbTools
+from agno.agent import Agent
+from agno.models.openai import OpenAIChat
+from agno.tools.duckdb import DuckDbTools
 
 duckdb_tools = DuckDbTools(create_tables=False, export_tables=False, summarize_tables=False)
 duckdb_tools.create_table_from_path(

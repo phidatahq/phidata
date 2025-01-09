@@ -3,7 +3,7 @@ from os import getenv
 from typing import Optional
 from phi.utils.log import logger
 from phi.agent import Agent
-from phi.model.content import Audio
+from phi.model.content import AudioArtifact
 from uuid import uuid4
 
 import requests
@@ -84,7 +84,7 @@ class DesiVocalTools(Toolkit):
 
             audio_url = response.json()["s3_path"]
 
-            agent.add_audio(Audio(id=str(uuid4()), url=audio_url))
+            agent.add_audio(AudioArtifact(id=str(uuid4()), url=audio_url))
 
             return audio_url
         except Exception as e:

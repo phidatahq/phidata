@@ -21,7 +21,7 @@ from phi.tools.desi_vocal_tools import DesiVocalTools
 image_agent_storage_file: str = "tmp/image_agent.db"
 
 image_agent = Agent(
-    name="DALL-E Image Agent",
+    name="DALL-E ImageArtifact Agent",
     agent_id="image_agent",
     model=OpenAIChat(id="gpt-4o"),
     tools=[Dalle()],
@@ -55,7 +55,7 @@ ml_gif_agent = Agent(
 )
 
 ml_video_agent = Agent(
-    name="ModelsLab Video Agent",
+    name="ModelsLab VideoArtifact Agent",
     agent_id="ml_video_agent",
     model=OpenAIChat(id="gpt-4o"),
     tools=[ModelsLabs(wait_for_completion=True, file_type=FileType.MP4)],
@@ -72,7 +72,7 @@ ml_video_agent = Agent(
 )
 
 fal_agent = Agent(
-    name="Fal Video Agent",
+    name="Fal VideoArtifact Agent",
     agent_id="fal_agent",
     model=OpenAIChat(id="gpt-4o"),
     tools=[FalTools("fal-ai/hunyuan-video")],
@@ -106,7 +106,7 @@ gif_agent = Agent(
 )
 
 audio_agent = Agent(
-    name="Audio Generator Agent",
+    name="AudioArtifact Generator Agent",
     agent_id="audio_agent",
     model=OpenAIChat(id="gpt-4o"),
     tools=[
@@ -130,7 +130,7 @@ audio_agent = Agent(
 )
 
 image_to_image_agent = Agent(
-    name="Image to Image Agent",
+    name="ImageArtifact to ImageArtifact Agent",
     agent_id="image_to_image_agent",
     model=OpenAIChat(id="gpt-4o"),
     tools=[FalTools()],
@@ -147,7 +147,7 @@ image_to_image_agent = Agent(
 )
 
 hindi_audio_agent = Agent(
-    name="Hindi Audio Generator Agent",
+    name="Hindi AudioArtifact Generator Agent",
     agent_id="hindi_audio_agent",
     model=OpenAIChat(id="gpt-4o"),
     tools=[DesiVocalTools()],

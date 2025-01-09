@@ -3,7 +3,7 @@ from typing import Optional, Literal
 from uuid import uuid4
 
 from phi.agent import Agent
-from phi.model.content import Image
+from phi.model.content import ImageArtifact
 from phi.tools import Toolkit
 from phi.utils.log import logger
 
@@ -79,15 +79,15 @@ class Dalle(Toolkit):
                 size=self.size,
                 style=self.style,
             )
-            logger.debug("Image generated successfully")
+            logger.debug("ImageArtifact generated successfully")
 
             # Update the run response with the image URLs
             response_str = ""
             for img in response.data:
                 agent.add_image(
-                    Image(id=str(uuid4()), url=img.url, original_prompt=prompt, revised_prompt=img.revised_prompt)
+                    ImageArtifact(id=str(uuid4()), url=img.url, original_prompt=prompt, revised_prompt=img.revised_prompt)
                 )
-                response_str += f"Image has been generated at the URL {img.url}\n"
+                response_str += f"ImageArtifact has been generated at the URL {img.url}\n"
             return response_str
         except Exception as e:
             logger.error(f"Failed to generate image: {e}")

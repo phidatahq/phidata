@@ -7,7 +7,7 @@ from phi.tools.dalle import Dalle
 from phi.utils.images import download_image
 
 # Create an Agent with the DALL-E tool
-agent = Agent(tools=[Dalle()], name="DALL-E Image Generator")
+agent = Agent(tools=[Dalle()], name="DALL-E ImageArtifact Generator")
 
 # Example 1: Generate a basic image with default settings
 agent.print_response("Generate an image of a futuristic city with flying cars and tall skyscrapers", markdown=True)

@@ -17,7 +17,7 @@ class AirflowBase(DockerApp):
     # -*- App Name
     name: str = "airflow"
 
-    # -*- Image Configuration
+    # -*- ImageArtifact Configuration
     image_name: str = "phidata/airflow"
     image_tag: str = "2.7.1"
 

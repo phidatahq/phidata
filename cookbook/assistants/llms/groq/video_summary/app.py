@@ -4,10 +4,10 @@ from phi.tools.youtube_tools import YouTubeTools
 from assistant import get_chunk_summarizer, get_video_summarizer  # type: ignore
 
 st.set_page_config(
-    page_title="Youtube Video Summaries",
+    page_title="Youtube VideoArtifact Summaries",
     page_icon=":orange_heart:",
 )
-st.title("Youtube Video Summaries powered by Groq")
+st.title("Youtube VideoArtifact Summaries powered by Groq")
 st.markdown("##### :orange_heart: built using [phidata](https://github.com/phidatahq/phidata)")
 
 
@@ -35,7 +35,7 @@ def main() -> None:
     )
 
     # Get video url
-    video_url = st.sidebar.text_input(":video_camera: Video URL")
+    video_url = st.sidebar.text_input(":video_camera: VideoArtifact URL")
     # Button to generate report
     generate_report = st.sidebar.button("Generate Summary")
     if generate_report:
@@ -57,7 +57,7 @@ def main() -> None:
         video_captions = None
         video_summarizer = get_video_summarizer(model=llm_model)
 
-        with st.status("Parsing Video", expanded=False) as status:
+        with st.status("Parsing VideoArtifact", expanded=False) as status:
             with st.container():
                 video_container = st.empty()
                 video_container.video(_url)
@@ -66,7 +66,7 @@ def main() -> None:
             with st.container():
                 video_data_container = st.empty()
                 video_data_container.json(video_data)
-            status.update(label="Video", state="complete", expanded=False)
+            status.update(label="VideoArtifact", state="complete", expanded=False)
 
         with st.status("Reading Captions", expanded=False) as status:
             video_captions = youtube_tools.get_youtube_video_captions(_url)
@@ -93,7 +93,7 @@ def main() -> None:
                     chunk_summary = ""
                     chunk_container = st.empty()
                     chunk_summarizer = get_chunk_summarizer(model=llm_model)
-                    chunk_info = f"Video data: {video_data}\n\n"
+                    chunk_info = f"VideoArtifact data: {video_data}\n\n"
                     chunk_info += f"{chunks[i]}\n\n"
                     for delta in chunk_summarizer.run(chunk_info):
                         chunk_summary += delta  # type: ignore
@@ -104,8 +104,8 @@ def main() -> None:
             with st.spinner("Generating Summary"):
                 summary = ""
                 summary_container = st.empty()
-                video_info = f"Video URL: {_url}\n\n"
-                video_info += f"Video Data: {video_data}\n\n"
+                video_info = f"VideoArtifact URL: {_url}\n\n"
+                video_info += f"VideoArtifact Data: {video_data}\n\n"
                 video_info += "Summaries:\n\n"
                 for i, chunk_summary in enumerate(chunk_summaries, start=1):
                     video_info += f"Chunk {i}:\n\n{chunk_summary}\n\n"
@@ -118,8 +118,8 @@ def main() -> None:
             with st.spinner("Generating Summary"):
                 summary = ""
                 summary_container = st.empty()
-                video_info = f"Video URL: {_url}\n\n"
-                video_info += f"Video Data: {video_data}\n\n"
+                video_info = f"VideoArtifact URL: {_url}\n\n"
+                video_info += f"VideoArtifact Data: {video_data}\n\n"
                 video_info += f"Captions: {video_captions}\n\n"
 
                 for delta in video_summarizer.run(video_info):

@@ -127,7 +127,7 @@ class DockerContainer(DockerResource):
             ) as progress:
                 if self.pull:
                     try:
-                        pull_image_task = progress.add_task("Downloading Image...")  # noqa: F841
+                        pull_image_task = progress.add_task("Downloading ImageArtifact...")  # noqa: F841
                         _api_client.images.pull(self.image, platform=self.platform)
                         progress.update(pull_image_task, completed=True)
                     except Exception as pull_exc:
@@ -164,7 +164,7 @@ class DockerContainer(DockerResource):
                 )
                 return container_object
         except ImageNotFound as img_error:
-            logger.error(f"Image {self.image} not found. Explanation: {img_error.explanation}")
+            logger.error(f"ImageArtifact {self.image} not found. Explanation: {img_error.explanation}")
             raise
         except APIError as api_err:
             logger.error(f"APIError: {api_err.explanation}")

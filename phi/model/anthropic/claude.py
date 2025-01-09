@@ -171,14 +171,14 @@ class Claude(Model):
 
         try:
             content = None
-            # Case 1: Image is a string
+            # Case 1: ImageArtifact is a string
             if isinstance(image, str):
-                # Case 1.1: Image is a URL
+                # Case 1.1: ImageArtifact is a URL
                 if image.startswith(("http://", "https://")):
                     import httpx
 
                     content = httpx.get(image).content
-                # Case 1.2: Image is a local file path
+                # Case 1.2: ImageArtifact is a local file path
                 else:
                     from pathlib import Path
 
@@ -189,7 +189,7 @@ class Claude(Model):
                     else:
                         logger.error(f"Image file not found: {image}")
                         return None
-            # Case 2: Image is a bytes object
+            # Case 2: ImageArtifact is a bytes object
             elif isinstance(image, bytes):
                 content = image
             else:

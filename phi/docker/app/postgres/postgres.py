@@ -8,7 +8,7 @@ class PostgresDb(DockerApp, DbApp):
     # -*- App Name
     name: str = "postgres"
 
-    # -*- Image Configuration
+    # -*- ImageArtifact Configuration
     image_name: str = "postgres"
     image_tag: str = "15.4"
 

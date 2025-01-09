@@ -34,7 +34,7 @@ class WorkspaceSettings(BaseSettings):
     # default infra for phi ws commands
     default_infra: Optional[str] = None
     #
-    # -*- Image Settings
+    # -*- ImageArtifact Settings
     #
     # Repository for images
     image_repo: str = "phidata"

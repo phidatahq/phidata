@@ -8,7 +8,7 @@ class MySQLDb(DockerApp, DbApp):
     # -*- App Name
     name: str = "mysql"
 
-    # -*- Image Configuration
+    # -*- ImageArtifact Configuration
     image_name: str = "mysql"
     image_tag: str = "8.0.33"
 

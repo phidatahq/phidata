@@ -7,7 +7,7 @@ class Django(DockerApp):
     # -*- App Name
     name: str = "django"
 
-    # -*- Image Configuration
+    # -*- ImageArtifact Configuration
     image_name: str = "phidata/django"
     image_tag: str = "4.2.2"
     command: Optional[Union[str, List[str]]] = "python manage.py runserver 0.0.0.0:8000"

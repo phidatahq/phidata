@@ -8,7 +8,7 @@ class Redis(DockerApp, DbApp):
     # -*- App Name
     name: str = "redis"
 
-    # -*- Image Configuration
+    # -*- ImageArtifact Configuration
     image_name: str = "redis"
     image_tag: str = "7.2.1"
 

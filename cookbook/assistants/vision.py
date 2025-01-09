@@ -3,7 +3,7 @@ from phi.llm.openai import OpenAIChat
 
 assistant = Assistant(llm=OpenAIChat(model="gpt-4-turbo"))
 
-# Single Image
+# Single ImageArtifact
 assistant.print_response(
     [
         {"type": "text", "text": "What's in this image, describe in 1 sentence"},

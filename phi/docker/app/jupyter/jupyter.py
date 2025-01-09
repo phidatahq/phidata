@@ -7,7 +7,7 @@ class Jupyter(DockerApp):
     # -*- App Name
     name: str = "jupyter"
 
-    # -*- Image Configuration
+    # -*- ImageArtifact Configuration
     image_name: str = "phidata/jupyter"
     image_tag: str = "4.0.5"
     command: Optional[Union[str, List[str]]] = "jupyter lab"

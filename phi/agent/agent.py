@@ -28,7 +28,7 @@ from pydantic import BaseModel, ConfigDict, field_validator, Field, ValidationEr
 
 from phi.document import Document
 from phi.agent.session import AgentSession
-from phi.model.content import Image, Video, Audio
+from phi.model.content import ImageArtifact, VideoArtifact, AudioArtifact
 from phi.reasoning.step import ReasoningStep, ReasoningSteps, NextAction
 from phi.run.response import RunEvent, RunResponse, RunResponseExtraData
 from phi.knowledge.agent import AgentKnowledge
@@ -58,11 +58,11 @@ class Agent(BaseModel):
 
     # -*- Agent Data
     # Images associated with this agent
-    images: Optional[List[Image]] = None
+    images: Optional[List[ImageArtifact]] = None
     # Videos associated with this agent
-    videos: Optional[List[Video]] = None
-    # Audio associated with this agent
-    audio: Optional[List[Audio]] = None
+    videos: Optional[List[VideoArtifact]] = None
+    # AudioArtifact associated with this agent
+    audio: Optional[List[AudioArtifact]] = None
 
     # Data associated with this agent
     # name, model, images and videos are automatically added to the agent_data
@@ -636,19 +636,19 @@ class Agent(BaseModel):
             if "images" in session.agent_data:
                 images_from_db = session.agent_data.get("images")
                 if self.images is not None and isinstance(self.images, list):
-                    self.images.extend([Image.model_validate(img) for img in self.images])
+                    self.images.extend([ImageArtifact.model_validate(img) for img in self.images])
                 else:
                     self.images = images_from_db
             if "videos" in session.agent_data:
                 videos_from_db = session.agent_data.get("videos")
                 if self.videos is not None and isinstance(self.videos, list):
-                    self.videos.extend([Video.model_validate(vid) for vid in self.videos])
+                    self.videos.extend([VideoArtifact.model_validate(vid) for vid in self.videos])
                 else:
                     self.videos = videos_from_db
             if "audio" in session.agent_data:
                 audio_from_db = session.agent_data.get("audio")
                 if self.audio is not None and isinstance(self.audio, list):
-                    self.audio.extend([Audio.model_validate(aud) for aud in self.audio])
+                    self.audio.extend([AudioArtifact.model_validate(aud) for aud in self.audio])
                 else:
                     self.audio = audio_from_db
 
@@ -2471,7 +2471,7 @@ class Agent(BaseModel):
     # Handle images and videos
     ###########################################################################
 
-    def add_image(self, image: Image) -> None:
+    def add_image(self, image: ImageArtifact) -> None:
         if self.images is None:
             self.images = []
         self.images.append(image)
@@ -2480,7 +2480,7 @@ class Agent(BaseModel):
                 self.run_response.images = []
             self.run_response.images.append(image)
 
-    def add_video(self, video: Video) -> None:
+    def add_video(self, video: VideoArtifact) -> None:
         if self.videos is None:
             self.videos = []
         self.videos.append(video)
@@ -2489,7 +2489,7 @@ class Agent(BaseModel):
                 self.run_response.videos = []
             self.run_response.videos.append(video)
 
-    def add_audio(self, audio: Audio) -> None:
+    def add_audio(self, audio: AudioArtifact) -> None:
         if self.audio is None:
             self.audio = []
         self.audio.append(audio)
@@ -2498,13 +2498,13 @@ class Agent(BaseModel):
                 self.run_response.audio = []
             self.run_response.audio.append(audio)
 
-    def get_images(self) -> Optional[List[Image]]:
+    def get_images(self) -> Optional[List[ImageArtifact]]:
         return self.images
 
-    def get_videos(self) -> Optional[List[Video]]:
+    def get_videos(self) -> Optional[List[VideoArtifact]]:
         return self.videos
 
-    def get_audio(self) -> Optional[List[Audio]]:
+    def get_audio(self) -> Optional[List[AudioArtifact]]:
         return self.audio
 
     ###########################################################################
@@ -2763,6 +2763,9 @@ class Agent(BaseModel):
         message: Optional[Union[List, Dict, str, Message]] = None,
         *,
         messages: Optional[List[Union[Dict, Message]]] = None,
+        audio: Optional[Any] = None,
+        images: Optional[Sequence[Any]] = None,
+        videos: Optional[Sequence[Any]] = None,
         stream: bool = False,
         markdown: bool = False,
         show_message: bool = True,
@@ -2812,7 +2815,7 @@ class Agent(BaseModel):
                 if render:
                     live_log.update(Group(*panels))
 
-                for resp in self.run(message=message, messages=messages, stream=True, **kwargs):
+                for resp in self.run(message=message, messages=messages, audio=audio, images=images, videos=videos, stream=True, **kwargs):
                     if isinstance(resp, RunResponse) and isinstance(resp.content, str):
                         if resp.event == RunEvent.run_response:
                             _response_content += resp.content
@@ -2904,7 +2907,7 @@ class Agent(BaseModel):
                     live_log.update(Group(*panels))
 
                 # Run the agent
-                run_response = self.run(message=message, messages=messages, stream=False, **kwargs)
+                run_response = self.run(message=message, messages=messages, audio=audio, images=images, videos=videos, stream=False, **kwargs)
                 response_timer.stop()
 
                 reasoning_steps = []
@@ -2982,6 +2985,9 @@ class Agent(BaseModel):
         message: Optional[Union[List, Dict, str, Message]] = None,
         *,
         messages: Optional[List[Union[Dict, Message]]] = None,
+        audio: Optional[Any] = None,
+        images: Optional[Sequence[Any]] = None,
+        videos: Optional[Sequence[Any]] = None,
         stream: bool = False,
         markdown: bool = False,
         show_message: bool = True,
@@ -3031,7 +3037,7 @@ class Agent(BaseModel):
                 if render:
                     live_log.update(Group(*panels))
 
-                async for resp in await self.arun(message=message, messages=messages, stream=True, **kwargs):
+                async for resp in await self.arun(message=message, messages=messages, audio=audio, images=images, videos=videos, stream=True, **kwargs):
                     if isinstance(resp, RunResponse) and isinstance(resp.content, str):
                         if resp.event == RunEvent.run_response:
                             _response_content += resp.content
@@ -3123,7 +3129,7 @@ class Agent(BaseModel):
                     live_log.update(Group(*panels))
 
                 # Run the agent
-                run_response = await self.arun(message=message, messages=messages, stream=False, **kwargs)
+                run_response = await self.arun(message=message, messages=messages, audio=audio, images=images, videos=videos, stream=False, **kwargs)
                 response_timer.stop()
 
                 reasoning_steps = []

@@ -10,7 +10,7 @@ from phi.storage.agent.sqlite import SqlAgentStorage
 image_agent_storage_file: str = "tmp/image_agent.db"
 
 image_agent = Agent(
-    name="Image Agent",
+    name="ImageArtifact Agent",
     agent_id="image_agent",
     model=OpenAIChat(id="gpt-4o"),
     tools=[Dalle()],

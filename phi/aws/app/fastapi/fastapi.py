@@ -7,7 +7,7 @@ class FastApi(AwsApp):
     # -*- App Name
     name: str = "fastapi"
 
-    # -*- Image Configuration
+    # -*- ImageArtifact Configuration
     image_name: str = "phidata/fastapi"
     image_tag: str = "0.104"
     command: Optional[Union[str, List[str]]] = "uvicorn main:app --reload"

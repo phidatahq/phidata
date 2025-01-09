@@ -5,7 +5,7 @@ class Whoami(DockerApp):
     # -*- App Name
     name: str = "whoami"
 
-    # -*- Image Configuration
+    # -*- ImageArtifact Configuration
     image_name: str = "traefik/whoami"
     image_tag: str = "v1.10"
 

@@ -17,7 +17,7 @@ from phi.tools.dalle import Dalle
 db_url: str = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 
 video_gen_agent = Agent(
-    name="Video Gen Agent",
+    name="VideoArtifact Gen Agent",
     agent_id="video-gen-agent",
     model=OpenAIChat(id="gpt-4o"),
     tools=[ModelsLabs()],

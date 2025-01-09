@@ -5,7 +5,7 @@ from phi.tools.fal_tools import FalTools
 agent = Agent(
     model=OpenAIChat(id="gpt-4o"),
     agent_id="image-to-image",
-    name="Image to Image Agent",
+    name="ImageArtifact to ImageArtifact Agent",
     tools=[FalTools()],
     markdown=True,
     debug=True,

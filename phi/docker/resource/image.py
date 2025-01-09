@@ -7,7 +7,7 @@ from phi.utils.log import logger
 
 
 class DockerImage(DockerResource):
-    resource_type: str = "Image"
+    resource_type: str = "ImageArtifact"
 
     # Docker image name, usually as repo/image
     name: str
@@ -244,7 +244,7 @@ class DockerImage(DockerResource):
                         live_log.stop()
                         logger.error(build_log_output[-50:])
                         logger.error(build_log["error"])
-                        logger.error(f"Image build failed: {self.get_image_str()}")
+                        logger.error(f"ImageArtifact build failed: {self.get_image_str()}")
                         return None
 
                     stream = build_log.get("stream", None)
@@ -359,8 +359,8 @@ class DockerImage(DockerResource):
             if image_object is not None:
                 return True
             return False
-            # if image_object is not None and isinstance(image_object, Image):
-            #     logger.debug("Image built: {}".format(image_object))
+            # if image_object is not None and isinstance(image_object, ImageArtifact):
+            #     logger.debug("ImageArtifact built: {}".format(image_object))
             #     self.active_resource = image_object
             #     return True
         except Exception as e:
@@ -369,7 +369,7 @@ class DockerImage(DockerResource):
             raise
 
     def _read(self, docker_client: DockerApiClient) -> Any:
-        """Returns an Image object if available
+        """Returns an ImageArtifact object if available
 
         Args:
             docker_client: The DockerApiClient for the current cluster
@@ -383,16 +383,16 @@ class DockerImage(DockerResource):
             _api_client: DockerClient = docker_client.api_client
             image_object: Optional[List[Image]] = _api_client.images.get(name=self.get_image_str())
             if image_object is not None and isinstance(image_object, Image):
-                logger.debug("Image found: {}".format(image_object))
+                logger.debug("ImageArtifact found: {}".format(image_object))
                 self.active_resource = image_object
                 return image_object
         except (NotFound, ImageNotFound):
-            logger.debug(f"Image {self.tag} not found")
+            logger.debug(f"ImageArtifact {self.tag} not found")
 
         return None
 
     def _update(self, docker_client: DockerApiClient) -> bool:
-        """Updates the Image
+        """Updates the ImageArtifact
 
         Args:
             docker_client: The DockerApiClient for the current cluster
@@ -401,7 +401,7 @@ class DockerImage(DockerResource):
         return self._create(docker_client=docker_client)
 
     def _delete(self, docker_client: DockerApiClient) -> bool:
-        """Deletes the Image
+        """Deletes the ImageArtifact
 
         Args:
             docker_client: The DockerApiClient for the current cluster
@@ -416,7 +416,7 @@ class DockerImage(DockerResource):
             logger.debug("No image to delete")
             return True
 
-        # Delete Image
+        # Delete ImageArtifact
         try:
             self.active_resource = None
             logger.debug("Deleting image: {}".format(self.tag))

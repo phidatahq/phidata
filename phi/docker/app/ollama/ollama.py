@@ -5,7 +5,7 @@ class Ollama(DockerApp):
     # -*- App Name
     name: str = "ollama"
 
-    # -*- Image Configuration
+    # -*- ImageArtifact Configuration
     image_name: str = "ollama/ollama"
     image_tag: str = "latest"
 

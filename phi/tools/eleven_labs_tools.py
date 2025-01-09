@@ -3,7 +3,7 @@ from io import BytesIO
 from pathlib import Path
 from typing import Iterator
 
-from phi.model.content import Audio
+from phi.model.content import AudioArtifact
 from typing import Optional, Literal
 from os import getenv, path
 from phi.tools import Toolkit
@@ -137,14 +137,14 @@ class ElevenLabsTools(Toolkit):
 
             # Attach to the agent
             agent.add_audio(
-                Audio(
+                AudioArtifact(
                     id=str(uuid4()),
                     base64_audio=base64_audio,
                     mime_type="audio/mpeg",
                 )
             )
 
-            return "Audio generated successfully"
+            return "AudioArtifact generated successfully"
 
         except Exception as e:
             logger.error(f"Failed to generate audio: {e}")
@@ -172,14 +172,14 @@ class ElevenLabsTools(Toolkit):
 
             # Attach to the agent
             agent.add_audio(
-                Audio(
+                AudioArtifact(
                     id=str(uuid4()),
                     base64_audio=base64_audio,
                     mime_type="audio/mpeg",
                 )
             )
 
-            return "Audio generated successfully"
+            return "AudioArtifact generated successfully"
 
         except Exception as e:
             logger.error(f"Failed to generate audio: {e}")

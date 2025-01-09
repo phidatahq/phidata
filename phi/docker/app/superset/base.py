@@ -10,7 +10,7 @@ class SupersetBase(DockerApp):
     # -*- App Name
     name: str = "superset"
 
-    # -*- Image Configuration
+    # -*- ImageArtifact Configuration
     image_name: str = "phidata/superset"
     image_tag: str = "2.1.0"
 

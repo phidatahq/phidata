@@ -70,7 +70,7 @@ def get_video_summarizer(
         add_to_system_prompt=dedent(
             """
         <report_format>
-        ## Video Title with Link
+        ## VideoArtifact Title with Link
         {this is the markdown link to the video}
 
         ### Overview

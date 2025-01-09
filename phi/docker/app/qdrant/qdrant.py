@@ -5,7 +5,7 @@ class Qdrant(DockerApp):
     # -*- App Name
     name: str = "qdrant"
 
-    # -*- Image Configuration
+    # -*- ImageArtifact Configuration
     image_name: str = "qdrant/qdrant"
     image_tag: str = "v1.5.1"
 

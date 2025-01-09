@@ -8,7 +8,7 @@ from typing import Optional
 from phi.agent import Agent
 from phi.tools import Toolkit
 from phi.utils.log import logger
-from phi.model.content import Video, Image
+from phi.model.content import VideoArtifact, ImageArtifact
 from uuid import uuid4
 
 
@@ -64,7 +64,7 @@ class FalTools(Toolkit):
             if "image" in result:
                 url = result.get("image", {}).get("url", "")
                 agent.add_image(
-                    Image(
+                    ImageArtifact(
                         id=media_id,
                         url=url,
                     )
@@ -73,7 +73,7 @@ class FalTools(Toolkit):
             elif "video" in result:
                 url = result.get("video", {}).get("url", "")
                 agent.add_video(
-                    Video(
+                    VideoArtifact(
                         id=media_id,
                         url=url,
                     )
@@ -112,7 +112,7 @@ class FalTools(Toolkit):
             url = result.get("images", [{}])[0].get("url", "")
             media_id = str(uuid4())
             agent.add_image(
-                Image(
+                ImageArtifact(
                     id=media_id,
                     url=url,
                 )

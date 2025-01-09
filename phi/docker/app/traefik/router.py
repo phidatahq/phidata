@@ -7,7 +7,7 @@ class TraefikRouter(DockerApp):
     # -*- App Name
     name: str = "traefik"
 
-    # -*- Image Configuration
+    # -*- ImageArtifact Configuration
     image_name: str = "traefik"
     image_tag: str = "v2.10"
     command: Optional[Union[str, List[str]]] = "uvicorn main:app --reload"

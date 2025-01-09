@@ -9,18 +9,18 @@ class Media(BaseModel):
     revised_prompt: Optional[str] = None
 
 
-class Video(Media):
+class VideoArtifact(Media):
     url: str  # Remote location for file
     eta: Optional[str] = None
     length: Optional[str] = None
 
 
-class Image(Media):
+class ImageArtifact(Media):
     url: str  # Remote location for file
     alt_text: Optional[str] = None
 
 
-class Audio(Media):
+class AudioArtifact(Media):
     url: Optional[str] = None  # Remote location for file
     base64_audio: Optional[str] = None  # Base64-encoded audio data
     length: Optional[str] = None

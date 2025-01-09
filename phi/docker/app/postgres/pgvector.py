@@ -5,6 +5,6 @@ class PgVectorDb(PostgresDb):
     # -*- App Name
     name: str = "pgvector-db"
 
-    # -*- Image Configuration
+    # -*- ImageArtifact Configuration
     image_name: str = "phidata/pgvector"
     image_tag: str = "16"

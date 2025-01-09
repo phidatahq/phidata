@@ -13,8 +13,8 @@ class AppBase(InfraBase):
     # -*- App Name (required)
     name: str
 
-    # -*- Image Configuration
-    # Image can be provided as a DockerImage object
+    # -*- ImageArtifact Configuration
+    # ImageArtifact can be provided as a DockerImage object
     image: Optional[Any] = None
     # OR as image_name:image_tag str
     image_str: Optional[str] = None

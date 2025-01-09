@@ -44,7 +44,7 @@ finance_agent = Agent(
 )
 
 image_agent = Agent(
-    name="Image Agent",
+    name="ImageArtifact Agent",
     role="Generate images given a prompt",
     agent_id="image-agent",
     model=AzureOpenAIChat(id="gpt-4o"),

@@ -3,7 +3,7 @@ from phi.model.openai import OpenAIChat
 from phi.tools.fal_tools import FalTools
 
 fal_agent = Agent(
-    name="Fal Video Generator Agent",
+    name="Fal VideoArtifact Generator Agent",
     model=OpenAIChat(id="gpt-4o"),
     tools=[FalTools("fal-ai/hunyuan-video")],
     description="You are an AI agent that can generate videos using the Fal API.",

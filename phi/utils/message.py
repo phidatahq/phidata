@@ -22,7 +22,7 @@ def get_text_from_message(message: Union[List, Dict, str, Message]) -> str:
                         if m_type == "text":
                             text_messages.append(m_value)
                         # if m_type == "image_url":
-                        #     text_messages.append(f"Image: {m_value}")
+                        #     text_messages.append(f"ImageArtifact: {m_value}")
                         # else:
                         #     text_messages.append(f"{m_type}: {m_value}")
         elif "role" in message[0]:

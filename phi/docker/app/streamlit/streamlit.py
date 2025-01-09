@@ -7,7 +7,7 @@ class Streamlit(DockerApp):
     # -*- App Name
     name: str = "streamlit"
 
-    # -*- Image Configuration
+    # -*- ImageArtifact Configuration
     image_name: str = "phidata/streamlit"
     image_tag: str = "1.27"
     command: Optional[Union[str, List[str]]] = "streamlit hello"

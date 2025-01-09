@@ -4,7 +4,7 @@ import json
 from dataclasses import asdict
 from typing import AsyncGenerator, Dict, Generator, List, Optional, Union, cast
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from agno.agent.agent import Agent, RunResponse
@@ -44,7 +44,7 @@ def get_playground_router(
     def playground_status():
         return {"playground": "available"}
 
-    @playground_router.get("/agent", response_model=List[AgentGetResponse])
+    @playground_router.get("/agents", response_model=List[AgentGetResponse])
     def get_agents():
         agent_list: List[AgentGetResponse] = []
         if agents is None:
@@ -104,10 +104,10 @@ def get_playground_router(
 
         return [encoded, image_info]
 
-    @playground_router.post("/agent/run")
-    def agent_run(
+    @playground_router.post("/agents/{agent_id}/run")
+    def create_agent_run(
+        agent_id: str,
         message: str = Form(...),
-        agent_id: str = Form(...),
         stream: bool = Form(True),
         monitor: bool = Form(False),
         session_id: Optional[str] = Form(None),
@@ -192,8 +192,8 @@ def get_playground_router(
             )
             return json.dumps(asdict(run_response))
 
-    @playground_router.get("/agent/{agent_id}/user/{user_id}/session/all")
-    def get_user_agent_sessions(agent_id: str, user_id: str):
+    @playground_router.get("/agents/{agent_id}/sessions")
+    def get_user_agent_sessions(agent_id: str, user_id: str = Query(None)):
         logger.debug(f"AgentSessionsRequest: {agent_id} {user_id}")
         agent = get_agent_by_id(agent_id, agents)
         if agent is None:
@@ -216,8 +216,8 @@ def get_playground_router(
             )
         return agent_sessions
 
-    @playground_router.post("/agent/{agent_id}/user/{user_id}/session/{session_id}")
-    def get_user_agent_session(agent_id: str, user_id: str, session_id: str):
+    @playground_router.post("/agents/{agent_id}/sessions/{session_id}")
+    def get_user_agent_session(agent_id: str, session_id: str, user_id: str = Query(None)):
         logger.debug(f"AgentSessionsRequest: {agent_id} {user_id} {session_id}")
         agent = get_agent_by_id(agent_id, agents)
         if agent is None:
@@ -232,8 +232,8 @@ def get_playground_router(
 
         return agent_session
 
-    @playground_router.patch("/agent/{agent_id}/user/{user_id}/session/{session_id}/rename")
-    def agent_rename(agent_id: str, user_id: str, session_id: str, body: AgentRenameRequest):
+    @playground_router.post("/agents/{agent_id}/sessions/{session_id}/rename")
+    def rename_agent_session(agent_id: str, session_id: str, body: AgentRenameRequest, user_id: str = Query(None)):
         agent = get_agent_by_id(agent_id, agents)
         if agent is None:
             return JSONResponse(status_code=404, content=f"couldn't find agent with {agent_id}")
@@ -250,8 +250,8 @@ def get_playground_router(
 
         return JSONResponse(status_code=404, content="Session not found.")
 
-    @playground_router.delete("/agent/{agent_id}/user/{user_id}/session/{session_id}")
-    def agent_session_delete(agent_id: str, user_id: str, session_id: str):
+    @playground_router.delete("/agents/{agent_id}/sessions/{session_id}")
+    def delete_agent_session(agent_id: str, session_id: str, user_id: str = Query(None)):
         agent = get_agent_by_id(agent_id, agents)
         if agent is None:
             return JSONResponse(status_code=404, content="Agent not found.")
@@ -277,8 +277,8 @@ def get_playground_router(
             for workflow in workflows
         ]
 
-    @playground_router.get("/workflow/{workflow_id}/inputs")
-    def get_workflow_inputs(workflow_id: str):
+    @playground_router.get("/workflows/{workflow_id}")
+    def get_workflow(workflow_id: str):
         workflow = get_workflow_by_id(workflow_id, workflows)
         if workflow is None:
             raise HTTPException(status_code=404, detail="Workflow not found")
@@ -288,20 +288,11 @@ def get_playground_router(
             "name": workflow.name,
             "description": workflow.description,
             "parameters": workflow._run_parameters or {},
-        }
-
-    @playground_router.get("/workflow/{workflow_id}/config")
-    def get_workflow_config(workflow_id: str):
-        workflow = get_workflow_by_id(workflow_id, workflows)
-        if workflow is None:
-            raise HTTPException(status_code=404, detail="Workflow not found")
-
-        return {
             "storage": workflow.storage.__class__.__name__ if workflow.storage else None,
         }
 
-    @playground_router.post("/workflow/{workflow_id}/run")
-    def run_workflow(workflow_id: str, body: WorkflowRunRequest):
+    @playground_router.post("/workflows/{workflow_id}/run")
+    def create_workflow_run(workflow_id: str, body: WorkflowRunRequest):
         # Retrieve the workflow by ID
         workflow = get_workflow_by_id(workflow_id, workflows)
         if workflow is None:
@@ -326,8 +317,8 @@ def get_playground_router(
             # Handle unexpected runtime errors
             raise HTTPException(status_code=500, detail=f"Error running workflow: {str(e)}")
 
-    @playground_router.get("/workflow/{workflow_id}/user/{user_id}/session/all")
-    def get_all_workflow_sessions(workflow_id: str, user_id: str):
+    @playground_router.get("/workflows/{workflow_id}/sessions")
+    def get_all_workflow_sessions(workflow_id: str, user_id: str = Query(None)):
         # Retrieve the workflow by ID
         workflow = get_workflow_by_id(workflow_id, workflows)
         if not workflow:
@@ -356,8 +347,8 @@ def get_playground_router(
             for session in all_workflow_sessions
         ]
 
-    @playground_router.get("/workflow/{workflow_id}/user/{user_id}/session/{session_id}")
-    def get_workflow_session(workflow_id: str, user_id: str, session_id: str):
+    @playground_router.get("/workflows/{workflow_id}/sessions/{session_id}")
+    def get_workflow_session(workflow_id: str, session_id: str, user_id: str = Query(None)):
         # Retrieve the workflow by ID
         workflow = get_workflow_by_id(workflow_id, workflows)
         if not workflow:
@@ -379,8 +370,8 @@ def get_playground_router(
         # Return the session
         return workflow_session
 
-    @playground_router.patch("/workflow/{workflow_id}/user/{user_id}/session/{session_id}/rename")
-    def rename_workflow_session(workflow_id: str, user_id: str, session_id: str, body: WorkflowRenameRequest):
+    @playground_router.post("/workflows/{workflow_id}/sessions/{session_id}/rename")
+    def rename_workflow_session(workflow_id: str, session_id: str, body: WorkflowRenameRequest, user_id: str = Query(None),):
         workflow = get_workflow_by_id(workflow_id, workflows)
         if workflow is None:
             raise HTTPException(status_code=404, detail="Workflow not found")
@@ -388,8 +379,8 @@ def get_playground_router(
         workflow.rename_session(session_id, body.name)
         return JSONResponse(content={"message": f"successfully renamed workflow {workflow.name}"})
 
-    @playground_router.delete("/workflow/{workflow_id}/user/{user_id}/session/{session_id}")
-    def delete_workflow_session(workflow_id: str, user_id: str, session_id: str):
+    @playground_router.delete("/workflows/{workflow_id}/sessions/{session_id}")
+    def delete_workflow_session(workflow_id: str, session_id: str, user_id: str = Query(None)):
         workflow = get_workflow_by_id(workflow_id, workflows)
         if workflow is None:
             raise HTTPException(status_code=404, detail="Workflow not found")
@@ -412,8 +403,8 @@ def get_async_playground_router(
     async def playground_status():
         return {"playground": "available"}
 
-    @playground_router.get("/agent", response_model=List[AgentGetResponse])
-    async def agent_get():
+    @playground_router.get("/agents", response_model=List[AgentGetResponse])
+    async def get_agents():
         agent_list: List[AgentGetResponse] = []
         if agents is None:
             return agent_list
@@ -472,10 +463,10 @@ def get_async_playground_router(
 
         return [encoded, image_info]
 
-    @playground_router.post("/agent/run")
-    async def agent_run(
+    @playground_router.post("/agents/{agent_id}/run")
+    async def create_agent_run(
+        agent_id: str,
         message: str = Form(...),
-        agent_id: str = Form(...),
         stream: bool = Form(True),
         monitor: bool = Form(False),
         session_id: Optional[str] = Form(None),
@@ -560,8 +551,8 @@ def get_async_playground_router(
             )
             return json.dumps(asdict(run_response))
 
-    @playground_router.get("/agent/{agent_id}/user/{user_id}/session/all")
-    async def get_all_agent_sessions(agent_id: str, user_id: str):
+    @playground_router.get("/agents/{agent_id}/sessions")
+    async def get_all_agent_sessions(agent_id: str, user_id: str = Query(None)):
         logger.debug(f"AgentSessionsRequest: {agent_id} {user_id}")
         agent = get_agent_by_id(agent_id, agents)
         if agent is None:
@@ -584,8 +575,8 @@ def get_async_playground_router(
             )
         return agent_sessions
 
-    @playground_router.get("/agent/{agent_id}/user/{user_id}/session/{session_id}")
-    async def get_agent_session(agent_id: str, user_id: str, session_id: str):
+    @playground_router.get("/agents/{agent_id}/sessions/{session_id}")
+    async def get_agent_session(agent_id: str, session_id: str, user_id: str = Query(None)):
         logger.debug(f"AgentSessionsRequest: {agent_id} {user_id} {session_id}")
         agent = get_agent_by_id(agent_id, agents)
         if agent is None:
@@ -600,8 +591,8 @@ def get_async_playground_router(
 
         return agent_session
 
-    @playground_router.patch("/agent/{agent_id}/user/{user_id}/session/{session_id}/rename")
-    async def rename_agent_session(agent_id: str, user_id: str, session_id: str, body: AgentRenameRequest):
+    @playground_router.post("/agents/{agent_id}/sessions/{session_id}/rename")
+    async def rename_agent_session(agent_id: str, session_id: str, body: AgentRenameRequest, user_id: str = Query(None)):
         agent = get_agent_by_id(agent_id, agents)
         if agent is None:
             return JSONResponse(status_code=404, content=f"couldn't find agent with {body.agent_id}")
@@ -618,8 +609,8 @@ def get_async_playground_router(
         return JSONResponse(status_code=404, content="Session not found.")
 
 
-    @playground_router.delete("/agent/{agent_id}/user/{user_id}/session/{session_id}")
-    async def delete_agent_session(agent_id: str, user_id: str, session_id: str):
+    @playground_router.delete("/agents/{agent_id}/sessions/{session_id}")
+    async def delete_agent_session(agent_id: str, session_id: str, user_id: str = Query(None)):
         agent = get_agent_by_id(agent_id, agents)
         if agent is None:
             return JSONResponse(status_code=404, content="Agent not found.")
@@ -645,8 +636,8 @@ def get_async_playground_router(
             for workflow in workflows
         ]
 
-    @playground_router.get("/workflow/{workflow_id}/inputs")
-    async def get_workflow_inputs(workflow_id: str):
+    @playground_router.get("/workflows/{workflow_id}")
+    async def get_workflow(workflow_id: str):
         workflow = get_workflow_by_id(workflow_id, workflows)
         if workflow is None:
             raise HTTPException(status_code=404, detail="Workflow not found")
@@ -655,20 +646,11 @@ def get_async_playground_router(
             "name": workflow.name,
             "description": workflow.description,
             "parameters": workflow._run_parameters or {},
-        }
-
-    @playground_router.get("/workflow/{workflow_id}/config")
-    async def get_workflow_config(workflow_id: str):
-        workflow = get_workflow_by_id(workflow_id, workflows)
-        if workflow is None:
-            raise HTTPException(status_code=404, detail="Workflow not found")
-
-        return {
             "storage": workflow.storage.__class__.__name__ if workflow.storage else None,
         }
 
-    @playground_router.post("/workflow/{workflow_id}/run")
-    async def run_workflow(workflow_id: str, body: WorkflowRunRequest):
+    @playground_router.post("/workflows/{workflow_id}/run")
+    async def create_workflow_run(workflow_id: str, body: WorkflowRunRequest):
         # Retrieve the workflow by ID
         workflow = get_workflow_by_id(workflow_id, workflows)
         if workflow is None:
@@ -698,8 +680,8 @@ def get_async_playground_router(
             # Handle unexpected runtime errors
             raise HTTPException(status_code=500, detail=f"Error running workflow: {str(e)}")
 
-    @playground_router.get("/workflow/{workflow_id}/user/{user_id}/session/all")
-    async def get_all_workflow_sessions(workflow_id: str, user_id: str):
+    @playground_router.get("/workflows/{workflow_id}/sessions")
+    async def get_all_workflow_sessions(workflow_id: str, user_id: str = Query(None)):
         # Retrieve the workflow by ID
         workflow = get_workflow_by_id(workflow_id, workflows)
         if not workflow:
@@ -728,8 +710,8 @@ def get_async_playground_router(
             for session in all_workflow_sessions
         ]
 
-    @playground_router.get("/workflow/{workflow_id}/user/{user_id}/session/{session_id}")
-    async def get_workflow_session(workflow_id: str, user_id: str, session_id: str):
+    @playground_router.get("/workflows/{workflow_id}/sessions/{session_id}")
+    async def get_workflow_session(workflow_id: str, session_id: str, user_id: str = Query(None)):
         # Retrieve the workflow by ID
         workflow = get_workflow_by_id(workflow_id, workflows)
         if not workflow:
@@ -751,8 +733,8 @@ def get_async_playground_router(
         # Return the session
         return workflow_session
 
-    @playground_router.patch("/workflow/{workflow_id}/user/{user_id}/session/{session_id}/rename")
-    async def rename_workflow_session(workflow_id: str, user_id: str, session_id: str, body: WorkflowRenameRequest):
+    @playground_router.post("/workflows/{workflow_id}/sessions/{session_id}/rename")
+    async def rename_workflow_session(workflow_id: str, session_id: str, body: WorkflowRenameRequest, user_id: str = Query(None)):
         workflow = get_workflow_by_id(workflow_id, workflows)
         if workflow is None:
             raise HTTPException(status_code=404, detail="Workflow not found")
@@ -760,8 +742,8 @@ def get_async_playground_router(
         workflow.rename_session(session_id, body.name)
         return JSONResponse(content={"message": f"successfully renamed workflow {workflow.name}"})
 
-    @playground_router.delete("/workflow/{workflow_id}/user/{user_id}/session/{session_id}")
-    async def delete_workflow_session(workflow_id: str, user_id: str, session_id: str):
+    @playground_router.delete("/workflows/{workflow_id}/sessions/{session_id}")
+    async def delete_workflow_session(workflow_id: str, session_id: str, user_id: str = Query(None)):
         workflow = get_workflow_by_id(workflow_id, workflows)
         if workflow is None:
             raise HTTPException(status_code=404, detail="Workflow not found")

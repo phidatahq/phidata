@@ -1,5 +1,6 @@
 from typing import Any, Dict, Optional, Callable, get_type_hints, Type, TypeVar, Union, List
 from pydantic import BaseModel, Field, validate_call
+from docstring_parser import parse
 
 from phi.model.message import Message
 from phi.utils.log import logger
@@ -40,6 +41,25 @@ class StopAgentRun(ToolCallException):
         super().__init__(
             exc, user_message=user_message, agent_message=agent_message, messages=messages, stop_execution=True
         )
+
+
+def get_entrypoint_docstring(entrypoint: Callable) -> str:
+    from inspect import getdoc
+
+    doc = getdoc(entrypoint)
+    if not doc:
+        return ""
+
+    parsed = parse(doc)
+
+    # Combine short and long descriptions
+    lines = []
+    if parsed.short_description:
+        lines.append(parsed.short_description)
+    if parsed.long_description:
+        lines.extend(parsed.long_description.split("\n"))
+
+    return "\n".join(lines)
 
 
 class Function(BaseModel):
@@ -96,16 +116,29 @@ class Function(BaseModel):
                 del type_hints["agent"]
             # logger.info(f"Type hints for {function_name}: {type_hints}")
 
-            # Filter out return type and only process parameters
             param_type_hints = {
                 name: type_hints[name]
                 for name in sig.parameters
                 if name in type_hints and name != "return" and name != "agent"
             }
-            # logger.info(f"Arguments for {function_name}: {param_type_hints}")
+
+            # Parse docstring for parameters
+            param_descriptions = {}
+            if docstring := getdoc(c):
+                parsed_doc = parse(docstring)
+                param_docs = parsed_doc.params
+
+                if param_docs is not None:
+                    for param in param_docs:
+                        param_name = param.arg_name
+                        param_type = param.type_name
+
+                        param_descriptions[param_name] = f"({param_type}) {param.description}"
 
             # Get JSON schema for parameters only
-            parameters = get_json_schema(type_hints=param_type_hints, strict=strict)
+            parameters = get_json_schema(
+                type_hints=param_type_hints, param_descriptions=param_descriptions, strict=strict
+            )
 
             # If strict=True mark all fields as required
             # See: https://platform.openai.com/docs/guides/structured-outputs/supported-schemas#all-fields-must-be-required
@@ -125,7 +158,7 @@ class Function(BaseModel):
 
         return cls(
             name=function_name,
-            description=getdoc(c),
+            description=get_entrypoint_docstring(entrypoint=c),
             parameters=parameters,
             entrypoint=validate_call(c),
         )
@@ -160,10 +193,29 @@ class Function(BaseModel):
                 for name in sig.parameters
                 if name in type_hints and name != "return" and name != "agent"
             }
+
+            # Parse docstring for parameters
+            param_descriptions = {}
+            if docstring := getdoc(self.entrypoint):
+                parsed_doc = parse(docstring)
+                param_docs = parsed_doc.params
+
+                if param_docs is not None:
+                    for param in param_docs:
+                        param_name = param.arg_name
+                        param_type = param.type_name
+
+                        # TODO: We should use type hints first, then map param types in docs to json schema types.
+                        # This is temporary to not lose information
+                        param_descriptions[param_name] = f"({param_type}) {param.description}"
+
             # logger.info(f"Arguments for {self.name}: {param_type_hints}")
 
             # Get JSON schema for parameters only
-            parameters = get_json_schema(type_hints=param_type_hints, strict=strict)
+            parameters = get_json_schema(
+                type_hints=param_type_hints, param_descriptions=param_descriptions, strict=strict
+            )
+
             # If strict=True mark all fields as required
             # See: https://platform.openai.com/docs/guides/structured-outputs/supported-schemas#all-fields-must-be-required
             if strict:
@@ -180,9 +232,10 @@ class Function(BaseModel):
         except Exception as e:
             logger.warning(f"Could not parse args for {self.name}: {e}", exc_info=True)
 
-        self.description = self.description or getdoc(self.entrypoint)
+        self.description = self.description or get_entrypoint_docstring(self.entrypoint)
         if not params_set_by_user:
             self.parameters = parameters
+
         self.entrypoint = validate_call(self.entrypoint)
 
     def get_type_name(self, t: Type[T]):

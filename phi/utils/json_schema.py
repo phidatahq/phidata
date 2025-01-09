@@ -58,7 +58,9 @@ def get_json_schema_for_arg(t: Any) -> Optional[Dict[str, Any]]:
     return {"type": get_json_type_for_py_type(t.__name__)}
 
 
-def get_json_schema(type_hints: Dict[str, Any], strict: bool = False) -> Dict[str, Any]:
+def get_json_schema(
+    type_hints: Dict[str, Any], param_descriptions: Optional[Dict[str, str]] = None, strict: bool = False
+) -> Dict[str, Any]:
     json_schema: Dict[str, Any] = {
         "type": "object",
         "properties": {},
@@ -89,6 +91,10 @@ def get_json_schema(type_hints: Dict[str, Any], strict: bool = False) -> Dict[st
                         arg_json_schema["type"].append("null")
                     else:
                         arg_json_schema["type"] = [arg_json_schema["type"], "null"]
+
+                # Add description
+                if param_descriptions and k in param_descriptions and param_descriptions[k]:
+                    arg_json_schema["description"] = param_descriptions[k]
 
                 json_schema["properties"][k] = arg_json_schema
 

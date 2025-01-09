@@ -3,7 +3,6 @@ from dataclasses import dataclass, field
 from typing import Optional, List, Iterator, Dict, Any, Union
 
 import httpx
-from packaging import version
 from pydantic import BaseModel
 
 from phi.model.base import Model
@@ -14,7 +13,22 @@ from phi.utils.log import logger
 from phi.utils.timer import Timer
 from phi.utils.tools import get_function_call_for_tool_call
 
+
 try:
+    MIN_OPENAI_VERSION = (1, 52, 0)  # v1.52.0
+
+    # Check the installed openai version
+    from openai import __version__ as installed_version
+
+    # Convert installed version to a tuple of integers for comparison
+    installed_version_tuple = tuple(map(int, installed_version.split(".")))
+    if installed_version_tuple < MIN_OPENAI_VERSION:
+        raise ImportError(
+            f"`openai` version must be >= {'.'.join(map(str, MIN_OPENAI_VERSION))}, but found {installed_version}. "
+            f"Please upgrade using `pip install --upgrade openai`."
+        )
+
+    from openai.types.chat.chat_completion_message import ChatCompletionMessage, ChatCompletionAudio
     from openai import OpenAI as OpenAIClient, AsyncOpenAI as AsyncOpenAIClient
     from openai.types.completion_usage import CompletionUsage
     from openai.types.chat.chat_completion import ChatCompletion
@@ -24,19 +38,8 @@ try:
         ChoiceDelta,
         ChoiceDeltaToolCall,
     )
-    from openai.types.chat.chat_completion_message import ChatCompletionMessage, ChatCompletionAudio
 
-    MIN_OPENAI_VERSION = "1.52.0"
-
-    # Check the installed openai version
-    from openai import __version__ as installed_version
-
-    if version.parse(installed_version) < version.parse(MIN_OPENAI_VERSION):
-        logger.warning(
-            f"`openai` version must be >= {MIN_OPENAI_VERSION}, but found {installed_version}. "
-            f"Please upgrade using `pip install --upgrade openai`."
-        )
-except (ModuleNotFoundError, ImportError):
+except ModuleNotFoundError:
     raise ImportError("`openai` not installed. Please install using `pip install openai`")
 
 

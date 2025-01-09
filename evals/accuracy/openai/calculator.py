@@ -18,26 +18,24 @@ def multiply_and_exponentiate():
         expected_answer="2500",
     )
     result: Optional[AccuracyResult] = evaluation.run(print_results=True)
-    pprint(result)
-    # result: Optional[EvalResult] = evaluation.print_result()
 
-    # assert result is not None and result.accuracy_score >= 8
+    assert result is not None and result.avg_score >= 8
 
 
-# def factorial():
-#     evaluation = Eval(
-#         agent=Agent(
-#             model=OpenAIChat(id="gpt-4o-mini"),
-#             tools=[Calculator(factorial=True)],
-#         ),
-#         question="What is 10!?",
-#         expected_answer="3628800",
-#     )
-#     result: Optional[EvalResult] = evaluation.print_result()
+def factorial():
+    evaluation = AccuracyEval(
+        agent=Agent(
+            model=OpenAIChat(id="gpt-4o-mini"),
+            tools=[Calculator(factorial=True)],
+        ),
+        question="What is 10!?",
+        expected_answer="3628800",
+    )
+    result: Optional[AccuracyResult] = evaluation.run(print_results=True)
 
-#     assert result is not None and result.accuracy_score >= 8
+    assert result is not None and result.avg_score >= 8
 
 
 if __name__ == "__main__":
     multiply_and_exponentiate()
-    # factorial()
+    factorial()

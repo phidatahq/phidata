@@ -9,7 +9,7 @@ try:
     from chromadb.api.types import GetResult, QueryResult
 
 except ImportError:
-    raise ImportError("The `chromadb` package is not installed. " "Please install it via `pip install chromadb`.")
+    raise ImportError("The `chromadb` package is not installed. Please install it via `pip install chromadb`.")
 
 from agno.document import Document
 from agno.embedder import Embedder

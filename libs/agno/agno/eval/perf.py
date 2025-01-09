@@ -123,7 +123,7 @@ class PerfEval:
                 timer.stop()
                 # Append the time taken
                 run_times.append(timer.elapsed)
-                logger.debug(f"\nRun {i+1}:", style="bold")
+                logger.debug(f"\nRun {i + 1}:", style="bold")
                 logger.debug(f"Time taken: {timer.elapsed:.6f} seconds", style="green")
 
             # Measure memory usage
@@ -131,7 +131,7 @@ class PerfEval:
             for i in range(self.num_iterations):
                 mem_usage = memory_usage((self.func, (), {}), interval=0.1, max_iterations=1, max_usage=True)
                 memory_usages.append(mem_usage)
-                logger.debug(f"\nRun {i+1}:", style="bold")
+                logger.debug(f"\nRun {i + 1}:", style="bold")
                 logger.debug(f"Memory usage: {mem_usage} MiB", style="green")
 
             # Stop the status after completion

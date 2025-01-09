@@ -9,7 +9,6 @@ from pydantic import BaseModel, Field
 from agno.agent import Agent, RunResponse
 from agno.models.base import Model
 from agno.utils.log import logger, set_log_level_to_debug, set_log_level_to_info
-from agno.utils.timer import Timer
 
 if TYPE_CHECKING:
     from rich.console import Console
@@ -79,10 +78,11 @@ class AccuracyResult:
             box=ROUNDED,
             border_style="blue",
             show_header=False,
-            title="[ Evaluation Result ]",
+            title="[ Evaluation Summary ]",
             title_style="bold sky_blue1",
             title_justify="center",
         )
+        summary_table.add_row("Number of Runs", f"{len(self.results)}")
         summary_table.add_row("Average Score", f"{self.avg_score:.4f}")
         summary_table.add_row("Mean Score", f"{self.mean_score:.4f}")
         summary_table.add_row("Minimum Score", f"{self.min_score:.4f}")
@@ -148,7 +148,7 @@ class AccuracyEval:
     # Print a final summary of results
     print_summary: bool = False
     # Save the result to a file
-    save_results_to_file: Optional[str] = None
+    save_result_to_file: Optional[str] = None
 
     # debug_mode=True enables debug logs
     debug_mode: bool = False
@@ -173,15 +173,17 @@ class AccuracyEval:
             return self.evaluator_agent
 
         model = self.model
-        try:
-            from agno.models.openai import OpenAIChat
-        except ImportError as e:
-            logger.exception(e)
-            logger.error(
-                "Agno evaluators use `openai` as the default model provider. Please run `pip install openai` to use the default evaluator."
-            )
-            exit(1)
-        model = OpenAIChat(id="gpt-4o-mini")
+        if model is None:
+            try:
+                from agno.models.openai import OpenAIChat
+
+                model = OpenAIChat(id="gpt-4o-mini")
+            except (ModuleNotFoundError, ImportError) as e:
+                logger.exception(e)
+                logger.error(
+                    "Agno uses `openai` as the default model provider. Please run `pip install openai` to use the default evaluator."
+                )
+                exit(1)
 
         evaluator_guidelines = ""
         if self.evaluator_guidelines is not None and len(self.evaluator_guidelines) > 0:
@@ -356,35 +358,24 @@ Your evaluation should be objective, thorough, and well-reasoned. Provide specif
         self.set_debug_mode()
         self.print_results = print_results
         self.print_summary = print_summary
-        logger.debug(f"*********** Evaluation Start: {self.eval_id} ***********")
 
         question_to_evaluate: Optional[str] = self.get_question_to_evaluate(question=question)
         if question_to_evaluate is None:
-            logger.debug(f"Question: {question_to_evaluate}")
             logger.error("No Question to evaluate.")
-            return None
-
-        answer_to_evaluate: Optional[RunResponse] = self.get_answer_to_evaluate(answer=answer)
-        if answer_to_evaluate is None:
-            logger.debug(f"Answer: {answer_to_evaluate.content}")
-            logger.error("No Answer to evaluate.")
             return None
 
         expected_answer_to_evaluate: Optional[str] = self.get_expected_answer_to_evaluate(
             expected_answer=expected_answer
         )
         if expected_answer_to_evaluate is None:
-            logger.debug(f"Expected Answer: {expected_answer_to_evaluate}")
             logger.error("No Expected Answer to evaluate.")
             return None
 
-        logger.debug("************************ Evaluating ************************")
+        logger.debug(f"*************** Evaluating: {self.eval_id} ***************")
         logger.debug(f"Question: {question_to_evaluate}")
-        logger.debug(f"Answer: {answer_to_evaluate.content}")
         logger.debug(f"Expected Answer: {expected_answer_to_evaluate}")
-        logger.debug("************************************************************")
+        logger.debug("***********************************************************")
 
-        logger.debug("Evaluating accuracy...")
         evaluator_agent: Agent = self.get_evaluator_agent(
             question=question_to_evaluate, expected_answer=expected_answer_to_evaluate
         )
@@ -393,8 +384,14 @@ Your evaluation should be objective, thorough, and well-reasoned. Provide specif
         console = Console()
         with Live(console=console, transient=True) as live_log:
             for i in range(self.num_iterations):
-                status = Status(f"Running evaluation {i+1}...", spinner="dots", speed=1.0, refresh_per_second=10)
+                status = Status(f"Running evaluation {i + 1}...", spinner="dots", speed=1.0, refresh_per_second=10)
                 live_log.update(status)
+
+                answer_to_evaluate: Optional[RunResponse] = self.get_answer_to_evaluate(answer=answer)
+                if answer_to_evaluate is None:
+                    logger.debug(f"Answer #{i + 1}: {answer_to_evaluate.content}")
+                    logger.error("No Answer to evaluate.")
+                    continue
 
                 try:
                     accuracy_agent_response: AccuracyAgentResponse = evaluator_agent.run(
@@ -411,22 +408,22 @@ Your evaluation should be objective, thorough, and well-reasoned. Provide specif
                         accuracy_evaluation.print_evaluation(console)
                     self.result.results.append(accuracy_evaluation)
                     self.result.compute_scores()
-                    status.update(f"Running evaluation {i+1}... Done")
+                    status.update(f"Running evaluation {i + 1}... Done")
                 except Exception as e:
-                    logger.error(f"Failed to evaluate accuracy, run #{i+1}: {e}")
+                    logger.error(f"Failed to evaluate accuracy, run #{i + 1}: {e}")
                     return None
 
                 status.stop()
 
-        # # -*- Save result to file if save_results_to_file is set
-        # if self.save_results_to_file is not None and self.evaluator_result is not None:
-        #     try:
-        #         fn_path = Path(self.save_results_to_file.format(name=self.name, eval_id=self.eval_id))
-        #         if not fn_path.parent.exists():
-        #             fn_path.parent.mkdir(parents=True, exist_ok=True)
-        #         fn_path.write_text(self.evaluator_result.model_dump_json(indent=4))
-        #     except Exception as e:
-        #         logger.warning(f"Failed to save result to file: {e}")
+        # -*- Save result to file if save_result_to_file is set
+        if self.save_result_to_file is not None and self.result is not None:
+            try:
+                fn_path = Path(self.save_result_to_file.format(name=self.name, eval_id=self.eval_id))
+                if not fn_path.parent.exists():
+                    fn_path.parent.mkdir(parents=True, exist_ok=True)
+                fn_path.write_text(self.result.model_dump_json(indent=4))
+            except Exception as e:
+                logger.warning(f"Failed to save result to file: {e}")
 
         # Show results
         if self.print_summary or self.print_results:
@@ -434,38 +431,3 @@ Your evaluation should be objective, thorough, and well-reasoned. Provide specif
 
         logger.debug(f"*********** Evaluation End: {self.eval_id} ***********")
         return self.result
-
-    # def print_result(self, answer: Optional[Union[str, Callable]] = None) -> Optional[EvalResult]:
-    #     from rich.box import ROUNDED
-    #     from rich.progress import Progress, SpinnerColumn, TextColumn
-    #     from rich.table import Table
-
-    #     from agno.cli.console import console
-
-    #     response_timer = Timer()
-    #     response_timer.start()
-    #     with Progress(SpinnerColumn(spinner_name="dots"), TextColumn("{task.description}"), transient=True) as progress:
-    #         progress.add_task("Working...")
-    #         result: Optional[EvalResult] = self.run(answer=answer)
-
-    #     response_timer.stop()
-    #     if result is None:
-    #         return None
-
-    #     table = Table(
-    #         box=ROUNDED,
-    #         border_style="blue",
-    #         show_header=False,
-    #         title="[ Evaluation Result ]",
-    #         title_style="bold sky_blue1",
-    #         title_justify="center",
-    #     )
-    #     table.add_row("Question", self.question)
-    #     table.add_row("Answer", self.answer)
-    #     table.add_row("Expected Answer", self.expected_answer)
-    #     table.add_row("Accuracy Score", f"{str(result.accuracy_score)}/10")
-    #     table.add_row("Accuracy Reason", result.accuracy_reason)
-    #     table.add_row("Time Taken", f"{response_timer.elapsed:.1f}s")
-    #     console.print(table)
-
-    #     return result

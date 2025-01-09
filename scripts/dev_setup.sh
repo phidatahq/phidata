@@ -25,8 +25,8 @@ print_info "rm -rf ${VENV_DIR}"
 rm -rf ${VENV_DIR}
 
 print_heading "Creating virtual env"
-print_info "VIRTUAL_ENV=${VENV_DIR} uv venv"
-VIRTUAL_ENV=${VENV_DIR} uv venv
+print_info "VIRTUAL_ENV=${VENV_DIR} uv venv --python 3.12"
+VIRTUAL_ENV=${VENV_DIR} uv venv --python 3.12
 
 print_heading "Installing agno"
 print_info "VIRTUAL_ENV=${VENV_DIR} uv pip install -r ${AGNO_DIR}/requirements.txt"

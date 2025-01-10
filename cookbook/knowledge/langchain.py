@@ -33,7 +33,7 @@ retriever = db.as_retriever()
 knowledge_base = LangChainKnowledgeBase(retriever=retriever)
 
 # Create an agent with the knowledge base
-agent = Agent(knowledge_base=knowledge_base, add_references_to_prompt=True)
+agent = Agent(knowledge=knowledge_base, add_references_to_prompt=True)
 
 # Use the agent to ask a question and print a response.
 agent.print_response("What did the president say about technology?", markdown=True)

@@ -23,5 +23,5 @@ knowledge_base = PDFUrlKnowledgeBase(
 knowledge_base.load(recreate=False)  # Comment out after first run
 
 # Create and use the agent
-agent = Agent(knowledge_base=knowledge_base, use_tools=True, show_tool_calls=True)
+agent = Agent(knowledge=knowledge_base, use_tools=True, show_tool_calls=True)
 agent.print_response("List down the ingredients to make Massaman Gai", markdown=True)

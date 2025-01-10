@@ -2,7 +2,10 @@ import io
 from pathlib import Path
 from typing import List, Union
 
-from docx import Document as DocxDocument  # type: ignore
+try:
+    from docx import Document as DocxDocument  # type: ignore
+except ImportError:
+    raise ImportError("docx is not installed. Please install it using `pip install python-docx`")
 
 from agno.document.base import Document
 from agno.document.reader.base import Reader

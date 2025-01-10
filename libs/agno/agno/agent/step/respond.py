@@ -31,7 +31,13 @@ class Respond(AgentStep):
         if agent.stream:
             model_response = ModelResponse()
             model_response.content = ""
-            for model_response_chunk in agent.model.response_stream(messages=run_messages.messages):
+
+            if hasattr(agent.model, "response_stream"):
+                model_response_stream = agent.model.response_stream(messages=run_messages.messages)
+            else:
+                raise NotImplementedError(f"{agent.model.id} does not support streaming")
+
+            for model_response_chunk in model_response_stream:
                 # If the model response is an assistant_response, yield a RunResponse with the content
                 if model_response_chunk.event == ModelResponseEvent.assistant_response.value:
                     if model_response_chunk.content is not None:
@@ -113,7 +119,11 @@ class Respond(AgentStep):
         agent.model = cast(Model, agent.model)
         if agent.stream:
             model_response = ModelResponse(content="")
-            model_response_stream = agent.model.aresponse_stream(messages=run_messages.messages)
+            if hasattr(agent.model, "aresponse_stream"):
+                model_response_stream = agent.model.aresponse_stream(messages=run_messages.messages)
+            else:
+                raise NotImplementedError(f"{agent.model.id} does not support streaming")
+
             async for model_response_chunk in model_response_stream:  # type: ignore
                 # If the model response is an assistant_response, yield a RunResponse with the content
                 if model_response_chunk.event == ModelResponseEvent.assistant_response.value:

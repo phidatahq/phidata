@@ -74,7 +74,7 @@ def tool(*args, **kwargs) -> Union[Function, Callable[[F], Function]]:
     invalid_kwargs = set(kwargs.keys()) - VALID_KWARGS
     if invalid_kwargs:
         raise ValueError(
-            f"Invalid tool configuration arguments: {invalid_kwargs}. " f"Valid arguments are: {sorted(VALID_KWARGS)}"
+            f"Invalid tool configuration arguments: {invalid_kwargs}. Valid arguments are: {sorted(VALID_KWARGS)}"
         )
 
     def decorator(func: F) -> Function:

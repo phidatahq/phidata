@@ -30,10 +30,10 @@ class AgentRunRequest(BaseModel):
     monitor: bool = False
     session_id: Optional[str] = None
     user_id: Optional[str] = None
-    files: Optional[List[UploadFile]] = None
+    image: Optional[UploadFile] = None
 
 
-class AgentRenameRequest(BaseModel):
+class AgentRenameRequest(BaseModel)pip:
     name: str
     agent_id: str
     session_id: str

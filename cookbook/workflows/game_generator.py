@@ -1,5 +1,5 @@
 """
-1. Install dependencies using: `pip install openai phidata`
+1. Install dependencies using: `pip install openai agno`
 2. Run the script using: `python cookbook/workflows/game_generator.py`
 """
 

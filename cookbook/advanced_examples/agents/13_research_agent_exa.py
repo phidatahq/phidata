@@ -1,5 +1,5 @@
 """Please install dependencies using:
-pip install openai exa-py phidata
+pip install openai exa-py agno
 """
 
 from textwrap import dedent

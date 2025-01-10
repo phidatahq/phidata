@@ -1,7 +1,7 @@
 """
 This recipe shows how to store agent sessions in a sqlite database.
 Steps:
-1. Run: `pip install openai sqlalchemy phidata` to install dependencies
+1. Run: `pip install openai sqlalchemy agno` to install dependencies
 2. Run: `python cookbook/memory/02_persistent_memory.py` to run the agent
 """
 

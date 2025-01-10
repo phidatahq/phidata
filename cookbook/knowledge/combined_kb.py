@@ -29,7 +29,7 @@ pdf_url_kb = PDFUrlKnowledgeBase(
 
 # Create Website knowledge base
 website_kb = WebsiteKnowledgeBase(
-    urls=["https://docs.phidata.com/introduction"],
+    urls=["https://docs.agno.com/introduction"],
     max_links=10,
     vector_db=PgVector(
         table_name="website_documents",

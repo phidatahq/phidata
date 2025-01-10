@@ -1,5 +1,5 @@
 """Please install dependencies using:
-pip install openai exa-py phidata firecrawl
+pip install openai exa-py agno firecrawl
 """
 
 from textwrap import dedent

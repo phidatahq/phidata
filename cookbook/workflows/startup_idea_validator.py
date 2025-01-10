@@ -1,5 +1,5 @@
 """
-1. Install dependencies using: `pip install openai exa_py sqlalchemy phidata`
+1. Install dependencies using: `pip install openai exa_py sqlalchemy agno`
 2. Run the script using: `python cookbook/workflows/blog_post_generator.py`
 """
 

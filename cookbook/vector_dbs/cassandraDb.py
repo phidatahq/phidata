@@ -26,11 +26,11 @@ knowledge_base.load(recreate=False)  # Comment out after first run
 
 agent = Agent(
     provider=MistralChat(provider="mistral-large-latest", api_key=os.getenv("MISTRAL_API_KEY")),
-    knowledge_base=knowledge_base,
+    knowledge=knowledge_base,
     use_tools=True,
     show_tool_calls=True,
 )
 
 agent.print_response(
-    "what are the health benifits of Khao Niew Dam Piek Maphrao Awn ?", markdown=True, show_full_reasoning=True
+    "what are the health benefits of Khao Niew Dam Piek Maphrao Awn ?", markdown=True, show_full_reasoning=True
 )

@@ -20,7 +20,7 @@ knowledge_base.load(recreate=True)  # Comment out after first run
 
 agent = Agent(
     model=Ollama(id="llama3.2"),
-    knowledge_base=knowledge_base,
+    knowledge=knowledge_base,
     use_tools=True,
     show_tool_calls=True,
 )

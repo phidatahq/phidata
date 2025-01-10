@@ -34,7 +34,6 @@ class JSONReader(Reader):
                 for page_number, content in enumerate(json_contents, start=1)
             ]
             if self.chunk:
-                logger.debug("Chunking documents not yet supported for JSONReader")
                 chunked_documents = []
                 for document in documents:
                     chunked_documents.extend(self.chunk_document(document))

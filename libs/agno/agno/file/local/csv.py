@@ -1,3 +1,4 @@
+from dataclasses import asdict, dataclass
 from typing import Any
 
 from agno.file import File
@@ -5,8 +6,9 @@ from agno.utils.common import dataclass_to_dict
 from agno.utils.log import logger
 
 
+@dataclass
 class CsvFile(File):
-    path: str
+    path: str = ""
     type: str = "CSV"
 
     def get_metadata(self) -> dict[str, Any]:
@@ -26,5 +28,6 @@ class CsvFile(File):
                         self.columns = list(dict_reader.fieldnames)
             except Exception as e:
                 logger.debug(f"Error getting columns from file: {e}")
+
 
         return dataclass_to_dict(self, exclude_none=True)

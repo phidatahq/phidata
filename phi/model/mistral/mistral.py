@@ -11,18 +11,14 @@ from phi.utils.timer import Timer
 from phi.utils.tools import get_function_call_for_tool_call
 
 try:
-    from mistralai import Mistral
+    from mistralai import Mistral, models
     from mistralai.models.chatcompletionresponse import ChatCompletionResponse
     from mistralai.models.deltamessage import DeltaMessage
-    from mistralai.models import UserMessage
-    from mistralai.models import AssistantMessage
-    from mistralai.models import SystemMessage
-    from mistralai.models import ToolMessage
     from mistralai.types.basemodel import Unset
 except (ModuleNotFoundError, ImportError):
     raise ImportError("`mistralai` not installed. Please install using `pip install mistralai`")
 
-MistralMessage = Union[UserMessage, AssistantMessage, SystemMessage, ToolMessage]
+MistralMessage = Union[models.UserMessage, models.AssistantMessage, models.SystemMessage, models.ToolMessage]
 
 
 @dataclass

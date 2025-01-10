@@ -11,7 +11,6 @@ agent = Agent(
         api_key=mistral_api_key,
     ),
     markdown=True,
-    debug_mode=True,
 )
 
 # Get the response in a variable

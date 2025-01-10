@@ -11,14 +11,15 @@ from agno.utils.timer import Timer
 from agno.utils.tools import get_function_call_for_tool_call
 
 try:
-    from mistralai import Mistral, models
+    from mistralai import Mistral
+    from mistralai.models import AssistantMessage, SystemMessage, ToolMessage, UserMessage
     from mistralai.models.chatcompletionresponse import ChatCompletionResponse
     from mistralai.models.deltamessage import DeltaMessage
     from mistralai.types.basemodel import Unset
 except (ModuleNotFoundError, ImportError):
     raise ImportError("`mistralai` not installed. Please install using `pip install mistralai`")
 
-MistralMessage = Union[models.UserMessage, models.AssistantMessage, models.SystemMessage, models.ToolMessage]
+MistralMessage = Union[UserMessage, AssistantMessage, SystemMessage, ToolMessage]
 
 
 @dataclass
@@ -176,16 +177,16 @@ class MistralChat(Model):
         for m in messages:
             mistral_message: MistralMessage
             if m.role == "user":
-                mistral_message = models.UserMessage(role=m.role, content=m.content)
+                mistral_message = UserMessage(role=m.role, content=m.content)
             elif m.role == "assistant":
                 if m.tool_calls is not None:
-                    mistral_message = models.AssistantMessage(role=m.role, content=m.content, tool_calls=m.tool_calls)
+                    mistral_message = AssistantMessage(role=m.role, content=m.content, tool_calls=m.tool_calls)
                 else:
-                    mistral_message = models.AssistantMessage(role=m.role, content=m.content)
+                    mistral_message = AssistantMessage(role=m.role, content=m.content)
             elif m.role == "system":
-                mistral_message = models.SystemMessage(role=m.role, content=m.content)
+                mistral_message = SystemMessage(role=m.role, content=m.content)
             elif m.role == "tool":
-                mistral_message = models.ToolMessage(name=m.name, content=m.content, tool_call_id=m.tool_call_id)
+                mistral_message = ToolMessage(name=m.name, content=m.content, tool_call_id=m.tool_call_id)
             else:
                 raise ValueError(f"Unknown role: {m.role}")
             mistral_messages.append(mistral_message)
@@ -213,17 +214,17 @@ class MistralChat(Model):
         for m in messages:
             mistral_message: MistralMessage
             if m.role == "user":
-                mistral_message = models.UserMessage(role=m.role, content=m.content)
+                mistral_message = UserMessage(role=m.role, content=m.content)
             elif m.role == "assistant":
                 if m.tool_calls is not None:
-                    mistral_message = models.AssistantMessage(role=m.role, content=m.content, tool_calls=m.tool_calls)
+                    mistral_message = AssistantMessage(role=m.role, content=m.content, tool_calls=m.tool_calls)
                 else:
-                    mistral_message = models.AssistantMessage(role=m.role, content=m.content)
+                    mistral_message = AssistantMessage(role=m.role, content=m.content)
             elif m.role == "system":
-                mistral_message = models.SystemMessage(role=m.role, content=m.content)
+                mistral_message = SystemMessage(role=m.role, content=m.content)
             elif m.role == "tool":
                 logger.debug(f"Tool message: {m}")
-                mistral_message = models.ToolMessage(name=m.name, content=m.content, tool_call_id=m.tool_call_id)
+                mistral_message = ToolMessage(name=m.name, content=m.content, tool_call_id=m.tool_call_id)
             else:
                 raise ValueError(f"Unknown role: {m.role}")
             mistral_messages.append(mistral_message)
@@ -308,7 +309,7 @@ class MistralChat(Model):
         if response.choices is None or len(response.choices) == 0:
             raise ValueError("The response does not contain any choices.")
 
-        response_message: models.AssistantMessage = response.choices[0].message
+        response_message: AssistantMessage = response.choices[0].message
 
         # Create assistant message
         assistant_message = Message(

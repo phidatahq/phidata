@@ -1,7 +1,7 @@
 from agno.models.google.gemini import Gemini
 
 try:
-    from agno.model.google.gemini_openai import GeminiOpenAIChat
+    from agno.models.google.gemini_openai import GeminiOpenAIChat
 except ImportError:
 
     class GeminiOpenAIChat:  # type: ignore

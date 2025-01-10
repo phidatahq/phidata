@@ -1,10 +1,12 @@
+from dataclasses import asdict, dataclass
 from typing import Any
 
 from agno.file import File
 
 
+@dataclass
 class TextFile(File):
-    path: str
+    path: str = ""
     type: str = "TEXT"
 
     def get_metadata(self) -> dict[str, Any]:
@@ -12,4 +14,4 @@ class TextFile(File):
             from pathlib import Path
 
             self.name = Path(self.path).name
-        return self.model_dump(exclude_none=True)
+        return {k: v for k, v in asdict(self).items() if v is not None}

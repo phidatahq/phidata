@@ -33,7 +33,7 @@ class AgentRunRequest(BaseModel):
     image: Optional[UploadFile] = None
 
 
-class AgentRenameRequest(BaseModel)pip:
+class AgentRenameRequest(BaseModel):
     name: str
     agent_id: str
     session_id: str

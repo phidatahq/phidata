@@ -10,9 +10,6 @@ class TextReader(Reader):
     """Reader for Text files"""
 
     def read(self, file: Union[Path, IO[Any]]) -> List[Document]:
-        if not file:
-            raise ValueError("No file provided")
-
         try:
             if isinstance(file, Path):
                 if not file.exists():

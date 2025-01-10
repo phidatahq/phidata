@@ -8,7 +8,7 @@ db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 knowledge_base = PDFUrlKnowledgeBase(
     urls=["https://phi-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
     vector_db=PgVector(table_name="recipes_semantic_chunking", db_url=db_url),
-    chunking_strategy=SemanticChunking(),
+    chunking_strategy=SemanticChunking(similarity_threshold=0.5),
 )
 knowledge_base.load(recreate=False)  # Comment out after first run
 

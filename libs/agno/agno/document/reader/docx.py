@@ -2,23 +2,28 @@ import io
 from pathlib import Path
 from typing import List, Union
 
+<<<<<<< HEAD
 try:
     from docx import Document as DocxDocument  # type: ignore
 except ImportError:
     raise ImportError("docx is not installed. Please install it using `pip install python-docx`")
 
+=======
+>>>>>>> 8399c5f1 (Refactor document, reader, chunking)
 from agno.document.base import Document
 from agno.document.reader.base import Reader
 from agno.utils.log import logger
+
+try:
+    from docx import Document as DocxDocument  # type: ignore
+except ImportError:
+    raise ImportError("The `python-docx` package is not installed. Please install it via `pip install python-docx`.")
 
 
 class DocxReader(Reader):
     """Reader for Doc/Docx files"""
 
     def read(self, file: Union[Path, io.BytesIO]) -> List[Document]:
-        if not file:
-            raise ValueError("No file provided")
-
         try:
             if isinstance(file, Path):
                 logger.info(f"Reading: {file}")

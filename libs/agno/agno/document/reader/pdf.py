@@ -5,19 +5,16 @@ from agno.document.base import Document
 from agno.document.reader.base import Reader
 from agno.utils.log import logger
 
+try:
+    from pypdf import PdfReader as DocumentReader  # noqa: F401
+except ImportError:
+    raise ImportError("`pypdf` not installed. Please install it via `pip install pypdf`.")
+
 
 class PDFReader(Reader):
     """Reader for PDF files"""
 
     def read(self, pdf: Union[str, Path, IO[Any]]) -> List[Document]:
-        if not pdf:
-            raise ValueError("No pdf provided")
-
-        try:
-            from pypdf import PdfReader as DocumentReader  # noqa: F401
-        except ImportError:
-            raise ImportError("`pypdf` not installed")
-
         doc_name = ""
         try:
             if isinstance(pdf, str):
@@ -59,12 +56,7 @@ class PDFUrlReader(Reader):
         try:
             import httpx
         except ImportError:
-            raise ImportError("`httpx` not installed")
-
-        try:
-            from pypdf import PdfReader as DocumentReader  # noqa: F401
-        except ImportError:
-            raise ImportError("`pypdf` not installed")
+            raise ImportError("`httpx` not installed. Please install it via `pip install httpx`.")
 
         logger.info(f"Reading: {url}")
         response = httpx.get(url)
@@ -104,9 +96,8 @@ class PDFImageReader(Reader):
 
         try:
             import rapidocr_onnxruntime as rapidocr
-            from pypdf import PdfReader as DocumentReader  # noqa: F401
         except ImportError:
-            raise ImportError("`pypdf` or `rapidocr_onnxruntime` not installed")
+            raise ImportError("`rapidocr_onnxruntime` not installed. Please install it via `pip install rapidocr_onnxruntime`.")
 
         doc_name = ""
         try:
@@ -171,9 +162,8 @@ class PDFUrlImageReader(Reader):
         try:
             import httpx
             import rapidocr_onnxruntime as rapidocr
-            from pypdf import PdfReader as DocumentReader
         except ImportError:
-            raise ImportError("`httpx`, `pypdf` or `rapidocr_onnxruntime` not installed")
+            raise ImportError("`httpx`, `rapidocr_onnxruntime` not installed. Please install it via `pip install httpx rapidocr_onnxruntime`.")
 
         # Read the PDF from the URL
         logger.info(f"Reading: {url}")

@@ -1,6 +1,6 @@
 # Agent UI
 
-Phidata provides a beautiful Agent UI for interacting with your agents.
+Agno provides a beautiful Agent UI for interacting with your agents.
 
 ## Setup
 

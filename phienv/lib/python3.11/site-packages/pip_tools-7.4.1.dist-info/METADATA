@@ -1,0 +1,745 @@
+Metadata-Version: 2.1
+Name: pip-tools
+Version: 7.4.1
+Summary: pip-tools keeps your pinned dependencies fresh.
+Author-email: Vincent Driessen <me@nvie.com>
+License: BSD
+Project-URL: homepage, https://github.com/jazzband/pip-tools/
+Project-URL: documentation, https://pip-tools.readthedocs.io/en/latest/
+Project-URL: repository, https://github.com/jazzband/pip-tools
+Project-URL: changelog, https://github.com/jazzband/pip-tools/releases
+Keywords: pip,requirements,packaging
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Environment :: Console
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: System Administrators
+Classifier: License :: OSI Approved :: BSD License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3 :: Only
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: Implementation :: CPython
+Classifier: Programming Language :: Python :: Implementation :: PyPy
+Classifier: Programming Language :: Python
+Classifier: Topic :: Software Development :: Quality Assurance
+Classifier: Topic :: Software Development :: Testing
+Classifier: Topic :: System :: Systems Administration
+Classifier: Topic :: Utilities
+Classifier: Typing :: Typed
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: build >=1.0.0
+Requires-Dist: click >=8
+Requires-Dist: pip >=22.2
+Requires-Dist: pyproject-hooks
+Requires-Dist: setuptools
+Requires-Dist: wheel
+Requires-Dist: tomli ; python_version < "3.11"
+Provides-Extra: coverage
+Requires-Dist: covdefaults ; extra == 'coverage'
+Requires-Dist: pytest-cov ; extra == 'coverage'
+Provides-Extra: testing
+Requires-Dist: pytest >=7.2.0 ; extra == 'testing'
+Requires-Dist: pytest-rerunfailures ; extra == 'testing'
+Requires-Dist: pytest-xdist ; extra == 'testing'
+Requires-Dist: tomli-w ; extra == 'testing'
+Requires-Dist: flit-core <4,>=2 ; extra == 'testing'
+Requires-Dist: poetry-core >=1.0.0 ; extra == 'testing'
+
+[![jazzband-image]][jazzband]
+[![pypi][pypi-image]][pypi]
+[![pyversions][pyversions-image]][pyversions]
+[![pre-commit][pre-commit-image]][pre-commit]
+[![buildstatus-gha][buildstatus-gha-image]][buildstatus-gha]
+[![codecov][codecov-image]][codecov]
+[![Matrix Room Badge]][Matrix Room]
+[![Matrix Space Badge]][Matrix Space]
+[![discord-chat-image]][discord-chat]
+
+# pip-tools = pip-compile + pip-sync
+
+A set of command line tools to help you keep your `pip`-based packages fresh,
+even when you've pinned them. You do pin them, right? (In building your Python application and its dependencies for production, you want to make sure that your builds are predictable and deterministic.)
+
+[![pip-tools overview for phase II][pip-tools-overview]][pip-tools-overview]
+
+## Installation
+
+Similar to `pip`, `pip-tools` must be installed in each of your project's
+[virtual environments](https://packaging.python.org/tutorials/installing-packages/#creating-virtual-environments):
+
+```console
+$ source /path/to/venv/bin/activate
+(venv) $ python -m pip install pip-tools
+```
+
+**Note**: all of the remaining example commands assume you've activated your
+project's virtual environment.
+
+## Example usage for `pip-compile`
+
+The `pip-compile` command lets you compile a `requirements.txt` file from
+your dependencies, specified in either `pyproject.toml`, `setup.cfg`,
+`setup.py`, or `requirements.in`.
+
+Run it with `pip-compile` or `python -m piptools compile` (or
+`pipx run --spec pip-tools pip-compile` if `pipx` was installed with the
+appropriate Python version). If you use multiple Python versions, you can also
+run `py -X.Y -m piptools compile` on Windows and `pythonX.Y -m piptools compile`
+on other systems.
+
+`pip-compile` should be run from the same virtual environment as your
+project so conditional dependencies that require a specific Python version,
+or other environment markers, resolve relative to your project's
+environment.
+
+**Note**: If `pip-compile` finds an existing `requirements.txt` file that
+fulfils the dependencies then no changes will be made, even if updates are
+available. To compile from scratch, first delete the existing
+`requirements.txt` file, or see
+[Updating requirements](#updating-requirements)
+for alternative approaches.
+
+### Requirements from `pyproject.toml`
+
+The `pyproject.toml` file is the
+[latest standard](https://peps.python.org/pep-0621/) for configuring
+packages and applications, and is recommended for new projects. `pip-compile`
+supports both installing your `project.dependencies` as well as your
+`project.optional-dependencies`. Thanks to the fact that this is an
+official standard, you can use `pip-compile` to pin the dependencies
+in projects that use modern standards-adhering packaging tools like
+[Setuptools](https://setuptools.pypa.io), [Hatch](https://hatch.pypa.io/)
+or [flit](https://flit.pypa.io/).
+
+Suppose you have a 'foobar' Python application that is packaged using `Setuptools`,
+and you want to pin it for production. You can declare the project metadata as:
+
+```toml
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+requires-python = ">=3.9"
+name = "foobar"
+dynamic = ["dependencies", "optional-dependencies"]
+
+[tool.setuptools.dynamic]
+dependencies = { file = ["requirements.in"] }
+optional-dependencies.test = { file = ["requirements-test.txt"] }
+
+```
+
+If you have a Django application that is packaged using `Hatch`, and you
+want to pin it for production. You also want to pin your development tools
+in a separate pin file. You declare `django` as a dependency and create an
+optional dependency `dev` that includes `pytest`:
+
+```toml
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "my-cool-django-app"
+version = "42"
+dependencies = ["django"]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+```
+
+You can produce your pin files as easily as:
+
+```console
+$ pip-compile -o requirements.txt pyproject.toml
+#
+# This file is autogenerated by pip-compile with Python 3.10
+# by the following command:
+#
+#    pip-compile --output-file=requirements.txt pyproject.toml
+#
+asgiref==3.6.0
+    # via django
+django==4.1.7
+    # via my-cool-django-app (pyproject.toml)
+sqlparse==0.4.3
+    # via django
+
+$ pip-compile --extra dev -o dev-requirements.txt pyproject.toml
+#
+# This file is autogenerated by pip-compile with Python 3.10
+# by the following command:
+#
+#    pip-compile --extra=dev --output-file=dev-requirements.txt pyproject.toml
+#
+asgiref==3.6.0
+    # via django
+attrs==22.2.0
+    # via pytest
+django==4.1.7
+    # via my-cool-django-app (pyproject.toml)
+exceptiongroup==1.1.1
+    # via pytest
+iniconfig==2.0.0
+    # via pytest
+packaging==23.0
+    # via pytest
+pluggy==1.0.0
+    # via pytest
+pytest==7.2.2
+    # via my-cool-django-app (pyproject.toml)
+sqlparse==0.4.3
+    # via django
+tomli==2.0.1
+    # via pytest
+```
+
+This is great for both pinning your applications, but also to keep the CI
+of your open-source Python package stable.
+
+### Requirements from `setup.py` and `setup.cfg`
+
+`pip-compile` has also full support for `setup.py`- and
+`setup.cfg`-based projects that use `setuptools`.
+
+Just define your dependencies and extras as usual and run
+`pip-compile` as above.
+
+### Requirements from `requirements.in`
+
+You can also use plain text files for your requirements (e.g. if you don't
+want your application to be a package). To use a `requirements.in` file to
+declare the Django dependency:
+
+```
+# requirements.in
+django
+```
+
+Now, run `pip-compile requirements.in`:
+
+```console
+$ pip-compile requirements.in
+#
+# This file is autogenerated by pip-compile with Python 3.10
+# by the following command:
+#
+#    pip-compile requirements.in
+#
+asgiref==3.6.0
+    # via django
+django==4.1.7
+    # via -r requirements.in
+sqlparse==0.4.3
+    # via django
+```
+
+And it will produce your `requirements.txt`, with all the Django dependencies
+(and all underlying dependencies) pinned.
+
+(updating-requirements)=
+
+### Updating requirements
+
+`pip-compile` generates a `requirements.txt` file using the latest versions
+that fulfil the dependencies you specify in the supported files.
+
+If `pip-compile` finds an existing `requirements.txt` file that fulfils the
+dependencies then no changes will be made, even if updates are available.
+
+To force `pip-compile` to update all packages in an existing
+`requirements.txt`, run `pip-compile --upgrade`.
+
+To update a specific package to the latest or a specific version use the
+`--upgrade-package` or `-P` flag:
+
+```console
+# only update the django package
+$ pip-compile --upgrade-package django
+
+# update both the django and requests packages
+$ pip-compile --upgrade-package django --upgrade-package requests
+
+# update the django package to the latest, and requests to v2.0.0
+$ pip-compile --upgrade-package django --upgrade-package requests==2.0.0
+```
+
+You can combine `--upgrade` and `--upgrade-package` in one command, to
+provide constraints on the allowed upgrades. For example to upgrade all
+packages whilst constraining requests to the latest version less than 3.0:
+
+```console
+$ pip-compile --upgrade --upgrade-package 'requests<3.0'
+```
+
+### Using hashes
+
+If you would like to use _Hash-Checking Mode_ available in `pip` since
+version 8.0, `pip-compile` offers `--generate-hashes` flag:
+
+```console
+$ pip-compile --generate-hashes requirements.in
+#
+# This file is autogenerated by pip-compile with Python 3.10
+# by the following command:
+#
+#    pip-compile --generate-hashes requirements.in
+#
+asgiref==3.6.0 \
+    --hash=sha256:71e68008da809b957b7ee4b43dbccff33d1b23519fb8344e33f049897077afac \
+    --hash=sha256:9567dfe7bd8d3c8c892227827c41cce860b368104c3431da67a0c5a65a949506
+    # via django
+django==4.1.7 \
+    --hash=sha256:44f714b81c5f190d9d2ddad01a532fe502fa01c4cb8faf1d081f4264ed15dcd8 \
+    --hash=sha256:f2f431e75adc40039ace496ad3b9f17227022e8b11566f4b363da44c7e44761e
+    # via -r requirements.in
+sqlparse==0.4.3 \
+    --hash=sha256:0323c0ec29cd52bceabc1b4d9d579e311f3e4961b98d174201d5622a23b85e34 \
+    --hash=sha256:69ca804846bb114d2ec380e4360a8a340db83f0ccf3afceeb1404df028f57268
+    # via django
+```
+
+### Output File
+
+To output the pinned requirements in a filename other than
+`requirements.txt`, use `--output-file`. This might be useful for compiling
+multiple files, for example with different constraints on django to test a
+library with both versions using [tox](https://tox.readthedocs.io/en/latest/):
+
+```console
+$ pip-compile --upgrade-package 'django<1.0' --output-file requirements-django0x.txt
+$ pip-compile --upgrade-package 'django<2.0' --output-file requirements-django1x.txt
+```
+
+Or to output to standard output, use `--output-file=-`:
+
+```console
+$ pip-compile --output-file=- > requirements.txt
+$ pip-compile - --output-file=- < requirements.in > requirements.txt
+```
+
+### Forwarding options to `pip`
+
+Any valid `pip` flags or arguments may be passed on with `pip-compile`'s
+`--pip-args` option, e.g.
+
+```console
+$ pip-compile requirements.in --pip-args "--retries 10 --timeout 30"
+```
+
+### Configuration
+
+You can define project-level defaults for `pip-compile` and `pip-sync` by
+writing them to a configuration file in the same directory as your requirements
+input files (or the current working directory if piping input from stdin).
+By default, both `pip-compile` and `pip-sync` will look first
+for a `.pip-tools.toml` file and then in your `pyproject.toml`. You can
+also specify an alternate TOML configuration file with the `--config` option.
+
+It is possible to specify configuration values both globally and command-specific.
+For example, to by default generate `pip` hashes in the resulting
+requirements file output, you can specify in a configuration file:
+
+```toml
+[tool.pip-tools]
+generate-hashes = true
+```
+
+Options to `pip-compile` and `pip-sync` that may be used more than once
+must be defined as lists in a configuration file, even if they only have one
+value.
+
+`pip-tools` supports default values for [all valid command-line flags](/cli/index.md)
+of its subcommands. Configuration keys may contain underscores instead of dashes,
+so the above could also be specified in this format:
+
+```toml
+[tool.pip-tools]
+generate_hashes = true
+```
+
+Configuration defaults specific to `pip-compile` and `pip-sync` can be put beneath
+separate sections. For example, to by default perform a dry-run with `pip-compile`:
+
+```toml
+[tool.pip-tools.compile] # "sync" for pip-sync
+dry-run = true
+```
+
+This does not affect the `pip-sync` command, which also has a `--dry-run` option.
+Note that local settings take preference over the global ones of the same name,
+whenever both are declared, thus this would also make `pip-compile` generate hashes,
+but discard the global dry-run setting:
+
+```toml
+[tool.pip-tools]
+generate-hashes = true
+dry-run = true
+
+[tool.pip-tools.compile]
+dry-run = false
+```
+
+You might be wrapping the `pip-compile` command in another script. To avoid
+confusing consumers of your custom script you can override the update command
+generated at the top of requirements files by setting the
+`CUSTOM_COMPILE_COMMAND` environment variable.
+
+```console
+$ CUSTOM_COMPILE_COMMAND="./pipcompilewrapper" pip-compile requirements.in
+#
+# This file is autogenerated by pip-compile with Python 3.10
+# by the following command:
+#
+#    ./pipcompilewrapper
+#
+asgiref==3.6.0
+    # via django
+django==4.1.7
+    # via -r requirements.in
+sqlparse==0.4.3
+    # via django
+```
+
+### Workflow for layered requirements
+
+If you have different environments that you need to install different but
+compatible packages for, then you can create layered requirements files and use
+one layer to constrain the other.
+
+For example, if you have a Django project where you want the newest `2.1`
+release in production and when developing you want to use the Django debug
+toolbar, then you can create two `*.in` files, one for each layer:
+
+```
+# requirements.in
+django<2.2
+```
+
+At the top of the development requirements `dev-requirements.in` you use `-c
+requirements.txt` to constrain the dev requirements to packages already
+selected for production in `requirements.txt`.
+
+```
+# dev-requirements.in
+-c requirements.txt
+django-debug-toolbar<2.2
+```
+
+First, compile `requirements.txt` as usual:
+
+```
+$ pip-compile
+#
+# This file is autogenerated by pip-compile with Python 3.10
+# by the following command:
+#
+#    pip-compile
+#
+django==2.1.15
+    # via -r requirements.in
+pytz==2023.3
+    # via django
+```
+
+Now compile the dev requirements and the `requirements.txt` file is used as
+a constraint:
+
+```console
+$ pip-compile dev-requirements.in
+#
+# This file is autogenerated by pip-compile with Python 3.10
+# by the following command:
+#
+#    pip-compile dev-requirements.in
+#
+django==2.1.15
+    # via
+    #   -c requirements.txt
+    #   django-debug-toolbar
+django-debug-toolbar==2.1
+    # via -r dev-requirements.in
+pytz==2023.3
+    # via
+    #   -c requirements.txt
+    #   django
+sqlparse==0.4.3
+    # via django-debug-toolbar
+```
+
+As you can see above, even though a `2.2` release of Django is available, the
+dev requirements only include a `2.1` version of Django because they were
+constrained. Now both compiled requirements files can be installed safely in
+the dev environment.
+
+To install requirements in production stage use:
+
+```console
+$ pip-sync
+```
+
+You can install requirements in development stage by:
+
+```console
+$ pip-sync requirements.txt dev-requirements.txt
+```
+
+### Version control integration
+
+You might use `pip-compile` as a hook for the [pre-commit](https://github.com/pre-commit/pre-commit).
+See [pre-commit docs](https://pre-commit.com/) for instructions.
+Sample `.pre-commit-config.yaml`:
+
+```yaml
+repos:
+  - repo: https://github.com/jazzband/pip-tools
+    rev: 7.4.1
+    hooks:
+      - id: pip-compile
+```
+
+You might want to customize `pip-compile` args by configuring `args` and/or `files`, for example:
+
+```yaml
+repos:
+  - repo: https://github.com/jazzband/pip-tools
+    rev: 7.4.1
+    hooks:
+      - id: pip-compile
+        files: ^requirements/production\.(in|txt)$
+        args: [--index-url=https://example.com, requirements/production.in]
+```
+
+If you have multiple requirement files make sure you create a hook for each file.
+
+```yaml
+repos:
+  - repo: https://github.com/jazzband/pip-tools
+    rev: 7.4.1
+    hooks:
+      - id: pip-compile
+        name: pip-compile setup.py
+        files: ^(setup\.py|requirements\.txt)$
+      - id: pip-compile
+        name: pip-compile requirements-dev.in
+        args: [requirements-dev.in]
+        files: ^requirements-dev\.(in|txt)$
+      - id: pip-compile
+        name: pip-compile requirements-lint.in
+        args: [requirements-lint.in]
+        files: ^requirements-lint\.(in|txt)$
+      - id: pip-compile
+        name: pip-compile requirements.in
+        args: [requirements.in]
+        files: ^requirements\.(in|txt)$
+```
+
+### Example usage for `pip-sync`
+
+Now that you have a `requirements.txt`, you can use `pip-sync` to update
+your virtual environment to reflect exactly what's in there. This will
+install/upgrade/uninstall everything necessary to match the
+`requirements.txt` contents.
+
+Run it with `pip-sync` or `python -m piptools sync`. If you use multiple
+Python versions, you can also run `py -X.Y -m piptools sync` on Windows and
+`pythonX.Y -m piptools sync` on other systems.
+
+`pip-sync` must be installed into and run from the same virtual
+environment as your project to identify which packages to install
+or upgrade.
+
+**Be careful**: `pip-sync` is meant to be used only with a
+`requirements.txt` generated by `pip-compile`.
+
+```console
+$ pip-sync
+Uninstalling flake8-2.4.1:
+    Successfully uninstalled flake8-2.4.1
+Collecting click==4.1
+    Downloading click-4.1-py2.py3-none-any.whl (62kB)
+    100% |................................| 65kB 1.8MB/s
+    Found existing installation: click 4.0
+    Uninstalling click-4.0:
+        Successfully uninstalled click-4.0
+Successfully installed click-4.1
+```
+
+To sync multiple `*.txt` dependency lists, just pass them in via command
+line arguments, e.g.
+
+```console
+$ pip-sync dev-requirements.txt requirements.txt
+```
+
+Passing in empty arguments would cause it to default to `requirements.txt`.
+
+Any valid `pip install` flags or arguments may be passed with `pip-sync`'s
+`--pip-args` option, e.g.
+
+```console
+$ pip-sync requirements.txt --pip-args "--no-cache-dir --no-deps"
+```
+
+**Note**: `pip-sync` will not upgrade or uninstall packaging tools like
+`setuptools`, `pip`, or `pip-tools` itself. Use `python -m pip install --upgrade`
+to upgrade those packages.
+
+### Should I commit `requirements.in` and `requirements.txt` to source control?
+
+Generally, yes. If you want a reproducible environment installation available from your source control,
+then yes, you should commit both `requirements.in` and `requirements.txt` to source control.
+
+Note that if you are deploying on multiple Python environments (read the section below),
+then you must commit a separate output file for each Python environment.
+We suggest to use the `{env}-requirements.txt` format
+(ex: `win32-py3.7-requirements.txt`, `macos-py3.10-requirements.txt`, etc.).
+
+### Cross-environment usage of `requirements.in`/`requirements.txt` and `pip-compile`
+
+The dependencies of a package can change depending on the Python environment in which it
+is installed. Here, we define a Python environment as the combination of Operating
+System, Python version (3.7, 3.8, etc.), and Python implementation (CPython, PyPy,
+etc.). For an exact definition, refer to the possible combinations of [PEP 508
+environment markers][environment-markers].
+
+As the resulting `requirements.txt` can differ for each environment, users must
+execute `pip-compile` **on each Python environment separately** to generate a
+`requirements.txt` valid for each said environment. The same `requirements.in` can
+be used as the source file for all environments, using
+[PEP 508 environment markers][environment-markers] as
+needed, the same way it would be done for regular `pip` cross-environment usage.
+
+If the generated `requirements.txt` remains exactly the same for all Python
+environments, then it can be used across Python environments safely. **But** users
+should be careful as any package update can introduce environment-dependent
+dependencies, making any newly generated `requirements.txt` environment-dependent too.
+As a general rule, it's advised that users should still always execute `pip-compile`
+on each targeted Python environment to avoid issues.
+
+### Maximizing reproducibility
+
+`pip-tools` is a great tool to improve the reproducibility of builds.
+But there are a few things to keep in mind.
+
+- `pip-compile` will produce different results in different environments as described in the previous section.
+- `pip` must be used with the `PIP_CONSTRAINT` environment variable to lock dependencies in build environments as documented in [#8439](https://github.com/pypa/pip/issues/8439).
+- Dependencies come from many sources.
+
+Continuing the `pyproject.toml` example from earlier, creating a single lock file could be done like:
+
+```console
+$ pip-compile --all-build-deps --all-extras --output-file=constraints.txt --strip-extras pyproject.toml
+#
+# This file is autogenerated by pip-compile with Python 3.9
+# by the following command:
+#
+#    pip-compile --all-build-deps --all-extras --output-file=constraints.txt --strip-extras pyproject.toml
+#
+asgiref==3.5.2
+    # via django
+attrs==22.1.0
+    # via pytest
+backports-zoneinfo==0.2.1
+    # via django
+django==4.1
+    # via my-cool-django-app (pyproject.toml)
+editables==0.3
+    # via hatchling
+hatchling==1.11.1
+    # via my-cool-django-app (pyproject.toml::build-system.requires)
+iniconfig==1.1.1
+    # via pytest
+packaging==21.3
+    # via
+    #   hatchling
+    #   pytest
+pathspec==0.10.2
+    # via hatchling
+pluggy==1.0.0
+    # via
+    #   hatchling
+    #   pytest
+py==1.11.0
+    # via pytest
+pyparsing==3.0.9
+    # via packaging
+pytest==7.1.2
+    # via my-cool-django-app (pyproject.toml)
+sqlparse==0.4.2
+    # via django
+tomli==2.0.1
+    # via
+    #   hatchling
+    #   pytest
+```
+
+Some build backends may also request build dependencies dynamically using the `get_requires_for_build_` hooks described in [PEP 517] and [PEP 660].
+This will be indicated in the output with one of the following suffixes:
+
+- `(pyproject.toml::build-system.backend::editable)`
+- `(pyproject.toml::build-system.backend::sdist)`
+- `(pyproject.toml::build-system.backend::wheel)`
+
+### Other useful tools
+
+- [pip-compile-multi](https://pip-compile-multi.readthedocs.io/en/latest/) - pip-compile command wrapper for multiple cross-referencing requirements files.
+- [pipdeptree](https://github.com/tox-dev/pipdeptree) to print the dependency tree of the installed packages.
+- `requirements.in`/`requirements.txt` syntax highlighting:
+
+  - [requirements.txt.vim](https://github.com/raimon49/requirements.txt.vim) for Vim.
+  - [Python extension for VS Code](https://marketplace.visualstudio.com/items?itemName=ms-python.python) for VS Code.
+  - [pip-requirements.el](https://github.com/Wilfred/pip-requirements.el) for Emacs.
+
+### Deprecations
+
+This section lists `pip-tools` features that are currently deprecated.
+
+- In the next major release, the `--allow-unsafe` behavior will be enabled by
+  default (https://github.com/jazzband/pip-tools/issues/989).
+  Use `--no-allow-unsafe` to keep the old behavior. It is recommended
+  to pass `--allow-unsafe` now to adapt to the upcoming change.
+- The legacy resolver is deprecated and will be removed in future versions.
+  The new default is `--resolver=backtracking`.
+- In the next major release, the `--strip-extras` behavior will be enabled by
+  default (https://github.com/jazzband/pip-tools/issues/1613).
+  Use `--no-strip-extras` to keep the old behavior.
+
+### A Note on Resolvers
+
+You can choose from either default backtracking resolver or the deprecated legacy resolver.
+
+The legacy resolver will occasionally fail to resolve dependencies. The
+backtracking resolver is more robust, but can take longer to run in general.
+
+You can continue using the legacy resolver with `--resolver=legacy` although
+note that it is deprecated and will be removed in a future release.
+
+[jazzband]: https://jazzband.co/
+[jazzband-image]: https://jazzband.co/static/img/badge.svg
+[pypi]: https://pypi.org/project/pip-tools/
+[pypi-image]: https://img.shields.io/pypi/v/pip-tools.svg
+[pyversions]: https://pypi.org/project/pip-tools/
+[pyversions-image]: https://img.shields.io/pypi/pyversions/pip-tools.svg
+[pre-commit]: https://results.pre-commit.ci/latest/github/jazzband/pip-tools/main
+[pre-commit-image]: https://results.pre-commit.ci/badge/github/jazzband/pip-tools/main.svg
+[buildstatus-gha]: https://github.com/jazzband/pip-tools/actions?query=workflow%3ACI
+[buildstatus-gha-image]: https://github.com/jazzband/pip-tools/workflows/CI/badge.svg
+[codecov]: https://codecov.io/gh/jazzband/pip-tools
+[codecov-image]: https://codecov.io/gh/jazzband/pip-tools/branch/main/graph/badge.svg
+[Matrix Room Badge]: https://img.shields.io/matrix/pip-tools:matrix.org?label=Discuss%20on%20Matrix%20at%20%23pip-tools%3Amatrix.org&logo=matrix&server_fqdn=matrix.org&style=flat
+[Matrix Room]: https://matrix.to/#/%23pip-tools:matrix.org
+[Matrix Space Badge]: https://img.shields.io/matrix/jazzband:matrix.org?label=Discuss%20on%20Matrix%20at%20%23jazzband%3Amatrix.org&logo=matrix&server_fqdn=matrix.org&style=flat
+[Matrix Space]: https://matrix.to/#/%23jazzband:matrix.org
+[pip-tools-overview]: https://github.com/jazzband/pip-tools/raw/main/img/pip-tools-overview.svg
+[environment-markers]: https://peps.python.org/pep-0508/#environment-markers
+[PEP 517]: https://peps.python.org/pep-0517/
+[PEP 660]: https://peps.python.org/pep-0660/
+[discord-chat]: https://discord.gg/pypa
+[discord-chat-image]: https://img.shields.io/discord/803025117553754132?label=Discord%20chat%20%23pip-tools&style=flat-square

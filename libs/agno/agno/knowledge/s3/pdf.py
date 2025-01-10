@@ -1,7 +1,7 @@
 from typing import Iterator, List
 
 from agno.document import Document
-from agno.document.reader.s3.pdf import S3PDFReader
+from libs.agno.agno.document.reader.s3.pdf_reader import S3PDFReader
 from agno.knowledge.s3.base import S3KnowledgeBase
 
 

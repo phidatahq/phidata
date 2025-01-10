@@ -3,7 +3,7 @@ from typing import Any, Dict, Iterator, List, Optional
 from pydantic import model_validator
 
 from agno.document import Document
-from agno.document.reader.website import WebsiteReader
+from libs.agno.agno.document.reader.website_reader import WebsiteReader
 from agno.knowledge.agent import AgentKnowledge
 from agno.utils.log import logger
 

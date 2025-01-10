@@ -41,7 +41,7 @@ class WebsiteTools(Toolkit):
         :param url: The url of the website to read.
         :return: Relevant documents from the website.
         """
-        from agno.document.reader.website import WebsiteReader
+        from libs.agno.agno.document.reader.website_reader import WebsiteReader
 
         website = WebsiteReader()
 

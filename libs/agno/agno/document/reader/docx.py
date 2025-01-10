@@ -2,14 +2,6 @@ import io
 from pathlib import Path
 from typing import List, Union
 
-<<<<<<< HEAD
-try:
-    from docx import Document as DocxDocument  # type: ignore
-except ImportError:
-    raise ImportError("docx is not installed. Please install it using `pip install python-docx`")
-
-=======
->>>>>>> 8399c5f1 (Refactor document, reader, chunking)
 from agno.document.base import Document
 from agno.document.reader.base import Reader
 from agno.utils.log import logger

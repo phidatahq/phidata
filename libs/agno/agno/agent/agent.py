@@ -33,6 +33,7 @@ from agno.knowledge.agent import AgentKnowledge
 from agno.memory.agent import AgentMemory, AgentRun
 from agno.models.base import Model
 from agno.models.message import Message, MessageReferences
+from agno.models.response import ModelResponse, ModelResponseEvent
 from agno.reasoning.step import ReasoningStep
 from agno.run.messages import RunMessages
 from agno.run.response import RunEvent, RunResponse, RunResponseExtraData
@@ -510,19 +511,18 @@ class Agent:
         )
         self.run_messages = run_messages
 
-        # 5. Prepare run steps
-        if self.steps is None:
-            self.steps = []
-            if self.reasoning:
-                self.steps.append(
-                    Reason(
-                        model=self.reasoning_model,
-                        agent=self.reasoning_agent,
-                        min_steps=self.reasoning_min_steps,
-                        max_steps=self.reasoning_max_steps,
-                    )
-                )
-            self.steps.append(Respond())
+        # # 4. Plan the task if planning is enabled
+        # if self.plan:
+        #     _plan = self.plan_generator(
+        #         run_messages=self.run_messages
+        #         stream_intermediate_steps=self.stream_intermediate_steps,
+        #     )
+
+        #     if self.stream:
+        #         yield from _plan
+        #     else:
+        #         # Consume the generator without yielding
+        #         deque(_plan, maxlen=0)
 
         # Get the index of the last "user" message in messages_for_run
         # We track this so we can add messages after this index to the RunResponse and Memory
@@ -532,15 +532,72 @@ class Agent:
         if self.stream_intermediate_steps:
             yield self.create_run_response("Run started", event=RunEvent.run_started)
 
-        # 7. Run Agent Steps
-        for step in self.steps:
-            try:
-                logger.debug(f"Step Started: {step.__class__.__name__}")
-                yield from step.run(agent=self, run_messages=run_messages)
-                logger.debug(f"Step Completed: {step.__class__.__name__}")
-            except Exception as e:
-                logger.error(f"Error: {e}")
-                raise
+        # 5. Generate a response from the Model (includes running function calls)
+        model_response: ModelResponse
+        self.model = cast(Model, self.model)
+        if self.stream:
+            model_response = ModelResponse(content="")
+            for model_response_chunk in self.model.response_stream(messages=run_messages.messages):
+                # If the model response is an assistant_response, yield a RunResponse with the content
+                if model_response_chunk.event == ModelResponseEvent.assistant_response.value:
+                    if model_response_chunk.content is not None and model_response.content is not None:
+                        model_response.content += model_response_chunk.content
+                        # Update the run_response with the content
+                        self.run_response.content = model_response_chunk.content
+                        self.run_response.created_at = model_response_chunk.created_at
+                        yield self.create_run_response(
+                            content=model_response_chunk.content, created_at=model_response_chunk.created_at
+                        )
+                # If the model response is a tool_call_started, add the tool call to the run_response
+                elif model_response_chunk.event == ModelResponseEvent.tool_call_started.value:
+                    # Add tool call to the run_response
+                    tool_call_dict = model_response_chunk.tool_call
+                    if tool_call_dict is not None:
+                        # Add tool call to the agent.run_response
+                        if self.run_response.tools is None:
+                            self.run_response.tools = []
+                        self.run_response.tools.append(tool_call_dict)
+                    # If the agent is streaming intermediate steps, yield a RunResponse with the tool_call_started event
+                    if self.stream_intermediate_steps:
+                        yield self.create_run_response(
+                            content=model_response_chunk.content,
+                            event=RunEvent.tool_call_started,
+                        )
+                # If the model response is a tool_call_completed, update the existing tool call in the run_response
+                elif model_response_chunk.event == ModelResponseEvent.tool_call_completed.value:
+                    # Update the existing tool call in the run_response
+                    tool_call_dict = model_response_chunk.tool_call
+                    if tool_call_dict is not None and self.run_response.tools:
+                        tool_call_id_to_update = tool_call_dict["tool_call_id"]
+                        # Use a dictionary comprehension to create a mapping of tool_call_id to index
+                        tool_call_index_map = {tc["tool_call_id"]: i for i, tc in enumerate(self.run_response.tools)}
+                        # Update the tool call if it exists
+                        if tool_call_id_to_update in tool_call_index_map:
+                            self.run_response.tools[tool_call_index_map[tool_call_id_to_update]] = tool_call_dict
+                    if self.stream_intermediate_steps:
+                        yield self.create_run_response(
+                            content=model_response_chunk.content,
+                            event=RunEvent.tool_call_completed,
+                        )
+        else:
+            # Get the model response
+            model_response = self.model.response(messages=run_messages.messages)
+            # Handle structured outputs
+            if self.response_model is not None and self.structured_outputs and model_response.parsed is not None:
+                # Update the run_response content with the structured output
+                self.run_response.content = model_response.parsed
+                # Update the run_response content_type with the structured output class name
+                self.run_response.content_type = self.response_model.__name__
+            else:
+                # Update the run_response content with the model response content
+                self.run_response.content = model_response.content
+            # Update the run_response audio with the model response audio
+            if model_response.audio is not None:
+                self.run_response.response_audio = model_response.audio
+            # Update the run_response messages with the messages
+            self.run_response.messages = run_messages.messages
+            # Update the run_response created_at with the model response created_at
+            self.run_response.created_at = model_response.created_at
 
         # 8. Update RunResponse
         # Build a list of messages that should be added to the RunResponse

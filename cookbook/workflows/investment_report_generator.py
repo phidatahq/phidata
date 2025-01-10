@@ -1,5 +1,5 @@
 """
-1. Install dependencies using: `pip install openai yfinance phidata`
+1. Install dependencies using: `pip install openai yfinance agno`
 2. Run the script using: `python cookbook/workflows/investment_report_generator.py`
 """
 

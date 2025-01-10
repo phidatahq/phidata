@@ -1,7 +1,7 @@
 """
 This recipe shows how to use personalized memories and summaries in an agent.
 Steps:
-1. Run: `pip install openai sqlalchemy phidata` to install dependencies
+1. Run: `pip install openai sqlalchemy agno` to install dependencies
 2. Run: `python cookbook/agents/memories_and_summaries_sqlite.py` to run the agent
 """
 

@@ -1,5 +1,5 @@
 """
-1. Install dependencies using: `pip install phidata opencv-python google-generativeai sqlalchemy pydantic`
+1. Install dependencies using: `pip install agno opencv-python google-generativeai sqlalchemy pydantic`
 2. Install ffmpeg `brew install ffmpeg`
 2. Run the script using: `python cookbook/agents/47_video_to_shorts.py`
 """

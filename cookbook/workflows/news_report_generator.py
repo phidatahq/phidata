@@ -1,5 +1,5 @@
 """
-1. Install dependencies using: `pip install openai duckduckgo-search newspaper4k lxml_html_clean sqlalchemy phidata`
+1. Install dependencies using: `pip install openai duckduckgo-search newspaper4k lxml_html_clean sqlalchemy agno`
 2. Run the script using: `python cookbook/workflows/news_article_generator.py`
 """
 

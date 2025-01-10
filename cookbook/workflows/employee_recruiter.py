@@ -98,7 +98,7 @@ class EmployeeRecruitmentWorkflow(Workflow):
             "You need to send an email to the candidate using the Resend tool.",
             "You will be given the email subject and body and you need to send it to the candidate.",
         ],
-        tools=[ResendTools(from_email="email@phidata.com")],
+        tools=[ResendTools(from_email="email@agno.com")],
     )
 
     def extract_text_from_pdf(self, pdf_url: str) -> str:
@@ -150,12 +150,12 @@ class EmployeeRecruitmentWorkflow(Workflow):
                 selected_candidates.append(screening_result.content)
 
         for selected_candidate in selected_candidates:
-            input = f"Schedule a 1hr call with Candidate name: {selected_candidate.name}, Candidate email: {selected_candidate.email} and the interviewer would be Manthan Gupts with email manthan@phidata.com"
+            input = f"Schedule a 1hr call with Candidate name: {selected_candidate.name}, Candidate email: {selected_candidate.email} and the interviewer would be Manthan Gupts with email manthan@agno.com"
             scheduled_call = self.interview_scheduler_agent.run(input)
             logger.info(scheduled_call.content)
 
             if scheduled_call.content and scheduled_call.content.url and scheduled_call.content.call_time:
-                input = f"Write an email to Candidate name: {selected_candidate.name}, Candidate email: {selected_candidate.email} for the call scheduled at {scheduled_call.content.call_time} with the url {scheduled_call.content.url} and congratulate them for the interview from John Doe designation Senior Software Engineer and email john@phidata.com"
+                input = f"Write an email to Candidate name: {selected_candidate.name}, Candidate email: {selected_candidate.email} for the call scheduled at {scheduled_call.content.call_time} with the url {scheduled_call.content.url} and congratulate them for the interview from John Doe designation Senior Software Engineer and email john@agno.com"
                 email = self.email_writer_agent.run(input)
                 logger.info(email.content)
 
@@ -184,7 +184,7 @@ if __name__ == "__main__":
             🚀 Are ok dealing with the pressure of an early-stage startup.
             🏆 Want to be a part of the biggest technological shift since the internet.
             🌟 Bonus: experience with infrastructure as code.
-            🌟 Bonus: starred Phidata repo.
+            🌟 Bonus: starred Agno repo.
         """,
     )
     print(result.content)

@@ -4,7 +4,6 @@ from agno.document.base import Document
 from agno.document.chunking.strategy import ChunkingStrategy
 from agno.embedder.base import Embedder
 from agno.embedder.openai import OpenAIEmbedder
-from agno.utils.log import logger
 
 try:
     from chonkie import SemanticChunker

@@ -24,7 +24,6 @@ from agno.playground.schemas import (
     AgentGetResponse,
     AgentModel,
     AgentRenameRequest,
-    AgentRunRequest,
     AgentSessionDeleteRequest,
     AgentSessionsRequest,
     AgentSessionsResponse,

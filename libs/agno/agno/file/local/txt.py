@@ -1,11 +1,13 @@
+from dataclasses import asdict, dataclass
 from typing import Any
 
 from agno.file import File
 from agno.utils.common import dataclass_to_dict
 
 
+@dataclass
 class TextFile(File):
-    path: str
+    path: str = ""
     type: str = "TEXT"
 
     def get_metadata(self) -> dict[str, Any]:
@@ -13,4 +15,5 @@ class TextFile(File):
             from pathlib import Path
 
             self.name = Path(self.path).name
+
         return dataclass_to_dict(self, exclude_none=True)

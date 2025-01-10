@@ -41,8 +41,13 @@ Steps to get the Google OAuth Credentials (Reference : https://developers.google
     - Click on Create Credentials -> OAuth Client ID
     - Select Application Type as Desktop app
     - Download JSON
-    - Provide the Path of credentials to Google Calender tool
 
+8. Using Google Calender Tool
+    - Pass the Path of downloaded credentials as credentials_path to Google Calender tool
+    - token_path is an Optional parameter where you have to provide the path to create token.json file.
+    - The token.json file is used to store the user's access and refresh tokens and is automatically created during the authorization flow if it doesn't already exist. 
+    - If token_path is not explicitly provided, the file will be created in the default location which is your current working directory
+    - If you choose to specify token_path, please ensure that the directory you provide has write access, as the application needs to create or update this file during the authentication process.
 """
 
 

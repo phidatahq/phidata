@@ -78,9 +78,9 @@ class GoogleCalendarTools(Toolkit):
 
         if not token_path:
             logger.warning(
-                f"Google Calendar Tool : Token path is not provided ,  using {os.path.dirname(credentials_path)}/token.json as default path"
+                f"Google Calendar Tool : Token path is not provided, using {os.getcwd()}/token.json as default path"
             )
-            token_path = f"{os.path.dirname(credentials_path)}/token.json"
+            token_path = "token.json"
 
         self.creds = None
         self.service = None

@@ -29,11 +29,6 @@ from email.mime.text import MIMEText
 # Load environment variables
 load_dotenv()
 
-# If modifying these scopes, delete the file token.json.
-SCOPES = ['https://www.googleapis.com/auth/gmail.readonly', 
-          'https://www.googleapis.com/auth/gmail.modify',
-          'https://www.googleapis.com/auth/gmail.compose']
-
 class GmailTools(Toolkit):
     def __init__(
             self, 
@@ -280,6 +275,12 @@ class GmailTools(Toolkit):
 
     def _authenticate(self) -> Credentials:
         """Authenticate and return Gmail API credentials"""
+
+        # If modifying these scopes, delete the file token.json.
+        SCOPES = ['https://www.googleapis.com/auth/gmail.readonly', 
+                'https://www.googleapis.com/auth/gmail.modify',
+                'https://www.googleapis.com/auth/gmail.compose']
+
         creds = None
         if os.path.exists('token.json'):
             creds = Credentials.from_authorized_user_file('token.json', SCOPES)

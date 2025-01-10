@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional
 try:
     from pymilvus import MilvusClient  # type: ignore
 except ImportError:
-    raise ImportError("The `pymilvus` package is not installed. " "Please install it via `pip install pymilvus`.")
+    raise ImportError("The `pymilvus` package is not installed. Please install it via `pip install pymilvus`.")
 
 from agno.document import Document
 from agno.embedder import Embedder

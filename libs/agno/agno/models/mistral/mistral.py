@@ -11,10 +11,14 @@ from agno.utils.timer import Timer
 from agno.utils.tools import get_function_call_for_tool_call
 
 try:
-    from mistralai.client import MistralClient
-    from mistralai.models.chat_completion import ChatCompletionResponse, ChatMessage, DeltaMessage
+    from mistralai import Mistral, models
+    from mistralai.models.chatcompletionresponse import ChatCompletionResponse
+    from mistralai.models.deltamessage import DeltaMessage
+    from mistralai.types.basemodel import Unset
 except (ModuleNotFoundError, ImportError):
     raise ImportError("`mistralai` not installed. Please install using `pip install mistralai`")
+
+MistralMessage = Union[models.UserMessage, models.AssistantMessage, models.SystemMessage, models.ToolMessage]
 
 
 @dataclass
@@ -73,11 +77,11 @@ class MistralChat(Model):
     max_retries: Optional[int] = None
     timeout: Optional[int] = None
     client_params: Optional[Dict[str, Any]] = None
-    # -*- Provide the MistralClient manually
-    mistral_client: Optional[MistralClient] = None
+    # -*- Provide the Mistral Client manually
+    mistral_client: Optional[Mistral] = None
 
     @property
-    def client(self) -> MistralClient:
+    def client(self) -> Mistral:
         """
         Get the Mistral client.
 
@@ -102,7 +106,7 @@ class MistralChat(Model):
             _client_params["timeout"] = self.timeout
         if self.client_params:
             _client_params.update(self.client_params)
-        return MistralClient(**_client_params)
+        return Mistral(**_client_params)
 
     @property
     def api_kwargs(self) -> Dict[str, Any]:
@@ -167,25 +171,25 @@ class MistralChat(Model):
         Returns:
             ChatCompletionResponse: The response from the model.
         """
-        mistral_messages: List[ChatMessage] = []
+        mistral_messages: List[MistralMessage] = []
         for m in messages:
-            mistral_message: ChatMessage
+            mistral_message: MistralMessage
             if m.role == "user":
-                mistral_message = ChatMessage(role=m.role, content=m.content)
+                mistral_message = models.UserMessage(role=m.role, content=m.content)
             elif m.role == "assistant":
                 if m.tool_calls is not None:
-                    mistral_message = ChatMessage(role=m.role, content=m.content, tool_calls=m.tool_calls)
+                    mistral_message = models.AssistantMessage(role=m.role, content=m.content, tool_calls=m.tool_calls)
                 else:
-                    mistral_message = ChatMessage(role=m.role, content=m.content)
+                    mistral_message = models.AssistantMessage(role=m.role, content=m.content)
             elif m.role == "system":
-                mistral_message = ChatMessage(role=m.role, content=m.content)
+                mistral_message = models.SystemMessage(role=m.role, content=m.content)
             elif m.role == "tool":
-                mistral_message = ChatMessage(role=m.role, name=m.name, content=m.content, tool_call_id=m.tool_call_id)
+                mistral_message = models.ToolMessage(name=m.name, content=m.content, tool_call_id=m.tool_call_id)
             else:
                 raise ValueError(f"Unknown role: {m.role}")
             mistral_messages.append(mistral_message)
         logger.debug(f"Mistral messages: {mistral_messages}")
-        response = self.client.chat(
+        response = self.client.chat.complete(
             messages=mistral_messages,
             model=self.id,
             **self.api_kwargs,
@@ -204,26 +208,28 @@ class MistralChat(Model):
         Returns:
             Iterator[Any]: The streamed response.
         """
-        mistral_messages: List[ChatMessage] = []
+        mistral_messages: List[MistralMessage] = []
         for m in messages:
-            mistral_message: ChatMessage
+            mistral_message: MistralMessage
             if m.role == "user":
-                mistral_message = ChatMessage(role=m.role, content=m.content)
+                mistral_message = models.UserMessage(role=m.role, content=m.content)
             elif m.role == "assistant":
                 if m.tool_calls is not None:
-                    mistral_message = ChatMessage(role=m.role, content=m.content, tool_calls=m.tool_calls)
+                    mistral_message = models.AssistantMessage(role=m.role, content=m.content, tool_calls=m.tool_calls)
                 else:
-                    mistral_message = ChatMessage(role=m.role, content=m.content)
+                    mistral_message = models.AssistantMessage(role=m.role, content=m.content)
             elif m.role == "system":
-                mistral_message = ChatMessage(role=m.role, content=m.content)
+                mistral_message = models.SystemMessage(role=m.role, content=m.content)
             elif m.role == "tool":
                 logger.debug(f"Tool message: {m}")
-                mistral_message = ChatMessage(role=m.role, name=m.name, content=m.content, tool_call_id=m.tool_call_id)
+                mistral_message = models.ToolMessage(
+                    role=m.role, name=m.name, content=m.content, tool_call_id=m.tool_call_id
+                )
             else:
                 raise ValueError(f"Unknown role: {m.role}")
             mistral_messages.append(mistral_message)
         logger.debug(f"Mistral messages sending to stream endpoint: {mistral_messages}")
-        response = self.client.chat_stream(
+        response = self.client.chat.stream(
             messages=mistral_messages,
             model=self.id,
             **self.api_kwargs,
@@ -303,7 +309,7 @@ class MistralChat(Model):
         if response.choices is None or len(response.choices) == 0:
             raise ValueError("The response does not contain any choices.")
 
-        response_message: ChatMessage = response.choices[0].message
+        response_message: models.AssistantMessage = response.choices[0].message
 
         # Create assistant message
         assistant_message = Message(
@@ -457,7 +463,11 @@ class MistralChat(Model):
                 assistant_message_role = response_delta.role
 
             response_content: Optional[str] = None
-            if response_delta.content is not None:
+            if (
+                response_delta.content is not None
+                and not isinstance(response_delta.content, Unset)
+                and isinstance(response_delta.content, str)
+            ):
                 response_content = response_delta.content
             response_tool_calls = response_delta.tool_calls
 

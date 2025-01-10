@@ -5,7 +5,7 @@ from agno.embedder.base import Embedder
 from agno.utils.log import logger
 
 try:
-    from mistralai.client import MistralClient
+    from mistralai import Mistral
     from mistralai.models.embeddingresponse import EmbeddingResponse
 except ImportError:
     raise ImportError("`mistralai` not installed")
@@ -22,11 +22,11 @@ class MistralEmbedder(Embedder):
     max_retries: Optional[int] = None
     timeout: Optional[int] = None
     client_params: Optional[Dict[str, Any]] = None
-    # -*- Provide the MistralClient manually
-    mistral_client: Optional[MistralClient] = None
+    # -*- Provide the Mistral Client manually
+    mistral_client: Optional[Mistral] = None
 
     @property
-    def client(self) -> MistralClient:
+    def client(self) -> Mistral:
         if self.mistral_client:
             return self.mistral_client
 
@@ -41,22 +41,38 @@ class MistralEmbedder(Embedder):
             _client_params["timeout"] = self.timeout
         if self.client_params:
             _client_params.update(self.client_params)
-        return MistralClient(**_client_params)
+        return Mistral(**_client_params)
 
     def _response(self, text: str) -> EmbeddingResponse:
-        return self.client.embeddings(input=text, model=self.model)
+        _request_params: Dict[str, Any] = {
+            "inputs": text,
+            "model": self.model,
+        }
+        if self.request_params:
+            _request_params.update(self.request_params)
+        response = self.client.embeddings.create(**_request_params)
+        if response is None:
+            raise ValueError("Failed to get embedding response")
+        return response
 
     def get_embedding(self, text: str) -> List[float]:
-        response: EmbeddingResponse = self._response(text=text)
         try:
-            return response.data[0].embedding
+            response: EmbeddingResponse = self._response(text=text)
+            if response.data and response.data[0].embedding:
+                return response.data[0].embedding
+            return []
         except Exception as e:
-            logger.warning(e)
+            logger.warning(f"Error getting embedding: {e}")
             return []
 
-    def get_embedding_and_usage(self, text: str) -> Tuple[List[float], Optional[Dict]]:
-        response: EmbeddingResponse = self._response(text=text)
-
-        embedding = response.data[0].embedding
-        usage = response.usage
-        return embedding, usage.model_dump()
+    def get_embedding_and_usage(self, text: str) -> Tuple[List[float], Dict[str, Any]]:
+        try:
+            response: EmbeddingResponse = self._response(text=text)
+            embedding: List[float] = (
+                response.data[0].embedding if (response.data and response.data[0].embedding) else []
+            )
+            usage: Dict[str, Any] = response.usage.model_dump() if response.usage else {}
+            return embedding, usage
+        except Exception as e:
+            logger.warning(f"Error getting embedding and usage: {e}")
+            return [], {}

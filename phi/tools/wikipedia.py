@@ -47,7 +47,7 @@ class WikipediaTools(Toolkit):
             import wikipedia  # noqa: F401
         except ImportError:
             raise ImportError(
-                "The `wikipedia` package is not installed. " "Please install it via `pip install wikipedia`."
+                "The `wikipedia` package is not installed. Please install it via `pip install wikipedia`."
             )
 
         logger.info(f"Searching wikipedia for: {query}")

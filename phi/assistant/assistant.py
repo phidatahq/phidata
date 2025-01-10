@@ -275,9 +275,7 @@ class Assistant(BaseModel):
                 from phi.llm.openai import OpenAIChat
             except ModuleNotFoundError as e:
                 logger.exception(e)
-                logger.error(
-                    "phidata uses `openai` as the default LLM. " "Please provide an `llm` or install `openai`."
-                )
+                logger.error("phidata uses `openai` as the default LLM. Please provide an `llm` or install `openai`.")
                 exit(1)
 
             self.llm = OpenAIChat()
@@ -662,7 +660,7 @@ class Assistant(BaseModel):
                 )
             )
             for i, instruction in enumerate(instructions):
-                system_prompt_lines.append(f"{i+1}. {instruction}")
+                system_prompt_lines.append(f"{i + 1}. {instruction}")
             system_prompt_lines.append("</instructions>")
 
         # The add the expected output to the system prompt

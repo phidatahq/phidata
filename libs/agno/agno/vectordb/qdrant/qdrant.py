@@ -11,7 +11,6 @@ except ImportError:
 
 from agno.document import Document
 from agno.embedder import Embedder
-from agno.embedder.openai import OpenAIEmbedder
 from agno.reranker.base import Reranker
 from agno.utils.log import logger
 from agno.vectordb.base import VectorDb
@@ -22,7 +21,7 @@ class Qdrant(VectorDb):
     def __init__(
         self,
         collection: str,
-        embedder: Embedder = OpenAIEmbedder(),
+        embedder: Optional[Embedder] = None,
         distance: Distance = Distance.cosine,
         location: Optional[str] = None,
         url: Optional[str] = None,
@@ -42,6 +41,10 @@ class Qdrant(VectorDb):
         self.collection: str = collection
 
         # Embedder for embedding the document contents
+        if embedder is None:
+            from agno.embedder.openai import OpenAIEmbedder
+
+            embedder = OpenAIEmbedder()
         self.embedder: Embedder = embedder
         self.dimensions: Optional[int] = self.embedder.dimensions
 

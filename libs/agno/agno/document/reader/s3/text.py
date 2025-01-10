@@ -10,19 +10,16 @@ try:
 except (ModuleNotFoundError, ImportError):
     raise ImportError("`agno-aws` not installed. Please install using `pip install agno-aws`")
 
+try:
+    import textract  # noqa: F401
+except ImportError:
+    raise ImportError("`textract` not installed. Please install it via `pip install textract`.")
+
 
 class S3TextReader(Reader):
     """Reader for text files on S3"""
 
     def read(self, s3_object: S3Object) -> List[Document]:
-        if not s3_object:
-            raise ValueError("No s3_object provided")
-
-        try:
-            import textract  # noqa: F401
-        except ImportError:
-            raise ImportError("`textract` not installed")
-
         try:
             logger.info(f"Reading: {s3_object.uri}")
 

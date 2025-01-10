@@ -1,21 +1,19 @@
 from typing import Any, List
-
-from pydantic import BaseModel, ConfigDict, Field
+from dataclasses import dataclass, field
 
 from agno.document.base import Document
 from agno.document.chunking.fixed import FixedSizeChunking
 from agno.document.chunking.strategy import ChunkingStrategy
 
 
-class Reader(BaseModel):
+@dataclass
+class Reader:
     """Base class for reading documents"""
 
     chunk: bool = True
     chunk_size: int = 3000
-    separators: List[str] = ["\n", "\n\n", "\r", "\r\n", "\n\r", "\t", " ", "  "]
-    chunking_strategy: ChunkingStrategy = Field(default_factory=FixedSizeChunking)
-
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+    separators: List[str] = field(default_factory=lambda: ["\n", "\n\n", "\r", "\r\n", "\n\r", "\t", " ", "  "])
+    chunking_strategy: ChunkingStrategy = field(default_factory=FixedSizeChunking)
 
     def read(self, obj: Any) -> List[Document]:
         raise NotImplementedError

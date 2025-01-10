@@ -15,7 +15,7 @@ knowledge_base.load(recreate=False)  # Comment out after first run
 
 agent = Agent(
     model=Groq(id="llama-3.3-70b-versatile"),
-    knowledge_base=knowledge_base,
+    knowledge=knowledge_base,
     use_tools=True,
     show_tool_calls=True,
 )

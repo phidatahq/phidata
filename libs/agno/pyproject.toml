@@ -44,7 +44,7 @@ memory_profiler = ["memory_profiler"]
 # Storage
 sql = ["sqlalchemy", "psycopg"]
 
-all = [
+tests = [
     "agno[dev]",
     "agno[anthropic]",
     "agno[cohere]",

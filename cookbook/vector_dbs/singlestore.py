@@ -32,7 +32,7 @@ knowledge_base = PDFUrlKnowledgeBase(
 knowledge_base.load(recreate=False)
 
 agent = Agent(
-    knowledge_base=knowledge_base,
+    knowledge=knowledge_base,
     # Show tool calls in the response
     show_tool_calls=True,
     # Enable the agent to search the knowledge base

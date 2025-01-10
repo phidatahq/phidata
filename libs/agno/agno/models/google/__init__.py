@@ -1,2 +1,11 @@
 from agno.models.google.gemini import Gemini
-from agno.models.google.gemini_openai import GeminiOpenAIChat
+
+try:
+    from agno.models.google.gemini_openai import GeminiOpenAIChat
+except ImportError:
+
+    class GeminiOpenAIChat:  # type: ignore
+        def __init__(self, *args, **kwargs):
+            raise ImportError(
+                "GeminiOpenAIChat requires the 'openai' library. Please install it via `pip install openai`"
+            )

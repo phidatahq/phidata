@@ -1,9 +1,9 @@
 """
-1. Install dependencies: `pip install openai sqlalchemy 'fastapi[standard]' phidata requests`
-2. Authenticate with phidata: `phi auth`
+1. Install dependencies: `pip install openai sqlalchemy 'fastapi[standard]' agno requests`
+2. Authenticate with agno: `agno auth`
 3. Run the agent: `python cookbook/playground/multimodal_agent.py`
 
-Docs on Agent UI: https://docs.phidata.com/agent-ui
+Docs on Agent UI: https://docs.agno.com/agent-ui
 """
 
 from agno.agent import Agent

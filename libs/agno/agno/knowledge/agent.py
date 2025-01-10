@@ -93,6 +93,7 @@ class AgentKnowledge(BaseModel):
             else:
                 # Filter out documents which already exist in the vector db
                 if skip_existing:
+                    document_list = {document.content: document for document in document_list}.values()
                     documents_to_load = [
                         document for document in document_list if not self.vector_db.doc_exists(document)
                     ]

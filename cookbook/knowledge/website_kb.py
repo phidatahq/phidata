@@ -6,7 +6,7 @@ db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 
 # Create a knowledge base with the seed URLs
 knowledge_base = WebsiteKnowledgeBase(
-    urls=["https://docs.phidata.com/introduction"],
+    urls=["https://docs.agno.com/introduction"],
     # Number of links to follow from the seed URLs
     max_links=10,
     # Table name: ai.website_documents
@@ -25,4 +25,4 @@ agent = Agent(
 )
 
 # Ask the agent about the knowledge base
-agent.print_response("How does phidata work?")
+agent.print_response("How does agno work?")

@@ -2,6 +2,7 @@ from dataclasses import asdict, dataclass
 from typing import Any
 
 from agno.file import File
+from agno.utils.common import dataclass_to_dict
 from agno.utils.log import logger
 
 
@@ -28,4 +29,5 @@ class CsvFile(File):
             except Exception as e:
                 logger.debug(f"Error getting columns from file: {e}")
 
-        return {k: v for k, v in asdict(self).items() if v is not None}
+
+        return dataclass_to_dict(self, exclude_none=True)

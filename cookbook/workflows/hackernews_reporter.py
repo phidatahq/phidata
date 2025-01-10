@@ -1,5 +1,5 @@
 """Please install dependencies using:
-pip install openai newspaper4k lxml_html_clean phidata
+pip install openai newspaper4k lxml_html_clean agno
 """
 
 import json

@@ -1,4 +1,4 @@
-"""Run `pip install yfinance ollama phidata` to install dependencies."""
+"""Run `pip install yfinance ollama agno` to install dependencies."""
 
 from agno.agent import Agent
 from agno.models.ollama import OllamaTools

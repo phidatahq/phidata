@@ -2,6 +2,7 @@ from dataclasses import asdict, dataclass
 from typing import Any
 
 from agno.file import File
+from agno.utils.common import dataclass_to_dict
 
 
 @dataclass
@@ -14,4 +15,5 @@ class TextFile(File):
             from pathlib import Path
 
             self.name = Path(self.path).name
-        return {k: v for k, v in asdict(self).items() if v is not None}
+
+        return dataclass_to_dict(self, exclude_none=True)

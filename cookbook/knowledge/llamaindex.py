@@ -1,6 +1,6 @@
 """
 Import necessary modules
-pip install llama-index-core llama-index-readers-file llama-index-embeddings-openai phidata
+pip install llama-index-core llama-index-readers-file llama-index-embeddings-openai agno
 """
 
 from pathlib import Path
@@ -50,7 +50,7 @@ retriever = VectorIndexRetriever(index)
 knowledge_base = LlamaIndexKnowledgeBase(retriever=retriever)
 
 # Create an agent with the knowledge base
-agent = Agent(knowledge_base=knowledge_base, search_knowledge=True, debug_mode=True, show_tool_calls=True)
+agent = Agent(knowledge=knowledge_base, search_knowledge=True, debug_mode=True, show_tool_calls=True)
 
 # Use the agent to ask a question and print a response.
 agent.print_response("Explain what this text means: low end eats the high end", markdown=True)

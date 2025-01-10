@@ -20,7 +20,7 @@ knowledge_base.load(recreate=True)  # Comment out after first run
 
 agent = Agent(
     model=Gemini(id="gemini-2.0-flash-exp"),
-    knowledge_base=knowledge_base,
+    knowledge=knowledge_base,
     use_tools=True,
     show_tool_calls=True,
 )

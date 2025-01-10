@@ -413,7 +413,7 @@ class Agent:
         logger.debug(f"*********** Session ID: {self.session_id} ***********")
         return self.session_id
 
-    def set_monitor_and_debug(self) -> None:
+    def set_debug(self) -> None:
         if self.debug_mode or getenv("AGNO_DEBUG", "false").lower() == "true":
             self.debug_mode = True
             set_log_level_to_debug()
@@ -421,6 +421,7 @@ class Agent:
         else:
             set_log_level_to_info()
 
+    def set_monitoring(self) -> None:
         if self.monitoring or getenv("AGNO_MONITOR", "false").lower() == "true":
             self.monitoring = True
         else:
@@ -480,7 +481,7 @@ class Agent:
 
         # 1. Prepare the Agent for the run
         # 1.1 Set agent_id, session_id and initialize memory
-        self.set_monitor_and_debug()
+        self.set_debug()
         self.set_agent_id()
         self.set_session_id()
         self.initialize_memory()
@@ -534,11 +535,11 @@ class Agent:
         # 7. Run Agent Steps
         for step in self.steps:
             try:
-                logger.debug(f"Step: {step.__class__.__name__} Started")
+                logger.debug(f"Step Started: {step.__class__.__name__}")
                 yield from step.run(agent=self, run_messages=run_messages)
-                logger.debug(f"Step: {step.__class__.__name__} Completed")
+                logger.debug(f"Step Completed: {step.__class__.__name__}")
             except Exception as e:
-                logger.error(f"Step: {step.__class__.__name__} Error: {e}")
+                logger.error(f"Error: {e}")
                 raise
 
         # 8. Update RunResponse
@@ -564,7 +565,7 @@ class Agent:
         if len(messages_for_memory) > 0:
             self.memory.add_messages(messages=messages_for_memory)
 
-        # Yield a UpdatingMemory event
+        # Yield UpdatingMemory event
         if self.stream_intermediate_steps:
             yield self.create_run_response(
                 content="Memory updated",
@@ -617,7 +618,7 @@ class Agent:
         # 11. Save output to file if save_response_to_file is set
         self.save_run_response_to_file(message=message)
 
-        # 9. Set the run_input
+        # Set run_input
         if message is not None:
             if isinstance(message, str):
                 self.run_input = message
@@ -821,7 +822,7 @@ class Agent:
 
         # 1. Prepare the Agent for the run
         # 1.1 Set agent_id, session_id and initialize memory
-        self.set_monitor_and_debug()
+        self.set_debug()
         self.set_agent_id()
         self.set_session_id()
         self.initialize_memory()
@@ -875,13 +876,13 @@ class Agent:
         # 7. Run Agent Steps
         for step in self.steps:
             try:
-                logger.debug(f"Step: {step.__class__.__name__} Started")
+                logger.debug(f"Step Started: {step.__class__.__name__}")
                 _arun_generator = await step.arun(agent=self, run_messages=run_messages)
-                async for item in _arun_generator:
-                    yield item
-                logger.debug(f"Step: {step.__class__.__name__} Completed")
+                async for _resp in _arun_generator:
+                    yield _resp
+                logger.debug(f"Step Completed: {step.__class__.__name__}")
             except Exception as e:
-                logger.error(f"Step: {step.__class__.__name__} Error: {e}")
+                logger.error(f"Error: {e}")
                 raise
 
         # 8. Update RunResponse
@@ -907,7 +908,7 @@ class Agent:
         if len(messages_for_memory) > 0:
             self.memory.add_messages(messages=messages_for_memory)
 
-        # Yield a UpdatingMemory event
+        # Yield UpdatingMemory event
         if self.stream_intermediate_steps:
             yield self.create_run_response(
                 content="Memory updated",
@@ -960,6 +961,17 @@ class Agent:
         # 11. Save output to file if save_response_to_file is set
         self.save_run_response_to_file(message=message)
 
+        # Set run_input
+        if message is not None:
+            if isinstance(message, str):
+                self.run_input = message
+            elif isinstance(message, Message):
+                self.run_input = message.to_dict()
+            else:
+                self.run_input = message
+        elif messages is not None:
+            self.run_input = [m.to_dict() if isinstance(m, Message) else m for m in messages]
+
         # Log Agent Run
         await self.alog_agent_run()
 
@@ -996,6 +1008,7 @@ class Agent:
         last_exception = None
         num_attempts = retries + 1
         for attempt in range(num_attempts):
+            logger.debug(f"Attempt {attempt + 1}/{num_attempts}")
             try:
                 # If a response_model is set, return the response as a structured output
                 if self.response_model is not None and self.parse_response:
@@ -2532,6 +2545,8 @@ class Agent:
         return run_data
 
     def log_agent_run(self) -> None:
+        self.set_monitoring()
+
         if not (self.telemetry or self.monitoring):
             return
 
@@ -2554,6 +2569,8 @@ class Agent:
             logger.debug(f"Could not create agent event: {e}")
 
     async def alog_agent_run(self) -> None:
+        self.set_monitoring()
+
         if not (self.telemetry or self.monitoring):
             return
 
@@ -2860,7 +2877,8 @@ class Agent:
                 if render:
                     live_log.update(Group(*panels))
 
-                async for resp in await self.arun(message=message, messages=messages, stream=True, **kwargs):
+                _arun_generator = await self.arun(message=message, messages=messages, stream=True, **kwargs)
+                async for resp in _arun_generator:
                     if isinstance(resp, RunResponse) and isinstance(resp.content, str):
                         if resp.event == RunEvent.run_response:
                             _response_content += resp.content

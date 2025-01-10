@@ -1,7 +1,5 @@
 from typing import Optional
 
-from rich.pretty import pprint
-
 from agno.agent import Agent
 from agno.eval.accuracy import AccuracyEval, AccuracyResult
 from agno.models.openai import OpenAIChat

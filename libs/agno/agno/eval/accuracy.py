@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from os import getenv
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable, List, Optional, Union
@@ -27,9 +27,14 @@ class AccuracyEvaluation:
     score: int
     reason: str
 
-    def print_evaluation(self, console: Optional["Console"] = None):
+    def print_eval(self, console: Optional["Console"] = None):
         from rich.box import ROUNDED
+        from rich.console import Console
+        from rich.markdown import Markdown
         from rich.table import Table
+
+        if console is None:
+            console = Console()
 
         results_table = Table(
             box=ROUNDED,
@@ -43,7 +48,7 @@ class AccuracyEvaluation:
         results_table.add_row("Answer", self.answer)
         results_table.add_row("Expected Answer", self.expected_answer)
         results_table.add_row("Accuracy Score", f"{str(self.score)}/10")
-        results_table.add_row("Accuracy Reason", self.reason)
+        results_table.add_row("Accuracy Reason", Markdown(self.reason))
         console.print(results_table)
 
 
@@ -57,9 +62,9 @@ class AccuracyResult:
     std_dev_score: float = field(init=False)
 
     def __post_init__(self):
-        self.compute_scores()
+        self.compute_stats()
 
-    def compute_scores(self):
+    def compute_stats(self):
         import statistics
 
         if self.results and len(self.results) > 0:
@@ -72,7 +77,11 @@ class AccuracyResult:
 
     def print_summary(self, console: Optional["Console"] = None):
         from rich.box import ROUNDED
+        from rich.console import Console
         from rich.table import Table
+
+        if console is None:
+            console = Console()
 
         summary_table = Table(
             box=ROUNDED,
@@ -83,16 +92,20 @@ class AccuracyResult:
             title_justify="center",
         )
         summary_table.add_row("Number of Runs", f"{len(self.results)}")
-        summary_table.add_row("Average Score", f"{self.avg_score:.4f}")
-        summary_table.add_row("Mean Score", f"{self.mean_score:.4f}")
-        summary_table.add_row("Minimum Score", f"{self.min_score:.4f}")
-        summary_table.add_row("Maximum Score", f"{self.max_score:.4f}")
-        summary_table.add_row("Standard Deviation", f"{self.std_dev_score:.4f}")
+        summary_table.add_row("Average Score", f"{self.avg_score:.2f}")
+        summary_table.add_row("Mean Score", f"{self.mean_score:.2f}")
+        summary_table.add_row("Minimum Score", f"{self.min_score:.2f}")
+        summary_table.add_row("Maximum Score", f"{self.max_score:.2f}")
+        summary_table.add_row("Standard Deviation", f"{self.std_dev_score:.2f}")
         console.print(summary_table)
 
     def print_results(self, console: Optional["Console"] = None):
         from rich.box import ROUNDED
+        from rich.console import Console
         from rich.table import Table
+
+        if console is None:
+            console = Console()
 
         results_table = Table(
             box=ROUNDED,
@@ -141,12 +154,12 @@ class AccuracyEval:
     # Number of iterations to run
     num_iterations: int = 3
     # Result of the evaluation
-    result: AccuracyResult = field(default_factory=AccuracyResult)
+    result: Optional[AccuracyResult] = None
 
-    # Print each result
-    print_results: bool = False
-    # Print a final summary of results
+    # Print summary of results
     print_summary: bool = False
+    # Print detailed results
+    print_results: bool = False
     # Save the result to a file
     save_result_to_file: Optional[str] = None
 
@@ -166,7 +179,6 @@ class AccuracyEval:
             logger.debug("Debug logs enabled")
         else:
             set_log_level_to_info()
-        return self.debug_mode
 
     def get_evaluator_agent(self, question: str, expected_answer: str) -> Agent:
         if self.evaluator_agent is not None:
@@ -267,7 +279,9 @@ Your evaluation should be objective, thorough, and well-reasoned. Provide specif
             logger.error(f"Failed to get question to evaluate: {e}")
         return None
 
-    def get_answer_to_evaluate(self, answer: Optional[Union[str, Callable]] = None) -> Optional[RunResponse]:
+    def get_answer_to_evaluate(
+        self, question: str, answer: Optional[Union[str, Callable]] = None
+    ) -> Optional[RunResponse]:
         """Get the answer to evaluate.
 
         Priority:
@@ -303,9 +317,9 @@ Your evaluation should be objective, thorough, and well-reasoned. Provide specif
                     logger.error("Answer is not a string or callable")
 
             # Get answer from the agent
-            if self.agent is not None:
+            if self.agent is not None and question is not None:
                 logger.debug("Getting answer from agent")
-                return self.agent.run(self.question)
+                return self.agent.run(question)
         except Exception as e:
             logger.error(f"Failed to get answer to evaluate: {e}")
         return None
@@ -344,11 +358,12 @@ Your evaluation should be objective, thorough, and well-reasoned. Provide specif
 
     def run(
         self,
+        *,
         question: Optional[Union[str, Callable]] = None,
         expected_answer: Optional[Union[str, Callable]] = None,
         answer: Optional[Union[str, Callable]] = None,
-        print_results: bool = True,
         print_summary: bool = True,
+        print_results: bool = True,
     ) -> Optional[AccuracyResult]:
         from rich.console import Console
         from rich.live import Live
@@ -356,6 +371,7 @@ Your evaluation should be objective, thorough, and well-reasoned. Provide specif
 
         self.set_eval_id()
         self.set_debug_mode()
+        self.result = AccuracyResult()
         self.print_results = print_results
         self.print_summary = print_summary
 
@@ -371,7 +387,7 @@ Your evaluation should be objective, thorough, and well-reasoned. Provide specif
             logger.error("No Expected Answer to evaluate.")
             return None
 
-        logger.debug(f"*************** Evaluating: {self.eval_id} ***************")
+        logger.debug(f"************ Evaluation Start: {self.eval_id} ************")
         logger.debug(f"Question: {question_to_evaluate}")
         logger.debug(f"Expected Answer: {expected_answer_to_evaluate}")
         logger.debug("***********************************************************")
@@ -387,30 +403,36 @@ Your evaluation should be objective, thorough, and well-reasoned. Provide specif
                 status = Status(f"Running evaluation {i + 1}...", spinner="dots", speed=1.0, refresh_per_second=10)
                 live_log.update(status)
 
-                answer_to_evaluate: Optional[RunResponse] = self.get_answer_to_evaluate(answer=answer)
+                answer_to_evaluate: Optional[RunResponse] = self.get_answer_to_evaluate(
+                    question=question_to_evaluate, answer=answer
+                )
                 if answer_to_evaluate is None:
-                    logger.debug(f"Answer #{i + 1}: {answer_to_evaluate.content}")
                     logger.error("No Answer to evaluate.")
                     continue
 
                 try:
-                    accuracy_agent_response: AccuracyAgentResponse = evaluator_agent.run(
-                        answer_to_evaluate.content
-                    ).content
+                    logger.debug(f"Answer #{i + 1}: {answer_to_evaluate.content}")
+                    accuracy_agent_response = evaluator_agent.run(answer_to_evaluate.content).content
+                    if accuracy_agent_response is None or not isinstance(
+                        accuracy_agent_response, AccuracyAgentResponse
+                    ):
+                        logger.error("Evaluator Agent returned an invalid response")
+                        continue
+
                     accuracy_evaluation = AccuracyEvaluation(
                         question=question_to_evaluate,
-                        answer=answer_to_evaluate.content,
+                        answer=answer_to_evaluate.content,  # type: ignore
                         expected_answer=expected_answer_to_evaluate,
                         score=accuracy_agent_response.accuracy_score,
                         reason=accuracy_agent_response.accuracy_reason,
                     )
                     if self.print_results:
-                        accuracy_evaluation.print_evaluation(console)
+                        accuracy_evaluation.print_eval(console)
                     self.result.results.append(accuracy_evaluation)
-                    self.result.compute_scores()
+                    self.result.compute_stats()
                     status.update(f"Running evaluation {i + 1}... Done")
                 except Exception as e:
-                    logger.error(f"Failed to evaluate accuracy, run #{i + 1}: {e}")
+                    logger.exception(f"Failed to evaluate accuracy, run #{i + 1}: {e}")
                     return None
 
                 status.stop()
@@ -418,10 +440,12 @@ Your evaluation should be objective, thorough, and well-reasoned. Provide specif
         # -*- Save result to file if save_result_to_file is set
         if self.save_result_to_file is not None and self.result is not None:
             try:
+                import json
+
                 fn_path = Path(self.save_result_to_file.format(name=self.name, eval_id=self.eval_id))
                 if not fn_path.parent.exists():
                     fn_path.parent.mkdir(parents=True, exist_ok=True)
-                fn_path.write_text(self.result.model_dump_json(indent=4))
+                fn_path.write_text(json.dumps(asdict(self.result), indent=4))
             except Exception as e:
                 logger.warning(f"Failed to save result to file: {e}")
 

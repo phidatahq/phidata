@@ -127,6 +127,7 @@ module = [
   "langchain.*",
   "llama_index.*",
   "mem0.*",
+  "memory_profiler.*",
   "mistralai.*",
   "mlx_whisper.*",
   "nest_asyncio.*",

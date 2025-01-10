@@ -427,7 +427,7 @@ class Agent:
         else:
             set_log_level_to_info()
 
-        if self.monitoring or getenv("AGNO_MONITOR", "true").lower() == "true":
+        if self.monitoring or getenv("AGNO_MONITOR", "false").lower() == "true":
             self.monitoring = True
         else:
             self.monitoring = False
@@ -622,6 +622,17 @@ class Agent:
 
         # 11. Save output to file if save_response_to_file is set
         self.save_run_response_to_file(message=message)
+
+        # 9. Set the run_input
+        if message is not None:
+            if isinstance(message, str):
+                self.run_input = message
+            elif isinstance(message, Message):
+                self.run_input = message.to_dict()
+            else:
+                self.run_input = message
+        elif messages is not None:
+            self.run_input = [m.to_dict() if isinstance(m, Message) else m for m in messages]
 
         # Log Agent Run
         self.log_agent_run()
@@ -2513,6 +2524,9 @@ class Agent:
         }
 
         if self.monitoring:
+            print("HERE")
+            print(self.run_input)
+
             run_data.update(
                 {
                     "run_input": self.run_input,

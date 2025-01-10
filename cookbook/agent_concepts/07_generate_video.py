@@ -1,10 +1,10 @@
 from agno.agent import Agent
 from agno.models.openai import OpenAIChat
-from agno.tools.models_labs import ModelsLabs
+from agno.tools.models_labs import ModelsLabTools
 
 video_agent = Agent(
     model=OpenAIChat(id="gpt-4o"),
-    tools=[ModelsLabs()],
+    tools=[ModelsLabTools()],
     description="You are an AI agent that can generate videos using the ModelsLabs API.",
     instructions=[
         "When the user asks you to create a video, use the `generate_media` tool to create the video.",

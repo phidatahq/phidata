@@ -8,10 +8,10 @@ Docs on Agent UI: https://docs.agno.com/agent-ui
 
 from agno.agent import Agent
 from agno.models.openai import OpenAIChat
-from agno.tools.dalle import Dalle
+from agno.tools.dalle import DalleTools
 from agno.tools.eleven_labs_tools import ElevenLabsTools
 from agno.tools.giphy import GiphyTools
-from agno.tools.models_labs import ModelsLabs
+from agno.tools.models_labs import ModelsLabTools
 from agno.models.response import FileType
 from agno.playground import Playground, serve_playground_app
 from agno.storage.agent.sqlite import SqlAgentStorage
@@ -24,7 +24,7 @@ image_agent = Agent(
     name="DALL-E Image Agent",
     agent_id="image_agent",
     model=OpenAIChat(id="gpt-4o"),
-    tools=[Dalle()],
+    tools=[DalleTools()],
     description="You are an AI agent that can generate images using DALL-E.",
     instructions=[
         "When the user asks you to create an image, use the `create_image` tool to create the image.",
@@ -41,7 +41,7 @@ ml_gif_agent = Agent(
     name="ModelsLab GIF Agent",
     agent_id="ml_gif_agent",
     model=OpenAIChat(id="gpt-4o"),
-    tools=[ModelsLabs(wait_for_completion=True, file_type=FileType.GIF)],
+    tools=[ModelsLabTools(wait_for_completion=True, file_type=FileType.GIF)],
     description="You are an AI agent that can generate gifs using the ModelsLabs API.",
     instructions=[
         "When the user asks you to create an image, use the `generate_media` tool to create the image.",
@@ -58,7 +58,7 @@ ml_video_agent = Agent(
     name="ModelsLab Video Agent",
     agent_id="ml_video_agent",
     model=OpenAIChat(id="gpt-4o"),
-    tools=[ModelsLabs(wait_for_completion=True, file_type=FileType.MP4)],
+    tools=[ModelsLabTools(wait_for_completion=True, file_type=FileType.MP4)],
     description="You are an AI agent that can generate videos using the ModelsLabs API.",
     instructions=[
         "When the user asks you to create a video, use the `generate_media` tool to create the video.",

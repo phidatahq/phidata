@@ -13,8 +13,8 @@ from agno.agent import Agent
 from agno.models.openai import OpenAIChat
 from agno.workflow import Workflow, RunResponse, RunEvent
 from agno.storage.workflow.sqlite import SqlWorkflowStorage
-from agno.tools.duckduckgo import DuckDuckGo
-from agno.tools.newspaper4k import Newspaper4k
+from agno.tools.duckduckgo import DuckDuckGoTools
+from agno.tools.newspaper4k import Newspaper4kTools
 from agno.utils.pprint import pprint_run_response
 from agno.utils.log import logger
 
@@ -45,7 +45,7 @@ class NewsReportGenerator(Workflow):
 
     web_searcher: Agent = Agent(
         model=OpenAIChat(id="gpt-4o-mini"),
-        tools=[DuckDuckGo()],
+        tools=[DuckDuckGoTools()],
         instructions=[
             "Given a topic, search for 10 articles and return the 5 most relevant articles.",
         ],
@@ -54,7 +54,7 @@ class NewsReportGenerator(Workflow):
 
     article_scraper: Agent = Agent(
         model=OpenAIChat(id="gpt-4o-mini"),
-        tools=[Newspaper4k()],
+        tools=[Newspaper4kTools()],
         instructions=[
             "Given a url, scrape the article and return the title, url, and markdown formatted content.",
             "If the content is not available or does not make sense, return None as the content.",

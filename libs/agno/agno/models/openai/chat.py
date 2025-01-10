@@ -27,7 +27,6 @@ try:
             f"Please upgrade using `pip install --upgrade openai`."
         )
 
-    from openai.types.chat.chat_completion_message import ChatCompletionMessage, ChatCompletionAudio
     from openai import AsyncOpenAI as AsyncOpenAIClient
     from openai import OpenAI as OpenAIClient
     from openai.types.chat.chat_completion import ChatCompletion
@@ -36,6 +35,7 @@ try:
         ChoiceDelta,
         ChoiceDeltaToolCall,
     )
+    from openai.types.chat.chat_completion_message import ChatCompletionAudio, ChatCompletionMessage
     from openai.types.chat.parsed_chat_completion import ParsedChatCompletion
     from openai.types.completion_usage import CompletionUsage
 except ModuleNotFoundError:

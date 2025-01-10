@@ -1,9 +1,9 @@
 from agno.agent import Agent
-from agno.tools.linear_tools import LinearTool
+from agno.tools.linear_tools import LinearTools
 
 agent = Agent(
     name="Linear Tool Agent",
-    tools=[LinearTool()],
+    tools=[LinearTools()],
     show_tool_calls=True,
     markdown=True,
 )

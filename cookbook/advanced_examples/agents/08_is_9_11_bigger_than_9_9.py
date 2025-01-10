@@ -1,10 +1,10 @@
 from agno.agent import Agent
 from agno.models.openai import OpenAIChat
-from agno.tools.calculator import Calculator
+from agno.tools.calculator import CalculatorTools
 
 agent = Agent(
     model=OpenAIChat(id="gpt-4o"),
-    tools=[Calculator(add=True, subtract=True, multiply=True, divide=True)],
+    tools=[CalculatorTools(add=True, subtract=True, multiply=True, divide=True)],
     instructions=["Use the calculator tool for comparisons."],
     show_tool_calls=True,
     markdown=True,

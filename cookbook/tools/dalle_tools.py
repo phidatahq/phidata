@@ -4,16 +4,16 @@ from pathlib import Path
 
 from agno.utils.images import download_image
 from agno.agent import Agent
-from agno.tools.dalle import Dalle
+from agno.tools.dalle import DalleTools
 
 # Create an Agent with the DALL-E tool
-agent = Agent(tools=[Dalle()], name="DALL-E Image Generator")
+agent = Agent(tools=[DalleTools()], name="DALL-E Image Generator")
 
 # Example 1: Generate a basic image with default settings
 agent.print_response("Generate an image of a futuristic city with flying cars and tall skyscrapers", markdown=True)
 
 # Example 2: Generate an image with custom settings
-custom_dalle = Dalle(model="dall-e-3", size="1792x1024", quality="hd", style="natural")
+custom_dalle = DalleTools(model="dall-e-3", size="1792x1024", quality="hd", style="natural")
 
 agent_custom = Agent(
     tools=[custom_dalle],

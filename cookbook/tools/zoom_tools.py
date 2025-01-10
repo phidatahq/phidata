@@ -6,7 +6,7 @@ from typing import Optional
 
 from agno.agent import Agent
 from agno.models.openai import OpenAIChat
-from agno.tools.zoom import ZoomTool
+from agno.tools.zoom import ZoomTools
 
 # Get environment variables
 ACCOUNT_ID = os.getenv("ZOOM_ACCOUNT_ID")
@@ -14,7 +14,7 @@ CLIENT_ID = os.getenv("ZOOM_CLIENT_ID")
 CLIENT_SECRET = os.getenv("ZOOM_CLIENT_SECRET")
 
 
-class CustomZoomTool(ZoomTool):
+class CustomZoomTools(ZoomTools):
     def __init__(
         self,
         account_id: Optional[str] = None,
@@ -68,7 +68,7 @@ class CustomZoomTool(ZoomTool):
             self._ZoomTool__access_token = token
 
 
-zoom_tools = CustomZoomTool(account_id=ACCOUNT_ID, client_id=CLIENT_ID, client_secret=CLIENT_SECRET)
+zoom_tools = CustomZoomTools(account_id=ACCOUNT_ID, client_id=CLIENT_ID, client_secret=CLIENT_SECRET)
 
 
 agent = Agent(

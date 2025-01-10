@@ -3,11 +3,11 @@
 from agno.agent import Agent
 from agno.models.openai import OpenAIChat
 from agno.tools.yfinance import YFinanceTools
-from agno.tools.duckduckgo import DuckDuckGo
+from agno.tools.duckduckgo import DuckDuckGoTools
 
 agent = Agent(
     model=OpenAIChat(id="gpt-4o"),
-    tools=[DuckDuckGo(), YFinanceTools(enable_all=True)],
+    tools=[DuckDuckGoTools(), YFinanceTools(enable_all=True)],
     instructions=["Use tables to display data"],
     show_tool_calls=True,
     markdown=True,

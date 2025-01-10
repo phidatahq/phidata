@@ -28,7 +28,7 @@ except ImportError:
     raise ImportError("`mlx_whisper` not installed. Please install using `pip install mlx-whisper`")
 
 
-class MLXTranscribe(Toolkit):
+class MLXTranscribeTools(Toolkit):
     def __init__(
         self,
         base_dir: Optional[Path] = None,

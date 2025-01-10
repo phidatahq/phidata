@@ -27,15 +27,15 @@ from phi.utils.log import logger
 company_info: Dict = {
     "Phidata": {
         "website": "https://www.phidata.com/",
-        "email": "<insert-receiver-email>",
-        "contact_name": "<insert-receiver-name>",
+        "email": "willemcarel@gmail.com",
+        "contact_name": "Willem",
         "position": "<insert-receiver-position>",
     },
 }
 
 sender_details_dict: Dict = {
-    "name": "<insert-sender-name>",
-    "email": "<insert-sender-email>",
+    "name": "Willem",
+    "email": "willem@phidata.com",
     "organization": "<insert-sender-organization>",
     "calendar Link": "<insert-calendar-link>",
     "service_offered": "<insert-service-offered>",
@@ -106,6 +106,12 @@ class PersonalisedMarketing(Workflow):
         structured_outputs=True,
     )
 
+    email_validator: Agent = Agent() # Add an agent to validate the email address using pip install email-validator
+    response_model = structured output of boolean
+
+    
+
+
     email_creator: Agent = Agent(
         model=OpenAIChat(id="gpt-4o"),
         instructions=[
@@ -119,7 +125,7 @@ class PersonalisedMarketing(Workflow):
             email_template,
             "Then finally, use the resend tool to send the email.",
         ],
-        tools=[ResendTools(sender_details_dict["email"])],
+        tools=[ResendTools(from_email=sender_details_dict["email"])],
         markdown=False,
     )
 

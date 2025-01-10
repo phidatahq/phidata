@@ -15,7 +15,7 @@ knowledge_base.load(recreate=False)  # Comment out after first run
 
 agent = Agent(
     model=Claude(id="anthropic.claude-3-5-sonnet-20240620-v1:0"),
-    knowledge_base=knowledge_base,
+    knowledge=knowledge_base,
     use_tools=True,
     show_tool_calls=True,
 )

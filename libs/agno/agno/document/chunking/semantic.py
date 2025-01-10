@@ -4,12 +4,11 @@ from agno.document.base import Document
 from agno.document.chunking.strategy import ChunkingStrategy
 from agno.embedder.base import Embedder
 from agno.embedder.openai import OpenAIEmbedder
-from agno.utils.log import logger
 
 try:
     from chonkie import SemanticChunker
 except ImportError:
-    logger.warning("`chonkie` is required for semantic chunking, please install using `pip install chonkie`")
+    raise ImportError("`chonkie` is required for semantic chunking, please install using `uv pip install chonkie`")
 
 
 class SemanticChunking(ChunkingStrategy):
@@ -24,7 +23,7 @@ class SemanticChunking(ChunkingStrategy):
         self.chunker = SemanticChunker(
             embedding_model=self.embedder.model,  # type: ignore
             chunk_size=self.chunk_size,
-            similarity_threshold=self.similarity_threshold,
+            threshold=self.similarity_threshold,
         )
 
     def chunk(self, document: Document) -> List[Document]:

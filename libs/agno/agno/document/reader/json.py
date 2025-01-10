@@ -13,9 +13,6 @@ class JSONReader(Reader):
     chunk: bool = False
 
     def read(self, path: Path) -> List[Document]:
-        if not path:
-            raise ValueError("No path provided")
-
         if not path.exists():
             raise FileNotFoundError(f"Could not find file: {path}")
 
@@ -37,11 +34,10 @@ class JSONReader(Reader):
                 for page_number, content in enumerate(json_contents, start=1)
             ]
             if self.chunk:
-                logger.debug("Chunking documents not yet supported for JSONReader")
-                # chunked_documents = []
-                # for document in documents:
-                #     chunked_documents.extend(self.chunk_document(document))
-                # return chunked_documents
+                chunked_documents = []
+                for document in documents:
+                    chunked_documents.extend(self.chunk_document(document))
+                return chunked_documents
             return documents
         except Exception:
             raise

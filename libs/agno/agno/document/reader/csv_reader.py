@@ -14,9 +14,6 @@ class CSVReader(Reader):
     """Reader for CSV files"""
 
     def read(self, file: Union[Path, IO[Any]], delimiter: str = ",", quotechar: str = '"') -> List[Document]:
-        if not file:
-            raise ValueError("No file provided")
-
         try:
             if isinstance(file, Path):
                 if not file.exists():

@@ -23,4 +23,4 @@ agent = Agent(
 )
 
 # Ask the agent about the knowledge base
-agent.print_response("Ask me about something from the knowledge base", markdown=True)
+agent.print_response("Ask me about generative ai from the knowledge base", markdown=True)

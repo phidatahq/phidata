@@ -1,6 +1,7 @@
 from typing import Any
 
 from agno.file import File
+from agno.utils.common import dataclass_to_dict
 
 
 class TextFile(File):
@@ -12,4 +13,4 @@ class TextFile(File):
             from pathlib import Path
 
             self.name = Path(self.path).name
-        return self.model_dump(exclude_none=True)
+        return dataclass_to_dict(self, exclude_none=True)

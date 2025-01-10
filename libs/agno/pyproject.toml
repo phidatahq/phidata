@@ -41,6 +41,9 @@ ddg = ["duckduckgo-search"]
 # Performance
 memory_profiler = ["memory_profiler"]
 
+# Storage
+sql = ["sqlalchemy", "psycopg"]
+
 tests = [
     "agno[dev]",
     "agno[anthropic]",
@@ -53,6 +56,7 @@ tests = [
     "agno[yfinance]",
     "agno[ddg]",
     "agno[memory_profiler]",
+    "agno[sql]",
 ]
 
 [project.scripts]

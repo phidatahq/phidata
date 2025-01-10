@@ -24,7 +24,7 @@ class GithubTools(Toolkit):
         get_pull_request_changes: bool = True,
         create_issue: bool = True,
         create_repository: bool = True,
-        get_repository_languages: bool = True
+        get_repository_languages: bool = True,
     ):
         super().__init__(name="github")
 

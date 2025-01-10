@@ -29,5 +29,4 @@ class CsvFile(File):
             except Exception as e:
                 logger.debug(f"Error getting columns from file: {e}")
 
-
         return dataclass_to_dict(self, exclude_none=True)

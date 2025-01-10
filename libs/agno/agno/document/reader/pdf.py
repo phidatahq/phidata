@@ -97,7 +97,9 @@ class PDFImageReader(Reader):
         try:
             import rapidocr_onnxruntime as rapidocr
         except ImportError:
-            raise ImportError("`rapidocr_onnxruntime` not installed. Please install it via `pip install rapidocr_onnxruntime`.")
+            raise ImportError(
+                "`rapidocr_onnxruntime` not installed. Please install it via `pip install rapidocr_onnxruntime`."
+            )
 
         doc_name = ""
         try:
@@ -163,7 +165,9 @@ class PDFUrlImageReader(Reader):
             import httpx
             import rapidocr_onnxruntime as rapidocr
         except ImportError:
-            raise ImportError("`httpx`, `rapidocr_onnxruntime` not installed. Please install it via `pip install httpx rapidocr_onnxruntime`.")
+            raise ImportError(
+                "`httpx`, `rapidocr_onnxruntime` not installed. Please install it via `pip install httpx rapidocr_onnxruntime`."
+            )
 
         # Read the PDF from the URL
         logger.info(f"Reading: {url}")

@@ -2,7 +2,7 @@ import base64
 import json
 from dataclasses import asdict
 from io import BytesIO
-from typing import Any, List, Optional, AsyncGenerator, Dict, cast, Union, Generator
+from typing import Any, AsyncGenerator, Dict, Generator, List, Optional, Union, cast
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -451,7 +451,6 @@ def get_async_playground_router(
             )
 
         return agent_list
-
 
     async def chat_response_streamer(
         agent: Agent,

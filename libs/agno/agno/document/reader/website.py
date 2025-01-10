@@ -1,6 +1,6 @@
-from dataclasses import dataclass, field
 import random
 import time
+from dataclasses import dataclass, field
 from typing import Dict, List, Set, Tuple
 from urllib.parse import urljoin, urlparse
 

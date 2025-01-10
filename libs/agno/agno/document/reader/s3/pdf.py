@@ -1,5 +1,5 @@
-from typing import List
 from io import BytesIO
+from typing import List
 
 from agno.document.base import Document
 from agno.document.reader.base import Reader

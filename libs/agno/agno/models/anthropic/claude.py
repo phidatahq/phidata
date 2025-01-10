@@ -172,7 +172,6 @@ class Claude(Model):
         type_mapping = {"jpeg": "image/jpeg", "png": "image/png", "gif": "image/gif", "webp": "image/webp"}
 
         try:
-
             # Case 1: Image is a URL
             if image.url is not None:
                 content_bytes = image.image_url_content

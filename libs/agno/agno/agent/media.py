@@ -37,6 +37,7 @@ class AudioArtifact(Media):
             raise ValueError("Either `url` or `base64_audio` must be provided.")
         return data
 
+
 class ImageInput(BaseModel):
     url: Optional[str] = None  # Remote location for image
     filepath: Optional[str] = None  # Absolute local location for image

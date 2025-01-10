@@ -26,7 +26,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel
 
-from agno.agent.media import AudioArtifact, ImageArtifact, VideoArtifact, ImageInput
+from agno.agent.media import AudioArtifact, ImageArtifact, ImageInput, VideoArtifact
 from agno.agent.session import AgentSession
 from agno.agent.step import AgentStep
 from agno.knowledge.agent import AgentKnowledge
@@ -1750,7 +1750,9 @@ class Agent:
 
         # 2. If create_default_user_message is False or message is a list, return the message as is.
         if not self.create_default_user_message or isinstance(message, list):
-            return Message(role=self.user_message_role, content=message, images=images, audio=audio, videos=videos, **kwargs)
+            return Message(
+                role=self.user_message_role, content=message, images=images, audio=audio, videos=videos, **kwargs
+            )
 
         # 3. Build the default user message for the Agent
         # If the message is None, return None
@@ -2636,7 +2638,9 @@ class Agent:
                 if render:
                     live_log.update(Group(*panels))
 
-                for resp in self.run(message=message, messages=messages, audio=audio, images=images, videos=videos, stream=True, **kwargs):
+                for resp in self.run(
+                    message=message, messages=messages, audio=audio, images=images, videos=videos, stream=True, **kwargs
+                ):
                     if isinstance(resp, RunResponse) and isinstance(resp.content, str):
                         if resp.event == RunEvent.run_response:
                             _response_content += resp.content
@@ -2728,7 +2732,15 @@ class Agent:
                     live_log.update(Group(*panels))
 
                 # Run the agent
-                run_response = self.run(message=message, messages=messages, audio=audio, images=images, videos=videos, stream=False, **kwargs)
+                run_response = self.run(
+                    message=message,
+                    messages=messages,
+                    audio=audio,
+                    images=images,
+                    videos=videos,
+                    stream=False,
+                    **kwargs,
+                )
                 response_timer.stop()
 
                 reasoning_steps = []
@@ -2858,7 +2870,9 @@ class Agent:
                 if render:
                     live_log.update(Group(*panels))
 
-                async for resp in await self.arun(message=message, messages=messages, audio=audio, images=images, videos=videos, stream=True, **kwargs):
+                async for resp in await self.arun(
+                    message=message, messages=messages, audio=audio, images=images, videos=videos, stream=True, **kwargs
+                ):
                     if isinstance(resp, RunResponse) and isinstance(resp.content, str):
                         if resp.event == RunEvent.run_response:
                             _response_content += resp.content
@@ -2950,7 +2964,15 @@ class Agent:
                     live_log.update(Group(*panels))
 
                 # Run the agent
-                run_response = await self.arun(message=message, messages=messages, audio=audio, images=images, videos=videos, stream=False, **kwargs)
+                run_response = await self.arun(
+                    message=message,
+                    messages=messages,
+                    audio=audio,
+                    images=images,
+                    videos=videos,
+                    stream=False,
+                    **kwargs,
+                )
                 response_timer.stop()
 
                 reasoning_steps = []

@@ -38,9 +38,9 @@ class DesiVocalTools(Toolkit):
             response = requests.get(url)
             voices_data = response.json()
 
-            response = []
+            responses = []
             for voice_id, voice_info in voices_data.items():
-                response.append(
+                responses.append(
                     {
                         "id": voice_id,
                         "name": voice_info["name"],
@@ -53,7 +53,7 @@ class DesiVocalTools(Toolkit):
                     }
                 )
 
-            return str(response)
+            return str(responses)
         except Exception as e:
             logger.error(f"Failed to get voices: {e}")
             return f"Error: {e}"

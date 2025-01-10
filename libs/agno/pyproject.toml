@@ -36,6 +36,10 @@ openai = ["openai"]
 # Tools
 exa = ["exa_py"]
 yfinance = ["yfinance"]
+ddg = ["duckduckgo-search"]
+
+# Performance
+memory_profiler = ["memory_profiler"]
 
 all = [
     "agno[dev]",
@@ -47,6 +51,8 @@ all = [
     "agno[openai]",
     "agno[exa]",
     "agno[yfinance]",
+    "agno[ddg]",
+    "agno[memory_profiler]",
 ]
 
 [project.scripts]
@@ -82,7 +88,7 @@ check_untyped_defs = true
 no_implicit_optional = true
 warn_unused_configs = true
 plugins = ["pydantic.mypy"]
-exclude = ["scratch*", "wip*", "tmp*", "eval*"]
+exclude = ["scratch*", "wip*", "tmp*"]
 
 [[tool.mypy.overrides]]
 module = [
@@ -121,6 +127,7 @@ module = [
   "langchain.*",
   "llama_index.*",
   "mem0.*",
+  "memory_profiler.*",
   "mistralai.*",
   "mlx_whisper.*",
   "nest_asyncio.*",

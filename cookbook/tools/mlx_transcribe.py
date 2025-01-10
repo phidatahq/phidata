@@ -23,8 +23,8 @@ from agno.models.openai import OpenAIChat
 from agno.tools.mlx_transcribe import MLXTranscribe
 
 # Get audio files from storage/audio directory
-phidata_root_dir = Path(__file__).parent.parent.parent.resolve()
-audio_storage_dir = phidata_root_dir.joinpath("storage/audio")
+agno_root_dir = Path(__file__).parent.parent.parent.resolve()
+audio_storage_dir = agno_root_dir.joinpath("storage/audio")
 if not audio_storage_dir.exists():
     audio_storage_dir.mkdir(exist_ok=True, parents=True)
 

@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from os import getenv
 from typing import Any, Dict, Optional
 
@@ -12,6 +13,7 @@ except (ModuleNotFoundError, ImportError):
     raise ImportError("`azure openai` not installed. Please install using `pip install openai`")
 
 
+@dataclass
 class AzureOpenAIChat(OpenAILike):
     """
     Azure OpenAI Chat model

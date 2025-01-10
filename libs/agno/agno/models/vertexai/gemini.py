@@ -60,6 +60,7 @@ class Metrics:
         logger.debug("**************** METRICS END ******************")
 
 
+@dataclass
 class Gemini(Model):
     """
 

@@ -1,6 +1,4 @@
-"""Please install dependencies using:
-pip install openai exa-py agno
-"""
+"""Run `pip install openai exa-py` to install dependencies."""
 
 from textwrap import dedent
 from datetime import datetime
@@ -12,11 +10,11 @@ from agno.tools.exa import ExaTools
 agent = Agent(
     model=OpenAIChat(id="gpt-4o"),
     tools=[ExaTools(start_published_date=datetime.now().strftime("%Y-%m-%d"), type="keyword")],
-    description="You are an advanced AI researcher writing a report on a topic.",
+    description="You are an advanced research agent writing a report on a topic.",
     instructions=[
         "For the provided topic, run 3 different searches.",
-        "Read the results carefully and prepare a NYT worthy report.",
-        "Focus on facts and make sure to provide references.",
+        "Read the results carefully and prepare a New York Times worthy report.",
+        "Important: Focus on facts and remember to provide references.",
     ],
     expected_output=dedent("""\
     An engaging, informative, and well-structured report in markdown format:
@@ -44,7 +42,7 @@ agent = Agent(
     ### About the Author
     {write a made up for yourself, give yourself a cyberpunk name and a title}
 
-    - published on {date} in dd/mm/yyyy
+    - published on {date}
     """),
     markdown=True,
     show_tool_calls=True,
@@ -52,4 +50,4 @@ agent = Agent(
     save_response_to_file="tmp/{message}.md",
     # debug_mode=True,
 )
-agent.print_response("Simulation theory", stream=True)
+agent.print_response("Multi-agent systems", stream=True)

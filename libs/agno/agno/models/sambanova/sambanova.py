@@ -1,9 +1,11 @@
+from dataclasses import dataclass
 from os import getenv
 from typing import Optional
 
 from agno.models.openai.like import OpenAILike
 
 
+@dataclass
 class Sambanova(OpenAILike):
     """
     A class for interacting with Sambanova models.

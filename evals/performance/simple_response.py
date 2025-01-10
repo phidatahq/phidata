@@ -10,7 +10,7 @@ def simple_response():
     print(response.content)
     return response
 
-simple_response_eval = PerfEval(func=simple_response, num_iterations=10, show_results=True)
+simple_response_perf = PerfEval(func=simple_response, num_iterations=10)
 
 if __name__ == "__main__":
-    simple_response_eval.run()
+    simple_response_perf.run(print_results=True)

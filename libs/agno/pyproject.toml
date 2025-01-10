@@ -41,7 +41,7 @@ ddg = ["duckduckgo-search"]
 # Performance
 memory_profiler = ["memory_profiler"]
 
-all = [
+tests = [
     "agno[dev]",
     "agno[anthropic]",
     "agno[cohere]",

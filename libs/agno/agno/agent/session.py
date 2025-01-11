@@ -20,9 +20,9 @@ class AgentSession:
     user_data: Optional[Dict[str, Any]] = None
     # Session Data: name and model
     session_data: Optional[Dict[str, Any]] = None
-    # The Unix timestamp when this session was created
+    # The unix timestamp when this session was created
     created_at: Optional[int] = None
-    # The Unix timestamp when this session was last updated
+    # The unix timestamp when this session was last updated
     updated_at: Optional[int] = None
 
     def monitoring_data(self) -> Dict[str, Any]:
@@ -48,7 +48,6 @@ class AgentSession:
         return monitoring_data
 
     def telemetry_data(self) -> Dict[str, Any]:
-        # Return a subset of fields for telemetry data
         return {
             "model": self.agent_data.get("model") if self.agent_data else None,
             "created_at": self.created_at,

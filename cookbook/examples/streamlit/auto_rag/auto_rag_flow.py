@@ -69,4 +69,3 @@ def get_auto_rag_agent(
     )
 
     return auto_rag_agent
-

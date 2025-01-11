@@ -99,9 +99,7 @@ def main():
             st.sidebar.error("Could not process the provided URL")
         alert.empty()
 
-    uploaded_file = st.sidebar.file_uploader(
-        "Add a Document (.pdf, .csv, or .txt)", key="file_upload"
-    )
+    uploaded_file = st.sidebar.file_uploader("Add a Document (.pdf, .csv, or .txt)", key="file_upload")
     if uploaded_file:
         file_type = uploaded_file.name.split(".")[-1].lower()
         reader = get_reader(file_type)
@@ -118,9 +116,7 @@ def main():
         session_ids = auto_rag_agent.storage.get_all_session_ids()
         new_session_id = st.sidebar.selectbox("Session ID", options=session_ids)  # type: ignore
         if new_session_id != st.session_state.get("auto_rag_agent_session_id"):
-            st.session_state["auto_rag_agent"] = get_auto_rag_agent(
-                model_id=model_id, session_id=new_session_id
-            )
+            st.session_state["auto_rag_agent"] = get_auto_rag_agent(model_id=model_id, session_id=new_session_id)
             st.session_state["auto_rag_agent_session_id"] = new_session_id
             st.rerun()
 

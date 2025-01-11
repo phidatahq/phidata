@@ -511,7 +511,7 @@ class Agent:
         # 5. Plan the Agent steps if planning is enabled
         if self.plan:
             _plan = self.planning(
-                run_messages=self.run_messages,
+                run_messages=run_messages,
                 stream_intermediate_steps=self.stream_intermediate_steps,
             )
             if self.stream:
@@ -911,7 +911,7 @@ class Agent:
         # 5. Plan the task if planning is enabled
         if self.plan:
             _aplan = self.aplanning(
-                run_messages=self.run_messages,
+                run_messages=run_messages,
                 stream_intermediate_steps=self.stream_intermediate_steps,
             )
 
@@ -2390,7 +2390,7 @@ class Agent:
 
         # Update the messages_for_model to include planning messages
         self.update_messages_with_planning(
-            planning_messages=planning_messages, messages_for_model=self.run_messages.messages
+            planning_messages=planning_messages, messages_for_model=run_messages.messages
         )
 
         # Yield the final planning completed event
@@ -2499,7 +2499,7 @@ class Agent:
         # Update the messages_for_model to include planning messages
         self.update_messages_with_planning(
             planning_messages=planning_messages,
-            messages_for_model=self.run_messages.messages,
+            messages_for_model=run_messages.messages,
         )
 
         # Yield the final planning completed event

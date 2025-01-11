@@ -5,7 +5,7 @@ from uuid import uuid4
 import requests
 
 from agno.agent import Agent
-from agno.agent.media import Audio
+from agno.run.media import Audio
 from agno.tools import Toolkit
 from agno.utils.log import logger
 

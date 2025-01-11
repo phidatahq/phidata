@@ -3,9 +3,9 @@ from enum import Enum
 from time import time
 from typing import Any, Dict, List, Optional
 
-from agno.agent.media import Audio, Image, Video
 from agno.models.message import Message, MessageReferences
 from agno.reasoning.step import ReasoningStep
+from agno.run.media import Audio, Image, Video
 
 
 class RunEvent(str, Enum):

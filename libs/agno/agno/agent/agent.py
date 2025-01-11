@@ -2390,7 +2390,7 @@ class Agent:
 
         # Update the messages_for_model to include planning messages
         self.update_messages_with_planning(
-            planning_messages=planning_messages, messages_for_model=run_messages.messages
+            planning_messages=planning_messages, messages_for_model=self.run_messages.messages
         )
 
         # Yield the final planning completed event
@@ -2499,7 +2499,7 @@ class Agent:
         # Update the messages_for_model to include planning messages
         self.update_messages_with_planning(
             planning_messages=planning_messages,
-            messages_for_model=run_messages.messages,
+            messages_for_model=self.run_messages.messages,
         )
 
         # Yield the final planning completed event

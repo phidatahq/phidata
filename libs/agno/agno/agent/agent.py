@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from collections import defaultdict
+from collections import defaultdict, deque
 from dataclasses import dataclass, field
 from datetime import datetime
 from os import getenv
@@ -34,7 +34,7 @@ from agno.memory.agent import AgentMemory, AgentRun
 from agno.models.base import Model
 from agno.models.message import Message, MessageReferences
 from agno.models.response import ModelResponse, ModelResponseEvent
-from agno.reasoning.step import ReasoningStep
+from agno.plan.step import NextAction, PlanningStep, PlanningSteps
 from agno.run.messages import RunMessages
 from agno.run.response import RunEvent, RunResponse, RunResponseExtraData
 from agno.storage.agent.base import AgentStorage
@@ -121,13 +121,13 @@ class Agent:
     # "none" is the default when no tools are present. "auto" is the default if tools are present.
     tool_choice: Optional[Union[str, Dict[str, Any]]] = None
 
-    # --- Agent Reasoning ---
-    # Enable reasoning by working through the problem step by step.
-    reasoning: bool = False
-    reasoning_model: Optional[Model] = None
-    reasoning_agent: Optional[Agent] = None
-    reasoning_min_steps: int = 1
-    reasoning_max_steps: int = 10
+    # --- Agent Planning ---
+    # Enable planning by working through the problem step by step.
+    plan: bool = False
+    planning_model: Optional[Model] = None
+    planning_agent: Optional[Agent] = None
+    planning_min_steps: int = 1
+    planning_max_steps: int = 10
 
     # --- Default tools ---
     # Add a tool that allows the Model to read the chat history.
@@ -267,11 +267,11 @@ class Agent:
         show_tool_calls: bool = False,
         tool_call_limit: Optional[int] = None,
         tool_choice: Optional[Union[str, Dict[str, Any]]] = None,
-        reasoning: bool = False,
-        reasoning_model: Optional[Model] = None,
-        reasoning_agent: Optional[Agent] = None,
-        reasoning_min_steps: int = 1,
-        reasoning_max_steps: int = 10,
+        plan: bool = False,
+        planning_model: Optional[Model] = None,
+        planning_agent: Optional[Agent] = None,
+        planning_min_steps: int = 1,
+        planning_max_steps: int = 10,
         read_chat_history: bool = False,
         search_knowledge: bool = True,
         update_knowledge: bool = False,
@@ -342,11 +342,11 @@ class Agent:
         self.tool_call_limit = tool_call_limit
         self.tool_choice = tool_choice
 
-        self.reasoning = reasoning
-        self.reasoning_model = reasoning_model
-        self.reasoning_agent = reasoning_agent
-        self.reasoning_min_steps = reasoning_min_steps
-        self.reasoning_max_steps = reasoning_max_steps
+        self.plan = plan
+        self.planning_model = planning_model
+        self.planning_agent = planning_agent
+        self.planning_min_steps = planning_min_steps
+        self.planning_max_steps = planning_max_steps
 
         self.read_chat_history = read_chat_history
         self.search_knowledge = search_knowledge
@@ -469,16 +469,14 @@ class Agent:
         2. Update the Model and resolve context
         3. Read existing session from storage
         4. Prepare run messages
-        5. Prepare run steps
+        5. Plan the task if planning is enabled
         6. Start the Run by yielding a RunStarted event
-        7. Run Agent Steps
+        7. Generate a response from the Model (includes running function calls)
         8. Update RunResponse
         9. Update Agent Memory
         10. Save session to storage
         11. Save output to file if save_response_to_file is set
         """
-        from agno.agent.step.reason import Reason
-        from agno.agent.step.respond import Respond
 
         # 1. Prepare the Agent for the run
         # 1.1 Set agent_id, session_id and initialize memory
@@ -511,33 +509,38 @@ class Agent:
         )
         self.run_messages = run_messages
 
-        # # 4. Plan the task if planning is enabled
-        # if self.plan:
-        #     _plan = self.plan_generator(
-        #         run_messages=self.run_messages
-        #         stream_intermediate_steps=self.stream_intermediate_steps,
-        #     )
-
-        #     if self.stream:
-        #         yield from _plan
-        #     else:
-        #         # Consume the generator without yielding
-        #         deque(_plan, maxlen=0)
-
         # Get the index of the last "user" message in messages_for_run
-        # We track this so we can add messages after this index to the RunResponse and Memory
+        # We track this, so we can add messages after this index to the RunResponse and Memory
         index_of_last_user_message = len(run_messages.messages)
+
+        # 5. Plan the Agent steps if planning is enabled
+        if self.plan:
+            _plan = self.planning(
+                run_messages=self.run_messages,
+                stream_intermediate_steps=self.stream_intermediate_steps,
+            )
+            if self.stream:
+                yield from _plan
+            else:
+                # Consume the generator without yielding
+                deque(_plan, maxlen=0)
 
         # 6. Start the Run by yielding a RunStarted event
         if self.stream_intermediate_steps:
             yield self.create_run_response("Run started", event=RunEvent.run_started)
 
-        # 5. Generate a response from the Model (includes running function calls)
+        # 7. Generate a response from the Model (includes running function calls)
         model_response: ModelResponse
         self.model = cast(Model, self.model)
         if self.stream:
             model_response = ModelResponse(content="")
-            for model_response_chunk in self.model.response_stream(messages=run_messages.messages):
+
+            if hasattr(self.model, "response_stream"):
+                model_response_stream = self.model.response_stream(messages=run_messages.messages)
+            else:
+                raise NotImplementedError(f"{self.model.id} does not support streaming")
+
+            for model_response_chunk in model_response_stream:
                 # If the model response is an assistant_response, yield a RunResponse with the content
                 if model_response_chunk.event == ModelResponseEvent.assistant_response.value:
                     if model_response_chunk.content is not None and model_response.content is not None:
@@ -866,16 +869,14 @@ class Agent:
         2. Update the Model and resolve context
         3. Read existing session from storage
         4. Prepare run messages
-        5. Prepare run steps
+        5. Plan the task if planning is enabled
         6. Start the Run by yielding a RunStarted event
-        7. Run Agent Steps
+        7. Generate a response from the Model (includes running function calls)
         8. Update RunResponse
         9. Update Agent Memory
         10. Save session to storage
         11. Save output to file if save_response_to_file is set
         """
-        from agno.agent.step.reason import Reason
-        from agno.agent.step.respond import Respond
 
         # 1. Prepare the Agent for the run
         # 1.1 Set agent_id, session_id and initialize memory
@@ -908,35 +909,40 @@ class Agent:
         )
         self.run_messages = run_messages
 
-        # # 4. Plan the task if planning is enabled
-        # if self.plan:
-        #     _aplan = self.aplan_generator(
-        #         run_messages=self.run_messages,
-        #         stream_intermediate_steps=self.stream_intermediate_steps,
-        #     )
-
-        #     if self.stream:
-        #         async for _plan_resp in _aplan:
-        #             yield _plan_resp
-        #     else:
-        #         # Consume the generator without yielding
-        #         async for _ in _aplan:
-        #             pass
-
         # Get the index of the last "user" message in messages_for_run
         # We track this so we can add messages after this index to the RunResponse and Memory
         index_of_last_user_message = len(run_messages.messages)
+
+        # 5. Plan the task if planning is enabled
+        if self.plan:
+            _aplan = self.aplanning(
+                run_messages=self.run_messages,
+                stream_intermediate_steps=self.stream_intermediate_steps,
+            )
+
+            if self.stream:
+                async for _plan_resp in _aplan:
+                    yield _plan_resp
+            else:
+                # Consume the generator without yielding
+                async for _ in _aplan:
+                    pass
 
         # 6. Start the Run by yielding a RunStarted event
         if self.stream_intermediate_steps:
             yield self.create_run_response("Run started", event=RunEvent.run_started)
 
-        # 5. Generate a response from the Model (includes running function calls)
+        # 7. Generate a response from the Model (includes running function calls)
         model_response: ModelResponse
         self.model = cast(Model, self.model)
         if stream and self.is_streamable:
             model_response = ModelResponse(content="")
-            model_response_stream = self.model.aresponse_stream(messages=run_messages.messages)
+
+            if hasattr(self.model, "aresponse_stream"):
+                model_response_stream = self.model.aresponse_stream(messages=run_messages.messages)
+            else:
+                raise NotImplementedError(f"{self.model.id} does not support streaming")
+
             async for model_response_chunk in model_response_stream:  # type: ignore
                 # If the model response is an assistant_response, yield a RunResponse with the content
                 if model_response_chunk.event == ModelResponseEvent.assistant_response.value:
@@ -993,7 +999,7 @@ class Agent:
                 self.run_response.content = model_response.content
             # Update the run_response audio with the model response audio
             if model_response.audio is not None:
-                self.run_response.audio = model_response.audio
+                self.run_response.response_audio = model_response.audio
             # Update the run_response messages with the messages
             self.run_response.messages = run_messages.messages
             # Update the run_response created_at with the model response created_at
@@ -2295,8 +2301,305 @@ class Agent:
             except Exception as e:
                 logger.warning(f"Failed to save output to file: {e}")
 
-    def update_run_response_with_reasoning(
-        self, reasoning_steps: List[ReasoningStep], reasoning_agent_messages: List[Message]
+    def planning(
+        self,
+        run_messages: RunMessages,
+        stream_intermediate_steps: bool = False,
+    ) -> Iterator[RunResponse]:
+        # Yield a step started event
+        if self.stream_intermediate_steps:
+            yield RunResponse(content="Planning started", event=RunEvent.step_started)
+
+        # Initialize planning
+        planning_messages: List[Message] = []
+        all_planning_steps: List[PlanningStep] = []
+
+        # Get the planning model
+        planning_model: Optional[Model] = self.planning_model
+        if planning_model is None and self.model is not None:
+            planning_model = self.model.__class__(id=self.model.id)
+        if planning_model is None:
+            logger.warning("Planning error. Planning model is None, continuing regular session...")
+            return
+
+        # Get the planning agent
+        planning_agent: Optional[Agent] = self.planning_agent
+        if planning_agent is None:
+            planning_agent = self.get_planning_agent(planning_model=planning_model)
+        if planning_agent is None:
+            logger.warning("Planning error. Planning agent is None, continuing regular session...")
+            return
+
+        # Ensure the planning agent response model is PlanningSteps
+        if planning_agent.response_model is not None and not isinstance(planning_agent.response_model, type):
+            if not issubclass(planning_agent.response_model, PlanningSteps):
+                logger.warning("Planning agent response model should be `PlanningSteps`, continuing regular session...")
+            return
+
+        # Ensure the planning model and agent do not show tool calls
+        planning_agent.show_tool_calls = False
+        planning_agent.model.show_tool_calls = False  # type: ignore
+
+        step_count = 1
+        next_action = NextAction.CONTINUE
+        logger.debug("==== Planning Started ====")
+        while next_action == NextAction.CONTINUE and step_count < self.planning_max_steps:
+            step_count += 1
+            logger.debug(f"==== Step {step_count} ====")
+            try:
+                # Run the planning agent
+                planning_agent_response: RunResponse = planning_agent.run(messages=run_messages.get_input_messages())
+                if planning_agent_response.content is None or planning_agent_response.messages is None:
+                    logger.warning("Planning error. Planning response is empty, continuing regular session...")
+                    break
+
+                if planning_agent_response.content.planning_steps is None:
+                    logger.warning("Planning error. Planning steps are empty, continuing regular session...")
+                    break
+
+                planning_steps: List[PlanningStep] = planning_agent_response.content.planning_steps
+                all_planning_steps.extend(planning_steps)
+                # Yield planning steps
+                if self.stream_intermediate_steps:
+                    for planning_step in planning_steps:
+                        yield self.create_run_response(
+                            content=str(planning_step),
+                            content_type=planning_step.__class__.__name__,
+                            event=RunEvent.planning_step,
+                        )
+
+                # Find the index of the first assistant message
+                first_assistant_index = next(
+                    (i for i, m in enumerate(planning_agent_response.messages) if m.role == "assistant"),
+                    len(planning_agent_response.messages),
+                )
+                # Extract planning messages starting from the message after the first assistant message
+                planning_messages = planning_agent_response.messages[first_assistant_index:]
+
+                # Add planning step to the Agent's run_response
+                self.update_run_response_with_planning(
+                    planning_steps=planning_steps, planning_agent_messages=planning_agent_response.messages
+                )
+
+                # Get the next action
+                next_action = self.get_next_action(planning_steps[-1])
+                if next_action == NextAction.FINAL_ANSWER:
+                    break
+            except Exception as e:
+                logger.error(f"Planning error: {e}")
+                break
+
+        logger.debug(f"Total Planning steps: {len(all_planning_steps)}")
+        logger.debug("==== Planning completed====")
+
+        # Update the messages_for_model to include planning messages
+        self.update_messages_with_planning(
+            planning_messages=planning_messages, messages_for_model=run_messages.messages
+        )
+
+        # Yield the final planning completed event
+        if self.stream_intermediate_steps:
+            yield self.create_run_response(
+                content=str(PlanningSteps(planning_steps=all_planning_steps)),
+                content_type=PlanningSteps.__class__.__name__,
+                event=RunEvent.step_completed,
+            )
+
+    async def aplanning(
+        self,
+        run_messages: RunMessages,
+        stream_intermediate_steps: bool = False,
+    ) -> AsyncIterator[RunResponse]:
+        # Yield a step started event
+        if self.stream_intermediate_steps:
+            yield self.create_run_response(content="Planning started", event=RunEvent.step_started)
+
+        # Initialize planning
+        planning_messages: List[Message] = []
+        all_planning_steps: List[PlanningStep] = []
+
+        # Get the planning model
+        planning_model: Optional[Model] = self.planning_model
+        if planning_model is None and self.model is not None:
+            planning_model = self.model.__class__(id=self.model.id)
+        if planning_model is None:
+            logger.warning("Planning error. Planning model is None, continuing regular session...")
+            return
+
+        # Get the planning agent
+        planning_agent: Optional[Agent] = self.planning_agent
+        if planning_agent is None:
+            planning_agent = self.get_planning_agent(planning_model=planning_model)
+        if planning_agent is None:
+            logger.warning("Planning error. Planning agent is None, continuing regular session...")
+            return
+
+        # Ensure the planning agent response model is PlanningSteps
+        if planning_agent.response_model is not None and not isinstance(planning_agent.response_model, type):
+            if not issubclass(planning_agent.response_model, PlanningSteps):
+                logger.warning("Planning agent response model should be `PlanningSteps`, continuing regular session...")
+            return
+
+        # Ensure the planning model and agent do not show tool calls
+        planning_agent.show_tool_calls = False
+        planning_agent.model.show_tool_calls = False  # type: ignore
+
+        step_count = 1
+        next_action = NextAction.CONTINUE
+        logger.debug("==== Planning Started ====")
+        while next_action == NextAction.CONTINUE and step_count < self.planning_max_steps:
+            step_count += 1
+            logger.debug(f"==== Step {step_count} ====")
+            try:
+                # Run the planning agent
+                planning_agent_response: RunResponse = await planning_agent.arun(
+                    messages=run_messages.get_input_messages()
+                )
+                if planning_agent_response.content is None or planning_agent_response.messages is None:
+                    logger.warning(
+                        "Planning error. Planning response is empty, continuing regular sessionrun_messages..."
+                    )
+                    break
+
+                if planning_agent_response.content.planning_steps is None:
+                    logger.warning("Planning error. Planning steps are empty, continuing regular session...")
+                    break
+
+                planning_steps: List[PlanningStep] = planning_agent_response.content.planning_steps
+                all_planning_steps.extend(planning_steps)
+                # Yield planning steps
+                if self.stream_intermediate_steps:
+                    for planning_step in planning_steps:
+                        yield self.create_run_response(
+                            content=str(planning_step),
+                            content_type=planning_step.__class__.__name__,
+                            event=RunEvent.planning_step,
+                        )
+
+                # Find the index of the first assistant message
+                first_assistant_index = next(
+                    (i for i, m in enumerate(planning_agent_response.messages) if m.role == "assistant"),
+                    len(planning_agent_response.messages),
+                )
+                # Extract planning messages starting from the message after the first assistant message
+                planning_messages = planning_agent_response.messages[first_assistant_index:]
+
+                # Add planning step to the Agent's run_response
+                self.update_run_response_with_planning(
+                    planning_steps=planning_steps, planning_agent_messages=planning_agent_response.messages
+                )
+
+                # Get the next action
+                next_action = self.get_next_action(planning_steps[-1])
+                if next_action == NextAction.FINAL_ANSWER:
+                    break
+            except Exception as e:
+                logger.error(f"Planning error: {e}")
+                break
+
+        logger.debug(f"Total Planning steps: {len(all_planning_steps)}")
+        logger.debug("==== Planning completed====")
+
+        # Update the messages_for_model to include planning messages
+        self.update_messages_with_planning(
+            planning_messages=planning_messages,
+            messages_for_model=run_messages.messages,
+        )
+
+        # Yield the final planning completed event
+        if self.stream_intermediate_steps:
+            yield self.create_run_response(
+                content=str(PlanningSteps(planning_steps=all_planning_steps)),
+                content_type=PlanningSteps.__class__.__name__,
+                event=RunEvent.step_completed,
+            )
+
+    def get_planning_agent(
+        self,
+        planning_model: Model,
+    ) -> Optional["Agent"]:  # type: ignore  # noqa: F821
+        from agno.agent import Agent
+
+        return Agent(
+            model=planning_model,
+            description="You are a meticulous and thoughtful assistant that solves a problem by thinking through it step-by-step.",
+            instructions=[
+                "First - Carefully analyze the task by spelling it out loud.",
+                "Then, break down the problem by thinking through it step by step and develop multiple strategies to solve the problem."
+                "Then, examine the users intent develop a step by step plan to solve the problem.",
+                "Work through your plan step-by-step, executing any tools as needed. For each step, provide:\n"
+                "  1. Title: A clear, concise title that encapsulates the step's main focus or objective.\n"
+                "  2. Action: Describe the action you will take in the first person (e.g., 'I will...').\n"
+                "  3. Result: Execute the action by running any necessary tools or providing an answer. Summarize the outcome.\n"
+                "  4. Planning: Explain the logic behind this step in the first person, including:\n"
+                "     - Necessity: Why this action is necessary.\n"
+                "     - Considerations: Key considerations and potential challenges.\n"
+                "     - Progression: How it builds upon previous steps (if applicable).\n"
+                "     - Assumptions: Any assumptions made and their justifications.\n"
+                "  5. Next Action: Decide on the next step:\n"
+                "     - continue: If more steps are needed to reach an answer.\n"
+                "     - validate: If you have reached an answer and should validate the result.\n"
+                "     - final_answer: If the answer is validated and is the final answer.\n"
+                "     Note: you must always validate the answer before providing the final answer.\n"
+                "  6. Confidence score: A score from 0.0 to 1.0 reflecting your certainty about the action and its outcome.",
+                "Handling Next Actions:\n"
+                "  - If next_action is continue, proceed to the next step in your analysis.\n"
+                "  - If next_action is validate, validate the result and provide the final answer.\n"
+                "  - If next_action is final_answer, stop planning.",
+                "Remember - If next_action is validate, you must validate your result\n"
+                "  - Ensure the answer resolves the original request.\n"
+                "  - Validate your result using any necessary tools or methods.\n"
+                "  - If there is another method to solve the task, use that to validate the result.\n"
+                "Ensure your analysis is:\n"
+                "  - Complete: Validate results and run all necessary tools.\n"
+                "  - Comprehensive: Consider multiple angles and potential outcomes.\n"
+                "  - Logical: Ensure each step coherently follows from the previous one.\n"
+                "  - Actionable: Provide clear, implementable steps or solutions.\n"
+                "  - Insightful: Offer unique perspectives or innovative approaches when appropriate.",
+                "Additional Guidelines:\n"
+                "  - Remember to run any tools you need to solve the problem.\n"
+                f"  - Take at least {self.planning_min_steps} steps to solve the problem.\n"
+                "  - If you have all the information you need, provide the final answer.\n"
+                "  - IMPORTANT: IF AT ANY TIME THE RESULT IS WRONG, RESET AND START OVER.",
+            ],
+            tools=self.tools,
+            show_tool_calls=False,
+            response_model=PlanningSteps,
+            structured_outputs=self.structured_outputs,
+            monitoring=self.monitoring,
+        )
+
+    def get_next_action(self, planning_step: PlanningStep) -> NextAction:
+        next_action = planning_step.next_action or NextAction.FINAL_ANSWER
+        if isinstance(next_action, str):
+            try:
+                return NextAction(next_action)
+            except ValueError:
+                logger.warning(f"Planning error. Invalid next action: {next_action}")
+                return NextAction.FINAL_ANSWER
+        return next_action
+
+    def update_messages_with_planning(self, planning_messages: List[Message], messages_for_model: List[Message]):
+        messages_for_model.append(
+            Message(
+                role="assistant",
+                content="I have worked through this problem in-depth, running all necessary tools and have included my raw, step by step research. ",
+                add_to_agent_memory=False,
+            )
+        )
+        for message in planning_messages:
+            message.add_to_agent_memory = False
+        messages_for_model.extend(planning_messages)
+        messages_for_model.append(
+            Message(
+                role="assistant",
+                content="Now I will summarize my planning and provide a final answer. I will skip any tool calls already executed and steps that are not relevant to the final answer.",
+                add_to_agent_memory=False,
+            )
+        )
+
+    def update_run_response_with_planning(
+        self, planning_steps: List[PlanningStep], planning_agent_messages: List[Message]
     ):
         self.run_response = cast(RunResponse, self.run_response)
         if self.run_response.extra_data is None:
@@ -2304,22 +2607,22 @@ class Agent:
 
         extra_data = self.run_response.extra_data
 
-        # Update reasoning_steps
-        if extra_data.reasoning_steps is None:
-            extra_data.reasoning_steps = reasoning_steps
+        # Update planning_steps
+        if extra_data.planning_steps is None:
+            extra_data.planning_steps = planning_steps
         else:
-            extra_data.reasoning_steps.extend(reasoning_steps)
+            extra_data.planning_steps.extend(planning_steps)
 
-        # Update reasoning_messages
-        if extra_data.reasoning_messages is None:
-            extra_data.reasoning_messages = reasoning_agent_messages
+        # Update planning_messages
+        if extra_data.planning_messages is None:
+            extra_data.planning_messages = planning_agent_messages
         else:
-            extra_data.reasoning_messages.extend(reasoning_agent_messages)
+            extra_data.planning_messages.extend(planning_agent_messages)
 
     def aggregate_metrics_from_messages(self, messages: List[Message]) -> Dict[str, Any]:
         aggregated_metrics: Dict[str, Any] = defaultdict(list)
 
-        # Use a defaultdict(list) to collect all values for each assisntant message
+        # Use a defaultdict(list) to collect all values for each assistant message
         for m in messages:
             if m.role == "assistant" and m.metrics is not None:
                 for k, v in m.metrics.items():
@@ -2726,8 +3029,8 @@ class Agent:
         stream: bool = False,
         markdown: bool = False,
         show_message: bool = True,
-        show_reasoning: bool = True,
-        show_full_reasoning: bool = False,
+        show_planning: bool = True,
+        show_full_planning: bool = False,
         console: Optional[Any] = None,
         **kwargs: Any,
     ) -> None:
@@ -2748,7 +3051,7 @@ class Agent:
 
         if stream:
             _response_content: str = ""
-            reasoning_steps: List[ReasoningStep] = []
+            planning_steps: List[PlanningStep] = []
             with Live(console=console) as live_log:
                 status = Status("Thinking...", spinner="aesthetic", speed=2.0, refresh_per_second=10)
                 live_log.update(status)
@@ -2776,8 +3079,8 @@ class Agent:
                     if isinstance(resp, RunResponse) and isinstance(resp.content, str):
                         if resp.event == RunEvent.run_response:
                             _response_content += resp.content
-                        if resp.extra_data is not None and resp.extra_data.reasoning_steps is not None:
-                            reasoning_steps = resp.extra_data.reasoning_steps
+                        if resp.extra_data is not None and resp.extra_data.planning_steps is not None:
+                            planning_steps = resp.extra_data.planning_steps
                     response_content_stream = Markdown(_response_content) if self.markdown else _response_content
 
                     panels = [status]
@@ -2795,32 +3098,32 @@ class Agent:
                     if render:
                         live_log.update(Group(*panels))
 
-                    if len(reasoning_steps) > 0 and show_reasoning:
+                    if len(planning_steps) > 0 and show_planning:
                         render = True
-                        # Create panels for reasoning steps
-                        for i, step in enumerate(reasoning_steps, 1):
+                        # Create panels for planning steps
+                        for i, step in enumerate(planning_steps, 1):
                             step_content = Text.assemble(
                                 (f"{step.title}\n", "bold"),
                                 (step.action or "", "dim"),
                             )
-                            if show_full_reasoning:
+                            if show_full_planning:
                                 step_content.append("\n")
                                 if step.result:
                                     step_content.append(
                                         Text.from_markup(f"\n[bold]Result:[/bold] {step.result}", style="dim")
                                     )
-                                if step.reasoning:
+                                if step.planning:
                                     step_content.append(
-                                        Text.from_markup(f"\n[bold]Reasoning:[/bold] {step.reasoning}", style="dim")
+                                        Text.from_markup(f"\n[bold]Planning:[/bold] {step.planning}", style="dim")
                                     )
                                 if step.confidence is not None:
                                     step_content.append(
                                         Text.from_markup(f"\n[bold]Confidence:[/bold] {step.confidence}", style="dim")
                                     )
-                            reasoning_panel = self.create_panel(
-                                content=step_content, title=f"Reasoning step {i}", border_style="green"
+                            planning_panel = self.create_panel(
+                                content=step_content, title=f"Planning step {i}", border_style="green"
                             )
-                            panels.append(reasoning_panel)
+                            panels.append(planning_panel)
                     if render:
                         live_log.update(Group(*panels))
 
@@ -2867,40 +3170,40 @@ class Agent:
                 run_response = self.run(message=message, messages=messages, stream=False, **kwargs)
                 response_timer.stop()
 
-                reasoning_steps = []
+                planning_steps = []
                 if (
                     isinstance(run_response, RunResponse)
                     and run_response.extra_data is not None
-                    and run_response.extra_data.reasoning_steps is not None
+                    and run_response.extra_data.planning_steps is not None
                 ):
-                    reasoning_steps = run_response.extra_data.reasoning_steps
+                    planning_steps = run_response.extra_data.planning_steps
 
-                if len(reasoning_steps) > 0 and show_reasoning:
+                if len(planning_steps) > 0 and show_planning:
                     render = True
-                    # Create panels for reasoning steps
-                    for i, step in enumerate(reasoning_steps, 1):
+                    # Create panels for planning steps
+                    for i, step in enumerate(planning_steps, 1):
                         step_content = Text.assemble(
                             (f"{step.title}\n", "bold"),
                             (step.action or "", "dim"),
                         )
-                        if show_full_reasoning:
+                        if show_full_planning:
                             step_content.append("\n")
                             if step.result:
                                 step_content.append(
                                     Text.from_markup(f"\n[bold]Result:[/bold] {step.result}", style="dim")
                                 )
-                            if step.reasoning:
+                            if step.planning:
                                 step_content.append(
-                                    Text.from_markup(f"\n[bold]Reasoning:[/bold] {step.reasoning}", style="dim")
+                                    Text.from_markup(f"\n[bold]Planning:[/bold] {step.planning}", style="dim")
                                 )
                             if step.confidence is not None:
                                 step_content.append(
                                     Text.from_markup(f"\n[bold]Confidence:[/bold] {step.confidence}", style="dim")
                                 )
-                        reasoning_panel = self.create_panel(
-                            content=step_content, title=f"Reasoning step {i}", border_style="green"
+                        planning_panel = self.create_panel(
+                            content=step_content, title=f"Planning step {i}", border_style="green"
                         )
-                        panels.append(reasoning_panel)
+                        panels.append(planning_panel)
                     if render:
                         live_log.update(Group(*panels))
 
@@ -2945,8 +3248,8 @@ class Agent:
         stream: bool = False,
         markdown: bool = False,
         show_message: bool = True,
-        show_reasoning: bool = True,
-        show_full_reasoning: bool = False,
+        show_planning: bool = True,
+        show_full_planning: bool = False,
         console: Optional[Any] = None,
         **kwargs: Any,
     ) -> None:
@@ -2967,7 +3270,7 @@ class Agent:
 
         if stream:
             _response_content: str = ""
-            reasoning_steps: List[ReasoningStep] = []
+            planning_steps: List[PlanningStep] = []
             with Live(console=console) as live_log:
                 status = Status("Thinking...", spinner="aesthetic", speed=2.0, refresh_per_second=10)
                 live_log.update(status)
@@ -2996,8 +3299,8 @@ class Agent:
                     if isinstance(resp, RunResponse) and isinstance(resp.content, str):
                         if resp.event == RunEvent.run_response:
                             _response_content += resp.content
-                        if resp.extra_data is not None and resp.extra_data.reasoning_steps is not None:
-                            reasoning_steps = resp.extra_data.reasoning_steps
+                        if resp.extra_data is not None and resp.extra_data.planning_steps is not None:
+                            planning_steps = resp.extra_data.planning_steps
                     response_content_stream = Markdown(_response_content) if self.markdown else _response_content
 
                     panels = [status]
@@ -3015,32 +3318,32 @@ class Agent:
                     if render:
                         live_log.update(Group(*panels))
 
-                    if len(reasoning_steps) > 0 and (show_reasoning or show_full_reasoning):
+                    if len(planning_steps) > 0 and (show_planning or show_full_planning):
                         render = True
-                        # Create panels for reasoning steps
-                        for i, step in enumerate(reasoning_steps, 1):
+                        # Create panels for planning steps
+                        for i, step in enumerate(planning_steps, 1):
                             step_content = Text.assemble(
                                 (f"{step.title}\n", "bold"),
                                 (step.action or "", "dim"),
                             )
-                            if show_full_reasoning:
+                            if show_full_planning:
                                 step_content.append("\n")
                                 if step.result:
                                     step_content.append(
                                         Text.from_markup(f"\n[bold]Result:[/bold] {step.result}", style="dim")
                                     )
-                                if step.reasoning:
+                                if step.planning:
                                     step_content.append(
-                                        Text.from_markup(f"\n[bold]Reasoning:[/bold] {step.reasoning}", style="dim")
+                                        Text.from_markup(f"\n[bold]Planning:[/bold] {step.planning}", style="dim")
                                     )
                                 if step.confidence is not None:
                                     step_content.append(
                                         Text.from_markup(f"\n[bold]Confidence:[/bold] {step.confidence}", style="dim")
                                     )
-                            reasoning_panel = self.create_panel(
-                                content=step_content, title=f"Reasoning step {i}", border_style="green"
+                            planning_panel = self.create_panel(
+                                content=step_content, title=f"Planning step {i}", border_style="green"
                             )
-                            panels.append(reasoning_panel)
+                            panels.append(planning_panel)
                     if render:
                         live_log.update(Group(*panels))
 
@@ -3087,40 +3390,40 @@ class Agent:
                 run_response = await self.arun(message=message, messages=messages, stream=False, **kwargs)
                 response_timer.stop()
 
-                reasoning_steps = []
+                planning_steps = []
                 if (
                     isinstance(run_response, RunResponse)
                     and run_response.extra_data is not None
-                    and run_response.extra_data.reasoning_steps is not None
+                    and run_response.extra_data.planning_steps is not None
                 ):
-                    reasoning_steps = run_response.extra_data.reasoning_steps
+                    planning_steps = run_response.extra_data.planning_steps
 
-                if len(reasoning_steps) > 0 and show_reasoning:
+                if len(planning_steps) > 0 and show_planning:
                     render = True
-                    # Create panels for reasoning steps
-                    for i, step in enumerate(reasoning_steps, 1):
+                    # Create panels for planning steps
+                    for i, step in enumerate(planning_steps, 1):
                         step_content = Text.assemble(
                             (f"{step.title}\n", "bold"),
                             (step.action or "", "dim"),
                         )
-                        if show_full_reasoning:
+                        if show_full_planning:
                             step_content.append("\n")
                             if step.result:
                                 step_content.append(
                                     Text.from_markup(f"\n[bold]Result:[/bold] {step.result}", style="dim")
                                 )
-                            if step.reasoning:
+                            if step.planning:
                                 step_content.append(
-                                    Text.from_markup(f"\n[bold]Reasoning:[/bold] {step.reasoning}", style="dim")
+                                    Text.from_markup(f"\n[bold]Planning:[/bold] {step.planning}", style="dim")
                                 )
                             if step.confidence is not None:
                                 step_content.append(
                                     Text.from_markup(f"\n[bold]Confidence:[/bold] {step.confidence}", style="dim")
                                 )
-                        reasoning_panel = self.create_panel(
-                            content=step_content, title=f"Reasoning step {i}", border_style="green"
+                        planning_panel = self.create_panel(
+                            content=step_content, title=f"Planning step {i}", border_style="green"
                         )
-                        panels.append(reasoning_panel)
+                        panels.append(planning_panel)
                     if render:
                         live_log.update(Group(*panels))
 

@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional
 
 from agno.agent.media import Audio, Image, Video
 from agno.models.message import Message, MessageReferences
-from agno.reasoning.step import ReasoningStep
+from agno.plan.step import PlanningStep
 
 
 class RunEvent(str, Enum):
@@ -18,7 +18,7 @@ class RunEvent(str, Enum):
     tool_call_completed = "ToolCallCompleted"
     step_started = "StepStarted"
     step_completed = "StepCompleted"
-    reasoning_step = "ReasoningStep"
+    planning_step = "PlanningStep"
     updating_memory = "UpdatingMemory"
     workflow_started = "WorkflowStarted"
     workflow_completed = "WorkflowCompleted"
@@ -29,8 +29,8 @@ class RunResponseExtraData:
     references: Optional[List[MessageReferences]] = None
     add_messages: Optional[List[Message]] = None
     history: Optional[List[Message]] = None
-    reasoning_steps: Optional[List[ReasoningStep]] = None
-    reasoning_messages: Optional[List[Message]] = None
+    planning_steps: Optional[List[PlanningStep]] = None
+    planning_messages: Optional[List[Message]] = None
 
 
 @dataclass

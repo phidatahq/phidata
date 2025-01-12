@@ -380,7 +380,8 @@ def get_playground_router(
         if workflow is None:
             raise HTTPException(status_code=404, detail="Workflow not found")
 
-        workflow.rename_session(session_id, body.name)
+        workflow.session_id = session_id
+        workflow.rename_session(body.name)
         return JSONResponse(content={"message": f"successfully renamed workflow {workflow.name}"})
 
     @playground_router.post("/workflow/{workflow_id}/session/{session_id}/delete")
@@ -756,7 +757,8 @@ def get_async_playground_router(
         if workflow is None:
             raise HTTPException(status_code=404, detail="Workflow not found")
 
-        workflow.rename_session(session_id, body.name)
+        workflow.session_id = session_id
+        workflow.rename_session(body.name)
         return JSONResponse(content={"message": f"successfully renamed workflow {workflow.name}"})
 
     @playground_router.post("/workflow/{workflow_id}/session/{session_id}/delete")

@@ -129,7 +129,30 @@ class Workflow:
     def run_workflow(self, **kwargs: Any):
         """Run the Workflow"""
 
-        self.prepare_run(**kwargs)
+        # Set debug, workflow_id, session_id, initialize memory
+        self.set_debug()
+        self.set_workflow_id()
+        self.set_session_id()
+        self.initialize_memory()
+        self.memory = cast(WorkflowMemory, self.memory)
+
+        # Create a run_id
+        self.run_id = str(uuid4())
+
+        # Set run_input, run_response
+        self.run_input = kwargs
+        self.run_response = RunResponse(run_id=self.run_id, session_id=self.session_id, workflow_id=self.workflow_id)
+
+        # Read existing session from storage
+        self.read_from_storage()
+
+        # Update the run method to call run_workflow() instead of the subclass's run()
+        self.update_run_method()
+        self._subclass_run = cast(Callable, self._subclass_run)
+
+        # Update the session_id for all Agent instances
+        self.update_agent_session_ids()
+
         logger.debug(f"*********** Workflow Run Start: {self.run_id} ***********")
         try:
             result = self._subclass_run(**kwargs)
@@ -144,6 +167,8 @@ class Workflow:
             self.run_response.content = ""
 
             def result_generator():
+                self.run_response = cast(RunResponse, self.run_response)
+                self.memory = cast(WorkflowMemory, self.memory)
                 for item in result:
                     if isinstance(item, RunResponse):
                         # Update the run_id, session_id and workflow_id of the RunResponse
@@ -186,24 +211,42 @@ class Workflow:
             logger.warning(f"Workflow.run() should only return RunResponse objects, got: {type(result)}")
             return None
 
-    def prepare_run(self, **kwargs: Any):
-        """Prepare the Workflow for a run"""
-        # Set debug, workflow_id, session_id, initialize memory
-        self.set_debug()
-        self.set_workflow_id()
-        self.set_session_id()
-        self.initialize_memory()
+    def set_workflow_id(self) -> str:
+        if self.workflow_id is None:
+            self.workflow_id = str(uuid4())
+        logger.debug(f"*********** Workflow ID: {self.workflow_id} ***********")
+        return self.workflow_id
 
-        # Create a run_id
-        self.run_id = str(uuid4())
+    def set_session_id(self) -> str:
+        if self.session_id is None:
+            self.session_id = str(uuid4())
+        logger.debug(f"*********** Session ID: {self.session_id} ***********")
+        return self.session_id
 
-        # Set run_input, run_response
-        self.run_input = kwargs
-        self.run_response = RunResponse(run_id=self.run_id, session_id=self.session_id, workflow_id=self.workflow_id)
+    def set_debug(self) -> None:
+        if self.debug_mode or getenv("AGNO_DEBUG", "false").lower() == "true":
+            self.debug_mode = True
+            set_log_level_to_debug()
+            logger.debug("Debug logs enabled")
+        else:
+            set_log_level_to_info()
 
-        # Read existing session from storage
-        self.read_from_storage()
+    def set_monitoring(self) -> None:
+        if self.monitoring or getenv("AGNO_MONITOR", "false").lower() == "true":
+            self.monitoring = True
+        else:
+            self.monitoring = False
 
+        if self.telemetry or getenv("AGNO_TELEMETRY", "true").lower() == "true":
+            self.telemetry = True
+        else:
+            self.telemetry = False
+
+    def initialize_memory(self) -> None:
+        if self.memory is None:
+            self.memory = WorkflowMemory()
+
+    def update_run_method(self):
         # Update the run() method to call run_workflow() instead of the subclass's run()
         # First, check if the subclass has a run method
         #   If the run() method has been overridden by the subclass,
@@ -255,48 +298,14 @@ class Workflow:
             self._run_parameters = {}
             self._run_return_type = None
 
+    def update_agent_session_ids(self):
         # Update the session_id for all Agent instances
         # use dataclasses.fields() to iterate through fields
-        for field in fields(self):
-            field_type = field.type
-            if field_type is Agent:
-                field_value = getattr(self, field.name)
+        for f in fields(self):
+            field_type = f.type
+            if isinstance(field_type, Agent):
+                field_value = getattr(self, f.name)
                 field_value.session_id = self.session_id
-
-    def set_workflow_id(self) -> str:
-        if self.workflow_id is None:
-            self.workflow_id = str(uuid4())
-        logger.debug(f"*********** Workflow ID: {self.workflow_id} ***********")
-        return self.workflow_id
-
-    def set_session_id(self) -> str:
-        if self.session_id is None:
-            self.session_id = str(uuid4())
-        logger.debug(f"*********** Session ID: {self.session_id} ***********")
-        return self.session_id
-
-    def set_debug(self) -> None:
-        if self.debug_mode or getenv("AGNO_DEBUG", "false").lower() == "true":
-            self.debug_mode = True
-            set_log_level_to_debug()
-            logger.debug("Debug logs enabled")
-        else:
-            set_log_level_to_info()
-
-    def set_monitoring(self) -> None:
-        if self.monitoring or getenv("AGNO_MONITOR", "false").lower() == "true":
-            self.monitoring = True
-        else:
-            self.monitoring = False
-
-        if self.telemetry or getenv("AGNO_TELEMETRY", "true").lower() == "true":
-            self.telemetry = True
-        else:
-            self.telemetry = False
-
-    def initialize_memory(self) -> None:
-        if self.memory is None:
-            self.memory = WorkflowMemory()
 
     def get_workflow_data(self) -> Dict[str, Any]:
         workflow_data: Dict[str, Any] = {}
@@ -527,15 +536,15 @@ class Workflow:
             Workflow: A new Workflow instance.
         """
         # Extract the fields to set for the new Workflow
-        fields_for_new_workflow = {}
+        fields_for_new_workflow: Dict[str, Any] = {}
 
-        for field in fields(self):
-            field_value = getattr(self, field.name)
+        for f in fields(self):
+            field_value = getattr(self, f.name)
             if field_value is not None:
                 if isinstance(field_value, Agent):
-                    fields_for_new_workflow[field.name] = field_value.deep_copy()
+                    fields_for_new_workflow[f.name] = field_value.deep_copy()
                 else:
-                    fields_for_new_workflow[field.name] = self._deep_copy_field(field.name, field_value)
+                    fields_for_new_workflow[f.name] = self._deep_copy_field(f.name, field_value)
 
         # Update fields if provided
         if update:

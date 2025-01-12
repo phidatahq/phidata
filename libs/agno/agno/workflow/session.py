@@ -1,5 +1,9 @@
+from __future__ import annotations
+
 from dataclasses import asdict, dataclass
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Mapping, Optional
+
+from agno.utils.log import logger
 
 
 @dataclass
@@ -25,6 +29,9 @@ class WorkflowSession:
     # The unix timestamp when this session was last updated
     updated_at: Optional[int] = None
 
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
+
     def monitoring_data(self) -> Dict[str, Any]:
         return asdict(self)
 
@@ -33,3 +40,21 @@ class WorkflowSession:
             "created_at": self.created_at,
             "updated_at": self.updated_at,
         }
+
+    @classmethod
+    def from_dict(cls, data: Mapping[str, Any]) -> Optional[WorkflowSession]:
+        if data is None or data.get("session_id") is None:
+            logger.warning("WorkflowSession is missing session_id")
+            return None
+
+        return cls(
+            session_id=data.get("session_id"),  # type: ignore
+            workflow_id=data.get("workflow_id"),
+            user_id=data.get("user_id"),
+            memory=data.get("memory"),
+            workflow_data=data.get("workflow_data"),
+            user_data=data.get("user_data"),
+            session_data=data.get("session_data"),
+            created_at=data.get("created_at"),
+            updated_at=data.get("updated_at"),
+        )

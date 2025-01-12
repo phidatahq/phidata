@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from collections import defaultdict
+from collections import defaultdict, deque
 from dataclasses import dataclass, field
 from datetime import datetime
 from os import getenv
@@ -27,18 +27,18 @@ from uuid import uuid4
 from pydantic import BaseModel
 
 from agno.agent.session import AgentSession
-from agno.agent.step import AgentStep
 from agno.knowledge.agent import AgentKnowledge
 from agno.memory.agent import AgentMemory, AgentRun
 from agno.models.base import Model
 from agno.models.message import Message, MessageReferences
 from agno.models.response import ModelResponse, ModelResponseEvent
-from agno.reasoning.step import ReasoningStep
+from agno.reasoning.step import NextAction, ReasoningStep, ReasoningSteps
 from agno.run.media import Audio, Image, Video
 from agno.run.messages import RunMessages
 from agno.run.response import RunEvent, RunResponse, RunResponseExtraData
 from agno.storage.agent.base import AgentStorage
-from agno.tools import Function, Toolkit
+from agno.tools.function import Function
+from agno.tools.toolkit import Toolkit
 from agno.utils.log import logger, set_log_level_to_debug, set_log_level_to_info
 from agno.utils.message import get_text_from_message
 from agno.utils.timer import Timer
@@ -55,10 +55,6 @@ class Agent:
     agent_id: Optional[str] = None
     # Agent introduction. This is added to the message history when a run is started.
     introduction: Optional[str] = None
-
-    # --- Agent Steps ---
-    # A list of steps taken by the agent to solve the task
-    steps: Optional[List[AgentStep]] = None
 
     # --- User settings ---
     # ID of the user interacting with this agent
@@ -246,7 +242,6 @@ class Agent:
         name: Optional[str] = None,
         agent_id: Optional[str] = None,
         introduction: Optional[str] = None,
-        steps: Optional[List[AgentStep]] = None,
         user_id: Optional[str] = None,
         user_data: Optional[Dict[str, Any]] = None,
         session_id: Optional[str] = None,
@@ -312,8 +307,6 @@ class Agent:
         self.name = name
         self.agent_id = agent_id
         self.introduction = introduction
-
-        self.steps = steps
 
         self.user_id = user_id
         self.user_data = user_data
@@ -472,8 +465,6 @@ class Agent:
         10. Save session to storage
         11. Save output to file if save_response_to_file is set
         """
-        from agno.agent.step.reason import Reason
-        from agno.agent.step.respond import Respond
 
         # 1. Prepare the Agent for the run
         # 1.1 Set agent_id, session_id and initialize memory
@@ -506,18 +497,14 @@ class Agent:
         )
         self.run_messages = run_messages
 
-        # # 4. Plan the task if planning is enabled
-        # if self.plan:
-        #     _plan = self.plan_generator(
-        #         run_messages=self.run_messages
-        #         stream_intermediate_steps=self.stream_intermediate_steps,
-        #     )
-
-        #     if self.stream:
-        #         yield from _plan
-        #     else:
-        #         # Consume the generator without yielding
-        #         deque(_plan, maxlen=0)
+        # 4. Reason about the task if reasoning is enabled
+        if self.reasoning:
+            reasoning_generator = self.reason(run_messages=run_messages)
+            if self.stream:
+                yield from reasoning_generator
+            else:
+                # Consume the generator without yielding
+                deque(reasoning_generator, maxlen=0)
 
         # Get the index of the last "user" message in messages_for_run
         # We track this so we can add messages after this index to the RunResponse and Memory
@@ -869,8 +856,6 @@ class Agent:
         10. Save session to storage
         11. Save output to file if save_response_to_file is set
         """
-        from agno.agent.step.reason import Reason
-        from agno.agent.step.respond import Respond
 
         # 1. Prepare the Agent for the run
         # 1.1 Set agent_id, session_id and initialize memory
@@ -903,20 +888,16 @@ class Agent:
         )
         self.run_messages = run_messages
 
-        # # 4. Plan the task if planning is enabled
-        # if self.plan:
-        #     _aplan = self.aplan_generator(
-        #         run_messages=self.run_messages,
-        #         stream_intermediate_steps=self.stream_intermediate_steps,
-        #     )
-
-        #     if self.stream:
-        #         async for _plan_resp in _aplan:
-        #             yield _plan_resp
-        #     else:
-        #         # Consume the generator without yielding
-        #         async for _ in _aplan:
-        #             pass
+        # 4. Reason about the task if reasoning is enabled
+        if self.reasoning:
+            areason_generator = self.areason(run_messages=run_messages)
+            if self.stream:
+                async for item in areason_generator:
+                    yield item
+            else:
+                # Consume the generator without yielding
+                async for _ in areason_generator:
+                    pass
 
         # Get the index of the last "user" message in messages_for_run
         # We track this so we can add messages after this index to the RunResponse and Memory
@@ -931,7 +912,7 @@ class Agent:
         self.model = cast(Model, self.model)
         if stream and self.is_streamable:
             model_response = ModelResponse(content="")
-            model_response_stream = self.model.aresponse_stream(messages=run_messages.messages)
+            model_response_stream = self.model.aresponse_stream(messages=run_messages.messages)  # type: ignore
             async for model_response_chunk in model_response_stream:  # type: ignore
                 # If the model response is an assistant_response, yield a RunResponse with the content
                 if model_response_chunk.event == ModelResponseEvent.assistant_response.value:
@@ -988,7 +969,7 @@ class Agent:
                 self.run_response.content = model_response.content
             # Update the run_response audio with the model response audio
             if model_response.audio is not None:
-                self.run_response.audio = model_response.audio
+                self.run_response.response_audio = model_response.audio
             # Update the run_response messages with the messages
             self.run_response.messages = run_messages.messages
             # Update the run_response created_at with the model response created_at
@@ -1210,7 +1191,7 @@ class Agent:
 
     def create_run_response(
         self,
-        content: Optional[str] = None,
+        content: Optional[Any] = None,
         *,
         event: RunEvent = RunEvent.run_response,
         content_type: Optional[str] = None,
@@ -2055,10 +2036,10 @@ class Agent:
         # Extract the fields to set for the new Agent
         fields_for_new_agent: Dict[str, Any] = {}
 
-        for field in fields(self):
-            field_value = getattr(self, field.name)
+        for f in fields(self):
+            field_value = getattr(self, f.name)
             if field_value is not None:
-                fields_for_new_agent[field.name] = self._deep_copy_field(field.name, field_value)
+                fields_for_new_agent[f.name] = self._deep_copy_field(f.name, field_value)
 
         # Update fields if provided
         if update:
@@ -2293,7 +2274,7 @@ class Agent:
 
     def update_run_response_with_reasoning(
         self, reasoning_steps: List[ReasoningStep], reasoning_agent_messages: List[Message]
-    ):
+    ) -> None:
         self.run_response = cast(RunResponse, self.run_response)
         if self.run_response.extra_data is None:
             self.run_response.extra_data = RunResponseExtraData()
@@ -2448,6 +2429,238 @@ class Agent:
 
     def get_audio(self) -> Optional[List[Audio]]:
         return self.audio
+
+    ###########################################################################
+    # Reasoning
+    ###########################################################################
+
+    def reason(self, run_messages: RunMessages) -> Iterator[RunResponse]:
+        from agno.reasoning.agent import get_reasoning_agent
+        from agno.reasoning.helpers import get_next_action, update_messages_with_reasoning
+
+        # Yield a reasoning started event
+        if self.stream_intermediate_steps:
+            yield self.create_run_response(content="Reasoning started", event=RunEvent.reasoning_started)
+
+        # Initialize reasoning
+        reasoning_messages: List[Message] = []
+        all_reasoning_steps: List[ReasoningStep] = []
+
+        # Get the reasoning model
+        reasoning_model: Optional[Model] = self.reasoning_model
+        if reasoning_model is None and self.model is not None:
+            reasoning_model = self.model.__class__(id=self.model.id)
+        if reasoning_model is None:
+            logger.warning("Reasoning error. Reasoning model is None, continuing regular session...")
+            return
+
+        # Get the reasoning agent
+        reasoning_agent: Optional[Agent] = self.reasoning_agent
+        if reasoning_agent is None:
+            reasoning_agent = get_reasoning_agent(
+                reasoning_model=reasoning_model,
+                min_steps=self.reasoning_min_steps,
+                max_steps=self.reasoning_max_steps,
+                tools=self.tools,
+                structured_outputs=self.structured_outputs,
+                monitoring=self.monitoring,
+            )
+        if reasoning_agent is None:
+            logger.warning("Reasoning error. Reasoning agent is None, continuing regular session...")
+            return
+
+        # Ensure the reasoning agent response model is ReasoningSteps
+        if reasoning_agent.response_model is not None and not isinstance(reasoning_agent.response_model, type):
+            if not issubclass(reasoning_agent.response_model, ReasoningSteps):
+                logger.warning(
+                    "Reasoning agent response model should be `ReasoningSteps`, continuing regular session..."
+                )
+            return
+
+        # Ensure the reasoning model and agent do not show tool calls
+        reasoning_agent.show_tool_calls = False
+        reasoning_agent.model.show_tool_calls = False  # type: ignore
+
+        step_count = 1
+        next_action = NextAction.CONTINUE
+        logger.debug("==== Starting Reasoning ====")
+        while next_action == NextAction.CONTINUE and step_count < self.reasoning_max_steps:
+            step_count += 1
+            logger.debug(f"==== Step {step_count} ====")
+            try:
+                # Run the reasoning agent
+                reasoning_agent_response: RunResponse = reasoning_agent.run(messages=run_messages.get_input_messages())
+                if reasoning_agent_response.content is None or reasoning_agent_response.messages is None:
+                    logger.warning("Reasoning error. Reasoning response is empty, continuing regular session...")
+                    break
+
+                if reasoning_agent_response.content.reasoning_steps is None:
+                    logger.warning("Reasoning error. Reasoning steps are empty, continuing regular session...")
+                    break
+
+                reasoning_steps: List[ReasoningStep] = reasoning_agent_response.content.reasoning_steps
+                all_reasoning_steps.extend(reasoning_steps)
+                # Yield reasoning steps
+                if self.stream_intermediate_steps:
+                    for reasoning_step in reasoning_steps:
+                        yield self.create_run_response(
+                            content=reasoning_step,
+                            content_type=reasoning_step.__class__.__name__,
+                            event=RunEvent.reasoning_step,
+                        )
+
+                # Find the index of the first assistant message
+                first_assistant_index = next(
+                    (i for i, m in enumerate(reasoning_agent_response.messages) if m.role == "assistant"),
+                    len(reasoning_agent_response.messages),
+                )
+                # Extract reasoning messages starting from the message after the first assistant message
+                reasoning_messages = reasoning_agent_response.messages[first_assistant_index:]
+
+                # Add reasoning step to the Agent's run_response
+                self.update_run_response_with_reasoning(
+                    reasoning_steps=reasoning_steps, reasoning_agent_messages=reasoning_agent_response.messages
+                )
+
+                # Get the next action
+                next_action = get_next_action(reasoning_steps[-1])
+                if next_action == NextAction.FINAL_ANSWER:
+                    break
+            except Exception as e:
+                logger.error(f"Reasoning error: {e}")
+                break
+
+        logger.debug(f"Total Reasoning steps: {len(all_reasoning_steps)}")
+        logger.debug("==== Reasoning finished====")
+
+        # Update the messages_for_model to include reasoning messages
+        update_messages_with_reasoning(
+            run_messages=run_messages,
+            reasoning_messages=reasoning_messages,
+        )
+
+        # Yield the final reasoning completed event
+        if self.stream_intermediate_steps:
+            yield self.create_run_response(
+                content=ReasoningSteps(reasoning_steps=all_reasoning_steps),
+                content_type=ReasoningSteps.__class__.__name__,
+                event=RunEvent.reasoning_completed,
+            )
+
+    async def areason(self, run_messages: RunMessages) -> Any:
+        from agno.reasoning.agent import get_reasoning_agent
+        from agno.reasoning.helpers import get_next_action, update_messages_with_reasoning
+
+        # Yield a reasoning started event
+        if self.stream_intermediate_steps:
+            yield self.create_run_response(content="Reasoning started", event=RunEvent.reasoning_started)
+
+        # Initialize reasoning
+        reasoning_messages: List[Message] = []
+        all_reasoning_steps: List[ReasoningStep] = []
+
+        # Get the reasoning model
+        reasoning_model: Optional[Model] = self.reasoning_model
+        if reasoning_model is None and self.model is not None:
+            reasoning_model = self.model.__class__(id=self.model.id)
+        if reasoning_model is None:
+            logger.warning("Reasoning error. Reasoning model is None, continuing regular session...")
+            return
+
+        # Get the reasoning agent
+        reasoning_agent: Optional[Agent] = self.reasoning_agent
+        if reasoning_agent is None:
+            reasoning_agent = get_reasoning_agent(
+                reasoning_model=reasoning_model,
+                min_steps=self.reasoning_min_steps,
+                max_steps=self.reasoning_max_steps,
+                tools=self.tools,
+                structured_outputs=self.structured_outputs,
+                monitoring=self.monitoring,
+            )
+        if reasoning_agent is None:
+            logger.warning("Reasoning error. Reasoning agent is None, continuing regular session...")
+            return
+
+        # Ensure the reasoning agent response model is ReasoningSteps
+        if reasoning_agent.response_model is not None and not isinstance(reasoning_agent.response_model, type):
+            if not issubclass(reasoning_agent.response_model, ReasoningSteps):
+                logger.warning(
+                    "Reasoning agent response model should be `ReasoningSteps`, continuing regular session..."
+                )
+            return
+
+        # Ensure the reasoning model and agent do not show tool calls
+        reasoning_agent.show_tool_calls = False
+        reasoning_agent.model.show_tool_calls = False  # type: ignore
+
+        step_count = 1
+        next_action = NextAction.CONTINUE
+        logger.debug("==== Starting Reasoning ====")
+        while next_action == NextAction.CONTINUE and step_count < self.reasoning_max_steps:
+            step_count += 1
+            logger.debug(f"==== Step {step_count} ====")
+            try:
+                # Run the reasoning agent
+                reasoning_agent_response: RunResponse = await reasoning_agent.arun(
+                    messages=run_messages.get_input_messages()
+                )
+                if reasoning_agent_response.content is None or reasoning_agent_response.messages is None:
+                    logger.warning("Reasoning error. Reasoning response is empty, continuing regular session...")
+                    break
+
+                if reasoning_agent_response.content.reasoning_steps is None:
+                    logger.warning("Reasoning error. Reasoning steps are empty, continuing regular session...")
+                    break
+
+                reasoning_steps: List[ReasoningStep] = reasoning_agent_response.content.reasoning_steps
+                all_reasoning_steps.extend(reasoning_steps)
+                # Yield reasoning steps
+                if self.stream_intermediate_steps:
+                    for reasoning_step in reasoning_steps:
+                        yield self.create_run_response(
+                            content=reasoning_step,
+                            content_type=reasoning_step.__class__.__name__,
+                            event=RunEvent.reasoning_step,
+                        )
+
+                # Find the index of the first assistant message
+                first_assistant_index = next(
+                    (i for i, m in enumerate(reasoning_agent_response.messages) if m.role == "assistant"),
+                    len(reasoning_agent_response.messages),
+                )
+                # Extract reasoning messages starting from the message after the first assistant message
+                reasoning_messages = reasoning_agent_response.messages[first_assistant_index:]
+
+                # Add reasoning step to the Agent's run_response
+                self.update_run_response_with_reasoning(
+                    reasoning_steps=reasoning_steps, reasoning_agent_messages=reasoning_agent_response.messages
+                )
+
+                # Get the next action
+                next_action = get_next_action(reasoning_steps[-1])
+                if next_action == NextAction.FINAL_ANSWER:
+                    break
+            except Exception as e:
+                logger.error(f"Reasoning error: {e}")
+                break
+
+        logger.debug(f"Total Reasoning steps: {len(all_reasoning_steps)}")
+        logger.debug("==== Reasoning finished====")
+
+        # Update the messages_for_model to include reasoning messages
+        update_messages_with_reasoning(
+            run_messages=run_messages,
+            reasoning_messages=reasoning_messages,
+        )
+
+        # Yield the final reasoning completed event
+        if self.stream_intermediate_steps:
+            yield self.create_run_response(
+                content=ReasoningSteps(reasoning_steps=all_reasoning_steps),
+                content_type=ReasoningSteps.__class__.__name__,
+                event=RunEvent.reasoning_completed,
+            )
 
     ###########################################################################
     # Default Tools

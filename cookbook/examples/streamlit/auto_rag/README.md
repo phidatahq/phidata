@@ -50,6 +50,14 @@ docker run -d \
   phidata/pgvector:16
 ```
 
+### 4. Run QDrant
+
+run using the docker run command
+
+```shell
+docker run -d -p 6333:6333 qdrant/qdrant
+```
+
 ### 5. Run Autonomous RAG App
 
 ```shell
@@ -65,9 +73,3 @@ streamlit run cookbook/examples/streamlit/auto_rag/app.py
   - Tell me more about the Llama 3 models?
   - Whats the latest news from Meta?
   - Summarize our conversation
-
-### 6. Message on [discord](https://discord.gg/4MtYHHrgA8) if you have any questions
-
-### 7. Star ⭐️ the project if you like it.
-
-### 8. Share with your friends: [https://git.new/auto-rag](https://git.new/auto-rag)

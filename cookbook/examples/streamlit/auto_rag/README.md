@@ -1,6 +1,7 @@
 # Autonomous RAG
 
-This cookbook shows how to do Autonomous retrieval-augmented generation with GPT4.
+**Auto-RAG** is a chat application that combines LLMs with retrieval-augmented generation.
+It allows users to ask questions based on custom knowledge bases, documents, and web data, retrieve context-aware answers, and maintain chat history across sessions.
 
 Auto-RAG is just a fancy name for giving the LLM tools like "search_knowledge_base", "read_chat_history", "search_the_web"
 and letting it decide how to retrieve the information it needs to answer the question.
@@ -50,7 +51,7 @@ docker run -d \
   phidata/pgvector:16
 ```
 
-### 4. Run QDrant
+### 5. Run QDrant
 
 run using the docker run command
 
@@ -58,18 +59,21 @@ run using the docker run command
 docker run -d -p 6333:6333 qdrant/qdrant
 ```
 
-### 5. Run Autonomous RAG App
+### 6. Run Autonomous RAG App
 
 ```shell
 streamlit run cookbook/examples/streamlit/auto_rag/app.py
 ```
 
-- Open [localhost:8501](http://localhost:8501) to view your RAG app.
-- Add websites, docx, csv, txt, and PDFs then ask a question.
 
-- Example Website: https://techcrunch.com/2024/04/18/meta-releases-llama-3-claims-its-among-the-best-open-models-available/
-- Ask questions like:
-  - What did Meta release?
-  - Tell me more about the Llama 3 models?
-  - Whats the latest news from Meta?
-  - Summarize our conversation
+### How to Use
+- Open [localhost:8501](http://localhost:8501) in your browser.
+- Upload documents or provide URLs (websites, csv, txt, and PDFs) to build a knowledge base.
+- Enter questions in the chat interface and get context-aware answers.
+- The app can also answer question using duckduckgo search without any external documents added.
+
+### Troubleshooting
+- **Docker Connection Refused**: Ensure `pgvector` and `qdrant` containers are running (`docker ps`).
+- **OpenAI API Errors**: Verify that the `OPENAI_API_KEY` is set and valid.
+
+

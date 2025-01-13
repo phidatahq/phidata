@@ -1,14 +1,12 @@
+from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
-from pydantic import BaseModel, ConfigDict
 
-
-class Embedder(BaseModel):
+@dataclass
+class Embedder:
     """Base class for managing embedders"""
 
     dimensions: Optional[int] = 1536
-
-    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     def get_embedding(self, text: str) -> List[float]:
         raise NotImplementedError

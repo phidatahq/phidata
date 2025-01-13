@@ -1,5 +1,5 @@
 from agno.agent import Agent
-from agno.agent.media import ImageInput
+from agno.media import ImageInput
 from agno.models.openai import OpenAIChat
 from agno.tools.duckduckgo import DuckDuckGo
 
@@ -7,6 +7,10 @@ agent = Agent(
     model=OpenAIChat(id="gpt-4o"),
     tools=[DuckDuckGo()],
     markdown=True,
+    # Set add_history_to_messages=true to add the previous chat history to the messages sent to the Model.
+    add_history_to_messages=True,
+    # Number of historical responses to add to the messages.
+    num_history_responses=3,
 )
 
 agent.print_response(
@@ -14,10 +18,6 @@ agent.print_response(
     images=[
         ImageInput(url="https://upload.wikimedia.org/wikipedia/commons/b/bf/Krakow_-_Kosciol_Mariacki.jpg")
     ],
-    # Set add_history_to_messages=true to add the previous chat history to the messages sent to the Model.
-    add_history_to_messages=True,
-    # Number of historical responses to add to the messages.
-    num_history_responses=3,
 )
 
 agent.print_response("Tell me where I can get more images?")

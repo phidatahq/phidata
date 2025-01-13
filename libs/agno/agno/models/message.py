@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional, Sequence, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from agno.agent.media import ImageInput
+from agno.media import ImageInput
 from agno.utils.log import logger
 
 

@@ -1,5 +1,5 @@
 from agno.agent import Agent
-from agno.agent.media import ImageInput
+from agno.media import ImageInput
 from agno.models.groq import Groq
 
 agent = Agent(model=Groq(id="llama-3.2-90b-vision-preview"))

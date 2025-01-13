@@ -5,7 +5,7 @@ from os import getenv
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterator, List, Optional, Union
 
-from agno.agent.media import ImageInput
+from agno.media import ImageInput
 from agno.models.base import Model
 from agno.models.message import Message
 from agno.models.response import ModelResponse

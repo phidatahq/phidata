@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from agno.agent import Agent
-from agno.agent.media import ImageInput
+from agno.media import ImageInput
 from agno.models.ollama import Ollama
 
 agent = Agent(

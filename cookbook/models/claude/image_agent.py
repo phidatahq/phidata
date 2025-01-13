@@ -1,5 +1,5 @@
 from agno.agent import Agent
-from agno.agent.media import ImageInput
+from agno.media import ImageInput
 from agno.models.anthropic import Claude
 from agno.tools.duckduckgo import DuckDuckGo
 

@@ -3,7 +3,7 @@ from pathlib import Path
 from google.generativeai.types import file_types
 
 from agno.agent import Agent
-from agno.agent.media import ImageInput
+from agno.media import ImageInput
 from agno.models.google import Gemini
 from agno.tools.duckduckgo import DuckDuckGo
 from google.generativeai import upload_file

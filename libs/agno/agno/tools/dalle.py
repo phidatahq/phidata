@@ -3,7 +3,7 @@ from typing import Literal, Optional
 from uuid import uuid4
 
 from agno.agent import Agent
-from agno.agent.media import ImageArtifact
+from agno.media import ImageArtifact
 from agno.tools import Toolkit
 from agno.utils.log import logger
 

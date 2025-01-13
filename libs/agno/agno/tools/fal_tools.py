@@ -7,7 +7,7 @@ from typing import Optional
 from uuid import uuid4
 
 from agno.agent import Agent
-from agno.agent.media import ImageArtifact, VideoArtifact
+from agno.media import ImageArtifact, VideoArtifact
 from agno.tools import Toolkit
 from agno.utils.log import logger
 

@@ -1,7 +1,7 @@
 from typing import Any, Callable, Dict, List, Optional, Type, TypeVar, Union, get_type_hints
 
-from pydantic import BaseModel, Field, validate_call
 from docstring_parser import parse
+from pydantic import BaseModel, Field, validate_call
 
 from agno.models.message import Message
 from agno.utils.log import logger
@@ -61,6 +61,7 @@ def get_entrypoint_docstring(entrypoint: Callable) -> str:
         lines.extend(parsed.long_description.split("\n"))
 
     return "\n".join(lines)
+
 
 class Function(BaseModel):
     """Model for storing functions that can be called by an agent."""

@@ -1,9 +1,8 @@
 import random
 import time
+from dataclasses import dataclass, field
 from typing import Dict, List, Set, Tuple
 from urllib.parse import urljoin, urlparse
-
-import httpx
 
 from agno.document.base import Document
 from agno.document.reader.base import Reader
@@ -14,15 +13,21 @@ try:
 except ImportError:
     raise ImportError("The `bs4` package is not installed. Please install it via `pip install beautifulsoup4`.")
 
+try:
+    import httpx
+except ImportError:
+    raise ImportError("`httpx` not installed. Please install it via `pip install httpx`.")
 
+
+@dataclass
 class WebsiteReader(Reader):
     """Reader for Websites"""
 
     max_depth: int = 3
     max_links: int = 10
 
-    _visited: Set[str] = set()
-    _urls_to_crawl: List[Tuple[str, int]] = []
+    _visited: Set[str] = field(default_factory=set)
+    _urls_to_crawl: List[Tuple[str, int]] = field(default_factory=list)
 
     def delay(self, min_seconds=1, max_seconds=3):
         """

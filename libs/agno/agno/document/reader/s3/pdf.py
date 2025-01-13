@@ -1,3 +1,4 @@
+from io import BytesIO
 from typing import List
 
 from agno.document.base import Document
@@ -9,21 +10,16 @@ try:
 except (ModuleNotFoundError, ImportError):
     raise ImportError("`agno-aws` not installed. Please install using `pip install agno-aws`")
 
+try:
+    from pypdf import PdfReader as DocumentReader  # noqa: F401
+except ImportError:
+    raise ImportError("`pypdf` not installed. Please install it via `pip install pypdf`.")
+
 
 class S3PDFReader(Reader):
     """Reader for PDF files on S3"""
 
     def read(self, s3_object: S3Object) -> List[Document]:
-        from io import BytesIO
-
-        if not s3_object:
-            raise ValueError("No s3_object provided")
-
-        try:
-            from pypdf import PdfReader as DocumentReader  # noqa: F401
-        except ImportError:
-            raise ImportError("`pypdf` not installed")
-
         try:
             logger.info(f"Reading: {s3_object.uri}")
 

@@ -4,7 +4,7 @@ from os import getenv
 from typing import Any, Dict, Literal, Optional, TypedDict
 
 from agno.agent import Agent
-from agno.agent.media import VideoArtifact
+from agno.media import VideoArtifact
 from agno.tools import Toolkit
 from agno.utils.log import logger
 

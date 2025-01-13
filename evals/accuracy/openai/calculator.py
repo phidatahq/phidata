@@ -36,4 +36,4 @@ def factorial():
 
 if __name__ == "__main__":
     multiply_and_exponentiate()
-    factorial()
+    # factorial()

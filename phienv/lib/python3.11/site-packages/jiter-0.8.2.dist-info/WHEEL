@@ -1,0 +1,4 @@
+Wheel-Version: 1.0
+Generator: maturin (1.7.7)
+Root-Is-Purelib: false
+Tag: cp311-cp311-macosx_11_0_arm64

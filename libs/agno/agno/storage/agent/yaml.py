@@ -33,7 +33,7 @@ class YamlFileAgentStorage(AgentStorage):
                 data = self.deserialize(f.read())
                 if user_id and data["user_id"] != user_id:
                     return None
-                return AgentSession(**data)
+                return AgentSession.from_dict(data)
         except FileNotFoundError:
             return None
 
@@ -54,7 +54,9 @@ class YamlFileAgentStorage(AgentStorage):
             with open(file, "r", encoding="utf-8") as f:
                 data = self.deserialize(f.read())
                 if (not user_id or data["user_id"] == user_id) and (not agent_id or data["agent_id"] == agent_id):
-                    sessions.append(AgentSession(**data))
+                    _agent_session = AgentSession.from_dict(data)
+                    if _agent_session is not None:
+                        sessions.append(_agent_session)
         return sessions
 
     def upsert(self, session: AgentSession) -> Optional[AgentSession]:

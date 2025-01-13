@@ -161,7 +161,7 @@ class SqlWorkflowStorage(WorkflowStorage):
                 if user_id:
                     stmt = stmt.where(self.table.c.user_id == user_id)
                 result = sess.execute(stmt).fetchone()
-                return WorkflowSession.model_validate(result) if result is not None else None
+                return WorkflowSession.from_dict(result._mapping) if result is not None else None  # type: ignore
         except Exception as e:
             logger.debug(f"Exception reading from table: {e}")
             logger.debug(f"Table does not exist: {self.table.name}")
@@ -225,7 +225,7 @@ class SqlWorkflowStorage(WorkflowStorage):
                 stmt = stmt.order_by(self.table.c.created_at.desc())
                 # execute query
                 rows = sess.execute(stmt).fetchall()
-                return [WorkflowSession.model_validate(row) for row in rows] if rows is not None else []
+                return [WorkflowSession.from_dict(row._mapping) for row in rows] if rows is not None else []  # type: ignore
         except Exception as e:
             logger.debug(f"Exception reading from table: {e}")
             logger.debug(f"Table does not exist: {self.table.name}")

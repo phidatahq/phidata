@@ -2,7 +2,7 @@ from pathlib import Path
 from typing import Iterator, List, Union
 
 from agno.document import Document
-from libs.agno.agno.document.reader.json_reader import JSONReader
+from agno.document.reader.json_reader import JSONReader
 from agno.knowledge.agent import AgentKnowledge
 
 

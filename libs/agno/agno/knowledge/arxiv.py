@@ -1,7 +1,7 @@
 from typing import Iterator, List
 
 from agno.document import Document
-from libs.agno.agno.document.reader.arxiv_reader import ArxivReader
+from agno.document.reader.arxiv_reader import ArxivReader
 from agno.knowledge.agent import AgentKnowledge
 
 

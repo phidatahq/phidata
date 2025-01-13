@@ -20,4 +20,4 @@ agent.print_response("List open pull requests", markdown=True)
 # # Example usage: Create an issue
 # agent.print_response("Explain the comments for the most recent issue", markdown=True)
 # # Example usage: Create a Repo
-# agent.print_response("Create a repo called phi-test and add description hello", markdown=True)
+# agent.print_response("Create a repo called agno-test and add description hello", markdown=True)

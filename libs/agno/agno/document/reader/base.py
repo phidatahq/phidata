@@ -1,5 +1,5 @@
-from typing import Any, List
 from dataclasses import dataclass, field
+from typing import Any, List
 
 from agno.document.base import Document
 from agno.document.chunking.fixed import FixedSizeChunking

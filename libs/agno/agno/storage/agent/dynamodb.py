@@ -138,7 +138,7 @@ class DynamoDbAgentStorage(AgentStorage):
             if item is not None:
                 # Convert Decimal to int or float
                 item = self._deserialize_item(item)
-                return AgentSession(**item)
+                return AgentSession.from_dict(item)
         except Exception as e:
             logger.error(f"Error reading session_id '{session_id}' with user_id '{user_id}': {e}")
         return None
@@ -206,7 +206,9 @@ class DynamoDbAgentStorage(AgentStorage):
                 items = response.get("Items", [])
                 for item in items:
                     item = self._deserialize_item(item)
-                    sessions.append(AgentSession(**item))
+                    _agent_session = AgentSession.from_dict(item)
+                    if _agent_session is not None:
+                        sessions.append(_agent_session)
             elif agent_id is not None:
                 # Query using agent_id index
                 response = self.table.query(
@@ -217,7 +219,9 @@ class DynamoDbAgentStorage(AgentStorage):
                 items = response.get("Items", [])
                 for item in items:
                     item = self._deserialize_item(item)
-                    sessions.append(AgentSession(**item))
+                    _agent_session = AgentSession.from_dict(item)
+                    if _agent_session is not None:
+                        sessions.append(_agent_session)
             else:
                 # Scan the whole table
                 response = self.table.scan(
@@ -226,7 +230,9 @@ class DynamoDbAgentStorage(AgentStorage):
                 items = response.get("Items", [])
                 for item in items:
                     item = self._deserialize_item(item)
-                    sessions.append(AgentSession(**item))
+                    _agent_session = AgentSession.from_dict(item)
+                    if _agent_session is not None:
+                        sessions.append(_agent_session)
         except Exception as e:
             logger.error(f"Error retrieving sessions: {e}")
         return sessions

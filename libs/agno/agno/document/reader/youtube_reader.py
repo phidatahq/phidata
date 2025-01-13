@@ -7,7 +7,9 @@ from agno.utils.log import logger
 try:
     from youtube_transcript_api import YouTubeTranscriptApi
 except ImportError:
-    raise ImportError("`youtube_transcript_api` not installed. Please install it via `pip install youtube_transcript_api`.")
+    raise ImportError(
+        "`youtube_transcript_api` not installed. Please install it via `pip install youtube_transcript_api`."
+    )
 
 
 class YouTubeReader(Reader):

@@ -9,7 +9,7 @@ slack_tools = SlackTools()
 agent = Agent(tools=[slack_tools], show_tool_calls=True)
 
 # Example 1: Send a message to a Slack channel
-agent.print_response("Send a message 'Hello from Phi!' to the channel #general", markdown=True)
+agent.print_response("Send a message 'Hello from Agno!' to the channel #general", markdown=True)
 
 # Example 2: List all channels in the Slack workspace
 agent.print_response("List all channels in our Slack workspace", markdown=True)

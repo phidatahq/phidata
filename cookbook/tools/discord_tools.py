@@ -33,7 +33,7 @@ channel_id = "YOUR_CHANNEL_ID"
 server_id = "YOUR_SERVER_ID"
 
 # Example 1: Send a message
-discord_agent.print_response(f"Send a message 'Hello from Phi!' to channel {channel_id}", stream=True)
+discord_agent.print_response(f"Send a message 'Hello from Agno!' to channel {channel_id}", stream=True)
 
 # Example 2: Get channel info
 discord_agent.print_response(f"Get information about channel {channel_id}", stream=True)

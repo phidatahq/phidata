@@ -1,11 +1,11 @@
 from datetime import datetime, timezone
-from typing import Optional, List
+from typing import List, Optional
 from uuid import UUID
 
 try:
     from pymongo import MongoClient
-    from pymongo.database import Database
     from pymongo.collection import Collection
+    from pymongo.database import Database
     from pymongo.errors import PyMongoError
 except ImportError:
     raise ImportError("`pymongo` not installed. Please install it with `pip install pymongo`")
@@ -75,7 +75,7 @@ class MongoAgentStorage(AgentStorage):
             if doc:
                 # Remove MongoDB _id before converting to AgentSession
                 doc.pop("_id", None)
-                return AgentSession.model_validate(doc)
+                return AgentSession.from_dict(doc)
             return None
         except PyMongoError as e:
             logger.error(f"Error reading session: {e}")
@@ -123,7 +123,9 @@ class MongoAgentStorage(AgentStorage):
             for doc in cursor:
                 # Remove MongoDB _id before converting to AgentSession
                 doc.pop("_id", None)
-                sessions.append(AgentSession.model_validate(doc))
+                _agent_session = AgentSession.from_dict(doc)
+                if _agent_session is not None:
+                    sessions.append(_agent_session)
             return sessions
         except PyMongoError as e:
             logger.error(f"Error getting sessions: {e}")
@@ -139,7 +141,7 @@ class MongoAgentStorage(AgentStorage):
         """
         try:
             # Convert session to dict and add timestamps
-            session_dict = session.model_dump()
+            session_dict = session.to_dict()
             now = datetime.now(timezone.utc)
             timestamp = int(now.timestamp())
 

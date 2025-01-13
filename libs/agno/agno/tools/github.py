@@ -1,12 +1,12 @@
-import os
 import json
-from typing import Optional, List
+import os
+from typing import List, Optional
 
 from agno.tools import Toolkit
 from agno.utils.log import logger
 
 try:
-    from github import Github, GithubException, Auth
+    from github import Auth, Github, GithubException
 except ImportError:
     raise ImportError("`PyGithub` not installed. Please install using `pip install PyGithub`")
 
@@ -24,7 +24,7 @@ class GithubTools(Toolkit):
         get_pull_request_changes: bool = True,
         create_issue: bool = True,
         create_repository: bool = True,
-        get_repository_languages: bool = True
+        get_repository_languages: bool = True,
     ):
         super().__init__(name="github")
 

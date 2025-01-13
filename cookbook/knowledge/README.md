@@ -14,7 +14,7 @@ source ~/.venvs/aienv/bin/activate
 ### 2. Install libraries
 
 ```shell
-pip install -U pgvector "psycopg[binary]" sqlalchemy openai phidata
+pip install -U pgvector "psycopg[binary]" sqlalchemy openai agno
 ```
 
 ### 3. Run PgVector

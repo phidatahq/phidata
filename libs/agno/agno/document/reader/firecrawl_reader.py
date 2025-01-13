@@ -1,5 +1,5 @@
-from typing import Dict, List, Literal, Optional
 from dataclasses import dataclass
+from typing import Dict, List, Literal, Optional
 
 from agno.document.base import Document
 from agno.document.reader.base import Reader

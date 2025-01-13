@@ -1,4 +1,4 @@
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from typing import Any
 
 from agno.file import File
@@ -28,6 +28,5 @@ class CsvFile(File):
                         self.columns = list(dict_reader.fieldnames)
             except Exception as e:
                 logger.debug(f"Error getting columns from file: {e}")
-
 
         return dataclass_to_dict(self, exclude_none=True)

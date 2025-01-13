@@ -6,9 +6,9 @@ Steps:
 3. Run: `python cookbook/storage/mongodb_storage.py` to run the agent
 """
 
-from phi.agent import Agent
-from phi.tools.duckduckgo import DuckDuckGo
-from phi.storage.agent.mongodb import MongoAgentStorage
+from agno.agent import Agent
+from agno.tools.duckduckgo import DuckDuckGo
+from agno.storage.agent.mongodb import MongoAgentStorage
 
 # MongoDB connection settings
 db_url = "mongodb://localhost:27017"

@@ -2,18 +2,18 @@ import json
 import os
 import time
 from pydantic import BaseModel, Field
-from phi.run.response import RunResponse
-from phi.workflow import Workflow
-from phi.agent import Agent
-from phi.model.openai import OpenAIChat
-from phi.knowledge.website import WebsiteKnowledgeBase
-from phi.vectordb.lancedb import LanceDb
-from phi.vectordb.search import SearchType
-from phi.embedder.openai import OpenAIEmbedder
-from phi.document.chunking.recursive import RecursiveChunking
+from agno.run.response import RunResponse
+from agno.workflow import Workflow
+from agno.agent import Agent
+from agno.models.openai import OpenAIChat
+from agno.knowledge.website import WebsiteKnowledgeBase
+from agno.vectordb.lancedb import LanceDb
+from agno.vectordb.search import SearchType
+from agno.embedder.openai import OpenAIEmbedder
+from agno.document.chunking.recursive import RecursiveChunking
 from typing import List
 from dotenv import load_dotenv
-from phi.utils.log import logger
+from agno.utils.log import logger
 
 load_dotenv()
 

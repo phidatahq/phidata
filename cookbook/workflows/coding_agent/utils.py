@@ -1,6 +1,6 @@
 import json
-from phi.utils.log import logger
-from phi.tools.website import WebsiteTools
+from agno.utils.log import logger
+from agno.tools.website import WebsiteTools
 
 
 def clean_content(text: str) -> str:

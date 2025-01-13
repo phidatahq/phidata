@@ -269,7 +269,7 @@ class PhiCliConfig:
         else:
             print_info("No active workspace found.")
             print_info(
-                "Please create a workspace using `phi ws create` " "or setup existing workspace using `phi ws setup`"
+                "Please create a workspace using `phi ws create` or setup existing workspace using `phi ws setup`"
             )
 
         if show_all and len(self.ws_config_map) > 0:

@@ -2,12 +2,12 @@ from pathlib import Path
 
 from agno.agent import Agent
 from agno.models.google import Gemini
-from agno.tools.duckduckgo import DuckDuckGo
+from agno.tools.duckduckgo import DuckDuckGoTools
 from google.generativeai import upload_file
 
 agent = Agent(
     model=Gemini(id="gemini-2.0-flash-exp"),
-    tools=[DuckDuckGo()],
+    tools=[DuckDuckGoTools()],
     markdown=True,
 )
 # Please download the image using

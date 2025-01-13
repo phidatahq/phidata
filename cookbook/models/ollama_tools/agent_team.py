@@ -1,13 +1,13 @@
 from agno.agent import Agent
 from agno.models.ollama import OllamaTools
-from agno.tools.duckduckgo import DuckDuckGo
+from agno.tools.duckduckgo import DuckDuckGoTools
 from agno.tools.yfinance import YFinanceTools
 
 web_agent = Agent(
     name="Web Agent",
     role="Search the web for information",
     model=OllamaTools(id="llama3.2"),
-    tools=[DuckDuckGo()],
+    tools=[DuckDuckGoTools()],
     instructions=["Always include sources"],
     show_tool_calls=True,
     markdown=True,

@@ -4,7 +4,7 @@ from agno.tools import Toolkit
 from agno.utils.log import logger
 
 
-class Sleep(Toolkit):
+class SleepTools(Toolkit):
     def __init__(self):
         super().__init__(name="sleep")
 

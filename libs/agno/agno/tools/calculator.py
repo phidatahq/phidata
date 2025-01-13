@@ -5,7 +5,7 @@ from agno.tools import Toolkit
 from agno.utils.log import logger
 
 
-class Calculator(Toolkit):
+class CalculatorTools(Toolkit):
     def __init__(
         self,
         add: bool = True,

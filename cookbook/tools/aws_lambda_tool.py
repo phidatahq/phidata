@@ -1,12 +1,12 @@
 """Run `pip install openai boto3` to install dependencies."""
 
 from agno.agent import Agent
-from agno.tools.aws_lambda import AWSLambdaTool
+from agno.tools.aws_lambda import AWSLambdaTools
 
 
 # Create an Agent with the AWSLambdaTool
 agent = Agent(
-    tools=[AWSLambdaTool(region_name="us-east-1")],
+    tools=[AWSLambdaTools(region_name="us-east-1")],
     name="AWS Lambda Agent",
     show_tool_calls=True,
 )

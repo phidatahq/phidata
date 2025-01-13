@@ -12,7 +12,7 @@ from agno.agent import Agent
 from agno.models.openai import OpenAIChat
 from agno.workflow import Workflow, RunResponse, RunEvent
 from agno.storage.workflow.sqlite import SqlWorkflowStorage
-from agno.tools.duckduckgo import DuckDuckGo
+from agno.tools.duckduckgo import DuckDuckGoTools
 from agno.utils.pprint import pprint_run_response
 from agno.utils.log import logger
 
@@ -33,7 +33,7 @@ class BlogPostGenerator(Workflow):
 
     searcher: Agent = Agent(
         model=OpenAIChat(id="gpt-4o-mini"),
-        tools=[DuckDuckGo()],
+        tools=[DuckDuckGoTools()],
         instructions=["Given a topic, search for the top 5 articles."],
         response_model=SearchResults,
         structured_outputs=True,

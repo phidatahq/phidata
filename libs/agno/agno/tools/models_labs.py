@@ -16,7 +16,7 @@ except ImportError:
     raise ImportError("`requests` not installed. Please install using `pip install requests`")
 
 
-class ModelsLabs(Toolkit):
+class ModelsLabTools(Toolkit):
     def __init__(
         self,
         api_key: Optional[str] = None,

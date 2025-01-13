@@ -7,8 +7,8 @@ from agno.agent import Agent
 from agno.models.azure.openai_chat import AzureOpenAIChat
 from agno.playground import Playground, serve_playground_app
 from agno.storage.agent.sqlite import SqlAgentStorage
-from agno.tools.dalle import Dalle
-from agno.tools.duckduckgo import DuckDuckGo
+from agno.tools.dalle import DalleTools
+from agno.tools.duckduckgo import DuckDuckGoTools
 from agno.tools.exa import ExaTools
 from agno.tools.yfinance import YFinanceTools
 from agno.tools.youtube_tools import YouTubeTools
@@ -20,7 +20,7 @@ web_agent = Agent(
     role="Search the web for information",
     agent_id="web-agent",
     model=AzureOpenAIChat(id="gpt-4o"),
-    tools=[DuckDuckGo()],
+    tools=[DuckDuckGoTools()],
     instructions=["Break down the users request into 2-3 different searches.", "Always include sources"],
     storage=SqlAgentStorage(table_name="web_agent", db_file=agent_storage_file),
     add_history_to_messages=True,
@@ -48,7 +48,7 @@ image_agent = Agent(
     role="Generate images given a prompt",
     agent_id="image-agent",
     model=AzureOpenAIChat(id="gpt-4o"),
-    tools=[Dalle(model="dall-e-3", size="1792x1024", quality="hd", style="vivid")],
+    tools=[DalleTools(model="dall-e-3", size="1792x1024", quality="hd", style="vivid")],
     storage=SqlAgentStorage(table_name="image_agent", db_file=agent_storage_file),
     add_history_to_messages=True,
     add_datetime_to_instructions=True,

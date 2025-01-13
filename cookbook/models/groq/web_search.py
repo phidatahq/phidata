@@ -2,11 +2,11 @@
 
 from agno.agent import Agent
 from agno.models.groq import Groq
-from agno.tools.duckduckgo import DuckDuckGo
+from agno.tools.duckduckgo import DuckDuckGoTools
 
 agent = Agent(
     model=Groq(id="llama-3.3-70b-versatile"),
-    tools=[DuckDuckGo()],
+    tools=[DuckDuckGoTools()],
     show_tool_calls=True,
     markdown=True,
 )

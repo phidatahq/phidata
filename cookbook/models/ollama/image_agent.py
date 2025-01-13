@@ -12,5 +12,5 @@ agent = Agent(
 image_path = Path(__file__).parent.joinpath("super-agents.png")
 agent.print_response(
     "Write a 3 sentence fiction story about the image",
-    images=[ImageInput(filepath=str(image_path))],
+    images=[ImageInput(filepath=image_path)],
 )

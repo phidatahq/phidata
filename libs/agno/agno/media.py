@@ -1,4 +1,6 @@
-from typing import Any, Optional
+from pathlib import Path
+
+from typing import Any, Optional, Union
 
 from pydantic import BaseModel, model_validator
 
@@ -40,7 +42,7 @@ class AudioArtifact(Media):
 
 class ImageInput(BaseModel):
     url: Optional[str] = None  # Remote location for image
-    filepath: Optional[str] = None  # Absolute local location for image
+    filepath: Optional[Union[Path, str]] = None  # Absolute local location for image
     content: Optional[Any] = None  # Actual image bytes content
     id: Optional[str] = None
 

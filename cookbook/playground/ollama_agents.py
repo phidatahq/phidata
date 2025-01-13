@@ -4,7 +4,7 @@ from agno.agent import Agent
 from agno.models.ollama import Ollama
 from agno.playground import Playground, serve_playground_app
 from agno.storage.agent.sqlite import SqlAgentStorage
-from agno.tools.duckduckgo import DuckDuckGo
+from agno.tools.duckduckgo import DuckDuckGoTools
 from agno.tools.yfinance import YFinanceTools
 from agno.tools.youtube_tools import YouTubeTools
 
@@ -18,7 +18,7 @@ web_agent = Agent(
     role="Search the web for information",
     agent_id="web-agent",
     model=Ollama(id="llama3.1:8b"),
-    tools=[DuckDuckGo()],
+    tools=[DuckDuckGoTools()],
     instructions=["Always include sources."] + common_instructions,
     storage=SqlAgentStorage(table_name="web_agent", db_file=local_agent_storage_file),
     show_tool_calls=True,

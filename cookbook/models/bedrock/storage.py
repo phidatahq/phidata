@@ -2,7 +2,7 @@
 
 from agno.agent import Agent
 from agno.models.aws.claude import Claude
-from agno.tools.duckduckgo import DuckDuckGo
+from agno.tools.duckduckgo import DuckDuckGoTools
 from agno.storage.agent.postgres import PgAgentStorage
 
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
@@ -10,7 +10,7 @@ db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 agent = Agent(
     model=Claude(id="anthropic.claude-3-5-sonnet-20240620-v1:0"),
     storage=PgAgentStorage(table_name="agent_sessions", db_url=db_url),
-    tools=[DuckDuckGo()],
+    tools=[DuckDuckGoTools()],
     add_history_to_messages=True,
 )
 agent.print_response("How many people live in Canada?")

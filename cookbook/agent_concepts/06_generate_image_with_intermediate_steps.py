@@ -2,11 +2,11 @@ from typing import Iterator
 from rich.pretty import pprint
 from agno.agent import Agent, RunResponse
 from agno.models.openai import OpenAIChat
-from agno.tools.dalle import Dalle
+from agno.tools.dalle import DalleTools
 
 image_agent = Agent(
     model=OpenAIChat(id="gpt-4o"),
-    tools=[Dalle()],
+    tools=[DalleTools()],
     description="You are an AI agent that can create images using DALL-E.",
     instructions=[
         "When the user asks you to create an image, use the DALL-E tool to create an image.",

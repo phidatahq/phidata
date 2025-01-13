@@ -7,7 +7,7 @@ from agno.tools import Toolkit
 from agno.utils.log import logger
 
 
-class LinearTool(Toolkit):
+class LinearTools(Toolkit):
     def __init__(
         self,
         get_user_details: bool = True,

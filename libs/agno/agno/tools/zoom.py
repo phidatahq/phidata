@@ -7,7 +7,7 @@ from agno.tools.toolkit import Toolkit
 from agno.utils.log import logger
 
 
-class ZoomTool(Toolkit):
+class ZoomTools(Toolkit):
     def __init__(
         self,
         account_id: Optional[str] = None,

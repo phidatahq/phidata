@@ -2,14 +2,14 @@ from textwrap import dedent
 
 from agno.agent import Agent
 from agno.models.openai import OpenAIChat
-from agno.tools.duckduckgo import DuckDuckGo
+from agno.tools.duckduckgo import DuckDuckGoTools
 from agno.tools.yfinance import YFinanceTools
 
 web_agent = Agent(
     name="Web Agent",
     role="Search the web for information",
     model=OpenAIChat(id="gpt-4o"),
-    tools=[DuckDuckGo()],
+    tools=[DuckDuckGoTools()],
     instructions=["Always include sources"],
     expected_output=dedent("""\
     ## {title}

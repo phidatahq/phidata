@@ -1,8 +1,9 @@
 from typing import Optional, List, Dict, Any, Iterable
+
 from agno.vectordb.base import VectorDb
 from agno.embedder import Embedder
 from agno.document import Document
-from agno.vectordb.cassandra.index import PhiMetadataVectorCassandraTable
+from agno.vectordb.cassandra.index import AgnoMetadataVectorCassandraTable
 from agno.utils.log import logger
 
 
@@ -34,7 +35,7 @@ class CassandraDb(VectorDb):
         self.initialize_table()
 
     def initialize_table(self):
-        self.table = PhiMetadataVectorCassandraTable(
+        self.table = AgnoMetadataVectorCassandraTable(
             session=self.session,
             keyspace=self.keyspace,
             vector_dimension=1024,

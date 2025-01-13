@@ -8,5 +8,5 @@ except (ImportError, ModuleNotFoundError):
     raise ImportError("Could not import cassio python package. Please install it with pip install cassio.")
 
 
-class PhiMetadataVectorCassandraTable(ExtraParamMixin, TypeNormalizerMixin, MetadataMixin, VectorMixin, BaseTable):
+class AgnoMetadataVectorCassandraTable(ExtraParamMixin, TypeNormalizerMixin, MetadataMixin, VectorMixin, BaseTable):
     pass

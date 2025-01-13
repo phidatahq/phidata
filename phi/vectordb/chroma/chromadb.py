@@ -9,7 +9,7 @@ try:
     from chromadb.api.types import QueryResult, GetResult
 
 except ImportError:
-    raise ImportError("The `chromadb` package is not installed. " "Please install it via `pip install chromadb`.")
+    raise ImportError("The `chromadb` package is not installed. Please install it via `pip install chromadb`.")
 
 from phi.document import Document
 from phi.embedder import Embedder

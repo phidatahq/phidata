@@ -1,10 +1,10 @@
-from typing import Optional, List, Dict, Any, Iterable
+from typing import Any, Dict, Iterable, List, Optional
 
-from agno.vectordb.base import VectorDb
-from agno.embedder import Embedder
 from agno.document import Document
-from agno.vectordb.cassandra.index import AgnoMetadataVectorCassandraTable
+from agno.embedder import Embedder
 from agno.utils.log import logger
+from agno.vectordb.base import VectorDb
+from agno.vectordb.cassandra.index import AgnoMetadataVectorCassandraTable
 
 
 class CassandraDb(VectorDb):

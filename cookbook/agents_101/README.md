@@ -1,7 +1,6 @@
-# Agno Cookbooks
+# Agents 101
 
-Here you’ll find examples that’ll help you use Agno, from basic agents and workflows to advanced multi-agent examples.
-If you have more, please contribute to this list.
+Here we have a basic walkthrough of a basic to more advanced agent.
 
 The cookbooks are organised as follows:
  - [Get started](./agents_101): A basic series of agents to get you started.

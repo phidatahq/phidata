@@ -4,7 +4,7 @@ This workflow demonstrates how to create a personalized marketing email for a gi
 Steps to run the workflow:
 
 1. Set up OpenAI and Resend API keys in the environment variables.
-2. Update the `company_info` dictionary with the details of the companies you want to target. (Note: If email address is not scraped from the website, the provided email address will be used as a fallback.)
+2. Update the `company_info` dictionary with the details of the companies you want to target. (Note: If the provided email is unreachable, a fallback will be attempted using scraped email addresses from the website.)
 4. Customize the email template with placeholders for the subject line, recipient name, sender name, and other details.
 4. Run the workflow by executing the script.
 5. The workflow will scrape the website of each company, extract relevant information, and generate and send a personalized email.
@@ -22,7 +22,7 @@ from phi.tools.firecrawl import FirecrawlTools
 from phi.tools.resend_tools import ResendTools
 from phi.utils.pprint import pprint_run_response
 from phi.utils.log import logger
-
+from email_validator import validate_email, EmailNotValidError
 
 company_info: Dict = {
     "Phidata": {
@@ -61,6 +61,60 @@ Best regards,
 [SENDER_NAME]
 [SENDER_CONTACT_INFORMATION]
 """
+email_template = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+        }
+        h1 {
+            color: #0073e6;
+        }
+        a {
+            color: #0073e6;
+            text-decoration: none;
+        }
+        .button {
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: #0073e6;
+            color: #fff;
+            text-align: center;
+            border-radius: 5px;
+            text-decoration: none;
+            margin-top: 15px;
+        }
+        .button:hover {
+            background-color: #005bb5;
+        }
+    </style>
+</head>
+<body>
+    <h1>[SUBJECT_LINE]</h1>
+
+    <p>Hi <strong>[RECIPIENT_NAME]</strong>,</p>
+
+    <p>I’m <strong>[SENDER_NAME]</strong>. I was impressed by <strong>[COMPANY_NAME]</strong>’s <em>[UNIQUE_ATTRIBUTE]</em>. It’s clear you have a strong vision for serving your customers.</p>
+
+    <p>At <strong>[YOUR_ORGANIZATION]</strong>, we provide tailored solutions to help businesses stand out in today’s competitive market. After reviewing your online presence, I noticed a few opportunities that, if optimized, could significantly boost your brand’s visibility and engagement.</p>
+
+    <p>To showcase how we can help, I’m offering a <strong>[FREE_INITIAL_SERVICE]</strong>. This assessment will highlight key areas for growth and provide actionable steps to improve your online impact.</p>
+
+    <p>Let’s discuss how we can work together to achieve these goals. Could we schedule a quick call? Please let me know a time that works for you or feel free to book directly here:</p>
+
+    <p><a href="[CALENDAR_LINK]" class="button">Book a Meeting</a></p>
+
+    <p>Best regards,</p>
+    <p><strong>[SENDER_NAME]</strong><br>[SENDER_CONTACT_INFORMATION]</p>
+</body>
+</html>
+"""
 
 
 class CompanyInfo(BaseModel):
@@ -70,8 +124,7 @@ class CompanyInfo(BaseModel):
     unique_selling_point: Optional[str] = Field(None, description="What sets the company apart from its competitors.")
     email_address: Optional[str] = Field(None, description="Email address of the company.")
 
-
-def company_info_to_string(company: CompanyInfo, fallback_email: str) -> str:
+def company_info_to_string(contact_email: str, company: CompanyInfo) -> str:
     """
     Construct a single string description of the company, omitting None fields.
     If company.email_address is None, use fallback_email.
@@ -87,8 +140,13 @@ def company_info_to_string(company: CompanyInfo, fallback_email: str) -> str:
     if company.unique_selling_point:
         parts.append(f"known for {company.unique_selling_point}")
 
-    # Fallback for the email
-    contact_email = company.email_address or fallback_email
+    # Determine email address to use
+    try:
+        email_info = validate_email(contact_email, check_deliverability=True)
+        contact_email = email_info.normalized
+    except EmailNotValidError:
+        logger.warning(f"Invalid email address: {contact_email}. Using fallback.")
+        contact_email = company.email_address if company.email_address else "unreachable"
     parts.append(f"contactable at {contact_email}")
 
     return ", ".join(parts) + "."
@@ -105,12 +163,6 @@ class PersonalisedMarketing(Workflow):
         response_model=CompanyInfo,
         structured_outputs=True,
     )
-
-    email_validator: Agent = Agent() # Add an agent to validate the email address using pip install email-validator
-    response_model = structured output of boolean
-
-    
-
 
     email_creator: Agent = Agent(
         model=OpenAIChat(id="gpt-4o"),
@@ -153,9 +205,9 @@ class PersonalisedMarketing(Workflow):
             except ValidationError as e:
                 logger.error(f"Validation error for {company_key}: {e}")
                 continue
-
+            
             # 3. Create a descriptive string
-            message = company_info_to_string(company_extracted_data, info["email"])
+            message = company_info_to_string(info["email"], company_extracted_data)
 
             # 4. Generate and send the email
             response_stream = self.email_creator.run(message, stream=True)

@@ -1,0 +1,9 @@
+jiter-0.8.2.dist-info/INSTALLER,sha256=zuuue4knoyJ-UwPPXg8fezS7VCrXJQrAP7zeNuwvFQg,4
+jiter-0.8.2.dist-info/METADATA,sha256=VdOT_6YbBf3ENlJDsdCNVUJ61N14uIaTHyVcHScgGb8,5177
+jiter-0.8.2.dist-info/RECORD,,
+jiter-0.8.2.dist-info/WHEEL,sha256=89pFXTPXhdjOKn4IehnPhkNkbRz-OkDjqIiTzdiUU1Y,104
+jiter/__init__.py,sha256=Fp9HkOixiYYDSiC_80vmiJ_sCoCGT8OAh48yltm0lP0,103
+jiter/__init__.pyi,sha256=AEs-Zbzf7c2r5vUTpTjxkLBuN7KnfFTURrWrZJAZnQY,2363
+jiter/__pycache__/__init__.cpython-312.pyc,,
+jiter/jiter.cpython-312-darwin.so,sha256=K7QVcBPQgu3OluHnOe2c3BRiTdQhlHjxJkG2ZoxQeu4,752952
+jiter/py.typed,sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU,0

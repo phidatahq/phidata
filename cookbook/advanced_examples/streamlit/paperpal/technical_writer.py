@@ -2,11 +2,11 @@ import os
 from pathlib import Path
 from typing import List
 from pydantic import BaseModel, Field
-from phi.agent import Agent
+from agno.agent import Agent
 from dotenv import load_dotenv
-from phi.model.openai import OpenAIChat
-from phi.tools.arxiv_toolkit import ArxivToolkit
-from phi.tools.exa import ExaTools
+from agno.models.openai import OpenAIChat
+from agno.tools.arxiv_toolkit import ArxivToolkit
+from agno.tools.exa import ExaTools
 
 load_dotenv()
 

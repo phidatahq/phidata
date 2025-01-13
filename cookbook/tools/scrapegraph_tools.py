@@ -1,5 +1,5 @@
-from phi.agent import Agent
-from phi.tools.scrapegraph_tools import ScrapeGraphTools
+from agno.agent import Agent
+from agno.tools.scrapegraph_tools import ScrapeGraphTools
 
 
 # Example 1: Default behavior - only smartscraper enabled

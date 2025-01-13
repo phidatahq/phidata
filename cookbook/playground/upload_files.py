@@ -1,13 +1,13 @@
-from phi.agent import Agent
-from phi.knowledge.docx import DocxKnowledgeBase
-from phi.knowledge.json import JSONKnowledgeBase
-from phi.knowledge.pdf import PDFKnowledgeBase
-from phi.knowledge.csv import CSVKnowledgeBase
-from phi.knowledge.combined import CombinedKnowledgeBase
-from phi.knowledge.text import TextKnowledgeBase
-from phi.playground.playground import Playground
-from phi.playground.serve import serve_playground_app
-from phi.vectordb.pgvector import PgVector
+from agno.agent import Agent
+from agno.knowledge.docx import DocxKnowledgeBase
+from agno.knowledge.json import JSONKnowledgeBase
+from agno.knowledge.pdf import PDFKnowledgeBase
+from agno.knowledge.csv import CSVKnowledgeBase
+from agno.knowledge.combined import CombinedKnowledgeBase
+from agno.knowledge.text import TextKnowledgeBase
+from agno.playground.playground import Playground
+from agno.playground.serve import serve_playground_app
+from agno.vectordb.pgvector import PgVector
 
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 

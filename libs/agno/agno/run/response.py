@@ -3,9 +3,9 @@ from enum import Enum
 from time import time
 from typing import Any, Dict, List, Optional
 
-from agno.agent.media import Audio, Image, Video
 from agno.models.message import Message, MessageReferences
 from agno.reasoning.step import ReasoningStep
+from agno.run.media import Audio, Image, Video
 
 
 class RunEvent(str, Enum):
@@ -16,9 +16,9 @@ class RunEvent(str, Enum):
     run_completed = "RunCompleted"
     tool_call_started = "ToolCallStarted"
     tool_call_completed = "ToolCallCompleted"
-    step_started = "StepStarted"
-    step_completed = "StepCompleted"
+    reasoning_started = "ReasoningStarted"
     reasoning_step = "ReasoningStep"
+    reasoning_completed = "ReasoningCompleted"
     updating_memory = "UpdatingMemory"
     workflow_started = "WorkflowStarted"
     workflow_completed = "WorkflowCompleted"

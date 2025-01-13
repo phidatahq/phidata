@@ -1,0 +1,9 @@
+[case testDundersNotImplemented]
+# This case is special because it tests the behavior of NotImplemented
+# used in a typed function which return type is bool.
+# This is a convention that can be overriden by the user.
+class UsesNotImplemented:
+    def __eq__(self, b: object) -> bool:
+        return NotImplemented
+
+assert UsesNotImplemented() != object()

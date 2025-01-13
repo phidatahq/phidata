@@ -5,7 +5,7 @@ from agno.models.openai import OpenAIChat
 from agno.tools.calcom import CalComTools
 
 """
-Example showing how to use the Cal.com Tools with Phi.
+Example showing how to use the Cal.com Tools with Agno.
 
 Requirements:
 - Cal.com API key (get from cal.com/settings/developer/api-keys)

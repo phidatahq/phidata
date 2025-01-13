@@ -1,4 +1,3 @@
-from dataclasses import asdict
 from datetime import datetime, timezone
 from typing import List, Optional
 from uuid import UUID
@@ -76,7 +75,7 @@ class MongoAgentStorage(AgentStorage):
             if doc:
                 # Remove MongoDB _id before converting to AgentSession
                 doc.pop("_id", None)
-                return AgentSession(**doc)
+                return AgentSession.from_dict(doc)
             return None
         except PyMongoError as e:
             logger.error(f"Error reading session: {e}")
@@ -124,7 +123,9 @@ class MongoAgentStorage(AgentStorage):
             for doc in cursor:
                 # Remove MongoDB _id before converting to AgentSession
                 doc.pop("_id", None)
-                sessions.append(AgentSession(doc))
+                _agent_session = AgentSession.from_dict(doc)
+                if _agent_session is not None:
+                    sessions.append(_agent_session)
             return sessions
         except PyMongoError as e:
             logger.error(f"Error getting sessions: {e}")
@@ -140,7 +141,7 @@ class MongoAgentStorage(AgentStorage):
         """
         try:
             # Convert session to dict and add timestamps
-            session_dict = asdict(session)
+            session_dict = session.to_dict()
             now = datetime.now(timezone.utc)
             timestamp = int(now.timestamp())
 

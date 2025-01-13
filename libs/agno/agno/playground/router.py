@@ -10,9 +10,9 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from agno.agent.agent import Agent, RunResponse
 from agno.agent.session import AgentSession
 from agno.document.reader.csv_reader import CSVReader
-from agno.document.reader.docx import DocxReader
-from agno.document.reader.pdf import PDFReader
-from agno.document.reader.text import TextReader
+from agno.document.reader.docx_reader import DocxReader
+from agno.document.reader.pdf_reader import PDFReader
+from agno.document.reader.text_reader import TextReader
 from agno.playground.operator import (
     format_tools,
     get_agent_by_id,
@@ -380,7 +380,8 @@ def get_playground_router(
         if workflow is None:
             raise HTTPException(status_code=404, detail="Workflow not found")
 
-        workflow.rename_session(session_id, body.name)
+        workflow.session_id = session_id
+        workflow.rename_session(body.name)
         return JSONResponse(content={"message": f"successfully renamed workflow {workflow.name}"})
 
     @playground_router.post("/workflow/{workflow_id}/session/{session_id}/delete")
@@ -756,7 +757,8 @@ def get_async_playground_router(
         if workflow is None:
             raise HTTPException(status_code=404, detail="Workflow not found")
 
-        workflow.rename_session(session_id, body.name)
+        workflow.session_id = session_id
+        workflow.rename_session(body.name)
         return JSONResponse(content={"message": f"successfully renamed workflow {workflow.name}"})
 
     @playground_router.post("/workflow/{workflow_id}/session/{session_id}/delete")

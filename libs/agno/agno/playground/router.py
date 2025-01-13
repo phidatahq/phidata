@@ -545,7 +545,7 @@ def get_async_playground_router(
 
         if stream:
             return StreamingResponse(
-                chat_response_streamer(new_agent_instance, message, images=[image_input]),
+                chat_response_streamer(new_agent_instance, message, images=[image_input] if image_input else None),
                 media_type="text/event-stream",
             )
         else:
@@ -553,7 +553,7 @@ def get_async_playground_router(
                 RunResponse,
                 await new_agent_instance.arun(
                     message,
-                    images=[image_input],
+                    images=[image_input] if image_input else None,
                     stream=False,
                 ),
             )

@@ -38,6 +38,7 @@ dist
 venv*
 agnoenv*
 aienv*
+phienv*
 
 # ignore tmp dirs
 scratch

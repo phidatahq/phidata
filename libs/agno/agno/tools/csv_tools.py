@@ -116,6 +116,9 @@ class CsvTools(Toolkit):
         """Use this function to run a SQL query on csv file `csv_name` without the extension.
         The Table name is the name of the csv file without the extension.
         The SQL Query should be a valid DuckDB SQL query.
+        Always wrap column names with double quotes if they contain spaces or special characters
+        Remember to escape the quotes in th e JSON string (use \")
+        Use single quotes for string values
 
         Args:
             csv_name (str): The name of the csv file to query

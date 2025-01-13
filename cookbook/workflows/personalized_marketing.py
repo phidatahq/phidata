@@ -106,6 +106,7 @@ class CompanyInfo(BaseModel):
     unique_selling_point: Optional[str] = Field(None, description="What sets the company apart from its competitors.")
     email_address: Optional[str] = Field(None, description="Email address of the company.")
 
+
 def company_info_to_string(contact_email: str, company: CompanyInfo) -> str:
     """
     Construct a single string description of the company, omitting None fields.
@@ -187,7 +188,7 @@ class PersonalisedMarketing(Workflow):
             except ValidationError as e:
                 logger.error(f"Validation error for {company_key}: {e}")
                 continue
-            
+
             # 3. Create a descriptive string
             message = company_info_to_string(info["email"], company_extracted_data)
 

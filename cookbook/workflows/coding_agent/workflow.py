@@ -3,10 +3,10 @@ from dotenv import load_dotenv
 
 from pydantic import BaseModel, Field
 
-from phi.agent import Agent, RunResponse
-from phi.model.openai import OpenAIChat
-from phi.workflow import Workflow, RunEvent
-from phi.utils.log import logger
+from agno.agent import Agent, RunResponse
+from agno.models.openai import OpenAIChat
+from agno.workflow import Workflow, RunEvent
+from agno.utils.log import logger
 from cookbook.examples.workflows.coding_agent.utils import scrape_and_process, evaluate_response
 
 load_dotenv()

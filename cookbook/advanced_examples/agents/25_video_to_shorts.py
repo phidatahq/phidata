@@ -10,9 +10,9 @@ from pathlib import Path
 
 from google.generativeai import upload_file, get_file
 
-from phi.agent import Agent
-from phi.model.google import Gemini
-from phi.utils.log import logger
+from agno.agent import Agent
+from agno.models.google import Gemini
+from agno.utils.log import logger
 
 video_path = "sample.mp4"
 output_dir = Path("output/sample")

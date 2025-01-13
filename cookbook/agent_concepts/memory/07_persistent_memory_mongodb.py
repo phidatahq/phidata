@@ -12,11 +12,11 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.json import JSON
 
-from phi.agent import Agent
-from phi.memory.agent import AgentMemory
-from phi.memory.db.mongodb import MongoMemoryDb
-from phi.model.openai import OpenAIChat
-from phi.storage.agent.mongodb import MongoAgentStorage
+from agno.agent import Agent
+from agno.memory.agent import AgentMemory
+from agno.memory.db.mongodb import MongoMemoryDb
+from agno.models.openai import OpenAIChat
+from agno.storage.agent.mongodb import MongoAgentStorage
 
 
 # MongoDB connection settings

@@ -1,10 +1,10 @@
 # install pymongo - `pip install pymongo`
 
-from phi.agent import Agent
-from phi.knowledge.pdf import PDFUrlKnowledgeBase
+from agno.agent import Agent
+from agno.knowledge.pdf import PDFUrlKnowledgeBase
 
 # os.environ["OPENAI_API_KEY"] = ""
-from phi.vectordb.mongodb import MongoDBVector
+from agno.vectordb.mongodb import MongoDBVector
 
 # MongoDB Atlas connection string
 """

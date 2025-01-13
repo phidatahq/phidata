@@ -10,9 +10,9 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from agno.agent.agent import Agent, RunResponse
 from agno.agent.session import AgentSession
 from agno.document.reader.csv_reader import CSVReader
-from libs.agno.agno.document.reader.docx_reader import DocxReader
-from libs.agno.agno.document.reader.pdf_reader import PDFReader
-from libs.agno.agno.document.reader.text_reader import TextReader
+from agno.document.reader.docx_reader import DocxReader
+from agno.document.reader.pdf_reader import PDFReader
+from agno.document.reader.text_reader import TextReader
 from agno.playground.operator import (
     format_tools,
     get_agent_by_id,

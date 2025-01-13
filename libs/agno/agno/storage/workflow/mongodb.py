@@ -1,18 +1,18 @@
 from datetime import datetime, timezone
-from typing import Optional, List
+from typing import List, Optional
 from uuid import UUID
 
 try:
     from pymongo import MongoClient
-    from pymongo.database import Database
     from pymongo.collection import Collection
+    from pymongo.database import Database
     from pymongo.errors import PyMongoError
 except ImportError:
     raise ImportError("`pymongo` not installed. Please install it with `pip install pymongo`")
 
-from agno.workflow import WorkflowSession
 from agno.storage.workflow.base import WorkflowStorage
 from agno.utils.log import logger
+from agno.workflow import WorkflowSession
 
 
 class MongoWorkflowStorage(WorkflowStorage):
@@ -78,7 +78,7 @@ class MongoWorkflowStorage(WorkflowStorage):
             if doc:
                 # Remove MongoDB _id before converting to WorkflowSession
                 doc.pop("_id", None)
-                return WorkflowSession.model_validate(doc)
+                return WorkflowSession.from_dict(doc)
             return None
         except PyMongoError as e:
             logger.error(f"Error reading session: {e}")
@@ -128,7 +128,9 @@ class MongoWorkflowStorage(WorkflowStorage):
             for doc in cursor:
                 # Remove MongoDB _id before converting to WorkflowSession
                 doc.pop("_id", None)
-                sessions.append(WorkflowSession.model_validate(doc))
+                _workflow_session = WorkflowSession.from_dict(doc)
+                if _workflow_session is not None:
+                    sessions.append(_workflow_session)
             return sessions
         except PyMongoError as e:
             logger.error(f"Error getting sessions: {e}")
@@ -144,7 +146,7 @@ class MongoWorkflowStorage(WorkflowStorage):
         """
         try:
             # Convert session to dict and add timestamps
-            session_dict = session.model_dump()
+            session_dict = session.to_dict()
             now = datetime.now(timezone.utc)
             timestamp = int(now.timestamp())
 

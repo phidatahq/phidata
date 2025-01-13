@@ -138,7 +138,7 @@ class Gemini(Model):
     def format_image_for_message(self, image: ImageInput) -> Optional[Dict[str, Any]]:
         # Case 1: Image is a URL
         # Download the image from the URL and add it as base64 encoded data
-        if image.url is not None:
+        if image.url is not None and image.image_url_content is not None:
             try:
                 import base64
 

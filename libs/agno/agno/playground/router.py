@@ -1,8 +1,7 @@
-import base64
 import json
 from dataclasses import asdict
 from io import BytesIO
-from typing import Any, AsyncGenerator, Dict, Generator, List, Optional, Union, cast
+from typing import Any, AsyncGenerator, Generator, List, Optional, cast
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -13,6 +12,7 @@ from agno.document.reader.csv_reader import CSVReader
 from agno.document.reader.docx_reader import DocxReader
 from agno.document.reader.pdf_reader import PDFReader
 from agno.document.reader.text_reader import TextReader
+from agno.media import ImageInput
 from agno.playground.operator import (
     format_tools,
     get_agent_by_id,
@@ -91,21 +91,16 @@ def get_playground_router(
 
         return agent_list
 
-    def chat_response_streamer(
-        agent: Agent, message: str, images: Optional[List[Union[str, Dict]]] = None
-    ) -> Generator:
-        run_response = agent.run(message, images=images, stream=True, stream_intermediate_steps=True)
+    def chat_response_streamer(agent: Agent, message: str, images: Optional[List[ImageInput]] = None) -> Generator:
+        run_response = agent.run(message=message, images=images, stream=True, stream_intermediate_steps=True)
         for run_response_chunk in run_response:
             run_response_chunk = cast(RunResponse, run_response_chunk)
             yield run_response_chunk.to_json()
 
-    def process_image(file: UploadFile) -> List[Union[str, Dict]]:
+    def process_image(file: UploadFile) -> ImageInput:
         content = file.file.read()
-        encoded = base64.b64encode(content).decode("utf-8")
 
-        image_info = {"filename": file.filename, "content_type": file.content_type, "size": len(content)}
-
-        return [encoded, image_info]
+        return ImageInput(content=content)
 
     @playground_router.post("/agent/run")
     def agent_run(
@@ -142,9 +137,9 @@ def get_playground_router(
         else:
             new_agent_instance.monitoring = False
 
-        base64_image: Optional[List[Union[str, Dict]]] = None
+        image_input: Optional[ImageInput] = None
         if image:
-            base64_image = process_image(image)
+            image_input = process_image(image)
 
         if files:
             for file in files:
@@ -181,15 +176,15 @@ def get_playground_router(
 
         if stream:
             return StreamingResponse(
-                chat_response_streamer(new_agent_instance, message, images=base64_image),
+                chat_response_streamer(new_agent_instance, message, images=[image_input] if image_input else None),
                 media_type="text/event-stream",
             )
         else:
             run_response = cast(
                 RunResponse,
                 new_agent_instance.run(
-                    message,
-                    images=base64_image,
+                    message=message,
+                    images=[image_input] if image_input else None,
                     stream=False,
                 ),
             )
@@ -455,7 +450,7 @@ def get_async_playground_router(
     async def chat_response_streamer(
         agent: Agent,
         message: str,
-        images: Optional[List[Union[str, Dict]]] = None,
+        images: Optional[List[ImageInput]] = None,
         audio_file_content: Optional[Any] = None,
         video_file_content: Optional[Any] = None,
     ) -> AsyncGenerator:
@@ -471,13 +466,10 @@ def get_async_playground_router(
             run_response_chunk = cast(RunResponse, run_response_chunk)
             yield run_response_chunk.to_json()
 
-    async def process_image(file: UploadFile) -> List[Union[str, Dict]]:
+    async def process_image(file: UploadFile) -> ImageInput:
         content = file.file.read()
-        encoded = base64.b64encode(content).decode("utf-8")
 
-        image_info = {"filename": file.filename, "content_type": file.content_type, "size": len(content)}
-
-        return [encoded, image_info]
+        return ImageInput(content=content)
 
     @playground_router.post("/agent/run")
     async def agent_run(
@@ -514,9 +506,9 @@ def get_async_playground_router(
         else:
             new_agent_instance.monitoring = False
 
-        base64_image: Optional[List[Union[str, Dict]]] = None
+        image_input: Optional[ImageInput] = None
         if image:
-            base64_image = await process_image(image)
+            image_input = await process_image(image)
 
         if files:
             for file in files:
@@ -553,7 +545,7 @@ def get_async_playground_router(
 
         if stream:
             return StreamingResponse(
-                chat_response_streamer(new_agent_instance, message, images=base64_image),
+                chat_response_streamer(new_agent_instance, message, images=[image_input]),
                 media_type="text/event-stream",
             )
         else:
@@ -561,7 +553,7 @@ def get_async_playground_router(
                 RunResponse,
                 await new_agent_instance.arun(
                     message,
-                    images=base64_image,
+                    images=[image_input],
                     stream=False,
                 ),
             )

@@ -11,8 +11,8 @@ from uuid import uuid4
 from pydantic import BaseModel
 
 from agno.agent import Agent
+from agno.media import AudioArtifact, ImageArtifact, VideoArtifact
 from agno.memory.workflow import WorkflowMemory, WorkflowRun
-from agno.run.media import Audio, Image, Video
 from agno.run.response import RunEvent, RunResponse  # noqa: F401
 from agno.storage.workflow.base import WorkflowStorage
 from agno.utils.log import logger, set_log_level_to_debug, set_log_level_to_info
@@ -64,11 +64,11 @@ class Workflow:
     run_input: Optional[Dict[str, Any]] = None
     run_response: Optional[RunResponse] = None
     # Images generated during this session
-    images: Optional[List[Image]] = None
+    images: Optional[List[ImageArtifact]] = None
     # Videos generated during this session
-    videos: Optional[List[Video]] = None
+    videos: Optional[List[VideoArtifact]] = None
     # Audio generated during this session
-    audio: Optional[List[Audio]] = None
+    audio: Optional[List[AudioArtifact]] = None
 
     def __init__(
         self,
@@ -399,19 +399,19 @@ class Workflow:
                 if images_from_db is not None and isinstance(images_from_db, list):
                     if self.images is None:
                         self.images = []
-                    self.images.extend([Image.model_validate(img) for img in images_from_db])
+                    self.images.extend([ImageArtifact.model_validate(img) for img in images_from_db])
             if "videos" in session.session_data:
                 videos_from_db = session.session_data.get("videos")
                 if videos_from_db is not None and isinstance(videos_from_db, list):
                     if self.videos is None:
                         self.videos = []
-                    self.videos.extend([Video.model_validate(vid) for vid in videos_from_db])
+                    self.videos.extend([VideoArtifact.model_validate(vid) for vid in videos_from_db])
             if "audio" in session.session_data:
                 audio_from_db = session.session_data.get("audio")
                 if audio_from_db is not None and isinstance(audio_from_db, list):
                     if self.audio is None:
                         self.audio = []
-                    self.audio.extend([Audio.model_validate(aud) for aud in audio_from_db])
+                    self.audio.extend([AudioArtifact.model_validate(aud) for aud in audio_from_db])
 
         # Read memory from the database
         self.memory = cast(WorkflowMemory, self.memory)

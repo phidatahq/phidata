@@ -110,7 +110,7 @@ class FalTools(Toolkit):
             url = result.get("images", [{}])[0].get("url", "")
             media_id = str(uuid4())
             agent.add_image(
-                Image(
+                ImageArtifact(
                     id=media_id,
                     url=url,
                 )

@@ -388,6 +388,8 @@ class Model:
 
         if image_url.startswith("data:image") or image_url.startswith(("http://", "https://")):
             return {"type": "image_url", "image_url": {"url": image_url}}
+        else:
+            raise ValueError("Image URL must start with 'data:image' or 'http(s)://'.")
 
     def _process_image_path(self, image_path: str) -> Dict[str, Any]:
         """Process image ( file path)."""
@@ -424,7 +426,8 @@ class Model:
             return self._process_image_path(image.filepath)
 
         elif image.content is not None:
-            return self._process_bytes_image(image)
+            return self._process_bytes_image(image.content)
+
         else:
             logger.warning(f"Unsupported image type: {type(image)}")
             return None

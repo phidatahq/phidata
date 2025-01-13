@@ -45,10 +45,13 @@ class ImageInput(BaseModel):
     id: Optional[str] = None
 
     @property
-    def image_url_content(self) -> bytes:
+    def image_url_content(self) -> Optional[bytes]:
         import httpx
 
-        return httpx.get(self.url).content
+        if self.url:
+            return httpx.get(self.url).content
+        else:
+            return None
 
     @model_validator(mode="before")
     def validate_exclusive_image(cls, data: Any):

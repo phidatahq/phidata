@@ -181,21 +181,23 @@ class Claude(Model):
             elif image.filepath is not None:
                 from pathlib import Path
 
-                path = Path(image)
+                path = Path(image.filepath)
                 if path.exists() and path.is_file():
-                    with open(image, "rb") as f:
+                    with open(image.filepath, "rb") as f:
                         content_bytes = f.read()
                 else:
                     logger.error(f"Image file not found: {image}")
                     return None
+
             # Case 3: Image is a bytes object
             elif image.content is not None:
                 content_bytes = image.content
+
             else:
                 logger.error(f"Unsupported image type: {type(image)}")
                 return None
 
-            img_type = imghdr.what(None, h=content_bytes)
+            img_type = imghdr.what(None, h=content_bytes)  # type: ignore
             if not img_type:
                 logger.error("Unable to determine image type")
                 return None
@@ -210,7 +212,7 @@ class Claude(Model):
                 "source": {
                     "type": "base64",
                     "media_type": media_type,
-                    "data": base64.b64encode(content_bytes).decode("utf-8"),
+                    "data": base64.b64encode(content_bytes).decode("utf-8"),  # type: ignore
                 },
             }
 

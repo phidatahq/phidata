@@ -5,7 +5,7 @@ from uuid import uuid4
 import requests
 
 from agno.agent import Agent
-from agno.run.media import Audio
+from agno.media import AudioArtifact
 from agno.tools import Toolkit
 from agno.utils.log import logger
 
@@ -83,7 +83,7 @@ class DesiVocalTools(Toolkit):
 
             audio_url = response.json()["s3_path"]
 
-            agent.add_audio(Audio(id=str(uuid4()), url=audio_url))
+            agent.add_audio(AudioArtifact(id=str(uuid4()), url=audio_url))
 
             return audio_url
         except Exception as e:

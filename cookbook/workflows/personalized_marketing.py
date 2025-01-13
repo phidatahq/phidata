@@ -27,15 +27,15 @@ from email_validator import validate_email, EmailNotValidError
 company_info: Dict = {
     "Phidata": {
         "website": "https://www.phidata.com/",
-        "email": "willemcarel@gmail.com",
-        "contact_name": "Willem",
+        "email": "<insert-receiver-email>",
+        "contact_name": "<insert-receiver-name>",
         "position": "<insert-receiver-position>",
     },
 }
 
 sender_details_dict: Dict = {
-    "name": "Willem",
-    "email": "willem@phidata.com",
+    "name": "<insert-sender-name>",
+    "email": "<insert-sender-email>",
     "organization": "<insert-sender-organization>",
     "calendar Link": "<insert-calendar-link>",
     "service_offered": "<insert-service-offered>",
@@ -43,24 +43,6 @@ sender_details_dict: Dict = {
 sender_details = ", ".join(f"{k}: {v}" for k, v in sender_details_dict.items())
 
 # Email template with placeholders
-email_template = """
-Subject: [SUBJECT_LINE]
-
-Hi [RECIPIENT_NAME],
-
-I’m [SENDER_NAME]. I was impressed by [COMPANY_NAME]’s [UNIQUE_ATTRIBUTE]. It’s clear you have a strong vision for serving your customers.
-
-At [YOUR_ORGANIZATION], we provide tailored solutions to help businesses stand out in today’s competitive market. After reviewing your online presence, I noticed a few opportunities that, if optimized, could significantly boost your brand’s visibility and engagement.
-
-To showcase how we can help, I’m offering a [FREE_INITIAL_SERVICE]. This assessment will highlight key areas for growth and provide actionable steps to improve your online impact.
-
-Let’s discuss how we can work together to achieve these goals. Could we schedule a quick call? Please let me know a time that works for you or feel free to book directly here: [CALENDAR_LINK]
-
-Best regards,
-
-[SENDER_NAME]
-[SENDER_CONTACT_INFORMATION]
-"""
 email_template = """
 <!DOCTYPE html>
 <html lang="en">

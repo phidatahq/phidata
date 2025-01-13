@@ -1,9 +1,9 @@
 from agno.agent import Agent
-from agno.tools.hackernews import HackerNews
+from agno.tools.hackernews import HackerNewsTools
 
 agent = Agent(
     name="Hackernews Team",
-    tools=[HackerNews()],
+    tools=[HackerNewsTools()],
     show_tool_calls=True,
     markdown=True,
 )

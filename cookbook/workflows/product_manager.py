@@ -5,7 +5,7 @@ from typing import List, Optional, Dict
 from pydantic import BaseModel, Field
 
 from agno.run.response import RunEvent, RunResponse
-from agno.tools.linear_tools import LinearTool
+from agno.tools.linear_tools import LinearTools
 from agno.tools.slack import SlackTools
 from agno.agent.agent import Agent
 from agno.workflow.workflow import Workflow
@@ -46,7 +46,7 @@ class ProductManagerWorkflow(Workflow):
     linear_agent: Agent = Agent(
         name="Linear Agent",
         instructions=["Given a list of tasks, create issues in Linear."],
-        tools=[LinearTool()],
+        tools=[LinearTools()],
         response_model=LinearIssueList,
     )
 

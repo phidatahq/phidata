@@ -5,7 +5,7 @@ from os import getenv
 from sqlalchemy.engine import create_engine
 
 from agno.agent import Agent
-from agno.tools.duckduckgo import DuckDuckGo
+from agno.tools.duckduckgo import DuckDuckGoTools
 from agno.storage.agent.singlestore import S2AgentStorage
 
 # Configure SingleStore DB connection
@@ -27,7 +27,7 @@ db_engine = create_engine(db_url)
 # Create an agent with SingleStore storage
 agent = Agent(
     storage=S2AgentStorage(table_name="agent_sessions", db_engine=db_engine, schema=DATABASE),
-    tools=[DuckDuckGo()],
+    tools=[DuckDuckGoTools()],
     add_history_to_messages=True,
 )
 agent.print_response("How many people live in Canada?")

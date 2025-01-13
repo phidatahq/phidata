@@ -2,11 +2,11 @@
 
 from agno.agent import Agent
 from agno.models.cohere import CohereChat
-from agno.tools.duckduckgo import DuckDuckGo
+from agno.tools.duckduckgo import DuckDuckGoTools
 
 agent = Agent(
     model=CohereChat(id="command-r-08-2024"),
-    tools=[DuckDuckGo()],
+    tools=[DuckDuckGoTools()],
     show_tool_calls=True,
     markdown=True,
 )

@@ -1,11 +1,11 @@
 from agno.agent import Agent
 from agno.media import ImageInput
 from agno.models.anthropic import Claude
-from agno.tools.duckduckgo import DuckDuckGo
+from agno.tools.duckduckgo import DuckDuckGoTools
 
 agent = Agent(
     model=Claude(id="claude-3-5-sonnet-20241022"),
-    tools=[DuckDuckGo()],
+    tools=[DuckDuckGoTools()],
     markdown=True,
 )
 

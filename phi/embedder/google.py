@@ -13,10 +13,10 @@ except ImportError:
 
 
 class GeminiEmbedder(Embedder):
-    model: str = "models/embedding-001"
+    model: str = "models/embedding-004"
     task_type: str = "RETRIEVAL_QUERY"
     title: Optional[str] = None
-    dimensions: Optional[int] = None
+    dimensions: Optional[int] = 768
     api_key: Optional[str] = None
     request_params: Optional[Dict[str, Any]] = None
     client_params: Optional[Dict[str, Any]] = None

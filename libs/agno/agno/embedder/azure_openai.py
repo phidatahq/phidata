@@ -1,4 +1,3 @@
-import json
 from os import getenv
 from typing import Any, Dict, List, Optional, Tuple
 

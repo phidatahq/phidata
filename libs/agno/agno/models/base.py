@@ -1,5 +1,6 @@
 import collections.abc
 from dataclasses import dataclass, field
+from pathlib import Path
 from types import GeneratorType
 from typing import Any, Callable, Dict, Iterator, List, Optional, Sequence, Union
 
@@ -391,14 +392,13 @@ class Model:
         else:
             raise ValueError("Image URL must start with 'data:image' or 'http(s)://'.")
 
-    def _process_image_path(self, image_path: str) -> Dict[str, Any]:
+    def _process_image_path(self, image_path: Union[Path, str]) -> Dict[str, Any]:
         """Process image ( file path)."""
         # Process local file image
         import base64
         import mimetypes
-        from pathlib import Path
 
-        path = Path(image_path)
+        path = image_path if isinstance(image_path, Path) else Path(image_path)
         if not path.exists():
             raise FileNotFoundError(f"Image file not found: {image_path}")
 

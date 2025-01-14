@@ -26,6 +26,7 @@ class PostgresTools(Toolkit):
         inspect_queries: bool = False,
         summarize_tables: bool = True,
         export_tables: bool = False,
+        table_schema: Optional[str] = "public",
     ):
         super().__init__(name="postgres_tools")
         self._connection: Optional[psycopg2.extensions.connection] = connection
@@ -34,6 +35,7 @@ class PostgresTools(Toolkit):
         self.password: Optional[str] = password
         self.host: Optional[str] = host
         self.port: Optional[int] = port
+        self.table_schema: Optional[str] = table_schema
 
         self.register(self.show_tables)
         self.register(self.describe_table)
@@ -65,7 +67,8 @@ class PostgresTools(Toolkit):
                 connection_kwargs["host"] = self.host
             if self.port is not None:
                 connection_kwargs["port"] = self.port
-
+            if self.table_schema is not None:
+                connection_kwargs["options"] = f"-c search_path={self.table_schema}"
             self._connection = psycopg2.connect(**connection_kwargs)
             self._connection.set_session(readonly=True)
 
@@ -76,7 +79,7 @@ class PostgresTools(Toolkit):
 
         :return: List of tables in the database
         """
-        stmt = "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'"
+        stmt = f"SELECT table_name FROM information_schema.tables WHERE table_schema =  '{self.table_schema}';"
         tables = self.run_query(stmt)
         logger.debug(f"Tables: {tables}")
         return tables
@@ -87,13 +90,13 @@ class PostgresTools(Toolkit):
         :param table: Table to describe
         :return: Description of the table
         """
-        stmt = f"SELECT column_name, data_type, character_maximum_length FROM information_schema.columns WHERE table_name = '{table}';"
+        stmt = f"SELECT column_name, data_type, character_maximum_length FROM information_schema.columns WHERE table_name = '{table}' AND table_schema = '{self.table_schema}';"
         table_description = self.run_query(stmt)
 
         logger.debug(f"Table description: {table_description}")
         return f"{table}\n{table_description}"
 
-    def summarize_table(self, table: str, table_schema: Optional[str] = "public") -> str:
+    def summarize_table(self, table: str) -> str:
         """Function to compute a number of aggregates over a table.
         The function launches a query that computes a number of aggregates over all columns,
         including min, max, avg, std and approx_unique.
@@ -110,7 +113,7 @@ class PostgresTools(Toolkit):
                     information_schema.columns
                 WHERE
                     table_name = '{table}'
-                    AND table_schema = '{table_schema}'
+                    AND table_schema = '{self.table_schema}'
             )
             SELECT
                 column_name,
@@ -192,7 +195,7 @@ class PostgresTools(Toolkit):
         else:
             path = f"{path}/{table}.csv"
 
-        export_statement = f"COPY {table} TO '{path}' DELIMITER ',' CSV HEADER;"
+        export_statement = f"COPY {self.table_schema}.{table} TO '{path}' DELIMITER ',' CSV HEADER;"
         result = self.run_query(export_statement)
         logger.debug(f"Exported {table} to {path}/{table}")
 

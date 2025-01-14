@@ -39,7 +39,7 @@ investment_report_generator = InvestmentReportGenerator(
 )
 
 startup_idea_validator = StartupIdeaValidator(
-    description="Startup Idea Validator",
+    workflow_id="validate-startup-idea",
     storage=SqliteDbWorkflowStorage(
         table_name="validate_startup_ideas_workflow",
         db_file="tmp/workflows.db",

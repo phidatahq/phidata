@@ -274,7 +274,7 @@ def get_playground_router(
 
         return [
             WorkflowsGetResponse(
-                workflow_id=workflow.workflow_id,
+                workflow_id=str(workflow.workflow_id),
                 name=workflow.name,
                 description=workflow.description,
             )
@@ -314,7 +314,7 @@ def get_playground_router(
             else:
                 # Return as a streaming response
                 return StreamingResponse(
-                    (result.model_dump_json() for result in new_workflow_instance.run(**body.input)),
+                    (json.dumps(asdict(result)) for result in new_workflow_instance.run(**body.input)),
                     media_type="text/event-stream",
                 )
         except Exception as e:
@@ -647,7 +647,7 @@ def get_async_playground_router(
 
         return [
             WorkflowsGetResponse(
-                workflow_id=workflow.workflow_id,
+                workflow_id=str(workflow.workflow_id),
                 name=workflow.name,
                 description=workflow.description,
             )
@@ -692,7 +692,7 @@ def get_async_playground_router(
             else:
                 # Return as a streaming response
                 return StreamingResponse(
-                    (result.model_dump_json() for result in new_workflow_instance.run(**body.input)),
+                    (json.dumps(asdict(result)) for result in new_workflow_instance.run(**body.input)),
                     media_type="text/event-stream",
                 )
         except Exception as e:
@@ -717,7 +717,8 @@ def get_async_playground_router(
             )
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Error retrieving sessions: {str(e)}")
-
+        
+        print(all_workflow_sessions)
         # Return the sessions
         return [
             WorkflowSessionResponse(

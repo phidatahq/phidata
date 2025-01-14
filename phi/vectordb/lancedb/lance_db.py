@@ -164,7 +164,7 @@ class LanceDb(VectorDb):
             )
             logger.debug(f"Inserted document: {document.name} ({document.meta_data})")
 
-        if self.table:
+        if self.table is not None and data != []:
             self.table.add(data)
             logger.debug(f"Upsert {len(data)} documents")
         else:

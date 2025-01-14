@@ -4,6 +4,7 @@ version = "2.7.7"
 description = "Build multi-modal Agents with memory, knowledge and tools."
 requires-python = ">=3.7"
 readme = "README.md"
+license = { file = "LICENSE" }
 authors = [
   {name = "Ashpreet Bedi", email = "ashpreet@phidata.com"}
 ]
@@ -73,6 +74,7 @@ include = ["phi*"]
 
 [tool.setuptools.package-data]
 phi = ["py.typed"]
+include = ["LICENSE"]
 
 [tool.pytest.ini_options]
 log_cli = true

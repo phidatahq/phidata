@@ -130,6 +130,7 @@ module = [
   "docx.*",
   "duckdb.*",
   "duckduckgo_search.*",
+  "email_validator.*",
   "exa_py.*",
   "fastapi.*",
   "firecrawl.*",

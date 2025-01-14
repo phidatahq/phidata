@@ -1,7 +1,7 @@
 import json
 from dataclasses import asdict
 from io import BytesIO
-from typing import Any, AsyncGenerator, Generator, List, Optional, cast
+from typing import AsyncGenerator, Generator, List, Optional, cast
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -12,7 +12,7 @@ from agno.document.reader.csv_reader import CSVReader
 from agno.document.reader.docx_reader import DocxReader
 from agno.document.reader.pdf_reader import PDFReader
 from agno.document.reader.text_reader import TextReader
-from agno.media import ImageInput, AudioInput, VideoInput
+from agno.media import AudioInput, ImageInput, VideoInput
 from agno.playground.operator import (
     format_tools,
     get_agent_by_id,

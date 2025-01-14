@@ -325,11 +325,6 @@ class OpenAIChat(Model):
             if message.videos is not None:
                 logger.warning("Video input is currently unsupported.")
 
-        # Add a message's output as now input (for multi-turn audio)
-        if message.audio_output is not None:
-            message.content = ""
-            message.audio = {"id": message.audio_output.id}
-
         return message.to_dict()
 
     def invoke(self, messages: List[Message]) -> Union[ChatCompletion, ParsedChatCompletion]:
@@ -582,7 +577,7 @@ class OpenAIChat(Model):
                     id=response_message.audio.id,
                     content=response_message.audio.data,
                     expires_at=response_message.audio.expires_at,
-                    transcript=response_message.audio.transcript
+                    transcript=response_message.audio.transcript,
                 )
             except Exception as e:
                 logger.warning(f"Error processing audio: {e}")
@@ -896,12 +891,15 @@ class OpenAIChat(Model):
                 if hasattr(response_delta, "audio"):
                     response_audio = response_delta.audio
                     stream_data.response_audio = response_audio
-                    yield ModelResponse(audio=AudioOutput(
-                id=stream_data.response_audio.id,
-                content=stream_data.response_audio.data,
-                expires_at=stream_data.response_audio.expires_at,
-                transcript=stream_data.response_audio.transcript
-            ))
+                    if stream_data.response_audio:
+                        yield ModelResponse(
+                            audio=AudioOutput(
+                                id=stream_data.response_audio.id,
+                                content=stream_data.response_audio.data,
+                                expires_at=stream_data.response_audio.expires_at,
+                                transcript=stream_data.response_audio.transcript,
+                            )
+                        )
 
                 if response_delta.tool_calls is not None:
                     if stream_data.response_tool_calls is None:
@@ -922,7 +920,7 @@ class OpenAIChat(Model):
                 id=stream_data.response_audio.id,
                 content=stream_data.response_audio.data,
                 expires_at=stream_data.response_audio.expires_at,
-                transcript=stream_data.response_audio.transcript
+                transcript=stream_data.response_audio.transcript,
             )
 
         if stream_data.response_tool_calls is not None:
@@ -981,12 +979,15 @@ class OpenAIChat(Model):
                 if hasattr(response_delta, "audio"):
                     response_audio = response_delta.audio
                     stream_data.response_audio = response_audio
-                    yield ModelResponse(audio=AudioOutput(
-                        id=stream_data.response_audio.id,
-                        content=stream_data.response_audio.data,
-                        expires_at=stream_data.response_audio.expires_at,
-                        transcript=stream_data.response_audio.transcript
-                    ))
+                    if stream_data.response_audio:
+                        yield ModelResponse(
+                            audio=AudioOutput(
+                                id=stream_data.response_audio.id,
+                                content=stream_data.response_audio.data,
+                                expires_at=stream_data.response_audio.expires_at,
+                                transcript=stream_data.response_audio.transcript,
+                            )
+                        )
 
                 if response_delta.tool_calls is not None:
                     if stream_data.response_tool_calls is None:
@@ -1007,7 +1008,7 @@ class OpenAIChat(Model):
                 id=stream_data.response_audio.id,
                 content=stream_data.response_audio.data,
                 expires_at=stream_data.response_audio.expires_at,
-                transcript=stream_data.response_audio.transcript
+                transcript=stream_data.response_audio.transcript,
             )
 
         if stream_data.response_tool_calls is not None:

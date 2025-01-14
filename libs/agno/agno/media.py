@@ -41,7 +41,7 @@ class AudioArtifact(Media):
 
 class VideoInput(BaseModel):
     filepath: Optional[Union[Path, str]] = None  # Absolute local location for image
-    content:  Optional[Any] = None  # Actual video bytes content
+    content: Optional[Any] = None  # Actual video bytes content
 
     @model_validator(mode="before")
     def validate_exclusive_video(cls, data: Any):
@@ -62,9 +62,11 @@ class VideoInput(BaseModel):
 
         return data
 
+
 class AudioInput(BaseModel):
     content: Any  # Actual audio bytes content
     format: Optional[str] = None
+
 
 class AudioOutput(BaseModel):
     id: str
@@ -77,7 +79,9 @@ class ImageInput(BaseModel):
     url: Optional[str] = None  # Remote location for image
     filepath: Optional[Union[Path, str]] = None  # Absolute local location for image
     content: Optional[Any] = None  # Actual image bytes content
-    detail: Optional[str] = None # low, medium, high or auto (per OpenAI spec https://platform.openai.com/docs/guides/vision?lang=node#low-or-high-fidelity-image-understanding)
+    detail: Optional[str] = (
+        None  # low, medium, high or auto (per OpenAI spec https://platform.openai.com/docs/guides/vision?lang=node#low-or-high-fidelity-image-understanding)
+    )
     id: Optional[str] = None
 
     @property

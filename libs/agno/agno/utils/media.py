@@ -1,5 +1,4 @@
 from pathlib import Path
-from typing import List
 
 import requests
 
@@ -51,24 +50,3 @@ def download_video(url: str, output_path: str) -> str:
         for chunk in response.iter_content(chunk_size=8192):
             f.write(chunk)
     return output_path
-
-def extract_video_frames(file_path: str) -> List[str]:
-    import base64
-    try:
-        import cv2
-    except ImportError:
-        raise ImportError("`cv2` not installed. Please install it with `pip install opencv-python`")
-
-    video = cv2.VideoCapture(file_path)
-
-    base64Frames = []
-    while video.isOpened():
-        success, frame = video.read()
-        if not success:
-            break
-        _, buffer = cv2.imencode(".jpg", frame)
-        base64Frames.append(base64.b64encode(buffer).decode("utf-8"))
-
-    video.release()
-    print(len(base64Frames), "frames read.")
-    return base64Frames

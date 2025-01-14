@@ -29,7 +29,7 @@ from pydantic import BaseModel
 
 from agno.agent.session import AgentSession
 from agno.knowledge.agent import AgentKnowledge
-from agno.media import AudioArtifact, ImageArtifact, ImageInput, VideoArtifact, AudioInput, VideoInput
+from agno.media import AudioArtifact, AudioInput, ImageArtifact, ImageInput, VideoArtifact, VideoInput
 from agno.memory.agent import AgentMemory, AgentRun
 from agno.models.base import Model
 from agno.models.message import Message, MessageReferences
@@ -3217,12 +3217,9 @@ class Agent:
                 if render:
                     live_log.update(Group(*panels))
 
-                _arun_generator = await self.arun(message=message,
-                                                  messages=messages,
-                    audio=audio,
-                    images=images,
-                    videos=videos,
-                                                  stream=True, **kwargs)
+                _arun_generator = await self.arun(
+                    message=message, messages=messages, audio=audio, images=images, videos=videos, stream=True, **kwargs
+                )
                 async for resp in _arun_generator:
                     if isinstance(resp, RunResponse) and isinstance(resp.content, str):
                         if resp.event == RunEvent.run_response:

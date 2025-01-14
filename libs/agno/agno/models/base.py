@@ -4,7 +4,7 @@ from pathlib import Path
 from types import GeneratorType
 from typing import Any, Callable, Dict, Iterator, List, Optional, Sequence, Union
 
-from agno.media import ImageInput, AudioInput
+from agno.media import AudioInput, ImageInput
 from agno.models.message import Message
 from agno.models.response import ModelResponse, ModelResponseEvent
 from agno.tools import Toolkit
@@ -503,7 +503,7 @@ class Model:
             if audio_snippet.content:
                 import base64
 
-                encoded_string = base64.b64encode(audio_snippet.content).decode('utf-8')
+                encoded_string = base64.b64encode(audio_snippet.content).decode("utf-8")
 
                 # Create a message with audio
                 message_content_with_audio.append(
@@ -512,7 +512,7 @@ class Model:
                         "input_audio": {
                             "data": encoded_string,
                             "format": audio_snippet.format,
-                        }
+                        },
                     },
                 )
 

@@ -37,5 +37,3 @@ def delete_from_fs(path_to_del: Path) -> bool:
     else:
         path_to_del.unlink()
     return True if not path_to_del.exists() else False
-
-

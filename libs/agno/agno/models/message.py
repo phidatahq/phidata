@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional, Sequence, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from agno.media import ImageInput, AudioInput, AudioOutput, VideoInput
+from agno.media import AudioInput, AudioOutput, ImageInput, VideoInput
 from agno.utils.log import logger
 
 
@@ -78,6 +78,12 @@ class Message(BaseModel):
             exclude_none=True,
             include={"role", "content", "audio", "name", "tool_call_id", "tool_calls"},
         )
+
+        # Add a message's output as now input (for multi-turn audio)
+        if self.audio_output is not None:
+            _dict["content"] = None
+            _dict["audio"] = {"id": self.audio_output.id}
+
         # Manually add the content field even if it is None
         if self.content is None:
             _dict["content"] = None
@@ -118,11 +124,6 @@ class Message(BaseModel):
             _logger(f"Videos added: {len(self.videos)}")
         if self.audio:
             _logger(f"Audios added: {len(self.audio)}")
-            for audio_sample in self.audio:
-                if "id" in audio_sample:
-                    _logger(f"Audio ID: {audio_sample['id']}")
-                elif "data" in audio_sample:
-                    _logger("Message contains raw audio data")
 
     def content_is_valid(self) -> bool:
         """Check if the message content is valid."""

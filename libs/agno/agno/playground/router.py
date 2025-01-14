@@ -1,9 +1,7 @@
-import base64
-from io import BytesIO
 import json
 from dataclasses import asdict
 from io import BytesIO
-from typing import Any, AsyncGenerator, Generator, List, Optional, cast
+from typing import Any, AsyncGenerator, Generator, List, Optional, cast, Dict, Union
 
 from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -240,7 +238,7 @@ def get_playground_router(
 
         if agent.storage is None:
             return JSONResponse(status_code=404, content="Agent does not have storage enabled.")
-        
+
         all_agent_sessions: List[AgentSession] = agent.storage.get_all_sessions(user_id=user_id)
         for session in all_agent_sessions:
             if session.session_id == session_id:
@@ -375,7 +373,12 @@ def get_playground_router(
         return workflow_session
 
     @playground_router.post("/workflows/{workflow_id}/sessions/{session_id}/rename")
-    def rename_workflow_session(workflow_id: str, session_id: str, body: WorkflowRenameRequest, user_id: str = Query(None),):
+    def rename_workflow_session(
+        workflow_id: str,
+        session_id: str,
+        body: WorkflowRenameRequest,
+        user_id: str = Query(None),
+    ):
         workflow = get_workflow_by_id(workflow_id, workflows)
         if workflow is None:
             raise HTTPException(status_code=404, detail="Workflow not found")
@@ -605,14 +608,16 @@ def get_async_playground_router(
         return agent_session
 
     @playground_router.post("/agents/{agent_id}/sessions/{session_id}/rename")
-    async def rename_agent_session(agent_id: str, session_id: str, body: AgentRenameRequest, user_id: str = Query(None)):
+    async def rename_agent_session(
+        agent_id: str, session_id: str, body: AgentRenameRequest, user_id: str = Query(None)
+    ):
         agent = get_agent_by_id(agent_id, agents)
         if agent is None:
             return JSONResponse(status_code=404, content=f"couldn't find agent with {agent_id}")
 
         if agent.storage is None:
             return JSONResponse(status_code=404, content="Agent does not have storage enabled.")
-        
+
         all_agent_sessions: List[AgentSession] = agent.storage.get_all_sessions(user_id=user_id)
         for session in all_agent_sessions:
             if session.session_id == session_id:
@@ -621,7 +626,6 @@ def get_async_playground_router(
                 return JSONResponse(content={"message": f"successfully renamed agent {agent.name}"})
 
         return JSONResponse(status_code=404, content="Session not found.")
-
 
     @playground_router.delete("/agents/{agent_id}/sessions/{session_id}")
     async def delete_agent_session(agent_id: str, session_id: str, user_id: str = Query(None)):
@@ -659,7 +663,7 @@ def get_async_playground_router(
         workflow = get_workflow_by_id(workflow_id, workflows)
         if workflow is None:
             raise HTTPException(status_code=404, detail="Workflow not found")
-        
+
         return WorkflowGetResponse(
             workflow_id=workflow.workflow_id,
             name=workflow.name,
@@ -717,7 +721,7 @@ def get_async_playground_router(
             )
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Error retrieving sessions: {str(e)}")
-        
+
         print(all_workflow_sessions)
         # Return the sessions
         return [
@@ -754,7 +758,9 @@ def get_async_playground_router(
         return workflow_session
 
     @playground_router.post("/workflows/{workflow_id}/sessions/{session_id}/rename")
-    async def rename_workflow_session(workflow_id: str, session_id: str, body: WorkflowRenameRequest, user_id: str = Query(None)):
+    async def rename_workflow_session(
+        workflow_id: str, session_id: str, body: WorkflowRenameRequest, user_id: str = Query(None)
+    ):
         workflow = get_workflow_by_id(workflow_id, workflows)
         if workflow is None:
             raise HTTPException(status_code=404, detail="Workflow not found")

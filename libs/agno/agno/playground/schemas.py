@@ -68,6 +68,7 @@ class WorkflowGetResponse(BaseModel):
     parameters: Optional[Dict[str, Any]] = None
     storage: Optional[str] = None
 
+
 class WorkflowsGetResponse(BaseModel):
     workflow_id: str
     name: str

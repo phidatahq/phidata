@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 from agno.agent import Agent, RunResponse
 from agno.models.openai import OpenAIChat
 from agno.run.response import RunEvent
-from agno.storage.workflow.sqlite import SqlWorkflowStorage
+from agno.storage.workflow.sqlite import SqliteDbWorkflowStorage
 from agno.utils.log import logger
 from agno.utils.pprint import pprint_run_response
 from agno.utils.string import hash_string_sha256
@@ -120,7 +120,7 @@ if __name__ == "__main__":
     # Initialize the investment analyst workflow
     game_generator = GameGenerator(
         session_id=f"game-gen-{hash_of_description}",
-        storage=SqlWorkflowStorage(
+        storage=SqliteDbWorkflowStorage(
             table_name="game_generator_workflows",
             db_file="tmp/workflows.db",
         ),

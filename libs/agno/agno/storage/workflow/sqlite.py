@@ -18,7 +18,7 @@ from agno.utils.log import logger
 from agno.workflow import WorkflowSession
 
 
-class SqlWorkflowStorage(WorkflowStorage):
+class SqliteDbWorkflowStorage(WorkflowStorage):
     def __init__(
         self,
         table_name: str,
@@ -326,13 +326,13 @@ class SqlWorkflowStorage(WorkflowStorage):
 
     def __deepcopy__(self, memo):
         """
-        Create a deep copy of the SqlWorkflowStorage instance, handling unpickleable attributes.
+        Create a deep copy of the SqliteDbWorkflowStorage instance, handling unpickleable attributes.
 
         Args:
             memo (dict): A dictionary of objects already copied during the current copying pass.
 
         Returns:
-            SqlWorkflowStorage: A deep-copied instance of SqlWorkflowStorage.
+            SqliteDbWorkflowStorage: A deep-copied instance of SqliteDbWorkflowStorage.
         """
         from copy import deepcopy
 

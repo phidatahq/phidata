@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 from agno.agent import Agent
 from agno.models.openai import OpenAIChat
 from agno.workflow import Workflow, RunResponse, RunEvent
-from agno.storage.workflow.sqlite import SqlWorkflowStorage
+from agno.storage.workflow.sqlite import SqliteDbWorkflowStorage
 from agno.tools.duckduckgo import DuckDuckGoTools
 from agno.tools.newspaper4k import Newspaper4kTools
 from agno.utils.pprint import pprint_run_response
@@ -265,7 +265,7 @@ if __name__ == "__main__":
     # Initialize the news report generator workflow
     generate_news_report = NewsReportGenerator(
         session_id=f"generate-report-on-{url_safe_topic}",
-        storage=SqlWorkflowStorage(
+        storage=SqliteDbWorkflowStorage(
             table_name="generate_news_report_workflows",
             db_file="tmp/workflows.db",
         ),

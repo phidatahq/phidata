@@ -8,7 +8,7 @@ from agno.agent import Agent
 from agno.models.openai import OpenAIChat
 from agno.embedder.openai import OpenAIEmbedder
 from agno.knowledge.pdf_url import PDFUrlKnowledgeBase
-from agno.storage.agent.postgres import PgAgentStorage
+from agno.storage.agent.postgres import PostgresDbAgentStorage
 from agno.vectordb.pgvector import PgVector, SearchType
 from agno.playground import Playground, serve_playground_app
 
@@ -36,7 +36,7 @@ rag_agent = Agent(
     # Add a tool to read chat history.
     read_chat_history=True,
     # Store the agent sessions in the `ai.rag_agent_sessions` table
-    storage=PgAgentStorage(table_name="rag_agent_sessions", db_url=db_url),
+    storage=PostgresDbAgentStorage(table_name="rag_agent_sessions", db_url=db_url),
     instructions=[
         "Always search your knowledge base first and use it if available.",
         "Share the page number or source URL of the information you used in your response.",

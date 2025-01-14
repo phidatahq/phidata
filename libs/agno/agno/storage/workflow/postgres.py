@@ -14,7 +14,7 @@ from agno.utils.log import logger
 from agno.workflow import WorkflowSession
 
 
-class PgWorkflowStorage(WorkflowStorage):
+class PostgresDbWorkflowStorage(WorkflowStorage):
     def __init__(
         self,
         table_name: str,
@@ -67,7 +67,7 @@ class PgWorkflowStorage(WorkflowStorage):
         self.Session: scoped_session = scoped_session(sessionmaker(bind=self.db_engine))
         # Database table for storage
         self.table: Table = self.get_table()
-        logger.debug(f"Created PgWorkflowStorage: '{self.schema}.{self.table_name}'")
+        logger.debug(f"Created PostgresDbWorkflowStorage: '{self.schema}.{self.table_name}'")
 
     def get_table_v1(self) -> Table:
         """
@@ -333,7 +333,7 @@ class PgWorkflowStorage(WorkflowStorage):
 
     def __deepcopy__(self, memo):
         """
-        Create a deep copy of the PgWorkflowStorage instance, handling unpickleable attributes.
+        Create a deep copy of the PostgresDbWorkflowStorage instance, handling unpickleable attributes.
 
         Args:
             memo (dict): A dictionary of objects already copied during the current copying pass.

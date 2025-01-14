@@ -17,7 +17,7 @@ from agno.storage.agent.base import AgentStorage
 from agno.utils.log import logger
 
 
-class S2AgentStorage(AgentStorage):
+class SingleStoreDbAgentStorage(AgentStorage):
     def __init__(
         self,
         table_name: str,
@@ -271,13 +271,13 @@ class S2AgentStorage(AgentStorage):
 
     def __deepcopy__(self, memo):
         """
-        Create a deep copy of the S2AgentStorage instance, handling unpickleable attributes.
+        Create a deep copy of the SingleStoreDbAgentStorage instance, handling unpickleable attributes.
 
         Args:
             memo (dict): A dictionary of objects already copied during the current copying pass.
 
         Returns:
-            S2AgentStorage: A deep-copied instance of S2AgentStorage.
+            SingleStoreDbAgentStorage: A deep-copied instance of SingleStoreDbAgentStorage.
         """
         from copy import deepcopy
 

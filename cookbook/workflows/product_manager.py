@@ -9,7 +9,7 @@ from agno.tools.linear_tools import LinearTools
 from agno.tools.slack import SlackTools
 from agno.agent.agent import Agent
 from agno.workflow.workflow import Workflow
-from agno.storage.workflow.postgres import PgWorkflowStorage
+from agno.storage.workflow.postgres import PostgresDbWorkflowStorage
 from agno.utils.log import logger
 
 
@@ -139,7 +139,7 @@ class ProductManagerWorkflow(Workflow):
 # Create the workflow
 product_manager = ProductManagerWorkflow(
     session_id="product-manager",
-    storage=PgWorkflowStorage(
+    storage=PostgresDbWorkflowStorage(
         table_name="product_manager_workflows",
         db_url="postgresql+psycopg://ai:ai@localhost:5532/ai",
     ),

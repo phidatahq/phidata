@@ -2,10 +2,10 @@
 
 from agno.agent import Agent
 from agno.tools.duckduckgo import DuckDuckGoTools
-from agno.storage.agent.sqlite import SqlAgentStorage
+from agno.storage.agent.sqlite import SqliteDbAgentStorage
 
 agent = Agent(
-    storage=SqlAgentStorage(table_name="agent_sessions", db_file="tmp/data.db"),
+    storage=SqliteDbAgentStorage(table_name="agent_sessions", db_file="tmp/data.db"),
     tools=[DuckDuckGoTools()],
     add_history_to_messages=True,
 )

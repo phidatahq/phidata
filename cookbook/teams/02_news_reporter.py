@@ -18,8 +18,7 @@ searcher = Agent(
     role="Searches the top URLs for a topic",
     instructions=[
         "Given a topic, first generate a list of 3 search terms related to that topic.",
-        "For each search term, search the web and analyze the results."
-        "Return the 10 most relevant URLs to the topic.",
+        "For each search term, search the web and analyze the results.Return the 10 most relevant URLs to the topic.",
         "You are writing for the New York Times, so the quality of the sources is important.",
     ],
     tools=[DuckDuckGo()],

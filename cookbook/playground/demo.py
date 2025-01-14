@@ -1,4 +1,4 @@
-"""Run `pip install openai exa_py duckduckgo-search yfinance pypdf sqlalchemy 'fastapi[standard]' phidata youtube-transcript-api` to install dependencies."""
+"""Run `pip install openai exa_py duckduckgo-search yfinance pypdf sqlalchemy 'fastapi[standard]' phidata youtube-transcript-api python-docx` to install dependencies."""
 
 from textwrap import dedent
 from datetime import datetime

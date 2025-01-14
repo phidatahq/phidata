@@ -39,7 +39,7 @@ try:
         ChoiceDeltaToolCall,
     )
 
-except ModuleNotFoundError:
+except ModuleNotFoundError as err:
     raise ImportError("`openai` not installed. Please install using `pip install openai`")
 
 
@@ -311,6 +311,7 @@ class OpenAIChat(Model):
         Returns:
             Dict[str, Any]: The formatted message.
         """
+        # New OpenAI format
         if message.role == "system":
             message.role = "developer"
 

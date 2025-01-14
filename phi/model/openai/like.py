@@ -9,19 +9,14 @@ class OpenAILike(OpenAIChat):
     name: str = "OpenAILike"
     api_key: Optional[str] = "not-provided"
 
-    def format_message(self, message: Message) -> Dict[str, Any]:
+    def format_message(self, message: Message, map_system_to_developer: bool = False) -> Dict[str, Any]:
         """
         Format a message into the format expected by OpenAI.
+
         Args:
             message (Message): The message to format.
+            map_system_to_developer (bool, optional): Whether the "system" role is mapped to a "developer" role. Defaults to False.
         Returns:
             Dict[str, Any]: The formatted message.
         """
-        if message.role == "user":
-            if message.images is not None:
-                message = self.add_images_to_message(message=message, images=message.images)
-
-        if message.audio is not None:
-            message = self.add_audio_to_message(message=message, audio=message.audio)
-
-        return message.to_dict()
+        return super().format_message(message, map_system_to_developer=map_system_to_developer)

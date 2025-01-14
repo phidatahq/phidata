@@ -39,7 +39,7 @@ try:
         ChoiceDeltaToolCall,
     )
 
-except ModuleNotFoundError as err:
+except ModuleNotFoundError:
     raise ImportError("`openai` not installed. Please install using `pip install openai`")
 
 

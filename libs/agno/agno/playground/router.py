@@ -26,8 +26,6 @@ from agno.playground.schemas import (
     AgentGetResponse,
     AgentModel,
     AgentRenameRequest,
-    AgentSessionDeleteRequest,
-    AgentSessionsRequest,
     AgentSessionsResponse,
     WorkflowGetResponse,
     WorkflowRenameRequest,
@@ -242,7 +240,7 @@ def get_playground_router(
 
         if agent.storage is None:
             return JSONResponse(status_code=404, content="Agent does not have storage enabled.")
-
+        
         all_agent_sessions: List[AgentSession] = agent.storage.get_all_sessions(user_id=user_id)
         for session in all_agent_sessions:
             if session.session_id == session_id:
@@ -419,8 +417,6 @@ def get_async_playground_router(
         for agent in agents:
             agent_tools = agent.get_tools()
             formatted_tools = format_tools(agent_tools)
-
-            print(agent.model)
 
             name = agent.model.name or agent.model.__class__.__name__ if agent.model else None
             provider = agent.model.provider or agent.model.__class__.__name__ if agent.model else ""
@@ -612,15 +608,16 @@ def get_async_playground_router(
     async def rename_agent_session(agent_id: str, session_id: str, body: AgentRenameRequest, user_id: str = Query(None)):
         agent = get_agent_by_id(agent_id, agents)
         if agent is None:
-            return JSONResponse(status_code=404, content=f"couldn't find agent with {body.agent_id}")
+            return JSONResponse(status_code=404, content=f"couldn't find agent with {agent_id}")
 
         if agent.storage is None:
             return JSONResponse(status_code=404, content="Agent does not have storage enabled.")
         
-        all_agent_sessions: List[AgentSession] = agent.storage.get_all_sessions(user_id=body.user_id)
+        all_agent_sessions: List[AgentSession] = agent.storage.get_all_sessions(user_id=user_id)
         for session in all_agent_sessions:
             if session.session_id == session_id:
-                agent.rename_session(session_id, body.name)
+                agent.session_id = session_id
+                agent.rename_session(body.name)
                 return JSONResponse(content={"message": f"successfully renamed agent {agent.name}"})
 
         return JSONResponse(status_code=404, content="Session not found.")

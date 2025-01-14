@@ -62,6 +62,7 @@ class StreamData:
     response_tool_calls: Optional[List[ChoiceDeltaToolCall]] = None
 
 
+@dataclass
 class Groq(Model):
     """
     A class for interacting with Groq models.

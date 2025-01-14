@@ -1,12 +1,17 @@
+from dataclasses import dataclass
 from typing import Dict, List, Literal, Optional
-
-from firecrawl import FirecrawlApp
 
 from agno.document.base import Document
 from agno.document.reader.base import Reader
 from agno.utils.log import logger
 
+try:
+    from firecrawl import FirecrawlApp
+except ImportError:
+    raise ImportError("The `firecrawl` package is not installed. Please install it via `pip install firecrawl-py`.")
 
+
+@dataclass
 class FirecrawlReader(Reader):
     api_key: Optional[str] = None
     params: Optional[Dict] = None

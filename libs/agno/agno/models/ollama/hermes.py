@@ -22,6 +22,7 @@ class MessageData:
     response_usage: Optional[Mapping[str, Any]] = None
 
 
+@dataclass
 class Hermes(Ollama):
     """
     A class for interacting with the Hermes model via Ollama. This is a subclass of the Ollama model,

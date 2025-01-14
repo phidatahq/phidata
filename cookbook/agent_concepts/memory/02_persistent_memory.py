@@ -1,7 +1,7 @@
 """
 This recipe shows how to store agent sessions in a sqlite database.
 Steps:
-1. Run: `pip install openai sqlalchemy phidata` to install dependencies
+1. Run: `pip install openai sqlalchemy agno` to install dependencies
 2. Run: `python cookbook/memory/02_persistent_memory.py` to run the agent
 """
 
@@ -13,13 +13,13 @@ from rich.json import JSON
 
 from agno.agent import Agent
 from agno.models.openai import OpenAIChat
-from agno.storage.agent.sqlite import SqlAgentStorage
+from agno.storage.agent.sqlite import SqliteDbAgentStorage
 
 
 agent = Agent(
     model=OpenAIChat(id="gpt-4o"),
     # Store agent sessions in a database
-    storage=SqlAgentStorage(table_name="agent_sessions", db_file="tmp/agent_storage.db"),
+    storage=SqliteDbAgentStorage(table_name="agent_sessions", db_file="tmp/agent_storage.db"),
     # Set add_history_to_messages=true to add the previous chat history to the messages sent to the Model.
     add_history_to_messages=True,
     # Number of historical responses to add to the messages.

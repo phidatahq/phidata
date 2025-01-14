@@ -1,10 +1,10 @@
 """
-1. Install dependencies using: `pip install openai duckduckgo-search sqlalchemy 'fastapi[standard]' newspaper4k lxml_html_clean yfinance phidata`
+1. Install dependencies using: `pip install openai duckduckgo-search sqlalchemy 'fastapi[standard]' newspaper4k lxml_html_clean yfinance agno`
 2. Run the script using: `python cookbook/workflows/workflows_playground.py`
 """
 
 from agno.playground import Playground, serve_playground_app
-from agno.storage.workflow.sqlite import SqlWorkflowStorage
+from agno.storage.workflow.sqlite import SqliteDbWorkflowStorage
 
 # Import the workflows
 from blog_post_generator import BlogPostGenerator  # type: ignore
@@ -17,14 +17,14 @@ from game_generator import GameGenerator  # type: ignore
 
 blog_post_generator = BlogPostGenerator(
     workflow_id="generate-blog-post",
-    storage=SqlWorkflowStorage(
+    storage=SqliteDbWorkflowStorage(
         table_name="generate_blog_post_workflows",
         db_file="tmp/workflows.db",
     ),
 )
 news_report_generator = NewsReportGenerator(
     workflow_id="generate-news-report",
-    storage=SqlWorkflowStorage(
+    storage=SqliteDbWorkflowStorage(
         table_name="generate_news_report_workflows",
         db_file="tmp/workflows.db",
     ),
@@ -32,7 +32,7 @@ news_report_generator = NewsReportGenerator(
 
 investment_report_generator = InvestmentReportGenerator(
     workflow_id="generate-investment-report",
-    storage=SqlWorkflowStorage(
+    storage=SqliteDbWorkflowStorage(
         table_name="investment_report_workflows",
         db_file="tmp/workflows.db",
     ),
@@ -40,7 +40,7 @@ investment_report_generator = InvestmentReportGenerator(
 
 startup_idea_validator = StartupIdeaValidator(
     description="Startup Idea Validator",
-    storage=SqlWorkflowStorage(
+    storage=SqliteDbWorkflowStorage(
         table_name="validate_startup_ideas_workflow",
         db_file="tmp/workflows.db",
     ),
@@ -48,7 +48,7 @@ startup_idea_validator = StartupIdeaValidator(
 
 game_generator = GameGenerator(
     workflow_id="game-generator",
-    storage=SqlWorkflowStorage(
+    storage=SqliteDbWorkflowStorage(
         table_name="game_generator_workflows",
         db_file="tmp/workflows.db",
     ),

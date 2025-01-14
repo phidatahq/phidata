@@ -5,11 +5,11 @@ from typing import List, Optional, Dict
 from pydantic import BaseModel, Field
 
 from agno.run.response import RunEvent, RunResponse
-from agno.tools.linear_tools import LinearTool
+from agno.tools.linear_tools import LinearTools
 from agno.tools.slack import SlackTools
 from agno.agent.agent import Agent
 from agno.workflow.workflow import Workflow
-from agno.storage.workflow.postgres import PgWorkflowStorage
+from agno.storage.workflow.postgres import PostgresDbWorkflowStorage
 from agno.utils.log import logger
 
 
@@ -46,7 +46,7 @@ class ProductManagerWorkflow(Workflow):
     linear_agent: Agent = Agent(
         name="Linear Agent",
         instructions=["Given a list of tasks, create issues in Linear."],
-        tools=[LinearTool()],
+        tools=[LinearTools()],
         response_model=LinearIssueList,
     )
 
@@ -139,7 +139,7 @@ class ProductManagerWorkflow(Workflow):
 # Create the workflow
 product_manager = ProductManagerWorkflow(
     session_id="product-manager",
-    storage=PgWorkflowStorage(
+    storage=PostgresDbWorkflowStorage(
         table_name="product_manager_workflows",
         db_url="postgresql+psycopg://ai:ai@localhost:5532/ai",
     ),

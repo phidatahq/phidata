@@ -22,7 +22,7 @@ Please check the options that are relevant:
 
 ## Checklist
 
-- [ ] My code follows Phidata's style guidelines and best practices
+- [ ] My code follows Agno's style guidelines and best practices
 - [ ] I have performed a self-review of my code
 - [ ] I have added docstrings and comments for complex logic
 - [ ] My changes generate no new warnings or errors

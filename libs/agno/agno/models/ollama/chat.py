@@ -179,7 +179,16 @@ class Ollama(Model):
         }
         if message.role == "user":
             if message.images is not None:
-                _message["images"] = message.images
+                message_images = []
+                for image in message.images:
+                    if image.url is not None:
+                        message_images.append(image.image_url_content)
+                    if image.filepath is not None:
+                        message_images.append(image.filepath)  # type: ignore
+                    if image.content is not None and isinstance(image.content, bytes):
+                        message_images.append(image.content)
+                if message_images:
+                    _message["images"] = message_images
         return _message
 
     def invoke(self, messages: List[Message]) -> Mapping[str, Any]:

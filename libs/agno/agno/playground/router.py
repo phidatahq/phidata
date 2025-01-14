@@ -2,7 +2,8 @@ import base64
 from io import BytesIO
 import json
 from dataclasses import asdict
-from typing import AsyncGenerator, Dict, Generator, List, Optional, Union, cast
+from io import BytesIO
+from typing import Any, AsyncGenerator, Generator, List, Optional, cast
 
 from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -10,9 +11,10 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from agno.agent.agent import Agent, RunResponse
 from agno.agent.session import AgentSession
 from agno.document.reader.csv_reader import CSVReader
-from agno.document.reader.docx import DocxReader
-from agno.document.reader.pdf import PDFReader
-from agno.document.reader.text import TextReader
+from agno.document.reader.docx_reader import DocxReader
+from agno.document.reader.pdf_reader import PDFReader
+from agno.document.reader.text_reader import TextReader
+from agno.media import ImageInput
 from agno.playground.operator import (
     format_tools,
     get_agent_by_id,
@@ -24,6 +26,8 @@ from agno.playground.schemas import (
     AgentGetResponse,
     AgentModel,
     AgentRenameRequest,
+    AgentSessionDeleteRequest,
+    AgentSessionsRequest,
     AgentSessionsResponse,
     WorkflowGetResponse,
     WorkflowRenameRequest,
@@ -91,21 +95,16 @@ def get_playground_router(
 
         return agent_list
 
-    def chat_response_streamer(
-        agent: Agent, message: str, images: Optional[List[Union[str, Dict]]] = None
-    ) -> Generator:
-        run_response = agent.run(message, images=images, stream=True, stream_intermediate_steps=True)
+    def chat_response_streamer(agent: Agent, message: str, images: Optional[List[ImageInput]] = None) -> Generator:
+        run_response = agent.run(message=message, images=images, stream=True, stream_intermediate_steps=True)
         for run_response_chunk in run_response:
             run_response_chunk = cast(RunResponse, run_response_chunk)
             yield run_response_chunk.to_json()
 
-    def process_image(file: UploadFile) -> List[Union[str, Dict]]:
+    def process_image(file: UploadFile) -> ImageInput:
         content = file.file.read()
-        encoded = base64.b64encode(content).decode("utf-8")
 
-        image_info = {"filename": file.filename, "content_type": file.content_type, "size": len(content)}
-
-        return [encoded, image_info]
+        return ImageInput(content=content)
 
     @playground_router.post("/agents/{agent_id}/run")
     def create_agent_run(
@@ -383,7 +382,8 @@ def get_playground_router(
         if workflow is None:
             raise HTTPException(status_code=404, detail="Workflow not found")
 
-        workflow.rename_session(session_id, body.name)
+        workflow.session_id = session_id
+        workflow.rename_session(body.name)
         return JSONResponse(content={"message": f"successfully renamed workflow {workflow.name}"})
 
     @playground_router.delete("/workflows/{workflow_id}/sessions/{session_id}")
@@ -457,20 +457,28 @@ def get_async_playground_router(
         return agent_list
 
     async def chat_response_streamer(
-        agent: Agent, message: str, images: Optional[List[Union[str, Dict]]] = None
+        agent: Agent,
+        message: str,
+        images: Optional[List[ImageInput]] = None,
+        audio_file_content: Optional[Any] = None,
+        video_file_content: Optional[Any] = None,
     ) -> AsyncGenerator:
-        run_response = await agent.arun(message, images=images, stream=True, stream_intermediate_steps=True)
+        run_response = await agent.arun(
+            message,
+            images=images,
+            audio=audio_file_content,
+            videos=video_file_content,
+            stream=True,
+            stream_intermediate_steps=True,
+        )
         async for run_response_chunk in run_response:
             run_response_chunk = cast(RunResponse, run_response_chunk)
             yield run_response_chunk.to_json()
 
-    async def process_image(file: UploadFile) -> List[Union[str, Dict]]:
+    async def process_image(file: UploadFile) -> ImageInput:
         content = file.file.read()
-        encoded = base64.b64encode(content).decode("utf-8")
 
-        image_info = {"filename": file.filename, "content_type": file.content_type, "size": len(content)}
-
-        return [encoded, image_info]
+        return ImageInput(content=content)
 
     @playground_router.post("/agents/{agent_id}/run")
     async def create_agent_run(
@@ -753,7 +761,8 @@ def get_async_playground_router(
         if workflow is None:
             raise HTTPException(status_code=404, detail="Workflow not found")
 
-        workflow.rename_session(session_id, body.name)
+        workflow.session_id = session_id
+        workflow.rename_session(body.name)
         return JSONResponse(content={"message": f"successfully renamed workflow {workflow.name}"})
 
     @playground_router.delete("/workflows/{workflow_id}/sessions/{session_id}")

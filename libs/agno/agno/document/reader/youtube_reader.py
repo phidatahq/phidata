@@ -4,19 +4,18 @@ from agno.document.base import Document
 from agno.document.reader.base import Reader
 from agno.utils.log import logger
 
+try:
+    from youtube_transcript_api import YouTubeTranscriptApi
+except ImportError:
+    raise ImportError(
+        "`youtube_transcript_api` not installed. Please install it via `pip install youtube_transcript_api`."
+    )
+
 
 class YouTubeReader(Reader):
     """Reader for YouTube video transcripts"""
 
     def read(self, video_url: str) -> List[Document]:
-        if not video_url:
-            raise ValueError("No video URL provided")
-
-        try:
-            from youtube_transcript_api import YouTubeTranscriptApi
-        except ImportError:
-            raise ImportError("`youtube_transcript_api` not installed")
-
         try:
             # Extract video ID from URL
             video_id = video_url.split("v=")[-1].split("&")[0]

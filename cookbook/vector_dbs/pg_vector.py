@@ -1,5 +1,5 @@
 from agno.agent import Agent
-from agno.knowledge.pdf import PDFUrlKnowledgeBase
+from agno.knowledge.pdf_url import PDFUrlKnowledgeBase
 from agno.vectordb.pgvector import PgVector
 
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
@@ -12,5 +12,5 @@ knowledge_base = PDFUrlKnowledgeBase(
 )
 knowledge_base.load(recreate=False)  # Comment out after first run
 
-agent = Agent(knowledge_base=knowledge_base, use_tools=True, show_tool_calls=True)
+agent = Agent(knowledge=knowledge_base, show_tool_calls=True)
 agent.print_response("How to make Thai curry?", markdown=True)

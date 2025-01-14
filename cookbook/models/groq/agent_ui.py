@@ -1,13 +1,13 @@
 """Usage:
-1. Install libraries: `pip install groq duckduckgo-search yfinance pypdf sqlalchemy 'fastapi[standard]' youtube-transcript-api phidata`
+1. Install libraries: `pip install groq duckduckgo-search yfinance pypdf sqlalchemy 'fastapi[standard]' youtube-transcript-api agno`
 2. Run the script: `python cookbook/providers/groq/agent_ui.py`
 """
 
 from agno.agent import Agent
 from agno.models.groq import Groq
 from agno.playground import Playground, serve_playground_app
-from agno.storage.agent.sqlite import SqlAgentStorage
-from agno.tools.duckduckgo import DuckDuckGo
+from agno.storage.agent.sqlite import SqliteDbAgentStorage
+from agno.tools.duckduckgo import DuckDuckGoTools
 from agno.tools.yfinance import YFinanceTools
 from agno.tools.youtube_tools import YouTubeTools
 
@@ -21,13 +21,13 @@ web_agent = Agent(
     role="Search the web for information",
     agent_id="web-agent",
     model=Groq(id="llama-3.3-70b-versatile"),
-    tools=[DuckDuckGo()],
+    tools=[DuckDuckGoTools()],
     instructions=[
         "Use the `duckduckgo_search` or `duckduckgo_news` tools to search the web for information.",
         "Always include sources you used to generate the answer.",
     ]
     + common_instructions,
-    storage=SqlAgentStorage(table_name="web_agent", db_file=groq_agent_storage),
+    storage=SqliteDbAgentStorage(table_name="web_agent", db_file=groq_agent_storage),
     show_tool_calls=True,
     add_history_to_messages=True,
     num_history_responses=2,
@@ -44,7 +44,7 @@ finance_agent = Agent(
     tools=[YFinanceTools(stock_price=True, analyst_recommendations=True, company_info=True, company_news=True)],
     description="You are an investment analyst that researches stocks and helps users make informed decisions.",
     instructions=["Always use tables to display data"] + common_instructions,
-    storage=SqlAgentStorage(table_name="finance_agent", db_file=groq_agent_storage),
+    storage=SqliteDbAgentStorage(table_name="finance_agent", db_file=groq_agent_storage),
     show_tool_calls=True,
     add_history_to_messages=True,
     num_history_responses=5,
@@ -69,7 +69,7 @@ youtube_agent = Agent(
         "If the user just provides a URL, summarize the video and answer questions about it.",
     ]
     + common_instructions,
-    storage=SqlAgentStorage(table_name="youtube_agent", db_file=groq_agent_storage),
+    storage=SqliteDbAgentStorage(table_name="youtube_agent", db_file=groq_agent_storage),
     show_tool_calls=True,
     add_history_to_messages=True,
     num_history_responses=5,

@@ -2,7 +2,7 @@
 
 from agno.agent import Agent
 from agno.models.openai import OpenAIChat
-from agno.knowledge.pdf import PDFUrlKnowledgeBase
+from agno.knowledge.pdf_url import PDFUrlKnowledgeBase
 from agno.vectordb.pgvector import PgVector
 
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
@@ -15,7 +15,7 @@ knowledge_base.load(recreate=True)  # Comment out after first run
 
 agent = Agent(
     model=OpenAIChat(id="gpt-4o"),
-    knowledge_base=knowledge_base,
+    knowledge=knowledge_base,
     use_tools=True,
     show_tool_calls=True,
 )

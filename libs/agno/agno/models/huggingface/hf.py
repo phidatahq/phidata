@@ -62,6 +62,7 @@ class StreamData:
     response_tool_calls: Optional[List[ChatCompletionStreamOutputDeltaToolCall]] = None
 
 
+@dataclass
 class HuggingFaceChat(Model):
     """
     A class for interacting with HuggingFace Hub Inference models.

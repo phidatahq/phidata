@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from os import getenv
 from typing import Iterator, List, Optional
 
@@ -7,6 +8,7 @@ from agno.models.message import Message
 from agno.models.openai import OpenAILike
 
 
+@dataclass
 class Fireworks(OpenAILike):
     """
     Fireworks model

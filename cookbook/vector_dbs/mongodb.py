@@ -1,10 +1,10 @@
 # install pymongo - `pip install pymongo`
 
-from phi.agent import Agent
-from phi.knowledge.pdf import PDFUrlKnowledgeBase
+from agno.agent import Agent
+from agno.knowledge.pdf_url import PDFUrlKnowledgeBase
 
 # os.environ["OPENAI_API_KEY"] = ""
-from phi.vectordb.mongodb import MongoDBVector
+from agno.vectordb.mongodb import MongoDBVector
 
 # MongoDB Atlas connection string
 """
@@ -23,5 +23,5 @@ knowledge_base = PDFUrlKnowledgeBase(
 knowledge_base.load(recreate=True)
 
 # Create and use the agent
-agent = Agent(knowledge_base=knowledge_base, show_tool_calls=True)
+agent = Agent(knowledge=knowledge_base, show_tool_calls=True)
 agent.print_response("How to make Thai curry?", markdown=True)

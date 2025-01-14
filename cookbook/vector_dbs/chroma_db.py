@@ -1,7 +1,7 @@
 # install chromadb - `pip install chromadb`
 
 from agno.agent import Agent
-from agno.knowledge.pdf import PDFUrlKnowledgeBase
+from agno.knowledge.pdf_url import PDFUrlKnowledgeBase
 from agno.vectordb.chroma import ChromaDb
 
 # Initialize ChromaDB
@@ -16,5 +16,5 @@ knowledge_base = PDFUrlKnowledgeBase(
 knowledge_base.load(recreate=False)  # Comment out after first run
 
 # Create and use the agent
-agent = Agent(knowledge_base=knowledge_base, use_tools=True, show_tool_calls=True)
+agent = Agent(knowledge=knowledge_base, use_tools=True, show_tool_calls=True)
 agent.print_response("Show me how to make Tom Kha Gai", markdown=True)

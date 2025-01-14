@@ -1,12 +1,12 @@
 """
-1. Run: `pip install openai lancedb tantivy pypdf sqlalchemy phidata cohere` to install the dependencies
+1. Run: `pip install openai lancedb tantivy pypdf sqlalchemy agno cohere` to install the dependencies
 2. Run: `python cookbook/rag/03_traditional_rag_lancedb.py` to run the agent
 """
 
 from agno.agent import Agent
 from agno.models.openai import OpenAIChat
 from agno.embedder.openai import OpenAIEmbedder
-from agno.knowledge.pdf import PDFUrlKnowledgeBase
+from agno.knowledge.pdf_url import PDFUrlKnowledgeBase
 from agno.vectordb.lancedb import LanceDb, SearchType
 from agno.reranker.cohere import CohereReranker
 

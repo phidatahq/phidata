@@ -93,9 +93,13 @@ class AgentKnowledge(BaseModel):
             else:
                 # Filter out documents which already exist in the vector db
                 if skip_existing:
-                    documents_to_load = [
-                        document for document in document_list if not self.vector_db.doc_exists(document)
-                    ]
+                    # Use set for O(1) lookups
+                    seen_content = set()
+                    documents_to_load = []
+                    for doc in document_list:
+                        if doc.content not in seen_content and not self.vector_db.doc_exists(doc):
+                            seen_content.add(doc.content)
+                            documents_to_load.append(doc)
                 self.vector_db.insert(documents=documents_to_load, filters=filters)
             num_documents += len(documents_to_load)
             logger.info(f"Added {len(documents_to_load)} documents to knowledge base")

@@ -1,7 +1,7 @@
 """
 This recipe shows how to store agent sessions in a MongoDB database.
 Steps:
-1. Run: `pip install openai pymongo phidata` to install dependencies
+1. Run: `pip install openai pymongo agno` to install dependencies
 2. Make sure you are running a local instance of mongodb
 3. Run: `python cookbook/memory/07_persistent_memory_mongodb.py` to run the agent
 """
@@ -12,11 +12,11 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.json import JSON
 
-from phi.agent import Agent
-from phi.memory.agent import AgentMemory
-from phi.memory.db.mongodb import MongoMemoryDb
-from phi.model.openai import OpenAIChat
-from phi.storage.agent.mongodb import MongoAgentStorage
+from agno.agent import Agent
+from agno.memory.agent import AgentMemory
+from agno.memory.db.mongodb import MongoMemoryDb
+from agno.models.openai import OpenAIChat
+from agno.storage.agent.mongodb import MongoDbAgentStorage
 
 
 # MongoDB connection settings
@@ -25,7 +25,7 @@ db_url = "mongodb://localhost:27017"
 agent = Agent(
     model=OpenAIChat(id="gpt-4o"),
     # Store agent sessions in MongoDB
-    storage=MongoAgentStorage(collection_name="agent_sessions", db_url=db_url, db_name="phi"),
+    storage=MongoDbAgentStorage(collection_name="agent_sessions", db_url=db_url, db_name="phi"),
     # Store memories in MongoDB
     memory=AgentMemory(
         db=MongoMemoryDb(collection_name="agent_sessions", db_url=db_url, db_name="phi"),

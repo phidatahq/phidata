@@ -31,6 +31,7 @@ class StreamData:
     response_timer: Timer = field(default_factory=Timer)
 
 
+@dataclass
 class AwsBedrock(Model):
     """
     AWS Bedrock model.

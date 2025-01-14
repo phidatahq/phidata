@@ -1,5 +1,5 @@
 from agno.agent import Agent
-from agno.knowledge.pdf import PDFUrlKnowledgeBase
+from agno.knowledge.pdf_url import PDFUrlKnowledgeBase
 from agno.vectordb.pgvector import PgVector
 from agno.tools.exa import ExaTools
 
@@ -7,7 +7,6 @@ db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 
 knowledge_base = PDFUrlKnowledgeBase(
     urls=[
-        "https://www.poshantracker.in/pdf/Awareness/MilletsRecipeBook2023_Low%20Res_V5.pdf",
         "https://www.cardiff.ac.uk/__data/assets/pdf_file/0003/123681/Recipe-Book.pdf",
     ],
     vector_db=PgVector(table_name="recipes", db_url=db_url),
@@ -16,7 +15,7 @@ knowledge_base.load(recreate=False)
 
 recipe_agent = Agent(
     name="RecipeGenie",
-    knowledge_base=knowledge_base,
+    knowledge=knowledge_base,
     search_knowledge=True,
     tools=[ExaTools()],
     markdown=True,

@@ -1,13 +1,13 @@
 """
 1. Run: `./cookbook/run_pgvector.sh` to start a postgres container with pgvector
-2. Run: `pip install openai sqlalchemy 'psycopg[binary]' pgvector phidata` to install the dependencies
+2. Run: `pip install openai sqlalchemy 'psycopg[binary]' pgvector agno` to install the dependencies
 3. Run: `python cookbook/rag/01_traditional_rag_pgvector.py` to run the agent
 """
 
 from agno.agent import Agent
 from agno.models.openai import OpenAIChat
 from agno.embedder.openai import OpenAIEmbedder
-from agno.knowledge.pdf import PDFUrlKnowledgeBase
+from agno.knowledge.pdf_url import PDFUrlKnowledgeBase
 from agno.vectordb.pgvector import PgVector, SearchType
 
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"

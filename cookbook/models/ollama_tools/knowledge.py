@@ -14,7 +14,7 @@ to deploy a PostgreSQL database.
 
 from agno.agent import Agent
 from agno.embedder.ollama import OllamaEmbedder
-from agno.knowledge.pdf import PDFUrlKnowledgeBase
+from agno.knowledge.pdf_url import PDFUrlKnowledgeBase
 from agno.models.ollama import OllamaTools
 from agno.vectordb.pgvector import PgVector
 
@@ -32,7 +32,7 @@ knowledge_base.load(recreate=False)  # Comment out after first run
 
 agent = Agent(
     model=OllamaTools(id="llama3.1:8b"),
-    knowledge_base=knowledge_base,
+    knowledge=knowledge_base,
     use_tools=True,
     show_tool_calls=True,
 )

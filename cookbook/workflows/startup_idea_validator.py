@@ -1,5 +1,5 @@
 """
-1. Install dependencies using: `pip install openai exa_py sqlalchemy phidata`
+1. Install dependencies using: `pip install openai exa_py sqlalchemy agno`
 2. Run the script using: `python cookbook/workflows/blog_post_generator.py`
 """
 
@@ -12,7 +12,7 @@ from agno.agent import Agent
 from agno.models.openai import OpenAIChat
 from agno.tools.googlesearch import GoogleSearch
 from agno.workflow import Workflow, RunResponse, RunEvent
-from agno.storage.workflow.sqlite import SqlWorkflowStorage
+from agno.storage.workflow.sqlite import SqliteDbWorkflowStorage
 from agno.utils.pprint import pprint_run_response
 from agno.utils.log import logger
 
@@ -201,7 +201,7 @@ if __name__ == "__main__":
     startup_idea_validator = StartupIdeaValidator(
         description="Startup Idea Validator",
         session_id=f"validate-startup-idea-{url_safe_idea}",
-        storage=SqlWorkflowStorage(
+        storage=SqliteDbWorkflowStorage(
             table_name="validate_startup_ideas_workflow",
             db_file="tmp/workflows.db",
         ),

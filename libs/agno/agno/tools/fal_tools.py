@@ -7,7 +7,7 @@ from typing import Optional
 from uuid import uuid4
 
 from agno.agent import Agent
-from agno.agent.media import Image, Video
+from agno.media import ImageArtifact, VideoArtifact
 from agno.tools import Toolkit
 from agno.utils.log import logger
 
@@ -62,7 +62,7 @@ class FalTools(Toolkit):
             if "image" in result:
                 url = result.get("image", {}).get("url", "")
                 agent.add_image(
-                    Image(
+                    ImageArtifact(
                         id=media_id,
                         url=url,
                     )
@@ -71,7 +71,7 @@ class FalTools(Toolkit):
             elif "video" in result:
                 url = result.get("video", {}).get("url", "")
                 agent.add_video(
-                    Video(
+                    VideoArtifact(
                         id=media_id,
                         url=url,
                     )
@@ -84,4 +84,40 @@ class FalTools(Toolkit):
             return f"{media_type.capitalize()} generated successfully at {url}"
         except Exception as e:
             logger.error(f"Failed to run model: {e}")
+            return f"Error: {e}"
+
+    def image_to_image(self, agent: Agent, prompt: str, image_url: Optional[str] = None) -> str:
+        """
+        Use this function to transform an input image based on a text prompt using the Fal AI image-to-image model.
+        The model takes an existing image and generates a new version modified according to your prompt.
+        See https://fal.ai/models/fal-ai/flux/dev/image-to-image/api for more details about the image-to-image capabilities.
+
+        Args:
+            prompt (str): A text description of the task.
+            image_url (str): The URL of the image to use for the generation.
+
+        Returns:
+            str: Return the result of the model.
+        """
+
+        try:
+            result = fal_client.subscribe(
+                "fal-ai/flux/dev/image-to-image",
+                arguments={"image_url": image_url, "prompt": prompt},
+                with_logs=True,
+                on_queue_update=self.on_queue_update,
+            )
+            url = result.get("images", [{}])[0].get("url", "")
+            media_id = str(uuid4())
+            agent.add_image(
+                ImageArtifact(
+                    id=media_id,
+                    url=url,
+                )
+            )
+
+            return f"Image generated successfully at {url}"
+
+        except Exception as e:
+            logger.error(f"Failed to generate image: {e}")
             return f"Error: {e}"

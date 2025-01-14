@@ -2,7 +2,7 @@ from pathlib import Path
 from typing import Iterator, List, Union
 
 from agno.document import Document
-from agno.document.reader.text import TextReader
+from agno.document.reader.text_reader import TextReader
 from agno.knowledge.agent import AgentKnowledge
 
 

@@ -1,5 +1,5 @@
 """
-1. Install dependencies using: `pip install openai exa_py sqlalchemy phidata`
+1. Install dependencies using: `pip install openai exa_py sqlalchemy agno`
 2. Run the script using: `python cookbook/workflows/blog_post_generator.py`
 """
 
@@ -11,8 +11,8 @@ from pydantic import BaseModel, Field
 from agno.agent import Agent
 from agno.models.openai import OpenAIChat
 from agno.workflow import Workflow, RunResponse, RunEvent
-from agno.storage.workflow.sqlite import SqlWorkflowStorage
-from agno.tools.duckduckgo import DuckDuckGo
+from agno.storage.workflow.sqlite import SqliteDbWorkflowStorage
+from agno.tools.duckduckgo import DuckDuckGoTools
 from agno.utils.pprint import pprint_run_response
 from agno.utils.log import logger
 
@@ -33,7 +33,7 @@ class BlogPostGenerator(Workflow):
 
     searcher: Agent = Agent(
         model=OpenAIChat(id="gpt-4o-mini"),
-        tools=[DuckDuckGo()],
+        tools=[DuckDuckGoTools()],
         instructions=["Given a topic, search for the top 5 articles."],
         response_model=SearchResults,
         structured_outputs=True,
@@ -137,7 +137,7 @@ if __name__ == "__main__":
     # - Sets up SQLite storage for caching results
     generate_blog_post = BlogPostGenerator(
         session_id=f"generate-blog-post-on-{url_safe_topic}",
-        storage=SqlWorkflowStorage(
+        storage=SqliteDbWorkflowStorage(
             table_name="generate_blog_post_workflows",
             db_file="tmp/workflows.db",
         ),

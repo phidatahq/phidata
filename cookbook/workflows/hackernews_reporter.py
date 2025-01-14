@@ -1,5 +1,5 @@
 """Please install dependencies using:
-pip install openai newspaper4k lxml_html_clean phidata
+pip install openai newspaper4k lxml_html_clean agno
 """
 
 import json
@@ -8,7 +8,7 @@ from typing import Iterator
 
 from agno.agent import Agent, RunResponse
 from agno.workflow import Workflow
-from agno.tools.newspaper4k import Newspaper4k
+from agno.tools.newspaper4k import Newspaper4kTools
 from agno.utils.pprint import pprint_run_response
 from agno.utils.log import logger
 
@@ -23,7 +23,7 @@ class HackerNewsReporter(Workflow):
     )
 
     writer: Agent = Agent(
-        tools=[Newspaper4k()],
+        tools=[Newspaper4kTools()],
         description="Write an engaging report on the top stories from hackernews.",
         instructions=[
             "You will be provided with top stories and their links.",

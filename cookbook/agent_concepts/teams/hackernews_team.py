@@ -1,30 +1,30 @@
 """
-1. Run: `pip install openai duckduckgo-search newspaper4k lxml_html_clean phidata` to install the dependencies
+1. Run: `pip install openai duckduckgo-search newspaper4k lxml_html_clean agno` to install the dependencies
 2. Run: `python cookbook/teams/01_hn_team.py` to run the agent
 """
 
 from agno.agent import Agent
-from agno.tools.hackernews import HackerNews
-from agno.tools.duckduckgo import DuckDuckGo
-from agno.tools.newspaper4k import Newspaper4k
+from agno.tools.hackernews import HackerNewsTools
+from agno.tools.duckduckgo import DuckDuckGoTools
+from agno.tools.newspaper4k import Newspaper4kTools
 
 hn_researcher = Agent(
     name="HackerNews Researcher",
     role="Gets top stories from hackernews.",
-    tools=[HackerNews()],
+    tools=[HackerNewsTools()],
 )
 
 web_searcher = Agent(
     name="Web Searcher",
     role="Searches the web for information on a topic",
-    tools=[DuckDuckGo()],
+    tools=[DuckDuckGoTools()],
     add_datetime_to_instructions=True,
 )
 
 article_reader = Agent(
     name="Article Reader",
     role="Reads articles from URLs.",
-    tools=[Newspaper4k()],
+    tools=[Newspaper4kTools()],
 )
 
 hn_team = Agent(

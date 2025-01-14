@@ -14,7 +14,7 @@ from agno.utils.log import logger
 from agno.workflow import WorkflowSession
 
 
-class PgWorkflowStorage(WorkflowStorage):
+class PostgresDbWorkflowStorage(WorkflowStorage):
     def __init__(
         self,
         table_name: str,
@@ -67,7 +67,7 @@ class PgWorkflowStorage(WorkflowStorage):
         self.Session: scoped_session = scoped_session(sessionmaker(bind=self.db_engine))
         # Database table for storage
         self.table: Table = self.get_table()
-        logger.debug(f"Created PgWorkflowStorage: '{self.schema}.{self.table_name}'")
+        logger.debug(f"Created PostgresDbWorkflowStorage: '{self.schema}.{self.table_name}'")
 
     def get_table_v1(self) -> Table:
         """
@@ -168,7 +168,7 @@ class PgWorkflowStorage(WorkflowStorage):
                 if user_id:
                     stmt = stmt.where(self.table.c.user_id == user_id)
                 result = sess.execute(stmt).fetchone()
-                return WorkflowSession.model_validate(result) if result is not None else None
+                return WorkflowSession.from_dict(result._mapping) if result is not None else None  # type: ignore
         except Exception as e:
             logger.debug(f"Exception reading from table: {e}")
             logger.debug(f"Table does not exist: {self.table.name}")
@@ -232,7 +232,7 @@ class PgWorkflowStorage(WorkflowStorage):
                 stmt = stmt.order_by(self.table.c.created_at.desc())
                 # execute query
                 rows = sess.execute(stmt).fetchall()
-                return [WorkflowSession.model_validate(row) for row in rows] if rows is not None else []
+                return [WorkflowSession.from_dict(row._mapping) for row in rows] if rows is not None else []  # type: ignore
         except Exception as e:
             logger.debug(f"Exception reading from table: {e}")
             logger.debug(f"Table does not exist: {self.table.name}")
@@ -333,7 +333,7 @@ class PgWorkflowStorage(WorkflowStorage):
 
     def __deepcopy__(self, memo):
         """
-        Create a deep copy of the PgWorkflowStorage instance, handling unpickleable attributes.
+        Create a deep copy of the PostgresDbWorkflowStorage instance, handling unpickleable attributes.
 
         Args:
             memo (dict): A dictionary of objects already copied during the current copying pass.

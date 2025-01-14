@@ -1,11 +1,12 @@
 import json
 import time
+import traceback
 from dataclasses import dataclass, field
 from os import getenv
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterator, List, Optional, Union
 
-from agno.media import ImageInput
+from agno.media import ImageInput, AudioInput, VideoInput
 from agno.models.base import Model
 from agno.models.message import Message
 from agno.models.response import ModelResponse
@@ -19,6 +20,7 @@ try:
     from google.ai.generativelanguage_v1beta.types.generative_service import (
         GenerateContentResponse as ResultGenerateContentResponse,
     )
+    from google.api_core.exceptions import PermissionDenied
     from google.generativeai import GenerativeModel
     from google.generativeai.types import file_types
     from google.generativeai.types.content_types import FunctionDeclaration
@@ -169,7 +171,7 @@ class Gemini(Model):
                     raise
                 return image_data  # type: ignore
             except Exception as e:
-                logger.warning(f"Failed to load image from {image_path}: {e}")
+                logger.warning(f"Failed to load image from {image.filepath}: {e}")
                 return None
 
         # Case 3: Image is a bytes object
@@ -181,6 +183,50 @@ class Gemini(Model):
             return image_data
         else:
             logger.warning(f"Unknown image type: {type(image)}")
+            return None
+
+    def format_audio_for_message(self, audio: AudioInput) -> Optional[Dict[str, Any]]:
+        if isinstance(audio.content, bytes):
+            audio_file = {"mime_type": "audio/mp3", "data": audio.content}
+            return audio_file
+        else:
+            logger.warning(f"Unknown audio type: {type(audio.content)}")
+            return None
+
+    def format_video_for_message(self, video: VideoInput) -> Optional[file_types.File]:
+        # If video is stored locally
+        if video.filepath is not None:
+            video_path = video.filepath if isinstance(video.filepath, Path) else Path(video.filepath)
+
+            remote_file_name = f"files/{video_path.stem.lower()}"
+            # Check if video is already uploaded
+            existing_video_upload = None
+            try:
+                existing_video_upload = genai.get_file(remote_file_name)
+            except PermissionDenied:
+                pass
+
+            if existing_video_upload:
+                video_file = existing_video_upload
+            else:
+                # Upload the video file to the Gemini API
+                if video_path.exists() and video_path.is_file():
+                    video_file = genai.upload_file(path=video_path, name=remote_file_name, display_name=video_path.stem)
+                else:
+                    logger.error(f"Video file {video_path} does not exist.")
+                    raise Exception(f"Video file {video_path} does not exist.")
+
+                # Check whether the file is ready to be used.
+                while video_file.state.name == "PROCESSING":
+                    time.sleep(2)
+                    video_file = genai.get_file(video_file.name)
+
+                if video_file.state.name == "FAILED":
+                    raise ValueError(video_file.state.name)
+
+            return video_file
+        else:
+            logger.warning(f"Unknown video type: {type(video.content)}")
             return None
 
     def format_messages(self, messages: List[Message]) -> List[Dict[str, Any]]:
@@ -205,6 +251,7 @@ class Gemini(Model):
             content = message.content
             # Initialize message_parts to be used for Gemini
             message_parts: List[Any] = []
+
             if (not content or message.role in ["tool", "model"]) and hasattr(message, "parts"):
                 message_parts = message.parts  # type: ignore
             else:
@@ -232,66 +279,30 @@ class Gemini(Model):
                     for video in message.videos:
                         # Case 1: Video is a file_types.File object (Recommended)
                         # Add it as a File object
-                        if isinstance(video, file_types.File):
-                            # Google recommends that if using a single video, place the text prompt after the video.
-                            message_parts.insert(0, video)
-                        # Case 2: If video is a string, it is a local path
-                        elif isinstance(video, str) or isinstance(video, Path):
-                            # Upload the video file to the Gemini API
-                            video_file = None
-                            video_path = video if isinstance(video, Path) else Path(video)
-                            # Check if video is already uploaded
-                            video_file_name = video_path.name
-                            video_file_exists = genai.get_file(video_file_name)
-                            if video_file_exists:
-                                video_file = video_file_exists
-                            else:
-                                if video_path.exists() and video_path.is_file():
-                                    video_file = genai.upload_file(path=video_path)
-                                else:
-                                    logger.error(f"Video file {video_path} does not exist.")
-                                    raise
-
-                            # Check whether the file is ready to be used.
-                            while video_file.state.name == "PROCESSING":
-                                time.sleep(2)
-                                video_file = genai.get_file(video_file.name)
-
-                            if video_file.state.name == "FAILED":
-                                raise ValueError(video_file.state.name)
+                        if video.content is not None and isinstance(video.content, file_types.File):
+                            # Google recommends that if using a single image, place the text prompt after the image.
+                            message_parts.insert(0, video.content)
+                        else:
+                            video_file = self.format_video_for_message(video)
 
                             # Google recommends that if using a single video, place the text prompt after the video.
                             if video_file is not None:
                                 message_parts.insert(0, video_file)  # type: ignore
                 except Exception as e:
+                    traceback.print_exc()
                     logger.warning(f"Failed to load video from {message.videos}: {e}")
                     continue
 
-            if message.audio is not None and message.role == "user":
+            if message.audio is not None and len(message.audio) > 0 and message.role == "user":
                 try:
-                    # Case 1: Audio is a file_types.File object (Recommended)
-                    # Add it as a File object
-                    if isinstance(message.audio, file_types.File):
-                        # Google recommends that if using a single audio, place the text prompt after the audio.
-                        message_parts.insert(0, message.audio)  # type: ignore
-                    # Case 2: If audio is a string, it is a local path
-                    elif isinstance(message.audio, str) or isinstance(message.audio, Path):
-                        audio_path = message.audio if isinstance(message.audio, Path) else Path(message.audio)
-                        if audio_path.exists() and audio_path.is_file():
-                            import mimetypes
-
-                            # Get mime type from file extension
-                            mime_type = mimetypes.guess_type(audio_path)[0] or "audio/mp3"
-                            audio_file = {"mime_type": mime_type, "data": audio_path.read_bytes()}
-                            message_parts.insert(0, audio_file)  # type: ignore
+                    for audio_snippet in message.audio:
+                        if audio_snippet.content is not None and isinstance(audio_snippet.content, file_types.File):
+                            # Google recommends that if using a single image, place the text prompt after the image.
+                            message_parts.insert(0, audio_snippet.content)
                         else:
-                            logger.error(f"Audio file {audio_path} does not exist.")
-                            raise
-                    # Case 3: Audio is a bytes object
-                    # Add it as base64 encoded data
-                    elif isinstance(message.audio, bytes):
-                        audio_file = {"mime_type": "audio/mp3", "data": message.audio}
-                        message_parts.insert(0, audio_file)  # type: ignore
+                            audio_content = self.format_audio_for_message(audio_snippet)
+                            if audio_content:
+                                message_parts.append(audio_content)
                 except Exception as e:
                     logger.warning(f"Failed to load audio from {message.audio}: {e}")
                     continue

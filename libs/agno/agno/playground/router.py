@@ -12,7 +12,7 @@ from agno.document.reader.csv_reader import CSVReader
 from agno.document.reader.docx_reader import DocxReader
 from agno.document.reader.pdf_reader import PDFReader
 from agno.document.reader.text_reader import TextReader
-from agno.media import ImageInput
+from agno.media import ImageInput, AudioInput, VideoInput
 from agno.playground.operator import (
     format_tools,
     get_agent_by_id,
@@ -451,14 +451,14 @@ def get_async_playground_router(
         agent: Agent,
         message: str,
         images: Optional[List[ImageInput]] = None,
-        audio_file_content: Optional[Any] = None,
-        video_file_content: Optional[Any] = None,
+        audio: Optional[List[AudioInput]] = None,
+        videos: Optional[List[VideoInput]] = None,
     ) -> AsyncGenerator:
         run_response = await agent.arun(
             message,
             images=images,
-            audio=audio_file_content,
-            videos=video_file_content,
+            audio=audio,
+            videos=videos,
             stream=True,
             stream_intermediate_steps=True,
         )

@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import List
 
 import requests
 
@@ -39,3 +40,35 @@ def download_image(url, save_path):
     except IOError as e:
         print(f"Error saving the image to '{save_path}': {e}")
         return False
+
+
+def download_video(url: str, output_path: str) -> str:
+    """Download video from URL"""
+    response = requests.get(url, stream=True)
+    response.raise_for_status()
+
+    with open(output_path, "wb") as f:
+        for chunk in response.iter_content(chunk_size=8192):
+            f.write(chunk)
+    return output_path
+
+def extract_video_frames(file_path: str) -> List[str]:
+    import base64
+    try:
+        import cv2
+    except ImportError:
+        raise ImportError("`cv2` not installed. Please install it with `pip install opencv-python`")
+
+    video = cv2.VideoCapture(file_path)
+
+    base64Frames = []
+    while video.isOpened():
+        success, frame = video.read()
+        if not success:
+            break
+        _, buffer = cv2.imencode(".jpg", frame)
+        base64Frames.append(base64.b64encode(buffer).decode("utf-8"))
+
+    video.release()
+    print(len(base64Frames), "frames read.")
+    return base64Frames

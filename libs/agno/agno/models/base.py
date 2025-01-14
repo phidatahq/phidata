@@ -4,7 +4,7 @@ from pathlib import Path
 from types import GeneratorType
 from typing import Any, Callable, Dict, Iterator, List, Optional, Sequence, Union
 
-from agno.media import ImageInput
+from agno.media import ImageInput, AudioInput
 from agno.models.message import Message
 from agno.models.response import ModelResponse, ModelResponseEvent
 from agno.tools import Toolkit
@@ -420,19 +420,24 @@ class Model:
         """Process an image based on the format."""
 
         if image.url is not None:
-            return self._process_image_url(image.url)
+            image_payload = self._process_image_url(image.url)
 
         elif image.filepath is not None:
-            return self._process_image_path(image.filepath)
+            image_payload = self._process_image_path(image.filepath)
 
         elif image.content is not None:
-            return self._process_bytes_image(image.content)
+            image_payload = self._process_bytes_image(image.content)
 
         else:
             logger.warning(f"Unsupported image type: {type(image)}")
             return None
 
-    def add_images_to_message(self, message: Message, images: Optional[Sequence[ImageInput]] = None) -> Message:
+        if image.detail:
+            image_payload["image_url"]["detail"] = image.detail
+
+        return image_payload
+
+    def add_images_to_message(self, message: Message, images: Sequence[ImageInput]) -> Message:
         """
         Add images to a message for the model. By default, we use the OpenAI image format but other Models
         can override this method to use a different image format.
@@ -448,7 +453,7 @@ class Model:
             Message content with images added in the format expected by the model
         """
         # If no images are provided, return the message as is
-        if images is None or len(images) == 0:
+        if len(images) == 0:
             return message
 
         # Ignore non-string message content
@@ -473,7 +478,7 @@ class Model:
         message.content = message_content_with_image
         return message
 
-    def add_audio_to_message(self, message: Message, audio: Optional[Any] = None) -> Message:
+    def add_audio_to_message(self, message: Message, audio: Sequence[AudioInput]) -> Message:
         """
         Add audio to a message for the model. By default, we use the OpenAI audio format but other Models
         can override this method to use a different audio format.
@@ -487,22 +492,34 @@ class Model:
         Returns:
             Message content with audio added in the format expected by the model
         """
-        if audio is None:
+        if len(audio) == 0:
             return message
 
-        # If `id` is in the audio, this means the audio is already processed
-        # This is used in multi-turn conversations
-        if "id" in audio:
-            message.content = ""
-            message.audio = {"id": audio["id"]}
-        # If `data` is in the audio, this means the audio is raw data
-        # And an input audio
-        elif "data" in audio:
-            # Create a message with audio
-            message.content = [
-                {"type": "text", "text": message.content},
-                {"type": "input_audio", "input_audio": audio},
-            ]
+        # Create a default message content with text
+        message_content_with_audio: List[Dict[str, Any]] = [{"type": "text", "text": message.content}]
+
+        for audio_snippet in audio:
+            # This means the audio is raw data
+            if audio_snippet.content:
+                import base64
+
+                encoded_string = base64.b64encode(audio_snippet.content).decode('utf-8')
+
+                # Create a message with audio
+                message_content_with_audio.append(
+                    {
+                        "type": "input_audio",
+                        "input_audio": {
+                            "data": encoded_string,
+                            "format": audio_snippet.format,
+                        }
+                    },
+                )
+
+        # Update the message content with the audio
+        message.content = message_content_with_audio
+        message.audio = None  # The message should not have an audio component after this
+
         return message
 
     def get_system_message_for_model(self) -> Optional[str]:

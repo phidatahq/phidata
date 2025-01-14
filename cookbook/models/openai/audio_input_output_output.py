@@ -20,8 +20,8 @@ agent = Agent(
 
 agent.run(
     "What's in these recording?",
-    audio=[AudioInput(content=wav_data, format="wav")],
+    audio=[AudioInput(content=wav_data, format="wav")]
 )
 
-if agent.run_response.response_audio is not None :
+if agent.run_response.response_audio is not None:
     write_audio_to_file(audio=agent.run_response.response_audio.content, filename="tmp/result.wav")

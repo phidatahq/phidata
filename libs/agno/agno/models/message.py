@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional, Sequence, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from agno.media import ImageInput
+from agno.media import ImageInput, AudioInput, AudioOutput, VideoInput
 from agno.utils.log import logger
 
 
@@ -36,9 +36,12 @@ class Message(BaseModel):
     tool_calls: Optional[List[Dict[str, Any]]] = None
 
     # Additional modalities
-    audio: Optional[Any] = None
+    audio: Optional[Sequence[AudioInput]] = None
     images: Optional[Sequence[ImageInput]] = None
-    videos: Optional[Sequence[Any]] = None
+    videos: Optional[Sequence[VideoInput]] = None
+
+    # Output from the models
+    audio_output: Optional[AudioOutput] = None
 
     # --- Data not sent to the Model API ---
     # The name of the tool called
@@ -114,14 +117,12 @@ class Message(BaseModel):
         if self.videos:
             _logger(f"Videos added: {len(self.videos)}")
         if self.audio:
-            if isinstance(self.audio, dict):
-                _logger(f"Audio files added: {len(self.audio)}")
-                if "id" in self.audio:
-                    _logger(f"Audio ID: {self.audio['id']}")
-                elif "data" in self.audio:
+            _logger(f"Audios added: {len(self.audio)}")
+            for audio_sample in self.audio:
+                if "id" in audio_sample:
+                    _logger(f"Audio ID: {audio_sample['id']}")
+                elif "data" in audio_sample:
                     _logger("Message contains raw audio data")
-            else:
-                _logger(f"Audio file added: {self.audio}")
 
     def content_is_valid(self) -> bool:
         """Check if the message content is valid."""

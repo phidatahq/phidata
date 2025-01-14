@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from agno.utils.images import download_image
+from agno.utils.media import download_image
 from agno.agent import Agent
 from agno.tools.dalle import DalleTools
 

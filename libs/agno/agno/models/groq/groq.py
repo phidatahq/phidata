@@ -266,8 +266,8 @@ class Groq(Model):
         if message.role == "user":
             if message.images is not None:
                 message = self.add_images_to_message(message=message, images=message.images)
-            if message.audio is not None:
-                message = self.add_audio_to_message(message=message, audio=message.audio)
+            # if message.audio is not None:
+            #     message = self.add_audio_to_message(message=message, audio=message.audio)
 
         return message.to_dict()
 

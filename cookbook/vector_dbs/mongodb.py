@@ -1,7 +1,7 @@
 # install pymongo - `pip install pymongo`
 
 from agno.agent import Agent
-from agno.knowledge.pdf import PDFUrlKnowledgeBase
+from agno.knowledge.pdf_url import PDFUrlKnowledgeBase
 
 # os.environ["OPENAI_API_KEY"] = ""
 from agno.vectordb.mongodb import MongoDBVector

@@ -2,9 +2,8 @@ from pathlib import Path
 from typing import Iterator, List, Union
 
 from agno.document import Document
-from agno.document.reader.csv_reader import CSVReader, CSVUrlReader
+from agno.document.reader.csv_reader import CSVReader
 from agno.knowledge.agent import AgentKnowledge
-from agno.utils.log import logger
 
 
 class CSVKnowledgeBase(AgentKnowledge):
@@ -27,16 +26,3 @@ class CSVKnowledgeBase(AgentKnowledge):
                 yield self.reader.read(file=_csv)
         elif _csv_path.exists() and _csv_path.is_file() and _csv_path.suffix == ".csv":
             yield self.reader.read(file=_csv_path)
-
-
-class CSVUrlKnowledgeBase(AgentKnowledge):
-    urls: List[str]
-    reader: CSVUrlReader = CSVUrlReader()
-
-    @property
-    def document_lists(self) -> Iterator[List[Document]]:
-        for url in self.urls:
-            if url.endswith(".csv"):
-                yield self.reader.read(url=url)
-            else:
-                logger.error(f"Unsupported URL: {url}")

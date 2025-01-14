@@ -18,7 +18,7 @@ class MovieScript(BaseModel):
 
 # Agent that uses JSON mode
 agent = Agent(
-    model=Fireworks(id="accounts/fireworks/models/firefunction-v2"),
+    model=Fireworks(id="accounts/fireworks/models/llama-v3p1-405b-instruct"),
     description="You write movie scripts.",
     response_model=MovieScript,
 )

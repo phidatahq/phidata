@@ -16,7 +16,7 @@ class Nvidia(OpenAILike):
         base_url (str): The base url to which the requests are sent.
     """
 
-    id: str = "nvidia/llama-3.1-nemotron-70b-instruct"
+    id: str = "meta/llama-3.3-70b-instruct"
     name: str = "Nvidia"
     provider: str = "Nvidia " + id
 

@@ -1,5 +1,5 @@
 from agno.agent import Agent
-from agno.knowledge.csv import CSVUrlKnowledgeBase
+from agno.knowledge.csv_url import CSVUrlKnowledgeBase
 from agno.vectordb.pgvector import PgVector
 
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"

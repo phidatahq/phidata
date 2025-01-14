@@ -2,7 +2,7 @@ import typer
 from typing import Optional, List
 from agno.agent import Agent
 from agno.storage.agent.postgres import PgAgentStorage
-from agno.knowledge.pdf import PDFUrlKnowledgeBase
+from agno.knowledge.pdf_url import PDFUrlKnowledgeBase
 from agno.vectordb.pgvector import PgVector, SearchType
 
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"

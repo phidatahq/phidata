@@ -3,7 +3,7 @@ from os import getenv
 from sqlalchemy.engine import create_engine
 
 from agno.agent import Agent
-from agno.knowledge.pdf import PDFUrlKnowledgeBase
+from agno.knowledge.pdf_url import PDFUrlKnowledgeBase
 from agno.vectordb.singlestore import S2VectorDb
 
 USERNAME = getenv("SINGLESTORE_USERNAME")

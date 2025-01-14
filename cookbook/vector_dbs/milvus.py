@@ -1,7 +1,7 @@
 # install pymilvus - `pip install pymilvus`
 
 from agno.agent import Agent
-from agno.knowledge.pdf import PDFUrlKnowledgeBase
+from agno.knowledge.pdf_url import PDFUrlKnowledgeBase
 from agno.vectordb.milvus import Milvus
 
 # Initialize Milvus

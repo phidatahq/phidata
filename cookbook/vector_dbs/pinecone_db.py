@@ -1,7 +1,7 @@
 from os import getenv
 
 from agno.agent import Agent
-from agno.knowledge.pdf import PDFUrlKnowledgeBase
+from agno.knowledge.pdf_url import PDFUrlKnowledgeBase
 from agno.vectordb.pineconedb import PineconeDB
 
 api_key = getenv("PINECONE_API_KEY")

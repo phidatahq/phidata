@@ -54,5 +54,5 @@ pip install -U pypdf bs4
 - Run the PDF URL script
 
 ```shell
-python cookbook/knowledge/pdf_url.py
+python cookbook/agent_concepts/knowledge/pdf_url.py
 ```

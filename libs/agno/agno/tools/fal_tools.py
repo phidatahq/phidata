@@ -7,7 +7,7 @@ from typing import Optional
 from uuid import uuid4
 
 from agno.agent import Agent
-from agno.run.media import Image, Video
+from agno.media import ImageArtifact, VideoArtifact
 from agno.tools import Toolkit
 from agno.utils.log import logger
 
@@ -62,7 +62,7 @@ class FalTools(Toolkit):
             if "image" in result:
                 url = result.get("image", {}).get("url", "")
                 agent.add_image(
-                    Image(
+                    ImageArtifact(
                         id=media_id,
                         url=url,
                     )
@@ -71,7 +71,7 @@ class FalTools(Toolkit):
             elif "video" in result:
                 url = result.get("video", {}).get("url", "")
                 agent.add_video(
-                    Video(
+                    VideoArtifact(
                         id=media_id,
                         url=url,
                     )
@@ -110,7 +110,7 @@ class FalTools(Toolkit):
             url = result.get("images", [{}])[0].get("url", "")
             media_id = str(uuid4())
             agent.add_image(
-                Image(
+                ImageArtifact(
                     id=media_id,
                     url=url,
                 )

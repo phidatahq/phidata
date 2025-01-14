@@ -5,7 +5,7 @@ from typing import Optional
 import httpx
 
 from agno.agent import Agent
-from agno.run.media import Image
+from agno.media import ImageArtifact
 from agno.tools import Toolkit
 from agno.utils.log import logger
 
@@ -59,7 +59,7 @@ class GiphyTools(Toolkit):
                 alt_text = gif["alt_text"]
                 gif_urls.append(gif_url)
 
-                agent.add_image(Image(id=media_id, url=gif_url, alt_text=alt_text, revised_prompt=query))
+                agent.add_image(ImageArtifact(id=media_id, url=gif_url, alt_text=alt_text, revised_prompt=query))
 
             return f"These are the found gifs {gif_urls}"
 

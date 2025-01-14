@@ -28,12 +28,12 @@ from pydantic import BaseModel
 
 from agno.agent.session import AgentSession
 from agno.knowledge.agent import AgentKnowledge
+from agno.media import AudioArtifact, ImageArtifact, ImageInput, VideoArtifact
 from agno.memory.agent import AgentMemory, AgentRun
 from agno.models.base import Model
 from agno.models.message import Message, MessageReferences
 from agno.models.response import ModelResponse, ModelResponseEvent
 from agno.reasoning.step import NextAction, ReasoningStep, ReasoningSteps
-from agno.run.media import Audio, Image, Video
 from agno.run.messages import RunMessages
 from agno.run.response import RunEvent, RunResponse, RunResponseExtraData
 from agno.storage.agent.base import AgentStorage
@@ -229,11 +229,11 @@ class Agent:
     run_messages: Optional[RunMessages] = None
     run_response: Optional[RunResponse] = None
     # Images generated during this session
-    images: Optional[List[Image]] = None
+    images: Optional[List[ImageArtifact]] = None
     # Videos generated during this session
-    videos: Optional[List[Video]] = None
+    videos: Optional[List[VideoArtifact]] = None
     # Audio generated during this session
-    audio: Optional[List[Audio]] = None
+    audio: Optional[List[AudioArtifact]] = None
 
     def __init__(
         self,
@@ -444,7 +444,7 @@ class Agent:
         *,
         stream: bool = False,
         audio: Optional[Any] = None,
-        images: Optional[Sequence[Any]] = None,
+        images: Optional[Sequence[ImageInput]] = None,
         videos: Optional[Sequence[Any]] = None,
         messages: Optional[Sequence[Union[Dict, Message]]] = None,
         stream_intermediate_steps: bool = False,
@@ -689,7 +689,7 @@ class Agent:
         *,
         stream: Literal[False] = False,
         audio: Optional[Any] = None,
-        images: Optional[Sequence[Any]] = None,
+        images: Optional[Sequence[ImageInput]] = None,
         videos: Optional[Sequence[Any]] = None,
         messages: Optional[Sequence[Union[Dict, Message]]] = None,
         stream_intermediate_steps: bool = False,
@@ -704,7 +704,7 @@ class Agent:
         *,
         stream: Literal[True] = True,
         audio: Optional[Any] = None,
-        images: Optional[Sequence[Any]] = None,
+        images: Optional[Sequence[ImageInput]] = None,
         videos: Optional[Sequence[Any]] = None,
         messages: Optional[Sequence[Union[Dict, Message]]] = None,
         stream_intermediate_steps: bool = False,
@@ -718,7 +718,7 @@ class Agent:
         *,
         stream: bool = False,
         audio: Optional[Any] = None,
-        images: Optional[Sequence[Any]] = None,
+        images: Optional[Sequence[ImageInput]] = None,
         videos: Optional[Sequence[Any]] = None,
         messages: Optional[Sequence[Union[Dict, Message]]] = None,
         stream_intermediate_steps: bool = False,
@@ -835,7 +835,7 @@ class Agent:
         *,
         stream: bool = False,
         audio: Optional[Any] = None,
-        images: Optional[Sequence[Any]] = None,
+        images: Optional[Sequence[ImageInput]] = None,
         videos: Optional[Sequence[Any]] = None,
         messages: Optional[Sequence[Union[Dict, Message]]] = None,
         stream_intermediate_steps: bool = False,
@@ -1082,7 +1082,7 @@ class Agent:
         *,
         stream: bool = False,
         audio: Optional[Any] = None,
-        images: Optional[Sequence[Any]] = None,
+        images: Optional[Sequence[ImageInput]] = None,
         videos: Optional[Sequence[Any]] = None,
         messages: Optional[Sequence[Union[Dict, Message]]] = None,
         stream_intermediate_steps: bool = False,
@@ -1440,19 +1440,19 @@ class Agent:
                 if images_from_db is not None and isinstance(images_from_db, list):
                     if self.images is None:
                         self.images = []
-                    self.images.extend([Image.model_validate(img) for img in images_from_db])
+                    self.images.extend([ImageArtifact.model_validate(img) for img in images_from_db])
             if "videos" in session.session_data:
                 videos_from_db = session.session_data.get("videos")
                 if videos_from_db is not None and isinstance(videos_from_db, list):
                     if self.videos is None:
                         self.videos = []
-                    self.videos.extend([Video.model_validate(vid) for vid in videos_from_db])
+                    self.videos.extend([VideoArtifact.model_validate(vid) for vid in videos_from_db])
             if "audio" in session.session_data:
                 audio_from_db = session.session_data.get("audio")
                 if audio_from_db is not None and isinstance(audio_from_db, list):
                     if self.audio is None:
                         self.audio = []
-                    self.audio.extend([Audio.model_validate(aud) for aud in audio_from_db])
+                    self.audio.extend([AudioArtifact.model_validate(aud) for aud in audio_from_db])
 
         # Read memory from the database
         self.memory = cast(AgentMemory, self.memory)
@@ -1798,7 +1798,7 @@ class Agent:
         *,
         message: Optional[Union[str, List]],
         audio: Optional[Any] = None,
-        images: Optional[Sequence[Any]] = None,
+        images: Optional[Sequence[ImageInput]] = None,
         videos: Optional[Sequence[Any]] = None,
         **kwargs: Any,
     ) -> Optional[Message]:
@@ -1859,7 +1859,9 @@ class Agent:
 
         # 2. If create_default_user_message is False or message is a list, return the message as is.
         if not self.create_default_user_message or isinstance(message, list):
-            return Message(role=self.user_message_role, content=message, images=images, audio=audio, **kwargs)
+            return Message(
+                role=self.user_message_role, content=message, images=images, audio=audio, videos=videos, **kwargs
+            )
 
         # 3. Build the default user message for the Agent
         # If the message is None, return None
@@ -1899,7 +1901,7 @@ class Agent:
         *,
         message: Optional[Union[str, List, Dict, Message]] = None,
         audio: Optional[Any] = None,
-        images: Optional[Sequence[Any]] = None,
+        images: Optional[Sequence[ImageInput]] = None,
         videos: Optional[Sequence[Any]] = None,
         messages: Optional[Sequence[Union[Dict, Message]]] = None,
         **kwargs: Any,
@@ -2394,7 +2396,7 @@ class Agent:
     # Handle images, videos and audio
     ###########################################################################
 
-    def add_image(self, image: Image) -> None:
+    def add_image(self, image: ImageArtifact) -> None:
         if self.images is None:
             self.images = []
         self.images.append(image)
@@ -2403,7 +2405,7 @@ class Agent:
                 self.run_response.images = []
             self.run_response.images.append(image)
 
-    def add_video(self, video: Video) -> None:
+    def add_video(self, video: VideoArtifact) -> None:
         if self.videos is None:
             self.videos = []
         self.videos.append(video)
@@ -2412,7 +2414,7 @@ class Agent:
                 self.run_response.videos = []
             self.run_response.videos.append(video)
 
-    def add_audio(self, audio: Audio) -> None:
+    def add_audio(self, audio: AudioArtifact) -> None:
         if self.audio is None:
             self.audio = []
         self.audio.append(audio)
@@ -2421,13 +2423,13 @@ class Agent:
                 self.run_response.audio = []
             self.run_response.audio.append(audio)
 
-    def get_images(self) -> Optional[List[Image]]:
+    def get_images(self) -> Optional[List[ImageArtifact]]:
         return self.images
 
-    def get_videos(self) -> Optional[List[Video]]:
+    def get_videos(self) -> Optional[List[VideoArtifact]]:
         return self.videos
 
-    def get_audio(self) -> Optional[List[Audio]]:
+    def get_audio(self) -> Optional[List[AudioArtifact]]:
         return self.audio
 
     ###########################################################################
@@ -2854,9 +2856,6 @@ class Agent:
         }
 
         if self.monitoring:
-            print("HERE")
-            print(self.run_input)
-
             run_data.update(
                 {
                     "run_input": self.run_input,
@@ -2932,6 +2931,9 @@ class Agent:
         message: Optional[Union[List, Dict, str, Message]] = None,
         *,
         messages: Optional[List[Union[Dict, Message]]] = None,
+        audio: Optional[Any] = None,
+        images: Optional[Sequence[ImageInput]] = None,
+        videos: Optional[Sequence[Any]] = None,
         stream: bool = False,
         markdown: bool = False,
         show_message: bool = True,
@@ -2981,7 +2983,9 @@ class Agent:
                 if render:
                     live_log.update(Group(*panels))
 
-                for resp in self.run(message=message, messages=messages, stream=True, **kwargs):
+                for resp in self.run(
+                    message=message, messages=messages, audio=audio, images=images, videos=videos, stream=True, **kwargs
+                ):
                     if isinstance(resp, RunResponse) and isinstance(resp.content, str):
                         if resp.event == RunEvent.run_response:
                             _response_content += resp.content
@@ -3073,7 +3077,15 @@ class Agent:
                     live_log.update(Group(*panels))
 
                 # Run the agent
-                run_response = self.run(message=message, messages=messages, stream=False, **kwargs)
+                run_response = self.run(
+                    message=message,
+                    messages=messages,
+                    audio=audio,
+                    images=images,
+                    videos=videos,
+                    stream=False,
+                    **kwargs,
+                )
                 response_timer.stop()
 
                 reasoning_steps = []
@@ -3151,6 +3163,9 @@ class Agent:
         message: Optional[Union[List, Dict, str, Message]] = None,
         *,
         messages: Optional[List[Union[Dict, Message]]] = None,
+        audio: Optional[Any] = None,
+        images: Optional[Sequence[ImageInput]] = None,
+        videos: Optional[Sequence[Any]] = None,
         stream: bool = False,
         markdown: bool = False,
         show_message: bool = True,
@@ -3293,7 +3308,15 @@ class Agent:
                     live_log.update(Group(*panels))
 
                 # Run the agent
-                run_response = await self.arun(message=message, messages=messages, stream=False, **kwargs)
+                run_response = await self.arun(
+                    message=message,
+                    messages=messages,
+                    audio=audio,
+                    images=images,
+                    videos=videos,
+                    stream=False,
+                    **kwargs,
+                )
                 response_timer.stop()
 
                 reasoning_steps = []

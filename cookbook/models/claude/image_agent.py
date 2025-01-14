@@ -1,4 +1,5 @@
 from agno.agent import Agent
+from agno.media import ImageInput
 from agno.models.anthropic import Claude
 from agno.tools.duckduckgo import DuckDuckGoTools
 
@@ -11,7 +12,7 @@ agent = Agent(
 agent.print_response(
     "Tell me about this image and search the web for more information.",
     images=[
-        "https://upload.wikimedia.org/wikipedia/commons/a/a7/Camponotus_flavomarginatus_ant.jpg",
+        ImageInput(url="https://upload.wikimedia.org/wikipedia/commons/a/a7/Camponotus_flavomarginatus_ant.jpg"),
     ],
     stream=True,
 )

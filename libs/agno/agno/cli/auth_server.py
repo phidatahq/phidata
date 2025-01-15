@@ -15,7 +15,7 @@ class CliAuthRequestHandler(BaseHTTPRequestHandler):
     """
 
     def _set_response(self):
-        self.send_response(200)
+        self.send_response(200, message="OK")
         self.send_header("Content-type", "application/json")
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Headers", "*")

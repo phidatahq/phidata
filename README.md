@@ -8,7 +8,7 @@
 
 [Agno](https://docs.agno.com) is an Agent framework designed for performance and scale. Agno agents are model-agnostic, multi-modal and come with built-in memory, knowledge and session management.
 
-**Agno gets the fundamentals right:** Build performant agents with a minimal memory footprint, reliable tool calling, session, memory and knowledge management. It lets the developer design the workflow in pure python. No graphs, no chains, no random patterns that you have to learn or fight against. Want cycles, use loops; want conditions, use if/else; want error handling, use try/except.
+**Agno gets the fundamentals right:** Build performant agents with a minimal memory footprint, reliable tool calling, session, memory and knowledge management. Agno lets the developer design the workflow in pure python. No graphs, no chains, no random patterns that you have to learn or fight against. Want cycles, use loops; want conditions, use if/else; want error handling, use try/except.
 
 **Agno is feature complete:** Agno, previously phidata, was in active development for 2 years and is used in production at 100s of companies.  We’re mostly feature complete and are now focused on reliability and usability. We’ll continue to add integrations, fix bugs and improve performance but our core focus is to provide the best agent development experience and stability and reliability are at the heart of that.
 

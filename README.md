@@ -1,8 +1,8 @@
-<h2 align="left" id="top">
+<h2 align="center" id="top">
   Agno: High-Performance AI Agents
 </h2>
 
-<div align="left">
+<div align="center">
   📚 <a href="https://docs.agno.com">Documentation</a> &nbsp;|&nbsp;
   💡 <a href="https://github.com/agno-agi/agno/tree/main/cookbook">Examples</a> &nbsp;|&nbsp;
   🌟 <a href="https://github.com/agno-agi/agno/stargazers">Star Us</a>
@@ -10,30 +10,17 @@
 
 ## What is Agno?
 
-**Agno is a model-agnostic framework for building high-performance, multi-modal AI Agents.**
-
-<img
-  src="https://github.com/user-attachments/assets/44739d09-2ec4-49b7-bea1-b275afccc592"
-  style="border-radius: 8px;"
-/>
+**A model-agnostic framework for building high-performance AI Agents**
 
 ## Why Agno?
 
-**Model Agnostic**: Use any provider, any model
-
-**High Performance**: Agent instantiation takes <0.000010 seconds (tested on an M4, full benchmarks coming soon)
-
-**Multi-Modal**: Works with Text, Image, Audio and Video
-
-**Multi-Agent**: Orchestrate teams of agents to solve complex problems
-
-**Built-in Memory**: Store short-term and long-term memory in a database
-
-**Built-in Knowledge**: Store knowledge in a vector database, use Agentic RAG to search knowledge
-
-**Structured Outputs**: Return Agent responses as structured data
-
-**Built-in Monitoring**: Monitor Agent sessions on [agno.com](https://www.agno.com)
+- **Lightning Fast**: Agents instantiate in <10μs on M4 chips (full benchmarks coming soon)
+- **Model Agnostic**: Use any provider, any model
+- **Multi Modal**: Works with Text, Image, Audio and Video
+- **Multi Agent**: Orchestrate teams of agents to solve complex problems
+- **Built-in Memory**: Store short-term and long-term memory in any database
+- **Built-in Knowledge**: Store knowledge in any vectordb, use for Agentic RAG or dynamic few-shot
+- **Built-in Monitoring**: Monitor Agent sessions and quality on [agno.com](https://www.agno.com)
 
 ## Getting Started
 
@@ -43,24 +30,7 @@
 pip install -U agno
 ```
 
-## Key Features
-
-- [Simple & Elegant](#simple--elegant)
-- [Powerful & Flexible](#powerful--flexible)
-- [Multi-Modal by default](#multi-modal-by-default)
-- [Multi-Agent orchestration](#multi-agent-orchestration)
-- [A beautiful Agent UI to chat with your agents](#a-beautiful-agent-ui-to-chat-with-your-agents)
-- [Agentic RAG built-in](#agentic-rag)
-- [Structured Outputs](#structured-outputs)
-- [Reasoning Agents](#reasoning-agents-experimental)
-- [Monitoring & Debugging built-in](#monitoring--debugging)
-- [Demo Agents](#demo-agents)
-
-## Simple & Elegant
-
-Phidata Agents are simple and elegant, resulting in minimal, beautiful code.
-
-For example, you can create a web search agent in 10 lines of code, create a file `web_search.py`
+## Level 0: Simple Agent with no tools
 
 ```python
 from phi.agent import Agent

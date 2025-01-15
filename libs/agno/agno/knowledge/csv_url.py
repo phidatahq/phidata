@@ -5,6 +5,7 @@ from agno.document.reader.csv_reader import CSVUrlReader
 from agno.knowledge.agent import AgentKnowledge
 from agno.utils.log import logger
 
+
 class CSVUrlKnowledgeBase(AgentKnowledge):
     urls: List[str]
     reader: CSVUrlReader = CSVUrlReader()

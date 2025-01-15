@@ -6,7 +6,7 @@
 
 ## Overview
 
-[Agno](https://docs.agno.com) is an Agent framework designed for performance and scale. Agno is model-agnostic, multi-modal and comes with built-in memory, knowledge and session management.
+[Agno](https://docs.agno.com) is an Agent framework designed for performance and scale. Agno agents are model-agnostic, multi-modal and come with built-in memory, knowledge and session management.
 
 **Agno gets the fundamentals right:** Build performant agents with a minimal memory footprint, reliable tool calling, session, memory and knowledge management. It lets the developer design the workflow in pure python. No graphs, no chains, no random patterns that you have to learn or fight against. Want cycles, use loops; want conditions, use if/else; want error handling, use try/except.
 
@@ -36,9 +36,7 @@ pip install -U agno
 
 ### What are Agents?
 
-Agents are programs where a language model controls the flow of execution. For example, if you ask an agent to write a news report and give it appropriate tools, it will determine the topics it needs to search for, scrape the artices one by one and write the report.
-
-Instead of forcing ourselves into a binary definition, we recommend looking at Agents through the lens of Agency and Autonomy.
+Agents are programs where a language model controls the flow of execution. Instead of forcing ourselves into a 0 or 1 definition, we recommend looking at Agents through the lens of Agency and Autonomy.
 
 ### Level 0: Agents with no tools
 
@@ -149,7 +147,7 @@ pip install lancedb tantivy pypdf duckduckgo-search
 python 02_agent_with_knowledge.py
 ```
 
-### Level 3: Multi-Agent Teams
+### Level 3: Multi Agent Teams
 
 Agents work best when they have a singular purpose, a narrow scope and a small number of tools. When the number of tools grows beyond what the language model can handle or the tools belong to different categories, we recommend using a team of agents to achieve the task. As complexity grows:
 - Split functionality into specialized agents
@@ -159,6 +157,11 @@ Agents work best when they have a singular purpose, a narrow scope and a small n
 This approach improves reliability, makes debugging easier, and helps prevent cognitive overload on the language model.
 
 ```python
+from agno.agent import Agent
+from agno.models.openai import OpenAIChat
+from agno.tools.duckduckgo import DuckDuckGoTools
+from agno.tools.yfinance import YFinanceTools
+
 web_agent = Agent(
     name="Web Agent",
     role="Search the web for information",

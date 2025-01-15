@@ -1,8 +1,12 @@
-# Agno: High-Performance AI Agents
+<h1 align="center" id="top">
+Agno: High-Performance AI Agents
+</h1>
 
-📚 [Documentation](https://docs.agno.com) &nbsp;|&nbsp;
-💡 [Examples](https://github.com/agno-agi/agno/tree/main/cookbook) &nbsp;|&nbsp;
-🌟 [Star Us](https://github.com/agno-agi/agno/stargazers)
+<p align="center">
+  <a href="https://docs.agno.com">📚 Documentation</a> &nbsp;|&nbsp;
+  <a href="https://github.com/agno-agi/agno/tree/main/cookbook">💡 Examples</a> &nbsp;|&nbsp;
+  <a href="https://github.com/agno-agi/agno/stargazers">🌟 Star Us</a>
+</p>
 
 ## Overview
 

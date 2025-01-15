@@ -1,7 +1,7 @@
 import json
 from dataclasses import asdict
 from io import BytesIO
-from typing import Any, AsyncGenerator, Dict, Generator, List, Optional, Union, cast
+from typing import Any, AsyncGenerator, Generator, List, Optional, cast
 
 from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -137,7 +137,7 @@ def get_playground_router(
         else:
             new_agent_instance.monitoring = False
 
-        base64_image: Optional[List[Union[str, Dict]]] = None
+        base64_image: Optional[ImageInput] = None
         if image:
             base64_image = process_image(image)
 
@@ -176,7 +176,7 @@ def get_playground_router(
 
         if stream:
             return StreamingResponse(
-                chat_response_streamer(new_agent_instance, message, images=base64_image),
+                chat_response_streamer(new_agent_instance, message, images=[base64_image] if base64_image else None),
                 media_type="text/event-stream",
             )
         else:
@@ -184,7 +184,7 @@ def get_playground_router(
                 RunResponse,
                 new_agent_instance.run(
                     message,
-                    images=base64_image,
+                    images=[base64_image] if base64_image else None,
                     stream=False,
                 ),
             )
@@ -514,7 +514,7 @@ def get_async_playground_router(
         else:
             new_agent_instance.monitoring = False
 
-        base64_image: Optional[List[Union[str, Dict]]] = None
+        base64_image: Optional[ImageInput] = None
         if image:
             base64_image = await process_image(image)
 
@@ -553,7 +553,7 @@ def get_async_playground_router(
 
         if stream:
             return StreamingResponse(
-                chat_response_streamer(new_agent_instance, message, images=base64_image),
+                chat_response_streamer(new_agent_instance, message, images=[base64_image] if base64_image else None),
                 media_type="text/event-stream",
             )
         else:
@@ -561,7 +561,7 @@ def get_async_playground_router(
                 RunResponse,
                 await new_agent_instance.arun(
                     message,
-                    images=base64_image,
+                    images=[base64_image] if base64_image else None,
                     stream=False,
                 ),
             )

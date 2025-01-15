@@ -1,9 +1,7 @@
-import os
 from os import getenv
 from agno.agent import Agent
 from agno.knowledge.youtube import YouTubeKnowledgeBase, YouTubeReader
 from agno.vectordb.qdrant import Qdrant
-from agno.vectordb.pgvector.pgvector import PgVector
 
 api_key = getenv("QDRANT_API_KEY")
 qdrant_url = getenv("QDRANT_URL")

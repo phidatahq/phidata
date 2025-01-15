@@ -17,7 +17,7 @@ class TrelloTools(Toolkit):
         api_secret: Optional[str] = None,
         token: Optional[str] = None,
         create_card: bool = True,
-        get_board_list: bool = True,
+        get_board_lists: bool = True,
         move_card: bool = True,
         get_cards: bool = True,
         create_board: bool = True,

@@ -22,6 +22,7 @@ pydantic==2.9.2
 pydantic-core==2.23.4
 pydantic-settings==2.5.2
 pygments==2.18.0
+python-docx==1.1.2
 python-dotenv==1.0.1
 pyyaml==6.0.2
 rich==13.9.2

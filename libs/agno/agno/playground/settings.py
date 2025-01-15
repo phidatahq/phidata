@@ -41,7 +41,7 @@ class PlaygroundSettings(BaseSettings):
         valid_cors.extend(
             [
                 "http://localhost",
-                "http://localhost:3000",
+                "http://from agno",
                 "https://agno.com",
                 "https://www.agno.com",
                 "https://agno.so",

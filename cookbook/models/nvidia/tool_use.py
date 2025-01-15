@@ -1,11 +1,14 @@
 """Run `pip install duckduckgo-search` to install dependencies."""
 
+import os
+
 from agno.agent import Agent
-from agno.models.groq import Groq
+from agno.models.nvidia import Nvidia
 from agno.tools.duckduckgo import DuckDuckGoTools
 
+
 agent = Agent(
-    model=Groq(id="llama-3.3-70b-versatile"),
+    model=Nvidia(id="meta/llama-3.3-70b-instruct"),
     tools=[DuckDuckGoTools()],
     show_tool_calls=True,
     markdown=True,

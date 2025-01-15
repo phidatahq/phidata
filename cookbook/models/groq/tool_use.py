@@ -19,6 +19,5 @@ agent = Agent(
     markdown=True,
     show_tool_calls=True,
     add_datetime_to_instructions=True,
-    # debug_mode=True,
 )
 agent.print_response("Simulation theory", stream=True)

@@ -23,62 +23,38 @@ export ANTHROPIC_API_KEY=xxx
 pip install -U anthropic duckduckgo-search duckdb yfinance agno
 ```
 
-### 4. Run Agent without Tools
+### 4. Run basic Agent
 
 - Streaming on
 
 ```shell
-python cookbook/models/claude/basic_stream.py
+python cookbook/models/anthropic/basic_stream.py
 ```
 
 - Streaming off
 
 ```shell
-python cookbook/models/claude/basic.py
+python cookbook/models/anthropic/basic.py
 ```
 
 ### 5. Run Agent with Tools
 
-- YFinance Agent with streaming on
+- DuckDuckGo Search
 
 ```shell
-python cookbook/models/claude/agent_stream.py
-```
-
-- YFinance Agent without streaming
-
-```shell
-python cookbook/models/claude/agent.py
-```
-
-- Data Analyst
-
-```shell
-python cookbook/models/claude/data_analyst.py
-```
-
-- Web Search
-
-```shell
-python cookbook/models/claude/web_search.py
-```
-
-- Finance Agent
-
-```shell
-python cookbook/models/claude/finance.py
+python cookbook/models/anthropic/tool_use.py
 ```
 
 ### 6. Run Agent that returns structured output
 
 ```shell
-python cookbook/models/claude/structured_output.py
+python cookbook/models/anthropic/structured_output.py
 ```
 
 ### 7. Run Agent that uses storage
 
 ```shell
-python cookbook/models/claude/storage.py
+python cookbook/models/anthropic/storage.py
 ```
 
 ### 8. Run Agent that uses knowledge
@@ -89,7 +65,11 @@ export OPENAI_API_KEY=***
 ```
 
 ```shell
-python cookbook/models/claude/knowledge.py
+python cookbook/models/anthropic/knowledge.py
 ```
 
+### 9. Run Agent that analyzes an image
 
+```shell
+python cookbook/models/anthropic/image_agent.py
+```

@@ -7,10 +7,8 @@
 Run your chat model
 
 ```shell
-ollama run hermes3
+ollama pull hermes3
 ```
-
-Message `/bye` to exit the chat model
 
 ### 2. Create and activate a virtual environment
 
@@ -25,7 +23,7 @@ source ~/.venvs/aienv/bin/activate
 pip install -U ollama duckduckgo-search duckdb yfinance agno
 ```
 
-### 4. Run Agent without Tools
+### 4. Run basic Agent
 
 - Streaming on
 
@@ -41,38 +39,15 @@ python cookbook/models/hermes/basic.py
 
 ### 5. Run Agent with Tools
 
-- Yahoo Finance with streaming on
+- DuckDuckGo search
 
 ```shell
-python cookbook/models/hermes/agent_stream.py
+python cookbook/models/hermes/tool_use.py
 ```
 
-- Yahoo Finance without streaming
-
-```shell
-python cookbook/models/hermes/agent.py
-```
-
-- Finance Agent
-
-```shell
-python cookbook/models/hermes/finance_agent.py
-```
-
-- Data Analyst
-
-```shell
-python cookbook/models/hermes/data_analyst.py
-```
 
 ### 6. Run Agent that returns structured output
 
 ```shell
 python cookbook/models/hermes/structured_output.py
-```
-
-### 7. Run Agent that uses web search
-
-```shell
-python cookbook/models/hermes/web_search.py
 ```

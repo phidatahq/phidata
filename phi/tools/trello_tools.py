@@ -41,8 +41,8 @@ class TrelloTools(Toolkit):
 
         if create_card:
             self.register(self.create_card)
-        if get_board_list:
-            self.register(self.get_board_list)
+        if get_board_lists:
+            self.register(self.get_board_lists)
         if move_card:
             self.register(self.move_card)
         if get_cards:

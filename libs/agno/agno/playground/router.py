@@ -293,7 +293,7 @@ def get_playground_router(
             storage=workflow.storage.__class__.__name__ if workflow.storage else None,
         )
 
-    @playground_router.post("/workflows/{workflow_id}/run")
+    @playground_router.post("/workflows/{workflow_id}/runs")
     def create_workflow_run(workflow_id: str, body: WorkflowRunRequest):
         # Retrieve the workflow by ID
         workflow = get_workflow_by_id(workflow_id, workflows)

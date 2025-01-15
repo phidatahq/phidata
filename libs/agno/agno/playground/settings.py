@@ -40,7 +40,6 @@ class PlaygroundSettings(BaseSettings):
         # Add Agno domains to cors origin list
         valid_cors.extend(
             [
-                "http://localhost",
                 "http://localhost:3000",
                 "https://agno.com",
                 "https://www.agno.com",

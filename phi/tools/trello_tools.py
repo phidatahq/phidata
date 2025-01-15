@@ -91,7 +91,7 @@ class TrelloTools(Toolkit):
         except Exception as e:
             return f"Error creating card: {e}"
 
-    def get_board_list(self, board_id: str) -> str:
+    def get_board_lists(self, board_id: str) -> str:
         """
         Get all lists on a board.
 

@@ -30,9 +30,7 @@ Agno: High Performance AI Agents
 - **Pre-built tools**: Agno currently has 60+ toolkits and integrations with more added every week
 - **Monitoring**: Monitor Agent sessions and performance on [agno.com](https://www.agno.com)
 
-## Quickstart
-
-### Install
+## Installation
 
 ```shell
 pip install -U agno

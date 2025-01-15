@@ -16,4 +16,4 @@ agent = Agent(
         )
     ]
 )
-agent.print_response("send an email to <receiver_email>")
+agent.print_response("Send an email to <receiver_email>.")

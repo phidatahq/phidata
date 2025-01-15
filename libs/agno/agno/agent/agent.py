@@ -500,6 +500,7 @@ class Agent:
         # 4. Reason about the task if reasoning is enabled
         if self.reasoning:
             reasoning_generator = self.reason(run_messages=run_messages)
+
             if self.stream:
                 yield from reasoning_generator
             else:
@@ -539,12 +540,14 @@ class Agent:
                         if self.run_response.tools is None:
                             self.run_response.tools = []
                         self.run_response.tools.append(tool_call_dict)
+
                     # If the agent is streaming intermediate steps, yield a RunResponse with the tool_call_started event
                     if self.stream_intermediate_steps:
                         yield self.create_run_response(
                             content=model_response_chunk.content,
                             event=RunEvent.tool_call_started,
                         )
+
                 # If the model response is a tool_call_completed, update the existing tool call in the run_response
                 elif model_response_chunk.event == ModelResponseEvent.tool_call_completed.value:
                     # Update the existing tool call in the run_response
@@ -576,6 +579,7 @@ class Agent:
             # Update the run_response audio with the model response audio
             if model_response.audio is not None:
                 self.run_response.response_audio = model_response.audio
+
             # Update the run_response messages with the messages
             self.run_response.messages = run_messages.messages
             # Update the run_response created_at with the model response created_at
@@ -589,10 +593,17 @@ class Agent:
         # Update the RunResponse metrics
         self.run_response.metrics = self.aggregate_metrics_from_messages(messages_for_run_response)
 
+        # Update the run_response content if streaming as run_response will only contain the last chunk
+        if self.stream:
+            self.run_response.content = model_response.content
+            if model_response.audio is not None:
+                self.run_response.response_audio = model_response.audio
+
         # 9. Update Agent Memory
         # Add the system message to the memory
         if run_messages.system_message is not None:
             self.memory.add_system_message(run_messages.system_message, system_message_role=self.system_message_role)
+
         # Build a list of messages that should be added to the AgentMemory
         messages_for_memory: List[Message] = (
             [run_messages.user_message] if run_messages.user_message is not None else []
@@ -983,6 +994,12 @@ class Agent:
         # Update the RunResponse metrics
         self.run_response.metrics = self.aggregate_metrics_from_messages(messages_for_run_response)
 
+        # Update the run_response content if streaming as run_response will only contain the last chunk
+        if self.stream:
+            self.run_response.content = model_response.content
+            if model_response.audio is not None:
+                self.run_response.response_audio = model_response.audio
+
         # 9. Update Agent Memory
         # Add the system message to the memory
         if run_messages.system_message is not None:
@@ -1231,7 +1248,7 @@ class Agent:
             tools.append(self.get_chat_history)
         if self.read_tool_call_history:
             tools.append(self.get_tool_call_history)
-        if self.memory.create_user_memories:
+        if self.memory and self.memory.create_user_memories:
             tools.append(self.update_memory)
 
         # Add tools for accessing knowledge
@@ -1323,7 +1340,7 @@ class Agent:
 
     def load_user_memories(self) -> None:
         self.memory = cast(AgentMemory, self.memory)
-        if self.memory.create_user_memories:
+        if self.memory and self.memory.create_user_memories:
             if self.user_id is not None:
                 self.memory.user_id = self.user_id
 
@@ -1366,7 +1383,7 @@ class Agent:
             session_id=self.session_id,
             agent_id=self.agent_id,
             user_id=self.user_id,
-            memory=self.memory.to_dict(),
+            memory=self.memory.to_dict() if self.memory is not None else None,
             agent_data=self.get_agent_data(),
             user_data=self.user_data,
             session_data=self.get_session_data(),

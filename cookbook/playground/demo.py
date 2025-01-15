@@ -1,4 +1,4 @@
-"""Run `pip install openai exa_py duckduckgo-search yfinance pypdf sqlalchemy 'fastapi[standard]' agno youtube-transcript-api` to install dependencies."""
+"""Run `pip install openai exa_py duckduckgo-search yfinance pypdf sqlalchemy 'fastapi[standard]' phidata youtube-transcript-api python-docx` to install dependencies."""
 
 from textwrap import dedent
 from datetime import datetime
@@ -14,6 +14,18 @@ from agno.tools.yfinance import YFinanceTools
 from agno.tools.youtube_tools import YouTubeTools
 
 agent_storage_file: str = "tmp/agents.db"
+
+simple_agent = Agent(
+    name="Simple Agent",
+    role="Answer basic questions",
+    agent_id="simple-agent",
+    model=OpenAIChat(id="gpt-4o-mini"),
+    storage=SqliteDbAgentStorage(table_name="web_agent", db_file=agent_storage_file),
+    add_history_to_messages=True,
+    num_history_responses=3,
+    add_datetime_to_instructions=True,
+    markdown=True,
+)
 
 web_agent = Agent(
     name="Web Agent",
@@ -118,7 +130,7 @@ youtube_agent = Agent(
     markdown=True,
 )
 
-app = Playground(agents=[web_agent, finance_agent, youtube_agent, research_agent, image_agent]).get_app()
+app = Playground(agents=[simple_agent, web_agent, finance_agent, youtube_agent, research_agent, image_agent]).get_app()
 
 if __name__ == "__main__":
     serve_playground_app("demo:app", reload=True)

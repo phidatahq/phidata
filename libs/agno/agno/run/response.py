@@ -33,7 +33,11 @@ class RunResponseExtraData:
     reasoning_messages: Optional[List[Message]] = None
 
     def to_dict(self) -> Dict[str, Any]:
-        _dict = {k: v for k, v in asdict(self).items() if v is not None and k not in ["add_messages", "history", "reasoning_messages"]}
+        _dict = {
+            k: v
+            for k, v in asdict(self).items()
+            if v is not None and k not in ["add_messages", "history", "reasoning_messages"]
+        }
         if self.add_messages is not None:
             _dict["add_messages"] = [m.to_dict() for m in self.add_messages]
         if self.history is not None:

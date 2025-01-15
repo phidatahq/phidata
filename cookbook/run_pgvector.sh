@@ -6,4 +6,4 @@ docker run -d \
   -v pgvolume:/var/lib/postgresql/data \
   -p 5532:5432 \
   --name pgvector \
-  phidata/pgvector:16
+  agnohq/pgvector:16

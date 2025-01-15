@@ -18,7 +18,7 @@ reader = FirecrawlReader(
 
 try:
     print("Starting scrape...")
-    documents = reader.read("https://github.com/phidatahq/phidata")
+    documents = reader.read("https://github.com/phidatahq/agno")
 
     if documents:
         for doc in documents:

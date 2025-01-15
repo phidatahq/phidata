@@ -18,7 +18,7 @@ export GOOGLE_API_KEY=***
 ### 3. Install libraries
 
 ```shell
-pip install -U google-generativeai duckduckgo-search yfinance phidata
+pip install -U google-generativeai duckduckgo-search yfinance agno
 ```
 
 ### 4. Run Agent without Tools

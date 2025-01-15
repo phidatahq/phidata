@@ -10,7 +10,7 @@ source ~/.venvs/aienv/bin/activate
 ### 2. Install libraries
 
 ```shell
-pip install -U lancedb tantivy pypdf openai phidata
+pip install -U lancedb tantivy pypdf openai agno
 ```
 
 ### 3. Run LanceDB Hybrid Search Agent

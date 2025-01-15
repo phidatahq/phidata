@@ -188,7 +188,7 @@ def get_playground_router(
                     stream=False,
                 ),
             )
-            return json.dumps(asdict(run_response))
+            return run_response
 
     @playground_router.get("/agents/{agent_id}/sessions")
     def get_user_agent_sessions(agent_id: str, user_id: str = Query(None)):
@@ -565,7 +565,7 @@ def get_async_playground_router(
                     stream=False,
                 ),
             )
-            return json.dumps(asdict(run_response))
+            return run_response
 
     @playground_router.get("/agents/{agent_id}/sessions")
     async def get_all_agent_sessions(agent_id: str, user_id: str = Query(None)):

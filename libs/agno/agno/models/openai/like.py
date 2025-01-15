@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
 
 from agno.models.message import Message
 from agno.models.openai.chat import OpenAIChat

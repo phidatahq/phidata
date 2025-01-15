@@ -479,7 +479,7 @@ def get_async_playground_router(
 
         return ImageInput(content=content)
 
-    @playground_router.post("/agents/{agent_id}/run")
+    @playground_router.post("/agents/{agent_id}/runs")
     async def create_agent_run(
         agent_id: str,
         message: str = Form(...),

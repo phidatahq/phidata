@@ -9,20 +9,20 @@ from agno.vectordb.lancedb import LanceDb, SearchType
 # Level 0: Simple Agent with no tools
 level_0_agent = Agent(
     model=OpenAIChat(id="gpt-4o"),
-    instructions="You are an enthusiastic news reporter with a flair for storytelling!",
+    description="You are an enthusiastic news reporter with a flair for storytelling!",
     markdown=True
 )
-# level_0_agent.print_response("Tell me about a breaking news story from New York.", stream=True)
+level_0_agent.print_response("Tell me about a breaking news story from New York.", stream=True)
 
 # Level 1: Agent with tools
 level_1_agent = Agent(
     model=OpenAIChat(id="gpt-4o"),
-    instructions="You are an enthusiastic news reporter with a flair for storytelling!",
+    description="You are an enthusiastic news reporter with a flair for storytelling!",
     tools=[DuckDuckGoTools()],
     show_tool_calls=True,
     markdown=True
 )
-# level_1_agent.print_response("Tell me about a breaking news story from New York.", stream=True)
+level_1_agent.print_response("Tell me about a breaking news story from New York.", stream=True)
 
 # Level 2: Agent with knowledge
 level_2_agent = Agent(
@@ -51,9 +51,10 @@ level_2_agent = Agent(
 # if level_2_agent.knowledge is not None:
 #     level_2_agent.knowledge.load()
 
-# level_2_agent.print_response("How do I make chicken and galangal in coconut milk soup", stream=True)
-# level_2_agent.print_response("What is the history of Thai curry?", stream=True)
+level_2_agent.print_response("How do I make chicken and galangal in coconut milk soup", stream=True)
+level_2_agent.print_response("What is the history of Thai curry?", stream=True)
 
+# Level 3: Multi Agent Team
 web_agent = Agent(
     name="Web Agent",
     role="Search the web for information",
@@ -81,5 +82,4 @@ agent_team = Agent(
     show_tool_calls=True,
     markdown=True,
 )
-
 agent_team.print_response("What's the market outlook and financial performance of AI semiconductor companies?", stream=True)

@@ -25,10 +25,10 @@ db_url = "mongodb://localhost:27017"
 agent = Agent(
     model=OpenAIChat(id="gpt-4o"),
     # Store agent sessions in MongoDB
-    storage=MongoDbAgentStorage(collection_name="agent_sessions", db_url=db_url, db_name="phi"),
+    storage=MongoDbAgentStorage(collection_name="agent_sessions", db_url=db_url, db_name="agno"),
     # Store memories in MongoDB
     memory=AgentMemory(
-        db=MongoMemoryDb(collection_name="agent_sessions", db_url=db_url, db_name="phi"),
+        db=MongoMemoryDb(collection_name="agent_sessions", db_url=db_url, db_name="agno"),
         create_user_memories=True,
         create_session_summary=True,
     ),

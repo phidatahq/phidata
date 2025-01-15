@@ -18,7 +18,7 @@ export GOOGLE_API_KEY=***
 ### 3. Install libraries
 
 ```shell
-pip install -U openai phidata
+pip install -U openai agno
 ```
 
 ### 4. Run Agent without Tools

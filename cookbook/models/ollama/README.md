@@ -22,7 +22,7 @@ source ~/.venvs/aienv/bin/activate
 ### 3. Install libraries
 
 ```shell
-pip install -U ollama duckduckgo-search duckdb yfinance phidata
+pip install -U ollama duckduckgo-search duckdb yfinance agno
 ```
 
 ### 4. Run Agent without Tools

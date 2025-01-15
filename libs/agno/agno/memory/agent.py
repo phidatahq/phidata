@@ -215,8 +215,6 @@ class AgentMemory(BaseModel):
 
         if self.db is None:
             return
-        if not self.user_id:
-            return
 
         try:
             if self.retrieval in (MemoryRetrieval.last_n, MemoryRetrieval.first_n):

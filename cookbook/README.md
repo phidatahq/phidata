@@ -1,5 +1,40 @@
 # Agno Cookbooks
 
+## Getting Started
+
+Basic examples of setting up an agent with some simple tool calls
+
+## Agent Concepts
+
+- Async
+- Knowledge
+- Memory
+- Models
+- Reasoning
+- Storage
+- Tools
+- Vector DB
+
+## Advanced Examples
+
+- Hybdrid search
+- Rag
+- Streamlit
+- Teams
+
+
+## Playground
+
+## Workflows
+
+## Scripts
+
+Just a place to store setup scripts like `run_pgvector.sh` etc
+
+### old
+
+# Agno Cookbooks
+
 Here you’ll find examples that’ll help you use Agno, from basic agents and workflows to advanced multi-agent examples.
 If you have more, please contribute to this list.
 

@@ -7,7 +7,7 @@ from agno.agent import Agent, RunResponse
 from agno.models.openai import OpenAIChat
 from agno.workflow import Workflow, RunEvent
 from agno.utils.log import logger
-from cookbook.examples.workflows.coding_agent.utils import scrape_and_process, evaluate_response
+from cookbook.workflows.coding_agent.utils import scrape_and_process, evaluate_response
 
 load_dotenv()
 

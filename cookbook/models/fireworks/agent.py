@@ -5,7 +5,7 @@ from agno.models.fireworks import Fireworks
 from agno.tools.yfinance import YFinanceTools
 
 agent = Agent(
-    model=Fireworks(id="accounts/fireworks/models/llama-v3p1-405b-instruct"),
+    model=Fireworks(id="accounts/fireworks/models/firefunction-v2"),
     tools=[YFinanceTools(stock_price=True)],
     show_tool_calls=True,
     markdown=True,

@@ -5,7 +5,7 @@ from agno.models.fireworks import Fireworks
 from agno.tools.yfinance import YFinanceTools
 
 agent = Agent(
-    model=Fireworks(id="accounts/fireworks/models/llama-v3p1-405b-instruct"),
+    model=Fireworks(id="accounts/fireworks/models/firefunction-v2"),
     tools=[YFinanceTools(stock_price=True, analyst_recommendations=True, stock_fundamentals=True)],
     show_tool_calls=True,
     description="You are an investment analyst that researches stocks and helps users make informed decisions.",

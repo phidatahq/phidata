@@ -15,18 +15,18 @@ from typing import Optional, Iterator, Dict, Any, List
 from pydantic import BaseModel, Field
 from pydantic import ValidationError
 
-from phi.agent import Agent
-from phi.model.openai import OpenAIChat
-from phi.workflow import Workflow, RunResponse
-from phi.tools.firecrawl import FirecrawlTools
-from phi.tools.resend_tools import ResendTools
-from phi.utils.pprint import pprint_run_response
-from phi.utils.log import logger
+from agno.agent import Agent
+from agno.models.openai import OpenAIChat
+from agno.workflow import Workflow, RunResponse
+from agno.tools.firecrawl import FirecrawlTools
+from agno.tools.resend_tools import ResendTools
+from agno.utils.pprint import pprint_run_response
+from agno.utils.log import logger
 from email_validator import validate_email, EmailNotValidError
 
 company_info: Dict = {
-    "Phidata": {
-        "website": "https://www.phidata.com/",
+    "Agno": {
+        "website": "https://www.agno.com/",
         "email": "<insert-receiver-email>",
         "contact_name": "<insert-receiver-name>",
         "position": "<insert-receiver-position>",

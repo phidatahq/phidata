@@ -22,13 +22,13 @@ export EXA_API_KEY=***
 ### Install libraries
 
 ```shell
-pip install -U openai exa_py duckduckgo-search yfinance pypdf sqlalchemy 'fastapi[standard]' youtube-transcript-api phidata
+pip install -U openai exa_py duckduckgo-search yfinance pypdf sqlalchemy 'fastapi[standard]' youtube-transcript-api agno
 ```
 
-### Authenticate with phidata.app
+### Authenticate with agno.app
 
 ```
-phi auth
+ag auth
 ```
 
 ## Connect your Agents to the Agent UI

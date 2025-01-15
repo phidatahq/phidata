@@ -16,7 +16,7 @@ source ~/.venvs/aienv/bin/activate
 ### 3. Install libraries
 
 ```shell
-pip install -U google-cloud-aiplatform duckduckgo-search yfinance phidata
+pip install -U google-cloud-aiplatform duckduckgo-search yfinance agno
 ```
 
 ### 4. Run Agent without Tools

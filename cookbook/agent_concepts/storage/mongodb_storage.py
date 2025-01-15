@@ -14,7 +14,7 @@ from agno.storage.agent.mongodb import MongoDbAgentStorage
 db_url = "mongodb://localhost:27017"
 
 agent = Agent(
-    storage=MongoDbAgentStorage(collection_name="agent_sessions", db_url=db_url, db_name="phi"),
+    storage=MongoDbAgentStorage(collection_name="agent_sessions", db_url=db_url, db_name="agno"),
     tools=[DuckDuckGoTools()],
     add_history_to_messages=True,
 )

@@ -17,13 +17,13 @@ The Content Creator Agent Workflow is a multi-agent workflow designed to streaml
 1. **Clone the Repository:**
 
    ```bash
-   git clone https://github.com/phidatahq/phidata.git
+   git clone https://github.com/phidatahq/agno.git
    ```
 
 2. **Navigate to the Workflow Directory:**
 
    ```bash
-   cd phidata/examples/workflows/content-creator-workflow
+   cd agno/workflows/content-creator-workflow
    ```
 
 3. **Create Virtual Environment**

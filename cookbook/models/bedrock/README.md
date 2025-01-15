@@ -22,7 +22,7 @@ export AWS_DEFAULT_REGION=***
 ### 3. Install libraries
 
 ```shell
-pip install -U boto3 duckduckgo-search duckdb yfinance phidata
+pip install -U boto3 duckduckgo-search duckdb yfinance agno
 ```
 
 ### 4. Run Agent without Tools

@@ -10,7 +10,7 @@ source ~/.venvs/aienv/bin/activate
 ### 2. Install libraries
 
 ```shell
-pip install -U pinecone pinecone-text pypdf openai phidata
+pip install -U pinecone pinecone-text pypdf openai agno
 ```
 
 ### 3. Set Pinecone API Key

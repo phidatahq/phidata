@@ -5,7 +5,7 @@ from agno.utils.pprint import pprint_run_response
 
 client = MemoryClient()
 
-user_id = "phi"
+user_id = "agno"
 messages = [
     {"role": "user", "content": "My name is John Billings."},
     {"role": "user", "content": "I live in NYC."},

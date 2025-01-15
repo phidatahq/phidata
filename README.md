@@ -30,17 +30,11 @@ Agno: High Performance AI Agents
 - **Pre-built tools**: Agno currently has 60+ toolkits and integrations with more added every week
 - **Monitoring**: Monitor Agent sessions and performance on [agno.com](https://www.agno.com)
 
-## Quickstart
-
-### Install
+## Install
 
 ```shell
 pip install -U agno
 ```
-
-### What are Agents?
-
-Agents are programs where a language model controls the flow of execution. Instead of forcing ourselves into a binary definition, we recommend looking at Agents through the lens of Agency and Autonomy.
 
 ## Agent with no tools
 

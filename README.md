@@ -1,26 +1,25 @@
-<h2 align="center" id="top">
-  Agno: High-Performance AI Agents
-</h2>
+## Agno: High-Performance AI Agents
 
-<div align="center">
-  📚 <a href="https://docs.agno.com">Documentation</a> &nbsp;|&nbsp;
-  💡 <a href="https://github.com/agno-agi/agno/tree/main/cookbook">Examples</a> &nbsp;|&nbsp;
-  🌟 <a href="https://github.com/agno-agi/agno/stargazers">Star Us</a>
-</div>
+📚 [Documentation](https://docs.agno.com) &nbsp;|&nbsp;
+💡 [Examples](https://github.com/agno-agi/agno/tree/main/cookbook) &nbsp;|&nbsp;
+🌟 [Star Us](https://github.com/agno-agi/agno/stargazers)
 
-## What is Agno?
 
-**A model-agnostic framework for building high-performance AI Agents**
+## Overview
 
-## Why Agno?
+[Agno](https://docs.agno.com) is an Agent framework designed for high-performance and scale. Agno agents are model-agnostic, multi-modal and come with built-in memory, knowledge and session management.
 
-- **Lightning Fast**: Agents instantiate in <10μs on M4 chips (full benchmarks coming soon)
+A key difference from other LLM frameworks is that Agno focuses on building Agents and let's the developer build the control flow using vanilla Python.
+
+## Key Features
+
+- **Lightning Fast**: Agents instantiate in <10μs on M4 chips (more details below)
 - **Model Agnostic**: Use any provider, any model
 - **Multi Modal**: Works with Text, Image, Audio and Video
-- **Multi Agent**: Orchestrate teams of agents to solve complex problems
-- **Built-in Memory**: Store short-term and long-term memory in any database
+- **Multi Agent**: Orchestrate teams of agents
+- **Built-in Memory**: Store session and user memories in any database
 - **Built-in Knowledge**: Store knowledge in any vectordb, use for Agentic RAG or dynamic few-shot
-- **Built-in Monitoring**: Monitor Agent sessions and quality on [agno.com](https://www.agno.com)
+- **Built-in Monitoring**: Monitor Agent sessions and performance on [agno.com](https://www.agno.com)
 
 ## Getting Started
 

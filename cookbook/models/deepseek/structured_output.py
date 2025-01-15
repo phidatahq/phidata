@@ -20,7 +20,6 @@ json_mode_agent = Agent(
     model=DeepSeekChat(id="deepseek-chat"),
     description="You help people write movie scripts.",
     response_model=MovieScript,
-    # debug_mode=True,
 )
 
 # Get the response in a variable

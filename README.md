@@ -1,4 +1,4 @@
-## Agno: High-Performance AI Agents
+# Agno: High-Performance AI Agents
 
 📚 [Documentation](https://docs.agno.com) &nbsp;|&nbsp;
 💡 [Examples](https://github.com/agno-agi/agno/tree/main/cookbook) &nbsp;|&nbsp;

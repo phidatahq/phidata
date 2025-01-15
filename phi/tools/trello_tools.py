@@ -177,6 +177,7 @@ class TrelloTools(Toolkit):
 
         Args:
             name (str): Name of the board
+            default_lists (bool): Whether the default lists should be created
 
         Returns:
             str: JSON string containing board details or error message

@@ -32,6 +32,16 @@ class RunResponseExtraData:
     reasoning_steps: Optional[List[ReasoningStep]] = None
     reasoning_messages: Optional[List[Message]] = None
 
+    def to_dict(self) -> Dict[str, Any]:
+        _dict = {k: v for k, v in asdict(self).items() if v is not None and k not in ["add_messages", "history", "reasoning_messages"]}
+        if self.add_messages is not None:
+            _dict["add_messages"] = [m.to_dict() for m in self.add_messages]
+        if self.history is not None:
+            _dict["history"] = [m.to_dict() for m in self.history]
+        if self.reasoning_messages is not None:
+            _dict["reasoning_messages"] = [m.to_dict() for m in self.reasoning_messages]
+        return _dict
+
 
 @dataclass
 class RunResponse:
@@ -59,12 +69,16 @@ class RunResponse:
         _dict = {k: v for k, v in asdict(self).items() if v is not None and k != "messages"}
         if self.messages is not None:
             _dict["messages"] = [m.to_dict() for m in self.messages]
+
+        if self.extra_data is not None:
+            _dict["extra_data"] = self.extra_data.to_dict()
         return _dict
 
     def to_json(self) -> str:
         import json
 
         _dict = self.to_dict()
+
         return json.dumps(_dict, indent=2)
 
     def get_content_as_string(self, **kwargs) -> str:

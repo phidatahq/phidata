@@ -6,7 +6,7 @@
 
 ## Overview
 
-**[Agno](https://docs.agno.com) is an Agent library designed for performance and scale.** Agno agents are model-agnostic, multi-modal and come with built-in memory, knowledge and session management.
+[Agno](https://docs.agno.com) is an Agent framework designed for performance and scale. Agno agents are model-agnostic, multi-modal and come with built-in memory, knowledge and session management.
 
 **Agno gets the fundamentals right:** Build performant agents with a minimal memory footprint, reliable tool calling, session, memory and knowledge management. It lets the developer design the workflow in pure python. No graphs, no chains, no random patterns that you have to learn or fight against. Want cycles, use loops; want conditions, use if/else; want error handling, use try/except.
 

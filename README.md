@@ -34,11 +34,11 @@
 pip install -U agno
 ```
 
-### What are Agents?
+## What are Agents?
 
 Agents are programs where a language model controls the flow of execution. Instead of forcing ourselves into a 0 or 1 definition, we recommend looking at Agents through the lens of Agency and Autonomy.
 
-### Level 0: Agents with no tools
+## Level 0: Agents with no tools
 
 The simplest agent makes a call to a language model and returns the response. Most critics argue that this is not an agent.
 
@@ -66,7 +66,7 @@ python 00_simple_agent.py
 
 This agent will obviously make up the story, lets give it a tool to search the web.
 
-### Level 1: Agents with tools
+## Level 1: Agents with tools
 
 We start to see the power of Agents by giving them tools to achieve their goals. This agent will search the web and generate the response.
 
@@ -93,7 +93,7 @@ pip install duckduckgo-search
 python 01_agent_with_tools.py
 ```
 
-### Level 2: Agents with knowledge
+## Level 2: Agents with knowledge
 
 The next level of agency comes from giving the agent knowledge. We store knowledge in a vector database which can be used for RAG or dynamic few-shot. Eg: If you're building a text-to-sql agent, you can store sample queries in the knowledge base and use it to generate better SQL queries.
 
@@ -147,7 +147,7 @@ pip install lancedb tantivy pypdf duckduckgo-search
 python 02_agent_with_knowledge.py
 ```
 
-### Level 3: Multi Agent Teams
+## Level 3: Multi Agent Teams
 
 Agents work best when they have a singular purpose, a narrow scope and a small number of tools. When the number of tools grows beyond what the language model can handle or the tools belong to different categories, we recommend using a team of agents to achieve the task. As complexity grows:
 - Split functionality into specialized agents

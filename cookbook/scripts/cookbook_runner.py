@@ -4,11 +4,51 @@ import click
 import inquirer
 import subprocess
 
+"""
+CLI Tool: Cookbook runner
+
+This tool allows users to interactively navigate through directories, select a target directory, 
+and execute all `.py` files in the selected directory. It also tracks cookbooks that fail to execute 
+and prompts the user to rerun all failed cookbooks until all succeed or the user decides to exit.
+
+Usage:
+    1. Run the tool from the command line:
+        python cookbook/scripts/cookbook_runner.py [base_directory]
+    
+    2. Navigate through the directory structure using the interactive prompts:
+        - Select a directory to drill down or choose the current directory.
+        - The default starting directory is the current working directory (".").
+    
+    3. The tool runs all `.py` files in the selected directory and logs any that fail.
+    
+    4. If any cookbook fails, the tool prompts the user to rerun all failed cookbooks:
+        - Select "yes" to rerun all failed cookbooks.
+        - Select "no" to exit, and the tool will log remaining failures.
+
+Dependencies:
+    - click
+    - inquirer
+
+Example:
+    $ python cookbook/scripts/cookbook_runner.py cookbook
+    Current directory: /cookbook
+    > [Select this directory]
+    > folder1
+    > folder2
+    > [Go back]
+
+    Running script1.py...
+    Running script2.py...
+
+    --- Error Log ---
+    Script: failing_cookbook.py failed to execute.
+
+    Some cookbooks failed. Do you want to rerun all failed cookbooks? [y/N]: y
+"""
+
 
 def select_directory(base_directory):
-    """
-    Let the user select a directory or drill down further.
-    """
+  
     while True:
         # Get all subdirectories and files in the current directory
         items = [
@@ -77,7 +117,7 @@ def run_python_script(script_path):
 def drill_and_run_scripts(base_directory):
     """
     A CLI tool that lets the user drill down into directories and runs all .py files in the selected directory.
-    Tracks scripts that encounter errors and keeps prompting to rerun until user decides to exit.
+    Tracks cookbooks that encounter errors and keeps prompting to rerun until user decides to exit.
     """
     selected_directory = select_directory(base_directory)
 
@@ -87,7 +127,6 @@ def drill_and_run_scripts(base_directory):
 
     print(f"\nRunning .py files in directory: {selected_directory}\n")
 
-    # List all .py files in the selected directory
     python_files = [
         filename
         for filename in os.listdir(selected_directory)
@@ -98,7 +137,6 @@ def drill_and_run_scripts(base_directory):
         print("No .py files found in the selected directory.")
         return
 
-    # Keep track of scripts that fail
     error_log = []
 
     # Run each .py file and capture its status
@@ -111,35 +149,34 @@ def drill_and_run_scripts(base_directory):
     while error_log:
         print("\n--- Error Log ---")
         for py_file in error_log:
-            print(f"Script: {py_file} failed to execute.\n")
+            print(f"Cookbook: {py_file} failed to execute.\n")
 
         # Prompt the user to rerun all failed scripts
         questions = [
             inquirer.Confirm(
                 "rerun_failed",
-                message="Some scripts failed. Do you want to rerun all failed scripts?",
+                message="Some cookbooks failed. Do you want to rerun all failed cookbooks?",
                 default=False,
             )
         ]
         answers = inquirer.prompt(questions)
 
         if not answers or not answers.get("rerun_failed"):
-            print("\nExiting. Some scripts were not successfully executed:")
+            print("\nExiting. Some cookbooks were not successfully executed:")
             for py_file in error_log:
                 print(f" - {py_file}")
             return
 
-        print("\nRe-running failed scripts...\n")
+        print("\nRe-running failed cookbooks...\n")
         new_error_log = []
         for py_file in error_log:
             file_path = os.path.join(selected_directory, py_file)
             if not run_python_script(file_path):
                 new_error_log.append(py_file)
 
-        # Update error log
         error_log = new_error_log
 
-    print("\nAll scripts executed successfully!")
+    print("\nAll cookbooks executed successfully!")
 
 
 if __name__ == "__main__":

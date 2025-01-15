@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
 from agno.embedder.base import Embedder
@@ -10,6 +11,7 @@ except ImportError:
     raise ImportError("fastembed not installed, use pip install fastembed")
 
 
+@dataclass
 class FastEmbedEmbedder(Embedder):
     """Using BAAI/bge-small-en-v1.5 model, more models available: https://qdrant.github.io/fastembed/examples/Supported_Models/"""
 

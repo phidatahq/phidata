@@ -145,6 +145,10 @@ class LanceDb(VectorDb):
         """
         logger.debug(f"Inserting {len(documents)} documents")
         data = []
+        if len(documents) <= 0:
+            logger.debug("No documents to insert")
+            return
+
         for document in documents:
             document.embed(embedder=self.embedder)
             cleaned_content = document.content.replace("\x00", "\ufffd")
@@ -162,11 +166,11 @@ class LanceDb(VectorDb):
                     "payload": json.dumps(payload),
                 }
             )
-            logger.debug(f"Inserted document: {document.name} ({document.meta_data})")
+            logger.debug(f"Parsed document: {document.name} ({document.meta_data})")
 
-        if self.table:
+        if self.table is not None:
             self.table.add(data)
-            logger.debug(f"Upsert {len(data)} documents")
+            logger.debug(f"Inserted {len(data)} documents")
         else:
             logger.error("Table not initialized. Please create the table first")
 

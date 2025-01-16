@@ -191,7 +191,7 @@ def get_playground_router(
             return run_response
 
     @playground_router.get("/agents/{agent_id}/sessions")
-    def get_user_agent_sessions(agent_id: str, user_id: str = Query(None)):
+    def get_user_agent_sessions(agent_id: str, user_id: str = Query(..., min_length=1)):
         logger.debug(f"AgentSessionsRequest: {agent_id} {user_id}")
         agent = get_agent_by_id(agent_id, agents)
         if agent is None:
@@ -215,7 +215,9 @@ def get_playground_router(
         return agent_sessions
 
     @playground_router.get("/agents/{agent_id}/sessions/{session_id}")
-    def get_user_agent_session(agent_id: str, session_id: str, user_id: str = Query(None)):
+    def get_user_agent_session(agent_id: str, session_id: str, user_id: str = Query(..., min_length=1)):
+        print("HERE")
+
         logger.debug(f"AgentSessionsRequest: {agent_id} {user_id} {session_id}")
         agent = get_agent_by_id(agent_id, agents)
         if agent is None:
@@ -231,7 +233,8 @@ def get_playground_router(
         return agent_session
 
     @playground_router.post("/agents/{agent_id}/sessions/{session_id}/rename")
-    def rename_agent_session(agent_id: str, session_id: str, body: AgentRenameRequest, user_id: str = Query(None)):
+    def rename_agent_session(agent_id: str, session_id: str, body: AgentRenameRequest, user_id: str = Query(..., min_length=1)):
+        print("HERE")
         agent = get_agent_by_id(agent_id, agents)
         if agent is None:
             return JSONResponse(status_code=404, content=f"couldn't find agent with {agent_id}")
@@ -249,7 +252,7 @@ def get_playground_router(
         return JSONResponse(status_code=404, content="Session not found.")
 
     @playground_router.delete("/agents/{agent_id}/sessions/{session_id}")
-    def delete_agent_session(agent_id: str, session_id: str, user_id: str = Query(None)):
+    def delete_agent_session(agent_id: str, session_id: str, user_id: str = Query(..., min_length=1)):
         agent = get_agent_by_id(agent_id, agents)
         if agent is None:
             return JSONResponse(status_code=404, content="Agent not found.")
@@ -568,7 +571,7 @@ def get_async_playground_router(
             return run_response
 
     @playground_router.get("/agents/{agent_id}/sessions")
-    async def get_all_agent_sessions(agent_id: str, user_id: str = Query(None)):
+    async def get_all_agent_sessions(agent_id: str, user_id: str = Query(..., min_length=1)):
         logger.debug(f"AgentSessionsRequest: {agent_id} {user_id}")
         agent = get_agent_by_id(agent_id, agents)
         if agent is None:
@@ -592,7 +595,7 @@ def get_async_playground_router(
         return agent_sessions
 
     @playground_router.get("/agents/{agent_id}/sessions/{session_id}")
-    async def get_agent_session(agent_id: str, session_id: str, user_id: str = Query(None)):
+    async def get_agent_session(agent_id: str, session_id: str, user_id: str = Query(..., min_length=1)):
         logger.debug(f"AgentSessionsRequest: {agent_id} {user_id} {session_id}")
         agent = get_agent_by_id(agent_id, agents)
         if agent is None:
@@ -609,7 +612,7 @@ def get_async_playground_router(
 
     @playground_router.post("/agents/{agent_id}/sessions/{session_id}/rename")
     async def rename_agent_session(
-        agent_id: str, session_id: str, body: AgentRenameRequest, user_id: str = Query(None)
+        agent_id: str, session_id: str, body: AgentRenameRequest, user_id: str = Query(..., min_length=1)
     ):
         agent = get_agent_by_id(agent_id, agents)
         if agent is None:
@@ -628,7 +631,7 @@ def get_async_playground_router(
         return JSONResponse(status_code=404, content="Session not found.")
 
     @playground_router.delete("/agents/{agent_id}/sessions/{session_id}")
-    async def delete_agent_session(agent_id: str, session_id: str, user_id: str = Query(None)):
+    async def delete_agent_session(agent_id: str, session_id: str, user_id: str = Query(..., min_length=1)):
         agent = get_agent_by_id(agent_id, agents)
         if agent is None:
             return JSONResponse(status_code=404, content="Agent not found.")

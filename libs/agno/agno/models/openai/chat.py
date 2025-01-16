@@ -109,7 +109,7 @@ class OpenAIChat(Model):
     http_client: Optional[httpx.Client] = None
     client_params: Optional[Dict[str, Any]] = None
 
-    # OpenAIChat clients
+    # OpenAI clients
     client: Optional[OpenAIClient] = None
     async_client: Optional[AsyncOpenAIClient] = None
 
@@ -146,10 +146,10 @@ class OpenAIChat(Model):
 
     def get_client(self) -> OpenAIClient:
         """
-        Returns an OpenAIChat client.
+        Returns an OpenAI client.
 
         Returns:
-            OpenAIClient: An instance of the OpenAIChat client.
+            OpenAIClient: An instance of the OpenAI client.
         """
         if self.client:
             return self.client
@@ -161,10 +161,10 @@ class OpenAIChat(Model):
 
     def get_async_client(self) -> AsyncOpenAIClient:
         """
-        Returns an asynchronous OpenAIChat client.
+        Returns an asynchronous OpenAI client.
 
         Returns:
-            AsyncOpenAIClient: An instance of the asynchronous OpenAIChat client.
+            AsyncOpenAIClient: An instance of the asynchronous OpenAI client.
         """
         if self.async_client:
             return self.async_client
@@ -290,7 +290,7 @@ class OpenAIChat(Model):
 
     def format_message(self, message: Message, map_system_to_developer: bool = True) -> Dict[str, Any]:
         """
-        Format a message into the format expected by OpenAIChat.
+        Format a message into the format expected by OpenAI.
 
         Args:
             message (Message): The message to format.
@@ -299,7 +299,7 @@ class OpenAIChat(Model):
         Returns:
             Dict[str, Any]: The formatted message.
         """
-        # New OpenAIChat format
+        # New OpenAI format
         if map_system_to_developer and message.role == "system":
             message.role = "developer"
 
@@ -314,7 +314,7 @@ class OpenAIChat(Model):
 
     def invoke(self, messages: List[Message]) -> Union[ChatCompletion, ParsedChatCompletion]:
         """
-        Send a chat completion request to the OpenAIChat API.
+        Send a chat completion request to the OpenAI API.
 
         Args:
             messages (List[Message]): A list of messages to send to the model.
@@ -333,7 +333,7 @@ class OpenAIChat(Model):
                 else:
                     raise ValueError("response_format must be a subclass of BaseModel if structured_outputs=True")
             except Exception as e:
-                logger.error(f"Error from OpenAIChat API: {e}")
+                logger.error(f"Error from OpenAI API: {e}")
 
         return self.get_client().chat.completions.create(
             model=self.id,
@@ -343,7 +343,7 @@ class OpenAIChat(Model):
 
     async def ainvoke(self, messages: List[Message]) -> Union[ChatCompletion, ParsedChatCompletion]:
         """
-        Sends an asynchronous chat completion request to the OpenAIChat API.
+        Sends an asynchronous chat completion request to the OpenAI API.
 
         Args:
             messages (List[Message]): A list of messages to send to the model.
@@ -362,7 +362,7 @@ class OpenAIChat(Model):
                 else:
                     raise ValueError("response_format must be a subclass of BaseModel if structured_outputs=True")
             except Exception as e:
-                logger.error(f"Error from OpenAIChat API: {e}")
+                logger.error(f"Error from OpenAI API: {e}")
 
         return await self.get_async_client().chat.completions.create(
             model=self.id,
@@ -372,7 +372,7 @@ class OpenAIChat(Model):
 
     def invoke_stream(self, messages: List[Message]) -> Iterator[ChatCompletionChunk]:
         """
-        Send a streaming chat completion request to the OpenAIChat API.
+        Send a streaming chat completion request to the OpenAI API.
 
         Args:
             messages (List[Message]): A list of messages to send to the model.
@@ -390,7 +390,7 @@ class OpenAIChat(Model):
 
     async def ainvoke_stream(self, messages: List[Message]) -> Any:
         """
-        Sends an asynchronous streaming chat completion request to the OpenAIChat API.
+        Sends an asynchronous streaming chat completion request to the OpenAI API.
 
         Args:
             messages (List[Message]): A list of messages to send to the model.
@@ -568,7 +568,7 @@ class OpenAIChat(Model):
 
     def response(self, messages: List[Message]) -> ModelResponse:
         """
-        Generate a response from OpenAIChat.
+        Generate a response from OpenAI.
 
         Args:
             messages (List[Message]): A list of messages.
@@ -646,7 +646,7 @@ class OpenAIChat(Model):
 
     async def aresponse(self, messages: List[Message]) -> ModelResponse:
         """
-        Generate an asynchronous response from OpenAIChat.
+        Generate an asynchronous response from OpenAI.
 
         Args:
             messages (List[Message]): A list of messages.
@@ -841,7 +841,7 @@ class OpenAIChat(Model):
 
     def response_stream(self, messages: List[Message]) -> Iterator[ModelResponse]:
         """
-        Generate a streaming response from OpenAIChat.
+        Generate a streaming response from OpenAI.
 
         Args:
             messages (List[Message]): A list of messages.
@@ -916,7 +916,7 @@ class OpenAIChat(Model):
 
     async def aresponse_stream(self, messages: List[Message]) -> Any:
         """
-        Generate an asynchronous streaming response from OpenAIChat.
+        Generate an asynchronous streaming response from OpenAI.
 
         Args:
             messages (List[Message]): A list of messages.

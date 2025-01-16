@@ -255,7 +255,7 @@ class Groq(Model):
 
     def format_message(self, message: Message) -> Dict[str, Any]:
         """
-        Format a message into the format expected by OpenAIChat.
+        Format a message into the format expected by OpenAI.
 
         Args:
             message (Message): The message to format.

@@ -16,7 +16,7 @@ except (ModuleNotFoundError, ImportError):
 @dataclass
 class AzureOpenAI(OpenAILike):
     """
-    Azure OpenAIChat Chat model
+    Azure OpenAI Chat model
 
     Args:
 
@@ -31,7 +31,7 @@ class AzureOpenAI(OpenAILike):
         azure_ad_token (Optional[str]): The Azure AD token to use.
         azure_ad_token_provider (Optional[Any]): The Azure AD token provider to use.
         organization (Optional[str]): The organization to use.
-        openai_client (Optional[AzureOpenAIClient]): The OpenAIChat client to use.
+        openai_client (Optional[AzureOpenAIClient]): The OpenAI client to use.
     """
 
     id: str
@@ -48,10 +48,10 @@ class AzureOpenAI(OpenAILike):
 
     def get_client(self) -> AzureOpenAIClient:
         """
-        Get the OpenAIChat client.
+        Get the OpenAI client.
 
         Returns:
-            AzureOpenAIClient: The OpenAIChat client.
+            AzureOpenAIClient: The OpenAI client.
 
         """
         if self.openai_client:
@@ -63,10 +63,10 @@ class AzureOpenAI(OpenAILike):
 
     def get_async_client(self) -> AsyncAzureOpenAIClient:
         """
-        Returns an asynchronous OpenAIChat client.
+        Returns an asynchronous OpenAI client.
 
         Returns:
-            AsyncAzureOpenAIClient: An instance of the asynchronous OpenAIChat client.
+            AsyncAzureOpenAIClient: An instance of the asynchronous OpenAI client.
         """
 
         _client_params: Dict[str, Any] = self.get_client_params()

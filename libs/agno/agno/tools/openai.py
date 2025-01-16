@@ -19,7 +19,7 @@ class OpenAITools(Toolkit):
         self.register(self.transcribe_audio)
 
     def transcribe_audio(self, audio_path: str) -> str:
-        """Transcribe audio file using OpenAIChat's Whisper API
+        """Transcribe audio file using OpenAI's Whisper API
         Args:
             audio_path: Path to the audio file
         Returns:

@@ -59,7 +59,7 @@ python cookbook/models/anthropic/storage.py
 
 ### 8. Run Agent that uses knowledge
 
-Take note that claude uses OpenAIChat embeddings under the hood, and you will need an OpenAIChat API Key
+Take note that claude uses OpenAI embeddings under the hood, and you will need an OpenAI API Key
 ```shell
 export OPENAI_API_KEY=***
 ```

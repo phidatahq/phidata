@@ -13,7 +13,7 @@ class OpenAILike(OpenAIChat):
 
     def format_message(self, message: Message, map_system_to_developer: bool = False) -> Dict[str, Any]:
         """
-        Format a message into the format expected by OpenAIChat.
+        Format a message into the format expected by OpenAI.
 
         Args:
             message (Message): The message to format.

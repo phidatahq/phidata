@@ -434,7 +434,7 @@ class Model:
 
     def add_images_to_message(self, message: Message, images: Optional[Sequence[ImageInput]] = None) -> Message:
         """
-        Add images to a message for the model. By default, we use the OpenAIChat image format but other Models
+        Add images to a message for the model. By default, we use the OpenAI image format but other Models
         can override this method to use a different image format.
 
         Args:
@@ -475,7 +475,7 @@ class Model:
 
     def add_audio_to_message(self, message: Message, audio: Optional[Any] = None) -> Message:
         """
-        Add audio to a message for the model. By default, we use the OpenAIChat audio format but other Models
+        Add audio to a message for the model. By default, we use the OpenAI audio format but other Models
         can override this method to use a different audio format.
         Args:
             message: The message for the Model

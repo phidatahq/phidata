@@ -350,7 +350,7 @@ def get_playground_router(
         ]
 
     @playground_router.get("/workflows/{workflow_id}/sessions/{session_id}", response_model=WorkflowSession)
-    def get_workflow_session(workflow_id: str, session_id: str, user_id: str = Query(None)):
+    def get_workflow_session(workflow_id: str, session_id: str, user_id: str = Query(..., min_length=1)):
         # Retrieve the workflow by ID
         workflow = get_workflow_by_id(workflow_id, workflows)
         if not workflow:
@@ -377,7 +377,7 @@ def get_playground_router(
         workflow_id: str,
         session_id: str,
         body: WorkflowRenameRequest,
-        user_id: str = Query(None),
+        user_id: str = Query(..., min_length=1),
     ):
         workflow = get_workflow_by_id(workflow_id, workflows)
         if workflow is None:
@@ -388,7 +388,7 @@ def get_playground_router(
         return JSONResponse(content={"message": f"successfully renamed workflow {workflow.name}"})
 
     @playground_router.delete("/workflows/{workflow_id}/sessions/{session_id}")
-    def delete_workflow_session(workflow_id: str, session_id: str, user_id: str = Query(None)):
+    def delete_workflow_session(workflow_id: str, session_id: str, user_id: str = Query(..., min_length=1)):
         workflow = get_workflow_by_id(workflow_id, workflows)
         if workflow is None:
             raise HTTPException(status_code=404, detail="Workflow not found")
@@ -704,7 +704,7 @@ def get_async_playground_router(
             raise HTTPException(status_code=500, detail=f"Error running workflow: {str(e)}")
 
     @playground_router.get("/workflows/{workflow_id}/sessions", response_model=List[WorkflowSessionResponse])
-    async def get_all_workflow_sessions(workflow_id: str, user_id: str = Query(None)):
+    async def get_all_workflow_sessions(workflow_id: str, user_id: str = Query(..., min_length=1)):
         # Retrieve the workflow by ID
         workflow = get_workflow_by_id(workflow_id, workflows)
         if not workflow:
@@ -735,7 +735,7 @@ def get_async_playground_router(
         ]
 
     @playground_router.get("/workflows/{workflow_id}/sessions/{session_id}")
-    async def get_workflow_session(workflow_id: str, session_id: str, user_id: str = Query(None)):
+    async def get_workflow_session(workflow_id: str, session_id: str, user_id: str = Query(..., min_length=1)):
         # Retrieve the workflow by ID
         workflow = get_workflow_by_id(workflow_id, workflows)
         if not workflow:
@@ -759,7 +759,7 @@ def get_async_playground_router(
 
     @playground_router.post("/workflows/{workflow_id}/sessions/{session_id}/rename")
     async def rename_workflow_session(
-        workflow_id: str, session_id: str, body: WorkflowRenameRequest, user_id: str = Query(None)
+        workflow_id: str, session_id: str, body: WorkflowRenameRequest, user_id: str = Query(..., min_length=1)
     ):
         workflow = get_workflow_by_id(workflow_id, workflows)
         if workflow is None:
@@ -770,7 +770,7 @@ def get_async_playground_router(
         return JSONResponse(content={"message": f"successfully renamed workflow {workflow.name}"})
 
     @playground_router.delete("/workflows/{workflow_id}/sessions/{session_id}")
-    async def delete_workflow_session(workflow_id: str, session_id: str, user_id: str = Query(None)):
+    async def delete_workflow_session(workflow_id: str, session_id: str, user_id: str = Query(..., min_length=1)):
         workflow = get_workflow_by_id(workflow_id, workflows)
         if workflow is None:
             raise HTTPException(status_code=404, detail="Workflow not found")

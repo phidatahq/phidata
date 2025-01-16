@@ -4,7 +4,6 @@ import math
 from agno.tools import Toolkit
 from agno.utils.log import logger
 
-
 class CalculatorTools(Toolkit):
     def __init__(
         self,

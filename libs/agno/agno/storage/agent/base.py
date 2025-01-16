@@ -2,8 +2,9 @@ from abc import ABC, abstractmethod
 from typing import List, Optional
 
 from agno.agent.session import AgentSession
+from dataclasses import dataclass
 
-
+# @dataclass
 class AgentStorage(ABC):
     @abstractmethod
     def create(self) -> None:

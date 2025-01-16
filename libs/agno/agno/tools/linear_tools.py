@@ -2,7 +2,6 @@ from os import getenv
 from typing import Optional
 
 import requests
-
 from agno.tools import Toolkit
 from agno.utils.log import logger
 

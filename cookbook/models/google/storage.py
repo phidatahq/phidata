@@ -3,13 +3,13 @@
 from agno.agent import Agent
 from agno.models.google import Gemini
 from agno.tools.duckduckgo import DuckDuckGoTools
-from agno.storage.agent.postgres import PgAgentStorage
+from agno.storage.agent.postgres import PostgresDbAgentStorage
 
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 
 agent = Agent(
     model=Gemini(id="gemini-2.0-flash-exp"),
-    storage=PgAgentStorage(table_name="agent_sessions", db_url=db_url),
+    storage=PostgresDbAgentStorage(table_name="agent_sessions", db_url=db_url),
     tools=[DuckDuckGoTools()],
     add_history_to_messages=True,
 )

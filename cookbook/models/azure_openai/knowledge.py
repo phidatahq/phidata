@@ -2,7 +2,7 @@
 
 from agno.agent import Agent
 from agno.models.azure import AzureOpenAIChat
-from agno.knowledge.pdf import PDFUrlKnowledgeBase
+from agno.knowledge.pdf_url import PDFUrlKnowledgeBase
 from agno.vectordb.pgvector import PgVector
 from agno.embedder.azure_openai import AzureOpenAIEmbedder
 

@@ -1,4 +1,4 @@
-"""Run `pip install openai pydantic-ai memory_profiler` to install dependencies."""
+"""Run `pip install openai memory_profiler pydantic-ai` to install dependencies."""
 
 from pydantic_ai import Agent
 from agno.eval.perf import PerfEval

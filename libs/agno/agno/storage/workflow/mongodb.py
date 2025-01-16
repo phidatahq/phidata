@@ -15,7 +15,7 @@ from agno.utils.log import logger
 from agno.workflow import WorkflowSession
 
 
-class MongoWorkflowStorage(WorkflowStorage):
+class MongoDbWorkflowStorage(WorkflowStorage):
     def __init__(
         self,
         collection_name: str,

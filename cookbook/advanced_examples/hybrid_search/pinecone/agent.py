@@ -4,7 +4,7 @@ from typing import Optional
 from rich.prompt import Prompt
 
 from agno.agent import Agent
-from agno.knowledge.pdf import PDFUrlKnowledgeBase
+from agno.knowledge.pdf_url import PDFUrlKnowledgeBase
 from agno.vectordb.pineconedb import PineconeDB
 
 import nltk  # type: ignore

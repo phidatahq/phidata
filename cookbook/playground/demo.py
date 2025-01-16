@@ -1,4 +1,4 @@
-"""Run `pip install openai exa_py duckduckgo-search yfinance pypdf sqlalchemy 'fastapi[standard]' agno youtube-transcript-api` to install dependencies."""
+"""Run `pip install openai exa_py duckduckgo-search yfinance pypdf sqlalchemy 'fastapi[standard]' phidata youtube-transcript-api python-docx` to install dependencies."""
 
 from textwrap import dedent
 from datetime import datetime
@@ -6,7 +6,7 @@ from datetime import datetime
 from agno.agent import Agent
 from agno.models.openai import OpenAIChat
 from agno.playground import Playground, serve_playground_app
-from agno.storage.agent.sqlite import SqlAgentStorage
+from agno.storage.agent.sqlite import SqliteDbAgentStorage
 from agno.tools.dalle import DalleTools
 from agno.tools.duckduckgo import DuckDuckGoTools
 from agno.tools.exa import ExaTools
@@ -15,6 +15,18 @@ from agno.tools.youtube_tools import YouTubeTools
 
 agent_storage_file: str = "tmp/agents.db"
 
+simple_agent = Agent(
+    name="Simple Agent",
+    role="Answer basic questions",
+    agent_id="simple-agent",
+    model=OpenAIChat(id="gpt-4o-mini"),
+    storage=SqliteDbAgentStorage(table_name="web_agent", db_file=agent_storage_file),
+    add_history_to_messages=True,
+    num_history_responses=3,
+    add_datetime_to_instructions=True,
+    markdown=True,
+)
+
 web_agent = Agent(
     name="Web Agent",
     role="Search the web for information",
@@ -22,7 +34,7 @@ web_agent = Agent(
     model=OpenAIChat(id="gpt-4o"),
     tools=[DuckDuckGoTools()],
     instructions=["Break down the users request into 2-3 different searches.", "Always include sources"],
-    storage=SqlAgentStorage(table_name="web_agent", db_file=agent_storage_file),
+    storage=SqliteDbAgentStorage(table_name="web_agent", db_file=agent_storage_file),
     add_history_to_messages=True,
     num_history_responses=5,
     add_datetime_to_instructions=True,
@@ -36,7 +48,7 @@ finance_agent = Agent(
     model=OpenAIChat(id="gpt-4o"),
     tools=[YFinanceTools(stock_price=True, analyst_recommendations=True, company_info=True, company_news=True)],
     instructions=["Always use tables to display data"],
-    storage=SqlAgentStorage(table_name="finance_agent", db_file=agent_storage_file),
+    storage=SqliteDbAgentStorage(table_name="finance_agent", db_file=agent_storage_file),
     add_history_to_messages=True,
     num_history_responses=5,
     add_datetime_to_instructions=True,
@@ -49,7 +61,7 @@ image_agent = Agent(
     agent_id="image-agent",
     model=OpenAIChat(id="gpt-4o"),
     tools=[DalleTools(model="dall-e-3", size="1792x1024", quality="hd", style="vivid")],
-    storage=SqlAgentStorage(table_name="image_agent", db_file=agent_storage_file),
+    storage=SqliteDbAgentStorage(table_name="image_agent", db_file=agent_storage_file),
     add_history_to_messages=True,
     add_datetime_to_instructions=True,
     markdown=True,
@@ -92,7 +104,7 @@ research_agent = Agent(
     - [Reference 1](link)
     - [Reference 2](link)
     """),
-    storage=SqlAgentStorage(table_name="research_agent", db_file=agent_storage_file),
+    storage=SqliteDbAgentStorage(table_name="research_agent", db_file=agent_storage_file),
     add_history_to_messages=True,
     add_datetime_to_instructions=True,
     markdown=True,
@@ -114,11 +126,11 @@ youtube_agent = Agent(
     num_history_responses=5,
     show_tool_calls=True,
     add_datetime_to_instructions=True,
-    storage=SqlAgentStorage(table_name="youtube_agent", db_file=agent_storage_file),
+    storage=SqliteDbAgentStorage(table_name="youtube_agent", db_file=agent_storage_file),
     markdown=True,
 )
 
-app = Playground(agents=[web_agent, finance_agent, youtube_agent, research_agent, image_agent]).get_app()
+app = Playground(agents=[simple_agent, web_agent, finance_agent, youtube_agent, research_agent, image_agent]).get_app()
 
 if __name__ == "__main__":
     serve_playground_app("demo:app", reload=True)

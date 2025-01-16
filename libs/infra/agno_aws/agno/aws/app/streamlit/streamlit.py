@@ -8,7 +8,7 @@ class Streamlit(AwsApp):
     name: str = "streamlit"
 
     # -*- Image Configuration
-    image_name: str = "phidata/streamlit"
+    image_name: str = "agnohq/streamlit"
     image_tag: str = "1.27"
     command: Optional[Union[str, List[str]]] = "streamlit hello"
 

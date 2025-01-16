@@ -38,7 +38,7 @@ docker run -d \
   -v pgvolume:/var/lib/postgresql/data \
   -p 5532:5432 \
   --name pgvector \
-  phidata/pgvector:16
+  agnohq/pgvector:16
 ```
 
 ### 4. Test Knowledge Cookbooks
@@ -54,5 +54,5 @@ pip install -U pypdf bs4
 - Run the PDF URL script
 
 ```shell
-python cookbook/knowledge/pdf_url.py
+python cookbook/agent_concepts/knowledge/pdf_url.py
 ```

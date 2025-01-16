@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from os import getenv
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -13,6 +14,7 @@ except ImportError:
     raise ImportError("`openai` not installed")
 
 
+@dataclass
 class AzureOpenAIEmbedder(Embedder):
     model: str = "text-embedding-ada-002"
     dimensions: int = 1536

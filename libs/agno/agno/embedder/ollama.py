@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
 from agno.embedder.base import Embedder
@@ -9,6 +10,7 @@ except (ModuleNotFoundError, ImportError):
     raise ImportError("`ollama` not installed. Please install using `pip install ollama`")
 
 
+@dataclass
 class OllamaEmbedder(Embedder):
     model: str = "openhermes"
     dimensions: int = 4096

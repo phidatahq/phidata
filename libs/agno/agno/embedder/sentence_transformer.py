@@ -1,4 +1,5 @@
 import platform
+from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple, Union
 
 from agno.embedder.base import Embedder
@@ -19,6 +20,7 @@ except ImportError:
     raise ImportError("sentence-transformers not installed, please run pip install sentence-transformers")
 
 
+@dataclass
 class SentenceTransformerEmbedder(Embedder):
     model: str = "sentence-transformers/all-MiniLM-L6-v2"
     sentence_transformer_client: Optional[SentenceTransformer] = None

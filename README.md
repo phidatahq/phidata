@@ -1,137 +1,175 @@
-## Agno: High-Performance AI Agents
+<h1 align="center" id="top">
+Agno: High Performance AI Agents
+</h1>
 
-📚 [Documentation](https://docs.agno.com) &nbsp;|&nbsp;
-💡 [Examples](https://github.com/agno-agi/agno/tree/main/cookbook) &nbsp;|&nbsp;
-🌟 [Star Us](https://github.com/agno-agi/agno/stargazers)
-
+<p align="center">
+  <a href="https://docs.agno.com">📚 Documentation</a> &nbsp;|&nbsp;
+  <a href="https://github.com/agno-agi/agno/tree/main/cookbook">💡 Examples</a> &nbsp;|&nbsp;
+  <a href="https://github.com/agno-agi/agno/stargazers">🌟 Star Us</a>
+</p>
 
 ## Overview
 
-[Agno](https://docs.agno.com) is an Agent framework designed for high-performance and scale. Agno agents are model-agnostic, multi-modal and come with built-in memory, knowledge and session management.
+[Agno](https://docs.agno.com) is an Agent framework designed for performance and scale. Agno agents are model-agnostic, multi-modal and come with built-in memory, knowledge and session management.
 
-A key difference from other LLM frameworks is that Agno focuses on building Agents and let's the developer build the control flow using vanilla Python.
+**Agno gets the fundamentals right:** Build performant agents with a minimal memory footprint, reliable tool calling, session, memory and knowledge management. Agno lets the developer design the workflow in pure python. No graphs, no chains, no random patterns that you have to learn or fight against. Want cycles, use loops; want conditions, use if/else; want error handling, use try/except.
+
+**Agno is feature complete:** Agno, previously phidata, was in active development for 2 years and is used in production at 100s of companies.  We’re mostly feature complete and are now focused on reliability and usability. We’ll continue to add integrations, fix bugs and improve performance but our core focus is to provide the best agent development experience and stability and reliability are at the heart of that.
 
 ## Key Features
 
 - **Lightning Fast**: Agents instantiate in <10μs on M4 chips (more details below)
 - **Model Agnostic**: Use any provider, any model
-- **Multi Modal**: Works with Text, Image, Audio and Video
-- **Multi Agent**: Orchestrate teams of agents
-- **Built-in Memory**: Store session and user memories in any database
-- **Built-in Knowledge**: Store knowledge in any vectordb, use for Agentic RAG or dynamic few-shot
-- **Built-in Monitoring**: Monitor Agent sessions and performance on [agno.com](https://www.agno.com)
+- **Multi Modal**: Native support for Text, Image, Audio and Video
+- **Multi Agent**: Agents can delegate tasks to a team of agents
+- **Memory**: Store session and user memories in any database
+- **Knowledge**: Store knowledge in any vectordb, use for Agentic RAG or dynamic few-shot
+- **Reasoning**: Agents can work through problems step-by-step, backtracking and correcting as needed
+- **Evals**: Measure Agent performance and accuracy
+- **Structured Outputs**: Agents can respond with a structured output using a Pydantic model
+- **Pre-built tools**: Agno currently has 60+ toolkits and integrations with more added every week
+- **Monitoring**: Monitor Agent sessions and performance on [agno.com](https://www.agno.com)
 
-## Getting Started
-
-### Install
+## Install
 
 ```shell
 pip install -U agno
 ```
 
-## Level 0: Simple Agent with no tools
+## What are Agents?
+
+Agents are programs where a language model controls the flow of execution. Instead of forcing ourselves into a binary definition, we recommend looking at Agents through the lens of Agency and Autonomy.
+
+## Level 0: Agent with no tools
+
+The simplest agent makes a call to a language model and returns the response.
 
 ```python
-from phi.agent import Agent
-from phi.model.openai import OpenAIChat
-from phi.tools.duckduckgo import DuckDuckGo
-
-web_agent = Agent(
-    model=OpenAIChat(id="gpt-4o"),
-    tools=[DuckDuckGo()],
-    instructions=["Always include sources"],
-    show_tool_calls=True,
-    markdown=True,
-)
-web_agent.print_response("Tell me about OpenAI Sora?", stream=True)
-```
-
-Install libraries, export your `OPENAI_API_KEY` and run the Agent:
-
-```shell
-pip install phidata openai duckduckgo-search
-
-export OPENAI_API_KEY=sk-xxxx
-
-python web_search.py
-```
-
-## Powerful & Flexible
-
-Phidata agents can use multiple tools and follow instructions to achieve complex tasks.
-
-For example, you can create a finance agent with tools to query financial data, create a file `finance_agent.py`
-
-```python
-from phi.agent import Agent
-from phi.model.openai import OpenAIChat
-from phi.tools.yfinance import YFinanceTools
-
-finance_agent = Agent(
-    name="Finance Agent",
-    model=OpenAIChat(id="gpt-4o"),
-    tools=[YFinanceTools(stock_price=True, analyst_recommendations=True, company_info=True, company_news=True)],
-    instructions=["Use tables to display data"],
-    show_tool_calls=True,
-    markdown=True,
-)
-finance_agent.print_response("Summarize analyst recommendations for NVDA", stream=True)
-```
-
-Install libraries and run the Agent:
-
-```shell
-pip install yfinance
-
-python finance_agent.py
-```
-
-## Multi-Modal by default
-
-Phidata agents support text, images, audio and video.
-
-For example, you can create an image agent that can understand images and make tool calls as needed, create a file `image_agent.py`
-
-```python
-from phi.agent import Agent
-from phi.model.openai import OpenAIChat
-from phi.tools.duckduckgo import DuckDuckGo
+from agno.agent import Agent
+from agno.models.openai import OpenAIChat
 
 agent = Agent(
     model=OpenAIChat(id="gpt-4o"),
-    tools=[DuckDuckGo()],
-    markdown=True,
+    description="You are an enthusiastic news reporter with a flair for storytelling!",
+    markdown=True
 )
-
-agent.print_response(
-    "Tell me about this image and give me the latest news about it.",
-    images=["https://upload.wikimedia.org/wikipedia/commons/b/bf/Krakow_-_Kosciol_Mariacki.jpg"],
-    stream=True,
-)
+agent.print_response("Tell me about a breaking news story from New York.", stream=True)
 ```
 
-Run the Agent:
+Install dependencies, export your `OPENAI_API_KEY` and run the Agent:
 
 ```shell
-python image_agent.py
+pip install agno openai
+
+export OPENAI_API_KEY=sk-xxxx
+
+python 00_simple_agent.py
 ```
 
-## Multi-Agent orchestration
+This agent will obviously make up the story, lets give it a tool to search the web.
 
-Phidata agents can work together as a team to achieve complex tasks, create a file `agent_team.py`
+## Level 1: Agent with tools
+
+We start to see the power of Agents by giving them tools to achieve their goals. This agent will search the web and generate the response.
 
 ```python
-from phi.agent import Agent
-from phi.model.openai import OpenAIChat
-from phi.tools.duckduckgo import DuckDuckGo
-from phi.tools.yfinance import YFinanceTools
+from agno.agent import Agent
+from agno.models.openai import OpenAIChat
+from agno.tools.duckduckgo import DuckDuckGoTools
+
+agent = Agent(
+    model=OpenAIChat(id="gpt-4o"),
+    description="You are an enthusiastic news reporter with a flair for storytelling!",
+    tools=[DuckDuckGoTools()],
+    show_tool_calls=True,
+    markdown=True
+)
+agent.print_response("Tell me about a breaking news story from New York.", stream=True)
+```
+
+Install dependencies and run the Agent:
+
+```shell
+pip install duckduckgo-search
+
+python 01_agent_with_tools.py
+```
+
+## Level 2: Agent with knowledge
+
+The next level of agency comes from giving the agent knowledge. We store knowledge in a vector database which can be used for RAG or dynamic few-shot. Eg: If you're building a text-to-sql agent, you can store sample queries in the knowledge base and use it to generate better SQL queries.
+
+**Agno agents use Agentic RAG** by default, which means they will search their knowledge base for the specific information they need to achieve their task. In this example, the agent will search the knowledge base for Thai recipes but if the question is better suited for the web or it doesn't find the information in the knowledge base, it will search the web to fill in gaps.
+
+Agno supports all major vectordbs and embedding models, with more integrations added every week. This example uses LanceDB and the `text-embedding-3-small` embedding model.
+
+```python
+from agno.agent import Agent
+from agno.models.openai import OpenAIChat
+from agno.embedder.openai import OpenAIEmbedder
+from agno.tools.duckduckgo import DuckDuckGoTools
+from agno.knowledge.pdf_url import PDFUrlKnowledgeBase
+from agno.vectordb.lancedb import LanceDb, SearchType
+
+level_2_agent = Agent(
+    model=OpenAIChat(id="gpt-4o"),
+    description="You are a Thai cuisine expert!",
+    instructions=[
+        "Search your knowledge base for Thai recipes.",
+        "If the question is better suited for the web, search the web to fill in gaps.",
+        "Prefer the information in your knowledge base over the web results."
+    ],
+    knowledge=PDFUrlKnowledgeBase(
+        urls=["https://phi-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
+        vector_db=LanceDb(
+            uri="tmp/lancedb",
+            table_name="recipes",
+            search_type=SearchType.hybrid,
+            embedder=OpenAIEmbedder(model="text-embedding-3-small"),
+        ),
+    ),
+    tools=[DuckDuckGoTools()],
+    show_tool_calls=True,
+    markdown=True
+)
+
+# Comment out after first run
+if level_2_agent.knowledge is not None:
+    level_2_agent.knowledge.load()
+
+level_2_agent.print_response("How do I make chicken and galangal in coconut milk soup", stream=True)
+level_2_agent.print_response("What is the history of Thai curry?", stream=True)
+```
+
+Install dependencies and run the Agent:
+
+```shell
+pip install lancedb tantivy pypdf duckduckgo-search
+
+python 02_agent_with_knowledge.py
+```
+
+## Level 3: Multi Agent Teams
+
+Agents work best when they have a singular purpose, a narrow scope and a small number of tools. When the number of tools grows beyond what the language model can handle or the tools belong to different categories, we recommend using a team of agents to achieve the task. As complexity grows:
+- Split functionality into specialized agents
+- Group related tools together (e.g., one agent for web searches, another for financial analysis)
+- Create teams of agents that can collaborate on complex tasks
+
+This approach improves reliability, makes debugging easier, and helps prevent cognitive overload on the language model.
+
+```python
+from agno.agent import Agent
+from agno.models.openai import OpenAIChat
+from agno.tools.duckduckgo import DuckDuckGoTools
+from agno.tools.yfinance import YFinanceTools
 
 web_agent = Agent(
     name="Web Agent",
     role="Search the web for information",
     model=OpenAIChat(id="gpt-4o"),
-    tools=[DuckDuckGo()],
-    instructions=["Always include sources"],
+    tools=[DuckDuckGoTools()],
+    instructions="Always include sources",
     show_tool_calls=True,
     markdown=True,
 )
@@ -141,7 +179,7 @@ finance_agent = Agent(
     role="Get financial data",
     model=OpenAIChat(id="gpt-4o"),
     tools=[YFinanceTools(stock_price=True, analyst_recommendations=True, company_info=True)],
-    instructions=["Use tables to display data"],
+    instructions="Use tables to display data",
     show_tool_calls=True,
     markdown=True,
 )
@@ -154,381 +192,71 @@ agent_team = Agent(
     markdown=True,
 )
 
-agent_team.print_response("Summarize analyst recommendations and share the latest news for NVDA", stream=True)
+agent_team.print_response("What's the market outlook and financial performance of AI semiconductor companies?", stream=True)
 ```
 
-Run the Agent team:
+Install dependencies and run the Agent team:
 
 ```shell
-python agent_team.py
+pip install duckduckgo-search yfinance
+
+python 03_agent_team.py
 ```
 
-## A beautiful Agent UI to chat with your agents
+## Performance
 
-Phidata provides a beautiful UI for interacting with your agents. Let's take it for a spin, create a file `playground.py`
+Performance is a key focus for Agno. While the Agent's performance is bottlenecked by inference, as engineers all we can do is minimize agent instantiation time, reduce memory usage, and parallelize tool calls whenever possible.
 
-![agent_playground](https://github.com/user-attachments/assets/546ce6f5-47f0-4c0c-8f06-01d560befdbc)
+### Instantiation time
 
-> [!NOTE]
-> Phidata does not store any data, all agent data is stored locally in a sqlite database.
-
-```python
-from phi.agent import Agent
-from phi.model.openai import OpenAIChat
-from phi.storage.agent.sqlite import SqlAgentStorage
-from phi.tools.duckduckgo import DuckDuckGo
-from phi.tools.yfinance import YFinanceTools
-from phi.playground import Playground, serve_playground_app
-
-web_agent = Agent(
-    name="Web Agent",
-    model=OpenAIChat(id="gpt-4o"),
-    tools=[DuckDuckGo()],
-    instructions=["Always include sources"],
-    storage=SqlAgentStorage(table_name="web_agent", db_file="agents.db"),
-    add_history_to_messages=True,
-    markdown=True,
-)
-
-finance_agent = Agent(
-    name="Finance Agent",
-    model=OpenAIChat(id="gpt-4o"),
-    tools=[YFinanceTools(stock_price=True, analyst_recommendations=True, company_info=True, company_news=True)],
-    instructions=["Use tables to display data"],
-    storage=SqlAgentStorage(table_name="finance_agent", db_file="agents.db"),
-    add_history_to_messages=True,
-    markdown=True,
-)
-
-app = Playground(agents=[finance_agent, web_agent]).get_app()
-
-if __name__ == "__main__":
-    serve_playground_app("playground:app", reload=True)
-```
-
-
-Authenticate with phidata by running the following command:
+Let's compare instantiating an Agent with 1 tool on Agno vs LangGraph, we'll run the evaluation 50 times and print the results. You should run the evaluation yourself, please, do not take the results here at face value.
 
 ```shell
-phi auth
+pip install openai memory_profiler agno langgraph langchain_openai
+
+# Agno
+python evals/performance/instantiation_with_tool.py
+
+# LangGraph
+python evals/performance/other/langgraph_instantiation.py
 ```
 
-or by exporting the `PHI_API_KEY` for your workspace from [phidata.app](https://www.phidata.app)
+The following evaluation is run on an Apple M4 Mackbook Pro, but we'll soon be moving this to a github actions runner. LangGraph is on the right, we start it first to minimize bias and Agno is on the left.
 
-```bash
-export PHI_API_KEY=phi-***
-```
+https://github.com/user-attachments/assets/712216a4-974a-415e-8849-f77043b7997f
 
-Install dependencies and run the Agent Playground:
+Dividing the average time taken to instantiate a Langgraph Agent by the average time taken to instantiate an Agno Agent:
 
 ```
-pip install 'fastapi[standard]' sqlalchemy
-
-python playground.py
+0.020019s / 0.000003s ~ 6673
 ```
 
-- Open the link provided or navigate to `http://phidata.app/playground`
-- Select the `localhost:7777` endpoint and start chatting with your agents!
+**Agno Agent instantiation is roughly 6000x times faster than Langgraph Agent instantiation**. Sure, the runtime is dominated by inference, but these numbers add up at scale.
 
-<video
-  src="https://github.com/user-attachments/assets/3a2ff93c-3d2d-4f1a-9573-eee25542e5c4"
-  style="border-radius: 8px;"
-/>
+### Memory usage
 
-## Agentic RAG
+The memory footprint of an Agent is a key factor in scaling your application. In the benchmarks above, ~30Mib of memory usage is from the memory profiler, Agno Agents use 66.6 - 30 ~ 36.6Mib of memory. Whereas Langgraph Agents use 125.3 - 30 ~ 95.3Mib of memory. Langgraph Agents use 2.6x more memory than Agno Agents.
 
-We were the first to pioneer Agentic RAG using our Auto-RAG paradigm. With Agentic RAG (or auto-rag), the Agent can search its knowledge base (vector db) for the specific information it needs to achieve its task, instead of always inserting the "context" into the prompt.
+When you're running 1000s of Agents in production, these numbers will add up.
 
-This saves tokens and improves response quality. Create a file `rag_agent.py`
+We understand that these aren't the most accurate benchmarks, but we'll publish accuracy, reliability and performance benchmarks running on github actions in the coming weeks.
 
-```python
-from phi.agent import Agent
-from phi.model.openai import OpenAIChat
-from phi.embedder.openai import OpenAIEmbedder
-from phi.knowledge.pdf import PDFUrlKnowledgeBase
-from phi.vectordb.lancedb import LanceDb, SearchType
+## Documentation, Community & More examples
 
-# Create a knowledge base from a PDF
-knowledge_base = PDFUrlKnowledgeBase(
-    urls=["https://phi-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
-    # Use LanceDB as the vector database
-    vector_db=LanceDb(
-        table_name="recipes",
-        uri="tmp/lancedb",
-        search_type=SearchType.vector,
-        embedder=OpenAIEmbedder(model="text-embedding-3-small"),
-    ),
-)
-# Comment out after first run as the knowledge base is loaded
-knowledge_base.load()
-
-agent = Agent(
-    model=OpenAIChat(id="gpt-4o"),
-    # Add the knowledge base to the agent
-    knowledge=knowledge_base,
-    show_tool_calls=True,
-    markdown=True,
-)
-agent.print_response("How do I make chicken and galangal in coconut milk soup", stream=True)
-```
-
-Install libraries and run the Agent:
-
-```shell
-pip install lancedb tantivy pypdf sqlalchemy
-
-python rag_agent.py
-```
-
-## Structured Outputs
-
-Agents can return their output in a structured format as a Pydantic model.
-
-Create a file `structured_output.py`
-
-```python
-from typing import List
-from pydantic import BaseModel, Field
-from phi.agent import Agent
-from phi.model.openai import OpenAIChat
-
-# Define a Pydantic model to enforce the structure of the output
-class MovieScript(BaseModel):
-    setting: str = Field(..., description="Provide a nice setting for a blockbuster movie.")
-    ending: str = Field(..., description="Ending of the movie. If not available, provide a happy ending.")
-    genre: str = Field(..., description="Genre of the movie. If not available, select action, thriller or romantic comedy.")
-    name: str = Field(..., description="Give a name to this movie")
-    characters: List[str] = Field(..., description="Name of characters for this movie.")
-    storyline: str = Field(..., description="3 sentence storyline for the movie. Make it exciting!")
-
-# Agent that uses JSON mode
-json_mode_agent = Agent(
-    model=OpenAIChat(id="gpt-4o"),
-    description="You write movie scripts.",
-    response_model=MovieScript,
-)
-# Agent that uses structured outputs
-structured_output_agent = Agent(
-    model=OpenAIChat(id="gpt-4o"),
-    description="You write movie scripts.",
-    response_model=MovieScript,
-    structured_outputs=True,
-)
-
-json_mode_agent.print_response("New York")
-structured_output_agent.print_response("New York")
-```
-
-- Run the `structured_output.py` file
-
-```shell
-python structured_output.py
-```
-
-- The output is an object of the `MovieScript` class, here's how it looks:
-
-```shell
-MovieScript(
-│   setting='A bustling and vibrant New York City',
-│   ending='The protagonist saves the city and reconciles with their estranged family.',
-│   genre='action',
-│   name='City Pulse',
-│   characters=['Alex Mercer', 'Nina Castillo', 'Detective Mike Johnson'],
-│   storyline='In the heart of New York City, a former cop turned vigilante, Alex Mercer, teams up with a street-smart activist, Nina Castillo, to take down a corrupt political figure who threatens to destroy the city. As they navigate through the intricate web of power and deception, they uncover shocking truths that push them to the brink of their abilities. With time running out, they must race against the clock to save New York and confront their own demons.'
-)
-```
-
-## Reasoning Agents (experimental)
-
-Reasoning helps agents work through a problem step-by-step, backtracking and correcting as needed. Create a file `reasoning_agent.py`.
-
-```python
-from phi.agent import Agent
-from phi.model.openai import OpenAIChat
-
-task = (
-    "Three missionaries and three cannibals need to cross a river. "
-    "They have a boat that can carry up to two people at a time. "
-    "If, at any time, the cannibals outnumber the missionaries on either side of the river, the cannibals will eat the missionaries. "
-    "How can all six people get across the river safely? Provide a step-by-step solution and show the solutions as an ascii diagram"
-)
-
-reasoning_agent = Agent(model=OpenAIChat(id="gpt-4o"), reasoning=True, markdown=True, structured_outputs=True)
-reasoning_agent.print_response(task, stream=True, show_full_reasoning=True)
-```
-
-Run the Reasoning Agent:
-
-```shell
-python reasoning_agent.py
-```
-
-> [!WARNING]
-> Reasoning is an experimental feature and will break ~20% of the time. **It is not a replacement for o1.**
->
-> It is an experiment fueled by curiosity, combining COT and tool use. Set your expectations very low for this initial release. For example: It will not be able to count ‘r’s in ‘strawberry’.
-
-## Demo Agents
-
-The Agent Playground includes a few demo agents that you can test with. If you have recommendations for other demo agents, please let us know in our [community forum](https://community.phidata.com/).
-
-![demo_agents](https://github.com/user-attachments/assets/329aa15d-83aa-4c6c-88f0-2b0eda257198)
-
-## Monitoring & Debugging
-
-### Monitoring
-
-Phidata comes with built-in monitoring. You can set `monitoring=True` on any agent to track sessions or set `PHI_MONITORING=true` in your environment.
-
-> [!NOTE]
-> Run `phi auth` to authenticate your local account or export the `PHI_API_KEY`
-
-```python
-from phi.agent import Agent
-
-agent = Agent(markdown=True, monitoring=True)
-agent.print_response("Share a 2 sentence horror story")
-```
-
-Run the agent and monitor the results on [phidata.app/sessions](https://www.phidata.app/sessions)
-
-```shell
-# You can also set the environment variable
-# export PHI_MONITORING=true
-
-python monitoring.py
-```
-
-View the agent session on [phidata.app/sessions](https://www.phidata.app/sessions)
-
-![Agent Session](https://github.com/user-attachments/assets/45f3e460-9538-4b1f-96ba-bd46af3c89a8)
-
-### Debugging
-
-Phidata also includes a built-in debugger that will show debug logs in the terminal. You can set `debug_mode=True` on any agent to track sessions or set `PHI_DEBUG=true` in your environment.
-
-```python
-from phi.agent import Agent
-
-agent = Agent(markdown=True, debug_mode=True)
-agent.print_response("Share a 2 sentence horror story")
-```
-
-![debugging](https://github.com/user-attachments/assets/c933c787-4a28-4bff-a664-93b29360d9ea)
-
-## Getting help
-
-- Read the docs at <a href="https://docs.phidata.com" target="_blank" rel="noopener noreferrer">docs.phidata.com</a>
-- Post your questions on the [community forum](https://community.phidata.com/)
-- Chat with us on <a href="https://discord.gg/4MtYHHrgA8" target="_blank" rel="noopener noreferrer">discord</a>
-
-## More examples
-
-### Agent that can write and run python code
-
-<details>
-
-<summary>Show code</summary>
-
-The `PythonAgent` can achieve tasks by writing and running python code.
-
-- Create a file `python_agent.py`
-
-```python
-from phi.agent.python import PythonAgent
-from phi.model.openai import OpenAIChat
-from phi.file.local.csv import CsvFile
-
-python_agent = PythonAgent(
-    model=OpenAIChat(id="gpt-4o"),
-    files=[
-        CsvFile(
-            path="https://phidata-public.s3.amazonaws.com/demo_data/IMDB-Movie-Data.csv",
-            description="Contains information about movies from IMDB.",
-        )
-    ],
-    markdown=True,
-    pip_install=True,
-    show_tool_calls=True,
-)
-
-python_agent.print_response("What is the average rating of movies?")
-```
-
-- Run the `python_agent.py`
-
-```shell
-python python_agent.py
-```
-
-</details>
-
-### Agent that can analyze data using SQL
-
-<details>
-
-<summary>Show code</summary>
-
-The `DuckDbAgent` can perform data analysis using SQL.
-
-- Create a file `data_analyst.py`
-
-```python
-import json
-from phi.model.openai import OpenAIChat
-from phi.agent.duckdb import DuckDbAgent
-
-data_analyst = DuckDbAgent(
-    model=OpenAIChat(model="gpt-4o"),
-    markdown=True,
-    semantic_model=json.dumps(
-        {
-            "tables": [
-                {
-                    "name": "movies",
-                    "description": "Contains information about movies from IMDB.",
-                    "path": "https://phidata-public.s3.amazonaws.com/demo_data/IMDB-Movie-Data.csv",
-                }
-            ]
-        },
-        indent=2,
-    ),
-)
-
-data_analyst.print_response(
-    "Show me a histogram of ratings. "
-    "Choose an appropriate bucket size but share how you chose it. "
-    "Show me the result as a pretty ascii diagram",
-    stream=True,
-)
-```
-
-- Install duckdb and run the `data_analyst.py` file
-
-```shell
-pip install duckdb
-
-python data_analyst.py
-```
-
-</details>
-
-### Check out the [cookbook](https://github.com/phidatahq/phidata/tree/main/cookbook) for more examples.
+- Our documentation is available at <a href="https://docs.agno.com" target="_blank" rel="noopener noreferrer">docs.agno.com</a>
+- More examples are available in the [cookbook](https://github.com/agno-agi/agno/tree/main/cookbook)
+- If you have any questions, post them on the [community forum](https://community.agno.com/)
+- Or chat with us on <a href="https://discord.gg/4MtYHHrgA8" target="_blank" rel="noopener noreferrer">discord</a>
 
 ## Contributions
 
-We're an open-source project and welcome contributions, please read the [contributing guide](https://github.com/phidatahq/phidata/blob/main/CONTRIBUTING.md) for more information.
-
-## Request a feature
-
-- If you have a feature request, please open an issue or make a pull request.
-- If you have ideas on how we can improve, please create a discussion.
+We welcome contributions, please read the [contributing guide](https://github.com/agno-agi/agno/blob/main/CONTRIBUTING.md) for more information.
 
 ## Telemetry
 
-Phidata logs which model an agent used so we can prioritize features for the most popular models.
+Agno logs which model an agent used so we can prioritize updates to the most popular providers.
 
-You can disable this by setting `PHI_TELEMETRY=false` in your environment.
+You can disable this by setting `AGNO_TELEMETRY=false` in your environment.
 
 <p align="left">
   <a href="#top">⬆️ Back to Top</a>

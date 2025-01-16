@@ -14,19 +14,6 @@ from agno.utils.timer import Timer
 from agno.utils.tools import get_function_call_for_tool_call
 
 try:
-    MIN_OPENAI_VERSION = (1, 52, 0)  # v1.52.0
-
-    # Check the installed openai version
-    from openai import __version__ as installed_version
-
-    # Convert installed version to a tuple of integers for comparison
-    installed_version_tuple = tuple(map(int, installed_version.split(".")))
-    if installed_version_tuple < MIN_OPENAI_VERSION:
-        raise ImportError(
-            f"`openai` version must be >= {'.'.join(map(str, MIN_OPENAI_VERSION))}, but found {installed_version}. "
-            f"Please upgrade using `pip install --upgrade openai`."
-        )
-
     from openai import AsyncOpenAI as AsyncOpenAIClient
     from openai import OpenAI as OpenAIClient
     from openai.types.chat.chat_completion import ChatCompletion

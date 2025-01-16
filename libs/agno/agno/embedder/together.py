@@ -1,9 +1,11 @@
+from dataclasses import dataclass
 from os import getenv
 from typing import Optional
 
 from agno.embedder.openai import OpenAIEmbedder
 
 
+@dataclass
 class TogetherEmbedder(OpenAIEmbedder):
     model: str = "togethercomputer/m2-bert-80M-32k-retrieval"
     dimensions: int = 768

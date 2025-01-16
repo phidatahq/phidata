@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from agno.embedder.base import Embedder
@@ -10,6 +11,7 @@ except ImportError:
     raise ImportError("`cohere` not installed. Please install using `pip install cohere`.")
 
 
+@dataclass
 class CohereEmbedder(Embedder):
     model: str = "embed-english-v3.0"
     input_type: str = "search_query"

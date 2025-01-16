@@ -7,11 +7,11 @@ from agno.playground import Playground, serve_playground_app
 from agno.storage.workflow.sqlite import SqliteDbWorkflowStorage
 
 # Import the workflows
-from blog_post_generator import BlogPostGenerator  # type: ignore
-from news_report_generator import NewsReportGenerator  # type: ignore
-from investment_report_generator import InvestmentReportGenerator  # type: ignore
-from startup_idea_validator import StartupIdeaValidator  # type: ignore
-from game_generator import GameGenerator  # type: ignore
+from blog_post_generator.blog_post_generator import BlogPostGenerator
+from news_report_generator.news_report_generator import NewsReportGenerator
+from investment_report_generator.investment_report_generator import InvestmentReportGenerator
+from startup_idea_validator.startup_idea_validator import StartupIdeaValidator
+from game_generator.game_generator import GameGenerator
 
 # Initialize the workflows with SQLite storage
 

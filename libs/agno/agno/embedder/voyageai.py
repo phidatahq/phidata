@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
 from agno.embedder.base import Embedder
@@ -10,6 +11,7 @@ except ImportError:
     raise ImportError("`voyageai` not installed")
 
 
+@dataclass
 class VoyageAIEmbedder(Embedder):
     model: str = "voyage-2"
     dimensions: int = 1024

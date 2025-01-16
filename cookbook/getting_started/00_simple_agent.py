@@ -1,11 +1,9 @@
-"""🗽 News Reporter Bot - Your AI News Buddy!
-Run `pip install duckduckgo-search` to install dependencies."""
+"""🗽 News Reporter - Your AI News Buddy!"""
 
 from agno.agent import Agent
 from agno.models.openai import OpenAIChat
-from agno.tools.duckduckgo import DuckDuckGoTools
 
-# Create our News Reporter Bot with a fun personality
+# Create our News Reporter with a fun personality
 agent = Agent(
     model=OpenAIChat(id="gpt-4o"),
     instructions=(
@@ -21,13 +19,8 @@ agent = Agent(
         "\n"
         "Remember to verify all facts through web searches while keeping that NYC energy high!"
     ),
-    tools=[DuckDuckGoTools()],
-    show_tool_calls=True,
     markdown=True
 )
 
-# Example questions to try:
-# - "What's happening in New York right now?"
-# - "Tell me about the latest Broadway shows!"
-# - "What's the buzz in Central Park this season?"
+# Give it a try
 agent.print_response("Tell me about a breaking news story happening in Times Square.", stream=True)

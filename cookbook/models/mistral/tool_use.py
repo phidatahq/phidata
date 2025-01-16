@@ -3,11 +3,11 @@
 import os
 
 from agno.agent import Agent
-from agno.models.mistral import MistralChat
+from agno.models.mistral import Mistral
 from agno.tools.duckduckgo import DuckDuckGoTools
 
 agent = Agent(
-    model=MistralChat(
+    model=Mistral(
         id="mistral-large-latest",
     ),
     tools=[DuckDuckGoTools()],

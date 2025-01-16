@@ -1,10 +1,10 @@
 from agno.agent import Agent
-from agno.models.openai import OpenAIChat
+from agno.models.openai import OpenAI
 from agno.tools.youtube_tools import YouTubeTools
 
 agent = Agent(
     name="YouTube Timestamps Agent",
-    model=OpenAIChat(id="gpt-4o"),
+    model=OpenAI(id="gpt-4o"),
     tools=[YouTubeTools()],
     show_tool_calls=True,
     instructions=[

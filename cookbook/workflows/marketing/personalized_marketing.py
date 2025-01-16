@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field
 from pydantic import ValidationError
 
 from agno.agent import Agent
-from agno.models.openai import OpenAIChat
+from agno.models.openai import OpenAI
 from agno.workflow import Workflow, RunResponse
 from agno.tools.firecrawl import FirecrawlTools
 from agno.tools.resend_tools import ResendTools
@@ -140,7 +140,7 @@ class PersonalisedMarketing(Workflow):
     description: str = "Generate a personalised email for a given contact."
 
     scraper: Agent = Agent(
-        model=OpenAIChat(id="gpt-4o"),
+        model=OpenAI(id="gpt-4o"),
         tools=[FirecrawlTools()],
         description="Given a company name, scrape the website for important information related to the company.",
         response_model=CompanyInfo,
@@ -148,7 +148,7 @@ class PersonalisedMarketing(Workflow):
     )
 
     email_creator: Agent = Agent(
-        model=OpenAIChat(id="gpt-4o"),
+        model=OpenAI(id="gpt-4o"),
         instructions=[
             "You will be provided with information about a company and a contact person.",
             "Use this information to create a personalised email to reach out to the contact person.",

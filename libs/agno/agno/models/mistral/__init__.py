@@ -1,1 +1,1 @@
-from agno.models.mistral.mistral import MistralChat
+from agno.models.mistral.mistral import Mistral

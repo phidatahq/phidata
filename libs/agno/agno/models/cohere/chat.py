@@ -47,7 +47,7 @@ class StreamData:
 
 
 @dataclass
-class CohereChat(Model):
+class Cohere(Model):
     id: str = "command-r-plus"
     name: str = "cohere"
     provider: str = "Cohere"

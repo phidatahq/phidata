@@ -1,5 +1,5 @@
 from agno.agent import Agent
-from agno.models.openai import OpenAIChat
+from agno.models.openai import OpenAI
 from agno.tools.moviepy_video_tools import MoviePyVideoTools
 from agno.tools.openai import OpenAITools
 
@@ -10,7 +10,7 @@ openai_tools = OpenAITools()
 
 video_caption_agent = Agent(
     name="Video Caption Generator Agent",
-    model=OpenAIChat(
+    model=OpenAI(
         id="gpt-4o",
     ),
     tools=[video_tools, openai_tools],

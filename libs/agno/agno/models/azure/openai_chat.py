@@ -14,7 +14,7 @@ except (ModuleNotFoundError, ImportError):
 
 
 @dataclass
-class AzureOpenAIChat(OpenAILike):
+class AzureOpenAI(OpenAILike):
     """
     Azure OpenAI Chat model
 
@@ -35,7 +35,7 @@ class AzureOpenAIChat(OpenAILike):
     """
 
     id: str
-    name: str = "AzureOpenAIChat"
+    name: str = "AzureOpenAI"
     provider: str = "Azure"
 
     api_key: Optional[str] = getenv("AZURE_OPENAI_API_KEY")

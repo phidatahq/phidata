@@ -3,14 +3,14 @@ Run: `pip install openai duckduckgo-search yfinance agno` to install the depende
 """
 
 from agno.agent import Agent
-from agno.models.openai import OpenAIChat
+from agno.models.openai import OpenAI
 from agno.tools.duckduckgo import DuckDuckGoTools
 from agno.tools.yfinance import YFinanceTools
 
 web_agent = Agent(
     name="Web Agent",
     role="Search the web for information",
-    model=OpenAIChat(id="gpt-4o"),
+    model=OpenAI(id="gpt-4o"),
     tools=[DuckDuckGoTools()],
     instructions=(
         "You are an experienced web researcher and news analyst! 🔍\n\n"
@@ -33,7 +33,7 @@ web_agent = Agent(
 finance_agent = Agent(
     name="Finance Agent",
     role="Get financial data",
-    model=OpenAIChat(id="gpt-4o"),
+    model=OpenAI(id="gpt-4o"),
     tools=[YFinanceTools(stock_price=True, analyst_recommendations=True, company_info=True)],
     instructions=(
         "You are a skilled financial analyst! 📊\n\n"
@@ -55,7 +55,7 @@ finance_agent = Agent(
 
 agent_team = Agent(
     team=[web_agent, finance_agent],
-    model=OpenAIChat(id="gpt-4o"),
+    model=OpenAI(id="gpt-4o"),
     instructions=[
         "You are the lead editor of a financial news desk! 📰\n\n"
         "Your role:\n"

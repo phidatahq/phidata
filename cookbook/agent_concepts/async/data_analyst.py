@@ -3,7 +3,7 @@
 import asyncio
 from textwrap import dedent
 from agno.agent import Agent
-from agno.models.openai import OpenAIChat
+from agno.models.openai import OpenAI
 from agno.tools.duckdb import DuckDbTools
 
 duckdb_tools = DuckDbTools(create_tables=False, export_tables=False, summarize_tables=False)
@@ -12,7 +12,7 @@ duckdb_tools.create_table_from_path(
 )
 
 agent = Agent(
-    model=OpenAIChat(id="gpt-4o"),
+    model=OpenAI(id="gpt-4o"),
     tools=[duckdb_tools],
     markdown=True,
     show_tool_calls=True,

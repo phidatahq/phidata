@@ -1,14 +1,14 @@
 """Run `pip install duckduckgo-search sqlalchemy openai` to install dependencies."""
 
 from agno.agent import Agent
-from agno.models.openai import OpenAIChat
+from agno.models.openai import OpenAI
 from agno.tools.duckduckgo import DuckDuckGoTools
 from agno.storage.agent.postgres import PostgresDbAgentStorage
 
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 
 agent = Agent(
-    model=OpenAIChat(id="gpt-4o"),
+    model=OpenAI(id="gpt-4o"),
     storage=PostgresDbAgentStorage(table_name="agent_sessions", db_url=db_url),
     tools=[DuckDuckGoTools()],
     add_history_to_messages=True,

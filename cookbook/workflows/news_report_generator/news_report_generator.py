@@ -10,7 +10,7 @@ from typing import Optional, Dict, Iterator
 from pydantic import BaseModel, Field
 
 from agno.agent import Agent
-from agno.models.openai import OpenAIChat
+from agno.models.openai import OpenAI
 from agno.workflow import Workflow, RunResponse, RunEvent
 from agno.storage.workflow.sqlite import SqliteDbWorkflowStorage
 from agno.tools.duckduckgo import DuckDuckGoTools
@@ -44,7 +44,7 @@ class NewsReportGenerator(Workflow):
     description: str = "Generate a comprehensive news report on a given topic."
 
     web_searcher: Agent = Agent(
-        model=OpenAIChat(id="gpt-4o-mini"),
+        model=OpenAI(id="gpt-4o-mini"),
         tools=[DuckDuckGoTools()],
         instructions=[
             "Given a topic, search for 10 articles and return the 5 most relevant articles.",
@@ -53,7 +53,7 @@ class NewsReportGenerator(Workflow):
     )
 
     article_scraper: Agent = Agent(
-        model=OpenAIChat(id="gpt-4o-mini"),
+        model=OpenAI(id="gpt-4o-mini"),
         tools=[Newspaper4kTools()],
         instructions=[
             "Given a url, scrape the article and return the title, url, and markdown formatted content.",
@@ -63,7 +63,7 @@ class NewsReportGenerator(Workflow):
     )
 
     writer: Agent = Agent(
-        model=OpenAIChat(id="gpt-4o"),
+        model=OpenAI(id="gpt-4o"),
         description="You are a Senior NYT Editor and your task is to write a new york times worthy cover story.",
         instructions=[
             "You will be provided with news articles and their contents.",

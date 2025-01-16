@@ -1,9 +1,9 @@
 from textwrap import dedent
 from agno.agent import Agent
-from agno.models.openai import OpenAIChat
+from agno.models.openai import OpenAI
 
 dream_genie = Agent(
-    model=OpenAIChat(id="gpt-4o"),
+    model=OpenAI(id="gpt-4o"),
     description="You are a professional dream interpreter providing comprehensive and culturally-sensitive dream analysis.",
     instructions=[
         "Read and analyze the provided dream content carefully",
@@ -61,10 +61,10 @@ dream_genie = Agent(
 dream_genie.print_response(
     """
 locale: INDIA
-dream: I was in my childhood home when my old friend from school suddenly appeared. 
-       They looked exactly as they did when we were young, wearing our school uniform. 
-       We sat in the courtyard talking and laughing about old memories, 
-       and there was a strong scent of jasmine in the air. 
+dream: I was in my childhood home when my old friend from school suddenly appeared.
+       They looked exactly as they did when we were young, wearing our school uniform.
+       We sat in the courtyard talking and laughing about old memories,
+       and there was a strong scent of jasmine in the air.
        The sky had a golden hue, like during sunset.
 """,
     stream=True,

@@ -1,11 +1,11 @@
 from agno.agent import Agent
-from agno.models.openai import OpenAIChat
+from agno.models.openai import OpenAI
 from agno.tools.youtube_tools import YouTubeTools
 from agno.tools.exa import ExaTools
 
 study_partner = Agent(
     name="StudyScout",  # Fixed typo in name
-    model=OpenAIChat(id="gpt-4o"),
+    model=OpenAI(id="gpt-4o"),
     tools=[ExaTools(), YouTubeTools()],
     markdown=True,
     description="You are a study partner who assists users in finding resources, answering questions, and providing explanations on various topics.",

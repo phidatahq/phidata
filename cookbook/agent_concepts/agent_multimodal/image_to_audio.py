@@ -3,12 +3,12 @@ from rich import print
 from rich.text import Text
 
 from agno.agent import Agent, RunResponse
-from agno.models.openai import OpenAIChat
+from agno.models.openai import OpenAI
 from agno.utils.audio import write_audio_to_file
 
 cwd = Path(__file__).parent.resolve()
 
-image_agent = Agent(model=OpenAIChat(id="gpt-4o"))
+image_agent = Agent(model=OpenAI(id="gpt-4o"))
 image_story: RunResponse = image_agent.run(
     "Write a 3 sentence fiction story about the image",
     images=[str(cwd.joinpath("multimodal-agents.jpg"))],
@@ -17,7 +17,7 @@ formatted_text = Text.from_markup(f":sparkles: [bold magenta]Story:[/bold magent
 print(formatted_text)
 
 audio_agent = Agent(
-    model=OpenAIChat(
+    model=OpenAI(
         id="gpt-4o-audio-preview", modalities=["text", "audio"], audio={"voice": "alloy", "format": "wav"}
     ),
 )

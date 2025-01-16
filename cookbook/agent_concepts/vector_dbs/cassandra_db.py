@@ -1,7 +1,7 @@
 from agno.agent import Agent
 from agno.knowledge.pdf_url import PDFUrlKnowledgeBase
 from agno.vectordb.cassandra.cassandra import CassandraDb
-from agno.models.mistral import MistralChat
+from agno.models.mistral import Mistral
 from agno.embedder.mistral import MistralEmbedder
 try:
     from cassandra.cluster import Cluster  # type: ignore
@@ -24,7 +24,7 @@ knowledge_base = PDFUrlKnowledgeBase(
     urls=["https://phi-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
     vector_db=CassandraDb(
         table_name="recipes",
-        keyspace="testkeyspace", 
+        keyspace="testkeyspace",
         session=session,
         embedder = MistralEmbedder()
     ),
@@ -34,7 +34,7 @@ knowledge_base = PDFUrlKnowledgeBase(
 knowledge_base.load(recreate=True)  # Comment out after first run
 
 agent = Agent(
-    model=MistralChat(),
+    model=Mistral(),
     knowledge=knowledge_base,
     show_tool_calls=True,
 )

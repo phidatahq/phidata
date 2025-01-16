@@ -1,11 +1,11 @@
 from agno.agent import Agent
-from agno.models.huggingface import HuggingFaceChat
+from agno.models.huggingface import HuggingFace
 import os
 from getpass import getpass
 
 
 agent = Agent(
-    model=HuggingFaceChat(
+    model=HuggingFace(
         id="meta-llama/Meta-Llama-3-8B-Instruct",
         max_tokens=4096,
     ),

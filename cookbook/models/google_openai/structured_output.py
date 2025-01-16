@@ -2,7 +2,7 @@ from typing import List
 from rich.pretty import pprint  # noqa
 from pydantic import BaseModel, Field
 from agno.agent import Agent, RunResponse  # noqa
-from agno.models.google import GeminiOpenAIChat
+from agno.models.google import GeminiOpenAI
 
 
 class MovieScript(BaseModel):
@@ -18,7 +18,7 @@ class MovieScript(BaseModel):
 
 # Agent that uses JSON mode
 movie_agent = Agent(
-    model=GeminiOpenAIChat(id="gemini-2.0-flash-exp"),
+    model=GeminiOpenAI(id="gemini-2.0-flash-exp"),
     description="You write movie scripts.",
     response_model=MovieScript,
 )

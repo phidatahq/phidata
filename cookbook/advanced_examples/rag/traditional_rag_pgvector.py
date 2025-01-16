@@ -5,7 +5,7 @@
 """
 
 from agno.agent import Agent
-from agno.models.openai import OpenAIChat
+from agno.models.openai import OpenAI
 from agno.embedder.openai import OpenAIEmbedder
 from agno.knowledge.pdf_url import PDFUrlKnowledgeBase
 from agno.vectordb.pgvector import PgVector, SearchType
@@ -26,7 +26,7 @@ knowledge_base = PDFUrlKnowledgeBase(
 knowledge_base.load(upsert=True)
 
 agent = Agent(
-    model=OpenAIChat(id="gpt-4o"),
+    model=OpenAI(id="gpt-4o"),
     knowledge=knowledge_base,
     # Enable RAG by adding context from the `knowledge` to the user prompt.
     add_context=True,

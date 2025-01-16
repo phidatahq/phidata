@@ -1,10 +1,10 @@
 from agno.agent import Agent
-from agno.models.openai import OpenAIChat
+from agno.models.openai import OpenAI
 from agno.tools.fal_tools import FalTools
 
 fal_agent = Agent(
     name="Fal Video Generator Agent",
-    model=OpenAIChat(id="gpt-4o"),
+    model=OpenAI(id="gpt-4o"),
     tools=[FalTools("fal-ai/hunyuan-video")],
     description="You are an AI agent that can generate videos using the Fal API.",
     instructions=[

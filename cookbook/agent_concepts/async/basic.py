@@ -1,9 +1,9 @@
 import asyncio
 from agno.agent import Agent
-from agno.models.openai import OpenAIChat
+from agno.models.openai import OpenAI
 
 agent = Agent(
-    model=OpenAIChat(id="gpt-4o"),
+    model=OpenAI(id="gpt-4o"),
     description="You help people with their health and fitness goals.",
     instructions=["Recipes should be under 5 ingredients"],
     markdown=True,

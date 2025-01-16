@@ -2,7 +2,7 @@ from typing import List
 from rich.pretty import pprint  # noqa
 from pydantic import BaseModel, Field
 from agno.agent import Agent, RunResponse  # noqa
-from agno.models.deepseek import DeepSeekChat
+from agno.models.deepseek import DeepSeek
 
 
 class MovieScript(BaseModel):
@@ -17,7 +17,7 @@ class MovieScript(BaseModel):
 
 
 json_mode_agent = Agent(
-    model=DeepSeekChat(id="deepseek-chat"),
+    model=DeepSeek(id="deepseek-chat"),
     description="You help people write movie scripts.",
     response_model=MovieScript,
 )

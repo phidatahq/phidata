@@ -1,9 +1,9 @@
 from agno.agent import Agent
 from agno.tools.dalle import DalleTools
-from agno.models.openai import OpenAIChat
+from agno.models.openai import OpenAI
 
 image_agent = Agent(
-    model=OpenAIChat(id="gpt-4o"),
+    model=OpenAI(id="gpt-4o"),
     tools=[DalleTools()],
     description="You are an AI agent that can generate images using DALL-E.",
     instructions="When the user asks you to create an image, use the `create_image` tool to create the image.",

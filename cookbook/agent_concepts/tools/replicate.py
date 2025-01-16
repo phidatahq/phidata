@@ -1,12 +1,12 @@
 from agno.agent import Agent
-from agno.models.openai import OpenAIChat
+from agno.models.openai import OpenAI
 from agno.tools.replicate import ReplicateTools
 
 """Create an agent specialized for Replicate AI content generation"""
 
 image_agent = Agent(
     name="Image Generator Agent",
-    model=OpenAIChat(id="gpt-4o"),
+    model=OpenAI(id="gpt-4o"),
     tools=[ReplicateTools(model="luma/photon-flash")],
     description="You are an AI agent that can generate images using the Replicate API.",
     instructions=[

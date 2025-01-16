@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import traceback
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -831,6 +832,7 @@ class Agent:
                         return next(resp)
             except Exception as e:
                 last_exception = e
+                traceback.print_exc()
                 logger.warning(f"Attempt {attempt + 1}/{num_attempts} failed: {str(e)}")
                 if attempt < num_attempts - 1:  # Don't sleep on the last attempt
                     import time
@@ -1266,10 +1268,10 @@ class Agent:
         return tools
 
     def update_model(self) -> None:
-        # Use the default Model (OpenAIChat) if no model is provided
+        # Use the default Model (OpenAI) if no model is provided
         if self.model is None:
             try:
-                from agno.models.openai import OpenAIChat
+                from agno.models.openai import OpenAI
             except ModuleNotFoundError as e:
                 logger.exception(e)
                 logger.error(
@@ -1277,7 +1279,7 @@ class Agent:
                     "Please provide a `model` or install `openai`."
                 )
                 exit(1)
-            self.model = OpenAIChat(id="gpt-4o")
+            self.model = OpenAI(id="gpt-4o")
 
         # Set response_format if it is not set on the Model
         if self.response_model is not None and self.model.response_format is None:

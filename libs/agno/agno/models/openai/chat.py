@@ -65,7 +65,7 @@ class StreamData:
 
 
 @dataclass
-class OpenAIChat(Model):
+class OpenAI(Model):
     """
     A class for interacting with OpenAI models.
 
@@ -73,7 +73,7 @@ class OpenAIChat(Model):
     """
 
     id: str = "gpt-4o"
-    name: str = "OpenAIChat"
+    name: str = "OpenAI"
     provider: str = "OpenAI"
 
     # Request parameters

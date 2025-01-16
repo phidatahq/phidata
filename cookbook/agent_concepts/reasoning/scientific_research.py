@@ -1,5 +1,5 @@
 from agno.agent import Agent
-from agno.models.openai import OpenAIChat
+from agno.models.openai import OpenAI
 
 task = (
     "Read the following abstract of a scientific paper and provide a critical evaluation of its methodology,"
@@ -10,5 +10,5 @@ task = (
     "The study concludes that the new teaching method is effective in improving mathematical performance among high school students."
 )
 
-reasoning_agent = Agent(model=OpenAIChat(id="gpt-4o"), reasoning=True, markdown=True, structured_outputs=True)
+reasoning_agent = Agent(model=OpenAI(id="gpt-4o"), reasoning=True, markdown=True, structured_outputs=True)
 reasoning_agent.print_response(task, stream=True, show_full_reasoning=True)

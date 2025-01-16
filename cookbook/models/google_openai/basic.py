@@ -1,7 +1,7 @@
 from agno.agent import Agent, RunResponse  # noqa
-from agno.models.google import GeminiOpenAIChat
+from agno.models.google import GeminiOpenAI
 
-agent = Agent(model=GeminiOpenAIChat(id="gemini-2.0-flash-exp"), markdown=True)
+agent = Agent(model=GeminiOpenAI(id="gemini-2.0-flash-exp"), markdown=True)
 
 # Get the response in a variable
 # run: RunResponse = agent.run("Share a 2 sentence horror story")

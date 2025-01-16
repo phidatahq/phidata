@@ -63,13 +63,13 @@ class StreamData:
 
 
 @dataclass
-class HuggingFaceChat(Model):
+class HuggingFace(Model):
     """
     A class for interacting with HuggingFace Hub Inference models.
 
     Attributes:
         id (str): The id of the HuggingFace model to use. Default is "meta-llama/Meta-Llama-3-8B-Instruct".
-        name (str): The name of this chat model instance. Default is "HuggingFaceChat".
+        name (str): The name of this chat model instance. Default is "HuggingFace".
         provider (str): The provider of the model. Default is "HuggingFace".
         store (Optional[bool]): Whether or not to store the output of this chat completion request for use in the model distillation or evals products.
         frequency_penalty (Optional[float]): Penalizes new tokens based on their frequency in the text so far.
@@ -97,7 +97,7 @@ class HuggingFaceChat(Model):
     """
 
     id: str = "meta-llama/Meta-Llama-3-8B-Instruct"
-    name: str = "HuggingFaceChat"
+    name: str = "HuggingFace"
     provider: str = "HuggingFace"
 
     # Request parameters

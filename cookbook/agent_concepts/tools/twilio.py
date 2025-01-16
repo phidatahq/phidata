@@ -1,5 +1,5 @@
 from agno.agent import Agent
-from agno.models.openai import OpenAIChat
+from agno.models.openai import OpenAI
 from agno.tools.twilio import TwilioTools
 
 """
@@ -28,7 +28,7 @@ agent = Agent(
         - getting call details
         """
     ],
-    model=OpenAIChat(id="gpt-4o"),
+    model=OpenAI(id="gpt-4o"),
     tools=[TwilioTools()],
     show_tool_calls=True,
     markdown=True,

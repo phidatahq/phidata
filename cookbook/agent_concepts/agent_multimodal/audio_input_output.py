@@ -1,7 +1,7 @@
 import base64
 import requests
 from agno.agent import Agent
-from agno.models.openai import OpenAIChat
+from agno.models.openai import OpenAI
 from agno.utils.audio import write_audio_to_file
 
 # Fetch the audio file and convert it to a base64 encoded string
@@ -12,7 +12,7 @@ wav_data = response.content
 encoded_string = base64.b64encode(wav_data).decode("utf-8")
 
 agent = Agent(
-    model=OpenAIChat(
+    model=OpenAI(
         id="gpt-4o-audio-preview", modalities=["text", "audio"], audio={"voice": "alloy", "format": "wav"}
     ),
     markdown=True,

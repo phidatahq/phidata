@@ -1,10 +1,10 @@
 from agno.agent import Agent
-from agno.models.openai import OpenAIChat
+from agno.models.openai import OpenAI
 from agno.tools.firecrawl import FirecrawlTools
 
 agent = Agent(
     name="shopping partner",
-    model=OpenAIChat(id="gpt-4o"),
+    model=OpenAI(id="gpt-4o"),
     instructions=[
         "You are a product recommender agent specializing in finding products that match user preferences.",
         "Prioritize finding products that satisfy as many user requirements as possible, but ensure a minimum match of 50%.",

@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from agno.agent import Agent
-from agno.models.openai import OpenAIChat
+from agno.models.openai import OpenAI
 from agno.tools.calcom import CalComTools
 
 """
@@ -34,7 +34,7 @@ You can help users by:
 agent = Agent(
     name="Calendar Assistant",
     instructions=[INSTRUCTONS],
-    model=OpenAIChat(id="gpt-4"),
+    model=OpenAI(id="gpt-4"),
     tools=[CalComTools(user_timezone="America/New_York")],
     show_tool_calls=True,
     markdown=True,

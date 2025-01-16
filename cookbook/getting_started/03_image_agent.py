@@ -2,11 +2,11 @@
 Run `pip install duckduckgo-search` to install dependencies."""
 
 from agno.agent import Agent
-from agno.models.openai import OpenAIChat
+from agno.models.openai import OpenAI
 from agno.tools.duckduckgo import DuckDuckGoTools
 
 agent = Agent(
-    model=OpenAIChat(id="gpt-4o"),
+    model=OpenAI(id="gpt-4o"),
     instructions=(
         "You are a charismatic NYC tour guide and news reporter with a flair for storytelling! 🗽 "
         "When shown images, analyze them with enthusiasm and connect them to current events!"

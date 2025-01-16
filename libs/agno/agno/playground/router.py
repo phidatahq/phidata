@@ -214,7 +214,7 @@ def get_playground_router(
             )
         return agent_sessions
 
-    @playground_router.post("/agents/{agent_id}/sessions/{session_id}")
+    @playground_router.get("/agents/{agent_id}/sessions/{session_id}")
     def get_user_agent_session(agent_id: str, session_id: str, user_id: str = Query(None)):
         logger.debug(f"AgentSessionsRequest: {agent_id} {user_id} {session_id}")
         agent = get_agent_by_id(agent_id, agents)

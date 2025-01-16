@@ -216,8 +216,6 @@ def get_playground_router(
 
     @playground_router.get("/agents/{agent_id}/sessions/{session_id}")
     def get_user_agent_session(agent_id: str, session_id: str, user_id: str = Query(..., min_length=1)):
-        print("HERE")
-
         logger.debug(f"AgentSessionsRequest: {agent_id} {user_id} {session_id}")
         agent = get_agent_by_id(agent_id, agents)
         if agent is None:
@@ -234,7 +232,6 @@ def get_playground_router(
 
     @playground_router.post("/agents/{agent_id}/sessions/{session_id}/rename")
     def rename_agent_session(agent_id: str, session_id: str, body: AgentRenameRequest, user_id: str = Query(..., min_length=1)):
-        print("HERE")
         agent = get_agent_by_id(agent_id, agents)
         if agent is None:
             return JSONResponse(status_code=404, content=f"couldn't find agent with {agent_id}")

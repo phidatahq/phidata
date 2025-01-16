@@ -163,7 +163,7 @@ class Function(BaseModel):
             name=function_name,
             description=get_entrypoint_docstring(entrypoint=c),
             parameters=parameters,
-            entrypoint=validate_call(c, config=dict(arbitrary_types_allowed=True)),
+            entrypoint=validate_call(c, config=dict(arbitrary_types_allowed=True)),  # type: ignore
         )
 
     def process_entrypoint(self, strict: bool = False):
@@ -237,7 +237,7 @@ class Function(BaseModel):
         self.description = self.description or get_entrypoint_docstring(self.entrypoint)
         if not params_set_by_user:
             self.parameters = parameters
-        self.entrypoint = validate_call(self.entrypoint, config=dict(arbitrary_types_allowed=True))
+        self.entrypoint = validate_call(self.entrypoint, config=dict(arbitrary_types_allowed=True))  # type: ignore
 
     def get_type_name(self, t: Type[T]):
         name = str(t)

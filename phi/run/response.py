@@ -41,8 +41,8 @@ class RunResponse(BaseModel):
 
     content: Optional[Any] = None
     content_type: str = "str"
-    tool_calls_content: str = None
     event: str = RunEvent.run_response.value
+    tool_calls_content: Optional[str] = None
     messages: Optional[List[Message]] = None
     metrics: Optional[Dict[str, Any]] = None
     model: Optional[str] = None

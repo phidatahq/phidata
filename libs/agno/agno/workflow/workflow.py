@@ -122,6 +122,13 @@ class Workflow:
         # Return type of the run function
         self._run_return_type: Optional[str] = None
 
+        self.__post_init__()
+
+    def __post_init__(self):
+        for field_name, value in self.__class__.__dict__.items():
+            if isinstance(value, Agent):
+                value.session_id = self.session_id
+
     def run(self, **kwargs: Any):
         logger.error(f"{self.__class__.__name__}.run() method not implemented.")
         return

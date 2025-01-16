@@ -23,4 +23,4 @@ def instantiate_agent():
 instantiation_perf = PerfEval(func=instantiate_agent, num_iterations=50)
 
 if __name__ == "__main__":
-    instantiation_perf.run(print_summary=True)
+    instantiation_perf.run(print_results=True)

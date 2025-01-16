@@ -205,6 +205,35 @@ python 03_agent_team.py
 
 ## Performance
 
+Performance is a key focus for Agno. While the Agent's performance is bottlenecked by inference, as engineers all we can do is minimize agent instantiation time, reduce memory usage, and parallelize tool calls whenever possible.
+
+### Instantiation time
+
+Let's compare instantiating an Agent with 1 tool on Agno vs LangGraph, we'll run the evaluation 50 times and print the results. You should run the evaluation yourself, please, do not take the results here at face value.
+
+```shell
+pip install openai memory_profiler agno langgraph langchain_openai
+
+# Agno
+python evals/performance/instantiation_with_tool.py
+
+# LangGraph
+python evals/performance/other/langgraph_instantiation.py
+```
+
+Dividing the average time taken to instantiate a Langgraph Agent by the average time taken to instantiate an Agno Agent:
+
+```
+0.020019s / 0.000003s ~ 6673
+```
+
+So, **Agno Agent instantiation is roughly 6000x times faster than Langgraph Agent instantiation**.
+
+### Memory usage
+
+The memory footprint of an Agent is a key factor in scaling your application. In the benchmarks above, ~30Mib of memory usage is from the memory profiler, Agno Agents use 66.6 - 30 ~ 36.6Mib of memory. Whereas Langgraph Agents use 125.3 - 30 ~ 95.3Mib of memory. Langgraph Agents use 2.6x more memory than Agno Agents.
+
+When you're running 1000s of Agents in production, these numbers add up. We'll publish accuracy, reliability and performance benchmarks in the coming weeks as well.
 
 ## Documentation, Community & More examples
 

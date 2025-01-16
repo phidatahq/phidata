@@ -192,7 +192,8 @@ agent_team = Agent(
     markdown=True,
 )
 
-agent_team.print_response("What's the market outlook and financial performance of AI semiconductor companies?", stream=True)
+agent_team.print_response("What's the market outlook and financial performance of AI semiconductor companies?",
+                          stream=True)
 ```
 
 Install dependencies and run the Agent team:

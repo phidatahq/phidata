@@ -2,7 +2,7 @@ from typing import List
 from rich.pretty import pprint  # noqa
 from pydantic import BaseModel, Field
 from agno.agent import Agent, RunResponse  # noqa
-from agno.models.cohere import CohereChat
+from agno.models.cohere import Cohere
 
 
 class MovieScript(BaseModel):
@@ -17,7 +17,7 @@ class MovieScript(BaseModel):
 
 
 json_mode_agent = Agent(
-    model=CohereChat(id="command-r-08-2024"),
+    model=Cohere(id="command-r-08-2024"),
     description="You help people write movie scripts.",
     response_model=MovieScript,
     # debug_mode=True,

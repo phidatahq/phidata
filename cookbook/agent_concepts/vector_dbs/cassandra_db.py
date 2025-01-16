@@ -24,7 +24,7 @@ knowledge_base = PDFUrlKnowledgeBase(
     urls=["https://phi-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
     vector_db=CassandraDb(
         table_name="recipes",
-        keyspace="testkeyspace", 
+        keyspace="testkeyspace",
         session=session,
         embedder = MistralEmbedder()
     ),

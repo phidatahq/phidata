@@ -189,7 +189,7 @@ class Agent:
     # If True, the response from the Model is converted into the response_model
     # Otherwise, the response is returned as a JSON string
     parse_response: bool = True
-    # Use model enforced structured_outputs if supported (e.g. OpenAI)
+    # Use model enforced structured_outputs if supported (e.g. OpenAIChat)
     structured_outputs: bool = False
     # Save the response to a file
     save_response_to_file: Optional[str] = None
@@ -403,7 +403,7 @@ class Agent:
         return self.agent_id
 
     def set_session_id(self) -> str:
-        if self.session_id is None:
+        if self.session_id is None or self.session_id == "":
             self.session_id = str(uuid4())
         logger.debug(f"*********** Session ID: {self.session_id} ***********")
         return self.session_id
@@ -833,6 +833,7 @@ class Agent:
             except Exception as e:
                 traceback.print_exc()
                 last_exception = e
+                traceback.print_exc()
                 logger.warning(f"Attempt {attempt + 1}/{num_attempts} failed: {str(e)}")
                 if attempt < num_attempts - 1:  # Don't sleep on the last attempt
                     import time

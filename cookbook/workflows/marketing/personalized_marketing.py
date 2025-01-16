@@ -3,7 +3,7 @@ This workflow demonstrates how to create a personalized marketing email for a gi
 
 Steps to run the workflow:
 
-1. Set up OpenAI and Resend API keys in the environment variables.
+1. Set up OpenAIChat and Resend API keys in the environment variables.
 2. Update the `company_info` dictionary with the details of the companies you want to target. (Note: If the provided email is unreachable, a fallback will be attempted using scraped email addresses from the website.)
 4. Customize the email template with placeholders for the subject line, recipient name, sender name, and other details.
 4. Run the workflow by executing the script.

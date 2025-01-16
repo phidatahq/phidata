@@ -2,7 +2,7 @@ from typing import List
 from rich.pretty import pprint  # noqa
 from pydantic import BaseModel, Field
 from agno.agent import Agent, RunResponse  # noqa
-from agno.models.azure import AzureOpenAIChat
+from agno.models.azure import AzureOpenAI
 
 
 class MovieScript(BaseModel):
@@ -17,7 +17,7 @@ class MovieScript(BaseModel):
 
 
 agent = Agent(
-    model=AzureOpenAIChat(id="gpt-4o"),
+    model=AzureOpenAI(id="gpt-4o"),
     description="You help people write movie scripts.",
     response_model=MovieScript,
     # debug_mode=True,

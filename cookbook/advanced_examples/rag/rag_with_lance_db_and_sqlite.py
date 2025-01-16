@@ -20,7 +20,7 @@ embedder = OllamaEmbedder(model="nomic-embed-text", dimensions=768)
 vector_db = LanceDb(
     table_name="recipes",  # Table name in the vector database
     uri=db_url,  # Location to initiate/create the vector database
-    embedder=embedder,  # Without using this, it will use OpenAI embeddings by default
+    embedder=embedder,  # Without using this, it will use OpenAIChat embeddings by default
 )
 
 # Create a knowledge base from a PDF URL using LanceDb for vector storage and OllamaEmbedder for embedding

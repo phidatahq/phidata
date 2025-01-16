@@ -76,6 +76,16 @@ class RunResponse:
 
         if self.extra_data is not None:
             _dict["extra_data"] = self.extra_data.to_dict()
+
+        if self.images is not None:
+            _dict["images"] = [img.model_dump() for img in self.images]
+
+        if self.videos is not None:
+            _dict["videos"] = [vid.model_dump() for vid in self.videos]
+
+        if self.audio is not None:
+            _dict["audio"] = [aud.model_dump() for aud in self.audio]
+
         return _dict
 
     def to_json(self) -> str:

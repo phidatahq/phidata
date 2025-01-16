@@ -4,7 +4,7 @@ from textwrap import dedent
 from datetime import datetime
 
 from agno.agent import Agent
-from agno.models.azure.openai_chat import AzureOpenAIChat
+from agno.models.azure.openai_chat import AzureOpenAI
 from agno.playground import Playground, serve_playground_app
 from agno.storage.agent.sqlite import SqliteDbAgentStorage
 from agno.tools.dalle import DalleTools
@@ -19,7 +19,7 @@ web_agent = Agent(
     name="Web Agent",
     role="Search the web for information",
     agent_id="web-agent",
-    model=AzureOpenAIChat(id="gpt-4o"),
+    model=AzureOpenAI(id="gpt-4o"),
     tools=[DuckDuckGoTools()],
     instructions=["Break down the users request into 2-3 different searches.", "Always include sources"],
     storage=SqliteDbAgentStorage(table_name="web_agent", db_file=agent_storage_file),
@@ -33,7 +33,7 @@ finance_agent = Agent(
     name="Finance Agent",
     role="Get financial data",
     agent_id="finance-agent",
-    model=AzureOpenAIChat(id="gpt-4o"),
+    model=AzureOpenAI(id="gpt-4o"),
     tools=[YFinanceTools(stock_price=True, analyst_recommendations=True, company_info=True, company_news=True)],
     instructions=["Always use tables to display data"],
     storage=SqliteDbAgentStorage(table_name="finance_agent", db_file=agent_storage_file),
@@ -47,7 +47,7 @@ image_agent = Agent(
     name="Image Agent",
     role="Generate images given a prompt",
     agent_id="image-agent",
-    model=AzureOpenAIChat(id="gpt-4o"),
+    model=AzureOpenAI(id="gpt-4o"),
     tools=[DalleTools(model="dall-e-3", size="1792x1024", quality="hd", style="vivid")],
     storage=SqliteDbAgentStorage(table_name="image_agent", db_file=agent_storage_file),
     add_history_to_messages=True,
@@ -59,7 +59,7 @@ research_agent = Agent(
     name="Research Agent",
     role="Write research reports for the New York Times",
     agent_id="research-agent",
-    model=AzureOpenAIChat(id="gpt-4o"),
+    model=AzureOpenAI(id="gpt-4o"),
     tools=[ExaTools(start_published_date=datetime.now().strftime("%Y-%m-%d"), type="keyword")],
     description=(
         "You are a Research Agent that has the special skill of writing New York Times worthy articles. "
@@ -101,7 +101,7 @@ research_agent = Agent(
 youtube_agent = Agent(
     name="YouTube Agent",
     agent_id="youtube-agent",
-    model=AzureOpenAIChat(id="gpt-4o"),
+    model=AzureOpenAI(id="gpt-4o"),
     tools=[YouTubeTools()],
     description="You are a YouTube agent that has the special skill of understanding YouTube videos and answering questions about them.",
     instructions=[

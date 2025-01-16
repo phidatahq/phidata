@@ -3,11 +3,11 @@ pip install elevenlabs
 """
 
 from agno.agent import Agent
-from agno.models.openai import OpenAI
+from agno.models.openai import OpenAIChat
 from agno.tools.eleven_labs_tools import ElevenLabsTools
 
 audio_agent = Agent(
-    model=OpenAI(id="gpt-4o"),
+    model=OpenAIChat(id="gpt-4o"),
     tools=[
         ElevenLabsTools(
             voice_id="21m00Tcm4TlvDq8ikWAM", model_id="eleven_multilingual_v2", target_directory="audio_generations"

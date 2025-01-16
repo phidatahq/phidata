@@ -1,5 +1,5 @@
 from agno.agent import Agent
-from agno.models.openai import OpenAI
+from agno.models.openai import OpenAIChat
 from agno.knowledge.pdf_url import PDFUrlKnowledgeBase
 from agno.vectordb.pgvector import PgVector, SearchType
 
@@ -12,7 +12,7 @@ knowledge_base = PDFUrlKnowledgeBase(
 knowledge_base.load(upsert=True)
 
 agent = Agent(
-    model=OpenAI(id="gpt-4o"),
+    model=OpenAIChat(id="gpt-4o"),
     knowledge=knowledge_base,
     read_chat_history=True,
     show_tool_calls=True,

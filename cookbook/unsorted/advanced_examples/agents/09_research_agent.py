@@ -3,12 +3,12 @@ pip install openai duckduckgo-search newspaper4k lxml_html_clean agno
 """
 
 from agno.agent import Agent
-from agno.models.openai import OpenAI
+from agno.models.openai import OpenAIChat
 from agno.tools.duckduckgo import DuckDuckGoTools
 from agno.tools.newspaper4k import Newspaper4kTools
 
 agent = Agent(
-    model=OpenAI(id="gpt-4o"),
+    model=OpenAIChat(id="gpt-4o"),
     tools=[DuckDuckGoTools(), Newspaper4kTools()],
     description="You are a senior NYT researcher writing an article on a topic.",
     instructions=[

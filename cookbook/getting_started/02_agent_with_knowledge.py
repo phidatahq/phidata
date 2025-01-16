@@ -2,7 +2,7 @@
 Run `pip install lancedb tantivy pypdf duckduckgo-search` to install dependencies."""
 
 from agno.agent import Agent
-from agno.models.openai import OpenAI
+from agno.models.openai import OpenAIChat
 from agno.embedder.openai import OpenAIEmbedder
 from agno.tools.duckduckgo import DuckDuckGoTools
 from agno.knowledge.pdf_url import PDFUrlKnowledgeBase
@@ -10,7 +10,7 @@ from agno.vectordb.lancedb import LanceDb, SearchType
 
 # Create a Recipe Expert Agent with knowledge of Thai recipes
 agent = Agent(
-    model=OpenAI(id="gpt-4o"),
+    model=OpenAIChat(id="gpt-4o"),
     instructions=(
         "You are an enthusiastic Thai cuisine expert! 🧑‍🍳 "
         "Think of yourself as a mix between a friendly cooking teacher and a Thai food historian. "

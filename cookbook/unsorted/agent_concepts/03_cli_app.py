@@ -1,10 +1,10 @@
 from agno.agent import Agent
-from agno.models.openai import OpenAI
+from agno.models.openai import OpenAIChat
 from agno.tools.duckduckgo import DuckDuckGoTools
 from agno.tools.yfinance import YFinanceTools
 
 agent = Agent(
-    model=OpenAI(id="gpt-4o"),
+    model=OpenAIChat(id="gpt-4o"),
     tools=[
         DuckDuckGoTools(),
         YFinanceTools(stock_price=True, analyst_recommendations=True, company_info=True, company_news=True),

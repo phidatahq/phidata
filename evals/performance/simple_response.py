@@ -1,11 +1,11 @@
 """Run `pip install openai agno memory_profiler` to install dependencies."""
 
 from agno.agent import Agent
-from agno.models.openai import OpenAI
+from agno.models.openai import OpenAIChat
 from agno.eval.perf import PerfEval
 
 def simple_response():
-    agent = Agent(model=OpenAI(id='gpt-4o-mini'), system_message='Be concise, reply with one sentence.')
+    agent = Agent(model=OpenAIChat(id='gpt-4o-mini'), system_message='Be concise, reply with one sentence.')
     response = agent.run('What is the capital of France?')
     print(response.content)
     return response

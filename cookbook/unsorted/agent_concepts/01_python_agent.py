@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from agno.agent.python import PythonAgent
-from agno.models.openai import OpenAI
+from agno.models.openai import OpenAIChat
 from agno.file.local.csv import CsvFile
 
 cwd = Path(__file__).parent.resolve()
@@ -10,7 +10,7 @@ if not tmp.exists():
     tmp.mkdir(exist_ok=True, parents=True)
 
 python_agent = PythonAgent(
-    model=OpenAI(id="gpt-4o"),
+    model=OpenAIChat(id="gpt-4o"),
     base_dir=tmp,
     files=[
         CsvFile(

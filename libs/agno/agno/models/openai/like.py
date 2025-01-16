@@ -2,11 +2,11 @@ from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
 from agno.models.message import Message
-from agno.models.openai.chat import OpenAI
+from agno.models.openai.chat import OpenAIChat
 
 
 @dataclass
-class OpenAILike(OpenAI):
+class OpenAILike(OpenAIChat):
     id: str = "not-provided"
     name: str = "OpenAILike"
     api_key: Optional[str] = "not-provided"

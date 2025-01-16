@@ -1,4 +1,4 @@
-# Azure OpenAI Chat Cookbook
+# Azure OpenAI Cookbook
 
 > Note: Fork and clone this repository if needed
 

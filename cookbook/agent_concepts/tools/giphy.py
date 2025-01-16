@@ -1,12 +1,12 @@
 from agno.agent import Agent
-from agno.models.openai import OpenAI
+from agno.models.openai import OpenAIChat
 from agno.tools.giphy import GiphyTools
 
 """Create an agent specialized in creating gifs using Giphy """
 
 gif_agent = Agent(
     name="Gif Generator Agent",
-    model=OpenAI(id="gpt-4o"),
+    model=OpenAIChat(id="gpt-4o"),
     tools=[GiphyTools(limit=5)],
     description="You are an AI agent that can generate gifs using Giphy.",
     instructions=[

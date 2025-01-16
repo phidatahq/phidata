@@ -3,7 +3,7 @@ pip install openai moviepy ffmpeg
 """
 
 from agno.agent import Agent
-from agno.models.openai import OpenAI
+from agno.models.openai import OpenAIChat
 from agno.tools.moviepy_video_tools import MoviePyVideoTools
 from agno.tools.openai import OpenAITools
 
@@ -15,7 +15,7 @@ openai_tools = OpenAITools()
 
 video_caption_agent = Agent(
     name="Video Caption Generator Agent",
-    model=OpenAI(
+    model=OpenAIChat(
         id="gpt-4o",
     ),
     tools=[video_tools, openai_tools],

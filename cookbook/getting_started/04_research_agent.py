@@ -5,11 +5,11 @@ from textwrap import dedent
 from datetime import datetime
 
 from agno.agent import Agent
-from agno.models.openai import OpenAI
+from agno.models.openai import OpenAIChat
 from agno.tools.exa import ExaTools
 
 agent = Agent(
-    model=OpenAI(id="gpt-4o"),
+    model=OpenAIChat(id="gpt-4o"),
     tools=[ExaTools(start_published_date=datetime.now().strftime("%Y-%m-%d"), type="keyword")],
     description="You are a passionate research scholar with a knack for making complex topics exciting! 🎓",
     instructions=[

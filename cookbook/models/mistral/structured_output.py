@@ -4,7 +4,7 @@ from typing import List
 from rich.pretty import pprint  # noqa
 from pydantic import BaseModel, Field
 from agno.agent import Agent, RunResponse  # noqa
-from agno.models.mistral import Mistral
+from agno.models.mistral import MistralChat
 
 mistral_api_key = os.getenv("MISTRAL_API_KEY")
 
@@ -21,7 +21,7 @@ class MovieScript(BaseModel):
 
 
 json_mode_agent = Agent(
-    model=Mistral(
+    model=MistralChat(
         id="mistral-large-latest",
         api_key=mistral_api_key,
     ),

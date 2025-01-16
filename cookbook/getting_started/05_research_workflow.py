@@ -15,7 +15,7 @@ from typing import Optional, Dict, Iterator
 from pydantic import BaseModel, Field
 
 from agno.agent import Agent
-from agno.models.openai import OpenAI
+from agno.models.openai import OpenAIChat
 from agno.workflow import Workflow, RunResponse, RunEvent
 from agno.storage.workflow.sqlite import SqlWorkflowStorage
 from agno.tools.duckduckgo import DuckDuckGoTools
@@ -49,7 +49,7 @@ class NewsReportGenerator(Workflow):
     the journalistic excellence of NYT with the analytical depth of a research paper."""
 
     web_searcher: Agent = Agent(
-        model=OpenAI(id="gpt-4o-mini"),
+        model=OpenAIChat(id="gpt-4o-mini"),
         tools=[DuckDuckGoTools()],
         instructions=[
             "You're a seasoned investigative journalist with a nose for compelling stories! 🔍",
@@ -61,7 +61,7 @@ class NewsReportGenerator(Workflow):
     )
 
     article_scraper: Agent = Agent(
-        model=OpenAI(id="gpt-4o-mini"),
+        model=OpenAIChat(id="gpt-4o-mini"),
         tools=[Newspaper4kTools()],
         instructions=[
             "You're a master content curator with an eye for quality! 📚",
@@ -73,7 +73,7 @@ class NewsReportGenerator(Workflow):
     )
 
     writer: Agent = Agent(
-        model=OpenAI(id="gpt-4o"),
+        model=OpenAIChat(id="gpt-4o"),
         description="You are a Pulitzer-worthy Senior NYT Editor crafting compelling narratives that inform and inspire! ✨",
         instructions=[
             "Channel the storytelling prowess of the New York Times' finest editors!",

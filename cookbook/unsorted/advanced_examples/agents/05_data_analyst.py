@@ -1,11 +1,11 @@
 """Run `pip install duckdb` to install dependencies."""
 
 import json
-from agno.models.openai import OpenAI
+from agno.models.openai import OpenAIChat
 from agno.agent.duckdb import DuckDbAgent
 
 data_analyst = DuckDbAgent(
-    model=OpenAI(model="gpt-4o"),
+    model=OpenAIChat(model="gpt-4o"),
     semantic_model=json.dumps(
         {
             "tables": [

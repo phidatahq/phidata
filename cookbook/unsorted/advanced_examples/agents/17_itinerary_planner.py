@@ -1,10 +1,10 @@
-from agno.models.openai import OpenAI
+from agno.models.openai import OpenAIChat
 from agno.agent import Agent
 from agno.tools.exa import ExaTools
 
 itinerary_agent = Agent(
     name="GlobeHopper",
-    model=OpenAI(id="gpt-4o"),
+    model=OpenAIChat(id="gpt-4o"),
     tools=[ExaTools()],
     markdown=True,
     description="You are an expert itinerary planning agent. Your role is to assist users in creating detailed, customized travel plans tailored to their preferences and needs.",

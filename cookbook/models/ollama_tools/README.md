@@ -7,10 +7,8 @@
 Run your chat model
 
 ```shell
-ollama run llama3.2
+ollama pull llama3.2
 ```
-
-Message `/bye` to exit the chat model
 
 ### 2. Create and activate a virtual environment
 

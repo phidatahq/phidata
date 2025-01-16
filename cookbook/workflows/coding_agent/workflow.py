@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 
 from agno.agent import Agent, RunResponse
-from agno.models.openai import OpenAI
+from agno.models.openai import OpenAIChat
 from agno.workflow import Workflow, RunEvent
 from agno.utils.log import logger
 from cookbook.workflows.coding_agent.utils import scrape_and_process, evaluate_response
@@ -48,7 +48,7 @@ class CodeGenWorkflow(Workflow):
     """
 
     coding_agent: Agent = Agent(
-        model=OpenAI(id="gpt-4o"),
+        model=OpenAIChat(id="gpt-4o"),
         description="A coding assistant that provides accurate and executable code solutions using LCEL, LangChain expression language.",
         system_prompt=system_prompt,
         response_model=CodeSolution,

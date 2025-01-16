@@ -9,7 +9,7 @@ from typing import Optional, Iterator
 from pydantic import BaseModel, Field
 
 from agno.agent import Agent
-from agno.models.openai import OpenAI
+from agno.models.openai import OpenAIChat
 from agno.workflow import Workflow, RunResponse, RunEvent
 from agno.storage.workflow.sqlite import SqliteDbWorkflowStorage
 from agno.tools.duckduckgo import DuckDuckGoTools
@@ -32,7 +32,7 @@ class BlogPostGenerator(Workflow):
     description: str = "Generate a blog post on a given topic."
 
     searcher: Agent = Agent(
-        model=OpenAI(id="gpt-4o-mini"),
+        model=OpenAIChat(id="gpt-4o-mini"),
         tools=[DuckDuckGoTools()],
         instructions=["Given a topic, search for the top 5 articles."],
         response_model=SearchResults,
@@ -40,7 +40,7 @@ class BlogPostGenerator(Workflow):
     )
 
     writer: Agent = Agent(
-        model=OpenAI(id="gpt-4o"),
+        model=OpenAIChat(id="gpt-4o"),
         instructions=[
             "You will be provided with a topic and a list of top articles on that topic.",
             "Carefully read each article and generate a New York Times worthy blog post on that topic.",

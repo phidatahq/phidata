@@ -1,5 +1,5 @@
 from agno.agent import Agent
-from agno.models.openai import OpenAI
+from agno.models.openai import OpenAIChat
 from agno.embedder.openai import OpenAIEmbedder
 from agno.tools.duckduckgo import DuckDuckGoTools
 from agno.tools.yfinance import YFinanceTools
@@ -8,7 +8,7 @@ from agno.vectordb.lancedb import LanceDb, SearchType
 
 # Level 0: Simple Agent with no tools
 level_0_agent = Agent(
-    model=OpenAI(id="gpt-4o"),
+    model=OpenAIChat(id="gpt-4o"),
     description="You are an enthusiastic news reporter with a flair for storytelling!",
     markdown=True
 )
@@ -16,7 +16,7 @@ level_0_agent.print_response("Tell me about a breaking news story from New York.
 
 # Level 1: Agent with tools
 level_1_agent = Agent(
-    model=OpenAI(id="gpt-4o"),
+    model=OpenAIChat(id="gpt-4o"),
     description="You are an enthusiastic news reporter with a flair for storytelling!",
     tools=[DuckDuckGoTools()],
     show_tool_calls=True,
@@ -26,7 +26,7 @@ level_1_agent.print_response("Tell me about a breaking news story from New York.
 
 # Level 2: Agent with knowledge
 level_2_agent = Agent(
-    model=OpenAI(id="gpt-4o"),
+    model=OpenAIChat(id="gpt-4o"),
     description="You are a Thai cuisine expert!",
     instructions=[
         "Search your knowledge base for Thai recipes.",
@@ -58,7 +58,7 @@ level_2_agent.print_response("What is the history of Thai curry?", stream=True)
 web_agent = Agent(
     name="Web Agent",
     role="Search the web for information",
-    model=OpenAI(id="gpt-4o"),
+    model=OpenAIChat(id="gpt-4o"),
     tools=[DuckDuckGoTools()],
     instructions="Always include sources",
     show_tool_calls=True,
@@ -68,7 +68,7 @@ web_agent = Agent(
 finance_agent = Agent(
     name="Finance Agent",
     role="Get financial data",
-    model=OpenAI(id="gpt-4o"),
+    model=OpenAIChat(id="gpt-4o"),
     tools=[YFinanceTools(stock_price=True, analyst_recommendations=True, company_info=True)],
     instructions="Use tables to display data",
     show_tool_calls=True,
@@ -77,7 +77,7 @@ finance_agent = Agent(
 
 agent_team = Agent(
     team=[web_agent, finance_agent],
-    model=OpenAI(id="gpt-4o"),
+    model=OpenAIChat(id="gpt-4o"),
     instructions=["Always include sources", "Use tables to display data"],
     show_tool_calls=True,
     markdown=True,

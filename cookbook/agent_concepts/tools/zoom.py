@@ -5,7 +5,7 @@ import requests
 from typing import Optional
 
 from agno.agent import Agent
-from agno.models.openai import OpenAI
+from agno.models.openai import OpenAIChat
 from agno.tools.zoom import ZoomTools
 
 # Get environment variables
@@ -74,7 +74,7 @@ zoom_tools = CustomZoomTools(account_id=ACCOUNT_ID, client_id=CLIENT_ID, client_
 agent = Agent(
     name="Zoom Meeting Manager",
     agent_id="zoom-meeting-manager",
-    model=OpenAI(model="gpt-4"),
+    model=OpenAIChat(model="gpt-4"),
     tools=[zoom_tools],
     markdown=True,
     debug_mode=True,

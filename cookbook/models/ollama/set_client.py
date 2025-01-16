@@ -12,7 +12,5 @@ agent = Agent(
     markdown=True,
 )
 
-app = Playground(agents=[agent]).get_app()
-
-if __name__ == "__main__":
-    serve_playground_app("agent_set_client:app", reload=True)
+# Print the response in the terminal
+agent.print_response("Share a 2 sentence horror story")

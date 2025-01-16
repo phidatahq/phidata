@@ -42,6 +42,7 @@ from phi.tools import Tool, Toolkit, Function
 from phi.utils.log import logger, set_log_level_to_debug, set_log_level_to_info
 from phi.utils.message import get_text_from_message
 from phi.utils.merge_dict import merge_dictionaries
+from phi.utils.string import extract_valid_json
 from phi.utils.timer import Timer
 
 
@@ -396,7 +397,7 @@ class Agent(BaseModel):
                     yield "No response from the member agent."
                 elif isinstance(member_agent_run_response.content, str):
                     yield member_agent_run_response.content
-                elif issubclass(member_agent_run_response.content, BaseModel):
+                elif issubclass(type(member_agent_run_response.content), BaseModel):
                     try:
                         yield member_agent_run_response.content.model_dump_json(indent=2)
                     except Exception as e:
@@ -2016,16 +2017,13 @@ class Agent(BaseModel):
             if isinstance(run_response.content, str):
                 try:
                     structured_output = None
+                    valid_json, cleaned_content = extract_valid_json(run_response.content)
                     try:
-                        structured_output = self.response_model.model_validate_json(run_response.content)
-                    except ValidationError:
-                        # Check if response starts with ```json
-                        if run_response.content.startswith("```json"):
-                            run_response.content = run_response.content.replace("```json\n", "").replace("\n```", "")
-                            try:
-                                structured_output = self.response_model.model_validate_json(run_response.content)
-                            except ValidationError as exc:
-                                logger.warning(f"Failed to convert response to pydantic model: {exc}")
+                        structured_output = self.response_model.model_validate(valid_json)
+                    except ValidationError as exc:
+                        logger.warning(f"Failed to convert response to pydantic model: {exc}")
+
+                    # TODO: Combine structured output and the rest of the content that could contain tool calls.
 
                     # -*- Update Agent response
                     if structured_output is not None:
@@ -2036,6 +2034,12 @@ class Agent(BaseModel):
                             self.run_response.content_type = self.response_model.__name__
                     else:
                         logger.warning("Failed to convert response to response_model")
+
+                    # -*- Try to keep the tool calls
+                    if self.show_tool_calls and cleaned_content:
+                        run_response.tool_calls_content = cleaned_content
+                        self.run_response.tool_calls_content = cleaned_content
+
                 except Exception as e:
                     logger.warning(f"Failed to convert response to output model: {e}")
             else:
@@ -2329,17 +2333,13 @@ class Agent(BaseModel):
             if isinstance(run_response.content, str):
                 try:
                     structured_output = None
+                    valid_json, cleaned_content = extract_valid_json(run_response.content)
                     try:
-                        structured_output = self.response_model.model_validate_json(run_response.content)
+                        structured_output = self.response_model.model_validate(valid_json)
                     except ValidationError as exc:
                         logger.warning(f"Failed to convert response to pydantic model: {exc}")
-                        # Check if response starts with ```json
-                        if run_response.content.startswith("```json"):
-                            run_response.content = run_response.content.replace("```json\n", "").replace("\n```", "")
-                            try:
-                                structured_output = self.response_model.model_validate_json(run_response.content)
-                            except ValidationError as exc:
-                                logger.warning(f"Failed to convert response to pydantic model: {exc}")
+
+                    # TODO: Combine structured output and the rest of the content that could contain tool calls.
 
                     # -*- Update Agent response
                     if structured_output is not None:
@@ -2348,6 +2348,11 @@ class Agent(BaseModel):
                         if self.run_response is not None:
                             self.run_response.content = structured_output
                             self.run_response.content_type = self.response_model.__name__
+
+                    # -*- Try to keep the tool calls
+                    if self.show_tool_calls and cleaned_content:
+                        run_response.tool_calls_content = cleaned_content
+                        self.run_response.tool_calls_content = cleaned_content
                 except Exception as e:
                     logger.warning(f"Failed to convert response to output model: {e}")
             else:
@@ -2816,6 +2821,7 @@ class Agent(BaseModel):
                             _response_content += resp.content
                         if resp.extra_data is not None and resp.extra_data.reasoning_steps is not None:
                             reasoning_steps = resp.extra_data.reasoning_steps
+
                     response_content_stream = Markdown(_response_content) if self.markdown else _response_content
 
                     panels = [status]
@@ -2962,6 +2968,15 @@ class Agent(BaseModel):
                             response_content_batch = JSON(json.dumps(run_response.content), indent=4)
                         except Exception as e:
                             logger.warning(f"Failed to convert response to JSON: {e}")
+
+                if run_response.tool_calls_content:
+                    # Create panel for tools
+                    tools_panel = self.create_panel(
+                        content=run_response.tool_calls_content,
+                        title="Tool calls",
+                        border_style="blue_violet",
+                    )
+                    panels.append(tools_panel)
 
                 # Create panel for response
                 response_panel = self.create_panel(

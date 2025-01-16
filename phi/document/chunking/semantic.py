@@ -9,7 +9,7 @@ from phi.utils.log import logger
 try:
     from chonkie import SemanticChunker
 except ImportError:
-    logger.warning("`chonkie` is required for semantic chunking, please install using `pip install chonkie`")
+    logger.warning("`chonkie` is required for semantic chunking, please install using `pip install chonkie[all]`")
 
 
 class SemanticChunking(ChunkingStrategy):

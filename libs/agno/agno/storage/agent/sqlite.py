@@ -74,7 +74,7 @@ class SqliteDbAgentStorage(AgentStorage):
         self.Session: sessionmaker[Session] = sessionmaker(bind=self.db_engine)
         # Database table for storage
         self.table: Table = self.get_table()
-        
+
     def get_table_v1(self) -> Table:
         """
         Define the table schema for version 1.

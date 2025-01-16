@@ -4,6 +4,7 @@ from typing import Any, Callable, Dict
 from agno.tools.function import Function
 from agno.utils.log import logger
 
+
 class Toolkit:
     def __init__(self, name: str = "toolkit"):
         """Initialize a new Toolkit.

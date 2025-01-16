@@ -221,6 +221,10 @@ python evals/performance/instantiation_with_tool.py
 python evals/performance/other/langgraph_instantiation.py
 ```
 
+The following evaluation is run on an Apple M4 Mackbook Pro, but we'll soon be moving this to a github actions runner. LangGraph is on the right, we start it first to minimize bias and Agno is on the left.
+
+https://github.com/user-attachments/assets/712216a4-974a-415e-8849-f77043b7997f
+
 Dividing the average time taken to instantiate a Langgraph Agent by the average time taken to instantiate an Agno Agent:
 
 ```

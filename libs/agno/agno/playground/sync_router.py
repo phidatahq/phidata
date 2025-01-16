@@ -377,7 +377,6 @@ def get_sync_playground_router(
         workflow_id: str,
         session_id: str,
         body: WorkflowRenameRequest,
-        user_id: str = Query(..., min_length=1),
     ):
         workflow = get_workflow_by_id(workflow_id, workflows)
         if workflow is None:

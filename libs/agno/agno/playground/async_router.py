@@ -246,7 +246,7 @@ def get_async_playground_router(
 
     @playground_router.post("/agents/{agent_id}/sessions/{session_id}/rename")
     async def rename_agent_session(
-        agent_id: str, session_id: str, body: AgentRenameRequest, user_id: str = Query(..., min_length=1)
+        agent_id: str, session_id: str, body: AgentRenameRequest
     ):
         agent = get_agent_by_id(agent_id, agents)
         if agent is None:
@@ -255,7 +255,7 @@ def get_async_playground_router(
         if agent.storage is None:
             return JSONResponse(status_code=404, content="Agent does not have storage enabled.")
 
-        all_agent_sessions: List[AgentSession] = agent.storage.get_all_sessions(user_id=user_id)
+        all_agent_sessions: List[AgentSession] = agent.storage.get_all_sessions(user_id=body.user_id)
         for session in all_agent_sessions:
             if session.session_id == session_id:
                 agent.session_id = session_id

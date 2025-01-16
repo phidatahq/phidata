@@ -35,6 +35,7 @@ class AgentRunRequest(BaseModel):
 
 class AgentRenameRequest(BaseModel):
     name: str
+    user_id: str
 
 
 class AgentSessionsResponse(BaseModel):

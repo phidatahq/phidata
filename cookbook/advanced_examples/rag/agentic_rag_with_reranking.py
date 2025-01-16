@@ -4,7 +4,7 @@
 """
 
 from agno.agent import Agent
-from agno.models.openai import OpenAI
+from agno.models.openai import OpenAIChat
 from agno.embedder.openai import OpenAIEmbedder
 from agno.knowledge.pdf_url import PDFUrlKnowledgeBase
 from agno.vectordb.lancedb import LanceDb, SearchType
@@ -26,7 +26,7 @@ knowledge_base = PDFUrlKnowledgeBase(
 knowledge_base.load()
 
 agent = Agent(
-    model=OpenAI(id="gpt-4o"),
+    model=OpenAIChat(id="gpt-4o"),
     knowledge=knowledge_base,
     # Add a tool to search the knowledge base which enables agentic RAG.
     # This is enabled by default when `knowledge` is provided to the Agent.

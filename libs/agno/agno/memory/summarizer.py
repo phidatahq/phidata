@@ -17,14 +17,14 @@ class MemorySummarizer(BaseModel):
     def update_model(self) -> None:
         if self.model is None:
             try:
-                from agno.models.openai import OpenAI
+                from agno.models.openai import OpenAIChat
             except ModuleNotFoundError as e:
                 logger.exception(e)
                 logger.error(
                     "Agno uses `openai` as the default model provider. Please provide a `model` or install `openai`."
                 )
                 exit(1)
-            self.model = OpenAI(id="gpt-4o")
+            self.model = OpenAIChat(id="gpt-4o")
 
         # Set response_format if it is not set on the Model
         if self.use_structured_outputs:

@@ -36,7 +36,7 @@ python cookbook/models/sambanova/basic.py
 ```
 ## Disclaimer:
 
-Sambanova does not support all OpenAI features. The following features are not yet supported and will be ignored:
+Sambanova does not support all OpenAIChat features. The following features are not yet supported and will be ignored:
 
 - logprobs
 - top_logprobs

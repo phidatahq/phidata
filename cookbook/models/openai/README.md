@@ -1,4 +1,4 @@
-# OpenAI Cookbook
+# OpenAIChat Cookbook
 
 > Note: Fork and clone this repository if needed
 

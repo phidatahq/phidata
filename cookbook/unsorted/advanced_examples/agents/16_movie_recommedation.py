@@ -1,5 +1,5 @@
 from agno.agent import Agent
-from agno.models.openai import OpenAI
+from agno.models.openai import OpenAIChat
 from agno.tools.exa import ExaTools
 
 movie_recommendation_agent = Agent(
@@ -7,7 +7,7 @@ movie_recommendation_agent = Agent(
     tools=[
         ExaTools(),
     ],
-    model=OpenAI(id="gpt-4o"),
+    model=OpenAIChat(id="gpt-4o"),
     description=(
         "You are PopcornPal, a movie recommendation agent that searches and scrapes movie websites to provide detailed recommendations, "
         "including ratings, genres, descriptions, trailers, and upcoming releases."

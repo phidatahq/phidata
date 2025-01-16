@@ -1,6 +1,6 @@
 from agno.agent import Agent
 from agno.knowledge.pdf_url import PDFUrlKnowledgeBase
-from agno.models.openai import OpenAI
+from agno.models.openai import OpenAIChat
 from agno.vectordb.pgvector import PgVector
 
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
@@ -17,7 +17,7 @@ legal_agent = Agent(
     name="LegalAdvisor",
     knowledge=knowledge_base,
     search_knowledge=True,
-    model=OpenAI(id="gpt-4o"),
+    model=OpenAIChat(id="gpt-4o"),
     markdown=True,
     instructions=[
         "Provide legal information and advice based on the knowledge base.",

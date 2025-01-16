@@ -1,7 +1,7 @@
 """Run `pip install duckduckgo-search sqlalchemy pgvector pypdf openai` to install dependencies."""
 
 from agno.agent import Agent
-from agno.models.openai import OpenAI
+from agno.models.openai import OpenAIChat
 from agno.knowledge.pdf_url import PDFUrlKnowledgeBase
 from agno.vectordb.pgvector import PgVector
 
@@ -14,7 +14,7 @@ knowledge_base = PDFUrlKnowledgeBase(
 knowledge_base.load(recreate=True)  # Comment out after first run
 
 agent = Agent(
-    model=OpenAI(id="gpt-4o"),
+    model=OpenAIChat(id="gpt-4o"),
     knowledge=knowledge_base,
     use_tools=True,
     show_tool_calls=True,

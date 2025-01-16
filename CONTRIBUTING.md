@@ -59,12 +59,12 @@ These scripts will perform code formatting with `ruff` and static type checks wi
 
 1. Setup your local environment by following the [Development setup](#development-setup).
 2. Create a new directory under `libs/agno/agno/models` for the new Model provider.
-3. If the Model provider supports the OpenAI API spec:
+3. If the Model provider supports the OpenAIChat API spec:
    - Create a Class for your LLM provider that inherits the `OpenAILike` Class from `libs/agno/agno/models/openai/like.py`.
    - Your Class will be in the `libs/agno/agno/models/<your_model>/<your_model>.py` file.
    - Import your Class in the `libs/agno/agno/models/<your_model>/__init__.py` file.
    - Checkout the [`agno/models/xai/xai.py`](https://github.com/phidatahq/agno/blob/main/libs/agno/agno/models/together/together.py) file for an example.
-4. If the Model provider does not support the OpenAI API spec:
+4. If the Model provider does not support the OpenAIChat API spec:
    - Reach out to us on [Discord](https://discord.gg/4MtYHHrgA8) or open an issue to discuss the best way to integrate your LLM provider.
    - Checkout [`agno/models/anthropic/claude.py`](https://github.com/phidatahq/agno/blob/main/libs/agno/agno/models/anthropic/claude.py) or [`agno/models/cohere/chat.py`](https://github.com/phidatahq/agno/blob/main/libs/agno/agno/models/cohere/chat.py) for inspiration.
 5. Add a recipe for using your Model provider under `cookbook/providers/<your_model>`.

@@ -10,7 +10,7 @@ from typing import Iterator
 from pydantic import BaseModel, Field
 
 from agno.agent import Agent, RunResponse
-from agno.models.openai import OpenAI
+from agno.models.openai import OpenAIChat
 from agno.run.response import RunEvent
 from agno.storage.workflow.sqlite import SqliteDbWorkflowStorage
 from agno.utils.log import logger
@@ -44,7 +44,7 @@ class GameGenerator(Workflow):
     game_developer: Agent = Agent(
         name="Game Developer Agent",
         description="You are a game developer that produces working HTML5 code.",
-        model=OpenAI(id="gpt-4o"),
+        model=OpenAIChat(id="gpt-4o"),
         instructions=[
             "Create a game based on the user's prompt. "
             "The game should be HTML5, completely self-contained and must be runnable simply by opening on a browser",
@@ -57,7 +57,7 @@ class GameGenerator(Workflow):
 
     qa_agent: Agent = Agent(
         name="QA Agent",
-        model=OpenAI(id="gpt-4o"),
+        model=OpenAIChat(id="gpt-4o"),
         description="You are a game QA and you evaluate html5 code for correctness.",
         instructions=[
             "You will be given some HTML5 code."

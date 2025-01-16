@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 from agno.run.response import RunResponse
 from agno.workflow import Workflow
 from agno.agent import Agent
-from agno.models.openai import OpenAI
+from agno.models.openai import OpenAIChat
 from agno.knowledge.website import WebsiteKnowledgeBase
 from agno.vectordb.lancedb import LanceDb
 from agno.vectordb.search import SearchType
@@ -53,7 +53,7 @@ class QAWorkflow(Workflow):
     )
 
     qa_agent: Agent = Agent(
-        model=OpenAI(id="gpt-4o"),
+        model=OpenAIChat(id="gpt-4o"),
         description="You are a helpful agent that can answer questions for a given question from the knowledge base.",
         instructions=[
             "Use the following pieces of retrieved context to answer the question.",
@@ -65,7 +65,7 @@ class QAWorkflow(Workflow):
     )
 
     judge_agent: Agent = Agent(
-        model=OpenAI(id="gpt-4o"),
+        model=OpenAIChat(id="gpt-4o"),
         description="You are a judge evaluating the quality of generated answers.",
         instructions=[
             "Evaluate the quality of the given answer compared to the ground truth.",

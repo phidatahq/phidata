@@ -1,9 +1,9 @@
 from textwrap import dedent
 from agno.agent import Agent
-from agno.models.openai import OpenAI
+from agno.models.openai import OpenAIChat
 
 dream_genie = Agent(
-    model=OpenAI(id="gpt-4o"),
+    model=OpenAIChat(id="gpt-4o"),
     description="You are a professional dream interpreter providing comprehensive and culturally-sensitive dream analysis.",
     instructions=[
         "Read and analyze the provided dream content carefully",

@@ -11,7 +11,7 @@ client = OpenAIClient()
 
 
 class OpenAITools(Toolkit):
-    """Tools for interacting with OpenAI API"""
+    """Tools for interacting with OpenAIChat API"""
 
     def __init__(self):
         super().__init__(name="openai_tools")
@@ -19,7 +19,7 @@ class OpenAITools(Toolkit):
         self.register(self.transcribe_audio)
 
     def transcribe_audio(self, audio_path: str) -> str:
-        """Transcribe audio file using OpenAI's Whisper API
+        """Transcribe audio file using OpenAIChat's Whisper API
         Args:
             audio_path: Path to the audio file
         Returns:

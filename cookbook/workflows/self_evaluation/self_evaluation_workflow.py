@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field
 
 from agno.agent.agent import Agent
-from agno.models.openai.chat import OpenAI
+from agno.models.openai.chat import OpenAIChat
 from agno.run.response import RunResponse
 from agno.workflow.workflow import Workflow
 
@@ -25,7 +25,7 @@ class SelfEvaluationWorkflow(Workflow):
             "You need to create content that is relevant to the task.",
             "You do an ok job at creating content, but you need to improve your content based on the feedback.",
         ],
-        model=OpenAI(model="gpt-4o"),
+        model=OpenAIChat(model="gpt-4o"),
         debug_mode=True,
     )
 
@@ -42,7 +42,7 @@ class SelfEvaluationWorkflow(Workflow):
             "You need to make sure the content is not too technical and not too complex.",
         ],
         response_model=Feedback,
-        model=OpenAI(model="gpt-4o"),
+        model=OpenAIChat(model="gpt-4o"),
         debug_mode=True,
     )
 

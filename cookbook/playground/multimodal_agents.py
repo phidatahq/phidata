@@ -7,7 +7,7 @@ Docs on Agent UI: https://docs.agno.com/agent-ui
 """
 
 from agno.agent import Agent
-from agno.models.openai import OpenAI
+from agno.models.openai import OpenAIChat
 from agno.tools.dalle import DalleTools
 from agno.tools.eleven_labs_tools import ElevenLabsTools
 from agno.tools.giphy import GiphyTools
@@ -23,7 +23,7 @@ image_agent_storage_file: str = "tmp/image_agent.db"
 image_agent = Agent(
     name="DALL-E Image Agent",
     agent_id="image_agent",
-    model=OpenAI(id="gpt-4o"),
+    model=OpenAIChat(id="gpt-4o"),
     tools=[DalleTools()],
     description="You are an AI agent that can generate images using DALL-E.",
     instructions=[
@@ -40,7 +40,7 @@ image_agent = Agent(
 ml_gif_agent = Agent(
     name="ModelsLab GIF Agent",
     agent_id="ml_gif_agent",
-    model=OpenAI(id="gpt-4o"),
+    model=OpenAIChat(id="gpt-4o"),
     tools=[ModelsLabTools(wait_for_completion=True, file_type=FileType.GIF)],
     description="You are an AI agent that can generate gifs using the ModelsLabs API.",
     instructions=[
@@ -57,7 +57,7 @@ ml_gif_agent = Agent(
 ml_video_agent = Agent(
     name="ModelsLab Video Agent",
     agent_id="ml_video_agent",
-    model=OpenAI(id="gpt-4o"),
+    model=OpenAIChat(id="gpt-4o"),
     tools=[ModelsLabTools(wait_for_completion=True, file_type=FileType.MP4)],
     description="You are an AI agent that can generate videos using the ModelsLabs API.",
     instructions=[
@@ -74,7 +74,7 @@ ml_video_agent = Agent(
 fal_agent = Agent(
     name="Fal Video Agent",
     agent_id="fal_agent",
-    model=OpenAI(id="gpt-4o"),
+    model=OpenAIChat(id="gpt-4o"),
     tools=[FalTools("fal-ai/hunyuan-video")],
     description="You are an AI agent that can generate videos using the Fal API.",
     instructions=[
@@ -91,7 +91,7 @@ fal_agent = Agent(
 gif_agent = Agent(
     name="Gif Generator Agent",
     agent_id="gif_agent",
-    model=OpenAI(id="gpt-4o"),
+    model=OpenAIChat(id="gpt-4o"),
     tools=[GiphyTools()],
     description="You are an AI agent that can generate gifs using Giphy.",
     instructions=[
@@ -108,7 +108,7 @@ gif_agent = Agent(
 audio_agent = Agent(
     name="Audio Generator Agent",
     agent_id="audio_agent",
-    model=OpenAI(id="gpt-4o"),
+    model=OpenAIChat(id="gpt-4o"),
     tools=[
         ElevenLabsTools(
             voice_id="JBFqnCBsd6RMkjVDRZzb", model_id="eleven_multilingual_v2", target_directory="audio_generations"
@@ -132,7 +132,7 @@ audio_agent = Agent(
 image_to_image_agent = Agent(
     name="Image to Image Agent",
     agent_id="image_to_image_agent",
-    model=OpenAI(id="gpt-4o"),
+    model=OpenAIChat(id="gpt-4o"),
     tools=[FalTools()],
     markdown=True,
     debug_mode=True,
@@ -149,7 +149,7 @@ image_to_image_agent = Agent(
 hindi_audio_agent = Agent(
     name="Hindi Audio Generator Agent",
     agent_id="hindi_audio_agent",
-    model=OpenAI(id="gpt-4o"),
+    model=OpenAIChat(id="gpt-4o"),
     tools=[DesiVocalTools()],
     description="You are an AI agent that can generate audio using the DesiVocal API.",
     instructions=[

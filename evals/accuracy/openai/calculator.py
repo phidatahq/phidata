@@ -2,14 +2,14 @@ from typing import Optional
 
 from agno.agent import Agent
 from agno.eval.accuracy import AccuracyEval, AccuracyResult
-from agno.models.openai import OpenAI
+from agno.models.openai import OpenAIChat
 from agno.tools.calculator import CalculatorTools
 
 
 def multiply_and_exponentiate():
     evaluation = AccuracyEval(
         agent=Agent(
-            model=OpenAI(id="gpt-4o-mini"),
+            model=OpenAIChat(id="gpt-4o-mini"),
             tools=[CalculatorTools(add=True, multiply=True, exponentiate=True)],
         ),
         question="What is 10*5 then to the power of 2? do it step by step",
@@ -23,7 +23,7 @@ def multiply_and_exponentiate():
 def factorial():
     evaluation = AccuracyEval(
         agent=Agent(
-            model=OpenAI(id="gpt-4o-mini"),
+            model=OpenAIChat(id="gpt-4o-mini"),
             tools=[CalculatorTools(factorial=True)],
         ),
         question="What is 10!?",

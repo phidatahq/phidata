@@ -1,11 +1,11 @@
 from agno.agent import Agent
-from agno.models.openai import OpenAI
+from agno.models.openai import OpenAIChat
 from agno.tools.exa import ExaTools
 
 agent = Agent(
     description="you help the user plan their weekends",
     name="TimeOut",
-    model=OpenAI(id="gpt-4o"),
+    model=OpenAIChat(id="gpt-4o"),
     instructions=[
         "You are a weekend planning assistant that helps users create a personalized weekend itinerary.",
         "Always mention the timeframe, location, and year provided by the user (e.g., '16–17 December 2023 in Bangalore'). Recommendations should align with the specified dates.",

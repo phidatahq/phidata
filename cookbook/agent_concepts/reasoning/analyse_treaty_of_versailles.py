@@ -1,5 +1,5 @@
 from agno.agent import Agent
-from agno.models.openai import OpenAI
+from agno.models.openai import OpenAIChat
 
 task = (
     "Analyze the key factors that led to the signing of the Treaty of Versailles in 1919. "
@@ -8,5 +8,5 @@ task = (
     "multiple historical perspectives."
 )
 
-reasoning_agent = Agent(model=OpenAI(id="gpt-4o"), reasoning=True, markdown=True, structured_outputs=True)
+reasoning_agent = Agent(model=OpenAIChat(id="gpt-4o"), reasoning=True, markdown=True, structured_outputs=True)
 reasoning_agent.print_response(task, stream=True, show_full_reasoning=True)

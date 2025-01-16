@@ -2,18 +2,18 @@ from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
 from agno.models.message import Message
-from agno.models.openai.chat import OpenAI
+from agno.models.openai.chat import OpenAIChat
 
 
 @dataclass
-class OpenAILike(OpenAI):
+class OpenAILike(OpenAIChat):
     id: str = "not-provided"
     name: str = "OpenAILike"
     api_key: Optional[str] = "not-provided"
 
     def format_message(self, message: Message, map_system_to_developer: bool = False) -> Dict[str, Any]:
         """
-        Format a message into the format expected by OpenAI.
+        Format a message into the format expected by OpenAIChat.
 
         Args:
             message (Message): The message to format.

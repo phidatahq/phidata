@@ -189,7 +189,7 @@ class Agent:
     # If True, the response from the Model is converted into the response_model
     # Otherwise, the response is returned as a JSON string
     parse_response: bool = True
-    # Use model enforced structured_outputs if supported (e.g. OpenAI)
+    # Use model enforced structured_outputs if supported (e.g. OpenAIChat)
     structured_outputs: bool = False
     # Save the response to a file
     save_response_to_file: Optional[str] = None
@@ -1268,10 +1268,10 @@ class Agent:
         return tools
 
     def update_model(self) -> None:
-        # Use the default Model (OpenAI) if no model is provided
+        # Use the default Model (OpenAIChat) if no model is provided
         if self.model is None:
             try:
-                from agno.models.openai import OpenAI
+                from agno.models.openai import OpenAIChat
             except ModuleNotFoundError as e:
                 logger.exception(e)
                 logger.error(
@@ -1279,7 +1279,7 @@ class Agent:
                     "Please provide a `model` or install `openai`."
                 )
                 exit(1)
-            self.model = OpenAI(id="gpt-4o")
+            self.model = OpenAIChat(id="gpt-4o")
 
         # Set response_format if it is not set on the Model
         if self.response_model is not None and self.model.response_format is None:

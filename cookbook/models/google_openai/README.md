@@ -1,4 +1,4 @@
-# Google Gemini OpenAI Cookbook
+# Google Gemini OpenAIChat Cookbook
 
 > Note: Fork and clone this repository if needed
 

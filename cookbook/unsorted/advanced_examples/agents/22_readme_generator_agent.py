@@ -1,10 +1,10 @@
 from agno.agent import Agent
-from agno.models.openai import OpenAI
+from agno.models.openai import OpenAIChat
 from agno.tools.github import GithubTools
 from agno.tools.local_file_system_tools import LocalFileSystemTools
 
 readme_gen_agent = Agent(
-    model=OpenAI(id="gpt-4o"),
+    model=OpenAIChat(id="gpt-4o"),
     name="Readme Generator Agent",
     tools=[GithubTools(), LocalFileSystemTools()],
     markdown=True,

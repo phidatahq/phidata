@@ -65,7 +65,7 @@ class StreamData:
 
 
 @dataclass
-class OpenAI(Model):
+class OpenAIChat(Model):
     """
     A class for interacting with OpenAI models.
 
@@ -73,7 +73,7 @@ class OpenAI(Model):
     """
 
     id: str = "gpt-4o"
-    name: str = "OpenAI"
+    name: str = "OpenAIChat"
     provider: str = "OpenAI"
 
     # Request parameters
@@ -109,7 +109,7 @@ class OpenAI(Model):
     http_client: Optional[httpx.Client] = None
     client_params: Optional[Dict[str, Any]] = None
 
-    # OpenAI clients
+    # OpenAIChat clients
     client: Optional[OpenAIClient] = None
     async_client: Optional[AsyncOpenAIClient] = None
 
@@ -146,10 +146,10 @@ class OpenAI(Model):
 
     def get_client(self) -> OpenAIClient:
         """
-        Returns an OpenAI client.
+        Returns an OpenAIChat client.
 
         Returns:
-            OpenAIClient: An instance of the OpenAI client.
+            OpenAIClient: An instance of the OpenAIChat client.
         """
         if self.client:
             return self.client
@@ -161,10 +161,10 @@ class OpenAI(Model):
 
     def get_async_client(self) -> AsyncOpenAIClient:
         """
-        Returns an asynchronous OpenAI client.
+        Returns an asynchronous OpenAIChat client.
 
         Returns:
-            AsyncOpenAIClient: An instance of the asynchronous OpenAI client.
+            AsyncOpenAIClient: An instance of the asynchronous OpenAIChat client.
         """
         if self.async_client:
             return self.async_client
@@ -290,7 +290,7 @@ class OpenAI(Model):
 
     def format_message(self, message: Message, map_system_to_developer: bool = True) -> Dict[str, Any]:
         """
-        Format a message into the format expected by OpenAI.
+        Format a message into the format expected by OpenAIChat.
 
         Args:
             message (Message): The message to format.
@@ -299,7 +299,7 @@ class OpenAI(Model):
         Returns:
             Dict[str, Any]: The formatted message.
         """
-        # New OpenAI format
+        # New OpenAIChat format
         if map_system_to_developer and message.role == "system":
             message.role = "developer"
 
@@ -314,7 +314,7 @@ class OpenAI(Model):
 
     def invoke(self, messages: List[Message]) -> Union[ChatCompletion, ParsedChatCompletion]:
         """
-        Send a chat completion request to the OpenAI API.
+        Send a chat completion request to the OpenAIChat API.
 
         Args:
             messages (List[Message]): A list of messages to send to the model.
@@ -333,7 +333,7 @@ class OpenAI(Model):
                 else:
                     raise ValueError("response_format must be a subclass of BaseModel if structured_outputs=True")
             except Exception as e:
-                logger.error(f"Error from OpenAI API: {e}")
+                logger.error(f"Error from OpenAIChat API: {e}")
 
         return self.get_client().chat.completions.create(
             model=self.id,
@@ -343,7 +343,7 @@ class OpenAI(Model):
 
     async def ainvoke(self, messages: List[Message]) -> Union[ChatCompletion, ParsedChatCompletion]:
         """
-        Sends an asynchronous chat completion request to the OpenAI API.
+        Sends an asynchronous chat completion request to the OpenAIChat API.
 
         Args:
             messages (List[Message]): A list of messages to send to the model.
@@ -362,7 +362,7 @@ class OpenAI(Model):
                 else:
                     raise ValueError("response_format must be a subclass of BaseModel if structured_outputs=True")
             except Exception as e:
-                logger.error(f"Error from OpenAI API: {e}")
+                logger.error(f"Error from OpenAIChat API: {e}")
 
         return await self.get_async_client().chat.completions.create(
             model=self.id,
@@ -372,7 +372,7 @@ class OpenAI(Model):
 
     def invoke_stream(self, messages: List[Message]) -> Iterator[ChatCompletionChunk]:
         """
-        Send a streaming chat completion request to the OpenAI API.
+        Send a streaming chat completion request to the OpenAIChat API.
 
         Args:
             messages (List[Message]): A list of messages to send to the model.
@@ -390,7 +390,7 @@ class OpenAI(Model):
 
     async def ainvoke_stream(self, messages: List[Message]) -> Any:
         """
-        Sends an asynchronous streaming chat completion request to the OpenAI API.
+        Sends an asynchronous streaming chat completion request to the OpenAIChat API.
 
         Args:
             messages (List[Message]): A list of messages to send to the model.
@@ -568,7 +568,7 @@ class OpenAI(Model):
 
     def response(self, messages: List[Message]) -> ModelResponse:
         """
-        Generate a response from OpenAI.
+        Generate a response from OpenAIChat.
 
         Args:
             messages (List[Message]): A list of messages.
@@ -576,7 +576,7 @@ class OpenAI(Model):
         Returns:
             ModelResponse: The model response.
         """
-        logger.debug("---------- OpenAI Response Start ----------")
+        logger.debug("---------- OpenAIChat Response Start ----------")
         self._log_messages(messages)
         model_response = ModelResponse()
         metrics = Metrics()
@@ -641,12 +641,12 @@ class OpenAI(Model):
             is not None
         ):
             return self.handle_post_tool_call_messages(messages=messages, model_response=model_response)
-        logger.debug("---------- OpenAI Response End ----------")
+        logger.debug("---------- OpenAIChat Response End ----------")
         return model_response
 
     async def aresponse(self, messages: List[Message]) -> ModelResponse:
         """
-        Generate an asynchronous response from OpenAI.
+        Generate an asynchronous response from OpenAIChat.
 
         Args:
             messages (List[Message]): A list of messages.
@@ -654,7 +654,7 @@ class OpenAI(Model):
         Returns:
             ModelResponse: The model response from the API.
         """
-        logger.debug("---------- OpenAI Async Response Start ----------")
+        logger.debug("---------- OpenAIChat Async Response Start ----------")
         self._log_messages(messages)
         model_response = ModelResponse()
         metrics = Metrics()
@@ -720,7 +720,7 @@ class OpenAI(Model):
         ):
             return await self.ahandle_post_tool_call_messages(messages=messages, model_response=model_response)
 
-        logger.debug("---------- OpenAI Async Response End ----------")
+        logger.debug("---------- OpenAIChat Async Response End ----------")
         return model_response
 
     def update_stream_metrics(self, assistant_message: Message, metrics: Metrics):
@@ -841,7 +841,7 @@ class OpenAI(Model):
 
     def response_stream(self, messages: List[Message]) -> Iterator[ModelResponse]:
         """
-        Generate a streaming response from OpenAI.
+        Generate a streaming response from OpenAIChat.
 
         Args:
             messages (List[Message]): A list of messages.
@@ -849,7 +849,7 @@ class OpenAI(Model):
         Returns:
             Iterator[ModelResponse]: An iterator of model responses.
         """
-        logger.debug("---------- OpenAI Response Start ----------")
+        logger.debug("---------- OpenAIChat Response Start ----------")
         self._log_messages(messages)
         stream_data: StreamData = StreamData()
         metrics: Metrics = Metrics()
@@ -912,11 +912,11 @@ class OpenAI(Model):
                 assistant_message=assistant_message, messages=messages, tool_role=tool_role
             )
             yield from self.handle_post_tool_call_messages_stream(messages=messages)
-        logger.debug("---------- OpenAI Response End ----------")
+        logger.debug("---------- OpenAIChat Response End ----------")
 
     async def aresponse_stream(self, messages: List[Message]) -> Any:
         """
-        Generate an asynchronous streaming response from OpenAI.
+        Generate an asynchronous streaming response from OpenAIChat.
 
         Args:
             messages (List[Message]): A list of messages.
@@ -924,7 +924,7 @@ class OpenAI(Model):
         Returns:
             Any: An asynchronous iterator of model responses.
         """
-        logger.debug("---------- OpenAI Async Response Start ----------")
+        logger.debug("---------- OpenAIChat Async Response Start ----------")
         self._log_messages(messages)
         stream_data: StreamData = StreamData()
         metrics: Metrics = Metrics()
@@ -988,7 +988,7 @@ class OpenAI(Model):
                 yield tool_call_response
             async for post_tool_call_response in self.ahandle_post_tool_call_messages_stream(messages=messages):
                 yield post_tool_call_response
-        logger.debug("---------- OpenAI Async Response End ----------")
+        logger.debug("---------- OpenAIChat Async Response End ----------")
 
     def build_tool_calls(self, tool_calls_data: List[ChoiceDeltaToolCall]) -> List[Dict[str, Any]]:
         """

@@ -8,7 +8,7 @@ from agno.models.openai.like import OpenAILike
 @dataclass
 class GeminiOpenAI(OpenAILike):
     """
-    Class for interacting with the Gemini API (OpenAI).
+    Class for interacting with the Gemini API (OpenAIChat).
 
     Attributes:
         id (str): The ID of the API.

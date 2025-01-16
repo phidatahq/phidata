@@ -15,7 +15,7 @@ from rich.json import JSON
 from agno.agent import Agent
 from agno.memory.agent import AgentMemory
 from agno.memory.db.mongodb import MongoMemoryDb
-from agno.models.openai import OpenAI
+from agno.models.openai import OpenAIChat
 from agno.storage.agent.mongodb import MongoDbAgentStorage
 
 
@@ -23,7 +23,7 @@ from agno.storage.agent.mongodb import MongoDbAgentStorage
 db_url = "mongodb://localhost:27017"
 
 agent = Agent(
-    model=OpenAI(id="gpt-4o"),
+    model=OpenAIChat(id="gpt-4o"),
     # Store agent sessions in MongoDB
     storage=MongoDbAgentStorage(collection_name="agent_sessions", db_url=db_url, db_name="agno"),
     # Store memories in MongoDB

@@ -35,9 +35,9 @@ class StreamData:
 
 
 @dataclass
-class Mistral(Model):
+class MistralChat(Model):
     """
-    Mistral is a model that uses the Mistral API to generate responses to messages.
+    MistralChat is a model that uses the Mistral API to generate responses to messages.
 
     Args:
         id (str): The ID of the model.
@@ -61,7 +61,7 @@ class Mistral(Model):
     """
 
     id: str = "mistral-large-latest"
-    name: str = "Mistral"
+    name: str = "MistralChat"
     provider: str = "Mistral"
 
     # -*- Request parameters
@@ -88,7 +88,7 @@ class Mistral(Model):
         Get the Mistral client.
 
         Returns:
-            Mistral: The Mistral client.
+            MistralChat: The Mistral client.
         """
         if self.mistral_client:
             return self.mistral_client

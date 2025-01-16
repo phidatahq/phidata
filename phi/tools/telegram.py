@@ -3,7 +3,7 @@ import httpx
 from phi.tools import Toolkit
 
 
-class Telegram(Toolkit):
+class TelegramTools(Toolkit):
     base_url = "https://api.telegram.org"
 
     def __init__(self, token: str, chat_id: Union[str, int]):
@@ -25,7 +25,9 @@ class Telegram(Toolkit):
         :param message: The message to send.
         :return: The response from the API.
         """
-        response = self._call_post_method("sendMessage", json={"chat_id": self.chat_id, "text": message})
+        response = self._call_post_method(
+            "sendMessage", json={"chat_id": self.chat_id, "text": message}
+        )
         try:
             response.raise_for_status()
             return response.text

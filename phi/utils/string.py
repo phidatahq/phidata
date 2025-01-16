@@ -3,8 +3,6 @@ import json
 import re
 from typing import Optional, Dict, Any, Tuple
 
-from phi.utils.log import logger
-
 
 def hash_string_sha256(input_string):
     # Encode the input string to bytes
@@ -35,7 +33,7 @@ def extract_valid_json(content: str) -> Tuple[Optional[Dict[str, Any]], str]:
             - Extracted JSON dictionary if valid, else None.
             - The rest of the string without the extracted JSON.
     """
-    json_pattern = r'\{.*?\}'
+    json_pattern = r"\{.*?\}"
     matches = re.finditer(json_pattern, content, re.DOTALL)
 
     for match in matches:
@@ -44,7 +42,7 @@ def extract_valid_json(content: str) -> Tuple[Optional[Dict[str, Any]], str]:
             json_obj = json.loads(match.group())
             if isinstance(json_obj, dict):  # Ensure it's a JSON object
                 # Remove the matched JSON object from the string
-                remaining_content = content[:match.start()] + content[match.end():]
+                remaining_content = content[: match.start()] + content[match.end() :]
                 return json_obj, remaining_content.strip()
         except json.JSONDecodeError:
             continue  # Skip invalid JSON matches

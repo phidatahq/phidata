@@ -403,7 +403,7 @@ class Agent:
         return self.agent_id
 
     def set_session_id(self) -> str:
-        if self.session_id is None:
+        if self.session_id is None or self.session_id == "":
             self.session_id = str(uuid4())
         logger.debug(f"*********** Session ID: {self.session_id} ***********")
         return self.session_id

@@ -1,9 +1,11 @@
+from dataclasses import dataclass
 from os import getenv
 from typing import Optional
 
 from agno.embedder.openai import OpenAIEmbedder
 
 
+@dataclass
 class FireworksEmbedder(OpenAIEmbedder):
     model: str = "nomic-ai/nomic-embed-text-v1.5"
     dimensions: int = 768

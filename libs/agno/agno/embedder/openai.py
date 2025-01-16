@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
 from typing_extensions import Literal
@@ -12,8 +13,9 @@ except ImportError:
     raise ImportError("`openai` not installed")
 
 
+@dataclass
 class OpenAIEmbedder(Embedder):
-    model: str = "text-embedding-ada-002"
+    model: str = "text-embedding-3-small"
     dimensions: int = 1536
     encoding_format: Literal["float", "base64"] = "float"
     user: Optional[str] = None

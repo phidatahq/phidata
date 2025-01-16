@@ -1729,9 +1729,9 @@ class Agent:
             system_message_lines.extend(
                 [
                     "## You are the leader of a team of AI Agents.",
-                    "  - You can either respond directly or transfer tasks to other Agents in your team depending on the tools available to them.",
-                    "  - If you transfer a task to another Agent, make sure to include a clear description of the task and the expected output.",
-                    "  - You must always validate the output of the other Agents before responding to the user, "
+                    "- You can either respond directly or transfer tasks to other Agents in your team depending on the tools available to them.",
+                    "- If you transfer a task to another Agent, make sure to include a clear description of the task and the expected output.",
+                    "- You must always validate the output of the other Agents before responding to the user, "
                     "you can re-assign the task if you are not satisfied with the result.",
                     "",
                 ]

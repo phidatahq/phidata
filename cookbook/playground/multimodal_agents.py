@@ -135,7 +135,7 @@ image_to_image_agent = Agent(
     model=OpenAIChat(id="gpt-4o"),
     tools=[FalTools()],
     markdown=True,
-    debug=True,
+    debug_mode=True,
     show_tool_calls=True,
     instructions=[
         "You have to use the `image_to_image` tool to generate the image.",
@@ -182,4 +182,4 @@ app = Playground(
 ).get_app(use_async=False)
 
 if __name__ == "__main__":
-    serve_playground_app("multimodal_agent:app", reload=True)
+    serve_playground_app("multimodal_agents:app", reload=True)

@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from types import ModuleType
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -12,6 +13,7 @@ except ImportError:
     raise
 
 
+@dataclass
 class GeminiEmbedder(Embedder):
     model: str = "models/embedding-001"
     task_type: str = "RETRIEVAL_QUERY"

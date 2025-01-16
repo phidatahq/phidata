@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from os import getenv
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -11,6 +12,7 @@ except ImportError:
     raise ImportError("`mistralai` not installed")
 
 
+@dataclass
 class MistralEmbedder(Embedder):
     model: str = "mistral-embed"
     dimensions: int = 1024

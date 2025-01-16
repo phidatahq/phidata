@@ -1,6 +1,6 @@
 import time
 from pathlib import Path
-from typing import List, Optional, Any
+from typing import List, Optional
 
 try:
     from sqlalchemy.dialects import sqlite
@@ -18,7 +18,6 @@ from agno.storage.agent.base import AgentStorage
 from agno.utils.log import logger
 
 
-    
 class SqliteDbAgentStorage(AgentStorage):
     def __init__(
         self,
@@ -75,7 +74,6 @@ class SqliteDbAgentStorage(AgentStorage):
         self.Session: sessionmaker[Session] = sessionmaker(bind=self.db_engine)
         # Database table for storage
         self.table: Table = self.get_table()
-        
         
     def get_table_v1(self) -> Table:
         """

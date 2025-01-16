@@ -5,7 +5,7 @@ from phi.model.fireworks import Fireworks
 from phi.tools.yfinance import YFinanceTools
 
 agent = Agent(
-    model=Fireworks(id="accounts/fireworks/models/firefunction-v2"),
+    model=Fireworks(id="accounts/fireworks/models/llama-v3p1-405b-instruct"),
     tools=[YFinanceTools(stock_price=True, analyst_recommendations=True, stock_fundamentals=True)],
     show_tool_calls=True,
     description="You are an investment analyst that researches stocks and helps users make informed decisions.",

@@ -12,12 +12,12 @@ from rich.panel import Panel
 from rich.json import JSON
 
 from agno.agent import Agent
-from agno.models.openai import OpenAIChat
+from agno.models.openai import OpenAI
 from agno.storage.agent.sqlite import SqliteDbAgentStorage
 
 
 agent = Agent(
-    model=OpenAIChat(id="gpt-4o"),
+    model=OpenAI(id="gpt-4o"),
     # Store agent sessions in a database
     storage=SqliteDbAgentStorage(table_name="agent_sessions", db_file="tmp/agent_storage.db"),
     # Set add_history_to_messages=true to add the previous chat history to the messages sent to the Model.

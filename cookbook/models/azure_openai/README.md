@@ -26,7 +26,7 @@ export AWS_DEFAULT_REGION=us-east-1
 pip install -U openai duckduckgo-search duckdb yfinance agno
 ```
 
-### 4. Run Agent without Tools
+### 4. Run basic Agent
 
 - Streaming on
 
@@ -42,34 +42,10 @@ python cookbook/models/azure_openai/basic.py
 
 ### 5. Run Agent with Tools
 
-- DuckDuckGo Search with streaming on
+- DuckDuckGo Search
 
 ```shell
-python cookbook/models/azure_openai/agent_stream.py
-```
-
-- DuckDuckGo Search without streaming
-
-```shell
-python cookbook/models/azure_openai/agent.py
-```
-
-- Finance Agent
-
-```shell
-python cookbook/models/azure_openai/finance_agent.py
-```
-
-- Data Analyst
-
-```shell
-python cookbook/models/azure_openai/data_analyst.py
-```
-
-- Web Search
-
-```shell
-python cookbook/models/azure_openai/web_search.py
+python cookbook/models/azure_openai/tool_use.py
 ```
 
 ### 6. Run Agent that returns structured output

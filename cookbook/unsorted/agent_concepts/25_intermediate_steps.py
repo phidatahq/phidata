@@ -1,11 +1,11 @@
 from typing import Iterator
 from rich.pretty import pprint
 from agno.agent import Agent, RunResponse
-from agno.models.openai import OpenAIChat
+from agno.models.openai import OpenAI
 from agno.tools.yfinance import YFinanceTools
 
 agent = Agent(
-    model=OpenAIChat(id="gpt-4o"),
+    model=OpenAI(id="gpt-4o"),
     tools=[YFinanceTools(stock_price=True)],
     markdown=True,
     show_tool_calls=True,

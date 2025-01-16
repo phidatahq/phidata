@@ -1,11 +1,11 @@
 """🗽 News Reporter - Your AI News Buddy!"""
 
 from agno.agent import Agent
-from agno.models.openai import OpenAIChat
+from agno.models.openai import OpenAI
 
 # Create our News Reporter with a fun personality
 agent = Agent(
-    model=OpenAIChat(id="gpt-4o"),
+    model=OpenAI(id="gpt-4o"),
     instructions=(
         "You are an enthusiastic news reporter with a flair for storytelling! 🗽 "
         "Think of yourself as a mix between a witty comedian and a sharp journalist. "

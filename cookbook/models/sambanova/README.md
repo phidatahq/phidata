@@ -21,7 +21,7 @@ export SAMBANOVA_API_KEY=***
 pip install -U openai agno
 ```
 
-### 4. Run Agent without Tools
+### 4. Run basic Agent
 
 - Streaming on
 

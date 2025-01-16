@@ -1,10 +1,10 @@
 from pathlib import Path
 
 from agno.agent import Agent
-from agno.models.openai import OpenAIChat
+from agno.models.openai import OpenAI
 
 agent = Agent(
-    model=OpenAIChat(id="gpt-4o"),
+    model=OpenAI(id="gpt-4o"),
     markdown=True,
 )
 

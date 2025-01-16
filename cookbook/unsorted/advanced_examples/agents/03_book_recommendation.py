@@ -1,11 +1,11 @@
 from agno.agent import Agent
-from agno.models.openai import OpenAIChat
+from agno.models.openai import OpenAI
 from agno.tools.exa import ExaTools
 
 agent = Agent(
     description="you help user with book recommendations",
     name="Shelfie",
-    model=OpenAIChat(id="gpt-4o"),
+    model=OpenAI(id="gpt-4o"),
     instructions=[
         "You are a highly knowledgeable book recommendation agent.",
         "Your goal is to help the user discover books based on their preferences, reading history, and interests.",

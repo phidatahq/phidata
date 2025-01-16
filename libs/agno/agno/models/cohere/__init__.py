@@ -1,1 +1,1 @@
-from agno.models.cohere.chat import CohereChat
+from agno.models.cohere.chat import Cohere

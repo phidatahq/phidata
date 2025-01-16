@@ -3,7 +3,7 @@
 from typing import Literal
 
 from agno.agent import Agent
-from agno.models.openai import OpenAIChat
+from agno.models.openai import OpenAI
 from agno.eval.perf import PerfEval
 
 def get_weather(city: Literal["nyc", "sf"]):
@@ -18,7 +18,7 @@ def get_weather(city: Literal["nyc", "sf"]):
 tools = [get_weather]
 
 def instantiate_agent():
-    return Agent(model=OpenAIChat(id='gpt-4o'), tools=tools)
+    return Agent(model=OpenAI(id='gpt-4o'), tools=tools)
 
 instantiation_perf = PerfEval(func=instantiate_agent, num_iterations=50)
 

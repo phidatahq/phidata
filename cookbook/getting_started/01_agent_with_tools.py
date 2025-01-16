@@ -2,12 +2,12 @@
 Run `pip install duckduckgo-search` to install dependencies."""
 
 from agno.agent import Agent
-from agno.models.openai import OpenAIChat
+from agno.models.openai import OpenAI
 from agno.tools.duckduckgo import DuckDuckGoTools
 
 # Create a News Reporter Agent with a fun personality
 agent = Agent(
-    model=OpenAIChat(id="gpt-4o"),
+    model=OpenAI(id="gpt-4o"),
     instructions=(
         "You are an enthusiastic news reporter with a flair for storytelling! 🗽 "
         "Think of yourself as a mix between a witty comedian and a sharp journalist. "

@@ -23,14 +23,14 @@ class MessageData:
 
 
 @dataclass
-class Hermes(Ollama):
+class OllamaHermes(Ollama):
     """
-    A class for interacting with the Hermes model via Ollama. This is a subclass of the Ollama model,
+    A class for interacting with the OllamaHermes model via Ollama. This is a subclass of the Ollama model,
     which customizes tool call streaming for the hermes3 model.
     """
 
     id: str = "hermes3"
-    name: str = "Hermes"
+    name: str = "OllamaHermes"
     provider: str = "Ollama"
 
     def handle_tool_call_chunk(self, content, tool_call_buffer, message_data) -> Tuple[str, bool]:
@@ -69,7 +69,7 @@ class Hermes(Ollama):
         Returns:
             Iterator[ModelResponse]: An iterator of the model responses.
         """
-        logger.debug("---------- Ollama Hermes Response Start ----------")
+        logger.debug("---------- Ollama OllamaHermes Response Start ----------")
         self._log_messages(messages)
         message_data = MessageData()
         metrics: Metrics = Metrics()
@@ -136,7 +136,7 @@ class Hermes(Ollama):
         if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
             yield from self.handle_stream_tool_calls(assistant_message, messages)
             yield from self.handle_post_tool_call_messages_stream(messages=messages)
-        logger.debug("---------- Ollama Hermes Response End ----------")
+        logger.debug("---------- Ollama OllamaHermes Response End ----------")
 
     async def aresponse_stream(self, messages: List[Message]) -> Any:
         """
@@ -148,7 +148,7 @@ class Hermes(Ollama):
         Returns:
             Any: An asynchronous iterator of the model responses.
         """
-        logger.debug("---------- Ollama Hermes Async Response Start ----------")
+        logger.debug("---------- Ollama OllamaHermes Async Response Start ----------")
         self._log_messages(messages)
         message_data = MessageData()
         metrics: Metrics = Metrics()
@@ -223,4 +223,4 @@ class Hermes(Ollama):
                 yield tool_call_response
             async for post_tool_call_response in self.ahandle_post_tool_call_messages_stream(messages=messages):
                 yield post_tool_call_response
-        logger.debug("---------- Ollama Hermes Async Response End ----------")
+        logger.debug("---------- Ollama OllamaHermes Async Response End ----------")

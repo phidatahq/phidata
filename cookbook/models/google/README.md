@@ -21,7 +21,7 @@ export GOOGLE_API_KEY=***
 pip install -U google-generativeai duckduckgo-search yfinance agno
 ```
 
-### 4. Run Agent without Tools
+### 4. Run basic Agent
 
 - Streaming on
 
@@ -37,35 +37,12 @@ python cookbook/models/google/basic.py
 
 ### 5. Run Agent with Tools
 
-- Yahoo Finance with streaming on
+- DuckDuckGo Agent
 
 ```shell
-python cookbook/models/google/agent_stream.py
+python cookbook/models/google/tool_use.py
 ```
 
-- Yahoo Finance without streaming
-
-```shell
-python cookbook/models/google/agent.py
-```
-
-- Finance Agent
-
-```shell
-python cookbook/models/google/finance_agent.py
-```
-
-- Web Search Agent
-
-```shell
-python cookbook/models/google/web_search.py
-```
-
-- Data Analysis Agent
-
-```shell
-python cookbook/models/google/data_analyst.py
-```
 
 ### 6. Run Agent that returns structured output
 
@@ -89,4 +66,34 @@ python cookbook/models/google/knowledge.py
 
 ```shell
 python cookbook/models/google/audio_agent.py
+```
+
+or
+
+```shell
+python cookbook/models/google/audio_agent_file_upload.py
+```
+
+### 10. Run Agent that analyzes an image
+
+```shell
+python cookbook/models/google/image_agent.py
+```
+
+or
+
+```shell
+python cookbook/models/google/image_agent_file_upload.py
+```
+
+### 11. Run Agent that analyzes a video
+
+```shell
+python cookbook/models/google/video_agent.py
+```
+
+### 12. Run Agent that uses flash thinking mode from Gemini
+
+```shell
+python cookbook/models/google/flash_thinking_agent.py
 ```

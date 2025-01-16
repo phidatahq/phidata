@@ -1,5 +1,5 @@
 from agno.agent import Agent
-from agno.models.openai import OpenAIChat
+from agno.models.openai import OpenAI
 
 task = (
     "You are a philosopher tasked with analyzing the classic 'Trolley Problem'. In this scenario, a runaway trolley "
@@ -11,5 +11,5 @@ task = (
     "Include a simple ASCII art diagram to illustrate the scenario."
 )
 
-reasoning_agent = Agent(model=OpenAIChat(id="gpt-4o"), reasoning=True, markdown=True, structured_outputs=True)
+reasoning_agent = Agent(model=OpenAI(id="gpt-4o"), reasoning=True, markdown=True, structured_outputs=True)
 reasoning_agent.print_response(task, stream=True, show_full_reasoning=True)

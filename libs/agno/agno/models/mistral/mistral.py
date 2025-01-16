@@ -11,7 +11,7 @@ from agno.utils.timer import Timer
 from agno.utils.tools import get_function_call_for_tool_call
 
 try:
-    from mistralai import Mistral
+    from mistralai import Mistral as MistralClient
     from mistralai.models import AssistantMessage, SystemMessage, ToolMessage, UserMessage
     from mistralai.models.chatcompletionresponse import ChatCompletionResponse
     from mistralai.models.deltamessage import DeltaMessage
@@ -35,9 +35,9 @@ class StreamData:
 
 
 @dataclass
-class MistralChat(Model):
+class Mistral(Model):
     """
-    MistralChat is a model that uses the Mistral API to generate responses to messages.
+    Mistral is a model that uses the Mistral API to generate responses to messages.
 
     Args:
         id (str): The ID of the model.
@@ -61,7 +61,7 @@ class MistralChat(Model):
     """
 
     id: str = "mistral-large-latest"
-    name: str = "MistralChat"
+    name: str = "Mistral"
     provider: str = "Mistral"
 
     # -*- Request parameters
@@ -80,10 +80,10 @@ class MistralChat(Model):
     timeout: Optional[int] = None
     client_params: Optional[Dict[str, Any]] = None
     # -*- Provide the Mistral Client manually
-    mistral_client: Optional[Mistral] = None
+    mistral_client: Optional[MistralClient] = None
 
     @property
-    def client(self) -> Mistral:
+    def client(self) -> MistralClient:
         """
         Get the Mistral client.
 
@@ -108,7 +108,7 @@ class MistralChat(Model):
             _client_params["timeout"] = self.timeout
         if self.client_params:
             _client_params.update(self.client_params)
-        return Mistral(**_client_params)
+        return MistralClient(**_client_params)
 
     @property
     def api_kwargs(self) -> Dict[str, Any]:

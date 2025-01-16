@@ -1,5 +1,5 @@
 from agno.agent import Agent
-from agno.models.openai import OpenAIChat
+from agno.models.openai import OpenAI
 
 task = (
     "You are a train conductor faced with an emergency: the brakes have failed, and the train is heading towards "
@@ -9,5 +9,5 @@ task = (
     "Provide your answer also as an ascii art diagram."
 )
 
-reasoning_agent = Agent(model=OpenAIChat(id="gpt-4o"), reasoning=True, markdown=True, structured_outputs=True)
+reasoning_agent = Agent(model=OpenAI(id="gpt-4o"), reasoning=True, markdown=True, structured_outputs=True)
 reasoning_agent.print_response(task, stream=True, show_full_reasoning=True)

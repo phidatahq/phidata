@@ -9,13 +9,13 @@ Steps:
 from rich.pretty import pprint
 
 from agno.agent import Agent, AgentMemory
-from agno.models.openai import OpenAIChat
+from agno.models.openai import OpenAI
 from agno.memory.db.postgres import PgMemoryDb
 from agno.storage.agent.postgres import PostgresDbAgentStorage
 
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 agent = Agent(
-    model=OpenAIChat(id="gpt-4o"),
+    model=OpenAI(id="gpt-4o"),
     # Store the memories and summary in a database
     memory=AgentMemory(
         db=PgMemoryDb(table_name="agent_memory", db_url=db_url), create_user_memories=True, create_session_summary=True

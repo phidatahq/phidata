@@ -21,7 +21,7 @@ export NVIDIA_API_KEY=***
 pip install -U openai agno
 ```
 
-### 4. Run Agent without Tools
+### 4. Run basic Agent
 
 - Streaming on
 
@@ -34,6 +34,12 @@ python cookbook/models/nvidia/basic_stream.py
 ```shell
 python cookbook/models/nvidia/basic.py
 ```
-## Disclaimer:
 
-nvidia/llama-3.1-nemotron-70b-instruct does not support function calling.
+### 5. Run Agent with Tools
+
+
+- DuckDuckGo search
+
+```shell
+python cookbook/models/nvidia/tool_use.py
+```

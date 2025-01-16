@@ -25,7 +25,7 @@ export AWS_DEFAULT_REGION=***
 pip install -U boto3 duckduckgo-search duckdb yfinance agno
 ```
 
-### 4. Run Agent without Tools
+### 4. Run basic agent
 
 - Streaming on
 
@@ -41,34 +41,10 @@ python cookbook/models/bedrock/basic.py
 
 ### 5. Run Agent with Tools
 
-- YFinance Agent with streaming on
+- DuckDuckGo Search
 
 ```shell
-python cookbook/models/bedrock/agent_stream.py
-```
-
-- YFinance Agent without streaming
-
-```shell
-python cookbook/models/bedrock/agent.py
-```
-
-- Data Analyst
-
-```shell
-python cookbook/models/bedrock/data_analyst.py
-```
-
-- Web Search
-
-```shell
-python cookbook/models/bedrock/web_search.py
-```
-
-- Finance Agent
-
-```shell
-python cookbook/models/bedrock/finance.py
+python cookbook/models/bedrock/tool_use.py
 ```
 
 ### 6. Run Agent that returns structured output

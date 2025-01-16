@@ -3,6 +3,7 @@ from rich.pretty import pprint
 from agno.agent import Agent, RunResponse
 from agno.models.openai import OpenAIChat
 from agno.tools.dalle import DalleTools
+from agno.utils.common import dataclass_to_dict
 
 image_agent = Agent(
     model=OpenAIChat(id="gpt-4o"),
@@ -22,5 +23,5 @@ run_stream: Iterator[RunResponse] = image_agent.run(
     stream_intermediate_steps=True,
 )
 for chunk in run_stream:
-    pprint(chunk.model_dump(exclude={"messages"}))
+    pprint(dataclass_to_dict(chunk, exclude={"messages"}))
     print("---" * 20)

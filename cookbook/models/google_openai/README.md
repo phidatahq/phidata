@@ -34,3 +34,18 @@ python cookbook/models/google_openai/basic_stream.py
 ```shell
 python cookbook/models/google_openai/basic.py
 ```
+
+### 5. Run Agent with Tools
+
+- DuckDuckGo Agent
+
+```shell
+python cookbook/models/google/tool_use.py
+```
+
+
+### 6. Run Agent that returns structured output
+
+```shell
+python cookbook/models/google/structured_output.py
+```

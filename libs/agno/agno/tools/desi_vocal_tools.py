@@ -1,4 +1,3 @@
-import traceback
 from os import getenv
 from typing import Optional
 from uuid import uuid4

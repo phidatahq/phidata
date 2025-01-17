@@ -71,10 +71,12 @@ pip install agno openai
 
 export OPENAI_API_KEY=sk-xxxx
 
-python 00_basic_agent.py
+python basic_agent.py
 ```
 
-This agent will obviously make up the story, lets give it a tool to search the web.
+[Find this example](./cookbook/getting_started/00_basic_agent.py)
+
+This agent will obviously make up a story, lets give it a tool to search the web.
 
 ## Example - Agent with tools
 
@@ -98,8 +100,12 @@ Install dependencies and run the Agent:
 ```shell
 pip install duckduckgo-search
 
-python 01_agent_with_tools.py
+python agent_with_tools.py
 ```
+
+Now you should see a much more relevant result.
+
+[Find this example](./cookbook/getting_started/01_agent_with_tools.py)
 
 ## Example - Agent with knowledge
 
@@ -150,8 +156,10 @@ Install dependencies and run the Agent:
 ```shell
 pip install lancedb tantivy pypdf duckduckgo-search
 
-python 02_agent_with_knowledge.py
+python agent_with_knowledge.py
 ```
+
+[Find this example](./cookbook/getting_started/02_agent_with_knowledge.py)
 
 ## Example - Multi Agent Teams
 
@@ -199,9 +207,10 @@ Install dependencies and run the Agent team:
 ```shell
 pip install duckduckgo-search yfinance
 
-python 03_agent_team.py
+python agent_team.py
 ```
 
+[Find this example](./cookbook/getting_started/03_agent_team.py)
 ## Performance
 
 Agno is built for speed and scale:
@@ -227,7 +236,7 @@ python evals/performance/instantiation_with_tool.py
 python evals/performance/other/langgraph_instantiation.py
 ```
 
-The following evaluation is run on an Apple M4 Mackbook Pro, but we'll soon be moving this to a github actions runner for consistency. LangGraph is on the right, we start it first to minimize bias and Agno is on the left.
+The following evaluation is run on an Apple M4 Mackbook Pro, but we'll soon be moving this to a Github actions runner for consistency. LangGraph is on the right, we start it first to minimize bias and Agno is on the left.
 
 https://github.com/user-attachments/assets/712216a4-974a-415e-8849-f77043b7997f
 
@@ -243,7 +252,7 @@ Dividing the average time taken to instantiate a Langgraph Agent by the average 
 
 In the benchmarks above, ~30Mib of memory usage is from the memory profiler, Agno Agents use 66.6 - 30 ~ 36.6Mib of memory. Whereas Langgraph Agents use 125.3 - 30 ~ 95.3Mib of memory. Langgraph Agents use ~2.6x more memory than Agno Agents. When you're running 1000s of Agents in production, these numbers will add up.
 
-We understand that these aren't the most accurate benchmarks, but we'll publish accuracy, reliability and performance benchmarks running on github actions in the coming weeks.
+> We understand that these aren't the most accurate benchmarks, but we are planning on publishing accuracy, reliability and performance benchmarks running on Github actions in the coming weeks.
 
 ## Documentation, Community & More examples
 

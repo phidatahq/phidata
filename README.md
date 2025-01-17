@@ -33,7 +33,7 @@
 - **🧠 Memory Management**: Store user sessions and context in a database.
 - **📚 Knowledge Stores**: Integrate vector databases for Agentic RAG or dynamic few-shot learning.
 - **🧩 Structured Outputs**: Respond with structured data.
-- **📈 Monitoring**: Track agent sessions and performance in real-time with [Agno Cloud](https://app.agno.com).
+- **📈 Monitoring**: Track agent sessions and performance in real-time on [agno.com](https://app.agno.com).
 
 ## Installation
 

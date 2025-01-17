@@ -30,7 +30,7 @@ json_mode_agent = Agent(
     description="You help people write movie scripts.",
     response_model=MovieScript,
     show_tool_calls=True,
-    # debug_mode=True,
+    debug_mode=True,
 )
 
 # Get the response in a variable

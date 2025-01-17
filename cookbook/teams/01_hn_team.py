@@ -2,11 +2,21 @@
 1. Run: `pip install openai duckduckgo-search newspaper4k lxml_html_clean phidata` to install the dependencies
 2. Run: `python cookbook/teams/01_hn_team.py` to run the agent
 """
+from typing import List
+
+from pydantic import BaseModel
 
 from phi.agent import Agent
 from phi.tools.hackernews import HackerNews
 from phi.tools.duckduckgo import DuckDuckGo
 from phi.tools.newspaper4k import Newspaper4k
+
+
+class Article(BaseModel):
+    title: str
+    summary: str
+    reference_links: List[str]
+
 
 hn_researcher = Agent(
     name="HackerNews Researcher",
@@ -37,6 +47,7 @@ hn_team = Agent(
         "Then, ask the web searcher to search for each story to get more information.",
         "Finally, provide a thoughtful and engaging summary.",
     ],
+    response_model=Article,
     show_tool_calls=True,
     markdown=True,
 )

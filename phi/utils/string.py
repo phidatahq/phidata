@@ -20,7 +20,7 @@ def hash_string_sha256(input_string):
     return hex_digest
 
 
-def extract_valid_json(content: str) -> Tuple[Optional[Dict[str, Any]], str]:
+def extract_valid_json(content: str) -> Optional[Dict[str, Any]]:
     """
     Extract the first valid JSON object from a string and return the JSON object
     along with the rest of the string without the JSON.
@@ -33,19 +33,47 @@ def extract_valid_json(content: str) -> Tuple[Optional[Dict[str, Any]], str]:
             - Extracted JSON dictionary if valid, else None.
             - The rest of the string without the extracted JSON.
     """
-    json_pattern = r"\{.*?\}"
-    matches = re.finditer(json_pattern, content, re.DOTALL)
+    search_start = 0
+    while True:
+        # Find the next opening brace
+        start_idx = content.find("{", search_start)
+        if start_idx == -1:
+            # No more '{' found; stop searching
+            return None
 
-    for match in matches:
+        # Track brace depth
+        brace_depth = 0
+        # This will store the end of the matching closing brace once found
+        end_idx = None
+
+        for i in range(start_idx, len(content)):
+            char = content[i]
+            if char == "{":
+                brace_depth += 1
+            elif char == "}":
+                brace_depth -= 1
+
+            # If brace_depth returns to 0, we’ve found a potential JSON substring
+            if brace_depth == 0:
+                end_idx = i
+                break
+
+        # If we never returned to depth 0, it means we couldn't find a matching '}'
+        if end_idx is None:
+            return None
+
+        # Extract the candidate substring
+        candidate = content[start_idx : end_idx + 1]
+
+        # Try to parse it
         try:
-            # Attempt to load the matched string as JSON
-            json_obj = json.loads(match.group())
-            if isinstance(json_obj, dict):  # Ensure it's a JSON object
-                # Remove the matched JSON object from the string
-                remaining_content = content[: match.start()] + content[match.end() :]
-                return json_obj, remaining_content.strip()
+            parsed = json.loads(candidate)
+            # If parsed successfully, check if it's a dict
+            if isinstance(parsed, dict):
+                return parsed
         except json.JSONDecodeError:
-            continue  # Skip invalid JSON matches
+            # Not valid JSON, keep going
+            pass
 
-    # If no valid JSON is found, return None and the original string
-    return None, content
+        # Move just past the current opening brace to look for another candidate
+        search_start = start_idx + 1

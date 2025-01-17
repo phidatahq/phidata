@@ -1992,8 +1992,13 @@ class Agent(BaseModel):
 
         # If a response_model is set, return the response as a structured output
         if self.response_model is not None and self.parse_response:
+            # Set show_tool_calls=False
+            self.show_tool_calls = False
+            logger.debug("Setting show_tool_calls=False as response_model is set")
+
             # Set stream=False and run the agent
             logger.debug("Setting stream=False as response_model is set")
+
             run_response: RunResponse = next(
                 self._run(
                     message=message,
@@ -2017,7 +2022,7 @@ class Agent(BaseModel):
             if isinstance(run_response.content, str):
                 try:
                     structured_output = None
-                    valid_json, cleaned_content = extract_valid_json(run_response.content)
+                    valid_json = extract_valid_json(run_response.content)
                     try:
                         structured_output = self.response_model.model_validate(valid_json)
                     except ValidationError as exc:
@@ -2035,10 +2040,6 @@ class Agent(BaseModel):
                     else:
                         logger.warning("Failed to convert response to response_model")
 
-                    # -*- Try to keep the tool calls
-                    if self.show_tool_calls and cleaned_content:
-                        run_response.tool_calls_content = cleaned_content
-                        self.run_response.tool_calls_content = cleaned_content
 
                 except Exception as e:
                     logger.warning(f"Failed to convert response to output model: {e}")
@@ -2310,6 +2311,10 @@ class Agent(BaseModel):
 
         # If a response_model is set, return the response as a structured output
         if self.response_model is not None and self.parse_response:
+            # Set show_tool_calls=False
+            self.show_tool_calls = False
+            logger.debug("Setting show_tool_calls=False as response_model is set")
+
             # Set stream=False and run the agent
             logger.debug("Setting stream=False as response_model is set")
             run_response = await self._arun(
@@ -2333,7 +2338,7 @@ class Agent(BaseModel):
             if isinstance(run_response.content, str):
                 try:
                     structured_output = None
-                    valid_json, cleaned_content = extract_valid_json(run_response.content)
+                    valid_json = extract_valid_json(run_response.content)
                     try:
                         structured_output = self.response_model.model_validate(valid_json)
                     except ValidationError as exc:
@@ -2349,10 +2354,6 @@ class Agent(BaseModel):
                             self.run_response.content = structured_output
                             self.run_response.content_type = self.response_model.__name__
 
-                    # -*- Try to keep the tool calls
-                    if self.show_tool_calls and cleaned_content:
-                        run_response.tool_calls_content = cleaned_content
-                        self.run_response.tool_calls_content = cleaned_content
                 except Exception as e:
                     logger.warning(f"Failed to convert response to output model: {e}")
             else:
@@ -2968,15 +2969,6 @@ class Agent(BaseModel):
                             response_content_batch = JSON(json.dumps(run_response.content), indent=4)
                         except Exception as e:
                             logger.warning(f"Failed to convert response to JSON: {e}")
-
-                if run_response.tool_calls_content:
-                    # Create panel for tools
-                    tools_panel = self.create_panel(
-                        content=run_response.tool_calls_content,
-                        title="Tool calls",
-                        border_style="blue_violet",
-                    )
-                    panels.append(tools_panel)
 
                 # Create panel for response
                 response_panel = self.create_panel(

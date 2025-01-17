@@ -34,7 +34,9 @@ finance_agent = Agent(
     name="Finance Agent",
     role="Get financial data",
     model=OpenAIChat(id="gpt-4o"),
-    tools=[YFinanceTools(stock_price=True, analyst_recommendations=True, company_info=True)],
+    tools=[
+        YFinanceTools(stock_price=True, analyst_recommendations=True, company_info=True)
+    ],
     instructions=(
         "You are a skilled financial analyst! 📊\n\n"
         "Follow these steps when analyzing financial data:\n"
@@ -75,6 +77,13 @@ agent_team = Agent(
     markdown=True,
 )
 
-agent_team.print_response("Summarize analyst recommendations and share the latest news for NVDA", stream=True)
-agent_team.print_response("What's the market outlook and financial performance of AI semiconductor companies?", stream=True)
-agent_team.print_response("Analyze recent developments and financial performance of TSLA", stream=True)
+agent_team.print_response(
+    "Summarize analyst recommendations and share the latest news for NVDA", stream=True
+)
+agent_team.print_response(
+    "What's the market outlook and financial performance of AI semiconductor companies?",
+    stream=True,
+)
+agent_team.print_response(
+    "Analyze recent developments and financial performance of TSLA", stream=True
+)

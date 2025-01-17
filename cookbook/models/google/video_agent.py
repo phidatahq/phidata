@@ -3,7 +3,7 @@ from pathlib import Path
 
 from agno.agent import Agent
 from agno.models.google import Gemini
-from google.generativeai import upload_file, get_file
+from google.generativeai import get_file, upload_file
 
 agent = Agent(
     model=Gemini(id="gemini-2.0-flash-exp"),

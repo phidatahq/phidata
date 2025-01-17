@@ -1,19 +1,20 @@
 import json
 import os
 import time
-from pydantic import BaseModel, Field
-from agno.run.response import RunResponse
-from agno.workflow import Workflow
+from typing import List
+
 from agno.agent import Agent
-from agno.models.openai import OpenAIChat
+from agno.document.chunking.recursive import RecursiveChunking
+from agno.embedder.openai import OpenAIEmbedder
 from agno.knowledge.website import WebsiteKnowledgeBase
+from agno.models.openai import OpenAIChat
+from agno.run.response import RunResponse
+from agno.utils.log import logger
 from agno.vectordb.lancedb import LanceDb
 from agno.vectordb.search import SearchType
-from agno.embedder.openai import OpenAIEmbedder
-from agno.document.chunking.recursive import RecursiveChunking
-from typing import List
+from agno.workflow import Workflow
 from dotenv import load_dotenv
-from agno.utils.log import logger
+from pydantic import BaseModel, Field
 
 load_dotenv()
 
@@ -25,8 +26,12 @@ class EvaluationJudge(BaseModel):
     Represents a structured response from the evaluation judge on the generated response
     """
 
-    criteria: str = Field(description="Criteria under which the answer falls bad, average or good")
-    reasoning: str = Field(description="One liner reasoning behind choosing the respective criteria for answer")
+    criteria: str = Field(
+        description="Criteria under which the answer falls bad, average or good"
+    )
+    reasoning: str = Field(
+        description="One liner reasoning behind choosing the respective criteria for answer"
+    )
 
 
 class QAWorkflow(Workflow):
@@ -171,9 +176,13 @@ if __name__ == "__main__":
     output_results_path = "evaluation_results.json"
     # Run the QA Workflow
     qa_workflow = QAWorkflow()
-    qa_response = qa_workflow.run(evaluation_path=evaluation_set_path, output_path=output_results_path)
+    qa_response = qa_workflow.run(
+        evaluation_path=evaluation_set_path, output_path=output_results_path
+    )
     logger.info(qa_response.content)
 
     flow_end = time.time()
     duration_flow = flow_end - flow_start
-    logger.info(f"The question generation and evaluation workflow is completed in {duration_flow:.2f} seconds")
+    logger.info(
+        f"The question generation and evaluation workflow is completed in {duration_flow:.2f} seconds"
+    )

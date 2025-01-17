@@ -1,8 +1,8 @@
 """Run `pip install duckduckgo-search sqlalchemy openai` to install dependencies."""
 
 from agno.agent import Agent
-from agno.tools.duckduckgo import DuckDuckGoTools
 from agno.storage.agent.postgres import PostgresDbAgentStorage
+from agno.tools.duckduckgo import DuckDuckGoTools
 
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 

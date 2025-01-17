@@ -7,14 +7,16 @@ Steps:
 """
 
 from agno.agent import Agent
-from agno.tools.duckduckgo import DuckDuckGoTools
 from agno.storage.agent.mongodb import MongoDbAgentStorage
+from agno.tools.duckduckgo import DuckDuckGoTools
 
 # MongoDB connection settings
 db_url = "mongodb://localhost:27017"
 
 agent = Agent(
-    storage=MongoDbAgentStorage(collection_name="agent_sessions", db_url=db_url, db_name="agno"),
+    storage=MongoDbAgentStorage(
+        collection_name="agent_sessions", db_url=db_url, db_name="agno"
+    ),
     tools=[DuckDuckGoTools()],
     add_history_to_messages=True,
 )

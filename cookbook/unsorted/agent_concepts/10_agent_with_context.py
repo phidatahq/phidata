@@ -1,6 +1,6 @@
 import json
-import httpx
 
+import httpx
 from agno.agent import Agent
 
 
@@ -9,10 +9,16 @@ def get_top_hackernews_stories(num_stories: int = 5) -> str:
     stories = [
         {
             k: v
-            for k, v in httpx.get(f"https://hacker-news.firebaseio.com/v0/item/{id}.json").json().items()
+            for k, v in httpx.get(
+                f"https://hacker-news.firebaseio.com/v0/item/{id}.json"
+            )
+            .json()
+            .items()
             if k != "text"
         }
-        for id in httpx.get("https://hacker-news.firebaseio.com/v0/topstories.json").json()[:num_stories]
+        for id in httpx.get(
+            "https://hacker-news.firebaseio.com/v0/topstories.json"
+        ).json()[:num_stories]
     ]
     return json.dumps(stories)
 

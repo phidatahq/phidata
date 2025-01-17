@@ -7,7 +7,12 @@ agent = Agent(
     model=OpenAIChat(id="gpt-4o"),
     tools=[
         DuckDuckGoTools(),
-        YFinanceTools(stock_price=True, analyst_recommendations=True, company_info=True, company_news=True),
+        YFinanceTools(
+            stock_price=True,
+            analyst_recommendations=True,
+            company_info=True,
+            company_news=True,
+        ),
     ],
     # show tool calls in the response
     show_tool_calls=True,

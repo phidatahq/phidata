@@ -1,8 +1,9 @@
 from typing import Iterator
-from rich.pretty import pprint
+
 from agno.agent import Agent, RunResponse
 from agno.models.openai import OpenAIChat
 from agno.tools.dalle import DalleTools
+from rich.pretty import pprint
 
 image_agent = Agent(
     model=OpenAIChat(id="gpt-4o"),

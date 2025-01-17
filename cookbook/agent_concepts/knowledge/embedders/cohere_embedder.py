@@ -1,8 +1,10 @@
 from agno.agent import AgentKnowledge
-from agno.vectordb.pgvector import PgVector
 from agno.embedder.cohere import CohereEmbedder
+from agno.vectordb.pgvector import PgVector
 
-embeddings = CohereEmbedder().get_embedding("The quick brown fox jumps over the lazy dog.")
+embeddings = CohereEmbedder().get_embedding(
+    "The quick brown fox jumps over the lazy dog."
+)
 # Print the embeddings and their dimensions
 print(f"Embeddings: {embeddings[:5]}")
 print(f"Dimensions: {len(embeddings)}")

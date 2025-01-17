@@ -3,9 +3,9 @@
 2. Run the script using: `python cookbook/workflows/investment_report_generator.py`
 """
 
-from typing import Iterator
 from pathlib import Path
 from shutil import rmtree
+from typing import Iterator
 
 from agno.agent import Agent, RunResponse
 from agno.storage.workflow.sqlite import SqliteDbWorkflowStorage
@@ -13,7 +13,6 @@ from agno.tools.yfinance import YFinanceTools
 from agno.utils.log import logger
 from agno.utils.pprint import pprint_run_response
 from agno.workflow import Workflow
-
 
 reports_dir = Path(__file__).parent.joinpath("reports", "investment")
 if reports_dir.is_dir():
@@ -26,12 +25,14 @@ investment_report = str(reports_dir.joinpath("investment_report.md"))
 
 class InvestmentReportGenerator(Workflow):
     # This description is only used in the workflow UI
-    description: str = (
-        "Produce a research report on a list of companies and then rank them based on investment potential."
-    )
+    description: str = "Produce a research report on a list of companies and then rank them based on investment potential."
 
     stock_analyst: Agent = Agent(
-        tools=[YFinanceTools(company_info=True, analyst_recommendations=True, company_news=True)],
+        tools=[
+            YFinanceTools(
+                company_info=True, analyst_recommendations=True, company_news=True
+            )
+        ],
         description="You are a Senior Investment Analyst for Goldman Sachs tasked with producing a research report for a very important client.",
         instructions=[
             "You will be provided with a list of companies to write a report on.",
@@ -73,16 +74,25 @@ class InvestmentReportGenerator(Workflow):
         logger.info(f"Getting investment reports for companies: {companies}")
         initial_report: RunResponse = self.stock_analyst.run(companies)
         if initial_report is None or not initial_report.content:
-            yield RunResponse(run_id=self.run_id, content="Sorry, could not get the stock analyst report.")
+            yield RunResponse(
+                run_id=self.run_id,
+                content="Sorry, could not get the stock analyst report.",
+            )
             return
 
         logger.info("Ranking companies based on investment potential.")
-        ranked_companies: RunResponse = self.research_analyst.run(initial_report.content)
+        ranked_companies: RunResponse = self.research_analyst.run(
+            initial_report.content
+        )
         if ranked_companies is None or not ranked_companies.content:
-            yield RunResponse(run_id=self.run_id, content="Sorry, could not get the ranked companies.")
+            yield RunResponse(
+                run_id=self.run_id, content="Sorry, could not get the ranked companies."
+            )
             return
 
-        logger.info("Reviewing the research report and producing an investment proposal.")
+        logger.info(
+            "Reviewing the research report and producing an investment proposal."
+        )
         yield from self.investment_lead.run(ranked_companies.content, stream=True)
 
 

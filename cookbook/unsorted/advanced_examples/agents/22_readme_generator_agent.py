@@ -21,4 +21,6 @@ readme_gen_agent = Agent(
     ],
 )
 
-readme_gen_agent.print_response("Get details of https://github.com/phidatahq/agno", markdown=True)
+readme_gen_agent.print_response(
+    "Get details of https://github.com/phidatahq/agno", markdown=True
+)

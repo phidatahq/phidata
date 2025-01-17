@@ -1,11 +1,12 @@
 # Import necessary modules
+import pathlib
+
 from agno.agent import Agent
 from agno.knowledge.langchain import LangChainKnowledgeBase
-from langchain.embeddings import OpenAIEmbeddings
 from langchain.document_loaders import TextLoader
+from langchain.embeddings import OpenAIEmbeddings
 from langchain.text_splitter import CharacterTextSplitter
 from langchain.vectorstores import Chroma
-import pathlib
 
 # Define the directory where the Chroma database is located
 chroma_db_dir = pathlib.Path("./chroma_db")
@@ -21,7 +22,9 @@ text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=0)
 documents = text_splitter.split_documents(raw_documents)
 
 # Embed each chunk and load it into the vector store
-Chroma.from_documents(documents, OpenAIEmbeddings(), persist_directory=str(chroma_db_dir))
+Chroma.from_documents(
+    documents, OpenAIEmbeddings(), persist_directory=str(chroma_db_dir)
+)
 
 # Get the vector database
 db = Chroma(embedding_function=OpenAIEmbeddings(), persist_directory=str(chroma_db_dir))

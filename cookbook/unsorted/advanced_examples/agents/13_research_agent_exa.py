@@ -2,8 +2,8 @@
 pip install openai exa-py agno
 """
 
-from textwrap import dedent
 from datetime import datetime
+from textwrap import dedent
 
 from agno.agent import Agent
 from agno.models.openai import OpenAIChat
@@ -11,7 +11,11 @@ from agno.tools.exa import ExaTools
 
 agent = Agent(
     model=OpenAIChat(id="gpt-4o"),
-    tools=[ExaTools(start_published_date=datetime.now().strftime("%Y-%m-%d"), type="keyword")],
+    tools=[
+        ExaTools(
+            start_published_date=datetime.now().strftime("%Y-%m-%d"), type="keyword"
+        )
+    ],
     description="You are an advanced AI researcher writing a report on a topic.",
     instructions=[
         "For the provided topic, run 3 different searches.",

@@ -1,13 +1,12 @@
 import os
-import typer
 from typing import Optional
-from rich.prompt import Prompt
 
+import nltk  # type: ignore
+import typer
 from agno.agent import Agent
 from agno.knowledge.pdf_url import PDFUrlKnowledgeBase
 from agno.vectordb.pineconedb import PineconeDB
-
-import nltk  # type: ignore
+from rich.prompt import Prompt
 
 nltk.download("punkt")
 nltk.download("punkt_tab")

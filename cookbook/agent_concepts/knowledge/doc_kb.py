@@ -3,7 +3,6 @@ from agno.document.base import Document
 from agno.knowledge.document import DocumentKnowledgeBase
 from agno.vectordb.pgvector import PgVector
 
-
 fun_facts = """
 - Earth is the third planet from the Sun and the only known astronomical object to support life.
 - Approximately 71% of Earth's surface is covered by water, with the Pacific Ocean being the largest.
@@ -42,4 +41,6 @@ agent = Agent(
 )
 
 # Ask the agent about the knowledge base
-agent.print_response("Ask me about something from the knowledge base about earth", markdown=True)
+agent.print_response(
+    "Ask me about something from the knowledge base about earth", markdown=True
+)

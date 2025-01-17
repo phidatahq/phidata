@@ -1,7 +1,7 @@
-from mem0 import MemoryClient
 from agno.agent import Agent, RunResponse
 from agno.models.openai import OpenAIChat
 from agno.utils.pprint import pprint_run_response
+from mem0 import MemoryClient
 
 client = MemoryClient()
 
@@ -14,7 +14,11 @@ messages = [
 # Comment out the following line after running the script once
 client.add(messages, user_id=user_id)
 
-agent = Agent(model=OpenAIChat(), context={"memory": client.get_all(user_id=user_id)}, add_context=True)
+agent = Agent(
+    model=OpenAIChat(),
+    context={"memory": client.get_all(user_id=user_id)},
+    add_context=True,
+)
 run: RunResponse = agent.run("What do you know about me?")
 
 pprint_run_response(run)

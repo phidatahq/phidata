@@ -1,4 +1,5 @@
 import json
+
 import httpx
 from agno.agent import Agent
 
@@ -13,7 +14,9 @@ def get_top_hackernews_stories(agent: Agent) -> str:
     # Fetch story details
     stories = []
     for story_id in story_ids[:num_stories]:
-        story_response = httpx.get(f"https://hacker-news.firebaseio.com/v0/item/{story_id}.json")
+        story_response = httpx.get(
+            f"https://hacker-news.firebaseio.com/v0/item/{story_id}.json"
+        )
         story = story_response.json()
         if "text" in story:
             story.pop("text", None)

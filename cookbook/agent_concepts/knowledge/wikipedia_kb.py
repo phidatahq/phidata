@@ -23,4 +23,6 @@ agent = Agent(
 )
 
 # Ask the agent about the knowledge base
-agent.print_response("Which team is objectively better, Manchester United or Real Madrid?")
+agent.print_response(
+    "Which team is objectively better, Manchester United or Real Madrid?"
+)

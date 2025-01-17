@@ -1,5 +1,5 @@
 """🗽 News Reporter - Your AI News Buddy!
-Run `pip install duckduckgo-search` to install dependencies."""
+Run `pip install openai duckduckgo-search agno` to install dependencies."""
 
 from agno.agent import Agent
 from agno.models.openai import OpenAIChat
@@ -23,11 +23,13 @@ agent = Agent(
     ),
     tools=[DuckDuckGoTools()],
     show_tool_calls=True,
-    markdown=True
+    markdown=True,
 )
 
 # Example questions to try:
 # - "What's happening in New York right now?"
 # - "Tell me about the latest Broadway shows!"
 # - "What's the buzz in Central Park this season?"
-agent.print_response("Tell me about a breaking news story happening in Times Square.", stream=True)
+agent.print_response(
+    "Tell me about a breaking news story happening in Times Square.", stream=True
+)

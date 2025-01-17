@@ -64,7 +64,7 @@ pip install agno openai
 
 export OPENAI_API_KEY=sk-xxxx
 
-python 00_simple_agent.py
+python 00_basic_agent.py
 ```
 
 This agent will obviously make up the story, lets give it a tool to search the web.

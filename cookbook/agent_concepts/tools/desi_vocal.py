@@ -22,4 +22,6 @@ audio_agent = Agent(
     show_tool_calls=True,
 )
 
-audio_agent.print_response("Generate a very small audio of history of french revolution")
+audio_agent.print_response(
+    "Generate a very small audio of history of french revolution"
+)

@@ -1,7 +1,7 @@
 from agno.agent import Agent
 from agno.knowledge.pdf_url import PDFUrlKnowledgeBase
-from agno.vectordb.pgvector import PgVector
 from agno.tools.exa import ExaTools
+from agno.vectordb.pgvector import PgVector
 
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 
@@ -28,5 +28,6 @@ recipe_agent = Agent(
 )
 
 recipe_agent.print_response(
-    "I have potatoes, tomatoes, onions, garlic, ginger, and chicken. Suggest me a quick recipe for dinner", stream=True
+    "I have potatoes, tomatoes, onions, garlic, ginger, and chicken. Suggest me a quick recipe for dinner",
+    stream=True,
 )

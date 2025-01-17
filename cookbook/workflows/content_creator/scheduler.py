@@ -1,11 +1,16 @@
-import requests
 import datetime
-from typing import Optional, Dict, Any
-from pydantic import BaseModel
-from dotenv import load_dotenv
+from typing import Any, Dict, Optional
 
-from cookbook.workflows.content_creator_workflow.config import TYPEFULLY_API_URL, HEADERS, PostType
+import requests
 from agno.utils.log import logger
+from dotenv import load_dotenv
+from pydantic import BaseModel
+
+from cookbook.workflows.content_creator_workflow.config import (
+    HEADERS,
+    TYPEFULLY_API_URL,
+    PostType,
+)
 
 load_dotenv()
 
@@ -91,12 +96,17 @@ def schedule(
             thread_content = json_to_linkedin_content(thread_json)
 
         # Calculate schedule time
-        schedule_date = (datetime.datetime.utcnow() + datetime.timedelta(hours=hours_from_now)).isoformat() + "Z"
+        schedule_date = (
+            datetime.datetime.utcnow() + datetime.timedelta(hours=hours_from_now)
+        ).isoformat() + "Z"
 
         if thread_content:
             # Schedule the thread
             response = schedule_thread(
-                content=thread_content, schedule_date=schedule_date, threadify=threadify, share=share
+                content=thread_content,
+                schedule_date=schedule_date,
+                threadify=threadify,
+                share=share,
             )
 
             if response:

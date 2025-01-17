@@ -1,8 +1,10 @@
 from agno.agent import AgentKnowledge
-from agno.vectordb.pgvector import PgVector
 from agno.embedder.voyageai import VoyageAIEmbedder
+from agno.vectordb.pgvector import PgVector
 
-embeddings = VoyageAIEmbedder().get_embedding("The quick brown fox jumps over the lazy dog.")
+embeddings = VoyageAIEmbedder().get_embedding(
+    "The quick brown fox jumps over the lazy dog."
+)
 
 # Print the embeddings and their dimensions
 print(f"Embeddings: {embeddings[:5]}")

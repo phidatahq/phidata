@@ -10,19 +10,17 @@ Steps to run the workflow:
 5. The workflow will scrape the website of each company, extract relevant information, and generate and send a personalized email.
 """
 
-from typing import Optional, Iterator, Dict, Any, List
-
-from pydantic import BaseModel, Field
-from pydantic import ValidationError
+from typing import Any, Dict, Iterator, List, Optional
 
 from agno.agent import Agent
 from agno.models.openai import OpenAIChat
-from agno.workflow import Workflow, RunResponse
 from agno.tools.firecrawl import FirecrawlTools
 from agno.tools.resend_tools import ResendTools
-from agno.utils.pprint import pprint_run_response
 from agno.utils.log import logger
-from email_validator import validate_email, EmailNotValidError
+from agno.utils.pprint import pprint_run_response
+from agno.workflow import RunResponse, Workflow
+from email_validator import EmailNotValidError, validate_email
+from pydantic import BaseModel, Field, ValidationError
 
 company_info: Dict = {
     "Agno": {
@@ -102,9 +100,15 @@ email_template = """
 class CompanyInfo(BaseModel):
     company_name: str = Field(..., description="Name of the company.")
     motto: Optional[str] = Field(None, description="Company motto or tagline.")
-    core_business: Optional[str] = Field(None, description="Primary business of the company.")
-    unique_selling_point: Optional[str] = Field(None, description="What sets the company apart from its competitors.")
-    email_address: Optional[str] = Field(None, description="Email address of the company.")
+    core_business: Optional[str] = Field(
+        None, description="Primary business of the company."
+    )
+    unique_selling_point: Optional[str] = Field(
+        None, description="What sets the company apart from its competitors."
+    )
+    email_address: Optional[str] = Field(
+        None, description="Email address of the company."
+    )
 
 
 def company_info_to_string(contact_email: str, company: CompanyInfo) -> str:
@@ -129,7 +133,9 @@ def company_info_to_string(contact_email: str, company: CompanyInfo) -> str:
         contact_email = email_info.normalized
     except EmailNotValidError:
         logger.warning(f"Invalid email address: {contact_email}. Using fallback.")
-        contact_email = company.email_address if company.email_address else "unreachable"
+        contact_email = (
+            company.email_address if company.email_address else "unreachable"
+        )
     parts.append(f"contactable at {contact_email}")
 
     return ", ".join(parts) + "."
@@ -176,14 +182,18 @@ class PersonalisedMarketing(Workflow):
             scraper_response = self.scraper.run(info["website"])
 
             if not scraper_response or not scraper_response.content:
-                logger.warning(f"No data returned by scraper for {company_key}. Skipping.")
+                logger.warning(
+                    f"No data returned by scraper for {company_key}. Skipping."
+                )
                 continue
 
             # 2. Validate or parse the scraped content
             try:
                 company_extracted_data = scraper_response.content
                 if not isinstance(company_extracted_data, CompanyInfo):
-                    logger.error(f"Scraped data for {company_key} is not a CompanyInfo instance. Skipping.")
+                    logger.error(
+                        f"Scraped data for {company_key} is not a CompanyInfo instance. Skipping."
+                    )
                     continue
             except ValidationError as e:
                 logger.error(f"Validation error for {company_key}: {e}")

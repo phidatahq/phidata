@@ -2,6 +2,7 @@
 Run `pip install duckduckgo-search` to install dependencies."""
 
 from agno.agent import Agent
+from agno.media import ImageInput
 from agno.models.openai import OpenAIChat
 from agno.tools.duckduckgo import DuckDuckGoTools
 
@@ -29,7 +30,9 @@ agent = Agent(
 agent.print_response(
     "Tell me about this image and give me the latest news about its city.",
     images=[
-        "https://upload.wikimedia.org/wikipedia/commons/a/ab/Empire_State_Building_From_Rooftop_2019-10-05_19-11.jpg",
+        ImageInput(
+            url="https://upload.wikimedia.org/wikipedia/commons/a/ab/Empire_State_Building_From_Rooftop_2019-10-05_19-11.jpg",
+        ),
     ],
     stream=True,
 )

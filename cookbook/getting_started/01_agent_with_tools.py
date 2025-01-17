@@ -1,4 +1,4 @@
-"""🗽 News Reporter - Your AI News Buddy!
+"""🗽 Web Searching News Reporter - Your AI News Buddy that searches the web
 Run `pip install openai duckduckgo-search agno` to install dependencies."""
 
 from agno.agent import Agent

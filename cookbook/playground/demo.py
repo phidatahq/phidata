@@ -14,6 +14,8 @@ from agno.tools.yfinance import YFinanceTools
 from agno.tools.youtube_tools import YouTubeTools
 
 agent_storage_file: str = "tmp/agents.db"
+image_agent_storage_file: str = "tmp/image_agent.db"
+
 
 simple_agent = Agent(
     name="Simple Agent",
@@ -69,14 +71,21 @@ finance_agent = Agent(
 
 image_agent = Agent(
     name="Image Agent",
-    role="Generate images given a prompt",
-    agent_id="image-agent",
+    agent_id="image_agent",
     model=OpenAIChat(id="gpt-4o"),
     tools=[DalleTools(model="dall-e-3", size="1792x1024", quality="hd", style="vivid")],
-    storage=SqliteDbAgentStorage(table_name="image_agent", db_file=agent_storage_file),
+    description="You are an AI agent that can generate images using DALL-E.",
+    instructions=[
+        "When the user asks you to create an image, use the `create_image` tool to create the image.",
+        "Don't provide the URL of the image in the response. Only describe what image was generated.",
+    ],
+    markdown=True,
+    debug_mode=True,
     add_history_to_messages=True,
     add_datetime_to_instructions=True,
-    markdown=True,
+    storage=SqliteDbAgentStorage(
+        table_name="image_agent", db_file=image_agent_storage_file
+    ),
 )
 
 research_agent = Agent(

@@ -1,7 +1,7 @@
 import base64
 import requests
 from agno.agent import Agent
-from agno.media import AudioInput
+from agno.media import Audio
 from agno.models.openai import OpenAIChat
 from agno.utils.audio import write_audio_to_file
 
@@ -20,7 +20,7 @@ agent = Agent(
 
 agent.run(
     "What's in these recording?",
-    audio=[AudioInput(content=wav_data, format="wav")]
+    audio=[Audio(content=wav_data, format="wav")]
 )
 
 if agent.run_response.response_audio is not None:

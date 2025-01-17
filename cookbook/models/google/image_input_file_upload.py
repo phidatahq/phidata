@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from agno.agent import Agent
-from agno.media import ImageInput
+from agno.media import Image
 from agno.models.google import Gemini
 from agno.tools.duckduckgo import DuckDuckGoTools
 from google.generativeai import upload_file
@@ -20,6 +20,6 @@ print(f"Uploaded image: {image_file}")
 
 agent.print_response(
     "Tell me about this image and give me the latest news about it.",
-    images=[ImageInput(content=image_file)],
+    images=[Image(content=image_file)],
     stream=True,
 )

@@ -9,7 +9,7 @@ import time
 from pathlib import Path
 
 from agno.agent import Agent
-from agno.media import VideoInput
+from agno.media import Video
 from agno.models.google import Gemini
 from agno.utils.log import logger
 from google.generativeai import get_file, upload_file
@@ -73,7 +73,7 @@ Your goal is to identify moments that are visually compelling, emotionally engag
 """
 
 # 4. Generate Video Analysis
-response = agent.run(query, videos=[VideoInput(content=video_file)])
+response = agent.run(query, videos=[Video(content=video_file)])
 
 # 5. Create output directory
 output_dir = Path(output_dir)

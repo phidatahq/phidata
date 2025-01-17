@@ -1,5 +1,5 @@
 from agno.agent import Agent
-from agno.media import ImageInput
+from agno.media import Image
 from agno.models.openai import OpenAIChat
 
 agent = Agent(
@@ -10,7 +10,7 @@ agent = Agent(
 agent.print_response(
     "What's in these images",
     images=[
-        ImageInput(url="https://upload.wikimedia.org/wikipedia/commons/thumb/d/dd/Gfp-wisconsin-madison-the-nature-boardwalk.jpg/2560px-Gfp-wisconsin-madison-the-nature-boardwalk.jpg",
-                   detail="high")
+        Image(url="https://upload.wikimedia.org/wikipedia/commons/thumb/d/dd/Gfp-wisconsin-madison-the-nature-boardwalk.jpg/2560px-Gfp-wisconsin-madison-the-nature-boardwalk.jpg",
+              detail="high")
     ],
 )

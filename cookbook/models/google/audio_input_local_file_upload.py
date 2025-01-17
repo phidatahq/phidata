@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from agno.agent import Agent
-from agno.media import AudioInput
+from agno.media import Audio
 from agno.models.google import Gemini
 
 agent = Agent(
@@ -14,6 +14,6 @@ audio_path = Path(__file__).parent.joinpath("sample.mp3")
 
 agent.print_response(
     "Tell me about this audio",
-    audio=[AudioInput(filepath=audio_path)],
+    audio=[Audio(filepath=audio_path)],
     stream=True,
 )

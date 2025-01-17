@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional, Sequence, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from agno.media import AudioInput, AudioOutput, ImageInput, VideoInput
+from agno.media import Audio, AudioOutput, Image, Video
 from agno.utils.log import logger
 
 
@@ -36,9 +36,9 @@ class Message(BaseModel):
     tool_calls: Optional[List[Dict[str, Any]]] = None
 
     # Additional modalities
-    audio: Optional[Sequence[AudioInput]] = None
-    images: Optional[Sequence[ImageInput]] = None
-    videos: Optional[Sequence[VideoInput]] = None
+    audio: Optional[Sequence[Audio]] = None
+    images: Optional[Sequence[Image]] = None
+    videos: Optional[Sequence[Video]] = None
 
     # Output from the models
     audio_output: Optional[AudioOutput] = None

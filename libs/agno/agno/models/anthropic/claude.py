@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 from os import getenv
 from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 
-from agno.media import ImageInput
+from agno.media import Image
 from agno.models.base import Model
 from agno.models.message import Message
 from agno.models.response import ModelResponse
@@ -157,7 +157,7 @@ class Claude(Model):
                 chat_messages.append({"role": message.role, "content": content})  # type: ignore
         return chat_messages, " ".join(system_messages)
 
-    def format_image_for_message(self, image: ImageInput) -> Optional[Dict[str, Any]]:
+    def format_image_for_message(self, image: Image) -> Optional[Dict[str, Any]]:
         """
         Add an image to a message by converting it to base64 encoded format.
 

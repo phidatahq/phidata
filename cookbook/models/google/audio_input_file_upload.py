@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from agno.agent import Agent
-from agno.media import AudioInput
+from agno.media import Audio
 from agno.models.google import Gemini
 from google.generativeai import upload_file
 
@@ -17,6 +17,6 @@ print(f"Uploaded audio: {audio_file}")
 
 agent.print_response(
     "Tell me about this audio",
-    audio=[AudioInput(content=audio_file)],
+    audio=[Audio(content=audio_file)],
     stream=True,
 )

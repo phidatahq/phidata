@@ -2,7 +2,7 @@ import time
 from pathlib import Path
 
 from agno.agent import Agent
-from agno.media import VideoInput
+from agno.media import Video
 from agno.models.google import Gemini
 from google.generativeai import upload_file, get_file
 
@@ -23,4 +23,4 @@ while video_file.state.name == "PROCESSING":
 
 print(f"Uploaded video: {video_file}")
 
-agent.print_response("Tell me about this video", videos=[VideoInput(content=video_file)], stream=True)
+agent.print_response("Tell me about this video", videos=[Video(content=video_file)], stream=True)

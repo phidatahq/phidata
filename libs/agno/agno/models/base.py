@@ -4,7 +4,7 @@ from pathlib import Path
 from types import GeneratorType
 from typing import Any, Callable, Dict, Iterator, List, Optional, Sequence, Union
 
-from agno.media import AudioInput, ImageInput
+from agno.media import Audio, Image
 from agno.models.message import Message
 from agno.models.response import ModelResponse, ModelResponseEvent
 from agno.tools import Toolkit
@@ -416,7 +416,7 @@ class Model:
         image_url = f"data:image/jpeg;base64,{base64_image}"
         return {"type": "image_url", "image_url": {"url": image_url}}
 
-    def process_image(self, image: ImageInput) -> Optional[Dict[str, Any]]:
+    def process_image(self, image: Image) -> Optional[Dict[str, Any]]:
         """Process an image based on the format."""
 
         if image.url is not None:
@@ -437,7 +437,7 @@ class Model:
 
         return image_payload
 
-    def add_images_to_message(self, message: Message, images: Sequence[ImageInput]) -> Message:
+    def add_images_to_message(self, message: Message, images: Sequence[Image]) -> Message:
         """
         Add images to a message for the model. By default, we use the OpenAI image format but other Models
         can override this method to use a different image format.
@@ -478,7 +478,7 @@ class Model:
         message.content = message_content_with_image
         return message
 
-    def add_audio_to_message(self, message: Message, audio: Sequence[AudioInput]) -> Message:
+    def add_audio_to_message(self, message: Message, audio: Sequence[Audio]) -> Message:
         """
         Add audio to a message for the model. By default, we use the OpenAI audio format but other Models
         can override this method to use a different audio format.

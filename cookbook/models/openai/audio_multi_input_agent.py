@@ -1,6 +1,6 @@
 import requests
 from agno.agent import Agent, RunResponse  # noqa
-from agno.media import AudioInput
+from agno.media import Audio
 from agno.models.openai import OpenAIChat
 
 # Fetch the audio file and convert it to a base64 encoded string
@@ -17,6 +17,6 @@ agent = Agent(
     num_history_responses=3,
     debug_mode=True
 )
-agent.print_response("What is in this audio?", audio=[AudioInput(content=wav_data, format="wav")])
+agent.print_response("What is in this audio?", audio=[Audio(content=wav_data, format="wav")])
 
 agent.print_response("What else can you tell me about it?")

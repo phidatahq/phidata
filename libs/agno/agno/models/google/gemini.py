@@ -6,7 +6,7 @@ from os import getenv
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterator, List, Optional, Union
 
-from agno.media import AudioInput, ImageInput, VideoInput
+from agno.media import Audio, Image, Video
 from agno.models.base import Model
 from agno.models.message import Message
 from agno.models.response import ModelResponse
@@ -137,7 +137,7 @@ class Gemini(Model):
             request_params["tools"] = [GeminiTool(function_declarations=self.function_declarations)]
         return request_params
 
-    def format_image_for_message(self, image: ImageInput) -> Optional[Dict[str, Any]]:
+    def format_image_for_message(self, image: Image) -> Optional[Dict[str, Any]]:
         # Case 1: Image is a URL
         # Download the image from the URL and add it as base64 encoded data
         if image.url is not None and image.image_url_content is not None:
@@ -185,7 +185,7 @@ class Gemini(Model):
             logger.warning(f"Unknown image type: {type(image)}")
             return None
 
-    def format_audio_for_message(self, audio: AudioInput) -> Optional[Union[Dict[str, Any], file_types.File]]:
+    def format_audio_for_message(self, audio: Audio) -> Optional[Union[Dict[str, Any], file_types.File]]:
         if audio.content and isinstance(audio.content, bytes):
             audio_content = {"mime_type": "audio/mp3", "data": audio.content}
             return audio_content
@@ -223,7 +223,7 @@ class Gemini(Model):
             logger.warning(f"Unknown audio type: {type(audio.content)}")
             return None
 
-    def format_video_for_message(self, video: VideoInput) -> Optional[file_types.File]:
+    def format_video_for_message(self, video: Video) -> Optional[file_types.File]:
         # If video is stored locally
         if video.filepath is not None:
             video_path = video.filepath if isinstance(video.filepath, Path) else Path(video.filepath)

@@ -39,7 +39,7 @@ class AudioArtifact(Media):
         return data
 
 
-class VideoInput(BaseModel):
+class Video(BaseModel):
     filepath: Optional[Union[Path, str]] = None  # Absolute local location for video
     content: Optional[Any] = None  # Actual video bytes content
 
@@ -63,7 +63,7 @@ class VideoInput(BaseModel):
         return data
 
 
-class AudioInput(BaseModel):
+class Audio(BaseModel):
     content: Optional[Any] = None  # Actual audio bytes content
     filepath: Optional[Union[Path, str]] = None  # Absolute local location for audio
     format: Optional[str] = None
@@ -95,7 +95,7 @@ class AudioOutput(BaseModel):
     transcript: str
 
 
-class ImageInput(BaseModel):
+class Image(BaseModel):
     url: Optional[str] = None  # Remote location for image
     filepath: Optional[Union[Path, str]] = None  # Absolute local location for image
     content: Optional[Any] = None  # Actual image bytes content

@@ -2,7 +2,7 @@ import base64
 
 import requests
 from agno.agent import Agent, RunResponse  # noqa
-from agno.media import AudioInput
+from agno.media import Audio
 from agno.models.openai import OpenAIChat
 
 # Fetch the audio file and convert it to a base64 encoded string
@@ -16,4 +16,4 @@ agent = Agent(
     model=OpenAIChat(id="gpt-4o-audio-preview", modalities=["text"]),
     markdown=True,
 )
-agent.print_response("What is in this audio?", audio=[AudioInput(content=wav_data, format="wav")])
+agent.print_response("What is in this audio?", audio=[Audio(content=wav_data, format="wav")])

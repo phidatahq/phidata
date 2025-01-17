@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 
 from agno.agent.agent import Agent, RunResponse
 from agno.agent.session import AgentSession
-from agno.media import ImageInput
+from agno.media import Image
 from agno.playground.operator import (
     format_tools,
     get_agent_by_id,
@@ -87,16 +87,16 @@ def get_sync_playground_router(
 
         return agent_list
 
-    def chat_response_streamer(agent: Agent, message: str, images: Optional[List[ImageInput]] = None) -> Generator:
+    def chat_response_streamer(agent: Agent, message: str, images: Optional[List[Image]] = None) -> Generator:
         run_response = agent.run(message=message, images=images, stream=True, stream_intermediate_steps=True)
         for run_response_chunk in run_response:
             run_response_chunk = cast(RunResponse, run_response_chunk)
             yield run_response_chunk.to_json()
 
-    def process_image(file: UploadFile) -> ImageInput:
+    def process_image(file: UploadFile) -> Image:
         content = file.file.read()
 
-        return ImageInput(content=content)
+        return Image(content=content)
 
     @playground_router.post("/agents/{agent_id}/runs")
     def create_agent_run(
@@ -133,7 +133,7 @@ def get_sync_playground_router(
         else:
             new_agent_instance.monitoring = False
 
-        base64_image: Optional[ImageInput] = None
+        base64_image: Optional[Image] = None
         if image:
             base64_image = process_image(image)
 

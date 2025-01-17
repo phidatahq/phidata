@@ -3,7 +3,7 @@ from pathlib import Path
 import requests
 
 from agno.agent import Agent
-from agno.media import AudioInput
+from agno.media import Audio
 from agno.models.google import Gemini
 
 agent = Agent(
@@ -19,6 +19,6 @@ audio_content = response.content
 
 agent.print_response(
     "Tell me about this audio",
-    audio=[AudioInput(content=audio_content)],
+    audio=[Audio(content=audio_content)],
     stream=True,
 )

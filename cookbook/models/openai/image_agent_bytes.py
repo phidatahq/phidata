@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from agno.agent import Agent
-from agno.media import ImageInput
+from agno.media import Image
 from agno.models.openai import OpenAIChat
 from agno.tools.duckduckgo import DuckDuckGoTools
 
@@ -20,7 +20,7 @@ with open(image_path, "rb") as img_file:
 agent.print_response(
     "Tell me about this image and give me the latest news about it.",
     images=[
-        ImageInput(content=image_bytes),
+        Image(content=image_bytes),
     ],
     stream=True,
 )

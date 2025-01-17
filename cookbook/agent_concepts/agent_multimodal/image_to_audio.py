@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from agno.agent import Agent, RunResponse
-from agno.media import ImageInput
+from agno.media import Image
 from agno.models.openai import OpenAIChat
 from agno.utils.audio import write_audio_to_file
 from rich import print
@@ -14,7 +14,7 @@ image_agent = Agent(model=OpenAIChat(id="gpt-4o"))
 image_path = Path(__file__).parent.joinpath("multimodal-agents.jpg")
 image_story: RunResponse = image_agent.run(
     "Write a 3 sentence fiction story about the image",
-    images=[ImageInput(filepath=image_path)],
+    images=[Image(filepath=image_path)],
 )
 formatted_text = Text.from_markup(
     f":sparkles: [bold magenta]Story:[/bold magenta] {image_story.content} :sparkles:"

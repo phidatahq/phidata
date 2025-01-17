@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from agno.agent import Agent
-from agno.media import VideoInput
+from agno.media import Video
 from agno.models.google import Gemini
 
 agent = Agent(
@@ -14,4 +14,4 @@ agent = Agent(
 video_path = Path(__file__).parent.joinpath("GreatRedSpot.mp4")
 
 agent.print_response("Tell me about this video",
-                     videos=[VideoInput(filepath=video_path)])
+                     videos=[Video(filepath=video_path)])

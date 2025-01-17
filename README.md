@@ -10,27 +10,25 @@ Agno: High Performance AI Agents
 
 ## Overview
 
-[Agno](https://docs.agno.com) is an Agent framework designed for performance and scale. Agno agents are model-agnostic, multi-modal and come with built-in memory, knowledge and session management.
+[Agno](https://docs.agno.com) is a lightning-fast, model-agnostic framework for building scalable Agents.
 
-**Agno gets the fundamentals right:** Build performant agents with a minimal memory footprint, reliable tool calling, session, memory and knowledge management. Agno lets the developer design the workflow in pure python. No graphs, no chains, no random patterns that you have to learn or fight against. Want cycles, use loops; want conditions, use if/else; want error handling, use try/except.
-
-**Agno is feature complete:** Agno, previously phidata, was in active development for 2 years and is used in production at 100s of companies.  We’re mostly feature complete and are now focused on reliability and usability. We’ll continue to add integrations, fix bugs and improve performance but our core focus is to provide the best agent development experience and stability and reliability are at the heart of that.
+### Design principles:
+- **Simplicity**: No graphs, chains, or convoluted patterns — just Python.
+- **Uncompromising Performance**: Blazing fast agents with a minimal memory footprint.
+- **Truly Agnostic**: Any model, any provider, any modality. Future-proof agents.
 
 ## Key Features
 
-- **Lightning Fast**: Agents instantiate in <10μs on M4 chips (more details below)
-- **Model Agnostic**: Use any provider, any model
-- **Multi Modal**: Native support for Text, Image, Audio and Video
-- **Multi Agent**: Agents can delegate tasks to a team of agents
-- **Memory**: Store session and user memories in any database
-- **Knowledge**: Store knowledge in any vectordb, use for Agentic RAG or dynamic few-shot
-- **Reasoning**: Agents can work through problems step-by-step, backtracking and correcting as needed
-- **Evals**: Measure Agent performance and accuracy
-- **Structured Outputs**: Agents can respond with a structured output using a Pydantic model
-- **Pre-built tools**: Agno currently has 60+ toolkits and integrations with more added every week
-- **Monitoring**: Monitor Agent sessions and performance on [agno.com](https://www.agno.com)
+- **🚀 Lightning Fast**: Agents instantiate in under 10μs (on M4 chips).
+- **⚙️ Model Agnostic**: Use any provider, any model-no lock-in.
+- **📷 Multi-Modal**: Native support for text, image, audio, and video.
+- **🤝 Multi-Agent**: Delegate tasks across a team of specialized agents.
+- **🧠 Memory Management**: Store user sessions and context in a database.
+- **📚 Knowledge Stores**: Integrate vector databases for RAG or dynamic few-shot learning.
+- **🧩 Structured Outputs**: Respond with structured data.
+- **📈 Monitoring**: Track agent sessions and performance in real-time with [Agno Cloud](https://app.agno.com).
 
-## Install
+## Installation
 
 ```shell
 pip install -U agno
@@ -38,11 +36,14 @@ pip install -U agno
 
 ## What are Agents?
 
-Agents are programs where a language model controls the flow of execution. Instead of forcing ourselves into a binary definition, we recommend looking at Agents through the lens of Agency and Autonomy.
+Agents are programs that use language models to control execution flows. They can perform tasks autonomously by integrating tools, memory, and knowledge.
 
-## Level 0: Agent with no tools
+- **Level 0**: Agents with no tools (basic inference tasks).
+- **Level 1**: Agents with tools for advanced task execution.
+- **Level 2**: Agents with knowledge, combining memory and reasoning.
+- **Level 3**: Teams of agents collaborating on complex workflows.
 
-The simplest agent makes a call to a language model and returns the response.
+## Example - Basic Agent
 
 ```python
 from agno.agent import Agent
@@ -68,9 +69,7 @@ python 00_simple_agent.py
 
 This agent will obviously make up the story, lets give it a tool to search the web.
 
-## Level 1: Agent with tools
-
-We start to see the power of Agents by giving them tools to achieve their goals. This agent will search the web and generate the response.
+## Example - Agent with tools
 
 ```python
 from agno.agent import Agent
@@ -95,13 +94,11 @@ pip install duckduckgo-search
 python 01_agent_with_tools.py
 ```
 
-## Level 2: Agent with knowledge
+## Example - Agent with knowledge
 
-The next level of agency comes from giving the agent knowledge. We store knowledge in a vector database which can be used for RAG or dynamic few-shot. Eg: If you're building a text-to-sql agent, you can store sample queries in the knowledge base and use it to generate better SQL queries.
+Agents can store knowledge in a vector database which can be used for RAG or dynamic few-shot. Eg: If you're building a text-to-sql agent, you can store sample queries in the knowledge base and use them to generate better responses.
 
-**Agno agents use Agentic RAG** by default, which means they will search their knowledge base for the specific information they need to achieve their task. In this example, the agent will search the knowledge base for Thai recipes but if the question is better suited for the web or it doesn't find the information in the knowledge base, it will search the web to fill in gaps.
-
-Agno supports all major vectordbs and embedding models, with more integrations added every week. This example uses LanceDB and the `text-embedding-3-small` embedding model.
+**Agno agents use Agentic RAG** by default, which means they will search their knowledge base for the specific information they need to achieve their task.
 
 ```python
 from agno.agent import Agent
@@ -111,7 +108,7 @@ from agno.tools.duckduckgo import DuckDuckGoTools
 from agno.knowledge.pdf_url import PDFUrlKnowledgeBase
 from agno.vectordb.lancedb import LanceDb, SearchType
 
-level_2_agent = Agent(
+agent = Agent(
     model=OpenAIChat(id="gpt-4o"),
     description="You are a Thai cuisine expert!",
     instructions=[
@@ -134,11 +131,11 @@ level_2_agent = Agent(
 )
 
 # Comment out after first run
-if level_2_agent.knowledge is not None:
-    level_2_agent.knowledge.load()
+if agent.knowledge is not None:
+    agent.knowledge.load()
 
-level_2_agent.print_response("How do I make chicken and galangal in coconut milk soup", stream=True)
-level_2_agent.print_response("What is the history of Thai curry?", stream=True)
+agent.print_response("How do I make chicken and galangal in coconut milk soup", stream=True)
+agent.print_response("What is the history of Thai curry?", stream=True)
 ```
 
 Install dependencies and run the Agent:
@@ -149,14 +146,9 @@ pip install lancedb tantivy pypdf duckduckgo-search
 python 02_agent_with_knowledge.py
 ```
 
-## Level 3: Multi Agent Teams
+## Example - Multi Agent Teams
 
-Agents work best when they have a singular purpose, a narrow scope and a small number of tools. When the number of tools grows beyond what the language model can handle or the tools belong to different categories, we recommend using a team of agents to achieve the task. As complexity grows:
-- Split functionality into specialized agents
-- Group related tools together (e.g., one agent for web searches, another for financial analysis)
-- Create teams of agents that can collaborate on complex tasks
-
-This approach improves reliability, makes debugging easier, and helps prevent cognitive overload on the language model.
+Agents work best when they have a singular purpose, a narrow scope and a small number of tools. When the number of tools grows beyond what the language model can handle or the tools belong to different categories, use a team of agents to achieve the task.
 
 ```python
 from agno.agent import Agent
@@ -192,8 +184,7 @@ agent_team = Agent(
     markdown=True,
 )
 
-agent_team.print_response("What's the market outlook and financial performance of AI semiconductor companies?",
-                          stream=True)
+agent_team.print_response("What's the market outlook and financial performance of AI semiconductor companies?", stream=True)
 ```
 
 Install dependencies and run the Agent team:
@@ -206,7 +197,12 @@ python 03_agent_team.py
 
 ## Performance
 
-Performance is a key focus for Agno. While the Agent's performance is bottlenecked by inference, as engineers all we can do is minimize agent instantiation time, reduce memory usage, and parallelize tool calls whenever possible.
+Agno is built for speed and scale:
+
+- Instantiation: <10μs on average (6000x faster than LangGraph).
+- Memory: Agents use 2.6x less memory than LangGraph in benchmarks.
+
+While an Agent's performance is bottlenecked by inference, all we can do is minimize execution time, reduce memory usage, and parallelize tool calls where possible.
 
 ### Instantiation time
 
@@ -222,7 +218,7 @@ python evals/performance/instantiation_with_tool.py
 python evals/performance/other/langgraph_instantiation.py
 ```
 
-The following evaluation is run on an Apple M4 Mackbook Pro, but we'll soon be moving this to a github actions runner. LangGraph is on the right, we start it first to minimize bias and Agno is on the left.
+The following evaluation is run on an Apple M4 Mackbook Pro, but we'll soon be moving this to a github actions runner for consistency. LangGraph is on the right, we start it first to minimize bias and Agno is on the left.
 
 https://github.com/user-attachments/assets/712216a4-974a-415e-8849-f77043b7997f
 
@@ -232,26 +228,24 @@ Dividing the average time taken to instantiate a Langgraph Agent by the average 
 0.020019s / 0.000003s ~ 6673
 ```
 
-**Agno Agent instantiation is roughly 6000x times faster than Langgraph Agent instantiation**. Sure, the runtime is dominated by inference, but these numbers add up at scale.
+**Agno Agent instantiation is roughly 6000x times faster than Langgraph Agent instantiation**. Sure, the runtime is dominated by inference, but these numbers will add up.
 
 ### Memory usage
 
-The memory footprint of an Agent is a key factor in scaling your application. In the benchmarks above, ~30Mib of memory usage is from the memory profiler, Agno Agents use 66.6 - 30 ~ 36.6Mib of memory. Whereas Langgraph Agents use 125.3 - 30 ~ 95.3Mib of memory. Langgraph Agents use 2.6x more memory than Agno Agents.
-
-When you're running 1000s of Agents in production, these numbers will add up.
+In the benchmarks above, ~30Mib of memory usage is from the memory profiler, Agno Agents use 66.6 - 30 ~ 36.6Mib of memory. Whereas Langgraph Agents use 125.3 - 30 ~ 95.3Mib of memory. Langgraph Agents use 2.6x more memory than Agno Agents. When you're running 1000s of Agents in production, these numbers will add up.
 
 We understand that these aren't the most accurate benchmarks, but we'll publish accuracy, reliability and performance benchmarks running on github actions in the coming weeks.
 
 ## Documentation, Community & More examples
 
-- Our documentation is available at <a href="https://docs.agno.com" target="_blank" rel="noopener noreferrer">docs.agno.com</a>
-- More examples are available in the [cookbook](https://github.com/agno-agi/agno/tree/main/cookbook)
-- If you have any questions, post them on the [community forum](https://community.agno.com/)
-- Or chat with us on <a href="https://discord.gg/4MtYHHrgA8" target="_blank" rel="noopener noreferrer">discord</a>
+- Docs: <a href="https://docs.agno.com" target="_blank" rel="noopener noreferrer">docs.agno.com</a>
+- Examples: <a href="https://github.com/agno-agi/agno/tree/main/cookbook" target="_blank" rel="noopener noreferrer">Cookbook</a>
+- Community forum: <a href="https://community.agno.com/" target="_blank" rel="noopener noreferrer">community.agno.com</a>
+- Chat: <a href="https://discord.gg/4MtYHHrgA8" target="_blank" rel="noopener noreferrer">discord</a>
 
 ## Contributions
 
-We welcome contributions, please read the [contributing guide](https://github.com/agno-agi/agno/blob/main/CONTRIBUTING.md) for more information.
+We welcome contributions, read our [contributing guide](https://github.com/agno-agi/agno/blob/main/CONTRIBUTING.md) to get started.
 
 ## Telemetry
 

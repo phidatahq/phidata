@@ -9,7 +9,7 @@ from agno.tools.duckduckgo import DuckDuckGoTools
 from agno.tools.yfinance import YFinanceTools
 from agno.vectordb.lancedb import LanceDb, SearchType
 
-# Level 0: Basic Agent with no tools
+# Level 0: Agents with no tools (basic inference tasks).
 level_0_agent = Agent(
     model=OpenAIChat(id="gpt-4o"),
     description="You are an enthusiastic news reporter with a flair for storytelling!",
@@ -19,7 +19,7 @@ level_0_agent.print_response(
     "Tell me about a breaking news story from New York.", stream=True
 )
 
-# Level 1: Agent with tools
+# Level 1: Agents with tools for autonomous task execution.
 level_1_agent = Agent(
     model=OpenAIChat(id="gpt-4o"),
     description="You are an enthusiastic news reporter with a flair for storytelling!",
@@ -31,7 +31,7 @@ level_1_agent.print_response(
     "Tell me about a breaking news story from New York.", stream=True
 )
 
-# Level 2: Agent with knowledge
+# Level 2: Agents with knowledge, combining memory and reasoning.
 level_2_agent = Agent(
     model=OpenAIChat(id="gpt-4o"),
     description="You are a Thai cuisine expert!",
@@ -62,7 +62,7 @@ level_2_agent.print_response(
 )
 level_2_agent.print_response("What is the history of Thai curry?", stream=True)
 
-# Level 3: Multi Agent Team
+# Level 3: Teams of agents collaborating on complex workflows.
 web_agent = Agent(
     name="Web Agent",
     role="Search the web for information",

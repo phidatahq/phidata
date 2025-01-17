@@ -24,7 +24,7 @@
 - **Uncompromising Performance**: Blazing fast agents with a minimal memory footprint.
 - **Truly Agnostic**: Any model, any provider, any modality. Future-proof agents.
 
-## Key Features
+## Why Agno?
 
 - **🚀 Lightning Fast**: Agent instantiation is 6000x faster than LangGraph (see [performance](#performance)).
 - **⚙️ Model Agnostic**: Use any provider, any model-no lock-in.
@@ -207,13 +207,15 @@ python 03_agent_team.py
 Agno is built for speed and scale:
 
 - Instantiation: <10μs on average (6000x faster than LangGraph).
-- Memory: Agents use 2.6x less memory than LangGraph in benchmarks.
+- Memory footprint: <40Mib on average (2.6x less memory than LangGraph).
+
+> Tested on an Apple M4 Mackbook Pro.
 
 While an Agent's performance is bottlenecked by inference, all we can do is minimize execution time, reduce memory usage, and parallelize tool calls where possible.
 
 ### Instantiation time
 
-Let's compare instantiating an Agent with 1 tool on Agno vs LangGraph, we'll run the evaluation 50 times and print the results. You should run the evaluation yourself, please, do not take the results here at face value.
+Let's compare instantiating an Agent with 1 tool on Agno vs LangGraph, we'll run the evaluation 50 times and take the average. You should run the evaluation yourself on your own machine, please, do not take these results at face value.
 
 ```shell
 pip install openai memory_profiler agno langgraph langchain_openai
@@ -239,7 +241,7 @@ Dividing the average time taken to instantiate a Langgraph Agent by the average 
 
 ### Memory usage
 
-In the benchmarks above, ~30Mib of memory usage is from the memory profiler, Agno Agents use 66.6 - 30 ~ 36.6Mib of memory. Whereas Langgraph Agents use 125.3 - 30 ~ 95.3Mib of memory. Langgraph Agents use 2.6x more memory than Agno Agents. When you're running 1000s of Agents in production, these numbers will add up.
+In the benchmarks above, ~30Mib of memory usage is from the memory profiler, Agno Agents use 66.6 - 30 ~ 36.6Mib of memory. Whereas Langgraph Agents use 125.3 - 30 ~ 95.3Mib of memory. Langgraph Agents use ~2.6x more memory than Agno Agents. When you're running 1000s of Agents in production, these numbers will add up.
 
 We understand that these aren't the most accurate benchmarks, but we'll publish accuracy, reliability and performance benchmarks running on github actions in the coming weeks.
 
@@ -256,9 +258,7 @@ We welcome contributions, read our [contributing guide](https://github.com/agno-
 
 ## Telemetry
 
-Agno logs which model an agent used so we can prioritize updates to the most popular providers.
-
-You can disable this by setting `AGNO_TELEMETRY=false` in your environment.
+Agno logs which model an agent used so we can prioritize updates to the most popular providers. You can disable this by setting `AGNO_TELEMETRY=false` in your environment.
 
 <p align="left">
   <a href="#top">⬆️ Back to Top</a>

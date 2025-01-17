@@ -6,9 +6,9 @@
     </picture>
   </a>
 </div>
-<div align="center">
-  <em>Agno: Lightning Fast AI Agents</em>
-</div>
+<h3 align="center">
+  Agno: Lightning Fast AI Agents
+</h3>
 <div align="center">
   <a href="https://docs.agno.com">📚 Documentation</a> &nbsp;|&nbsp;
   <a href="https://github.com/agno-agi/agno/tree/main/cookbook">💡 Examples</a> &nbsp;|&nbsp;

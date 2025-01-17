@@ -234,7 +234,7 @@ python evals/performance/instantiation_with_tool.py
 python evals/performance/other/langgraph_instantiation.py
 ```
 
-The following evaluation is run on an Apple M4 Mackbook Pro, but we'll soon be moving this to a github actions runner for consistency. LangGraph is on the right, we start it first to minimize bias and Agno is on the left.
+The following evaluation is run on an Apple M4 Mackbook Pro, but we'll soon be moving this to a Github actions runner for consistency. LangGraph is on the right, we start it first to minimize bias and Agno is on the left.
 
 https://github.com/user-attachments/assets/712216a4-974a-415e-8849-f77043b7997f
 
@@ -250,7 +250,7 @@ Dividing the average time taken to instantiate a Langgraph Agent by the average 
 
 In the benchmarks above, ~30Mib of memory usage is from the memory profiler, Agno Agents use 66.6 - 30 ~ 36.6Mib of memory. Whereas Langgraph Agents use 125.3 - 30 ~ 95.3Mib of memory. Langgraph Agents use 2.6x more memory than Agno Agents. When you're running 1000s of Agents in production, these numbers will add up.
 
-We understand that these aren't the most accurate benchmarks, but we'll publish accuracy, reliability and performance benchmarks running on github actions in the coming weeks.
+> We understand that these aren't the most accurate benchmarks, but we are planning on publishing accuracy, reliability and performance benchmarks running on Github actions in the coming weeks.
 
 ## Documentation, Community & More examples
 

@@ -427,6 +427,8 @@ class Ollama(Model):
         if message_data.tool_calls is not None:
             assistant_message.tool_calls = message_data.tool_calls
 
+        # TODO: Handle Audio
+
         # Update metrics
         self.update_usage_metrics(assistant_message=assistant_message, metrics=metrics, response=response)
         return assistant_message
@@ -478,9 +480,9 @@ class Ollama(Model):
         if assistant_message.content is not None:
             # add the content to the model response
             model_response.content = assistant_message.get_content_string()
-        if assistant_message.audio is not None:
-            # add the audio to the model response
-            model_response.audio = assistant_message.audio
+        # if assistant_message.audio is not None:
+        #     # add the audio to the model response
+        #     model_response.audio = assistant_message.audio
 
         # -*- Handle tool calls
         if (
@@ -543,9 +545,9 @@ class Ollama(Model):
         if assistant_message.content is not None:
             # add the content to the model response
             model_response.content = assistant_message.get_content_string()
-        if assistant_message.audio is not None:
-            # add the audio to the model response
-            model_response.audio = assistant_message.audio
+        # if assistant_message.audio is not None:
+        #     # add the audio to the model response
+        #     model_response.audio = assistant_message.audio
 
         # -*- Handle tool calls
         if (

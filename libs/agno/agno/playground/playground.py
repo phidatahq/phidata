@@ -5,9 +5,9 @@ from fastapi.routing import APIRouter
 
 from agno.agent.agent import Agent
 from agno.api.playground import PlaygroundEndpointCreate, create_playground_endpoint
-from agno.playground.sync_router import get_sync_playground_router
 from agno.playground.async_router import get_async_playground_router
 from agno.playground.settings import PlaygroundSettings
+from agno.playground.sync_router import get_sync_playground_router
 from agno.utils.log import logger
 from agno.workflow.workflow import Workflow
 

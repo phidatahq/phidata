@@ -8,7 +8,7 @@ from agno.utils.log import logger
 
 @dataclass
 class CsvFile(File):
-    path: str = ""
+    path: str = ""  # type: ignore
     type: str = "CSV"
 
     def get_metadata(self) -> dict[str, Any]:

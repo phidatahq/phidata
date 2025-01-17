@@ -29,7 +29,7 @@ from pydantic import BaseModel
 
 from agno.agent.session import AgentSession
 from agno.knowledge.agent import AgentKnowledge
-from agno.media import AudioArtifact, ImageArtifact, ImageInput, VideoArtifact
+from agno.media import AudioArtifact, AudioInput, ImageArtifact, ImageInput, VideoArtifact, VideoInput
 from agno.memory.agent import AgentMemory, AgentRun
 from agno.models.base import Model
 from agno.models.message import Message, MessageReferences
@@ -444,9 +444,9 @@ class Agent:
         message: Optional[Union[str, List, Dict, Message]] = None,
         *,
         stream: bool = False,
-        audio: Optional[Any] = None,
+        audio: Optional[Sequence[AudioInput]] = None,
         images: Optional[Sequence[ImageInput]] = None,
-        videos: Optional[Sequence[Any]] = None,
+        videos: Optional[Sequence[VideoInput]] = None,
         messages: Optional[Sequence[Union[Dict, Message]]] = None,
         stream_intermediate_steps: bool = False,
         **kwargs: Any,
@@ -700,9 +700,9 @@ class Agent:
         message: Optional[Union[str, List, Dict, Message]] = None,
         *,
         stream: Literal[False] = False,
-        audio: Optional[Any] = None,
+        audio: Optional[Sequence[AudioInput]] = None,
         images: Optional[Sequence[ImageInput]] = None,
-        videos: Optional[Sequence[Any]] = None,
+        videos: Optional[Sequence[VideoInput]] = None,
         messages: Optional[Sequence[Union[Dict, Message]]] = None,
         stream_intermediate_steps: bool = False,
         retries: Optional[int] = None,
@@ -715,9 +715,9 @@ class Agent:
         message: Optional[Union[str, List, Dict, Message]] = None,
         *,
         stream: Literal[True] = True,
-        audio: Optional[Any] = None,
+        audio: Optional[Sequence[AudioInput]] = None,
         images: Optional[Sequence[ImageInput]] = None,
-        videos: Optional[Sequence[Any]] = None,
+        videos: Optional[Sequence[VideoInput]] = None,
         messages: Optional[Sequence[Union[Dict, Message]]] = None,
         stream_intermediate_steps: bool = False,
         retries: Optional[int] = None,
@@ -729,7 +729,7 @@ class Agent:
         message: Optional[Union[str, List, Dict, Message]] = None,
         *,
         stream: bool = False,
-        audio: Optional[Any] = None,
+        audio: Optional[Sequence[AudioInput]] = None,
         images: Optional[Sequence[ImageInput]] = None,
         videos: Optional[Sequence[Any]] = None,
         messages: Optional[Sequence[Union[Dict, Message]]] = None,
@@ -831,6 +831,7 @@ class Agent:
                         )
                         return next(resp)
             except Exception as e:
+                traceback.print_exc()
                 last_exception = e
                 traceback.print_exc()
                 logger.warning(f"Attempt {attempt + 1}/{num_attempts} failed: {str(e)}")
@@ -847,9 +848,9 @@ class Agent:
         message: Optional[Union[str, List, Dict, Message]] = None,
         *,
         stream: bool = False,
-        audio: Optional[Any] = None,
+        audio: Optional[Sequence[AudioInput]] = None,
         images: Optional[Sequence[ImageInput]] = None,
-        videos: Optional[Sequence[Any]] = None,
+        videos: Optional[Sequence[VideoInput]] = None,
         messages: Optional[Sequence[Union[Dict, Message]]] = None,
         stream_intermediate_steps: bool = False,
         **kwargs: Any,
@@ -1100,9 +1101,9 @@ class Agent:
         message: Optional[Union[str, List, Dict, Message]] = None,
         *,
         stream: bool = False,
-        audio: Optional[Any] = None,
+        audio: Optional[Sequence[AudioInput]] = None,
         images: Optional[Sequence[ImageInput]] = None,
-        videos: Optional[Sequence[Any]] = None,
+        videos: Optional[Sequence[VideoInput]] = None,
         messages: Optional[Sequence[Union[Dict, Message]]] = None,
         stream_intermediate_steps: bool = False,
         retries: Optional[int] = None,
@@ -1816,9 +1817,9 @@ class Agent:
         self,
         *,
         message: Optional[Union[str, List]],
-        audio: Optional[Any] = None,
+        audio: Optional[Sequence[AudioInput]] = None,
         images: Optional[Sequence[ImageInput]] = None,
-        videos: Optional[Sequence[Any]] = None,
+        videos: Optional[Sequence[VideoInput]] = None,
         **kwargs: Any,
     ) -> Optional[Message]:
         """Return the user message for the Agent.
@@ -1919,9 +1920,9 @@ class Agent:
         self,
         *,
         message: Optional[Union[str, List, Dict, Message]] = None,
-        audio: Optional[Any] = None,
+        audio: Optional[Sequence[AudioInput]] = None,
         images: Optional[Sequence[ImageInput]] = None,
-        videos: Optional[Sequence[Any]] = None,
+        videos: Optional[Sequence[VideoInput]] = None,
         messages: Optional[Sequence[Union[Dict, Message]]] = None,
         **kwargs: Any,
     ) -> RunMessages:
@@ -2950,9 +2951,9 @@ class Agent:
         message: Optional[Union[List, Dict, str, Message]] = None,
         *,
         messages: Optional[List[Union[Dict, Message]]] = None,
-        audio: Optional[Any] = None,
+        audio: Optional[Sequence[AudioInput]] = None,
         images: Optional[Sequence[ImageInput]] = None,
-        videos: Optional[Sequence[Any]] = None,
+        videos: Optional[Sequence[VideoInput]] = None,
         stream: bool = False,
         markdown: bool = False,
         show_message: bool = True,
@@ -3182,9 +3183,9 @@ class Agent:
         message: Optional[Union[List, Dict, str, Message]] = None,
         *,
         messages: Optional[List[Union[Dict, Message]]] = None,
-        audio: Optional[Any] = None,
+        audio: Optional[Sequence[AudioInput]] = None,
         images: Optional[Sequence[ImageInput]] = None,
-        videos: Optional[Sequence[Any]] = None,
+        videos: Optional[Sequence[VideoInput]] = None,
         stream: bool = False,
         markdown: bool = False,
         show_message: bool = True,
@@ -3234,7 +3235,9 @@ class Agent:
                 if render:
                     live_log.update(Group(*panels))
 
-                _arun_generator = await self.arun(message=message, messages=messages, stream=True, **kwargs)
+                _arun_generator = await self.arun(
+                    message=message, messages=messages, audio=audio, images=images, videos=videos, stream=True, **kwargs
+                )
                 async for resp in _arun_generator:
                     if isinstance(resp, RunResponse) and isinstance(resp.content, str):
                         if resp.event == RunEvent.run_response:

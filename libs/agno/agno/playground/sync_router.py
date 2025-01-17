@@ -396,5 +396,3 @@ def get_sync_playground_router(
         return JSONResponse(content={"message": f"successfully deleted workflow {workflow.name}"})
 
     return playground_router
-
-

@@ -3,7 +3,7 @@ from enum import Enum
 from time import time
 from typing import Any, Dict, List, Optional
 
-from agno.media import AudioArtifact, ImageArtifact, VideoArtifact
+from agno.media import AudioArtifact, AudioOutput, ImageArtifact, VideoArtifact
 from agno.models.message import Message, MessageReferences
 from agno.reasoning.step import ReasoningStep
 
@@ -65,7 +65,7 @@ class RunResponse:
     images: Optional[List[ImageArtifact]] = None  # Images attached to the response
     videos: Optional[List[VideoArtifact]] = None  # Videos attached to the response
     audio: Optional[List[AudioArtifact]] = None  # AudioArtifact attached to the response
-    response_audio: Optional[Dict] = None  # Model audio response
+    response_audio: Optional[AudioOutput] = None  # Model audio response
     extra_data: Optional[RunResponseExtraData] = None
     created_at: int = field(default_factory=lambda: int(time()))
 

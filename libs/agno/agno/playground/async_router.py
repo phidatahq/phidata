@@ -1,7 +1,7 @@
 import json
 from dataclasses import asdict
 from io import BytesIO
-from typing import Any, AsyncGenerator, List, Optional, cast
+from typing import AsyncGenerator, List, Optional, cast
 
 from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -12,7 +12,7 @@ from agno.document.reader.csv_reader import CSVReader
 from agno.document.reader.docx_reader import DocxReader
 from agno.document.reader.pdf_reader import PDFReader
 from agno.document.reader.text_reader import TextReader
-from agno.media import ImageInput
+from agno.media import AudioInput, ImageInput, VideoInput
 from agno.playground.operator import (
     format_tools,
     get_agent_by_id,
@@ -96,14 +96,14 @@ def get_async_playground_router(
         agent: Agent,
         message: str,
         images: Optional[List[ImageInput]] = None,
-        audio_file_content: Optional[Any] = None,
-        video_file_content: Optional[Any] = None,
+        audio: Optional[List[AudioInput]] = None,
+        videos: Optional[List[VideoInput]] = None,
     ) -> AsyncGenerator:
         run_response = await agent.arun(
             message,
             images=images,
-            audio=audio_file_content,
-            videos=video_file_content,
+            audio=audio,
+            videos=videos,
             stream=True,
             stream_intermediate_steps=True,
         )
@@ -245,9 +245,7 @@ def get_async_playground_router(
         return agent_session
 
     @playground_router.post("/agents/{agent_id}/sessions/{session_id}/rename")
-    async def rename_agent_session(
-        agent_id: str, session_id: str, body: AgentRenameRequest
-    ):
+    async def rename_agent_session(agent_id: str, session_id: str, body: AgentRenameRequest):
         agent = get_agent_by_id(agent_id, agents)
         if agent is None:
             return JSONResponse(status_code=404, content=f"couldn't find agent with {agent_id}")
@@ -395,9 +393,7 @@ def get_async_playground_router(
         return workflow_session
 
     @playground_router.post("/workflows/{workflow_id}/sessions/{session_id}/rename")
-    async def rename_workflow_session(
-        workflow_id: str, session_id: str, body: WorkflowRenameRequest
-    ):
+    async def rename_workflow_session(workflow_id: str, session_id: str, body: WorkflowRenameRequest):
         workflow = get_workflow_by_id(workflow_id, workflows)
         if workflow is None:
             raise HTTPException(status_code=404, detail="Workflow not found")

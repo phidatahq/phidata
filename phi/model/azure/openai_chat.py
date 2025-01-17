@@ -35,7 +35,7 @@ class AzureOpenAIChat(OpenAILike):
     provider: str = "Azure"
 
     api_key: Optional[str] = getenv("AZURE_OPENAI_API_KEY")
-    api_version: str = getenv("AZURE_OPENAI_API_VERSION", "2024-02-01")
+    api_version: str = getenv("AZURE_OPENAI_API_VERSION", "2024-10-21")
     azure_endpoint: Optional[str] = getenv("AZURE_OPENAI_ENDPOINT")
     azure_deployment: Optional[str] = getenv("AZURE_DEPLOYMENT")
     azure_ad_token: Optional[str] = None

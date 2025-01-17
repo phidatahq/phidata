@@ -17,10 +17,10 @@ class AzureOpenAIEmbedder(Embedder):
     dimensions: int = 1536
     encoding_format: Literal["float", "base64"] = "float"
     user: Optional[str] = None
-    api_key: Optional[str] = getenv("AZURE_OPENAI_API_KEY")
-    api_version: str = getenv("AZURE_OPENAI_API_VERSION", "2024-02-01")
-    azure_endpoint: Optional[str] = getenv("AZURE_OPENAI_ENDPOINT")
-    azure_deployment: Optional[str] = getenv("AZURE_DEPLOYMENT")
+    api_key: Optional[str] = getenv("AZURE_EMBEDDER_OPENAI_API_KEY")
+    api_version: str = getenv("AZURE_EMBEDDER_OPENAI_API_VERSION", "2024-10-21")
+    azure_endpoint: Optional[str] = getenv("AZURE_EMBEDDER_OPENAI_ENDPOINT")
+    azure_deployment: Optional[str] = getenv("AZURE_EMBEDDER_DEPLOYMENT")
     base_url: Optional[str] = None
     azure_ad_token: Optional[str] = None
     azure_ad_token_provider: Optional[Any] = None
@@ -65,6 +65,7 @@ class AzureOpenAIEmbedder(Embedder):
             _request_params["dimensions"] = self.dimensions
         if self.request_params:
             _request_params.update(self.request_params)
+
         return self.client.embeddings.create(**_request_params)
 
     def get_embedding(self, text: str) -> List[float]:

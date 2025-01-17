@@ -25,6 +25,5 @@ class ReasoningStep(BaseModel):
     )
     confidence: Optional[float] = Field(None, description="Confidence score for this step (0.0 to 1.0)")
 
-
 class ReasoningSteps(BaseModel):
     reasoning_steps: List[ReasoningStep] = Field(..., description="A list of reasoning steps")

@@ -8,10 +8,6 @@ from fastapi.responses import JSONResponse, StreamingResponse
 
 from agno.agent.agent import Agent, RunResponse
 from agno.agent.session import AgentSession
-from agno.document.reader.csv_reader import CSVReader
-from agno.document.reader.docx_reader import DocxReader
-from agno.document.reader.pdf_reader import PDFReader
-from agno.document.reader.text_reader import TextReader
 from agno.media import AudioInput, ImageInput, VideoInput
 from agno.playground.operator import (
     format_tools,
@@ -158,6 +154,7 @@ def get_async_playground_router(
         if files:
             for file in files:
                 if file.content_type == "application/pdf":
+                    from agno.document.reader.pdf_reader import PDFReader
                     contents = await file.read()
                     pdf_file = BytesIO(contents)
                     pdf_file.name = file.filename
@@ -165,6 +162,7 @@ def get_async_playground_router(
                     if agent.knowledge is not None:
                         agent.knowledge.load_documents(file_content)
                 elif file.content_type == "text/csv":
+                    from agno.document.reader.csv_reader import CSVReader
                     contents = await file.read()
                     csv_file = BytesIO(contents)
                     csv_file.name = file.filename
@@ -172,6 +170,7 @@ def get_async_playground_router(
                     if agent.knowledge is not None:
                         agent.knowledge.load_documents(file_content)
                 elif file.content_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+                    from agno.document.reader.docx_reader import DocxReader
                     contents = await file.read()
                     docx_file = BytesIO(contents)
                     docx_file.name = file.filename
@@ -179,6 +178,7 @@ def get_async_playground_router(
                     if agent.knowledge is not None:
                         agent.knowledge.load_documents(file_content)
                 elif file.content_type == "text/plain":
+                    from agno.document.reader.text_reader import TextReader
                     contents = await file.read()
                     text_file = BytesIO(contents)
                     text_file.name = file.filename

@@ -30,6 +30,7 @@ dependencies = [
   "pydantic-settings",
   "pydantic",
   "python-dotenv",
+  "python-multipart",
   "pyyaml",
   "rich",
   "tomli",

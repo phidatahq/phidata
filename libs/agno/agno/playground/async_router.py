@@ -245,9 +245,7 @@ def get_async_playground_router(
         return agent_session
 
     @playground_router.post("/agents/{agent_id}/sessions/{session_id}/rename")
-    async def rename_agent_session(
-        agent_id: str, session_id: str, body: AgentRenameRequest
-    ):
+    async def rename_agent_session(agent_id: str, session_id: str, body: AgentRenameRequest):
         agent = get_agent_by_id(agent_id, agents)
         if agent is None:
             return JSONResponse(status_code=404, content=f"couldn't find agent with {agent_id}")
@@ -395,9 +393,7 @@ def get_async_playground_router(
         return workflow_session
 
     @playground_router.post("/workflows/{workflow_id}/sessions/{session_id}/rename")
-    async def rename_workflow_session(
-        workflow_id: str, session_id: str, body: WorkflowRenameRequest
-    ):
+    async def rename_workflow_session(workflow_id: str, session_id: str, body: WorkflowRenameRequest):
         workflow = get_workflow_by_id(workflow_id, workflows)
         if workflow is None:
             raise HTTPException(status_code=404, detail="Workflow not found")

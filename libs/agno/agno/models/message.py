@@ -123,7 +123,7 @@ class Message(BaseModel):
         if self.videos:
             _logger(f"Videos added: {len(self.videos)}")
         if self.audio:
-            _logger(f"Audios added: {len(self.audio)}")
+            _logger(f"Audio Files added: {len(self.audio)}")
 
     def content_is_valid(self) -> bool:
         """Check if the message content is valid."""

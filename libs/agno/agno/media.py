@@ -40,7 +40,7 @@ class AudioArtifact(Media):
 
 
 class VideoInput(BaseModel):
-    filepath: Optional[Union[Path, str]] = None  # Absolute local location for image
+    filepath: Optional[Union[Path, str]] = None  # Absolute local location for video
     content: Optional[Any] = None  # Actual video bytes content
 
     @model_validator(mode="before")
@@ -64,8 +64,28 @@ class VideoInput(BaseModel):
 
 
 class AudioInput(BaseModel):
-    content: Any  # Actual audio bytes content
+    content: Optional[Any] = None  # Actual audio bytes content
+    filepath: Optional[Union[Path, str]] = None  # Absolute local location for audio
     format: Optional[str] = None
+
+    @model_validator(mode="before")
+    def validate_exclusive_audio(cls, data: Any):
+        """
+        Ensure that exactly one of `filepath`, or `content` is provided.
+        """
+        # Extract the values from the input data
+        filepath = data.get("filepath")
+        content = data.get("content")
+
+        # Count how many fields are set (not None)
+        count = len([field for field in [filepath, content] if field is not None])
+
+        if count == 0:
+            raise ValueError("One of `filepath` or `content` must be provided.")
+        elif count > 1:
+            raise ValueError("Only one of `filepath` or `content` should be provided.")
+
+        return data
 
 
 class AudioOutput(BaseModel):

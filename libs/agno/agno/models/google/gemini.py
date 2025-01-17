@@ -185,9 +185,39 @@ class Gemini(Model):
             logger.warning(f"Unknown image type: {type(image)}")
             return None
 
-    def format_audio_for_message(self, audio: AudioInput) -> Optional[Dict[str, Any]]:
-        if isinstance(audio.content, bytes):
-            audio_file = {"mime_type": "audio/mp3", "data": audio.content}
+    def format_audio_for_message(self, audio: AudioInput) -> Optional[Union[Dict[str, Any], file_types.File]]:
+        if audio.content and isinstance(audio.content, bytes):
+            audio_content = {"mime_type": "audio/mp3", "data": audio.content}
+            return audio_content
+
+        elif audio.filepath is not None:
+            audio_path = audio.filepath if isinstance(audio.filepath, Path) else Path(audio.filepath)
+
+            remote_file_name = f"files/{audio_path.stem.lower()}"
+            # Check if video is already uploaded
+            existing_audio_upload = None
+            try:
+                existing_audio_upload = genai.get_file(remote_file_name)
+            except PermissionDenied:
+                pass
+
+            if existing_audio_upload:
+                audio_file = existing_audio_upload
+            else:
+                # Upload the video file to the Gemini API
+                if audio_path.exists() and audio_path.is_file():
+                    audio_file = genai.upload_file(path=audio_path, name=remote_file_name, display_name=audio_path.stem)
+                else:
+                    logger.error(f"Audio file {audio_path} does not exist.")
+                    raise Exception(f"Audio file {audio_path} does not exist.")
+
+                # Check whether the file is ready to be used.
+                while audio_file.state.name == "PROCESSING":
+                    time.sleep(2)
+                    audio_file = genai.get_file(audio_file.name)
+
+                if audio_file.state.name == "FAILED":
+                    raise ValueError(audio_file.state.name)
             return audio_file
         else:
             logger.warning(f"Unknown audio type: {type(audio.content)}")

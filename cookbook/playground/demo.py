@@ -70,7 +70,7 @@ finance_agent = Agent(
 )
 
 image_agent = Agent(
-    name="DALL-E Image Agent",
+    name="Image Agent",
     agent_id="image_agent",
     model=OpenAIChat(id="gpt-4o"),
     tools=[DalleTools(model="dall-e-3", size="1792x1024", quality="hd", style="vivid")],

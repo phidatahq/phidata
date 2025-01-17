@@ -87,7 +87,6 @@ class RunResponse:
         if self.audio is not None:
             _dict["audio"] = [aud.model_dump() for aud in self.audio]
         
-        print(self)
         if isinstance(self.content, BaseModel):
             _dict["content"] = self.content.model_dump(exclude_none=True)
         return _dict

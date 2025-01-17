@@ -1,5 +1,5 @@
 <h1 align="center" id="top">
-Agno: High Performance AI Agents
+Agno: Lightning Fast AI Agents
 </h1>
 
 <p align="center">

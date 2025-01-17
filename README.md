@@ -19,7 +19,7 @@ Agno: Lightning Fast AI Agents
 
 ## Key Features
 
-- **🚀 Lightning Fast**: Agents instantiate in under 10μs (on M4 chips).
+- **🚀 Lightning Fast**: Agent instantiation is 6000x faster than LangGraph (see [performance](#performance)).
 - **⚙️ Model Agnostic**: Use any provider, any model-no lock-in.
 - **📷 Multi-Modal**: Native support for text, image, audio, and video.
 - **🤝 Multi-Agent**: Delegate tasks across a team of specialized agents.
@@ -36,10 +36,10 @@ pip install -U agno
 
 ## What are Agents?
 
-Agents are programs that use language models to control execution flows. They can perform tasks autonomously by integrating tools, memory, and knowledge.
+Agents are programs that use language models to control the execution flow. They can perform tasks autonomously by integrating tools, memory, and knowledge.
 
 - **Level 0**: Agents with no tools (basic inference tasks).
-- **Level 1**: Agents with tools for advanced task execution.
+- **Level 1**: Agents with tools for autonomous task execution.
 - **Level 2**: Agents with knowledge, combining memory and reasoning.
 - **Level 3**: Teams of agents collaborating on complex workflows.
 

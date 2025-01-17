@@ -1,7 +1,7 @@
 from typing import Iterator
 
 from agno.agent import Agent
-from agno.tools import tool, FunctionCall, RetryAgentRun
+from agno.tools import FunctionCall, RetryAgentRun, tool
 
 num_calls = 0
 
@@ -13,7 +13,9 @@ def pre_hook(function_call: FunctionCall):
     print(f"Arguments: {function_call.arguments}")
     num_calls += 1
     if num_calls < 2:
-        raise RetryAgentRun("This wasnt interesting enough, please retry with a different argument")
+        raise RetryAgentRun(
+            "This wasnt interesting enough, please retry with a different argument"
+        )
 
 
 @tool(pre_hook=pre_hook)

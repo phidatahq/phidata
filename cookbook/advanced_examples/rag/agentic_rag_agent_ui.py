@@ -5,12 +5,12 @@
 """
 
 from agno.agent import Agent
-from agno.models.openai import OpenAIChat
 from agno.embedder.openai import OpenAIEmbedder
 from agno.knowledge.pdf_url import PDFUrlKnowledgeBase
+from agno.models.openai import OpenAIChat
+from agno.playground import Playground, serve_playground_app
 from agno.storage.agent.postgres import PostgresDbAgentStorage
 from agno.vectordb.pgvector import PgVector, SearchType
-from agno.playground import Playground, serve_playground_app
 
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 # Create a knowledge base of PDFs from URLs

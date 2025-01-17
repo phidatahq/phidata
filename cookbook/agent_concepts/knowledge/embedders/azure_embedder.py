@@ -1,8 +1,10 @@
 from agno.agent import AgentKnowledge
-from agno.vectordb.pgvector import PgVector
 from agno.embedder.azure_openai import AzureOpenAIEmbedder
+from agno.vectordb.pgvector import PgVector
 
-embeddings = AzureOpenAIEmbedder().get_embedding("The quick brown fox jumps over the lazy dog.")
+embeddings = AzureOpenAIEmbedder().get_embedding(
+    "The quick brown fox jumps over the lazy dog."
+)
 
 # Print the embeddings and their dimensions
 print(f"Embeddings: {embeddings[:5]}")

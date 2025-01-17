@@ -5,9 +5,9 @@
 """
 
 from agno.agent import Agent
-from agno.models.openai import OpenAIChat
 from agno.embedder.openai import OpenAIEmbedder
 from agno.knowledge.pdf_url import PDFUrlKnowledgeBase
+from agno.models.openai import OpenAIChat
 from agno.vectordb.pgvector import PgVector, SearchType
 
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
@@ -34,7 +34,9 @@ agent = Agent(
     show_tool_calls=True,
     markdown=True,
 )
-agent.print_response("How do I make chicken and galangal in coconut milk soup", stream=True)
+agent.print_response(
+    "How do I make chicken and galangal in coconut milk soup", stream=True
+)
 # agent.print_response(
 #     "Hi, i want to make a 3 course meal. Can you recommend some recipes. "
 #     "I'd like to start with a soup, then im thinking a thai curry for the main course and finish with a dessert",

@@ -18,9 +18,8 @@ Step 3: Generate a Token
 3. Copy the generated Token. Store as TRELLO_TOKEN.
 """
 
-from phi.tools.trello_tools import TrelloTools
 from phi.agent import Agent
-
+from phi.tools.trello_tools import TrelloTools
 
 agent = Agent(
     instructions=[
@@ -38,6 +37,6 @@ agent = Agent(
 )
 
 agent.print_response(
-"Create a board called ai-agent and inside it create list called 'todo' and 'doing' and inside each of them create card called 'create agent'",
+    "Create a board called ai-agent and inside it create list called 'todo' and 'doing' and inside each of them create card called 'create agent'",
     stream=True,
 )

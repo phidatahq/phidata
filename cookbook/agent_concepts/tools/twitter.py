@@ -23,7 +23,10 @@ agent = Agent(
     tools=[twitter_tools],
     show_tool_calls=True,
 )
-agent.print_response("Can you retrieve information about this user https://x.com/phidatahq ", markdown=True)
+agent.print_response(
+    "Can you retrieve information about this user https://x.com/phidatahq ",
+    markdown=True,
+)
 
 # # Example usage: Reply To a Tweet
 # agent.print_response(

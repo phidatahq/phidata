@@ -1,11 +1,11 @@
 """🧠 Recipe Expert - Your AI Cooking Assistant!
-Run `pip install lancedb tantivy pypdf duckduckgo-search` to install dependencies."""
+Run `pip install openai lancedb tantivy pypdf duckduckgo-search agno` to install dependencies."""
 
 from agno.agent import Agent
-from agno.models.openai import OpenAIChat
 from agno.embedder.openai import OpenAIEmbedder
-from agno.tools.duckduckgo import DuckDuckGoTools
 from agno.knowledge.pdf_url import PDFUrlKnowledgeBase
+from agno.models.openai import OpenAIChat
+from agno.tools.duckduckgo import DuckDuckGoTools
 from agno.vectordb.lancedb import LanceDb, SearchType
 
 # Create a Recipe Expert Agent with knowledge of Thai recipes
@@ -52,6 +52,8 @@ agent = Agent(
 if agent.knowledge is not None:
     agent.knowledge.load()
 
-agent.print_response("How do I make chicken and galangal in coconut milk soup", stream=True)
+agent.print_response(
+    "How do I make chicken and galangal in coconut milk soup", stream=True
+)
 agent.print_response("What is the history of Thai curry?", stream=True)
 agent.print_response("What ingredients do I need for Pad Thai?", stream=True)

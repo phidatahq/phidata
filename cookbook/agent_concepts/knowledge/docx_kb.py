@@ -1,8 +1,8 @@
 from pathlib import Path
 
 from agno.agent import Agent
-from agno.vectordb.pgvector import PgVector
 from agno.knowledge.docx import DocxKnowledgeBase
+from agno.vectordb.pgvector import PgVector
 
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 

@@ -2,8 +2,8 @@
 
 from agno.agent import Agent
 from agno.models.ollama import OllamaTools
-from agno.tools.duckduckgo import DuckDuckGoTools
 from agno.storage.agent.postgres import PostgresDbAgentStorage
+from agno.tools.duckduckgo import DuckDuckGoTools
 
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 

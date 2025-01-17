@@ -8,10 +8,12 @@ from agno.storage.workflow.sqlite import SqliteDbWorkflowStorage
 
 # Import the workflows
 from blog_post_generator.blog_post_generator import BlogPostGenerator
-from news_report_generator.news_report_generator import NewsReportGenerator
-from investment_report_generator.investment_report_generator import InvestmentReportGenerator
-from startup_idea_validator.startup_idea_validator import StartupIdeaValidator
 from game_generator.game_generator import GameGenerator
+from investment_report_generator.investment_report_generator import (
+    InvestmentReportGenerator,
+)
+from news_report_generator.news_report_generator import NewsReportGenerator
+from startup_idea_validator.startup_idea_validator import StartupIdeaValidator
 
 # Initialize the workflows with SQLite storage
 
@@ -55,7 +57,15 @@ game_generator = GameGenerator(
 )
 
 # Initialize the Playground with the workflows
-app = Playground(workflows=[blog_post_generator, news_report_generator, investment_report_generator, game_generator, startup_idea_validator]).get_app()
+app = Playground(
+    workflows=[
+        blog_post_generator,
+        news_report_generator,
+        investment_report_generator,
+        game_generator,
+        startup_idea_validator,
+    ]
+).get_app()
 
 if __name__ == "__main__":
     serve_playground_app("workflows_playground:app", reload=True)

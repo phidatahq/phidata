@@ -1,6 +1,6 @@
 from agno.agent import Agent
-from agno.tools.dalle import DalleTools
 from agno.models.openai import OpenAIChat
+from agno.tools.dalle import DalleTools
 
 image_agent = Agent(
     model=OpenAIChat(id="gpt-4o"),

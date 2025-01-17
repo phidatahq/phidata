@@ -1,4 +1,5 @@
 import base64
+
 import requests
 from agno.agent import Agent
 from agno.models.openai import OpenAIChat
@@ -13,7 +14,9 @@ encoded_string = base64.b64encode(wav_data).decode("utf-8")
 
 agent = Agent(
     model=OpenAIChat(
-        id="gpt-4o-audio-preview", modalities=["text", "audio"], audio={"voice": "alloy", "format": "wav"}
+        id="gpt-4o-audio-preview",
+        modalities=["text", "audio"],
+        audio={"voice": "alloy", "format": "wav"},
     ),
     markdown=True,
 )
@@ -23,5 +26,10 @@ agent.run(
     audio={"data": encoded_string, "format": "wav"},
 )
 
-if agent.run_response.response_audio is not None and "data" in agent.run_response.response_audio:
-    write_audio_to_file(audio=agent.run_response.response_audio["data"], filename="tmp/dog.wav")
+if (
+    agent.run_response.response_audio is not None
+    and "data" in agent.run_response.response_audio
+):
+    write_audio_to_file(
+        audio=agent.run_response.response_audio["data"], filename="tmp/dog.wav"
+    )

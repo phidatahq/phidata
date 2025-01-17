@@ -4,7 +4,11 @@ from agno.agent import Agent
 
 
 def get_instructions(agent: Agent) -> List[str]:
-    return [f"Your name is {agent.name}!", "Talk in haiku's!", "Use poetry to answer questions."]
+    return [
+        f"Your name is {agent.name}!",
+        "Talk in haiku's!",
+        "Use poetry to answer questions.",
+    ]
 
 
 agent = Agent(

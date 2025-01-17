@@ -5,24 +5,25 @@
 
 import json
 from textwrap import dedent
-from typing import Optional, Dict, Iterator
-
-from pydantic import BaseModel, Field
+from typing import Dict, Iterator, Optional
 
 from agno.agent import Agent
 from agno.models.openai import OpenAIChat
-from agno.workflow import Workflow, RunResponse, RunEvent
 from agno.storage.workflow.sqlite import SqliteDbWorkflowStorage
 from agno.tools.duckduckgo import DuckDuckGoTools
 from agno.tools.newspaper4k import Newspaper4kTools
-from agno.utils.pprint import pprint_run_response
 from agno.utils.log import logger
+from agno.utils.pprint import pprint_run_response
+from agno.workflow import RunEvent, RunResponse, Workflow
+from pydantic import BaseModel, Field
 
 
 class NewsArticle(BaseModel):
     title: str = Field(..., description="Title of the article.")
     url: str = Field(..., description="Link to the article.")
-    summary: Optional[str] = Field(..., description="Summary of the article if available.")
+    summary: Optional[str] = Field(
+        ..., description="Summary of the article if available."
+    )
 
 
 class SearchResults(BaseModel):
@@ -32,7 +33,9 @@ class SearchResults(BaseModel):
 class ScrapedArticle(BaseModel):
     title: str = Field(..., description="Title of the article.")
     url: str = Field(..., description="Link to the article.")
-    summary: Optional[str] = Field(..., description="Summary of the article if available.")
+    summary: Optional[str] = Field(
+        ..., description="Summary of the article if available."
+    )
     content: Optional[str] = Field(
         ...,
         description="Content of the in markdown format if available. Return None if the content is not available or does not make sense.",
@@ -109,7 +112,9 @@ class NewsReportGenerator(Workflow):
         self.session_state.setdefault("reports", {})
         self.session_state["reports"][topic] = report
 
-    def get_search_results(self, topic: str, use_search_cache: bool) -> Optional[SearchResults]:
+    def get_search_results(
+        self, topic: str, use_search_cache: bool
+    ) -> Optional[SearchResults]:
         search_results: Optional[SearchResults] = None
 
         # Get cached search_results from the session state if use_search_cache is True
@@ -119,7 +124,9 @@ class NewsReportGenerator(Workflow):
             and topic in self.session_state["search_results"]
         ):
             try:
-                search_results = SearchResults.model_validate(self.session_state["search_results"][topic])
+                search_results = SearchResults.model_validate(
+                    self.session_state["search_results"][topic]
+                )
                 logger.info(f"Found {len(search_results.articles)} articles in cache.")
             except Exception as e:
                 logger.warning(f"Could not read search results from cache: {e}")
@@ -132,7 +139,9 @@ class NewsReportGenerator(Workflow):
                 and web_searcher_response.content
                 and isinstance(web_searcher_response.content, SearchResults)
             ):
-                logger.info(f"WebSearcher identified {len(web_searcher_response.content.articles)} articles.")
+                logger.info(
+                    f"WebSearcher identified {len(web_searcher_response.content.articles)} articles."
+                )
                 search_results = web_searcher_response.content
 
         if search_results is not None:
@@ -144,7 +153,9 @@ class NewsReportGenerator(Workflow):
 
         return search_results
 
-    def scrape_articles(self, search_results: SearchResults, use_scrape_cache: bool) -> Dict[str, ScrapedArticle]:
+    def scrape_articles(
+        self, search_results: SearchResults, use_scrape_cache: bool
+    ) -> Dict[str, ScrapedArticle]:
         scraped_articles: Dict[str, ScrapedArticle] = {}
 
         # Get cached scraped_articles from the session state if use_scrape_cache is True
@@ -155,8 +166,12 @@ class NewsReportGenerator(Workflow):
         ):
             for url, scraped_article in self.session_state["scraped_articles"].items():
                 try:
-                    validated_scraped_article = ScrapedArticle.model_validate(scraped_article)
-                    scraped_articles[validated_scraped_article.url] = validated_scraped_article
+                    validated_scraped_article = ScrapedArticle.model_validate(
+                        scraped_article
+                    )
+                    scraped_articles[validated_scraped_article.url] = (
+                        validated_scraped_article
+                    )
                 except Exception as e:
                     logger.warning(f"Could not read scraped article from cache: {e}")
             logger.info(f"Found {len(scraped_articles)} scraped articles in cache.")
@@ -167,13 +182,17 @@ class NewsReportGenerator(Workflow):
                 logger.info(f"Found scraped article in cache: {article.url}")
                 continue
 
-            article_scraper_response: RunResponse = self.article_scraper.run(article.url)
+            article_scraper_response: RunResponse = self.article_scraper.run(
+                article.url
+            )
             if (
                 article_scraper_response
                 and article_scraper_response.content
                 and isinstance(article_scraper_response.content, ScrapedArticle)
             ):
-                scraped_articles[article_scraper_response.content.url] = article_scraper_response.content
+                scraped_articles[article_scraper_response.content.url] = (
+                    article_scraper_response.content
+                )
                 logger.info(f"Scraped article: {article_scraper_response.content.url}")
 
         # Save the scraped articles in the session state
@@ -184,17 +203,26 @@ class NewsReportGenerator(Workflow):
 
         return scraped_articles
 
-    def write_news_report(self, topic: str, scraped_articles: Dict[str, ScrapedArticle]) -> Iterator[RunResponse]:
+    def write_news_report(
+        self, topic: str, scraped_articles: Dict[str, ScrapedArticle]
+    ) -> Iterator[RunResponse]:
         logger.info("Writing news report")
         # Prepare the input for the writer
-        writer_input = {"topic": topic, "articles": [v.model_dump() for v in scraped_articles.values()]}
+        writer_input = {
+            "topic": topic,
+            "articles": [v.model_dump() for v in scraped_articles.values()],
+        }
         # Run the writer and yield the response
         yield from self.writer.run(json.dumps(writer_input, indent=4), stream=True)
         # Save the blog post in the cache
         self.add_report_to_cache(topic, self.writer.run_response.content)
 
     def run(
-        self, topic: str, use_search_cache: bool = True, use_scrape_cache: bool = True, use_cached_report: bool = True
+        self,
+        topic: str,
+        use_search_cache: bool = True,
+        use_scrape_cache: bool = True,
+        use_cached_report: bool = True,
     ) -> Iterator[RunResponse]:
         """
         Generate a comprehensive news report on a given topic.
@@ -229,11 +257,15 @@ class NewsReportGenerator(Workflow):
         if use_cached_report:
             cached_report = self.get_report_from_cache(topic)
             if cached_report:
-                yield RunResponse(content=cached_report, event=RunEvent.workflow_completed)
+                yield RunResponse(
+                    content=cached_report, event=RunEvent.workflow_completed
+                )
                 return
 
         # Search the web for articles on the topic
-        search_results: Optional[SearchResults] = self.get_search_results(topic, use_search_cache)
+        search_results: Optional[SearchResults] = self.get_search_results(
+            topic, use_search_cache
+        )
         # If no search_results are found for the topic, end the workflow
         if search_results is None or len(search_results.articles) == 0:
             yield RunResponse(
@@ -243,7 +275,9 @@ class NewsReportGenerator(Workflow):
             return
 
         # Scrape the search results
-        scraped_articles: Dict[str, ScrapedArticle] = self.scrape_articles(search_results, use_scrape_cache)
+        scraped_articles: Dict[str, ScrapedArticle] = self.scrape_articles(
+            search_results, use_scrape_cache
+        )
 
         # Write a news report
         yield from self.write_news_report(topic, scraped_articles)
@@ -273,7 +307,10 @@ if __name__ == "__main__":
 
     # Execute the workflow with caching enabled
     report_stream: Iterator[RunResponse] = generate_news_report.run(
-        topic=topic, use_search_cache=True, use_scrape_cache=True, use_cached_report=True
+        topic=topic,
+        use_search_cache=True,
+        use_scrape_cache=True,
+        use_cached_report=True,
     )
 
     # Print the response

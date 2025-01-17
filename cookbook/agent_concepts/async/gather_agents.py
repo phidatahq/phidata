@@ -20,7 +20,9 @@ async def get_reports():
             instructions=instructions,
             tools=[DuckDuckGoTools()],
         )
-        tasks.append(agent.arun(f"Write a report on the following AI provider: {provider}"))
+        tasks.append(
+            agent.arun(f"Write a report on the following AI provider: {provider}")
+        )
 
     results = await asyncio.gather(*tasks)
     return results

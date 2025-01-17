@@ -1,8 +1,9 @@
 import os
+import subprocess
 import sys
+
 import click
 import inquirer
-import subprocess
 
 """
 CLI Tool: Cookbook runner
@@ -48,7 +49,6 @@ Example:
 
 
 def select_directory(base_directory):
-  
     while True:
         # Get all subdirectories and files in the current directory
         items = [
@@ -113,7 +113,11 @@ def run_python_script(script_path):
 
 
 @click.command()
-@click.argument('base_directory', type=click.Path(exists=True, file_okay=False, dir_okay=True), default=".")
+@click.argument(
+    "base_directory",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+    default=".",
+)
 def drill_and_run_scripts(base_directory):
     """
     A CLI tool that lets the user drill down into directories and runs all .py files in the selected directory.
@@ -130,7 +134,8 @@ def drill_and_run_scripts(base_directory):
     python_files = [
         filename
         for filename in os.listdir(selected_directory)
-        if filename.endswith(".py") and os.path.isfile(os.path.join(selected_directory, filename))
+        if filename.endswith(".py")
+        and os.path.isfile(os.path.join(selected_directory, filename))
     ]
 
     if not python_files:

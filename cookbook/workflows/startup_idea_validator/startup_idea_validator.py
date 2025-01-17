@@ -4,17 +4,16 @@
 """
 
 import json
-from typing import Optional, Iterator
-
-from pydantic import BaseModel, Field
+from typing import Iterator, Optional
 
 from agno.agent import Agent
 from agno.models.openai import OpenAIChat
-from agno.tools.googlesearch import GoogleSearch
-from agno.workflow import Workflow, RunResponse, RunEvent
 from agno.storage.workflow.sqlite import SqliteDbWorkflowStorage
-from agno.utils.pprint import pprint_run_response
+from agno.tools.googlesearch import GoogleSearch
 from agno.utils.log import logger
+from agno.utils.pprint import pprint_run_response
+from agno.workflow import RunEvent, RunResponse, Workflow
+from pydantic import BaseModel, Field
 
 
 class IdeaClarification(BaseModel):
@@ -24,9 +23,15 @@ class IdeaClarification(BaseModel):
 
 
 class MarketResearch(BaseModel):
-    total_addressable_market: str = Field(..., description="Total addressable market (TAM).")
-    serviceable_available_market: str = Field(..., description="Serviceable available market (SAM).")
-    serviceable_obtainable_market: str = Field(..., description="Serviceable obtainable market (SOM).")
+    total_addressable_market: str = Field(
+        ..., description="Total addressable market (TAM)."
+    )
+    serviceable_available_market: str = Field(
+        ..., description="Serviceable available market (SAM)."
+    )
+    serviceable_obtainable_market: str = Field(
+        ..., description="Serviceable obtainable market (SOM)."
+    )
     target_customer_segments: str = Field(..., description="Target customer segments.")
 
 
@@ -106,11 +111,15 @@ class StartupIdeaValidator(Workflow):
 
         return None
 
-    def get_market_research(self, startup_idea: str, idea_clarification: IdeaClarification) -> Optional[MarketResearch]:
+    def get_market_research(
+        self, startup_idea: str, idea_clarification: IdeaClarification
+    ) -> Optional[MarketResearch]:
         agent_input = {"startup_idea": startup_idea, **idea_clarification.model_dump()}
 
         try:
-            response: RunResponse = self.market_research_agent.run(json.dumps(agent_input, indent=4))
+            response: RunResponse = self.market_research_agent.run(
+                json.dumps(agent_input, indent=4)
+            )
 
             # Check if we got a valid response
             if not response or not response.content:
@@ -127,11 +136,15 @@ class StartupIdeaValidator(Workflow):
 
         return None
 
-    def get_competitor_analysis(self, startup_idea: str, market_research: MarketResearch) -> Optional[str]:
+    def get_competitor_analysis(
+        self, startup_idea: str, market_research: MarketResearch
+    ) -> Optional[str]:
         agent_input = {"startup_idea": startup_idea, **market_research.model_dump()}
 
         try:
-            response: RunResponse = self.competitor_analysis_agent.run(json.dumps(agent_input, indent=4))
+            response: RunResponse = self.competitor_analysis_agent.run(
+                json.dumps(agent_input, indent=4)
+            )
 
             # Check if we got a valid response
             if not response or not response.content:
@@ -148,7 +161,9 @@ class StartupIdeaValidator(Workflow):
         logger.info(f"Generating a startup validation report for: {startup_idea}")
 
         # Clarify and quantify the idea
-        idea_clarification: Optional[IdeaClarification] = self.get_idea_clarification(startup_idea)
+        idea_clarification: Optional[IdeaClarification] = self.get_idea_clarification(
+            startup_idea
+        )
 
         if idea_clarification is None:
             yield RunResponse(
@@ -158,7 +173,9 @@ class StartupIdeaValidator(Workflow):
             return
 
         # Do some market research
-        market_research: Optional[MarketResearch] = self.get_market_research(startup_idea, idea_clarification)
+        market_research: Optional[MarketResearch] = self.get_market_research(
+            startup_idea, idea_clarification
+        )
 
         if market_research is None:
             yield RunResponse(
@@ -167,7 +184,9 @@ class StartupIdeaValidator(Workflow):
             )
             return
 
-        competitor_analysis: Optional[str] = self.get_competitor_analysis(startup_idea, market_research)
+        competitor_analysis: Optional[str] = self.get_competitor_analysis(
+            startup_idea, market_research
+        )
 
         # Compile the final report
         final_response: RunResponse = self.report_agent.run(
@@ -182,7 +201,9 @@ class StartupIdeaValidator(Workflow):
             )
         )
 
-        yield RunResponse(content=final_response.content, event=RunEvent.workflow_completed)
+        yield RunResponse(
+            content=final_response.content, event=RunEvent.workflow_completed
+        )
 
 
 # Run the workflow if the script is executed directly

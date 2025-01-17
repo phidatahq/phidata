@@ -26,7 +26,9 @@ finance_agent = Agent(
     name="Finance Agent",
     role="Get financial data",
     model=OpenAIChat(id="gpt-4o"),
-    tools=[YFinanceTools(stock_price=True, analyst_recommendations=True, company_info=True)],
+    tools=[
+        YFinanceTools(stock_price=True, analyst_recommendations=True, company_info=True)
+    ],
     instructions=["Use tables to display data"],
     expected_output=dedent("""\
     ## {title}
@@ -45,4 +47,6 @@ agent_team = Agent(
     markdown=True,
 )
 
-agent_team.print_response("Summarize analyst recommendations and share the latest news for NVDA", stream=True)
+agent_team.print_response(
+    "Summarize analyst recommendations and share the latest news for NVDA", stream=True
+)

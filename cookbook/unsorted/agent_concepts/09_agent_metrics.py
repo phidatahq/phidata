@@ -1,9 +1,10 @@
 from typing import Iterator
-from rich.pretty import pprint
+
 from agno.agent import Agent, RunResponse
 from agno.models.openai import OpenAIChat
 from agno.tools.yfinance import YFinanceTools
 from agno.utils.pprint import pprint_run_response
+from rich.pretty import pprint
 
 agent = Agent(
     model=OpenAIChat(id="gpt-4o"),
@@ -12,7 +13,9 @@ agent = Agent(
     show_tool_calls=True,
 )
 
-run_stream: Iterator[RunResponse] = agent.run("What is the stock price of NVDA", stream=True)
+run_stream: Iterator[RunResponse] = agent.run(
+    "What is the stock price of NVDA", stream=True
+)
 pprint_run_response(run_stream, markdown=True)
 
 # Print metrics per message

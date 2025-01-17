@@ -4,11 +4,11 @@
 """
 
 from agno.agent import Agent
-from agno.models.openai import OpenAIChat
 from agno.embedder.openai import OpenAIEmbedder
 from agno.knowledge.pdf_url import PDFUrlKnowledgeBase
-from agno.vectordb.lancedb import LanceDb, SearchType
+from agno.models.openai import OpenAIChat
 from agno.reranker.cohere import CohereReranker
+from agno.vectordb.lancedb import LanceDb, SearchType
 
 # Create a knowledge base of PDFs from URLs
 knowledge_base = PDFUrlKnowledgeBase(
@@ -34,4 +34,6 @@ agent = Agent(
     show_tool_calls=True,
     markdown=True,
 )
-agent.print_response("How do I make chicken and galangal in coconut milk soup", stream=True)
+agent.print_response(
+    "How do I make chicken and galangal in coconut milk soup", stream=True
+)

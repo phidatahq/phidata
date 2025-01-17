@@ -7,8 +7,6 @@ import json
 from pathlib import Path
 from typing import Iterator
 
-from pydantic import BaseModel, Field
-
 from agno.agent import Agent, RunResponse
 from agno.models.openai import OpenAIChat
 from agno.run.response import RunEvent
@@ -18,7 +16,7 @@ from agno.utils.pprint import pprint_run_response
 from agno.utils.string import hash_string_sha256
 from agno.utils.web import open_html_file
 from agno.workflow import Workflow
-
+from pydantic import BaseModel, Field
 
 games_dir = Path(__file__).parent.joinpath("games")
 games_dir.mkdir(parents=True, exist_ok=True)
@@ -71,12 +69,18 @@ class GameGenerator(Workflow):
 
         game_output = self.game_developer.run(game_description)
 
-        if game_output and game_output.content and isinstance(game_output.content, GameOutput):
+        if (
+            game_output
+            and game_output.content
+            and isinstance(game_output.content, GameOutput)
+        ):
             game_code = game_output.content.code
             logger.info(f"Game code: {game_code}")
         else:
             yield RunResponse(
-                run_id=self.run_id, event=RunEvent.workflow_completed, content="Sorry, could not generate a game."
+                run_id=self.run_id,
+                event=RunEvent.workflow_completed,
+                content="Sorry, could not generate a game.",
             )
             return
 
@@ -96,11 +100,15 @@ class GameGenerator(Workflow):
             game_output_path.write_text(game_code)
 
             yield RunResponse(
-                run_id=self.run_id, event=RunEvent.workflow_completed, content=game_output.content.instructions
+                run_id=self.run_id,
+                event=RunEvent.workflow_completed,
+                content=game_output.content.instructions,
             )
         else:
             yield RunResponse(
-                run_id=self.run_id, event=RunEvent.workflow_completed, content="Sorry, could not QA the game."
+                run_id=self.run_id,
+                event=RunEvent.workflow_completed,
+                content="Sorry, could not QA the game.",
             )
             return
 
@@ -127,7 +135,9 @@ if __name__ == "__main__":
     )
 
     # Execute the workflow
-    result: Iterator[RunResponse] = game_generator.run(game_description=game_description)
+    result: Iterator[RunResponse] = game_generator.run(
+        game_description=game_description
+    )
 
     # Print the report
     pprint_run_response(result)

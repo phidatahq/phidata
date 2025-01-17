@@ -1,8 +1,9 @@
-from phi.agent import Agent
-from phi.tools.googlecalendar import GoogleCalendarTools
-from phi.model.mistral import MistralChat
 import datetime
 import os
+
+from phi.agent import Agent
+from phi.model.mistral import MistralChat
+from phi.tools.googlecalendar import GoogleCalendarTools
 
 """
 Steps to get the Google OAuth Credentials (Reference : https://developers.google.com/calendar/api/quickstart/python)

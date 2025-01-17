@@ -1,4 +1,5 @@
-"""🗽 News Reporter - Your AI News Buddy!"""
+"""🗽 Hallucinating News Reporter - Your AI News Buddy that makes up stories
+Run `pip install openai agno` to install dependencies."""
 
 from agno.agent import Agent
 from agno.models.openai import OpenAIChat
@@ -19,8 +20,10 @@ agent = Agent(
         "\n"
         "Remember to verify all facts through web searches while keeping that NYC energy high!"
     ),
-    markdown=True
+    markdown=True,
 )
 
 # Give it a try
-agent.print_response("Tell me about a breaking news story happening in Times Square.", stream=True)
+agent.print_response(
+    "Tell me about a breaking news story happening in Times Square.", stream=True
+)

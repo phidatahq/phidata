@@ -3,11 +3,12 @@ from enum import Enum
 from time import time
 from typing import Any, Dict, List, Optional
 
+from pydantic import BaseModel
+
 from agno.media import AudioArtifact, AudioOutput, ImageArtifact, VideoArtifact
 from agno.models.message import Message, MessageReferences
 from agno.reasoning.step import ReasoningStep
 
-from pydantic import BaseModel
 
 class RunEvent(str, Enum):
     """Events that can be sent by the run() functions"""
@@ -86,7 +87,7 @@ class RunResponse:
 
         if self.audio is not None:
             _dict["audio"] = [aud.model_dump() for aud in self.audio]
-        
+
         if isinstance(self.content, BaseModel):
             _dict["content"] = self.content.model_dump(exclude_none=True)
         return _dict
@@ -100,7 +101,7 @@ class RunResponse:
 
     def get_content_as_string(self, **kwargs) -> str:
         import json
- 
+
         from pydantic import BaseModel
 
         if isinstance(self.content, str):

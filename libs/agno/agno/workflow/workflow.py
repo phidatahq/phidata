@@ -122,6 +122,8 @@ class Workflow:
         # Return type of the run function
         self._run_return_type: Optional[str] = None
 
+        self.update_run_method()
+
         self.__post_init__()
 
     def __post_init__(self):
@@ -153,15 +155,12 @@ class Workflow:
         # Read existing session from storage
         self.read_from_storage()
 
-        # Update the run method to call run_workflow() instead of the subclass's run()
-        self.update_run_method()
-        self._subclass_run = cast(Callable, self._subclass_run)
-
         # Update the session_id for all Agent instances
         self.update_agent_session_ids()
 
         logger.debug(f"*********** Workflow Run Start: {self.run_id} ***********")
         try:
+            self._subclass_run = cast(Callable, self._subclass_run)
             result = self._subclass_run(**kwargs)
         except Exception as e:
             logger.error(f"Workflow.run() failed: {e}")

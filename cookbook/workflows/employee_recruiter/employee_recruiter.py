@@ -1,22 +1,24 @@
-from datetime import datetime
-import os
-from typing import List
 import io
-import requests
+import os
+from datetime import datetime
+from typing import List
 
+import requests
 from agno.run.response import RunResponse
 from agno.tools.zoom import ZoomTool
 
 try:
     from pypdf import PdfReader
 except ImportError:
-    raise ImportError("pypdf is not installed. Please install it using `pip install pypdf`")
+    raise ImportError(
+        "pypdf is not installed. Please install it using `pip install pypdf`"
+    )
 from agno.agent.agent import Agent
 from agno.models.openai.chat import OpenAIChat
 from agno.tools.resend_tools import ResendTools
+from agno.utils.log import logger
 from agno.workflow.workflow import Workflow
 from pydantic import BaseModel, Field
-from agno.utils.log import logger
 
 
 class ScreeningResult(BaseModel):
@@ -123,7 +125,9 @@ class EmployeeRecruitmentWorkflow(Workflow):
             print(f"Error processing PDF: {str(e)}")
             return ""
 
-    def run(self, candidate_resume_urls: List[str], job_description: str) -> RunResponse:
+    def run(
+        self, candidate_resume_urls: List[str], job_description: str
+    ) -> RunResponse:
         selected_candidates = []
 
         if not candidate_resume_urls:
@@ -146,7 +150,11 @@ class EmployeeRecruitmentWorkflow(Workflow):
             else:
                 logger.error(f"Could not process resume from URL: {resume_url}")
 
-            if screening_result and screening_result.content and screening_result.content.score > 7.0:
+            if (
+                screening_result
+                and screening_result.content
+                and screening_result.content.score > 7.0
+            ):
                 selected_candidates.append(screening_result.content)
 
         for selected_candidate in selected_candidates:
@@ -154,7 +162,11 @@ class EmployeeRecruitmentWorkflow(Workflow):
             scheduled_call = self.interview_scheduler_agent.run(input)
             logger.info(scheduled_call.content)
 
-            if scheduled_call.content and scheduled_call.content.url and scheduled_call.content.call_time:
+            if (
+                scheduled_call.content
+                and scheduled_call.content.url
+                and scheduled_call.content.call_time
+            ):
                 input = f"Write an email to Candidate name: {selected_candidate.name}, Candidate email: {selected_candidate.email} for the call scheduled at {scheduled_call.content.call_time} with the url {scheduled_call.content.url} and congratulate them for the interview from John Doe designation Senior Software Engineer and email john@agno.com"
                 email = self.email_writer_agent.run(input)
                 logger.info(email.content)

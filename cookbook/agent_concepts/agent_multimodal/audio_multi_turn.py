@@ -4,7 +4,9 @@ from agno.utils.audio import write_audio_to_file
 
 agent = Agent(
     model=OpenAIChat(
-        id="gpt-4o-audio-preview", modalities=["text", "audio"], audio={"voice": "alloy", "format": "wav"}
+        id="gpt-4o-audio-preview",
+        modalities=["text", "audio"],
+        audio={"voice": "alloy", "format": "wav"},
     ),
     debug_mode=True,
     add_history_to_messages=True,

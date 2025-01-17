@@ -41,7 +41,14 @@ finance_agent = Agent(
     role="Get financial data",
     agent_id="finance-agent",
     model=xAI(id="grok-beta"),
-    tools=[YFinanceTools(stock_price=True, analyst_recommendations=True, company_info=True, company_news=True)],
+    tools=[
+        YFinanceTools(
+            stock_price=True,
+            analyst_recommendations=True,
+            company_info=True,
+            company_news=True,
+        )
+    ],
     description="You are an investment analyst that researches stocks and helps users make informed decisions.",
     instructions=["Always use tables to display data"] + common_instructions,
     storage=SqliteDbAgentStorage(table_name="finance_agent", db_file=xai_agent_storage),

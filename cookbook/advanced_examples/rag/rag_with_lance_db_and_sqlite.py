@@ -1,11 +1,11 @@
 """Run `pip install lancedb` to install dependencies."""
 
-from agno.knowledge.pdf_url import PDFUrlKnowledgeBase
-from agno.vectordb.lancedb import LanceDb
-from agno.embedder.ollama import OllamaEmbedder
 from agno.agent import Agent
-from agno.storage.agent.sqlite import SqliteDbAgentStorage
+from agno.embedder.ollama import OllamaEmbedder
+from agno.knowledge.pdf_url import PDFUrlKnowledgeBase
 from agno.models.ollama import Ollama
+from agno.storage.agent.sqlite import SqliteDbAgentStorage
+from agno.vectordb.lancedb import LanceDb
 
 # Define the database URL where the vector database will be stored
 db_url = "/tmp/lancedb"
@@ -49,4 +49,7 @@ agent = Agent(
 )
 
 # Use the agent to generate and print a response to a query, formatted in Markdown
-agent.print_response("What is the first step of making Gluai Buat Chi from the knowledge base?", markdown=True)
+agent.print_response(
+    "What is the first step of making Gluai Buat Chi from the knowledge base?",
+    markdown=True,
+)

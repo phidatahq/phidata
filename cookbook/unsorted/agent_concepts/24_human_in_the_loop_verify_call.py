@@ -2,12 +2,11 @@ import json
 from typing import Iterator
 
 import httpx
-from rich.console import Console
-from rich.prompt import Prompt
-from rich.pretty import pprint
-
 from agno.agent import Agent
-from agno.tools import tool, FunctionCall, StopAgentRun, RetryAgentRun  # noqa
+from agno.tools import FunctionCall, RetryAgentRun, StopAgentRun, tool  # noqa
+from rich.console import Console
+from rich.pretty import pprint
+from rich.prompt import Prompt
 
 # This is the console instance used by the print_response method
 # We can use this to stop and restart the live display and ask for user confirmation
@@ -23,7 +22,11 @@ def pre_hook(fc: FunctionCall):
 
     # Ask for confirmation
     console.print(f"\nAbout to run [bold blue]{fc.function.name}[/]")
-    message = Prompt.ask("Do you want to continue?", choices=["y", "n"], default="y").strip().lower()
+    message = (
+        Prompt.ask("Do you want to continue?", choices=["y", "n"], default="y")
+        .strip()
+        .lower()
+    )
 
     # Restart the live display
     live.start()  # type: ignore
@@ -44,7 +47,9 @@ def get_top_hackernews_stories(num_stories: int) -> Iterator[str]:
 
     # Yield story details
     for story_id in story_ids[:num_stories]:
-        story_response = httpx.get(f"https://hacker-news.firebaseio.com/v0/item/{story_id}.json")
+        story_response = httpx.get(
+            f"https://hacker-news.firebaseio.com/v0/item/{story_id}.json"
+        )
         story = story_response.json()
         if "text" in story:
             story.pop("text", None)
@@ -55,7 +60,9 @@ def get_top_hackernews_stories(num_stories: int) -> Iterator[str]:
 agent = Agent(tools=[get_top_hackernews_stories], markdown=True, show_tool_calls=True)
 
 # Run the agent
-agent.print_response("What are the top 2 hackernews stories?", stream=True, console=console)
+agent.print_response(
+    "What are the top 2 hackernews stories?", stream=True, console=console
+)
 
 # View all messages
 pprint(agent.run_response.messages)

@@ -1,8 +1,8 @@
 """Run `pip install groq exa-py` to install dependencies."""
 
+from datetime import datetime
 from pathlib import Path
 from textwrap import dedent
-from datetime import datetime
 
 from agno.agent import Agent
 from agno.models.groq import Groq

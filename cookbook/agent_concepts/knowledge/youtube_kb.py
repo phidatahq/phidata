@@ -1,4 +1,5 @@
 from os import getenv
+
 from agno.agent import Agent
 from agno.knowledge.youtube import YouTubeKnowledgeBase, YouTubeReader
 from agno.vectordb.qdrant import Qdrant
@@ -21,4 +22,6 @@ agent = Agent(
     search_knowledge=True,
 )
 
-agent.print_response("what is the major focus of the knowledge provided?", markdown=True)
+agent.print_response(
+    "what is the major focus of the knowledge provided?", markdown=True
+)

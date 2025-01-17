@@ -1,9 +1,8 @@
-from pydantic import BaseModel, Field
-
 from agno.agent.agent import Agent
 from agno.models.openai.chat import OpenAIChat
 from agno.run.response import RunResponse
 from agno.workflow.workflow import Workflow
+from pydantic import BaseModel, Field
 
 
 class Feedback(BaseModel):
@@ -60,5 +59,7 @@ class SelfEvaluationWorkflow(Workflow):
 
 if __name__ == "__main__":
     self_evaluation_workflow = SelfEvaluationWorkflow()
-    response = self_evaluation_workflow.run("create a post about the latest trends in AI")
+    response = self_evaluation_workflow.run(
+        "create a post about the latest trends in AI"
+    )
     print(response.content)

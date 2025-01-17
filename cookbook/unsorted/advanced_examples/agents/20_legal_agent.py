@@ -28,5 +28,6 @@ legal_agent = Agent(
 )
 
 legal_agent.print_response(
-    "What are the legal consequences and criminal penalties for spoofing Email Address ?", stream=True
+    "What are the legal consequences and criminal penalties for spoofing Email Address ?",
+    stream=True,
 )

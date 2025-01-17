@@ -15,4 +15,7 @@ agent = Agent(
     search_knowledge=True,
 )
 
-agent.print_response("What is the average salary of employees in the Marketing department?", markdown=True)
+agent.print_response(
+    "What is the average salary of employees in the Marketing department?",
+    markdown=True,
+)

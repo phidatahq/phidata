@@ -1,18 +1,21 @@
 import json
 from typing import List, Optional
+
+from agno.agent import Agent, RunResponse
+from agno.models.openai import OpenAIChat
+from agno.run.response import RunEvent
+from agno.tools.firecrawl import FirecrawlTools
+from agno.utils.log import logger
+from agno.workflow import Workflow
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 
-from cookbook.workflows.content_creator_workflow.scheduler import schedule
-from cookbook.workflows.content_creator_workflow.prompts import agents_config, tasks_config
 from cookbook.workflows.content_creator_workflow.config import PostType
-from agno.agent import Agent, RunResponse
-from agno.run.response import RunEvent
-from agno.workflow import Workflow
-from agno.models.openai import OpenAIChat
-from agno.tools.firecrawl import FirecrawlTools
-from agno.utils.log import logger
-
+from cookbook.workflows.content_creator_workflow.prompts import (
+    agents_config,
+    tasks_config,
+)
+from cookbook.workflows.content_creator_workflow.scheduler import schedule
 
 # Load environment variables
 load_dotenv()
@@ -35,8 +38,12 @@ class Tweet(BaseModel):
     """
 
     content: str
-    is_hook: bool = Field(default=False, description="Marks if this tweet is the 'hook' (first tweet)")
-    media_urls: Optional[List[str]] = Field(default_factory=list, description="Associated media URLs, if any")  # type: ignore
+    is_hook: bool = Field(
+        default=False, description="Marks if this tweet is the 'hook' (first tweet)"
+    )
+    media_urls: Optional[List[str]] = Field(
+        default_factory=list, description="Associated media URLs, if any"
+    )  # type: ignore
 
 
 class Thread(BaseModel):
@@ -66,16 +73,22 @@ class ContentPlanningWorkflow(Workflow):
     """
 
     # This description is used only in workflow UI
-    description: str = "Plan, schedule, and publish social media content based on a blog post."
+    description: str = (
+        "Plan, schedule, and publish social media content based on a blog post."
+    )
 
     # Blog Analyzer Agent: Extracts blog content (title, sections) and converts it into Markdown format for further use.
     blog_analyzer: Agent = Agent(
         model=OpenAIChat(id="gpt-4o"),
-        tools=[FirecrawlTools(scrape=True, crawl=False)],  # Enables blog scraping capabilities
+        tools=[
+            FirecrawlTools(scrape=True, crawl=False)
+        ],  # Enables blog scraping capabilities
         description=f"{agents_config['blog_analyzer']['role']} - {agents_config['blog_analyzer']['goal']}",
         instructions=[
             f"{agents_config['blog_analyzer']['backstory']}",
-            tasks_config["analyze_blog"]["description"],  # Task-specific instructions for blog analysis
+            tasks_config["analyze_blog"][
+                "description"
+            ],  # Task-specific instructions for blog analysis
         ],
         response_model=BlogAnalyzer,  # Expects response to follow the BlogAnalyzer Pydantic model
     )
@@ -157,7 +170,9 @@ class ContentPlanningWorkflow(Workflow):
         if response:
             return RunResponse(content=response, event=RunEvent.workflow_completed)
         else:
-            return RunResponse(content="Failed to schedule content.", event=RunEvent.workflow_completed)
+            return RunResponse(
+                content="Failed to schedule content.", event=RunEvent.workflow_completed
+            )
 
     def run(self, blog_post_url, post_type) -> RunResponse:
         """

@@ -14,5 +14,6 @@ agent = Agent(
     ],
 )
 agent.print_response(
-    "Get the detailed timestamps for this video https://www.youtube.com/watch?v=M5tx7VI-LFA", markdown=True
+    "Get the detailed timestamps for this video https://www.youtube.com/watch?v=M5tx7VI-LFA",
+    markdown=True,
 )

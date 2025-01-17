@@ -16,7 +16,9 @@ def get_top_hackernews_stories(agent: Agent) -> Iterator[str]:
 
     # Yield story details
     for story_id in story_ids[:num_stories]:
-        story_response = httpx.get(f"https://hacker-news.firebaseio.com/v0/item/{story_id}.json")
+        story_response = httpx.get(
+            f"https://hacker-news.firebaseio.com/v0/item/{story_id}.json"
+        )
         story = story_response.json()
         if "text" in story:
             story.pop("text", None)

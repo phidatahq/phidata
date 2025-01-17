@@ -4,8 +4,8 @@
 """
 
 from agno.agent import Agent
-from agno.tools.hackernews import HackerNewsTools
 from agno.tools.duckduckgo import DuckDuckGoTools
+from agno.tools.hackernews import HackerNewsTools
 from agno.tools.newspaper4k import Newspaper4kTools
 
 hn_researcher = Agent(
@@ -40,4 +40,6 @@ hn_team = Agent(
     show_tool_calls=True,
     markdown=True,
 )
-hn_team.print_response("Write an article about the top 2 stories on hackernews", stream=True)
+hn_team.print_response(
+    "Write an article about the top 2 stories on hackernews", stream=True
+)

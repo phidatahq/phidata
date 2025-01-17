@@ -1,4 +1,5 @@
 import base64
+
 import requests
 from agno.agent import Agent
 from agno.media import AudioInput
@@ -13,7 +14,9 @@ wav_data = response.content
 
 agent = Agent(
     model=OpenAIChat(
-        id="gpt-4o-audio-preview", modalities=["text", "audio"], audio={"voice": "alloy", "format": "wav"}
+        id="gpt-4o-audio-preview",
+        modalities=["text", "audio"],
+        audio={"voice": "alloy", "format": "wav"},
     ),
     markdown=True,
 )

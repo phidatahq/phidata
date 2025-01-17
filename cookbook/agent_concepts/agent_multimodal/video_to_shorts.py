@@ -4,16 +4,15 @@
 2. Run the script using: `python cookbook/agents/47_video_to_shorts.py`
 """
 
-import time
 import subprocess
+import time
 from pathlib import Path
-
-from google.generativeai import upload_file, get_file
 
 from agno.agent import Agent
 from agno.media import VideoInput
 from agno.models.google import Gemini
 from agno.utils.log import logger
+from google.generativeai import get_file, upload_file
 
 video_path = "sample.mp4"
 output_dir = Path("output/sample")
@@ -124,7 +123,9 @@ def extract_segments(response_text):
 
             try:
                 subprocess.run(command, check=True)
-                segments.append({"path": output_path, "description": description, "score": score})
+                segments.append(
+                    {"path": output_path, "description": description, "score": score}
+                )
             except subprocess.CalledProcessError:
                 print(f"Failed to process segment: {start_time} - {end_time}")
 

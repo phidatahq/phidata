@@ -1,8 +1,9 @@
 from agno.agent import Agent
-from agno.knowledge.pdf_url import PDFUrlKnowledgeBase
-from agno.vectordb.cassandra.cassandra import CassandraDb
-from agno.models.mistral import MistralChat
 from agno.embedder.mistral import MistralEmbedder
+from agno.knowledge.pdf_url import PDFUrlKnowledgeBase
+from agno.models.mistral import MistralChat
+from agno.vectordb.cassandra.cassandra import CassandraDb
+
 try:
     from cassandra.cluster import Cluster  # type: ignore
 except (ImportError, ModuleNotFoundError):
@@ -26,7 +27,7 @@ knowledge_base = PDFUrlKnowledgeBase(
         table_name="recipes",
         keyspace="testkeyspace",
         session=session,
-        embedder = MistralEmbedder()
+        embedder=MistralEmbedder(),
     ),
 )
 
@@ -40,6 +41,7 @@ agent = Agent(
 )
 
 agent.print_response(
-    "What are the health benefits of Khao Niew Dam Piek Maphrao Awn?", markdown=True, show_full_reasoning=True
+    "What are the health benefits of Khao Niew Dam Piek Maphrao Awn?",
+    markdown=True,
+    show_full_reasoning=True,
 )
-

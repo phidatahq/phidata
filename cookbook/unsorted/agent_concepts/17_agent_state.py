@@ -16,5 +16,7 @@ agent = Agent(
     instructions="Run the function call 1 by 1 and share when you are done",
     show_tool_calls=True,
 )
-agent.print_response("Initialize the counter and then increment it 5 times", stream=True, markdown=True)
+agent.print_response(
+    "Initialize the counter and then increment it 5 times", stream=True, markdown=True
+)
 print(f"Session state: {agent.session_state}")

@@ -1,11 +1,11 @@
 from pathlib import Path
 
 from agno.agent import Agent
+from agno.knowledge.combined import CombinedKnowledgeBase
 from agno.knowledge.csv import CSVKnowledgeBase
 from agno.knowledge.pdf import PDFKnowledgeBase
 from agno.knowledge.pdf_url import PDFUrlKnowledgeBase
 from agno.knowledge.website import WebsiteKnowledgeBase
-from agno.knowledge.combined import CombinedKnowledgeBase
 from agno.vectordb.pgvector import PgVector
 
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"

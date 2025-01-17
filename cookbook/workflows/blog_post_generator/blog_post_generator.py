@@ -4,23 +4,24 @@
 """
 
 import json
-from typing import Optional, Iterator
-
-from pydantic import BaseModel, Field
+from typing import Iterator, Optional
 
 from agno.agent import Agent
 from agno.models.openai import OpenAIChat
-from agno.workflow import Workflow, RunResponse, RunEvent
 from agno.storage.workflow.sqlite import SqliteDbWorkflowStorage
 from agno.tools.duckduckgo import DuckDuckGoTools
-from agno.utils.pprint import pprint_run_response
 from agno.utils.log import logger
+from agno.utils.pprint import pprint_run_response
+from agno.workflow import RunEvent, RunResponse, Workflow
+from pydantic import BaseModel, Field
 
 
 class NewsArticle(BaseModel):
     title: str = Field(..., description="Title of the article.")
     url: str = Field(..., description="Link to the article.")
-    summary: Optional[str] = Field(..., description="Summary of the article if available.")
+    summary: Optional[str] = Field(
+        ..., description="Summary of the article if available."
+    )
 
 
 class SearchResults(BaseModel):
@@ -69,11 +70,15 @@ class BlogPostGenerator(Workflow):
 
                 # Check if we got a valid response
                 if not searcher_response or not searcher_response.content:
-                    logger.warning(f"Attempt {attempt + 1}/{MAX_ATTEMPTS}: Empty searcher response")
+                    logger.warning(
+                        f"Attempt {attempt + 1}/{MAX_ATTEMPTS}: Empty searcher response"
+                    )
                     continue
                 # Check if the response is of the expected SearchResults type
                 if not isinstance(searcher_response.content, SearchResults):
-                    logger.warning(f"Attempt {attempt + 1}/{MAX_ATTEMPTS}: Invalid response type")
+                    logger.warning(
+                        f"Attempt {attempt + 1}/{MAX_ATTEMPTS}: Invalid response type"
+                    )
                     continue
 
                 article_count = len(searcher_response.content.articles)
@@ -86,10 +91,15 @@ class BlogPostGenerator(Workflow):
         logger.error(f"Failed to get search results after {MAX_ATTEMPTS} attempts")
         return None
 
-    def write_blog_post(self, topic: str, search_results: SearchResults) -> Iterator[RunResponse]:
+    def write_blog_post(
+        self, topic: str, search_results: SearchResults
+    ) -> Iterator[RunResponse]:
         logger.info("Writing blog post")
         # Prepare the input for the writer
-        writer_input = {"topic": topic, "articles": [v.model_dump() for v in search_results.articles]}
+        writer_input = {
+            "topic": topic,
+            "articles": [v.model_dump() for v in search_results.articles],
+        }
         # Run the writer and yield the response
         yield from self.writer.run(json.dumps(writer_input, indent=4), stream=True)
         # Save the blog post in the cache
@@ -102,7 +112,9 @@ class BlogPostGenerator(Workflow):
         if use_cache:
             cached_blog_post = self.get_cached_blog_post(topic)
             if cached_blog_post:
-                yield RunResponse(content=cached_blog_post, event=RunEvent.workflow_completed)
+                yield RunResponse(
+                    content=cached_blog_post, event=RunEvent.workflow_completed
+                )
                 return
 
         # Search the web for articles on the topic
@@ -145,7 +157,9 @@ if __name__ == "__main__":
 
     # Execute the workflow with caching enabled
     # Returns an iterator of RunResponse objects containing the generated content
-    blog_post: Iterator[RunResponse] = generate_blog_post.run(topic=topic, use_cache=True)
+    blog_post: Iterator[RunResponse] = generate_blog_post.run(
+        topic=topic, use_cache=True
+    )
 
     # Print the response
     pprint_run_response(blog_post, markdown=True)

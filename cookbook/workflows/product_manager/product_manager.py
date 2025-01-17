@@ -1,27 +1,30 @@
 import os
 from datetime import datetime
-from typing import List, Optional, Dict
+from typing import Dict, List, Optional
 
-from pydantic import BaseModel, Field
-
+from agno.agent.agent import Agent
 from agno.run.response import RunEvent, RunResponse
+from agno.storage.workflow.postgres import PostgresDbWorkflowStorage
 from agno.tools.linear_tools import LinearTools
 from agno.tools.slack import SlackTools
-from agno.agent.agent import Agent
-from agno.workflow.workflow import Workflow
-from agno.storage.workflow.postgres import PostgresDbWorkflowStorage
 from agno.utils.log import logger
+from agno.workflow.workflow import Workflow
+from pydantic import BaseModel, Field
 
 
 class Task(BaseModel):
     task_title: str = Field(..., description="The title of the task")
-    task_description: Optional[str] = Field(None, description="The description of the task")
+    task_description: Optional[str] = Field(
+        None, description="The description of the task"
+    )
     task_assignee: Optional[str] = Field(None, description="The assignee of the task")
 
 
 class LinearIssue(BaseModel):
     issue_title: str = Field(..., description="The title of the issue")
-    issue_description: Optional[str] = Field(None, description="The description of the issue")
+    issue_description: Optional[str] = Field(
+        None, description="The description of the issue"
+    )
     issue_assignee: Optional[str] = Field(None, description="The assignee of the issue")
     issue_link: Optional[str] = Field(None, description="The link to the issue")
 
@@ -39,7 +42,9 @@ class ProductManagerWorkflow(Workflow):
 
     task_agent: Agent = Agent(
         name="Task Agent",
-        instructions=["Given a meeting note, generate a list of tasks with titles, descriptions and assignees."],
+        instructions=[
+            "Given a meeting note, generate a list of tasks with titles, descriptions and assignees."
+        ],
         response_model=TaskList,
     )
 
@@ -76,7 +81,11 @@ class ProductManagerWorkflow(Workflow):
             num_tries += 1
             try:
                 response: RunResponse = self.task_agent.run(meeting_notes)
-                if response and response.content and isinstance(response.content, TaskList):
+                if (
+                    response
+                    and response.content
+                    and isinstance(response.content, TaskList)
+                ):
                     tasks = response.content
                 else:
                     logger.warning("Invalid response from task agent, trying again...")
@@ -85,7 +94,9 @@ class ProductManagerWorkflow(Workflow):
 
         return tasks
 
-    def create_linear_issues(self, tasks: TaskList, linear_users: Dict[str, str]) -> Optional[LinearIssueList]:
+    def create_linear_issues(
+        self, tasks: TaskList, linear_users: Dict[str, str]
+    ) -> Optional[LinearIssueList]:
         project_id = os.getenv("LINEAR_PROJECT_ID")
         team_id = os.getenv("LINEAR_TEAM_ID")
         if project_id is None:
@@ -105,7 +116,9 @@ class ProductManagerWorkflow(Workflow):
 
         return linear_issues
 
-    def run(self, meeting_notes: str, linear_users: Dict[str, str], use_cache: bool = False) -> RunResponse:
+    def run(
+        self, meeting_notes: str, linear_users: Dict[str, str], use_cache: bool = False
+    ) -> RunResponse:
         logger.info(f"Generating tasks from meeting notes: {meeting_notes}")
         current_date = datetime.now().strftime("%Y-%m-%d")
 
@@ -123,14 +136,20 @@ class ProductManagerWorkflow(Workflow):
 
         if "meeting_notes" not in self.session_state:
             self.session_state["meeting_notes"] = []
-        self.session_state["meeting_notes"].append({"date": current_date, "tasks": tasks.model_dump_json()})
+        self.session_state["meeting_notes"].append(
+            {"date": current_date, "tasks": tasks.model_dump_json()}
+        )
 
         linear_issues = self.create_linear_issues(tasks, linear_users)
 
         # Send slack notification with tasks
         if linear_issues:
-            logger.info(f"Sending slack notification with tasks: {linear_issues.model_dump_json()}")
-            slack_response: RunResponse = self.slack_agent.run(linear_issues.model_dump_json())
+            logger.info(
+                f"Sending slack notification with tasks: {linear_issues.model_dump_json()}"
+            )
+            slack_response: RunResponse = self.slack_agent.run(
+                linear_issues.model_dump_json()
+            )
             logger.info(f"Slack response: {slack_response}")
 
         return slack_response

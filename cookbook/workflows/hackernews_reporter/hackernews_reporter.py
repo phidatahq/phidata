@@ -3,18 +3,20 @@ pip install openai newspaper4k lxml_html_clean agno
 """
 
 import json
-import httpx
 from typing import Iterator
 
+import httpx
 from agno.agent import Agent, RunResponse
-from agno.workflow import Workflow
 from agno.tools.newspaper4k import Newspaper4kTools
-from agno.utils.pprint import pprint_run_response
 from agno.utils.log import logger
+from agno.utils.pprint import pprint_run_response
+from agno.workflow import Workflow
 
 
 class HackerNewsReporter(Workflow):
-    description: str = "Get the top stories from Hacker News and write a report on them."
+    description: str = (
+        "Get the top stories from Hacker News and write a report on them."
+    )
 
     hn_agent: Agent = Agent(
         description="Get the top stories from hackernews. "
@@ -55,7 +57,9 @@ class HackerNewsReporter(Workflow):
         # Fetch story details
         stories = []
         for story_id in story_ids[:num_stories]:
-            story_response = httpx.get(f"https://hacker-news.firebaseio.com/v0/item/{story_id}.json")
+            story_response = httpx.get(
+                f"https://hacker-news.firebaseio.com/v0/item/{story_id}.json"
+            )
             story = story_response.json()
             story["username"] = story["by"]
             stories.append(story)
@@ -68,7 +72,9 @@ class HackerNewsReporter(Workflow):
         logger.info(f"Getting top {num_stories} stories from HackerNews.")
         top_stories: RunResponse = self.hn_agent.run(num_stories=num_stories)
         if top_stories is None or not top_stories.content:
-            yield RunResponse(run_id=self.run_id, content="Sorry, could not get the top stories.")
+            yield RunResponse(
+                run_id=self.run_id, content="Sorry, could not get the top stories."
+            )
             return
 
         logger.info("Reading each story and writing a report.")

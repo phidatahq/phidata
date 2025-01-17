@@ -1,5 +1,6 @@
-import json
 import asyncio
+import json
+
 from agno.agent.duckdb import DuckDbAgent
 
 data_analyst = DuckDbAgent(
@@ -16,4 +17,8 @@ data_analyst = DuckDbAgent(
     ),
 )
 
-asyncio.run(data_analyst.aprint_response("What is the average rating of movies? Show me the SQL.", markdown=True))
+asyncio.run(
+    data_analyst.aprint_response(
+        "What is the average rating of movies? Show me the SQL.", markdown=True
+    )
+)

@@ -4,10 +4,11 @@
 """
 
 from pathlib import Path
+
 from agno.agent import Agent
 from agno.tools.duckduckgo import DuckDuckGoTools
-from agno.tools.newspaper4k import Newspaper4kTools
 from agno.tools.file import FileTools
+from agno.tools.newspaper4k import Newspaper4kTools
 
 urls_file = Path(__file__).parent.joinpath("tmp", "urls__{session_id}.md")
 urls_file.parent.mkdir(parents=True, exist_ok=True)

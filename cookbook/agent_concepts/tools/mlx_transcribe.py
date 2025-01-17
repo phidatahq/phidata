@@ -18,6 +18,7 @@ Example Usage:
 """
 
 from pathlib import Path
+
 from agno.agent import Agent
 from agno.models.openai import OpenAIChat
 from agno.tools.mlx_transcribe import MLXTranscribeTools
@@ -39,4 +40,6 @@ agent = Agent(
     markdown=True,
 )
 
-agent.print_response("Summarize the reid hoffman ted talk, split into sections", stream=True)
+agent.print_response(
+    "Summarize the reid hoffman ted talk, split into sections", stream=True
+)

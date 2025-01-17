@@ -1,7 +1,7 @@
 """Run `pip install openai exa_py duckduckgo-search yfinance pypdf sqlalchemy 'fastapi[standard]' agno youtube-transcript-api` to install dependencies."""
 
-from textwrap import dedent
 from datetime import datetime
+from textwrap import dedent
 
 from agno.agent import Agent
 from agno.models.azure.openai_chat import AzureOpenAI
@@ -21,7 +21,10 @@ web_agent = Agent(
     agent_id="web-agent",
     model=AzureOpenAI(id="gpt-4o"),
     tools=[DuckDuckGoTools()],
-    instructions=["Break down the users request into 2-3 different searches.", "Always include sources"],
+    instructions=[
+        "Break down the users request into 2-3 different searches.",
+        "Always include sources",
+    ],
     storage=SqliteDbAgentStorage(table_name="web_agent", db_file=agent_storage_file),
     add_history_to_messages=True,
     num_history_responses=5,
@@ -34,9 +37,18 @@ finance_agent = Agent(
     role="Get financial data",
     agent_id="finance-agent",
     model=AzureOpenAI(id="gpt-4o"),
-    tools=[YFinanceTools(stock_price=True, analyst_recommendations=True, company_info=True, company_news=True)],
+    tools=[
+        YFinanceTools(
+            stock_price=True,
+            analyst_recommendations=True,
+            company_info=True,
+            company_news=True,
+        )
+    ],
     instructions=["Always use tables to display data"],
-    storage=SqliteDbAgentStorage(table_name="finance_agent", db_file=agent_storage_file),
+    storage=SqliteDbAgentStorage(
+        table_name="finance_agent", db_file=agent_storage_file
+    ),
     add_history_to_messages=True,
     num_history_responses=5,
     add_datetime_to_instructions=True,
@@ -60,7 +72,11 @@ research_agent = Agent(
     role="Write research reports for the New York Times",
     agent_id="research-agent",
     model=AzureOpenAI(id="gpt-4o"),
-    tools=[ExaTools(start_published_date=datetime.now().strftime("%Y-%m-%d"), type="keyword")],
+    tools=[
+        ExaTools(
+            start_published_date=datetime.now().strftime("%Y-%m-%d"), type="keyword"
+        )
+    ],
     description=(
         "You are a Research Agent that has the special skill of writing New York Times worthy articles. "
         "If you can directly respond to the user, do so. If the user asks for a report or provides a topic, follow the instructions below."
@@ -92,7 +108,9 @@ research_agent = Agent(
     - [Reference 1](link)
     - [Reference 2](link)
     """),
-    storage=SqliteDbAgentStorage(table_name="research_agent", db_file=agent_storage_file),
+    storage=SqliteDbAgentStorage(
+        table_name="research_agent", db_file=agent_storage_file
+    ),
     add_history_to_messages=True,
     add_datetime_to_instructions=True,
     markdown=True,
@@ -114,11 +132,15 @@ youtube_agent = Agent(
     num_history_responses=5,
     show_tool_calls=True,
     add_datetime_to_instructions=True,
-    storage=SqliteDbAgentStorage(table_name="youtube_agent", db_file=agent_storage_file),
+    storage=SqliteDbAgentStorage(
+        table_name="youtube_agent", db_file=agent_storage_file
+    ),
     markdown=True,
 )
 
-app = Playground(agents=[web_agent, finance_agent, youtube_agent, research_agent, image_agent]).get_app()
+app = Playground(
+    agents=[web_agent, finance_agent, youtube_agent, research_agent, image_agent]
+).get_app()
 
 if __name__ == "__main__":
     serve_playground_app("azure_openai_agents:app", reload=True)

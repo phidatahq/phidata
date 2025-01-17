@@ -1,12 +1,19 @@
-<h1 align="center" id="top">
-Agno: Lightning Fast AI Agents
-</h1>
-
-<p align="center">
+<div align="center" id="top">
+  <a href="https://docs.agno.com">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset=".assets/logo.svg">
+      <img src=".assets/logo.svg" alt="Agno">
+    </picture>
+  </a>
+</div>
+<div align="center">
+  <em>Agno: Lightning Fast AI Agents</em>
+</div>
+<div align="center">
   <a href="https://docs.agno.com">📚 Documentation</a> &nbsp;|&nbsp;
   <a href="https://github.com/agno-agi/agno/tree/main/cookbook">💡 Examples</a> &nbsp;|&nbsp;
   <a href="https://github.com/agno-agi/agno/stargazers">🌟 Star Us</a>
-</p>
+</div>
 
 ## Overview
 

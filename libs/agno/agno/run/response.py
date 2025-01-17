@@ -7,6 +7,7 @@ from agno.media import AudioArtifact, AudioOutput, ImageArtifact, VideoArtifact
 from agno.models.message import Message, MessageReferences
 from agno.reasoning.step import ReasoningStep
 
+from pydantic import BaseModel
 
 class RunEvent(str, Enum):
     """Events that can be sent by the run() functions"""
@@ -33,17 +34,17 @@ class RunResponseExtraData:
     reasoning_messages: Optional[List[Message]] = None
 
     def to_dict(self) -> Dict[str, Any]:
-        _dict = {
-            k: v
-            for k, v in asdict(self).items()
-            if v is not None and k not in ["add_messages", "history", "reasoning_messages"]
-        }
+        _dict = {}
         if self.add_messages is not None:
             _dict["add_messages"] = [m.to_dict() for m in self.add_messages]
         if self.history is not None:
             _dict["history"] = [m.to_dict() for m in self.history]
         if self.reasoning_messages is not None:
             _dict["reasoning_messages"] = [m.to_dict() for m in self.reasoning_messages]
+        if self.reasoning_steps is not None:
+            _dict["reasoning_steps"] = [rs.model_dump() for rs in self.reasoning_steps]
+        if self.references is not None:
+            _dict["references"] = [r.model_dump() for r in self.references]
         return _dict
 
 
@@ -85,7 +86,10 @@ class RunResponse:
 
         if self.audio is not None:
             _dict["audio"] = [aud.model_dump() for aud in self.audio]
-
+        
+        print(self)
+        if isinstance(self.content, BaseModel):
+            _dict["content"] = self.content.model_dump(exclude_none=True)
         return _dict
 
     def to_json(self) -> str:
@@ -97,7 +101,7 @@ class RunResponse:
 
     def get_content_as_string(self, **kwargs) -> str:
         import json
-
+ 
         from pydantic import BaseModel
 
         if isinstance(self.content, str):

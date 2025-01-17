@@ -125,6 +125,8 @@ def get_sync_playground_router(
 
         # Create a new instance of this agent
         new_agent_instance = agent.deep_copy(update={"session_id": session_id})
+        new_agent_instance.session_name = None
+
         if user_id is not None:
             new_agent_instance.user_id = user_id
 
@@ -307,6 +309,7 @@ def get_sync_playground_router(
         # Create a new instance of this workflow
         new_workflow_instance = workflow.deep_copy(update={"workflow_id": workflow_id})
         new_workflow_instance.user_id = body.user_id
+        new_workflow_instance.session_name = None
 
         # Return based on the response type
         try:

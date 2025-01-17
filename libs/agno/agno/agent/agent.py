@@ -1424,7 +1424,7 @@ class Agent:
         from agno.memory.memory import Memory
         from agno.memory.summary import SessionSummary
         from agno.utils.merge_dict import merge_dictionaries
-
+        
         # Get the agent_id, user_id and session_id from the database
         if self.agent_id is None and session.agent_id is not None:
             self.agent_id = session.agent_id
@@ -1502,7 +1502,16 @@ class Agent:
             self.extra_data = session.extra_data
 
         # Read memory from the database
-        self.memory = cast(AgentMemory, self.memory)
+        if self.memory is None:
+            self.memory = session.memory
+ 
+        if not isinstance(self.memory, AgentMemory):
+            if isinstance(self.memory, dict):
+                # Convert dict to AgentMemory
+                self.memory = AgentMemory(**self.memory)
+            else:
+                raise TypeError(f"Expected memory to be a dict or AgentMemory, but got {type(self.memory)}")
+
         if session.memory is not None:
             try:
                 if "runs" in session.memory:

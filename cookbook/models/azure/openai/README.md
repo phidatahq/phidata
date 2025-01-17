@@ -31,13 +31,13 @@ pip install -U openai duckduckgo-search duckdb yfinance agno
 - Streaming on
 
 ```shell
-python cookbook/models/azure_openai/basic_stream.py
+python cookbook/models/azure/openai/basic_stream.py
 ```
 
 - Streaming off
 
 ```shell
-python cookbook/models/azure_openai/basic.py
+python cookbook/models/azure/openai/basic.py
 ```
 
 ### 5. Run Agent with Tools
@@ -45,23 +45,23 @@ python cookbook/models/azure_openai/basic.py
 - DuckDuckGo Search
 
 ```shell
-python cookbook/models/azure_openai/tool_use.py
+python cookbook/models/azure/openai/tool_use.py
 ```
 
 ### 6. Run Agent that returns structured output
 
 ```shell
-python cookbook/models/azure_openai/structured_output.py
+python cookbook/models/azure/openai/structured_output.py
 ```
 
 ### 7. Run Agent that uses storage
 
 ```shell
-python cookbook/models/azure_openai/storage.py
+python cookbook/models/azure/openai/storage.py
 ```
 
 ### 8. Run Agent that uses knowledge
 
 ```shell
-python cookbook/models/azure_openai/knowledge.py
+python cookbook/models/azure/openai/knowledge.py
 ```

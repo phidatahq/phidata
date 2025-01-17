@@ -1,3 +1,4 @@
+import traceback
 from os import getenv
 from typing import Optional
 from uuid import uuid4
@@ -36,6 +37,8 @@ class DesiVocalTools(Toolkit):
         try:
             url = "https://prod-api2.desivocal.com/dv/api/v0/tts_api/voices"
             response = requests.get(url)
+            response.raise_for_status()
+
             voices_data = response.json()
 
             responses = []
@@ -81,7 +84,10 @@ class DesiVocalTools(Toolkit):
 
             response = requests.post(url, headers=headers, json=payload)
 
-            audio_url = response.json()["s3_path"]
+            response.raise_for_status()
+
+            response_json = response.json()
+            audio_url = response_json["s3_path"]
 
             agent.add_audio(AudioArtifact(id=str(uuid4()), url=audio_url))
 

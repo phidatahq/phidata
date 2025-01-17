@@ -26,13 +26,13 @@ pip install -U google-generativeai duckduckgo-search yfinance agno
 - Streaming on
 
 ```shell
-python cookbook/models/google/basic_stream.py
+python cookbook/models/google/gemini/basic_stream.py
 ```
 
 - Streaming off
 
 ```shell
-python cookbook/models/google/basic.py
+python cookbook/models/google/gemini/basic.py
 ```
 
 ### 5. Run Agent with Tools
@@ -40,60 +40,60 @@ python cookbook/models/google/basic.py
 - DuckDuckGo Agent
 
 ```shell
-python cookbook/models/google/tool_use.py
+python cookbook/models/google/gemini/tool_use.py
 ```
 
 
 ### 6. Run Agent that returns structured output
 
 ```shell
-python cookbook/models/google/structured_output.py
+python cookbook/models/google/gemini/structured_output.py
 ```
 
 ### 7. Run Agent that uses storage
 
 ```shell
-python cookbook/models/google/storage.py
+python cookbook/models/google/gemini/storage.py
 ```
 
 ### 8. Run Agent that uses knowledge
 
 ```shell
-python cookbook/models/google/knowledge.py
+python cookbook/models/google/gemini/knowledge.py
 ```
 
 ### 9. Run Agent that interprets an audio file
 
 ```shell
-python cookbook/models/google/audio_agent.py
+python cookbook/models/google/gemini/audio_agent.py
 ```
 
 or
 
 ```shell
-python cookbook/models/google/audio_agent_file_upload.py
+python cookbook/models/google/gemini/audio_agent_file_upload.py
 ```
 
 ### 10. Run Agent that analyzes an image
 
 ```shell
-python cookbook/models/google/image_agent.py
+python cookbook/models/google/gemini/image_agent.py
 ```
 
 or
 
 ```shell
-python cookbook/models/google/image_agent_file_upload.py
+python cookbook/models/google/gemini/image_agent_file_upload.py
 ```
 
 ### 11. Run Agent that analyzes a video
 
 ```shell
-python cookbook/models/google/video_agent.py
+python cookbook/models/google/gemini/video_agent.py
 ```
 
 ### 12. Run Agent that uses flash thinking mode from Gemini
 
 ```shell
-python cookbook/models/google/flash_thinking_agent.py
+python cookbook/models/google/gemini/flash_thinking_agent.py
 ```

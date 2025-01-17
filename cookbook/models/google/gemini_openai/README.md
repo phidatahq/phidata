@@ -26,13 +26,13 @@ pip install -U openai agno
 - Streaming on
 
 ```shell
-python cookbook/models/google_openai/basic_stream.py
+python cookbook/models/google/gemini_openai/basic_stream.py
 ```
 
 - Streaming off
 
 ```shell
-python cookbook/models/google_openai/basic.py
+python cookbook/models/google/gemini_openai/basic.py
 ```
 
 ### 5. Run Agent with Tools

@@ -29,7 +29,7 @@ from pydantic import BaseModel
 
 from agno.agent.session import AgentSession
 from agno.knowledge.agent import AgentKnowledge
-from agno.media import AudioArtifact, Audio, ImageArtifact, Image, VideoArtifact, Video
+from agno.media import Audio, AudioArtifact, Image, ImageArtifact, Video, VideoArtifact
 from agno.memory.agent import AgentMemory, AgentRun
 from agno.models.base import Model
 from agno.models.message import Message, MessageReferences

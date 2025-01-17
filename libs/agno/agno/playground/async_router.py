@@ -155,6 +155,7 @@ def get_async_playground_router(
             for file in files:
                 if file.content_type == "application/pdf":
                     from agno.document.reader.pdf_reader import PDFReader
+
                     contents = await file.read()
                     pdf_file = BytesIO(contents)
                     pdf_file.name = file.filename
@@ -163,6 +164,7 @@ def get_async_playground_router(
                         agent.knowledge.load_documents(file_content)
                 elif file.content_type == "text/csv":
                     from agno.document.reader.csv_reader import CSVReader
+
                     contents = await file.read()
                     csv_file = BytesIO(contents)
                     csv_file.name = file.filename
@@ -171,6 +173,7 @@ def get_async_playground_router(
                         agent.knowledge.load_documents(file_content)
                 elif file.content_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
                     from agno.document.reader.docx_reader import DocxReader
+
                     contents = await file.read()
                     docx_file = BytesIO(contents)
                     docx_file.name = file.filename
@@ -179,6 +182,7 @@ def get_async_playground_router(
                         agent.knowledge.load_documents(file_content)
                 elif file.content_type == "text/plain":
                     from agno.document.reader.text_reader import TextReader
+
                     contents = await file.read()
                     text_file = BytesIO(contents)
                     text_file.name = file.filename

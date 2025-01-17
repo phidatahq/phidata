@@ -24,7 +24,7 @@ image_agent = Agent(
     name="DALL-E Image Agent",
     agent_id="image_agent",
     model=OpenAIChat(id="gpt-4o"),
-    tools=[DalleTools()],
+    tools=[DalleTools(model="dall-e-3", size="1792x1024", quality="hd", style="vivid")],
     description="You are an AI agent that can generate images using DALL-E.",
     instructions=[
         "When the user asks you to create an image, use the `create_image` tool to create the image.",

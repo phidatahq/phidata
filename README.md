@@ -6,9 +6,9 @@
     </picture>
   </a>
 </div>
-<h3 align="center">
-  Agno: Lightning Fast AI Agents
-</h3>
+<div align="center">
+  Lightning Fast AI Agents
+</div>
 <div align="center">
   <a href="https://docs.agno.com">📚 Documentation</a> &nbsp;|&nbsp;
   <a href="https://github.com/agno-agi/agno/tree/main/cookbook">💡 Examples</a> &nbsp;|&nbsp;
@@ -31,7 +31,7 @@
 - **📷 Multi-Modal**: Native support for text, image, audio, and video.
 - **🤝 Multi-Agent**: Delegate tasks across a team of specialized agents.
 - **🧠 Memory Management**: Store user sessions and context in a database.
-- **📚 Knowledge Stores**: Integrate vector databases for RAG or dynamic few-shot learning.
+- **📚 Knowledge Stores**: Integrate vector databases for Agentic RAG or dynamic few-shot learning.
 - **🧩 Structured Outputs**: Respond with structured data.
 - **📈 Monitoring**: Track agent sessions and performance in real-time with [Agno Cloud](https://app.agno.com).
 

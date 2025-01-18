@@ -77,7 +77,16 @@ class SlackTools(Toolkit):
         """
         try:
             response = self.client.conversations_history(channel=channel, limit=limit)
-            messages = [{"text": msg["text"], "user": msg["user"], "ts": msg["ts"]} for msg in response["messages"]]
+            messages = [
+            {
+                "text": msg.get("text", ""),
+                "user": "webhook" if msg.get("subtype") == "bot_message" else msg.get("user", "unknown"),
+                "ts": msg.get("ts", ""),
+                "sub_type": msg.get("subtype", "unknown"),
+                "attachments": msg.get("attachments", []) if msg.get("subtype") == "bot_message" else "n/a"
+            }
+            for msg in response.get("messages", [])
+        ]
             return json.dumps(messages)
         except SlackApiError as e:
             logger.error(f"Error getting channel history: {e}")

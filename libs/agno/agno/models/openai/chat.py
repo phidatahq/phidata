@@ -48,6 +48,7 @@ class OpenAIChat(Model):
     For more information, see: https://platform.openai.com/docs/api-reference/chat/create
     """
 
+
     id: str = "gpt-4o"
     name: str = "OpenAIChat"
     provider: str = "OpenAI"

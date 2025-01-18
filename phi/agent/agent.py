@@ -42,7 +42,6 @@ from phi.tools import Tool, Toolkit, Function
 from phi.utils.log import logger, set_log_level_to_debug, set_log_level_to_info
 from phi.utils.message import get_text_from_message
 from phi.utils.merge_dict import merge_dictionaries
-from phi.utils.string import extract_valid_json
 from phi.utils.timer import Timer
 
 

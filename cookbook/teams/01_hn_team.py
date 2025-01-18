@@ -2,6 +2,7 @@
 1. Run: `pip install openai duckduckgo-search newspaper4k lxml_html_clean phidata` to install the dependencies
 2. Run: `python cookbook/teams/01_hn_team.py` to run the agent
 """
+
 from typing import List
 
 from pydantic import BaseModel

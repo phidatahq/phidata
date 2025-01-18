@@ -25,7 +25,7 @@ from typing import (
 )
 from uuid import uuid4
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from agno.agent.session import AgentSession
 from agno.knowledge.agent import AgentKnowledge
@@ -777,8 +777,7 @@ class Agent:
                             structured_output = None
                             try:
                                 structured_output = self.response_model.model_validate_json(run_response.content)
-                            except Exception as e:
-                                logger.warning(f"Failed to convert response to pydantic model: {e}")
+                            except ValidationError:
                                 # Check if response starts with ```json
                                 if run_response.content.startswith("```json"):
                                     run_response.content = run_response.content.replace("```json\n", "").replace(
@@ -1147,8 +1146,7 @@ class Agent:
                             structured_output = None
                             try:
                                 structured_output = self.response_model.model_validate_json(run_response.content)
-                            except Exception as e:
-                                logger.warning(f"Failed to convert response to pydantic model: {e}")
+                            except ValidationError:
                                 # Check if response starts with ```json
                                 if run_response.content.startswith("```json"):
                                     run_response.content = run_response.content.replace("```json\n", "").replace(

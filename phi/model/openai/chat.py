@@ -7,7 +7,7 @@ from pydantic import BaseModel
 
 from phi.model.base import Model
 from phi.model.message import Message
-from phi.model.response import ModelResponse
+from phi.model.response import ModelResponse, ModelResponseAudio
 from phi.tools.function import FunctionCall
 from phi.utils.log import logger
 from phi.utils.timer import Timer
@@ -322,7 +322,6 @@ class OpenAIChat(Model):
 
         if message.audio is not None:
             message = self.add_audio_to_message(message=message, audio=message.audio)
-
         return message.to_dict()
 
     def invoke(self, messages: List[Message]) -> Union[ChatCompletion, ParsedChatCompletion]:
@@ -570,6 +569,7 @@ class OpenAIChat(Model):
             except Exception as e:
                 logger.warning(f"Error processing tool calls: {e}")
         if hasattr(response_message, "audio") and response_message.audio is not None:
+            # If the audio output modality is requested, we can extract a audio response
             try:
                 assistant_message.audio = response_message.audio.model_dump()
             except Exception as e:
@@ -640,7 +640,11 @@ class OpenAIChat(Model):
             model_response.content = assistant_message.get_content_string()
         if assistant_message.audio is not None:
             # add the audio to the model response
-            model_response.audio = assistant_message.audio
+            model_response.audio = ModelResponseAudio(
+                id=assistant_message.audio.get("id"),
+                data=assistant_message.audio.get("data", ""),
+                transcript=assistant_message.audio.get("transcript", ""),
+            )
 
         # -*- Handle tool calls
         tool_role = "tool"
@@ -718,7 +722,9 @@ class OpenAIChat(Model):
             model_response.content = assistant_message.get_content_string()
         if assistant_message.audio is not None:
             # add the audio to the model response
-            model_response.audio = assistant_message.audio
+            model_response.audio = ModelResponseAudio(
+                data=assistant_message.audio.get("data", ""), transcript=assistant_message.audio.get("transcript", "")
+            )
 
         # -*- Handle tool calls
         tool_role = "tool"
@@ -870,7 +876,7 @@ class OpenAIChat(Model):
         # -*- Generate response
         metrics.response_timer.start()
         for response in self.invoke_stream(messages=messages):
-            if len(response.choices) > 0:
+            if response.choices and len(response.choices) > 0:
                 metrics.completion_tokens += 1
                 if metrics.completion_tokens == 1:
                     metrics.time_to_first_token = metrics.response_timer.elapsed
@@ -882,9 +888,13 @@ class OpenAIChat(Model):
                     yield ModelResponse(content=response_delta.content)
 
                 if hasattr(response_delta, "audio"):
-                    response_audio = response_delta.audio
-                    stream_data.response_audio = response_audio
-                    yield ModelResponse(audio=response_audio)
+                    stream_data.response_audio = response_delta.audio
+                    yield ModelResponse(
+                        audio=ModelResponseAudio(
+                            data=response_delta.audio.get("data", ""),
+                            transcript=response_delta.audio.get("transcript", ""),
+                        )
+                    )
 
                 if response_delta.tool_calls is not None:
                     if stream_data.response_tool_calls is None:
@@ -893,6 +903,7 @@ class OpenAIChat(Model):
 
             if response.usage is not None:
                 self.add_response_usage_to_metrics(metrics=metrics, response_usage=response.usage)
+
         metrics.response_timer.stop()
 
         # -*- Create assistant message
@@ -957,9 +968,13 @@ class OpenAIChat(Model):
                     yield ModelResponse(content=response_delta.content)
 
                 if hasattr(response_delta, "audio"):
-                    response_audio = response_delta.audio
-                    stream_data.response_audio = response_audio
-                    yield ModelResponse(audio=response_audio)
+                    stream_data.response_audio = response_delta.audio
+                    yield ModelResponse(
+                        audio=ModelResponseAudio(
+                            data=response_delta.audio.get("data", ""),
+                            transcript=response_delta.audio.get("transcript", ""),
+                        )
+                    )
 
                 if response_delta.tool_calls is not None:
                     if stream_data.response_tool_calls is None:

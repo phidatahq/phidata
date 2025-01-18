@@ -62,10 +62,14 @@ class ElevenLabsTools(Toolkit):
 
     def get_voices(self) -> str:
         """
-        Use this function to get all the voices available.
+        <<<<<<< HEAD
+                Use this function to generate sound effect audio from a text prompt.
+        =======
+                Use this function to get all the voices available.
+        >>>>>>> 48addb496442892c21382ff27d03578b3f9d7ac6
 
-        Returns:
-            result (list): A list of voices that have an ID, name and description.
+                Returns:
+                    result (list): A list of voices that have an ID, name and description.
         """
         try:
             voices = self.eleven_labs_client.voices.get_all()
@@ -152,13 +156,17 @@ class ElevenLabsTools(Toolkit):
 
     def text_to_speech(self, agent: Agent, prompt: str, voice_id: Optional[str] = None) -> str:
         """
-        Use this function to convert text to speech audio.
+                Use this function to convert text to speech audio.
 
-        Args:
-            prompt (str): Text to generate audio from.
-            voice_id (Optional[str]): The ID of the voice to use for audio generation. Uses default if none is specified.
-        Returns:
-            str: Return the path to the generated audio file.
+                Args:
+                    prompt (str): Text to generate audio from.
+        <<<<<<< HEAD
+                    voice_id (str): The ID of the voice to use for audio generation.
+        =======
+                    voice_id (Optional[str]): The ID of the voice to use for audio generation. Uses default if none is specified.
+        >>>>>>> 48addb496442892c21382ff27d03578b3f9d7ac6
+                Returns:
+                    str: Return the path to the generated audio file.
         """
         try:
             audio_generator = self.eleven_labs_client.text_to_speech.convert(

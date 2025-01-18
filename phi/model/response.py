@@ -14,12 +14,19 @@ class ModelResponseEvent(str, Enum):
 
 
 @dataclass
+class ModelResponseAudio:
+    data: str
+    transcript: str
+    id: Optional[str] = None
+
+
+@dataclass
 class ModelResponse:
     """Response returned by Model.response()"""
 
     content: Optional[str] = None
     parsed: Optional[Any] = None
-    audio: Optional[Dict[str, Any]] = None
+    audio: Optional[ModelResponseAudio] = None  # If audio output modality is used, model response as audio
     tool_call: Optional[Dict[str, Any]] = None
     event: str = ModelResponseEvent.assistant_response.value
     created_at: int = int(time())

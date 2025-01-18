@@ -12,7 +12,7 @@ from phi.utils.timer import Timer
 from phi.utils.tools import get_function_call_for_tool_call
 
 try:
-    from cohere import Client as CohereClient
+    from cohere import Client as CohereClient, ToolCall
     from cohere.types.tool import Tool as CohereTool
     from cohere.types.non_streamed_chat_response import NonStreamedChatResponse
     from cohere.types.streamed_chat_response import (
@@ -286,7 +286,7 @@ class CohereChat(Model):
         self,
         assistant_message: Message,
         messages: List[Message],
-        response_tool_calls: List[Any],
+        response_tool_calls: List[ToolCall],
         model_response: ModelResponse,
     ) -> Optional[Any]:
         """
@@ -295,7 +295,7 @@ class CohereChat(Model):
         Args:
             assistant_message (Message): The assistant message.
             messages (List[Message]): The list of messages.
-            response_tool_calls (List[Any]): The list of response tool calls.
+            response_tool_calls (List[ToolCall]): The list of response tool calls.
             model_response (ModelResponse): The model response.
 
         Returns:
@@ -420,7 +420,7 @@ class CohereChat(Model):
             tool_results = self._handle_tool_calls(
                 assistant_message=assistant_message,
                 messages=messages,
-                response_tool_calls=response_tool_calls,
+                response_tool_calls=response_tool_calls,  # type: ignore
                 model_response=model_response,
             )
 

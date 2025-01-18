@@ -24,6 +24,7 @@ class Audio(Media):
     url: Optional[str] = None  # Remote location for file
     base64_audio: Optional[str] = None  # Base64-encoded audio data
     length: Optional[str] = None
+    mime_type: Optional[str] = None
 
     @model_validator(mode="before")
     def validate_exclusive_audio(cls, data: Any):
@@ -35,3 +36,8 @@ class Audio(Media):
         if not data.get("url") and not data.get("base64_audio"):
             raise ValueError("Either `url` or `base64_audio` must be provided.")
         return data
+
+
+class ResponseAudio(BaseModel):
+    base64_audio: str
+    transcript: Optional[str] = None

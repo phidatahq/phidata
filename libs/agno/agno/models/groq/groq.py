@@ -4,7 +4,7 @@ from typing import Any, Dict, Iterator, List, Optional, Union
 
 import httpx
 
-from agno.models.base import Model
+from agno.models.base import Model, BaseMetrics
 from agno.models.message import Message
 from agno.models.response import ModelResponse
 from agno.tools.function import FunctionCall
@@ -23,37 +23,35 @@ except (ModuleNotFoundError, ImportError):
 
 
 @dataclass
-class Metrics:
-    input_tokens: int = 0
-    output_tokens: int = 0
-    total_tokens: int = 0
-    prompt_tokens: int = 0
-    completion_tokens: int = 0
+class Metrics(BaseMetrics):
     completion_time: Optional[float] = None
     prompt_time: Optional[float] = None
     queue_time: Optional[float] = None
     total_time: Optional[float] = None
-    time_to_first_token: Optional[float] = None
-    response_timer: Timer = field(default_factory=Timer)
 
     def log(self):
-        logger.debug("**************** METRICS START ****************")
+        metric_lines = []
         if self.time_to_first_token is not None:
-            logger.debug(f"* Time to first token:         {self.time_to_first_token:.4f}s")
-        logger.debug(f"* Time to generate response:   {self.response_timer.elapsed:.4f}s")
-        logger.debug(f"* Tokens per second:           {self.output_tokens / self.response_timer.elapsed:.4f} tokens/s")
-        logger.debug(f"* Input tokens:                {self.input_tokens or self.prompt_tokens}")
-        logger.debug(f"* Output tokens:               {self.output_tokens or self.completion_tokens}")
-        logger.debug(f"* Total tokens:                {self.total_tokens}")
+            metric_lines.append(f"* Time to first token:         {self.time_to_first_token:.4f}s")
+        metric_lines.extend(
+            [
+                f"* Time to generate response:   {self.response_timer.elapsed:.4f}s",
+                f"* Tokens per second:           {self.output_tokens / self.response_timer.elapsed:.4f} tokens/s",
+                f"* Input tokens:                {self.input_tokens or self.prompt_tokens}",
+                f"* Output tokens:               {self.output_tokens or self.completion_tokens}",
+                f"* Total tokens:                {self.total_tokens}",
+            ]
+        )
         if self.completion_time is not None:
-            logger.debug(f"* Completion time:             {self.completion_time:.4f}s")
+            metric_lines.append(f"* Completion time:             {self.completion_time:.4f}s")
         if self.prompt_time is not None:
-            logger.debug(f"* Prompt time:                 {self.prompt_time:.4f}s")
+            metric_lines.append(f"* Prompt time:                 {self.prompt_time:.4f}s")
         if self.queue_time is not None:
-            logger.debug(f"* Queue time:                  {self.queue_time:.4f}s")
+            metric_lines.append(f"* Queue time:                  {self.queue_time:.4f}s")
         if self.total_time is not None:
-            logger.debug(f"* Total time:                  {self.total_time:.4f}s")
-        logger.debug("**************** METRICS END ******************")
+            metric_lines.append(f"* Total time:                  {self.total_time:.4f}s")
+
+        self._log(metric_lines=metric_lines)
 
 
 @dataclass

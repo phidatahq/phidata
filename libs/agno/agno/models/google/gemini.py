@@ -7,12 +7,11 @@ from pathlib import Path
 from typing import Any, Callable, Dict, Iterator, List, Optional, Union
 
 from agno.media import Audio, Image, Video
-from agno.models.base import Model
+from agno.models.base import Model, BaseMetrics
 from agno.models.message import Message
 from agno.models.response import ModelResponse
 from agno.tools import Function, FunctionCall, Toolkit
 from agno.utils.log import logger
-from agno.utils.timer import Timer
 from agno.utils.tools import get_function_call_for_tool_call
 
 try:
@@ -43,23 +42,8 @@ class MessageData:
 
 
 @dataclass
-class Metrics:
-    input_tokens: int = 0
-    output_tokens: int = 0
-    total_tokens: int = 0
-    time_to_first_token: Optional[float] = None
-    response_timer: Timer = field(default_factory=Timer)
-
-    def log(self):
-        logger.debug("**************** METRICS START ****************")
-        if self.time_to_first_token is not None:
-            logger.debug(f"* Time to first token:         {self.time_to_first_token:.4f}s")
-        logger.debug(f"* Time to generate response:   {self.response_timer.elapsed:.4f}s")
-        logger.debug(f"* Tokens per second:           {self.output_tokens / self.response_timer.elapsed:.4f} tokens/s")
-        logger.debug(f"* Input tokens:                {self.input_tokens}")
-        logger.debug(f"* Output tokens:               {self.output_tokens}")
-        logger.debug(f"* Total tokens:                {self.total_tokens}")
-        logger.debug("**************** METRICS END ******************")
+class Metrics(BaseMetrics):
+    ...
 
 
 @dataclass

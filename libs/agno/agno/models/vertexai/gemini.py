@@ -467,9 +467,9 @@ class Gemini(Model):
         model_response = ModelResponse()
         metrics = Metrics()
 
-        metrics.response_timer.start()
+        metrics.start_response_timer()
         response: GenerationResponse = self.invoke(messages=messages)
-        metrics.response_timer.stop()
+        metrics.stop_response_timer()
 
         # -*- Create assistant message
         assistant_message = self.create_assistant_message(response=response, metrics=metrics)
@@ -548,7 +548,7 @@ class Gemini(Model):
         message_data = MessageData()
         metrics = Metrics()
 
-        metrics.response_timer.start()
+        metrics.start_response_timer()
         for response in self.invoke_stream(messages=messages):
             # -*- Parse response
             message_data.response_block = response.candidates[0].content
@@ -585,7 +585,7 @@ class Gemini(Model):
                         )
             message_data.response_usage = response.usage_metadata
 
-        metrics.response_timer.stop()
+        metrics.stop_response_timer()
 
         # -*- Create assistant message
         assistant_message = Message(

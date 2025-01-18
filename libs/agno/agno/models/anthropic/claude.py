@@ -507,9 +507,9 @@ class Claude(Model):
         model_response = ModelResponse()
         metrics = Metrics()
 
-        metrics.response_timer.start()
+        metrics.start_response_timer()
         response: AnthropicMessage = self.invoke(messages=messages)
-        metrics.response_timer.stop()
+        metrics.stop_response_timer()
 
         # -*- Create assistant message
         assistant_message, response_content, tool_ids = self.create_assistant_message(
@@ -584,7 +584,7 @@ class Claude(Model):
         metrics = Metrics()
 
         # -*- Generate response
-        metrics.response_timer.start()
+        metrics.start_response_timer()
         response = self.invoke_stream(messages=messages)
         with response as stream:
             for delta in stream:
@@ -618,7 +618,7 @@ class Claude(Model):
                     message_data.response_usage = delta.message.usage
         yield ModelResponse(content="\n\n")
 
-        metrics.response_timer.stop()
+        metrics.stop_response_timer()
 
         # -*- Create assistant message
         assistant_message = Message(

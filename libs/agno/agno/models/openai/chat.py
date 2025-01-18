@@ -566,9 +566,9 @@ class OpenAIChat(Model):
         metrics = Metrics()
 
         # -*- Generate response
-        metrics.response_timer.start()
+        metrics.start_response_timer()
         response: Union[ChatCompletion, ParsedChatCompletion] = self.invoke(messages=messages)
-        metrics.response_timer.stop()
+        metrics.stop_response_timer()
 
         # -*- Parse response
         response_message: ChatCompletionMessage = response.choices[0].message
@@ -644,9 +644,9 @@ class OpenAIChat(Model):
         metrics = Metrics()
 
         # -*- Generate response
-        metrics.response_timer.start()
+        metrics.start_response_timer()
         response: Union[ChatCompletion, ParsedChatCompletion] = await self.ainvoke(messages=messages)
-        metrics.response_timer.stop()
+        metrics.stop_response_timer()
 
         # -*- Parse response
         response_message: ChatCompletionMessage = response.choices[0].message
@@ -839,7 +839,7 @@ class OpenAIChat(Model):
         metrics: Metrics = Metrics()
 
         # -*- Generate response
-        metrics.response_timer.start()
+        metrics.start_response_timer()
         for response in self.invoke_stream(messages=messages):
             if len(response.choices) > 0:
                 metrics.completion_tokens += 1
@@ -872,7 +872,7 @@ class OpenAIChat(Model):
 
             if response.usage is not None:
                 self.add_response_usage_to_metrics(metrics=metrics, response_usage=response.usage)
-        metrics.response_timer.stop()
+        metrics.stop_response_timer()
 
         # -*- Create assistant message
         assistant_message = Message(role="assistant")
@@ -927,7 +927,7 @@ class OpenAIChat(Model):
         metrics: Metrics = Metrics()
 
         # -*- Generate response
-        metrics.response_timer.start()
+        metrics.start_response_timer()
         async for response in self.ainvoke_stream(messages=messages):
             if response.choices and len(response.choices) > 0:
                 metrics.completion_tokens += 1
@@ -960,7 +960,7 @@ class OpenAIChat(Model):
 
             if response.usage is not None:
                 self.add_response_usage_to_metrics(metrics=metrics, response_usage=response.usage)
-        metrics.response_timer.stop()
+        metrics.stop_response_timer()
 
         # -*- Create assistant message
         assistant_message = Message(role="assistant")

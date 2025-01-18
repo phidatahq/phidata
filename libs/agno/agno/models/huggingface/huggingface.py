@@ -475,9 +475,9 @@ class HuggingFace(Model):
         metrics = Metrics()
 
         # -*- Generate response
-        metrics.response_timer.start()
+        metrics.start_response_timer()
         response: Union[ChatCompletionOutput] = self.invoke(messages=messages)
-        metrics.response_timer.stop()
+        metrics.stop_response_timer()
 
         # -*- Parse response
         response_message: ChatCompletionOutputMessage = response.choices[0].message
@@ -527,9 +527,9 @@ class HuggingFace(Model):
         metrics = Metrics()
 
         # -*- Generate response
-        metrics.response_timer.start()
+        metrics.start_response_timer()
         response: Union[ChatCompletionOutput] = await self.ainvoke(messages=messages)
-        metrics.response_timer.stop()
+        metrics.stop_response_timer()
 
         # -*- Parse response
         response_message: ChatCompletionOutputMessage = response.choices[0].message
@@ -739,7 +739,7 @@ class HuggingFace(Model):
         metrics: Metrics = Metrics()
 
         # -*- Generate response
-        metrics.response_timer.start()
+        metrics.start_response_timer()
         async for response in self.ainvoke_stream(messages=messages):
             if len(response.choices) > 0:
                 metrics.completion_tokens += 1
@@ -758,7 +758,7 @@ class HuggingFace(Model):
                     if stream_data.response_tool_calls is None:
                         stream_data.response_tool_calls = []
                     stream_data.response_tool_calls.extend(response_tool_calls)
-        metrics.response_timer.stop()
+        metrics.stop_response_timer()
 
         # -*- Create assistant message
         assistant_message = Message(role="assistant")

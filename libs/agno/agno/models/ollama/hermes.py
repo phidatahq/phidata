@@ -75,7 +75,7 @@ class OllamaHermes(Ollama):
         metrics: Metrics = Metrics()
 
         # -*- Generate response
-        metrics.response_timer.start()
+        metrics.start_response_timer()
         for response in self.invoke_stream(messages=messages):
             message_data.response_message = response.get("message", {})
             if message_data.response_message:
@@ -100,7 +100,7 @@ class OllamaHermes(Ollama):
 
             if response.get("done"):
                 message_data.response_usage = response
-        metrics.response_timer.stop()
+        metrics.stop_response_timer()
 
         # Format tool calls
         if message_data.tool_call_blocks is not None:
@@ -154,7 +154,7 @@ class OllamaHermes(Ollama):
         metrics: Metrics = Metrics()
 
         # -*- Generate response
-        metrics.response_timer.start()
+        metrics.start_response_timer()
         async for response in self.ainvoke_stream(messages=messages):
             message_data.response_message = response.get("message", {})
             if message_data.response_message:
@@ -185,7 +185,7 @@ class OllamaHermes(Ollama):
 
             if response.get("done"):
                 message_data.response_usage = response
-        metrics.response_timer.stop()
+        metrics.stop_response_timer()
 
         # Format tool calls
         if message_data.tool_call_blocks is not None:

@@ -57,7 +57,7 @@ class Together(OpenAILike):
         response_is_tool_call = False
 
         # -*- Generate response
-        metrics.response_timer.start()
+        metrics.start_response_timer()
         for response in self.invoke_stream(messages=messages):
             if len(response.choices) > 0:
                 metrics.completion_tokens += 1
@@ -85,7 +85,7 @@ class Together(OpenAILike):
                     metrics.output_tokens = response_usage.completion_tokens
                     metrics.completion_tokens = response_usage.completion_tokens
                     metrics.total_tokens = response_usage.total_tokens
-        metrics.response_timer.stop()
+        metrics.stop_response_timer()
         logger.debug(f"Time to generate response: {metrics.response_timer.elapsed:.4f}s")
 
         # -*- Create assistant message

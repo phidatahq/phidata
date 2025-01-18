@@ -27,6 +27,12 @@ class BaseMetrics:
     time_to_first_token: Optional[float] = None
     response_timer: Timer = field(default_factory=Timer)
 
+    def start_response_timer(self):
+        self.response_timer.start()
+
+    def stop_response_timer(self):
+        self.response_timer.stop()
+
     def _log(self, metric_lines: list[str]):
         logger.debug("**************** METRICS START ****************")
         for line in metric_lines:

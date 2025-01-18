@@ -434,9 +434,9 @@ class Ollama(Model):
         metrics = Metrics()
 
         # -*- Generate response
-        metrics.response_timer.start()
+        metrics.start_response_timer()
         response: Mapping[str, Any] = self.invoke(messages=messages)
-        metrics.response_timer.stop()
+        metrics.stop_response_timer()
 
         # -*- Parse structured outputs
         try:
@@ -499,9 +499,9 @@ class Ollama(Model):
         metrics = Metrics()
 
         # -*- Generate response
-        metrics.response_timer.start()
+        metrics.start_response_timer()
         response: Mapping[str, Any] = await self.ainvoke(messages=messages)
-        metrics.response_timer.stop()
+        metrics.stop_response_timer()
 
         # -*- Parse structured outputs
         try:
@@ -601,7 +601,7 @@ class Ollama(Model):
         metrics: Metrics = Metrics()
 
         # -*- Generate response
-        metrics.response_timer.start()
+        metrics.start_response_timer()
         for response in self.invoke_stream(messages=messages):
             # logger.debug(f"Response: {response}")
             message_data.response_message = response.get("message", {})
@@ -629,7 +629,7 @@ class Ollama(Model):
 
             if response.get("done"):
                 message_data.response_usage = response
-        metrics.response_timer.stop()
+        metrics.stop_response_timer()
 
         # -*- Create assistant message
         assistant_message = Message(role="assistant", content=message_data.response_content)
@@ -673,7 +673,7 @@ class Ollama(Model):
         metrics: Metrics = Metrics()
 
         # -*- Generate response
-        metrics.response_timer.start()
+        metrics.start_response_timer()
         async for response in self.ainvoke_stream(messages=messages):
             message_data.response_message = response.get("message", {})
             if message_data.response_message:
@@ -700,7 +700,7 @@ class Ollama(Model):
 
             if response.get("done"):
                 message_data.response_usage = response
-        metrics.response_timer.stop()
+        metrics.stop_response_timer()
 
         # -*- Create assistant message
         assistant_message = Message(role="assistant", content=message_data.response_content)

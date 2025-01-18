@@ -1,6 +1,8 @@
-from typing import Union
+import os
+from typing import Optional, Union
 import httpx
 from phi.tools import Toolkit
+from phi.utils.log import logger
 
 
 class TelegramTools(Toolkit):
@@ -9,9 +11,11 @@ class TelegramTools(Toolkit):
     def __init__(self, chat_id: Union[str, int], token: Optional[str] = None):
         super().__init__(name="telegram")
 
-        self.token = token or getenv("TELEGRAM_TOKEN")
+        self.token = token or os.getenv("TELEGRAM_TOKEN")
         if not self.token:
-            logger.error("TELEGRAM_TOKEN not set. Please set the TELEGRAM_TOKEN environment variable.")
+            logger.error(
+                "TELEGRAM_TOKEN not set. Please set the TELEGRAM_TOKEN environment variable."
+            )
 
         self.chat_id = chat_id
 

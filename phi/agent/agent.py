@@ -1992,7 +1992,7 @@ class Agent(BaseModel):
 
         # If a response_model is set, return the response as a structured output
         if self.response_model is not None and self.parse_response:
-            # Set show_tool_calls=False
+            # Set show_tool_calls=False if we have response_model
             self.show_tool_calls = False
             logger.debug("Setting show_tool_calls=False as response_model is set")
 
@@ -2021,14 +2021,15 @@ class Agent(BaseModel):
             # Otherwise convert the response to the structured format
             if isinstance(run_response.content, str):
                 try:
-                    structured_output = None
-                    valid_json = extract_valid_json(run_response.content)
-                    try:
-                        structured_output = self.response_model.model_validate(valid_json)
-                    except ValidationError as exc:
-                        logger.warning(f"Failed to convert response to pydantic model: {exc}")
-
-                    # TODO: Combine structured output and the rest of the content that could contain tool calls.
+                    structured_output = self.response_model.model_validate_json(run_response.content)
+                except ValidationError:
+                    # Check if response starts with ```json
+                    if run_response.content.startswith("```json"):
+                        run_response.content = run_response.content.replace("```json\n", "").replace("\n```", "")
+                        try:
+                            structured_output = self.response_model.model_validate_json(run_response.content)
+                        except ValidationError as exc:
+                            logger.warning(f"Failed to convert response to pydantic model: {exc}")
 
                     # -*- Update Agent response
                     if structured_output is not None:
@@ -2039,7 +2040,6 @@ class Agent(BaseModel):
                             self.run_response.content_type = self.response_model.__name__
                     else:
                         logger.warning("Failed to convert response to response_model")
-
 
                 except Exception as e:
                     logger.warning(f"Failed to convert response to output model: {e}")
@@ -2311,7 +2311,7 @@ class Agent(BaseModel):
 
         # If a response_model is set, return the response as a structured output
         if self.response_model is not None and self.parse_response:
-            # Set show_tool_calls=False
+            # Set show_tool_calls=False if we have a response_model
             self.show_tool_calls = False
             logger.debug("Setting show_tool_calls=False as response_model is set")
 
@@ -2337,14 +2337,16 @@ class Agent(BaseModel):
             # Otherwise convert the response to the structured format
             if isinstance(run_response.content, str):
                 try:
-                    structured_output = None
-                    valid_json = extract_valid_json(run_response.content)
-                    try:
-                        structured_output = self.response_model.model_validate(valid_json)
-                    except ValidationError as exc:
-                        logger.warning(f"Failed to convert response to pydantic model: {exc}")
-
-                    # TODO: Combine structured output and the rest of the content that could contain tool calls.
+                    structured_output = self.response_model.model_validate_json(run_response.content)
+                except ValidationError as exc:
+                    logger.warning(f"Failed to convert response to pydantic model: {exc}")
+                    # Check if response starts with ```json
+                    if run_response.content.startswith("```json"):
+                        run_response.content = run_response.content.replace("```json\n", "").replace("\n```", "")
+                        try:
+                            structured_output = self.response_model.model_validate_json(run_response.content)
+                        except ValidationError as exc:
+                            logger.warning(f"Failed to convert response to pydantic model: {exc}")
 
                     # -*- Update Agent response
                     if structured_output is not None:
@@ -2353,6 +2355,8 @@ class Agent(BaseModel):
                         if self.run_response is not None:
                             self.run_response.content = structured_output
                             self.run_response.content_type = self.response_model.__name__
+                    else:
+                        logger.warning("Failed to convert response to response_model")
 
                 except Exception as e:
                     logger.warning(f"Failed to convert response to output model: {e}")

@@ -26,7 +26,7 @@
 
 ## Why Agno?
 
-- **🚀 Lightning Fast**: Agent instantiation is 6000x faster than LangGraph (see [performance](#performance)).
+- **🚀 Lightning Fast**: Agent creation is 6000x faster than LangGraph (see [performance](#performance)).
 - **⚙️ Model Agnostic**: Use any provider, any model-no lock-in.
 - **📷 Multi-Modal**: Native support for text, image, audio, and video.
 - **🤝 Multi-Agent**: Delegate tasks across a team of specialized agents.
@@ -221,11 +221,11 @@ Agno is built for speed and scale:
 
 > Tested on an Apple M4 Mackbook Pro.
 
-While an Agent's performance is bottlenecked by inference, all we can do is minimize execution time, reduce memory usage, and parallelize tool calls where possible.
+While an Agent's performance is bottlenecked by inference, we must do all we can to minimize execution time, reduce memory usage, and parallelize tool calls where possible.
 
 ### Instantiation time
 
-Let's compare instantiating an Agent with 1 tool on Agno vs LangGraph, we'll run the evaluation 50 times and take the average. You should run the evaluation yourself on your own machine, please, do not take these results at face value.
+Let's compare instantiating an Agent with 1 tool using Agno vs LangGraph, we'll run the evaluation 50 times and take the average. You should run the evaluation yourself on your own machine, please, do not take these results at face value.
 
 ```shell
 pip install openai memory_profiler agno langgraph langchain_openai

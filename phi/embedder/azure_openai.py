@@ -13,7 +13,8 @@ except ImportError:
 
 
 class AzureOpenAIEmbedder(Embedder):
-    model: str = "text-embedding-3-small"
+    model: str = "text-embedding-3-small"  # This has to match the model that you deployed at the provided URL
+
     dimensions: int = 1536
     encoding_format: Literal["float", "base64"] = "float"
     user: Optional[str] = None

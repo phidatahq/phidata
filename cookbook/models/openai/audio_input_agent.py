@@ -16,4 +16,6 @@ agent = Agent(
     model=OpenAIChat(id="gpt-4o-audio-preview", modalities=["text"]),
     markdown=True,
 )
-agent.print_response("What is in this audio?", audio=[Audio(content=wav_data, format="wav")])
+agent.print_response(
+    "What is in this audio?", audio=[Audio(content=wav_data, format="wav")]
+)

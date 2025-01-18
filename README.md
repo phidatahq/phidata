@@ -74,7 +74,7 @@ export OPENAI_API_KEY=sk-xxxx
 python basic_agent.py
 ```
 
-[Find this example](./cookbook/getting_started/00_basic_agent.py)
+[View this example in the cookbook](./cookbook/getting_started/01_basic_agent.py)
 
 This agent will obviously make up a story, lets give it a tool to search the web.
 
@@ -105,7 +105,7 @@ python agent_with_tools.py
 
 Now you should see a much more relevant result.
 
-[Find this example](./cookbook/getting_started/01_agent_with_tools.py)
+[View this example in the cookbook](./cookbook/getting_started/02_agent_with_knowledge.py)
 
 ## Example - Agent with knowledge
 
@@ -159,7 +159,7 @@ pip install lancedb tantivy pypdf duckduckgo-search
 python agent_with_knowledge.py
 ```
 
-[Find this example](./cookbook/getting_started/02_agent_with_knowledge.py)
+[View this example in the cookbook](./cookbook/getting_started/03_agent_with_knowledge.py)
 
 ## Example - Multi Agent Teams
 
@@ -210,7 +210,8 @@ pip install duckduckgo-search yfinance
 python agent_team.py
 ```
 
-[Find this example](./cookbook/getting_started/03_agent_team.py)
+[View this example in the cookbook](./cookbook/getting_started/04_agent_team.py)
+
 ## Performance
 
 Agno is built for speed and scale:

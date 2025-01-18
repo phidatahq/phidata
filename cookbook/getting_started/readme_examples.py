@@ -85,14 +85,14 @@ finance_agent = Agent(
     markdown=True,
 )
 
-agent_team = Agent(
+level_3_agent_team = Agent(
     team=[web_agent, finance_agent],
     model=OpenAIChat(id="gpt-4o"),
     instructions=["Always include sources", "Use tables to display data"],
     show_tool_calls=True,
     markdown=True,
 )
-agent_team.print_response(
+level_3_agent_team.print_response(
     "What's the market outlook and financial performance of AI semiconductor companies?",
     stream=True,
 )

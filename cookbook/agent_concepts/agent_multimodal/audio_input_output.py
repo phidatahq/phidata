@@ -26,5 +26,7 @@ agent.run(
     audio=[Audio(content=wav_data, format="wav")],
 )
 
-if agent.run_response.response_audio is not None :
-    write_audio_to_file(audio=agent.run_response.response_audio.content, filename="tmp/result.wav")
+if agent.run_response.response_audio is not None:
+    write_audio_to_file(
+        audio=agent.run_response.response_audio.content, filename="tmp/result.wav"
+    )

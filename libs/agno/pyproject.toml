@@ -53,26 +53,42 @@ openai = ["openai"]
 exa = ["exa_py"]
 yfinance = ["yfinance"]
 ddg = ["duckduckgo-search"]
+duckdb = ["duckdb"]
 
 # Performance
-memory_profiler = ["memory_profiler"]
+performance = ["memory_profiler"]
 
 # Storage
-sql = ["sqlalchemy", "psycopg"]
+sql = ["sqlalchemy"]
+postgres = ["psycopg"]
+
+models = [
+  "agno[anthropic]",
+  "agno[cohere]",
+  "agno[google]",
+  "agno[groq]",
+  "agno[mistral]",
+  "agno[openai]",
+]
+
+tools = [
+  "agno[exa]",
+  "agno[yfinance]",
+  "agno[ddg]",
+  "agno[duckdb]",
+]
+
+storage = [
+  "agno[sql]",
+  "agno[postgres]",
+]
 
 tests = [
     "agno[dev]",
-    "agno[anthropic]",
-    "agno[cohere]",
-    "agno[google]",
-    "agno[groq]",
-    "agno[mistral]",
-    "agno[openai]",
-    "agno[exa]",
-    "agno[yfinance]",
-    "agno[ddg]",
-    "agno[memory_profiler]",
-    "agno[sql]",
+    "agno[models]",
+    "agno[tools]",
+    "agno[storage]",
+    "agno[performance]",
 ]
 
 [project.scripts]

@@ -201,7 +201,6 @@ class HuggingFace(Model):
             _request_params.update(self.request_params)
         return _request_params
 
-
     def to_dict(self) -> Dict[str, Any]:
         """
         Convert the model to a dictionary.
@@ -225,7 +224,9 @@ class HuggingFace(Model):
                 "top_logprobs": self.top_logprobs,
                 "top_p": self.top_p,
                 "tools": self.tools,
-                "tool_choice": self.tool_choice if (self.tools is not None and self.tool_choice is not None) else "auto",
+                "tool_choice": self.tool_choice
+                if (self.tools is not None and self.tool_choice is not None)
+                else "auto",
             }
         )
         cleaned_dict = {k: v for k, v in _dict.items() if v is not None}
@@ -771,4 +772,3 @@ class HuggingFace(Model):
             async for model_response in self.aresponse_stream(messages=messages):
                 yield model_response
         logger.debug("---------- HuggingFace Hub Async Response End ----------")
-

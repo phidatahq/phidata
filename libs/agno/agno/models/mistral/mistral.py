@@ -22,7 +22,6 @@ except (ModuleNotFoundError, ImportError):
 MistralMessage = Union[UserMessage, AssistantMessage, SystemMessage, ToolMessage]
 
 
-
 @dataclass
 class MistralChat(Model):
     """

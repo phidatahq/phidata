@@ -117,10 +117,11 @@ class Cohere(Model):
             for f_name, function in self._functions.items()
         ]
 
-    def _prepare_for_invoke(self, messages: List[Message], tool_results: Optional[List[ToolResult]] = None) -> Tuple[str, Dict[str, Any]]:
-
+    def _prepare_for_invoke(
+        self, messages: List[Message], tool_results: Optional[List[ToolResult]] = None
+    ) -> Tuple[str, Dict[str, Any]]:
         api_kwargs: Dict[str, Any] = self.request_kwargs
-        chat_message: Optional[str] =  ""
+        chat_message: str = ""
 
         if self.add_chat_history:
             logger.debug("Providing chat_history to cohere")
@@ -190,7 +191,6 @@ class Cohere(Model):
         chat_message, api_kwargs = self._prepare_for_invoke(messages, tool_results)
 
         return self.get_client().chat_stream(model=self.id, message=chat_message, **api_kwargs)
-
 
     def _prepare_function_calls(self, agent_message: Message) -> Tuple[List[FunctionCall], List[Message]]:
         """

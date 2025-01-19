@@ -232,7 +232,9 @@ class Groq(Model):
                 "extra_headers": self.extra_headers,
                 "extra_query": self.extra_query,
                 "tools": self.tools,
-                "tool_choice": self.tool_choice if (self.tools is not None and self.tool_choice is not None) else "auto",
+                "tool_choice": self.tool_choice
+                if (self.tools is not None and self.tool_choice is not None)
+                else "auto",
             }
         )
         cleaned_dict = {k: v for k, v in _dict.items() if v is not None}

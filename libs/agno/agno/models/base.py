@@ -72,6 +72,7 @@ class StreamData:
     time_to_first_token: Optional[float] = None
     response_timer: Timer = field(default_factory=Timer)
 
+
 @dataclass
 class Model(ABC):
     # ID of the model to use.

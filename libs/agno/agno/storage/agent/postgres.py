@@ -12,8 +12,8 @@ try:
 except ImportError:
     raise ImportError("`sqlalchemy` not installed. Please install it using `pip install sqlalchemy`")
 
-from agno.agent.session import AgentSession
 from agno.storage.agent.base import AgentStorage
+from agno.storage.agent.session import AgentSession
 from agno.utils.log import logger
 
 
@@ -90,12 +90,12 @@ class PostgresAgentStorage(AgentStorage):
             Column("user_id", String),
             # Agent Memory
             Column("memory", postgresql.JSONB),
-            # Agent Metadata
+            # Agent Data
             Column("agent_data", postgresql.JSONB),
-            # User Metadata
-            Column("user_data", postgresql.JSONB),
-            # Session Metadata
+            # Session Data
             Column("session_data", postgresql.JSONB),
+            # Extra Data stored with this agent
+            Column("extra_data", postgresql.JSONB),
             # The Unix timestamp of when this session was created.
             Column("created_at", BigInteger, server_default=text("(extract(epoch from now()))::bigint")),
             # The Unix timestamp of when this session was last updated.
@@ -261,8 +261,8 @@ class PostgresAgentStorage(AgentStorage):
                     user_id=session.user_id,
                     memory=session.memory,
                     agent_data=session.agent_data,
-                    user_data=session.user_data,
                     session_data=session.session_data,
+                    extra_data=session.extra_data,
                 )
 
                 # Define the upsert if the session_id already exists
@@ -274,8 +274,8 @@ class PostgresAgentStorage(AgentStorage):
                         user_id=session.user_id,
                         memory=session.memory,
                         agent_data=session.agent_data,
-                        user_data=session.user_data,
                         session_data=session.session_data,
+                        extra_data=session.extra_data,
                         updated_at=int(time.time()),
                     ),  # The updated value for each column
                 )

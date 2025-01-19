@@ -14,8 +14,8 @@ except ImportError:
     raise ImportError("`sqlalchemy` not installed. Please install it using `pip install sqlalchemy`")
 
 from agno.storage.workflow.base import WorkflowStorage
+from agno.storage.workflow.session import WorkflowSession
 from agno.utils.log import logger
-from agno.workflow import WorkflowSession
 
 
 class SqliteWorkflowStorage(WorkflowStorage):
@@ -93,12 +93,12 @@ class SqliteWorkflowStorage(WorkflowStorage):
             Column("user_id", String),
             # Workflow Memory
             Column("memory", sqlite.JSON),
-            # Workflow Metadata
+            # Workflow Data
             Column("workflow_data", sqlite.JSON),
-            # User Metadata
-            Column("user_data", sqlite.JSON),
-            # Session Metadata
+            # Session Data
             Column("session_data", sqlite.JSON),
+            # Extra Data
+            Column("extra_data", sqlite.JSON),
             # The Unix timestamp of when this session was created.
             Column("created_at", sqlite.INTEGER, default=lambda: int(time.time())),
             # The Unix timestamp of when this session was last updated.
@@ -253,8 +253,8 @@ class SqliteWorkflowStorage(WorkflowStorage):
                     user_id=session.user_id,
                     memory=session.memory,
                     workflow_data=session.workflow_data,
-                    user_data=session.user_data,
                     session_data=session.session_data,
+                    extra_data=session.extra_data,
                 )
 
                 # Define the upsert if the session_id already exists
@@ -266,8 +266,8 @@ class SqliteWorkflowStorage(WorkflowStorage):
                         user_id=session.user_id,
                         memory=session.memory,
                         workflow_data=session.workflow_data,
-                        user_data=session.user_data,
                         session_data=session.session_data,
+                        extra_data=session.extra_data,
                         updated_at=int(time.time()),
                     ),  # The updated value for each column
                 )

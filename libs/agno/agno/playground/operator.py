@@ -1,9 +1,9 @@
 from typing import List, Optional
 
 from agno.agent.agent import Agent, AgentRun, Function, Toolkit
-from agno.agent.session import AgentSession
+from agno.storage.agent.session import AgentSession
+from agno.storage.workflow.session import WorkflowSession
 from agno.utils.log import logger
-from agno.workflow.session import WorkflowSession
 from agno.workflow.workflow import Workflow
 
 

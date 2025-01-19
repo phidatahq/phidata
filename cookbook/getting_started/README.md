@@ -10,7 +10,7 @@ Create a virtual environment and install the required dependencies:
 python -m venv .venv
 source .venv/bin/activate
 
-pip install openai duckduckgo-search yfinance lancedb tantivy pypdf requests sqlalchemy agno
+pip install openai duckduckgo-search yfinance lancedb tantivy pypdf requests exa-py newspaper4k lxml_html_clean sqlalchemy agno
 ```
 
 Export your OpenAI API key:
@@ -51,24 +51,24 @@ Run this recipe using:
 python cookbook/getting_started/03_agent_with_knowledge.py
 ```
 
-### 4. Agent Team (`04_agent_team.py`)
-- Implements a financial analysis team with web and finance agents
-- Shows agent collaboration and role specialization
-- Combines market research with financial data analysis
-
-Run this recipe using:
-```bash
-python cookbook/getting_started/04_agent_team.py
-```
-
-### 5. Agent with Storage (`05_agent_with_storage.py`)
+### 4. Agent with Storage (`04_agent_with_storage.py`)
 - Updates the Thai cooking expert with persistent storage
 - Shows how to save and retrieve agent state
 - Demonstrates session management and history
 
 Run this recipe using:
 ```bash
-python cookbook/getting_started/05_agent_with_storage.py
+python cookbook/getting_started/04_agent_with_storage.py
+```
+
+### 5. Agent Team (`05_agent_team.py`)
+- Implements a financial analysis team with web and finance agents
+- Shows agent collaboration and role specialization
+- Combines market research with financial data analysis
+
+Run this recipe using:
+```bash
+python cookbook/getting_started/05_agent_team.py
 ```
 
 ### 6. Structured Output (`06_structured_output.py`)
@@ -90,52 +90,71 @@ Run this recipe using:
 python cookbook/getting_started/07_write_your_own_tool.py
 ```
 
-### 8. Image Agent (`08_image_agent.py`)
+### 8. Research Agent (`08_research_agent_exa.py`)
+- Creates an AI research agent using Exa
+- Shows how to create a structured report
+
+Run this recipe using:
+```bash
+python cookbook/getting_started/08_research_agent_exa.py
+```
+
+### 9. Research Workflow (`09_research_workflow.py`)
+- Creates an AI research workflow
+- Searches using DuckDuckGo and Scrapes web pages using Newspaper4k
+- Shows how to create a structured report
+
+Run this recipe using:
+```bash
+python cookbook/getting_started/09_research_workflow.py
+```
+
+### 10. Image Agent (`10_image_agent.py`)
 - Creates a visual journalist for image analysis
 - Combines image understanding with web searches
 - Shows how to process and analyze images
 
 Run this recipe using:
 ```bash
-python cookbook/getting_started/08_image_agent.py
+python cookbook/getting_started/10_image_agent.py
 ```
 
-### 9. Image Generation (`09_generate_image.py`)
+### 11. Image Generation (`11_generate_image.py`)
 - Implements an AI artist using DALL-E
 - Shows prompt engineering for image generation
 - Demonstrates handling generated image outputs
 
 Run this recipe using:
 ```bash
-python cookbook/getting_started/09_generate_image.py
+python cookbook/getting_started/11_generate_image.py
 ```
 
-### 10. Video Generation (`10_generate_video.py`)
+### 12. Video Generation (`12_generate_video.py`)
 - Creates an AI video director using ModelsLabs
 - Shows video prompt engineering techniques
 - Demonstrates video generation and handling
 
 Run this recipe using:
 ```bash
-python cookbook/getting_started/10_generate_video.py
+python cookbook/getting_started/12_generate_video.py
 ```
 
-### 11. Audio Input/Output (`11_audio_input_output.py`)
+### 13. Audio Input/Output (`13_audio_input_output.py`)
 - Creates a voice interaction specialist
 - Shows how to process audio input and generate responses
 - Demonstrates audio file handling capabilities
 
 Run this recipe using:
 ```bash
-python cookbook/getting_started/11_audio_input_output.py
+python cookbook/getting_started/13_audio_input_output.py
 ```
 
-### 12. Human-in-the-Loop (`12_human_in_the_loop.py`)
+### 14. Human-in-the-Loop (`14_human_in_the_loop.py`)
 - Adds user confirmation to tool execution
 - Shows how to implement safety checks
 - Demonstrates interactive agent control
 
 Run this recipe using:
 ```bash
-python cookbook/getting_started/12_human_in_the_loop.py
+python cookbook/getting_started/14_human_in_the_loop.py
 ```

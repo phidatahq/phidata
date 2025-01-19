@@ -10,7 +10,7 @@ from agno.agent import Agent
 from agno.models.openai import OpenAIChat
 from agno.models.response import FileType
 from agno.playground import Playground, serve_playground_app
-from agno.storage.agent.sqlite import SqliteDbAgentStorage
+from agno.storage.agent.sqlite import SqliteAgentStorage
 from agno.tools.dalle import DalleTools
 from agno.tools.desi_vocal_tools import DesiVocalTools
 from agno.tools.eleven_labs_tools import ElevenLabsTools
@@ -34,7 +34,7 @@ image_agent = Agent(
     debug_mode=True,
     add_history_to_messages=True,
     add_datetime_to_instructions=True,
-    storage=SqliteDbAgentStorage(
+    storage=SqliteAgentStorage(
         table_name="image_agent", db_file=image_agent_storage_file
     ),
 )
@@ -53,7 +53,7 @@ ml_gif_agent = Agent(
     debug_mode=True,
     add_history_to_messages=True,
     add_datetime_to_instructions=True,
-    storage=SqliteDbAgentStorage(
+    storage=SqliteAgentStorage(
         table_name="ml_gif_agent", db_file=image_agent_storage_file
     ),
 )
@@ -72,7 +72,7 @@ ml_video_agent = Agent(
     debug_mode=True,
     add_history_to_messages=True,
     add_datetime_to_instructions=True,
-    storage=SqliteDbAgentStorage(
+    storage=SqliteAgentStorage(
         table_name="ml_video_agent", db_file=image_agent_storage_file
     ),
 )
@@ -91,7 +91,7 @@ fal_agent = Agent(
     debug_mode=True,
     add_history_to_messages=True,
     add_datetime_to_instructions=True,
-    storage=SqliteDbAgentStorage(
+    storage=SqliteAgentStorage(
         table_name="fal_agent", db_file=image_agent_storage_file
     ),
 )
@@ -110,7 +110,7 @@ gif_agent = Agent(
     debug_mode=True,
     add_history_to_messages=True,
     add_datetime_to_instructions=True,
-    storage=SqliteDbAgentStorage(
+    storage=SqliteAgentStorage(
         table_name="gif_agent", db_file=image_agent_storage_file
     ),
 )
@@ -138,7 +138,7 @@ audio_agent = Agent(
     debug_mode=True,
     add_history_to_messages=True,
     add_datetime_to_instructions=True,
-    storage=SqliteDbAgentStorage(
+    storage=SqliteAgentStorage(
         table_name="audio_agent", db_file=image_agent_storage_file
     ),
 )
@@ -157,7 +157,7 @@ image_to_image_agent = Agent(
         "You will be given a prompt and an image URL.",
         "Don't provide the URL of the image in the response. Only describe what image was generated.",
     ],
-    storage=SqliteDbAgentStorage(
+    storage=SqliteAgentStorage(
         table_name="image_to_image_agent", db_file=image_agent_storage_file
     ),
 )
@@ -180,7 +180,7 @@ hindi_audio_agent = Agent(
     debug_mode=True,
     add_history_to_messages=True,
     add_datetime_to_instructions=True,
-    storage=SqliteDbAgentStorage(
+    storage=SqliteAgentStorage(
         table_name="hindi_audio_agent", db_file=image_agent_storage_file
     ),
 )

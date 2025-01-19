@@ -4,7 +4,7 @@ from agno.agent import Agent
 from agno.embedder.ollama import OllamaEmbedder
 from agno.knowledge.pdf_url import PDFUrlKnowledgeBase
 from agno.models.ollama import Ollama
-from agno.storage.agent.sqlite import SqliteDbAgentStorage
+from agno.storage.agent.sqlite import SqliteAgentStorage
 from agno.vectordb.lancedb import LanceDb
 
 # Define the database URL where the vector database will be stored
@@ -34,7 +34,7 @@ knowledge_base.load(recreate=False)
 # agent.knowledge_base.load(recreate=False) # You can also use this to load a knowledge base after creating agent
 
 # Set up SQL storage for the agent's data
-storage = SqliteDbAgentStorage(table_name="recipes", db_file="data.db")
+storage = SqliteAgentStorage(table_name="recipes", db_file="data.db")
 storage.create()  # Create the storage if it doesn't exist
 
 # Initialize the Agent with various configurations including the knowledge base and storage

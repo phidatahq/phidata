@@ -18,7 +18,7 @@ from agno.storage.agent.base import AgentStorage
 from agno.utils.log import logger
 
 
-class SqliteDbAgentStorage(AgentStorage):
+class SqliteAgentStorage(AgentStorage):
     def __init__(
         self,
         table_name: str,
@@ -324,13 +324,13 @@ class SqliteDbAgentStorage(AgentStorage):
 
     def __deepcopy__(self, memo):
         """
-        Create a deep copy of the SqliteDbAgentStorage instance, handling unpickleable attributes.
+        Create a deep copy of the SqliteAgentStorage instance, handling unpickleable attributes.
 
         Args:
             memo (dict): A dictionary of objects already copied during the current copying pass.
 
         Returns:
-            SqliteDbAgentStorage: A deep-copied instance of SqliteDbAgentStorage.
+            SqliteAgentStorage: A deep-copied instance of SqliteAgentStorage.
         """
         from copy import deepcopy
 

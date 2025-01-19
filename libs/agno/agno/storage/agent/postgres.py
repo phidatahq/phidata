@@ -17,7 +17,7 @@ from agno.storage.agent.base import AgentStorage
 from agno.utils.log import logger
 
 
-class PostgresDbAgentStorage(AgentStorage):
+class PostgresAgentStorage(AgentStorage):
     def __init__(
         self,
         table_name: str,
@@ -70,7 +70,7 @@ class PostgresDbAgentStorage(AgentStorage):
         self.Session: scoped_session = scoped_session(sessionmaker(bind=self.db_engine))
         # Database table for storage
         self.table: Table = self.get_table()
-        logger.debug(f"Created PostgresDbAgentStorage: '{self.schema}.{self.table_name}'")
+        logger.debug(f"Created PostgresAgentStorage: '{self.schema}.{self.table_name}'")
 
     def get_table_v1(self) -> Table:
         """
@@ -334,13 +334,13 @@ class PostgresDbAgentStorage(AgentStorage):
 
     def __deepcopy__(self, memo):
         """
-        Create a deep copy of the PostgresDbAgentStorage instance, handling unpickleable attributes.
+        Create a deep copy of the PostgresAgentStorage instance, handling unpickleable attributes.
 
         Args:
             memo (dict): A dictionary of objects already copied during the current copying pass.
 
         Returns:
-            PostgresDbAgentStorage: A deep-copied instance of PostgresDbAgentStorage.
+            PostgresAgentStorage: A deep-copied instance of PostgresAgentStorage.
         """
         from copy import deepcopy
 

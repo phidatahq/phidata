@@ -4,7 +4,7 @@ from typing import Dict, List, Optional
 
 from agno.agent.agent import Agent
 from agno.run.response import RunEvent, RunResponse
-from agno.storage.workflow.postgres import PostgresDbWorkflowStorage
+from agno.storage.workflow.postgres import PostgresWorkflowStorage
 from agno.tools.linear_tools import LinearTools
 from agno.tools.slack import SlackTools
 from agno.utils.log import logger
@@ -158,7 +158,7 @@ class ProductManagerWorkflow(Workflow):
 # Create the workflow
 product_manager = ProductManagerWorkflow(
     session_id="product-manager",
-    storage=PostgresDbWorkflowStorage(
+    storage=PostgresWorkflowStorage(
         table_name="product_manager_workflows",
         db_url="postgresql+psycopg://ai:ai@localhost:5532/ai",
     ),

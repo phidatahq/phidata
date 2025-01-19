@@ -9,7 +9,7 @@ from agno.storage.agent.base import AgentStorage
 from agno.utils.log import logger
 
 
-class JsonFileAgentStorage(AgentStorage):
+class JsonAgentStorage(AgentStorage):
     def __init__(self, dir_path: Union[str, Path]):
         self.dir_path = Path(dir_path)
         self.dir_path.mkdir(parents=True, exist_ok=True)

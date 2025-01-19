@@ -9,7 +9,7 @@ from agno.embedder.openai import OpenAIEmbedder
 from agno.knowledge.pdf_url import PDFUrlKnowledgeBase
 from agno.models.openai import OpenAIChat
 from agno.playground import Playground, serve_playground_app
-from agno.storage.agent.postgres import PostgresDbAgentStorage
+from agno.storage.agent.postgres import PostgresAgentStorage
 from agno.vectordb.pgvector import PgVector, SearchType
 
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
@@ -36,7 +36,7 @@ rag_agent = Agent(
     # Add a tool to read chat history.
     read_chat_history=True,
     # Store the agent sessions in the `ai.rag_agent_sessions` table
-    storage=PostgresDbAgentStorage(table_name="rag_agent_sessions", db_url=db_url),
+    storage=PostgresAgentStorage(table_name="rag_agent_sessions", db_url=db_url),
     instructions=[
         "Always search your knowledge base first and use it if available.",
         "Share the page number or source URL of the information you used in your response.",

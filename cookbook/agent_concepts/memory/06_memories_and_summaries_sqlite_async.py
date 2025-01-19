@@ -11,7 +11,7 @@ import json
 from agno.agent import Agent, AgentMemory
 from agno.memory.db.sqlite import SqliteMemoryDb
 from agno.models.openai import OpenAIChat
-from agno.storage.agent.sqlite import SqliteDbAgentStorage
+from agno.storage.agent.sqlite import SqliteAgentStorage
 from rich.console import Console
 from rich.json import JSON
 from rich.panel import Panel
@@ -39,9 +39,7 @@ agent = Agent(
         update_session_summary_after_run=True,
     ),
     # Store agent sessions in a database
-    storage=SqliteDbAgentStorage(
-        table_name="agent_sessions", db_file=agent_storage_file
-    ),
+    storage=SqliteAgentStorage(table_name="agent_sessions", db_file=agent_storage_file),
     description="You are a helpful assistant that always responds in a polite, upbeat and positive manner.",
     # Show debug logs to see the memory being created
     # debug_mode=True,

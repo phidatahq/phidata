@@ -8,7 +8,7 @@ Steps:
 from agno.agent import Agent, AgentMemory
 from agno.memory.db.postgres import PgMemoryDb
 from agno.models.openai import OpenAIChat
-from agno.storage.agent.postgres import PostgresDbAgentStorage
+from agno.storage.agent.postgres import PostgresAgentStorage
 from rich.pretty import pprint
 
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
@@ -21,7 +21,7 @@ agent = Agent(
         create_session_summary=True,
     ),
     # Store agent sessions in a database
-    storage=PostgresDbAgentStorage(
+    storage=PostgresAgentStorage(
         table_name="personalized_agent_sessions", db_url=db_url
     ),
     # Show debug logs so, you can see the memory being created

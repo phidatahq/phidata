@@ -4,12 +4,10 @@ from os import getenv
 from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 
 from agno.media import Image
-from agno.models.base import Model, Metrics
+from agno.models.base import Metrics, Model
 from agno.models.message import Message
 from agno.models.response import ModelResponse
-from agno.tools.function import FunctionCall
 from agno.utils.log import logger
-from agno.utils.tools import get_function_call_for_tool_call
 
 try:
     from anthropic import Anthropic as AnthropicClient
@@ -307,7 +305,6 @@ class Claude(Model):
 
         self._update_model_metrics(metrics_for_run=metrics)
         self._update_assistant_message_metrics(assistant_message=assistant_message, metrics_for_run=metrics)
-
 
     def create_assistant_message(self, response: AnthropicMessage, metrics: Metrics) -> Tuple[Message, str, List[str]]:
         """

@@ -6,7 +6,7 @@ import httpx
 from pydantic import BaseModel
 
 from agno.media import AudioOutput
-from agno.models.base import Model, Metrics
+from agno.models.base import Metrics, Model
 from agno.models.message import Message
 from agno.models.response import ModelResponse
 from agno.tools.function import FunctionCall

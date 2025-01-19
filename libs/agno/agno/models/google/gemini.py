@@ -7,12 +7,11 @@ from pathlib import Path
 from typing import Any, Callable, Dict, Iterator, List, Optional, Union
 
 from agno.media import Audio, Image, Video
-from agno.models.base import Model, Metrics
+from agno.models.base import Metrics, Model
 from agno.models.message import Message
 from agno.models.response import ModelResponse
-from agno.tools import Function, FunctionCall, Toolkit
+from agno.tools import Function, Toolkit
 from agno.utils.log import logger
-from agno.utils.tools import get_function_call_for_tool_call
 
 try:
     import google.generativeai as genai
@@ -39,7 +38,6 @@ class MessageData:
     valid_response_parts: Optional[List] = None
     response_tool_calls: List[Dict[str, Any]] = field(default_factory=list)
     response_usage: Optional[ResultGenerateContentResponse] = None
-
 
 
 @dataclass
@@ -550,7 +548,6 @@ class Gemini(Model):
         self.update_usage_metrics(assistant_message, message_data.response_usage, metrics)
         return assistant_message
 
-
     def format_function_call_results(
         self,
         function_call_results: List[Message],
@@ -591,7 +588,9 @@ class Gemini(Model):
         """
         if assistant_message.tool_calls and self.run_tools:
             model_response.content = assistant_message.get_content_string() or ""
-            function_calls_to_run = self._get_function_calls_to_run(assistant_message, messages, error_response_role="tool")
+            function_calls_to_run = self._get_function_calls_to_run(
+                assistant_message, messages, error_response_role="tool"
+            )
 
             if self.show_tool_calls:
                 if len(function_calls_to_run) == 1:
@@ -676,7 +675,9 @@ class Gemini(Model):
             Iterator[ModelResponse]: Yields model responses during function execution.
         """
         if assistant_message.tool_calls and self.run_tools:
-            function_calls_to_run = self._get_function_calls_to_run(assistant_message, messages, error_response_role="tool")
+            function_calls_to_run = self._get_function_calls_to_run(
+                assistant_message, messages, error_response_role="tool"
+            )
 
             if self.show_tool_calls:
                 if len(function_calls_to_run) == 1:

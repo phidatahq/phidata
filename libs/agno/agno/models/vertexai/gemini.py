@@ -2,12 +2,11 @@ import json
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, Iterator, List, Optional, Union
 
-from agno.models.base import Model, Metrics
+from agno.models.base import Metrics, Model
 from agno.models.message import Message
 from agno.models.response import ModelResponse
-from agno.tools import Function, FunctionCall, Toolkit
+from agno.tools import Function, Toolkit
 from agno.utils.log import logger
-from agno.utils.tools import get_function_call_for_tool_call
 
 try:
     from vertexai.generative_models import (
@@ -37,7 +36,6 @@ class MessageData:
     response_tool_calls: List[Dict[str, Any]] = field(default_factory=list)
     response_usage: Optional[Dict[str, Any]] = None
     response_tool_call_block: Content = None
-
 
 
 @dataclass
@@ -286,7 +284,6 @@ class Gemini(Model):
         self._update_model_metrics(metrics_for_run=metrics)
         self._update_assistant_message_metrics(assistant_message=assistant_message, metrics_for_run=metrics)
 
-
     def create_assistant_message(self, response: GenerationResponse, metrics: Metrics) -> Message:
         """
         Create an assistant message from the GenerationResponse.
@@ -385,7 +382,9 @@ class Gemini(Model):
         """
         if assistant_message.tool_calls and self.run_tools:
             model_response.content = assistant_message.get_content_string() or ""
-            function_calls_to_run = self._get_function_calls_to_run(assistant_message, messages, error_response_role="tool")
+            function_calls_to_run = self._get_function_calls_to_run(
+                assistant_message, messages, error_response_role="tool"
+            )
 
             if self.show_tool_calls:
                 if len(function_calls_to_run) == 1:
@@ -470,7 +469,9 @@ class Gemini(Model):
             Iterator[ModelResponse]: Yields model responses during function execution.
         """
         if assistant_message.tool_calls and self.run_tools:
-            function_calls_to_run = self._get_function_calls_to_run(assistant_message, messages, error_response_role="tool")
+            function_calls_to_run = self._get_function_calls_to_run(
+                assistant_message, messages, error_response_role="tool"
+            )
 
             if self.show_tool_calls:
                 if len(function_calls_to_run) == 1:

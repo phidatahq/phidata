@@ -194,7 +194,9 @@ class Model(ABC):
         if metrics_for_run.time_to_first_token is not None:
             self.metrics.setdefault("time_to_first_token", []).append(metrics_for_run.time_to_first_token)
 
-    def _get_function_calls_to_run(self, assistant_message: Message, messages: List[Message], error_response_role: str = "user") -> List[FunctionCall]:
+    def _get_function_calls_to_run(
+        self, assistant_message: Message, messages: List[Message], error_response_role: str = "user"
+    ) -> List[FunctionCall]:
         """
         Prepare function calls for the assistant message.
 

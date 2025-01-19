@@ -46,7 +46,7 @@ from agno.utils.safe_formatter import SafeFormatter
 from agno.utils.timer import Timer
 
 
-@dataclass(init=False)
+@dataclass(init=False, slots=True)
 class Agent:
     # --- Agent settings ---
     # Model for this Agent
@@ -236,6 +236,8 @@ class Agent:
     videos: Optional[List[VideoArtifact]] = None
     # Audio generated during this session
     audio: Optional[List[AudioArtifact]] = None
+    # Agent session
+    agent_session: Optional[AgentSession] = None
 
     def __init__(
         self,

@@ -68,6 +68,9 @@ chromadb = ["chromadb"]
 lancedb = ["lancedb", "tantivy"]
 qdrant = ["qdrant-client"]
 
+# Knowledge
+pdf = ["pypdf"]
+
 # All models
 models = [
   "agno[anthropic]",
@@ -100,6 +103,11 @@ vectordbs = [
   "agno[qdrant]",
 ]
 
+# All knowledge
+knowledge = [
+  "agno[pdf]",
+]
+
 # All libraries for testing
 tests = [
     "agno[dev]",
@@ -108,6 +116,7 @@ tests = [
     "agno[storage]",
     "agno[performance]",
     "agno[vectordbs]",
+    "agno[knowledge]",
 ]
 
 [project.scripts]

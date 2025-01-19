@@ -39,9 +39,7 @@ agent_knowledge = PDFUrlKnowledgeBase(
 # if agent_knowledge is not None:
 #     agent_knowledge.load()
 
-agent_storage = SqliteDbAgentStorage(
-    table_name="recipe_agent", db_file="tmp/agent_storage.db"
-)
+agent_storage = SqliteDbAgentStorage(table_name="recipe_agent", db_file="tmp/agents.db")
 
 
 def recipe_agent(user: str = "user"):

@@ -410,7 +410,7 @@ class Gemini(Model):
         # If the tool is a Callable or Toolkit, add its functions to the Model
         elif callable(tool) or isinstance(tool, Toolkit) or isinstance(tool, Function):
             if self._functions is None:
-                self.functions = {}
+                self.functions: Dict[str, Any] = {}
 
             if isinstance(tool, Toolkit):
                 # For each function in the toolkit, process entrypoint and add to self.tools

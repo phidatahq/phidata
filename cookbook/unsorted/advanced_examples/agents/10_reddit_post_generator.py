@@ -2,7 +2,6 @@ from agno.agent import Agent
 from agno.tools.duckduckgo import DuckDuckGoTools
 from agno.tools.reddit import RedditTools
 
-
 web_searcher = Agent(
     name="Web Searcher",
     role="Searches the web for information on a topic",

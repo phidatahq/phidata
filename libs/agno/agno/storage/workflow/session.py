@@ -20,10 +20,10 @@ class WorkflowSession:
     memory: Optional[Dict[str, Any]] = None
     # Workflow Data
     workflow_data: Optional[Dict[str, Any]] = None
-    # User Data
-    user_data: Optional[Dict[str, Any]] = None
     # Session Data
     session_data: Optional[Dict[str, Any]] = None
+    # Extra Data stored with this workflow
+    extra_data: Optional[Dict[str, Any]] = None
     # The unix timestamp when this session was created
     created_at: Optional[int] = None
     # The unix timestamp when this session was last updated
@@ -53,8 +53,8 @@ class WorkflowSession:
             user_id=data.get("user_id"),
             memory=data.get("memory"),
             workflow_data=data.get("workflow_data"),
-            user_data=data.get("user_data"),
             session_data=data.get("session_data"),
+            extra_data=data.get("extra_data"),
             created_at=data.get("created_at"),
             updated_at=data.get("updated_at"),
         )

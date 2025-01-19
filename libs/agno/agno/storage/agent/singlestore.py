@@ -12,12 +12,12 @@ try:
 except ImportError:
     raise ImportError("`sqlalchemy` not installed")
 
-from agno.agent.session import AgentSession
 from agno.storage.agent.base import AgentStorage
+from agno.storage.agent.session import AgentSession
 from agno.utils.log import logger
 
 
-class SingleStoreDbAgentStorage(AgentStorage):
+class SingleStoreAgentStorage(AgentStorage):
     def __init__(
         self,
         table_name: str,
@@ -78,12 +78,12 @@ class SingleStoreDbAgentStorage(AgentStorage):
             Column("user_id", mysql.TEXT),
             # Agent memory
             Column("memory", mysql.JSON),
-            # Agent Metadata
+            # Agent Data
             Column("agent_data", mysql.JSON),
-            # User Metadata
-            Column("user_data", mysql.JSON),
-            # Session Metadata
+            # Session Data
             Column("session_data", mysql.JSON),
+            # Extra Data stored with this agent
+            Column("extra_data", mysql.JSON),
             # The Unix timestamp of when this session was created.
             Column("created_at", mysql.BIGINT),
             # The Unix timestamp of when this session was last updated.
@@ -182,16 +182,16 @@ class SingleStoreDbAgentStorage(AgentStorage):
             upsert_sql = text(
                 f"""
                 INSERT INTO {self.schema}.{self.table_name}
-                (session_id, agent_id, user_id, memory, agent_data, user_data, session_data, created_at, updated_at)
+                (session_id, agent_id, user_id, memory, agent_data, session_data, extra_data, created_at, updated_at)
                 VALUES
-                (:session_id, :agent_id, :user_id, :memory, :agent_data, :user_data, :session_data, UNIX_TIMESTAMP(), NULL)
+                (:session_id, :agent_id, :user_id, :memory, :agent_data, :session_data, :extra_data, UNIX_TIMESTAMP(), NULL)
                 ON DUPLICATE KEY UPDATE
                     agent_id = VALUES(agent_id),
                     user_id = VALUES(user_id),
                     memory = VALUES(memory),
                     agent_data = VALUES(agent_data),
-                    user_data = VALUES(user_data),
                     session_data = VALUES(session_data),
+                    extra_data = VALUES(extra_data),
                     updated_at = UNIX_TIMESTAMP();
                 """
             )
@@ -209,11 +209,11 @@ class SingleStoreDbAgentStorage(AgentStorage):
                         "agent_data": json.dumps(session.agent_data, ensure_ascii=False)
                         if session.agent_data is not None
                         else None,
-                        "user_data": json.dumps(session.user_data, ensure_ascii=False)
-                        if session.user_data is not None
-                        else None,
                         "session_data": json.dumps(session.session_data, ensure_ascii=False)
                         if session.session_data is not None
+                        else None,
+                        "extra_data": json.dumps(session.extra_data, ensure_ascii=False)
+                        if session.extra_data is not None
                         else None,
                     },
                 )
@@ -232,11 +232,11 @@ class SingleStoreDbAgentStorage(AgentStorage):
                         "agent_data": json.dumps(session.agent_data, ensure_ascii=False)
                         if session.agent_data is not None
                         else None,
-                        "user_data": json.dumps(session.user_data, ensure_ascii=False)
-                        if session.user_data is not None
-                        else None,
                         "session_data": json.dumps(session.session_data, ensure_ascii=False)
                         if session.session_data is not None
+                        else None,
+                        "extra_data": json.dumps(session.extra_data, ensure_ascii=False)
+                        if session.extra_data is not None
                         else None,
                     },
                 )
@@ -271,13 +271,13 @@ class SingleStoreDbAgentStorage(AgentStorage):
 
     def __deepcopy__(self, memo):
         """
-        Create a deep copy of the SingleStoreDbAgentStorage instance, handling unpickleable attributes.
+        Create a deep copy of the SingleStoreAgentStorage instance, handling unpickleable attributes.
 
         Args:
             memo (dict): A dictionary of objects already copied during the current copying pass.
 
         Returns:
-            SingleStoreDbAgentStorage: A deep-copied instance of SingleStoreDbAgentStorage.
+            SingleStoreAgentStorage: A deep-copied instance of SingleStoreAgentStorage.
         """
         from copy import deepcopy
 

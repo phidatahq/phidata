@@ -3,8 +3,8 @@ from dataclasses import asdict
 from decimal import Decimal
 from typing import Any, Dict, List, Optional
 
-from agno.agent.session import AgentSession
 from agno.storage.agent.base import AgentStorage
+from agno.storage.agent.session import AgentSession
 from agno.utils.log import logger
 
 try:
@@ -201,7 +201,7 @@ class DynamoDbAgentStorage(AgentStorage):
                 response = self.table.query(
                     IndexName="user_id-index",
                     KeyConditionExpression=Key("user_id").eq(user_id),
-                    ProjectionExpression="session_id, agent_id, user_id, memory, agent_data, user_data, session_data, created_at, updated_at",
+                    ProjectionExpression="session_id, agent_id, user_id, memory, agent_data, session_data, extra_data, created_at, updated_at",
                 )
                 items = response.get("Items", [])
                 for item in items:
@@ -214,7 +214,7 @@ class DynamoDbAgentStorage(AgentStorage):
                 response = self.table.query(
                     IndexName="agent_id-index",
                     KeyConditionExpression=Key("agent_id").eq(agent_id),
-                    ProjectionExpression="session_id, agent_id, user_id, memory, agent_data, user_data, session_data, created_at, updated_at",
+                    ProjectionExpression="session_id, agent_id, user_id, memory, agent_data, session_data, extra_data, created_at, updated_at",
                 )
                 items = response.get("Items", [])
                 for item in items:
@@ -225,7 +225,7 @@ class DynamoDbAgentStorage(AgentStorage):
             else:
                 # Scan the whole table
                 response = self.table.scan(
-                    ProjectionExpression="session_id, agent_id, user_id, memory, agent_data, user_data, session_data, created_at, updated_at"
+                    ProjectionExpression="session_id, agent_id, user_id, memory, agent_data, session_data, extra_data, created_at, updated_at"
                 )
                 items = response.get("Items", [])
                 for item in items:

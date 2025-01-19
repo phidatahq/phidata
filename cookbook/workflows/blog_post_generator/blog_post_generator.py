@@ -8,7 +8,7 @@ from typing import Iterator, Optional
 
 from agno.agent import Agent
 from agno.models.openai import OpenAIChat
-from agno.storage.workflow.sqlite import SqliteDbWorkflowStorage
+from agno.storage.workflow.sqlite import SqliteWorkflowStorage
 from agno.tools.duckduckgo import DuckDuckGoTools
 from agno.utils.log import logger
 from agno.utils.pprint import pprint_run_response
@@ -149,7 +149,7 @@ if __name__ == "__main__":
     # - Sets up SQLite storage for caching results
     generate_blog_post = BlogPostGenerator(
         session_id=f"generate-blog-post-on-{url_safe_topic}",
-        storage=SqliteDbWorkflowStorage(
+        storage=SqliteWorkflowStorage(
             table_name="generate_blog_post_workflows",
             db_file="tmp/workflows.db",
         ),

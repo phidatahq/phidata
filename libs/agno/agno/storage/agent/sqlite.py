@@ -13,12 +13,12 @@ try:
 except ImportError:
     raise ImportError("`sqlalchemy` not installed. Please install it using `pip install sqlalchemy`")
 
-from agno.agent import AgentSession
 from agno.storage.agent.base import AgentStorage
+from agno.storage.agent.session import AgentSession
 from agno.utils.log import logger
 
 
-class SqliteDbAgentStorage(AgentStorage):
+class SqliteAgentStorage(AgentStorage):
     def __init__(
         self,
         table_name: str,
@@ -93,12 +93,12 @@ class SqliteDbAgentStorage(AgentStorage):
             Column("user_id", String),
             # Agent Memory
             Column("memory", sqlite.JSON),
-            # Agent Metadata
+            # Agent Data
             Column("agent_data", sqlite.JSON),
-            # User Metadata
-            Column("user_data", sqlite.JSON),
-            # Session Metadata
+            # Session Data
             Column("session_data", sqlite.JSON),
+            # Extra Data stored with this agent
+            Column("extra_data", sqlite.JSON),
             # The Unix timestamp of when this session was created.
             Column("created_at", sqlite.INTEGER, default=lambda: int(time.time())),
             # The Unix timestamp of when this session was last updated.
@@ -251,8 +251,8 @@ class SqliteDbAgentStorage(AgentStorage):
                     user_id=session.user_id,
                     memory=session.memory,
                     agent_data=session.agent_data,
-                    user_data=session.user_data,
                     session_data=session.session_data,
+                    extra_data=session.extra_data,
                 )
 
                 # Define the upsert if the session_id already exists
@@ -264,8 +264,8 @@ class SqliteDbAgentStorage(AgentStorage):
                         user_id=session.user_id,
                         memory=session.memory,
                         agent_data=session.agent_data,
-                        user_data=session.user_data,
                         session_data=session.session_data,
+                        extra_data=session.extra_data,
                         updated_at=int(time.time()),
                     ),  # The updated value for each column
                 )
@@ -324,13 +324,13 @@ class SqliteDbAgentStorage(AgentStorage):
 
     def __deepcopy__(self, memo):
         """
-        Create a deep copy of the SqliteDbAgentStorage instance, handling unpickleable attributes.
+        Create a deep copy of the SqliteAgentStorage instance, handling unpickleable attributes.
 
         Args:
             memo (dict): A dictionary of objects already copied during the current copying pass.
 
         Returns:
-            SqliteDbAgentStorage: A deep-copied instance of SqliteDbAgentStorage.
+            SqliteAgentStorage: A deep-copied instance of SqliteAgentStorage.
         """
         from copy import deepcopy
 

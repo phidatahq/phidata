@@ -8,7 +8,7 @@ from shutil import rmtree
 from typing import Iterator
 
 from agno.agent import Agent, RunResponse
-from agno.storage.workflow.sqlite import SqliteDbWorkflowStorage
+from agno.storage.workflow.sqlite import SqliteWorkflowStorage
 from agno.tools.yfinance import YFinanceTools
 from agno.utils.log import logger
 from agno.utils.pprint import pprint_run_response
@@ -112,7 +112,7 @@ if __name__ == "__main__":
     # Initialize the investment analyst workflow
     investment_report_generator = InvestmentReportGenerator(
         session_id=f"investment-report-{url_safe_companies}",
-        storage=SqliteDbWorkflowStorage(
+        storage=SqliteWorkflowStorage(
             table_name="investment_report_workflows",
             db_file="tmp/workflows.db",
         ),

@@ -4,7 +4,7 @@
 """
 
 from agno.playground import Playground, serve_playground_app
-from agno.storage.workflow.sqlite import SqliteDbWorkflowStorage
+from agno.storage.workflow.sqlite import SqliteWorkflowStorage
 
 # Import the workflows
 from blog_post_generator.blog_post_generator import BlogPostGenerator
@@ -19,14 +19,14 @@ from startup_idea_validator.startup_idea_validator import StartupIdeaValidator
 
 blog_post_generator = BlogPostGenerator(
     workflow_id="generate-blog-post",
-    storage=SqliteDbWorkflowStorage(
+    storage=SqliteWorkflowStorage(
         table_name="generate_blog_post_workflows",
         db_file="tmp/workflows.db",
     ),
 )
 news_report_generator = NewsReportGenerator(
     workflow_id="generate-news-report",
-    storage=SqliteDbWorkflowStorage(
+    storage=SqliteWorkflowStorage(
         table_name="generate_news_report_workflows",
         db_file="tmp/workflows.db",
     ),
@@ -34,7 +34,7 @@ news_report_generator = NewsReportGenerator(
 
 investment_report_generator = InvestmentReportGenerator(
     workflow_id="generate-investment-report",
-    storage=SqliteDbWorkflowStorage(
+    storage=SqliteWorkflowStorage(
         table_name="investment_report_workflows",
         db_file="tmp/workflows.db",
     ),
@@ -42,7 +42,7 @@ investment_report_generator = InvestmentReportGenerator(
 
 startup_idea_validator = StartupIdeaValidator(
     workflow_id="validate-startup-idea",
-    storage=SqliteDbWorkflowStorage(
+    storage=SqliteWorkflowStorage(
         table_name="validate_startup_ideas_workflow",
         db_file="tmp/workflows.db",
     ),
@@ -50,7 +50,7 @@ startup_idea_validator = StartupIdeaValidator(
 
 game_generator = GameGenerator(
     workflow_id="game-generator",
-    storage=SqliteDbWorkflowStorage(
+    storage=SqliteWorkflowStorage(
         table_name="game_generator_workflows",
         db_file="tmp/workflows.db",
     ),

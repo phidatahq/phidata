@@ -1,12 +1,12 @@
-from phi.agent import Agent
-from phi.tools.duckduckgo import DuckDuckGo
-from phi.tools.reddit import RedditTools
+from agno.agent import Agent
+from agno.tools.duckduckgo import DuckDuckGoTools
+from agno.tools.reddit import RedditTools
 
 web_searcher = Agent(
     name="Web Searcher",
     role="Searches the web for information on a topic",
     description="An intelligent agent that performs comprehensive web searches to gather current and accurate information",
-    tools=[DuckDuckGo()],
+    tools=[DuckDuckGoTools()],
     instructions=[
         "1. Perform focused web searches using relevant keywords",
         "2. Filter results for credibility and recency",

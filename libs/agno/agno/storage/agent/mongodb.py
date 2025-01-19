@@ -10,8 +10,8 @@ try:
 except ImportError:
     raise ImportError("`pymongo` not installed. Please install it with `pip install pymongo`")
 
-from agno.agent import AgentSession
 from agno.storage.agent.base import AgentStorage
+from agno.storage.agent.session import AgentSession
 from agno.utils.log import logger
 
 

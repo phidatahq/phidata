@@ -1,11 +1,11 @@
 """Run `pip install duckduckgo-search openai` to install dependencies."""
 
 from agno.agent import Agent
-from agno.storage.agent.yaml import YamlFileAgentStorage
+from agno.storage.agent.yaml import YamlAgentStorage
 from agno.tools.duckduckgo import DuckDuckGoTools
 
 agent = Agent(
-    storage=YamlFileAgentStorage(dir_path="tmp/agent_sessions_yaml"),
+    storage=YamlAgentStorage(dir_path="tmp/agent_sessions_yaml"),
     tools=[DuckDuckGoTools()],
     add_history_to_messages=True,
 )

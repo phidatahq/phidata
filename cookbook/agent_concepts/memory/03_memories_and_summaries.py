@@ -10,7 +10,7 @@ import json
 from agno.agent import Agent, AgentMemory
 from agno.memory.db.sqlite import SqliteMemoryDb
 from agno.models.openai import OpenAIChat
-from agno.storage.agent.sqlite import SqliteDbAgentStorage
+from agno.storage.agent.sqlite import SqliteAgentStorage
 from rich.console import Console
 from rich.json import JSON
 from rich.panel import Panel
@@ -35,7 +35,7 @@ agent = Agent(
         update_session_summary_after_run=True,
     ),
     # Store agent sessions in a database, that persists between runs
-    storage=SqliteDbAgentStorage(
+    storage=SqliteAgentStorage(
         table_name="agent_sessions", db_file="tmp/agent_storage.db"
     ),
     # add_history_to_messages=true adds the chat history to the messages sent to the Model.

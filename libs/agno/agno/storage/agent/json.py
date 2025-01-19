@@ -4,12 +4,12 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import List, Optional, Union
 
-from agno.agent import AgentSession
 from agno.storage.agent.base import AgentStorage
+from agno.storage.agent.session import AgentSession
 from agno.utils.log import logger
 
 
-class JsonFileAgentStorage(AgentStorage):
+class JsonAgentStorage(AgentStorage):
     def __init__(self, dir_path: Union[str, Path]):
         self.dir_path = Path(dir_path)
         self.dir_path.mkdir(parents=True, exist_ok=True)

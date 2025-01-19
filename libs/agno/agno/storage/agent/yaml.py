@@ -5,12 +5,12 @@ from typing import List, Optional, Union
 
 import yaml
 
-from agno.agent import AgentSession
 from agno.storage.agent.base import AgentStorage
+from agno.storage.agent.session import AgentSession
 from agno.utils.log import logger
 
 
-class YamlFileAgentStorage(AgentStorage):
+class YamlAgentStorage(AgentStorage):
     def __init__(self, dir_path: Union[str, Path]):
         self.dir_path = Path(dir_path)
         self.dir_path.mkdir(parents=True, exist_ok=True)

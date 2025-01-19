@@ -7,7 +7,6 @@ from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from agno.agent.agent import Agent, RunResponse
-from agno.agent.session import AgentSession
 from agno.media import Audio, Image, Video
 from agno.playground.operator import (
     format_tools,
@@ -27,8 +26,9 @@ from agno.playground.schemas import (
     WorkflowSessionResponse,
     WorkflowsGetResponse,
 )
+from agno.storage.agent.session import AgentSession
+from agno.storage.workflow.session import WorkflowSession
 from agno.utils.log import logger
-from agno.workflow.session import WorkflowSession
 from agno.workflow.workflow import Workflow
 
 

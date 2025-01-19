@@ -20,10 +20,10 @@ class AgentSession:
     memory: Optional[Dict[str, Any]] = None
     # Agent Data: agent_id, name and model
     agent_data: Optional[Dict[str, Any]] = None
-    # User Data: name and model
-    user_data: Optional[Dict[str, Any]] = None
-    # Session Data: name and model
+    # Session Data: session_name, session_state, images, videos, audio
     session_data: Optional[Dict[str, Any]] = None
+    # Extra Data stored with this agent
+    extra_data: Optional[Dict[str, Any]] = None
     # The unix timestamp when this session was created
     created_at: Optional[int] = None
     # The unix timestamp when this session was last updated
@@ -72,8 +72,8 @@ class AgentSession:
             user_id=data.get("user_id"),
             memory=data.get("memory"),
             agent_data=data.get("agent_data"),
-            user_data=data.get("user_data"),
             session_data=data.get("session_data"),
+            extra_data=data.get("extra_data"),
             created_at=data.get("created_at"),
             updated_at=data.get("updated_at"),
         )

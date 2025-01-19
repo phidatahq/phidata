@@ -201,45 +201,35 @@ class HuggingFace(Model):
             _request_params.update(self.request_params)
         return _request_params
 
+
     def to_dict(self) -> Dict[str, Any]:
         """
         Convert the model to a dictionary.
 
         Returns:
-            Dict[str, Any]: A dictionary representation of the model.
+            Dict[str, Any]: The dictionary representation of the model.
         """
         _dict = super().to_dict()
-        if self.store is not None:
-            _dict["store"] = self.store
-        if self.frequency_penalty is not None:
-            _dict["frequency_penalty"] = self.frequency_penalty
-        if self.logit_bias is not None:
-            _dict["logit_bias"] = self.logit_bias
-        if self.logprobs is not None:
-            _dict["logprobs"] = self.logprobs
-        if self.max_tokens is not None:
-            _dict["max_tokens"] = self.max_tokens
-        if self.presence_penalty is not None:
-            _dict["presence_penalty"] = self.presence_penalty
-        if self.response_format is not None:
-            _dict["response_format"] = self.response_format
-        if self.seed is not None:
-            _dict["seed"] = self.seed
-        if self.stop is not None:
-            _dict["stop"] = self.stop
-        if self.temperature is not None:
-            _dict["temperature"] = self.temperature
-        if self.top_logprobs is not None:
-            _dict["top_logprobs"] = self.top_logprobs
-        if self.top_p is not None:
-            _dict["top_p"] = self.top_p
-        if self.tools is not None:
-            _dict["tools"] = self.tools
-            if self.tool_choice is None:
-                _dict["tool_choice"] = "auto"
-            else:
-                _dict["tool_choice"] = self.tool_choice
-        return _dict
+        _dict.update(
+            {
+                "store": self.store,
+                "frequency_penalty": self.frequency_penalty,
+                "logit_bias": self.logit_bias,
+                "logprobs": self.logprobs,
+                "max_tokens": self.max_tokens,
+                "presence_penalty": self.presence_penalty,
+                "response_format": self.response_format,
+                "seed": self.seed,
+                "stop": self.stop,
+                "temperature": self.temperature,
+                "top_logprobs": self.top_logprobs,
+                "top_p": self.top_p,
+                "tools": self.tools,
+                "tool_choice": self.tool_choice if (self.tools is not None and self.tool_choice is not None) else "auto",
+            }
+        )
+        cleaned_dict = {k: v for k, v in _dict.items() if v is not None}
+        return cleaned_dict
 
     def invoke(self, messages: List[Message]) -> Union[ChatCompletionOutput]:
         """
@@ -782,41 +772,3 @@ class HuggingFace(Model):
                 yield model_response
         logger.debug("---------- HuggingFace Hub Async Response End ----------")
 
-    def _build_tool_calls(self, tool_calls_data: List[Any]) -> List[Dict[str, Any]]:
-        """
-        Build tool calls from tool call data.
-
-        Args:
-            tool_calls_data (List[ChoiceDeltaToolCall]): The tool call data to build from.
-
-        Returns:
-            List[Dict[str, Any]]: The built tool calls.
-        """
-        tool_calls: List[Dict[str, Any]] = []
-        for _tool_call in tool_calls_data:
-            _index = _tool_call.index
-            _tool_call_id = _tool_call.id
-            _tool_call_type = _tool_call.type
-            _function_name = _tool_call.function.name if _tool_call.function else None
-            _function_arguments = _tool_call.function.arguments if _tool_call.function else None
-
-            if len(tool_calls) <= _index:
-                tool_calls.extend([{}] * (_index - len(tool_calls) + 1))
-            tool_call_entry = tool_calls[_index]
-            if not tool_call_entry:
-                tool_call_entry["id"] = _tool_call_id
-                tool_call_entry["type"] = _tool_call_type
-                tool_call_entry["function"] = {
-                    "name": _function_name or "",
-                    "arguments": _function_arguments or "",
-                }
-            else:
-                if _function_name:
-                    tool_call_entry["function"]["name"] += _function_name
-                if _function_arguments:
-                    tool_call_entry["function"]["arguments"] += _function_arguments
-                if _tool_call_id:
-                    tool_call_entry["id"] = _tool_call_id
-                if _tool_call_type:
-                    tool_call_entry["type"] = _tool_call_type
-        return tool_calls

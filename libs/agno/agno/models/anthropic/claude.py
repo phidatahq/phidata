@@ -602,13 +602,13 @@ class Claude(Model):
         return self.get_tool_call_prompt()
 
     async def ainvoke(self, *args, **kwargs) -> Any:
-        raise Exception(f"Async not supported on {self.name}.")
+        raise NotImplementedError(f"Async not supported on {self.name}.")
 
     async def ainvoke_stream(self, *args, **kwargs) -> Any:
-        raise Exception(f"Async not supported on {self.name}.")
+        raise NotImplementedError(f"Async not supported on {self.name}.")
 
     async def aresponse(self, messages: List[Message]) -> ModelResponse:
-        raise Exception(f"Async not supported on {self.name}.")
+        raise NotImplementedError(f"Async not supported on {self.name}.")
 
     async def aresponse_stream(self, messages: List[Message]) -> ModelResponse:
-        raise Exception(f"Async not supported on {self.name}.")
+        raise NotImplementedError(f"Async not supported on {self.name}.")

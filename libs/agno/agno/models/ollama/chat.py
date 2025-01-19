@@ -71,6 +71,7 @@ class Ollama(Model):
             client_params.update(self.client_params)
         return client_params
 
+
     def get_client(self) -> OllamaClient:
         """
         Returns an Ollama client.

@@ -1,9 +1,9 @@
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from os import getenv
 from typing import Any, Dict, Iterator, List, Optional, Tuple
 
-from agno.models.base import Model
+from agno.models.base import Model, StreamData
 from agno.models.message import Message
 from agno.models.response import ModelResponse
 from agno.tools.function import FunctionCall
@@ -35,18 +35,6 @@ except (ModuleNotFoundError, ImportError):
 
 
 @dataclass
-class StreamData:
-    response_content: str = ""
-    response_tool_calls: Optional[List[Any]] = None
-    completion_tokens: int = 0
-    response_prompt_tokens: int = 0
-    response_completion_tokens: int = 0
-    response_total_tokens: int = 0
-    time_to_first_token: Optional[float] = None
-    response_timer: Timer = field(default_factory=Timer)
-
-
-@dataclass
 class Cohere(Model):
     id: str = "command-r-plus"
     name: str = "cohere"
@@ -68,8 +56,7 @@ class Cohere(Model):
     # -*- Provide the Cohere client manually
     cohere_client: Optional[CohereClient] = None
 
-    @property
-    def client(self) -> CohereClient:
+    def get_client(self) -> CohereClient:
         if self.cohere_client:
             return self.cohere_client
 
@@ -130,21 +117,10 @@ class Cohere(Model):
             for f_name, function in self._functions.items()
         ]
 
-    def invoke(
-        self, messages: List[Message], tool_results: Optional[List[ToolResult]] = None
-    ) -> NonStreamedChatResponse:
-        """
-        Invoke a non-streamed chat response from the Cohere API.
+    def _prepare_for_invoke(self, messages: List[Message], tool_results: Optional[List[ToolResult]] = None) -> Tuple[str, Dict[str, Any]]:
 
-        Args:
-            messages (List[Message]): The list of messages.
-            tool_results (Optional[List[ToolResult]]): The list of tool results.
-
-        Returns:
-            NonStreamedChatResponse: The non-streamed chat response.
-        """
         api_kwargs: Dict[str, Any] = self.request_kwargs
-        chat_message: Optional[str] = None
+        chat_message: Optional[str] =  ""
 
         if self.add_chat_history:
             logger.debug("Providing chat_history to cohere")
@@ -179,7 +155,24 @@ class Cohere(Model):
         if tool_results:
             api_kwargs["tool_results"] = tool_results
 
-        return self.client.chat(message=chat_message or "", model=self.id, **api_kwargs)
+        return chat_message, api_kwargs
+
+    def invoke(
+        self, messages: List[Message], tool_results: Optional[List[ToolResult]] = None
+    ) -> NonStreamedChatResponse:
+        """
+        Invoke a non-streamed chat response from the Cohere API.
+
+        Args:
+            messages (List[Message]): The list of messages.
+            tool_results (Optional[List[ToolResult]]): The list of tool results.
+
+        Returns:
+            NonStreamedChatResponse: The non-streamed chat response.
+        """
+        chat_message, api_kwargs = self._prepare_for_invoke(messages, tool_results)
+
+        return self.get_client().chat(model=self.id, message=chat_message, **api_kwargs)
 
     def invoke_stream(
         self, messages: List[Message], tool_results: Optional[List[ToolResult]] = None
@@ -194,53 +187,10 @@ class Cohere(Model):
         Returns:
             Iterator[StreamedChatResponse]: An iterator of streamed chat responses.
         """
-        api_kwargs: Dict[str, Any] = self.request_kwargs
-        chat_message: Optional[str] = None
+        chat_message, api_kwargs = self._prepare_for_invoke(messages, tool_results)
 
-        if self.add_chat_history:
-            logger.debug("Providing chat_history to cohere")
-            chat_history: List = []
-            for m in messages:
-                if m.role == "system" and "preamble" not in api_kwargs:
-                    api_kwargs["preamble"] = m.content
-                elif m.role == "user":
-                    # Update the chat_message to the new user message
-                    chat_message = m.get_content_string()
-                    chat_history.append({"role": "USER", "message": chat_message})
-                else:
-                    chat_history.append({"role": "CHATBOT", "message": m.get_content_string() or ""})
-            if chat_history[-1].get("role") == "USER":
-                chat_history.pop()
-            api_kwargs["chat_history"] = chat_history
-        else:
-            # Set first system message as preamble
-            for m in messages:
-                if m.role == "system" and "preamble" not in api_kwargs:
-                    api_kwargs["preamble"] = m.get_content_string()
-                    break
-            # Set last user message as chat_message
-            for m in reversed(messages):
-                if m.role == "user":
-                    chat_message = m.get_content_string()
-                    break
+        return self.get_client().chat_stream(model=self.id, message=chat_message, **api_kwargs)
 
-        if self.tools:
-            api_kwargs["tools"] = self._get_tools()
-
-        if tool_results:
-            api_kwargs["tool_results"] = tool_results
-
-        return self.client.chat_stream(message=chat_message or "", model=self.id, **api_kwargs)
-
-    def _log_messages(self, messages: List[Message]) -> None:
-        """
-        Log the messages to the console.
-
-        Args:
-            messages (List[Message]): The list of messages.
-        """
-        for m in messages:
-            m.log()
 
     def _prepare_function_calls(self, agent_message: Message) -> Tuple[List[FunctionCall], List[Message]]:
         """
@@ -639,13 +589,13 @@ class Cohere(Model):
         logger.debug("---------- Cohere Response End ----------")
 
     async def ainvoke(self, *args, **kwargs) -> Any:
-        raise Exception(f"Async not supported on {self.name}.")
+        raise NotImplementedError(f"Async not supported on {self.name}.")
 
     async def ainvoke_stream(self, *args, **kwargs) -> Any:
-        raise Exception(f"Async not supported on {self.name}.")
+        raise NotImplementedError(f"Async not supported on {self.name}.")
 
     async def aresponse(self, messages: List[Message]) -> ModelResponse:
-        raise Exception(f"Async not supported on {self.name}.")
+        raise NotImplementedError(f"Async not supported on {self.name}.")
 
     async def aresponse_stream(self, messages: List[Message]) -> ModelResponse:
-        raise Exception(f"Async not supported on {self.name}.")
+        raise NotImplementedError(f"Async not supported on {self.name}.")

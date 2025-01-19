@@ -1704,14 +1704,14 @@ class Agent:
                 if not isinstance(sys_message_content, str):
                     raise Exception("system_message must return a string")
 
+            # Format the system message with the session state variables
+            sys_message_content = self.format_message_with_state_variables(sys_message_content)
+
             # Add the JSON output prompt if response_model is provided and structured_outputs is False
             if self.response_model is not None and not self.structured_outputs:
                 sys_message_content += f"\n{self.get_json_output_prompt()}"
 
-            return Message(
-                role=self.get_system_message_role(),
-                content=self.format_message_with_state_variables(sys_message_content),
-            )
+            return Message(role=self.get_system_message_role(), content=sys_message_content)
 
         # 2. If create_default_system_message is False, return None.
         if not self.create_default_system_message:
@@ -1722,43 +1722,45 @@ class Agent:
 
         # 3. Build and return the default system message for the Agent.
         # 3.1 Build the list of instructions for the system prompt.
-        instructions = []
+        user_provided_instructions = []
         if self.instructions is not None:
             _instructions = self.instructions
             if callable(self.instructions):
                 _instructions = self.instructions(agent=self)
 
             if isinstance(_instructions, str):
-                instructions.append(_instructions)
+                user_provided_instructions.append(_instructions)
             elif isinstance(_instructions, list):
-                instructions.extend(_instructions)
+                user_provided_instructions.extend(_instructions)
 
-        # 3.2 Add instructions from the Model
-        model_instructions = self.model.get_instructions_for_model()
-        if model_instructions is not None:
-            instructions.extend(model_instructions)
-        # 3.3 Add instructions for using markdown
+        # 3.2 Add additional information
+        additional_information = []
+        # 3.2.1 Add instructions from the Model
+        _model_instructions = self.model.get_instructions_for_model()
+        if _model_instructions is not None:
+            additional_information.extend(_model_instructions)
+        # 3.2.2 Add instructions for using markdown
         if self.markdown and self.response_model is None:
-            instructions.append("Use markdown to format your answers.")
-        # 3.4 Add instructions for adding the current datetime
+            additional_information.append("Use markdown to format your answers.")
+        # 3.2.3 Add the current datetime
         if self.add_datetime_to_instructions:
-            instructions.append(f"The current time is {datetime.now()}")
-        # 3.5 Add agent name if provided
+            additional_information.append(f"The current time is {datetime.now()}")
+        # 3.2.4 Add agent name if provided
         if self.name is not None and self.add_name_to_instructions:
-            instructions.append(f"Your name is: {self.name}.")
+            additional_information.append(f"Your name is: {self.name}.")
 
-        # 3.6 Build the default system message for the Agent.
+        # 3.3 Build the default system message for the Agent.
         system_message_lines: List[str] = []
-        # 3.6.1 First add the Agent description if provided
+        # 3.3.1 First add the Agent description if provided
         if self.description is not None:
             system_message_lines.append(f"{self.description}\n")
-        # 3.6.2 Then add the Agent goal if provided
+        # 3.3.2 Then add the Agent goal if provided
         if self.goal is not None:
-            system_message_lines.append(f"Your goal is: {self.goal}\n")
-        # 3.6.3 Then add the Agent role
+            system_message_lines.append(f"<your_goal>\n{self.goal}\n</your_goal>\n")
+        # 3.3.3 Then add the Agent role
         if self.role is not None:
-            system_message_lines.append(f"Your role is: {self.role}\n")
-        # 3.6.4 Then add instructions for transferring tasks to team members
+            system_message_lines.append(f"<your_role>\n{self.role}\n</your_role>\n")
+        # 3.3.4 Then add instructions for transferring tasks to team members
         if self.has_team and self.add_transfer_instructions:
             system_message_lines.extend(
                 [
@@ -1770,43 +1772,53 @@ class Agent:
                     "",
                 ]
             )
-        # 3.6.5 Then add instructions for the Agent
-        if len(instructions) > 0:
-            system_message_lines.append("## Instructions")
-            if len(instructions) > 1:
-                system_message_lines.extend([f"- {instruction}" for instruction in instructions])
+        # 3.3.5 Then add instructions for the Agent
+        if len(user_provided_instructions) > 0:
+            system_message_lines.append("<instructions>")
+            if len(user_provided_instructions) > 1:
+                system_message_lines.extend([f"- {_upi}" for _upi in user_provided_instructions])
             else:
-                system_message_lines.append(instructions[0])
-            system_message_lines.append("")
-        # 3.6.6 Then add the guidelines for the Agent
+                system_message_lines.append(user_provided_instructions[0])
+            system_message_lines.append("</instructions>\n")
+        # 3.3.6 Add additional information
+        if len(additional_information) > 0:
+            system_message_lines.append("<additional_information>")
+            system_message_lines.extend([f"- {_api}" for _api in additional_information])
+            system_message_lines.append("</additional_information>\n")
+        # 3.3.7 Then add the guidelines for the Agent
         if self.guidelines is not None and len(self.guidelines) > 0:
-            system_message_lines.append("## Guidelines")
+            system_message_lines.append("<guidelines>")
             if len(self.guidelines) > 1:
                 system_message_lines.extend(self.guidelines)
             else:
                 system_message_lines.append(self.guidelines[0])
-            system_message_lines.append("")
-        # 3.6.7 Then add the prompt for the Model
+            system_message_lines.append("</guidelines>")
+        # 3.3.8 Then add the prompt for the Model
         system_message_from_model = self.model.get_system_message_for_model()
         if system_message_from_model is not None:
             system_message_lines.append(system_message_from_model)
-        # 3.6.8 Then add the expected output
+        # 3.3.9 Then add the expected output
         if self.expected_output is not None:
-            system_message_lines.append(f"## Expected output\n{self.expected_output}\n")
-        # 3.6.9 Then add additional context
+            system_message_lines.append(f"<expected_output>\n{self.expected_output.strip()}\n</expected_output>\n")
+        # 3.3.10 Then add additional context
         if self.additional_context is not None:
-            system_message_lines.append(f"{self.additional_context}\n")
-        # 3.6.10 Then add information about the team members
+            system_message_lines.append(
+                f"<additional_context>\n{self.additional_context.strip()}\n</additional_context>\n"
+            )
+        # 3.3.11 Then add information about the team members
         if self.has_team and self.add_transfer_instructions:
-            system_message_lines.append(f"{self.get_transfer_instructions()}\n")
-        # 3.6.11 Then add memories to the system prompt
+            system_message_lines.append(
+                f"<transfer_instructions>\n{self.get_transfer_instructions().strip()}\n</transfer_instructions>\n"
+            )
+        # 3.3.12 Then add memories to the system prompt
         if self.memory.create_user_memories:
             if self.memory.memories and len(self.memory.memories) > 0:
                 system_message_lines.append(
                     "You have access to memories from previous interactions with the user that you can use:"
                 )
-                system_message_lines.append("### Memories from previous interactions")
+                system_message_lines.append("<memories_from_previous_interactions>")
                 system_message_lines.append("\n".join([f"- {memory.memory}" for memory in self.memory.memories]))
+                system_message_lines.append("</memories_from_previous_interactions>")
                 system_message_lines.append(
                     "\nNote: this information is from previous interactions and may be updated in this conversation. "
                     "You should always prefer information from this conversation over the past memories."
@@ -1818,8 +1830,8 @@ class Agent:
                     "but have not had any interactions with the user yet."
                 )
                 system_message_lines.append(
-                    "If the user asks about previous memories, you can let them know that you dont have any memory about the user yet because you have not had any interactions with them yet, "
-                    "but can add new memories using the `update_memory` tool."
+                    "If the user asks about previous memories, you can let them know that you dont have any memory about the user because you haven't had any interactions yet."
+                    "You can add new memories using the `update_memory` tool."
                 )
             system_message_lines.append(
                 "If you use the `update_memory` tool, remember to pass on the response to the user.\n"
@@ -1828,21 +1840,26 @@ class Agent:
         if self.memory.create_session_summary:
             if self.memory.summary is not None:
                 system_message_lines.append("Here is a brief summary of your previous interactions if it helps:")
-                system_message_lines.append("### Summary of previous interactions\n")
-                system_message_lines.append(self.memory.summary.model_dump_json(indent=2))
+                system_message_lines.append("<summary_of_previous_interactions>")
+                system_message_lines.append(str(self.memory.summary))
+                system_message_lines.append("</summary_of_previous_interactions>")
                 system_message_lines.append(
                     "\nNote: this information is from previous interactions and may be outdated. "
                     "You should ALWAYS prefer information from this conversation over the past summary.\n"
                 )
-        # 3.6.13 Then add the JSON output prompt if response_model is provided and structured_outputs is False
+
+        # Format the system message with the session state variables
+        system_message_content = self.format_message_with_state_variables("\n".join(system_message_lines).strip())
+
+        # Add the JSON output prompt if response_model is provided and structured_outputs is False
         if self.response_model is not None and not self.structured_outputs:
-            system_message_lines.append(self.get_json_output_prompt() + "\n")
+            system_message_content += f"\n\n{self.get_json_output_prompt()}"
 
         # Return the system prompt
         if len(system_message_lines) > 0:
             return Message(
                 role=self.get_system_message_role(),
-                content=self.format_message_with_state_variables("\n".join(system_message_lines).strip()),
+                content=system_message_content,
             )
 
         return None
@@ -1922,7 +1939,7 @@ class Agent:
         if message is None:
             return None
 
-        user_msg_content = message
+        user_msg_content = self.format_message_with_state_variables(message)
         # 4.1 Add references to user message
         if (
             self.add_references
@@ -1943,7 +1960,7 @@ class Agent:
         # Return the user message
         return Message(
             role=self.user_message_role,
-            content=self.format_message_with_state_variables(user_msg_content),
+            content=user_msg_content,
             audio=audio,
             images=images,
             videos=videos,

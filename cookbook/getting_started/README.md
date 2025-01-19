@@ -176,3 +176,21 @@ Run this recipe using:
 ```bash
 python cookbook/getting_started/16_agent_context.py
 ```
+
+### 17. Agent Session (`17_agent_session.py`)
+- Shows how to create an agent with session memory
+- Demonstrates how to resume a conversation from a previous session
+
+Run this recipe using:
+```bash
+python cookbook/getting_started/17_agent_session.py
+```
+
+### 18. User Memories and Summaries (`18_user_memories_and_summaries.py`)
+- Shows how to create an agent which stores user memories and summaries
+- Demonstrates how to access the chat history and session summary
+
+Run this recipe using:
+```bash
+python cookbook/getting_started/18_user_memories_and_summaries.py
+```

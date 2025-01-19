@@ -5,7 +5,7 @@ class SafeFormatter(string.Formatter):
     def get_value(self, key, args, kwargs):
         """Handle missing keys by returning '{key}'."""
         if key not in kwargs:
-            return f"{{{key}}}"
+            return f"{key}"
         return kwargs[key]
 
     def format_field(self, value, format_spec):

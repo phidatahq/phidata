@@ -23,8 +23,8 @@ Steps to get Reddit credentials:
    - password: Your Reddit account password
 
 """
-from phi.agent import Agent
-from phi.tools.reddit import RedditTools
+from agno.agent import Agent
+from agno.tools.reddit import RedditTools
 
 agent = Agent(
     instructions=[

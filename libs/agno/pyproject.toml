@@ -62,6 +62,13 @@ performance = ["memory_profiler"]
 sql = ["sqlalchemy"]
 postgres = ["psycopg"]
 
+# Vector databases
+pgvector = ["pgvector"]
+chromadb = ["chromadb"]
+lancedb = ["lancedb", "tantivy"]
+qdrant = ["qdrant-client"]
+
+# All models
 models = [
   "agno[anthropic]",
   "agno[cohere]",
@@ -71,6 +78,7 @@ models = [
   "agno[openai]",
 ]
 
+# All tools
 tools = [
   "agno[exa]",
   "agno[yfinance]",
@@ -78,17 +86,28 @@ tools = [
   "agno[duckdb]",
 ]
 
+# All storage
 storage = [
   "agno[sql]",
   "agno[postgres]",
 ]
 
+# All vector databases
+vectordbs = [
+  "agno[pgvector]",
+  "agno[chromadb]",
+  "agno[lancedb]",
+  "agno[qdrant]",
+]
+
+# All libraries for testing
 tests = [
     "agno[dev]",
     "agno[models]",
     "agno[tools]",
     "agno[storage]",
     "agno[performance]",
+    "agno[vectordbs]",
 ]
 
 [project.scripts]

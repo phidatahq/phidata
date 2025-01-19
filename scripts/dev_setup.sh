@@ -39,15 +39,15 @@ print_heading "Installing agno-docker"
 print_info "VIRTUAL_ENV=${VENV_DIR} uv pip install -r ${AGNO_DOCKER_DIR}/requirements.txt"
 VIRTUAL_ENV=${VENV_DIR} uv pip install -r ${AGNO_DOCKER_DIR}/requirements.txt
 
-print_heading "Installing agno-docker in editable mode with tests dependencies"
-VIRTUAL_ENV=${VENV_DIR} uv pip install -e ${AGNO_DOCKER_DIR}[tests]
+print_heading "Installing agno-docker in editable mode with dev dependencies"
+VIRTUAL_ENV=${VENV_DIR} uv pip install -e ${AGNO_DOCKER_DIR}[dev]
 
 print_heading "Installing agno-aws"
 print_info "VIRTUAL_ENV=${VENV_DIR} uv pip install -r ${AGNO_AWS_DIR}/requirements.txt"
 VIRTUAL_ENV=${VENV_DIR} uv pip install -r ${AGNO_AWS_DIR}/requirements.txt
 
-print_heading "Installing agno-aws in editable mode with tests dependencies"
-VIRTUAL_ENV=${VENV_DIR} uv pip install -e ${AGNO_AWS_DIR}[tests]
+print_heading "Installing agno-aws in editable mode with dev dependencies"
+VIRTUAL_ENV=${VENV_DIR} uv pip install -e ${AGNO_AWS_DIR}[dev]
 
 print_heading "uv pip list"
 VIRTUAL_ENV=${VENV_DIR} uv pip list

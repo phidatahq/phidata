@@ -1652,6 +1652,23 @@ class Agent:
         json_output_prompt += "\nMake sure it only contains valid JSON."
         return json_output_prompt
 
+    def format_message_with_state_variables(self, msg: Any) -> Any:
+        """Format a message with the session state variables"""
+        if isinstance(msg, str):
+            format_variables = {}
+            if self.session_state is not None:
+                format_variables.update(self.session_state)
+            if self.context is not None:
+                format_variables.update(self.context)
+            if self.extra_data is not None:
+                format_variables.update(self.extra_data)
+            if self.user_id is not None:
+                format_variables["user_id"] = self.user_id
+            if len(format_variables) > 0:
+                formatted_msg = msg.format(**format_variables)
+                return formatted_msg
+        return msg
+
     def get_system_message(self) -> Optional[Message]:
         """Return the system message for the Agent.
 
@@ -1678,7 +1695,10 @@ class Agent:
             if self.response_model is not None and not self.structured_outputs:
                 sys_message_content += f"\n{self.get_json_output_prompt()}"
 
-            return Message(role=self.system_message_role, content=sys_message_content)
+            return Message(
+                role=self.system_message_role,
+                content=self.format_message_with_state_variables(sys_message_content),
+            )
 
         # 2. If create_default_system_message is False, return None.
         if not self.create_default_system_message:
@@ -1807,7 +1827,10 @@ class Agent:
 
         # Return the system prompt
         if len(system_message_lines) > 0:
-            return Message(role=self.system_message_role, content=("\n".join(system_message_lines)).strip())
+            return Message(
+                role=self.system_message_role,
+                content=self.format_message_with_state_variables("\n".join(system_message_lines).strip()),
+            )
 
         return None
 
@@ -1868,7 +1891,7 @@ class Agent:
 
             return Message(
                 role=self.user_message_role,
-                content=user_message_content,
+                content=self.format_message_with_state_variables(user_message_content),
                 audio=audio,
                 images=images,
                 videos=videos,
@@ -1907,7 +1930,7 @@ class Agent:
         # Return the user message
         return Message(
             role=self.user_message_role,
-            content=user_msg_content,
+            content=self.format_message_with_state_variables(user_msg_content),
             audio=audio,
             images=images,
             videos=videos,
@@ -2991,7 +3014,7 @@ class Agent:
                 if message and show_message:
                     render = True
                     # Convert message to a panel
-                    message_content = get_text_from_message(message)
+                    message_content = get_text_from_message(self.format_message_with_state_variables(message))
                     message_panel = self.create_panel(
                         content=Text(message_content, style="green"),
                         title="Message",
@@ -3084,7 +3107,7 @@ class Agent:
                 # First render the message panel if the message is not None
                 if message and show_message:
                     # Convert message to a panel
-                    message_content = get_text_from_message(message)
+                    message_content = get_text_from_message(self.format_message_with_state_variables(message))
                     message_panel = self.create_panel(
                         content=Text(message_content, style="green"),
                         title="Message",
@@ -3223,7 +3246,7 @@ class Agent:
                 if message and show_message:
                     render = True
                     # Convert message to a panel
-                    message_content = get_text_from_message(message)
+                    message_content = get_text_from_message(self.format_message_with_state_variables(message))
                     message_panel = self.create_panel(
                         content=Text(message_content, style="green"),
                         title="Message",
@@ -3249,7 +3272,7 @@ class Agent:
                     if message and show_message:
                         render = True
                         # Convert message to a panel
-                        message_content = get_text_from_message(message)
+                        message_content = get_text_from_message(self.format_message_with_state_variables(message))
                         message_panel = self.create_panel(
                             content=Text(message_content, style="green"),
                             title="Message",

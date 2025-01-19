@@ -1,4 +1,4 @@
-"""🧠 Recipe Expert - Your AI Thai Cooking Assistant!
+"""🧠 Recipe Expert with Knowledge - Your AI Thai Cooking Assistant!
 
 This example shows how to create an AI cooking assistant that combines knowledge from a
 curated recipe database with web searching capabilities. The agent uses a PDF knowledge base
@@ -73,7 +73,7 @@ agent = Agent(
         urls=["https://phi-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
         vector_db=LanceDb(
             uri="tmp/lancedb",
-            table_name="recipes",
+            table_name="recipe_knowledge",
             search_type=SearchType.hybrid,
             embedder=OpenAIEmbedder(model="text-embedding-3-small"),
         ),
@@ -83,8 +83,7 @@ agent = Agent(
     markdown=True,
 )
 
-
-# Comment out after first run
+# Comment out after the knowledge base is loaded
 if agent.knowledge is not None:
     agent.knowledge.load()
 

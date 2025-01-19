@@ -1,3 +1,4 @@
+import asyncio
 import collections.abc
 
 from types import GeneratorType
@@ -42,6 +43,8 @@ class Model(BaseModel):
     show_tool_calls: Optional[bool] = None
     # Maximum number of tool calls allowed.
     tool_call_limit: Optional[int] = None
+    # Allow async execution of tools
+    async_tools: bool = False
 
     # -*- Functions available to the Model to call -*-
     # Functions extracted from the tools.
@@ -299,6 +302,55 @@ class Model(BaseModel):
             if self.tool_call_limit and len(self.function_call_stack) >= self.tool_call_limit:
                 self.deactivate_function_calls()
                 break  # Exit early if we reach the function call limit
+
+    async def arun_function_calls(
+        self, function_calls: List[FunctionCall], function_call_results: List[Message], tool_role: str = "tool"
+    ):
+        async_functions: List = []
+
+        for function_call in function_calls:
+            # -*- Run function call
+            async_functions.append(function_call.aexecute())
+
+        # -*- Start function call
+        function_call_timer = Timer()
+        function_call_timer.start()
+
+        # -*- Run all function calls
+        results = await asyncio.gather(*async_functions)
+
+        # -*- Stop function call timer
+        function_call_timer.stop()
+
+        for function_call_success, fc in zip(results, function_calls):
+            function_call_output: Optional[Union[List[Any], str]] = ""
+            if isinstance(fc.result, (GeneratorType, collections.abc.Iterator)):
+                for item in fc.result:
+                    function_call_output += item
+            else:
+                function_call_output = fc.result
+
+            # -*- Create function call result message
+            function_call_result = Message(
+                role=tool_role,
+                content=function_call_output if function_call_success else fc.error,
+                tool_call_id=fc.call_id,
+                tool_name=fc.function.name,
+                tool_args=fc.arguments,
+                tool_call_error=not function_call_success,
+                stop_after_tool_call=fc.function.stop_after_tool_call,
+                metrics={"time": function_call_timer.elapsed},
+            )
+
+            # Add the function call result to the function call results
+            function_call_results.append(function_call_result)
+
+            # Add metrics to the model
+            if "tool_call_times" not in self.metrics:
+                self.metrics["tool_call_times"] = {}
+            if fc.function.name not in self.metrics["tool_call_times"]:
+                self.metrics["tool_call_times"][fc.function.name] = []
+            self.metrics["tool_call_times"][fc.function.name].append(function_call_timer.elapsed)
 
     def handle_post_tool_call_messages(self, messages: List[Message], model_response: ModelResponse) -> ModelResponse:
         last_message = messages[-1]

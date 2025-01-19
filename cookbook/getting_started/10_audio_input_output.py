@@ -43,7 +43,6 @@ agent = Agent(
         "\n"
         "Focus on creating engaging and helpful voice interactions!"
     ),
-    markdown=True,
 )
 
 # Fetch the audio file and convert it to a base64 encoded string

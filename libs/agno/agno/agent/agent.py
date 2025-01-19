@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import traceback
-from collections import defaultdict, deque
+from collections import ChainMap, defaultdict, deque
 from dataclasses import dataclass, field
 from datetime import datetime
 from os import getenv
@@ -42,6 +42,7 @@ from agno.tools.function import Function
 from agno.tools.toolkit import Toolkit
 from agno.utils.log import logger, set_log_level_to_debug, set_log_level_to_info
 from agno.utils.message import get_text_from_message
+from agno.utils.safe_formatter import SafeFormatter
 from agno.utils.timer import Timer
 
 
@@ -603,7 +604,9 @@ class Agent:
         # 9. Update Agent Memory
         # Add the system message to the memory
         if run_messages.system_message is not None:
-            self.memory.add_system_message(run_messages.system_message, system_message_role=self.system_message_role)
+            self.memory.add_system_message(
+                run_messages.system_message, system_message_role=self.get_system_message_role()
+            )
 
         # Build a list of messages that should be added to the AgentMemory
         messages_for_memory: List[Message] = (
@@ -1005,7 +1008,10 @@ class Agent:
         # 9. Update Agent Memory
         # Add the system message to the memory
         if run_messages.system_message is not None:
-            self.memory.add_system_message(run_messages.system_message, system_message_role=self.system_message_role)
+            self.memory.add_system_message(
+                run_messages.system_message, system_message_role=self.get_system_message_role()
+            )
+
         # Build a list of messages that should be added to the AgentMemory
         messages_for_memory: List[Message] = (
             [run_messages.user_message] if run_messages.user_message is not None else []
@@ -1653,21 +1659,28 @@ class Agent:
         return json_output_prompt
 
     def format_message_with_state_variables(self, msg: Any) -> Any:
-        """Format a message with the session state variables"""
-        if isinstance(msg, str):
-            format_variables = {}
-            if self.session_state is not None:
-                format_variables.update(self.session_state)
-            if self.context is not None:
-                format_variables.update(self.context)
-            if self.extra_data is not None:
-                format_variables.update(self.extra_data)
-            if self.user_id is not None:
-                format_variables["user_id"] = self.user_id
-            if len(format_variables) > 0:
-                formatted_msg = msg.format(**format_variables)
-                return formatted_msg
-        return msg
+        """Format a message with the session state variables."""
+        if not isinstance(msg, str):
+            return msg
+
+        format_variables = ChainMap(
+            self.session_state or {},
+            self.context or {},
+            self.extra_data or {},
+            {"user_id": self.user_id} if self.user_id is not None else {},
+        )
+
+        formatter = SafeFormatter()
+        return formatter.format(msg, **format_variables)
+
+    def get_system_message_role(self) -> str:
+        """Return the role for the system message
+        The role may be updated by the model if map_system_role is True.
+        """
+        self.model = cast(Model, self.model)
+        if self.model.override_system_role and self.system_message_role == "system":
+            return self.model.system_message_role
+        return self.system_message_role
 
     def get_system_message(self) -> Optional[Message]:
         """Return the system message for the Agent.
@@ -1696,7 +1709,7 @@ class Agent:
                 sys_message_content += f"\n{self.get_json_output_prompt()}"
 
             return Message(
-                role=self.system_message_role,
+                role=self.get_system_message_role(),
                 content=self.format_message_with_state_variables(sys_message_content),
             )
 
@@ -1828,7 +1841,7 @@ class Agent:
         # Return the system prompt
         if len(system_message_lines) > 0:
             return Message(
-                role=self.system_message_role,
+                role=self.get_system_message_role(),
                 content=self.format_message_with_state_variables("\n".join(system_message_lines).strip()),
             )
 
@@ -2014,7 +2027,7 @@ class Agent:
         # 3. Add history to run_messages
         if self.add_history_to_messages:
             history: List[Message] = self.memory.get_messages_from_last_n_runs(
-                last_n=self.num_history_responses, skip_role=self.system_message_role
+                last_n=self.num_history_responses, skip_role=self.get_system_message_role()
             )
             if len(history) > 0:
                 logger.debug(f"Adding {len(history)} messages from history")
@@ -2393,7 +2406,7 @@ class Agent:
         gen_session_name_prompt += "\n\nConversation Name: "
 
         system_message = Message(
-            role=self.system_message_role,
+            role=self.get_system_message_role(),
             content="Please provide a suitable name for this conversation in maximum 5 words. "
             "Remember, do not exceed 5 words.",
         )

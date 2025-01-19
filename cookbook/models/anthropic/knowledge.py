@@ -22,6 +22,6 @@ agent = Agent(
     model=Claude(id="claude-3-5-sonnet-20241022"),
     knowledge=knowledge_base,
     show_tool_calls=True,
-    debug_mode=True
+    debug_mode=True,
 )
 agent.print_response("How to make Thai curry?", markdown=True)

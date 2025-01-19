@@ -62,6 +62,10 @@ class Model:
     structured_outputs: Optional[bool] = None
     # Whether the Model supports structured outputs.
     supports_structured_outputs: bool = False
+    # Whether to override the system role.
+    override_system_role: bool = False
+    # The role to map the system message to.
+    system_message_role: str = "system"
 
     def __post_init__(self):
         if self.provider is None and self.name is not None:

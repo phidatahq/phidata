@@ -119,6 +119,10 @@ class OpenAIChat(Model):
     structured_outputs: bool = False
     # Whether the Model supports structured outputs.
     supports_structured_outputs: bool = True
+    # Whether to override the system role.
+    override_system_role: bool = True
+    # The role to map the system message to.
+    system_message_role: str = "developer"
 
     def get_client_params(self) -> Dict[str, Any]:
         client_params: Dict[str, Any] = {}
@@ -289,21 +293,16 @@ class OpenAIChat(Model):
                 model_dict["tool_choice"] = self.tool_choice
         return model_dict
 
-    def format_message(self, message: Message, map_system_to_developer: bool = True) -> Dict[str, Any]:
+    def format_message(self, message: Message) -> Dict[str, Any]:
         """
         Format a message into the format expected by OpenAI.
 
         Args:
             message (Message): The message to format.
-            map_system_to_developer (bool, optional): Whether the "system" role is mapped to "developer". Defaults to True.
 
         Returns:
             Dict[str, Any]: The formatted message.
         """
-        # New OpenAI format
-        if map_system_to_developer and message.role == "system":
-            message.role = "developer"
-
         if message.role == "user":
             if message.images is not None:
                 message = self.add_images_to_message(message=message, images=message.images)

@@ -485,7 +485,7 @@ class Model:
         Args:
             message: The message for the Model
             audio: Pre-formatted audio data like {
-                        "data": encoded_string,
+                        "content": encoded_string,
                         "format": "wav"
                     }
 

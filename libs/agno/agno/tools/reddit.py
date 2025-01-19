@@ -1,6 +1,7 @@
 import json
 from os import getenv
-from typing import Optional, Dict, List, Union
+from typing import Dict, List, Optional, Union
+
 from phi.tools import Toolkit
 from phi.utils.log import logger
 

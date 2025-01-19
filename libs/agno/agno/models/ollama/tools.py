@@ -158,7 +158,7 @@ class OllamaTools(Ollama):
         if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
             model_response.content = str(remove_tool_calls_from_string(assistant_message.get_content_string()))
             model_response.content += "\n\n"
-            function_calls_to_run = self.get_function_calls_to_run(assistant_message, messages)
+            function_calls_to_run = self._get_function_calls_to_run(assistant_message, messages)
             function_call_results: List[Message] = []
 
             if self.show_tool_calls:

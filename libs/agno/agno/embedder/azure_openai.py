@@ -1,5 +1,6 @@
 from os import getenv
-from typing import Optional, Dict, List, Tuple, Any
+from typing import Any, Dict, List, Optional, Tuple
+
 from typing_extensions import Literal
 
 from agno.embedder.base import Embedder

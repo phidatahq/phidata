@@ -1,16 +1,15 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from os import getenv
 from typing import Any, Dict, Iterator, List, Optional, Union
 
 import httpx
 from pydantic import BaseModel
 
-from agno.models.base import Model, BaseMetrics
+from agno.models.base import Model, Metrics
 from agno.models.message import Message
 from agno.models.response import ModelResponse
 from agno.tools.function import FunctionCall
 from agno.utils.log import logger
-from agno.utils.timer import Timer
 from agno.utils.tools import get_function_call_for_tool_call
 
 try:
@@ -27,10 +26,6 @@ try:
 except (ModuleNotFoundError, ImportError):
     raise ImportError("`huggingface_hub` not installed. Please install using `pip install huggingface_hub`")
 
-
-@dataclass
-class Metrics(BaseMetrics):
-    ...
 
 @dataclass
 class StreamData:
@@ -197,7 +192,7 @@ class HuggingFace(Model):
         if self.top_p is not None:
             _request_params["top_p"] = self.top_p
         if self.tools is not None:
-            _request_params["tools"] = self.get_tools_for_api()
+            _request_params["tools"] = self.tools
             if self.tool_choice is None:
                 _request_params["tool_choice"] = "auto"
             else:
@@ -239,7 +234,7 @@ class HuggingFace(Model):
         if self.top_p is not None:
             _dict["top_p"] = self.top_p
         if self.tools is not None:
-            _dict["tools"] = self.get_tools_for_api()
+            _dict["tools"] = self.tools
             if self.tool_choice is None:
                 _dict["tool_choice"] = "auto"
             else:
@@ -337,7 +332,7 @@ class HuggingFace(Model):
             function_call_results: List[Message] = []
             for tool_call in assistant_message.tool_calls:
                 _tool_call_id = tool_call.get("id")
-                _function_call = get_function_call_for_tool_call(tool_call, self.functions)
+                _function_call = get_function_call_for_tool_call(tool_call, self._functions)
                 if _function_call is None:
                     messages.append(
                         Message(
@@ -637,7 +632,7 @@ class HuggingFace(Model):
             function_call_results: List[Message] = []
             for tool_call in assistant_message.tool_calls:
                 _tool_call_id = tool_call.get("id")
-                _function_call = get_function_call_for_tool_call(tool_call, self.functions)
+                _function_call = get_function_call_for_tool_call(tool_call, self._functions)
                 if _function_call is None:
                     messages.append(
                         Message(

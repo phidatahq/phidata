@@ -57,7 +57,7 @@ class AzureOpenAI(OpenAILike):
         if self.openai_client:
             return self.openai_client
 
-        _client_params: Dict[str, Any] = self.get_client_params()
+        _client_params: Dict[str, Any] = self._get_client_params()
 
         return AzureOpenAIClient(**_client_params)
 
@@ -69,7 +69,7 @@ class AzureOpenAI(OpenAILike):
             AsyncAzureOpenAIClient: An instance of the asynchronous OpenAI client.
         """
 
-        _client_params: Dict[str, Any] = self.get_client_params()
+        _client_params: Dict[str, Any] = self._get_client_params()
 
         if self.http_client:
             _client_params["http_client"] = self.http_client
@@ -80,7 +80,7 @@ class AzureOpenAI(OpenAILike):
             )
         return AsyncAzureOpenAIClient(**_client_params)
 
-    def get_client_params(self) -> Dict[str, Any]:
+    def _get_client_params(self) -> Dict[str, Any]:
         _client_params: Dict[str, Any] = {}
         if self.api_key:
             _client_params["api_key"] = self.api_key

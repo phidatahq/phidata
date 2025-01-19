@@ -4,7 +4,7 @@ from os import getenv
 from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 
 from agno.media import Image
-from agno.models.base import Model, BaseMetrics
+from agno.models.base import Model, Metrics
 from agno.models.message import Message
 from agno.models.response import ModelResponse
 from agno.tools.function import FunctionCall
@@ -34,9 +34,62 @@ class MessageData:
     tool_ids: List[str] = field(default_factory=list)
 
 
-@dataclass
-class Metrics(BaseMetrics):
-    ...
+def format_image_for_message(image: Image) -> Optional[Dict[str, Any]]:
+    """
+    Add an image to a message by converting it to base64 encoded format.
+    """
+    import base64
+    import imghdr
+
+    type_mapping = {"jpeg": "image/jpeg", "png": "image/png", "gif": "image/gif", "webp": "image/webp"}
+
+    try:
+        # Case 1: Image is a URL
+        if image.url is not None:
+            content_bytes = image.image_url_content
+
+        # Case 2: Image is a local file path
+        elif image.filepath is not None:
+            from pathlib import Path
+
+            path = Path(image.filepath)
+            if path.exists() and path.is_file():
+                with open(image.filepath, "rb") as f:
+                    content_bytes = f.read()
+            else:
+                logger.error(f"Image file not found: {image}")
+                return None
+
+        # Case 3: Image is a bytes object
+        elif image.content is not None:
+            content_bytes = image.content
+
+        else:
+            logger.error(f"Unsupported image type: {type(image)}")
+            return None
+
+        img_type = imghdr.what(None, h=content_bytes)  # type: ignore
+        if not img_type:
+            logger.error("Unable to determine image type")
+            return None
+
+        media_type = type_mapping.get(img_type)
+        if not media_type:
+            logger.error(f"Unsupported image type: {img_type}")
+            return None
+
+        return {
+            "type": "image",
+            "source": {
+                "type": "base64",
+                "media_type": media_type,
+                "data": base64.b64encode(content_bytes).decode("utf-8"),  # type: ignore
+            },
+        }
+
+    except Exception as e:
+        logger.error(f"Error processing image: {e}")
+        return None
 
 
 @dataclass
@@ -69,9 +122,6 @@ class Claude(Model):
     def get_client(self) -> AnthropicClient:
         """
         Returns an instance of the Anthropic client.
-
-        Returns:
-            AnthropicClient: An instance of the Anthropic client
         """
         if self.client:
             return self.client
@@ -92,9 +142,6 @@ class Claude(Model):
     def request_kwargs(self) -> Dict[str, Any]:
         """
         Generate keyword arguments for API requests.
-
-        Returns:
-            Dict[str, Any]: A dictionary of keyword arguments for API requests.
         """
         _request_params: Dict[str, Any] = {}
         if self.max_tokens:
@@ -134,75 +181,12 @@ class Claude(Model):
 
                 if message.role == "user" and message.images is not None:
                     for image in message.images:
-                        image_content = self.format_image_for_message(image)
+                        image_content = format_image_for_message(image)
                         if image_content:
                             content.append(image_content)
 
                 chat_messages.append({"role": message.role, "content": content})  # type: ignore
         return chat_messages, " ".join(system_messages)
-
-    def format_image_for_message(self, image: Image) -> Optional[Dict[str, Any]]:
-        """
-        Add an image to a message by converting it to base64 encoded format.
-
-        Args:
-            image: URL string, local file path, or bytes object
-
-        Returns:
-            Optional[Dict[str, Any]]: Dictionary containing the processed image information if successful
-        """
-        import base64
-        import imghdr
-
-        type_mapping = {"jpeg": "image/jpeg", "png": "image/png", "gif": "image/gif", "webp": "image/webp"}
-
-        try:
-            # Case 1: Image is a URL
-            if image.url is not None:
-                content_bytes = image.image_url_content
-
-            # Case 2: Image is a local file path
-            elif image.filepath is not None:
-                from pathlib import Path
-
-                path = Path(image.filepath)
-                if path.exists() and path.is_file():
-                    with open(image.filepath, "rb") as f:
-                        content_bytes = f.read()
-                else:
-                    logger.error(f"Image file not found: {image}")
-                    return None
-
-            # Case 3: Image is a bytes object
-            elif image.content is not None:
-                content_bytes = image.content
-
-            else:
-                logger.error(f"Unsupported image type: {type(image)}")
-                return None
-
-            img_type = imghdr.what(None, h=content_bytes)  # type: ignore
-            if not img_type:
-                logger.error("Unable to determine image type")
-                return None
-
-            media_type = type_mapping.get(img_type)
-            if not media_type:
-                logger.error(f"Unsupported image type: {img_type}")
-                return None
-
-            return {
-                "type": "image",
-                "source": {
-                    "type": "base64",
-                    "media_type": media_type,
-                    "data": base64.b64encode(content_bytes).decode("utf-8"),  # type: ignore
-                },
-            }
-
-        except Exception as e:
-            logger.error(f"Error processing image: {e}")
-            return None
 
     def prepare_request_kwargs(self, system_message: str) -> Dict[str, Any]:
         """
@@ -218,21 +202,21 @@ class Claude(Model):
         request_kwargs["system"] = system_message
 
         if self.tools:
-            request_kwargs["tools"] = self.get_tools()
+            request_kwargs["tools"] = self.format_tools_for_model()
         return request_kwargs
 
-    def get_tools(self) -> Optional[List[Dict[str, Any]]]:
+    def format_tools_for_model(self) -> Optional[List[Dict[str, Any]]]:
         """
         Transforms function definitions into a format accepted by the Anthropic API.
 
         Returns:
             Optional[List[Dict[str, Any]]]: A list of tools formatted for the API, or None if no functions are defined.
         """
-        if not self.functions:
+        if not self._functions:
             return None
 
         tools: List[Dict[str, Any]] = []
-        for func_name, func_def in self.functions.items():
+        for func_name, func_def in self._functions.items():
             parameters: Dict[str, Any] = func_def.parameters or {}
             properties: Dict[str, Any] = parameters.get("properties", {})
             required_params: List[str] = []
@@ -316,25 +300,14 @@ class Claude(Model):
             usage (Optional[Usage]): The usage metrics returned by the model.
             metrics (Metrics): The metrics to update.
         """
-        assistant_message.metrics["time"] = metrics.response_timer.elapsed
-        self.metrics.setdefault("response_times", []).append(metrics.response_timer.elapsed)
         if usage:
             metrics.input_tokens = usage.input_tokens or 0
             metrics.output_tokens = usage.output_tokens or 0
             metrics.total_tokens = metrics.input_tokens + metrics.output_tokens
 
-            if metrics.input_tokens is not None:
-                assistant_message.metrics["input_tokens"] = metrics.input_tokens
-                self.metrics["input_tokens"] = self.metrics.get("input_tokens", 0) + metrics.input_tokens
-            if metrics.output_tokens is not None:
-                assistant_message.metrics["output_tokens"] = metrics.output_tokens
-                self.metrics["output_tokens"] = self.metrics.get("output_tokens", 0) + metrics.output_tokens
-            if metrics.total_tokens is not None:
-                assistant_message.metrics["total_tokens"] = metrics.total_tokens
-                self.metrics["total_tokens"] = self.metrics.get("total_tokens", 0) + metrics.total_tokens
-            if metrics.time_to_first_token is not None:
-                assistant_message.metrics["time_to_first_token"] = metrics.time_to_first_token
-                self.metrics.setdefault("time_to_first_token", []).append(metrics.time_to_first_token)
+        self._update_model_metrics(metrics_for_run=metrics)
+        self._update_assistant_message_metrics(assistant_message=assistant_message, metrics_for_run=metrics)
+
 
     def create_assistant_message(self, response: AnthropicMessage, metrics: Metrics) -> Tuple[Message, str, List[str]]:
         """
@@ -398,30 +371,6 @@ class Claude(Model):
 
         return assistant_message, message_data.response_content, message_data.tool_ids
 
-    def get_function_calls_to_run(self, assistant_message: Message, messages: List[Message]) -> List[FunctionCall]:
-        """
-        Prepare function calls for the assistant message.
-
-        Args:
-            assistant_message (Message): The assistant message.
-            messages (List[Message]): The list of conversation messages.
-
-        Returns:
-            List[FunctionCall]: A list of function calls to run.
-        """
-        function_calls_to_run: List[FunctionCall] = []
-        if assistant_message.tool_calls is not None:
-            for tool_call in assistant_message.tool_calls:
-                _function_call = get_function_call_for_tool_call(tool_call, self.functions)
-                if _function_call is None:
-                    messages.append(Message(role="user", content="Could not find function to call."))
-                    continue
-                if _function_call.error is not None:
-                    messages.append(Message(role="user", content=_function_call.error))
-                    continue
-                function_calls_to_run.append(_function_call)
-        return function_calls_to_run
-
     def format_function_call_results(
         self, function_call_results: List[Message], tool_ids: List[str], messages: List[Message]
     ) -> None:
@@ -469,7 +418,7 @@ class Claude(Model):
         if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
             model_response.content = str(response_content)
             model_response.content += "\n\n"
-            function_calls_to_run = self.get_function_calls_to_run(assistant_message, messages)
+            function_calls_to_run = self._get_function_calls_to_run(assistant_message, messages)
             function_call_results: List[Message] = []
 
             if self.show_tool_calls:
@@ -505,15 +454,15 @@ class Claude(Model):
         logger.debug("---------- Claude Response Start ----------")
         self._log_messages(messages)
         model_response = ModelResponse()
-        metrics = Metrics()
+        metrics_for_run = Metrics()
 
-        metrics.start_response_timer()
+        metrics_for_run.start_response_timer()
         response: AnthropicMessage = self.invoke(messages=messages)
-        metrics.stop_response_timer()
+        metrics_for_run.stop_response_timer()
 
         # -*- Create assistant message
         assistant_message, response_content, tool_ids = self.create_assistant_message(
-            response=response, metrics=metrics
+            response=response, metrics=metrics_for_run
         )
 
         # -*- Add assistant message to messages
@@ -521,7 +470,7 @@ class Claude(Model):
 
         # -*- Log response and metrics
         assistant_message.log()
-        metrics.log()
+        metrics_for_run.log()
 
         # -*- Handle tool calls
         if self.handle_tool_calls(assistant_message, messages, model_response, response_content, tool_ids):
@@ -558,7 +507,7 @@ class Claude(Model):
         """
         if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
             yield ModelResponse(content="\n\n")
-            function_calls_to_run = self.get_function_calls_to_run(assistant_message, messages)
+            function_calls_to_run = self._get_function_calls_to_run(assistant_message, messages)
             function_call_results: List[Message] = []
 
             if self.show_tool_calls:
@@ -647,10 +596,22 @@ class Claude(Model):
         logger.debug("---------- Claude Response End ----------")
 
     def get_tool_call_prompt(self) -> Optional[str]:
-        if self.functions is not None and len(self.functions) > 0:
+        if self._functions is not None and len(self._functions) > 0:
             tool_call_prompt = "Do not reflect on the quality of the returned search results in your response"
             return tool_call_prompt
         return None
 
     def get_system_message_for_model(self) -> Optional[str]:
         return self.get_tool_call_prompt()
+
+    async def ainvoke(self, *args, **kwargs) -> Any:
+        raise Exception(f"Async not supported on {self.name}.")
+
+    async def ainvoke_stream(self, *args, **kwargs) -> Any:
+        raise Exception(f"Async not supported on {self.name}.")
+
+    async def aresponse(self, messages: List[Message]) -> ModelResponse:
+        raise Exception(f"Async not supported on {self.name}.")
+
+    async def aresponse_stream(self, messages: List[Message]) -> ModelResponse:
+        raise Exception(f"Async not supported on {self.name}.")

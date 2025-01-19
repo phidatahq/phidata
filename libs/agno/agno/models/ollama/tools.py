@@ -309,7 +309,7 @@ class OllamaTools(Ollama):
         logger.debug("---------- Ollama Response End ----------")
 
     def get_instructions_to_generate_tool_calls(self) -> List[str]:
-        if self.functions is not None:
+        if self._functions is not None:
             return [
                 "At the very first turn you don't have <tool_results> so you shouldn't not make up the results.",
                 "To respond to the users message, you can use only one tool at a time.",
@@ -319,7 +319,7 @@ class OllamaTools(Ollama):
         return []
 
     def get_tool_call_prompt(self) -> Optional[str]:
-        if self.functions is not None and len(self.functions) > 0:
+        if self._functions is not None and len(self._functions) > 0:
             tool_call_prompt = dedent(
                 """\
             You are a function calling AI model with self-recursion.
@@ -337,7 +337,7 @@ class OllamaTools(Ollama):
             tool_call_prompt += "\nHere are the available tools:"
             tool_call_prompt += "\n<tools>\n"
             tool_definitions: List[str] = []
-            for _f_name, _function in self.functions.items():
+            for _f_name, _function in self._functions.items():
                 _function_def = _function.get_definition_for_prompt()
                 if _function_def:
                     tool_definitions.append(_function_def)

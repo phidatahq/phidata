@@ -111,7 +111,7 @@ class Cohere(Model):
         Returns:
             Optional[List[CohereTool]]: The list of tools.
         """
-        if not self.functions:
+        if not self._functions:
             return None
 
         # Returns the tools in the format supported by the Cohere API
@@ -127,7 +127,7 @@ class Cohere(Model):
                     for param_name, param_info in function.parameters.get("properties", {}).items()
                 },
             )
-            for f_name, function in self.functions.items()
+            for f_name, function in self._functions.items()
         ]
 
     def invoke(
@@ -267,7 +267,7 @@ class Cohere(Model):
         # Process each tool call in the agent message
         for tool_call in agent_message.tool_calls:
             # Attempt to get a function call for the tool call
-            _function_call = get_function_call_for_tool_call(tool_call, self.functions)
+            _function_call = get_function_call_for_tool_call(tool_call, self._functions)
 
             # Handle cases where function call cannot be created
             if _function_call is None:
@@ -312,7 +312,7 @@ class Cohere(Model):
             return None
         for tool_call in assistant_message.tool_calls:
             _tool_call_id = tool_call.get("id")
-            _function_call = get_function_call_for_tool_call(tool_call, self.functions)
+            _function_call = get_function_call_for_tool_call(tool_call, self._functions)
             if _function_call is None:
                 messages.append(
                     Message(
@@ -586,7 +586,7 @@ class Cohere(Model):
             function_call_results: List[Message] = []
             for tool_call in assistant_message.tool_calls:
                 _tool_call_id = tool_call.get("id")
-                _function_call = get_function_call_for_tool_call(tool_call, self.functions)
+                _function_call = get_function_call_for_tool_call(tool_call, self._functions)
                 if _function_call is None:
                     messages.append(
                         Message(
@@ -637,3 +637,15 @@ class Cohere(Model):
             # -*- Yield new response using results of tool calls
             yield from self.response_stream(messages=messages, tool_results=tool_results)
         logger.debug("---------- Cohere Response End ----------")
+
+    async def ainvoke(self, *args, **kwargs) -> Any:
+        raise Exception(f"Async not supported on {self.name}.")
+
+    async def ainvoke_stream(self, *args, **kwargs) -> Any:
+        raise Exception(f"Async not supported on {self.name}.")
+
+    async def aresponse(self, messages: List[Message]) -> ModelResponse:
+        raise Exception(f"Async not supported on {self.name}.")
+
+    async def aresponse_stream(self, messages: List[Message]) -> ModelResponse:
+        raise Exception(f"Async not supported on {self.name}.")

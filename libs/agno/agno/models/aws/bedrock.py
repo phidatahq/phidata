@@ -206,7 +206,7 @@ class AwsBedrock(Model):
             function_call_results: List[Message] = []
             for tool_call in assistant_message.tool_calls:
                 _tool_call_id = tool_call.get("id")
-                _function_call = get_function_call_for_tool_call(tool_call, self.functions)
+                _function_call = get_function_call_for_tool_call(tool_call, self._functions)
                 if _function_call is None:
                     messages.append(
                         Message(
@@ -380,7 +380,7 @@ class AwsBedrock(Model):
         function_call_results: List[Message] = []
         for tool_call in assistant_message.tool_calls or []:
             _tool_call_id = tool_call.get("id")
-            _function_call = get_function_call_for_tool_call(tool_call, self.functions)
+            _function_call = get_function_call_for_tool_call(tool_call, self._functions)
             if _function_call is None:
                 messages.append(
                     Message(
@@ -576,3 +576,15 @@ class AwsBedrock(Model):
             yield from self.response_stream(messages=messages)
 
         logger.debug("---------- Bedrock Response End ----------")
+
+    async def ainvoke(self, *args, **kwargs) -> Any:
+        raise Exception(f"Async not supported on {self.name}.")
+
+    async def ainvoke_stream(self, *args, **kwargs) -> Any:
+        raise Exception(f"Async not supported on {self.name}.")
+
+    async def aresponse(self, messages: List[Message]) -> ModelResponse:
+        raise Exception(f"Async not supported on {self.name}.")
+
+    async def aresponse_stream(self, messages: List[Message]) -> ModelResponse:
+        raise Exception(f"Async not supported on {self.name}.")

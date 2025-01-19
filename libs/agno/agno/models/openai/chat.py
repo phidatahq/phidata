@@ -6,7 +6,7 @@ import httpx
 from pydantic import BaseModel
 
 from agno.media import AudioOutput
-from agno.models.base import Model, BaseMetrics
+from agno.models.base import Model, Metrics
 from agno.models.message import Message
 from agno.models.response import ModelResponse
 from agno.tools.function import FunctionCall
@@ -30,10 +30,6 @@ except ModuleNotFoundError:
 
 
 @dataclass
-class Metrics(BaseMetrics):
-    ...
-
-@dataclass
 class StreamData:
     response_content: str = ""
     response_audio: Optional[ChatCompletionAudio] = None
@@ -48,10 +44,10 @@ class OpenAIChat(Model):
     For more information, see: https://platform.openai.com/docs/api-reference/chat/create
     """
 
-
     id: str = "gpt-4o"
     name: str = "OpenAIChat"
     provider: str = "OpenAI"
+    supports_structured_outputs: bool = True
 
     # Request parameters
     store: Optional[bool] = None
@@ -94,9 +90,8 @@ class OpenAIChat(Model):
     # Whether to use the structured outputs with this Model.
     structured_outputs: bool = False
     # Whether the Model supports structured outputs.
-    supports_structured_outputs: bool = True
 
-    def get_client_params(self) -> Dict[str, Any]:
+    def _get_client_params(self) -> Dict[str, Any]:
         client_params: Dict[str, Any] = {}
 
         self.api_key = self.api_key or getenv("OPENAI_API_KEY")
@@ -131,7 +126,7 @@ class OpenAIChat(Model):
         if self.client:
             return self.client
 
-        client_params: Dict[str, Any] = self.get_client_params()
+        client_params: Dict[str, Any] = self._get_client_params()
         if self.http_client is not None:
             client_params["http_client"] = self.http_client
         return OpenAIClient(**client_params)
@@ -146,7 +141,7 @@ class OpenAIChat(Model):
         if self.async_client:
             return self.async_client
 
-        client_params: Dict[str, Any] = self.get_client_params()
+        client_params: Dict[str, Any] = self._get_client_params()
         if self.http_client:
             client_params["http_client"] = self.http_client
         else:
@@ -202,7 +197,7 @@ class OpenAIChat(Model):
         if self.extra_query is not None:
             request_params["extra_query"] = self.extra_query
         if self.tools is not None:
-            request_params["tools"] = self.get_tools_for_api()
+            request_params["tools"] = self.tools
             if self.tool_choice is None:
                 request_params["tool_choice"] = "auto"
             else:
@@ -258,7 +253,7 @@ class OpenAIChat(Model):
         if self.extra_query is not None:
             model_dict["extra_query"] = self.extra_query
         if self.tools is not None:
-            model_dict["tools"] = self.get_tools_for_api()
+            model_dict["tools"] = self.tools
             if self.tool_choice is None:
                 model_dict["tool_choice"] = "auto"
             else:
@@ -414,7 +409,7 @@ class OpenAIChat(Model):
             function_calls_to_run: List[FunctionCall] = []
             for tool_call in assistant_message.tool_calls:
                 _tool_call_id = tool_call.get("id")
-                _function_call = get_function_call_for_tool_call(tool_call, self.functions)
+                _function_call = get_function_call_for_tool_call(tool_call, self._functions)
                 if _function_call is None:
                     messages.append(
                         Message(
@@ -789,7 +784,7 @@ class OpenAIChat(Model):
             function_call_results: List[Message] = []
             for tool_call in assistant_message.tool_calls:
                 _tool_call_id = tool_call.get("id")
-                _function_call = get_function_call_for_tool_call(tool_call, self.functions)
+                _function_call = get_function_call_for_tool_call(tool_call, self._functions)
                 if _function_call is None:
                     messages.append(
                         Message(

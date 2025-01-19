@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import traceback
 from collections import ChainMap, defaultdict, deque
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from os import getenv
 from pathlib import Path
@@ -68,7 +68,7 @@ class Agent:
     # Session name
     session_name: Optional[str] = None
     # Session state stored in the database
-    session_state: Dict[str, Any] = field(default_factory=dict)
+    session_state: Optional[Dict[str, Any]] = None
 
     # --- Agent Context ---
     # Context available for tools and prompt functions
@@ -220,10 +220,10 @@ class Agent:
     # Enable debug logs
     debug_mode: bool = False
     # monitoring=True logs Agent information to agno.com for monitoring
-    monitoring: bool = field(default_factory=lambda: getenv("AGNO_MONITOR", "false").lower() == "true")
+    monitoring: bool = False
     # telemetry=True logs minimal telemetry for analytics
     # This helps us improve the Agent and provide better support
-    telemetry: bool = field(default_factory=lambda: getenv("AGNO_TELEMETRY", "true").lower() == "true")
+    telemetry: bool = True
 
     # --- Run Info: DO NOT SET ---
     run_id: Optional[str] = None
@@ -238,6 +238,8 @@ class Agent:
     audio: Optional[List[AudioArtifact]] = None
     # Agent session
     agent_session: Optional[AgentSession] = None
+
+    _formatter: Optional[SafeFormatter] = None
 
     def __init__(
         self,
@@ -316,7 +318,7 @@ class Agent:
 
         self.session_id = session_id
         self.session_name = session_name
-        self.session_state: Dict[str, Any] = session_state or {}
+        self.session_state = session_state
 
         self.context = context
         self.add_context = add_context
@@ -397,7 +399,8 @@ class Agent:
         self.videos = None
         self.audio = None
 
-        self.agent_session: Optional[AgentSession] = None
+        self.agent_session = None
+        self._formatter = None
 
     def set_agent_id(self) -> str:
         if self.agent_id is None:
@@ -430,7 +433,14 @@ class Agent:
         else:
             self.telemetry = False
 
-    def initialize_memory(self) -> None:
+    def initialize_agent(self) -> None:
+        self.set_debug()
+        self.set_agent_id()
+        self.set_session_id()
+        if self._formatter is None:
+            self._formatter = SafeFormatter()
+        if self.session_state is None:
+            self.session_state = {}
         if self.memory is None:
             self.memory = AgentMemory()
 
@@ -471,11 +481,8 @@ class Agent:
         """
 
         # 1. Prepare the Agent for the run
-        # 1.1 Set agent_id, session_id and initialize memory
-        self.set_debug()
-        self.set_agent_id()
-        self.set_session_id()
-        self.initialize_memory()
+        # 1.1 Initialize the Agent
+        self.initialize_agent()
         self.memory = cast(AgentMemory, self.memory)
         # 1.2 Set streaming and stream intermediate steps
         self.stream = self.stream or (stream and self.is_streamable)
@@ -876,11 +883,8 @@ class Agent:
         """
 
         # 1. Prepare the Agent for the run
-        # 1.1 Set agent_id, session_id and initialize memory
-        self.set_debug()
-        self.set_agent_id()
-        self.set_session_id()
-        self.initialize_memory()
+        # 1.1 Initialize the Agent
+        self.initialize_agent()
         self.memory = cast(AgentMemory, self.memory)
         # 1.2 Set streaming and stream intermediate steps
         self.stream = self.stream or (stream and self.is_streamable)
@@ -1373,7 +1377,7 @@ class Agent:
         session_data: Dict[str, Any] = {}
         if self.session_name is not None:
             session_data["session_name"] = self.session_name
-        if self.session_state and len(self.session_state) > 0:
+        if self.session_state is not None and len(self.session_state) > 0:
             session_data["session_state"] = self.session_state
         if self.images is not None:
             session_data["images"] = [img.model_dump() for img in self.images]  # type: ignore
@@ -1445,7 +1449,7 @@ class Agent:
                     and len(session_state_from_db) > 0
                 ):
                     # If the session_state is already set, merge the session_state from the database with the current session_state
-                    if self.session_state and len(self.session_state) > 0:
+                    if self.session_state is not None and len(self.session_state) > 0:
                         # This updates session_state_from_db
                         merge_dictionaries(session_state_from_db, self.session_state)
                     # Update the current session_state
@@ -1671,9 +1675,7 @@ class Agent:
             self.extra_data or {},
             {"user_id": self.user_id} if self.user_id is not None else {},
         )
-
-        formatter = SafeFormatter()
-        return formatter.format(msg, **format_variables)
+        return self._formatter.format(msg, **format_variables)  # type: ignore
 
     def get_system_message_role(self) -> str:
         """Return the role for the system message
@@ -2164,6 +2166,9 @@ class Agent:
         def _transfer_task_to_agent(
             task_description: str, expected_output: str, additional_information: str
         ) -> Iterator[str]:
+            if member_agent.session_state is None:
+                member_agent.session_state = {}
+
             # Update the member agent session_state to include leader_session_id, leader_agent_id and leader_run_id
             member_agent.session_state["leader_session_id"] = self.session_id
             member_agent.session_state["leader_agent_id"] = self.agent_id
@@ -2186,6 +2191,8 @@ class Agent:
                 "agent_id": member_agent_agent_id,
             }
             # Update the leader agent session_state to include member_agent_info
+            if self.session_state is None:
+                self.session_state = {}
             if "members" not in self.session_state:
                 self.session_state["members"] = [member_agent_info]
             else:
@@ -3046,7 +3053,7 @@ class Agent:
                 if message and show_message:
                     render = True
                     # Convert message to a panel
-                    message_content = get_text_from_message(self.format_message_with_state_variables(message))
+                    message_content = get_text_from_message(message)
                     message_panel = self.create_panel(
                         content=Text(message_content, style="green"),
                         title="Message",
@@ -3278,7 +3285,7 @@ class Agent:
                 if message and show_message:
                     render = True
                     # Convert message to a panel
-                    message_content = get_text_from_message(self.format_message_with_state_variables(message))
+                    message_content = get_text_from_message(message)
                     message_panel = self.create_panel(
                         content=Text(message_content, style="green"),
                         title="Message",

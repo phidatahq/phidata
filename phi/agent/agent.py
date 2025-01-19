@@ -43,6 +43,7 @@ from phi.utils.log import logger, set_log_level_to_debug, set_log_level_to_info
 from phi.utils.message import get_text_from_message
 from phi.utils.merge_dict import merge_dictionaries
 from phi.utils.timer import Timer
+from phi.workflow.workflow import Workflow
 
 
 class Agent(BaseModel):
@@ -125,6 +126,10 @@ class Agent(BaseModel):
     #   forces the model to call that tool.
     # "none" is the default when no tools are present. "auto" is the default if tools are present.
     tool_choice: Optional[Union[str, Dict[str, Any]]] = None
+
+    # -*- Agent Workflows
+    # A list of workflows that can be executed by the Agent
+    workflows: Optional[List[Workflow]] = None
 
     # -*- Agent Context
     # Context available for tools and prompt functions
@@ -349,6 +354,9 @@ class Agent(BaseModel):
     def has_team(self) -> bool:
         return self.team is not None and len(self.team) > 0
 
+    def has_workflows(self) -> bool:
+        return self.workflows is not None and len(self.workflows) > 0
+
     def get_transfer_function(self, member_agent: "Agent", index: int) -> Function:
         def _transfer_task_to_agent(
             task_description: str, expected_output: str, additional_information: str
@@ -456,6 +464,43 @@ class Agent(BaseModel):
             return transfer_prompt
         return ""
 
+    def get_workflow_prompt(self) -> str:
+        if self.has_workflows():
+            workflow_prompt = "## Available Workflows:"
+            workflow_prompt += "\nYou can execute the following workflows:"
+            for workflow_index, workflow in enumerate(self.workflows):
+                workflow_prompt += f"\nWorkflow {workflow_index + 1}:\n"
+                if workflow.name:
+                    workflow_prompt += f"Name: {workflow.name}\n"
+                if workflow.description:
+                    workflow_prompt += f"Workflow description: {workflow.description}\n"
+            return workflow_prompt
+        return ""
+
+    def get_workflow_function(self, workflow: Workflow, index: int) -> List[Function]:
+        workflow_name = workflow.name.replace(" ", "_") if workflow.name else f"workflow_{index}"
+        if workflow.name is None:
+            workflow.name = workflow_name
+
+        workflow_functions = []
+        for func_name, func in workflow._registered_functions.items():
+            workflow_functions.append(
+                Function(
+                    name=f"{func_name}",
+                    description=func.get("description")
+                    if func.get("description")
+                    else f"Use this function to run the {func_name} function of the {workflow_name} workflow",
+                    parameters={"type": "object", "properties": func["parameters"], "required": func["required"]},
+                    entrypoint=func["function"],
+                    class_instance=workflow,
+                    sanitize_arguments=True,
+                    show_result=False,
+                    stop_after_tool_call=False,
+                )
+            )
+
+        return workflow_functions
+
     def get_tools(self) -> Optional[List[Union[Tool, Toolkit, Callable, Dict, Function]]]:
         tools: List[Union[Tool, Toolkit, Callable, Dict, Function]] = []
 
@@ -478,6 +523,11 @@ class Agent(BaseModel):
                 tools.append(self.search_knowledge_base)
             if self.update_knowledge:
                 tools.append(self.add_to_knowledge)
+
+        # Add workflow tools
+        if self.has_workflows():
+            for workflow_index, workflow in enumerate(self.workflows):
+                tools.extend(self.get_workflow_function(workflow, workflow_index))
 
         # Add transfer tools
         if self.team is not None and len(self.team) > 0:
@@ -1025,7 +1075,11 @@ class Agent(BaseModel):
         if self.has_team() and self.add_transfer_instructions:
             system_message_lines.append(f"{self.get_transfer_prompt()}\n")
 
-        # 5.10 Then add memories to the system prompt
+        # 5.10 Then add information about available workflows
+        if self.has_workflows():
+            system_message_lines.append(f"{self.get_workflow_prompt()}\n")
+
+        # 5.11 Then add memories to the system prompt
         if self.memory.create_user_memories:
             if self.memory.memories and len(self.memory.memories) > 0:
                 system_message_lines.append(
@@ -1051,7 +1105,7 @@ class Agent(BaseModel):
                 "If you use the `update_memory` tool, remember to pass on the response to the user.\n"
             )
 
-        # 5.11 Then add a summary of the interaction to the system prompt
+        # 5.12 Then add a summary of the interaction to the system prompt
         if self.memory.create_session_summary:
             if self.memory.summary is not None:
                 system_message_lines.append("Here is a brief summary of your previous interactions if it helps:")
@@ -1062,7 +1116,7 @@ class Agent(BaseModel):
                     "You should ALWAYS prefer information from this conversation over the past summary.\n"
                 )
 
-        # 5.12 Then add the JSON output prompt if response_model is provided and structured_outputs is False
+        # 5.13 Then add the JSON output prompt if response_model is provided and structured_outputs is False
         if self.response_model is not None and not self.structured_outputs:
             system_message_lines.append(self.get_json_output_prompt() + "\n")
 

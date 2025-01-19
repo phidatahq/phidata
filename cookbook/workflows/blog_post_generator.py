@@ -95,6 +95,7 @@ class BlogPostGenerator(Workflow):
         # Save the blog post in the cache
         self.add_blog_post_to_cache(topic, self.writer.run_response.content)
 
+    @Workflow.register(description="Generate a blog post on a given topic.")
     def run(self, topic: str, use_cache: bool = True) -> Iterator[RunResponse]:
         logger.info(f"Generating a blog post on: {topic}")
 

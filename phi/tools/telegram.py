@@ -13,9 +13,7 @@ class TelegramTools(Toolkit):
 
         self.token = token or os.getenv("TELEGRAM_TOKEN")
         if not self.token:
-            logger.error(
-                "TELEGRAM_TOKEN not set. Please set the TELEGRAM_TOKEN environment variable."
-            )
+            logger.error("TELEGRAM_TOKEN not set. Please set the TELEGRAM_TOKEN environment variable.")
 
         self.chat_id = chat_id
 
@@ -30,9 +28,7 @@ class TelegramTools(Toolkit):
         :param message: The message to send.
         :return: The response from the API.
         """
-        response = self._call_post_method(
-            "sendMessage", json={"chat_id": self.chat_id, "text": message}
-        )
+        response = self._call_post_method("sendMessage", json={"chat_id": self.chat_id, "text": message})
         try:
             response.raise_for_status()
             return response.text

@@ -195,7 +195,7 @@ class OpenAIChat(Model):
                 request_params["tool_choice"] = self.tool_choice
 
         if self.request_params is not None:
-            request_params.update(self.client_params)
+            request_params.update(self.request_params)
 
         # Remove None
         request_params = {k: v for k, v in request_params.items() if v is not None}

@@ -95,6 +95,7 @@ class OpenAIChat(Model):
     # The role to map the system message to.
     system_message_role: str = "developer"
 
+
     def _get_client_params(self) -> Dict[str, Any]:
         client_params: Dict[str, Any] = {}
 
@@ -102,22 +103,22 @@ class OpenAIChat(Model):
         if not self.api_key:
             logger.error("OPENAI_API_KEY not set. Please set the OPENAI_API_KEY environment variable.")
 
-        if self.api_key is not None:
-            client_params["api_key"] = self.api_key
-        if self.organization is not None:
-            client_params["organization"] = self.organization
-        if self.base_url is not None:
-            client_params["base_url"] = self.base_url
-        if self.timeout is not None:
-            client_params["timeout"] = self.timeout
-        if self.max_retries is not None:
-            client_params["max_retries"] = self.max_retries
-        if self.default_headers is not None:
-            client_params["default_headers"] = self.default_headers
-        if self.default_query is not None:
-            client_params["default_query"] = self.default_query
+        client_params.update(
+            {
+                "api_key": self.api_key,
+                "organization": self.organization,
+                "base_url": self.base_url,
+                "timeout": self.timeout,
+                "max_retries": self.max_retries,
+                "default_headers": self.default_headers,
+                "default_query": self.default_query,
+            }
+        )
         if self.client_params is not None:
             client_params.update(self.client_params)
+
+        # Remove None
+        client_params = {k: v for k, v in client_params.items() if v is not None}
         return client_params
 
     def get_client(self) -> OpenAIClient:
@@ -164,105 +165,76 @@ class OpenAIChat(Model):
             Dict[str, Any]: A dictionary of keyword arguments for API requests.
         """
         request_params: Dict[str, Any] = {}
-        if self.store is not None:
-            request_params["store"] = self.store
-        if self.frequency_penalty is not None:
-            request_params["frequency_penalty"] = self.frequency_penalty
-        if self.logit_bias is not None:
-            request_params["logit_bias"] = self.logit_bias
-        if self.logprobs is not None:
-            request_params["logprobs"] = self.logprobs
-        if self.top_logprobs is not None:
-            request_params["top_logprobs"] = self.top_logprobs
-        if self.max_tokens is not None:
-            request_params["max_tokens"] = self.max_tokens
-        if self.max_completion_tokens is not None:
-            request_params["max_completion_tokens"] = self.max_completion_tokens
-        if self.modalities is not None:
-            request_params["modalities"] = self.modalities
-        if self.audio is not None:
-            request_params["audio"] = self.audio
-        if self.presence_penalty is not None:
-            request_params["presence_penalty"] = self.presence_penalty
-        if self.response_format is not None:
-            request_params["response_format"] = self.response_format
-        if self.seed is not None:
-            request_params["seed"] = self.seed
-        if self.stop is not None:
-            request_params["stop"] = self.stop
-        if self.temperature is not None:
-            request_params["temperature"] = self.temperature
-        if self.user is not None:
-            request_params["user"] = self.user
-        if self.top_p is not None:
-            request_params["top_p"] = self.top_p
-        if self.extra_headers is not None:
-            request_params["extra_headers"] = self.extra_headers
-        if self.extra_query is not None:
-            request_params["extra_query"] = self.extra_query
-        if self.tools is not None:
-            request_params["tools"] = self.tools
-            if self.tool_choice is None:
-                request_params["tool_choice"] = "auto"
-            else:
-                request_params["tool_choice"] = self.tool_choice
+
+        request_params.update(
+            {
+                "store": self.store,
+                "frequency_penalty": self.frequency_penalty,
+                "logit_bias": self.logit_bias,
+                "logprobs": self.logprobs,
+                "top_logprobs": self.top_logprobs,
+                "max_tokens": self.max_tokens,
+                "max_completion_tokens": self.max_completion_tokens,
+                "modalities": self.modalities,
+                "audio": self.audio,
+                "presence_penalty": self.presence_penalty,
+                "response_format": self.response_format,
+                "seed": self.seed,
+                "stop": self.stop,
+                "temperature": self.temperature,
+                "user": self.user,
+                "top_p": self.top_p,
+                "extra_headers": self.extra_headers,
+                "extra_query": self.extra_query,
+                "tool_choice": self.tool_choice
+                if (self.tools is not None and self.tool_choice is not None)
+                else "auto",
+            }
+        )
         if self.request_params is not None:
-            request_params.update(self.request_params)
+            request_params.update(self.client_params)
+
+        # Remove None
+        request_params = {k: v for k, v in request_params.items() if v is not None}
         return request_params
+
 
     def to_dict(self) -> Dict[str, Any]:
         """
         Convert the model to a dictionary.
 
         Returns:
-            Dict[str, Any]: A dictionary representation of the model.
+            Dict[str, Any]: The dictionary representation of the model.
         """
-        model_dict = super().to_dict()
-        if self.store is not None:
-            model_dict["store"] = self.store
-        if self.frequency_penalty is not None:
-            model_dict["frequency_penalty"] = self.frequency_penalty
-        if self.logit_bias is not None:
-            model_dict["logit_bias"] = self.logit_bias
-        if self.logprobs is not None:
-            model_dict["logprobs"] = self.logprobs
-        if self.top_logprobs is not None:
-            model_dict["top_logprobs"] = self.top_logprobs
-        if self.max_tokens is not None:
-            model_dict["max_tokens"] = self.max_tokens
-        if self.max_completion_tokens is not None:
-            model_dict["max_completion_tokens"] = self.max_completion_tokens
-        if self.modalities is not None:
-            model_dict["modalities"] = self.modalities
-        if self.audio is not None:
-            model_dict["audio"] = self.audio
-        if self.presence_penalty is not None:
-            model_dict["presence_penalty"] = self.presence_penalty
-        if self.response_format is not None:
-            model_dict["response_format"] = (
-                self.response_format if isinstance(self.response_format, dict) else str(self.response_format)
-            )
-        if self.seed is not None:
-            model_dict["seed"] = self.seed
-        if self.stop is not None:
-            model_dict["stop"] = self.stop
-        if self.temperature is not None:
-            model_dict["temperature"] = self.temperature
-        if self.user is not None:
-            model_dict["user"] = self.user
-        if self.top_p is not None:
-            model_dict["top_p"] = self.top_p
-        if self.extra_headers is not None:
-            model_dict["extra_headers"] = self.extra_headers
-        if self.extra_query is not None:
-            model_dict["extra_query"] = self.extra_query
-        if self.tools is not None:
-            model_dict["tools"] = self.tools
-            if self.tool_choice is None:
-                model_dict["tool_choice"] = "auto"
-            else:
-                model_dict["tool_choice"] = self.tool_choice
-        return model_dict
+        _dict = super().to_dict()
+        _dict.update(
+            {
+                "store": self.store,
+                "frequency_penalty": self.frequency_penalty,
+                "logit_bias": self.logit_bias,
+                "logprobs": self.logprobs,
+                "top_logprobs": self.top_logprobs,
+                "max_tokens": self.max_tokens,
+                "max_completion_tokens": self.max_completion_tokens,
+                "modalities": self.modalities,
+                "audio": self.audio,
+                "presence_penalty": self.presence_penalty,
+                "response_format": self.response_format if isinstance(self.response_format, dict) else str(self.response_format),
+                "seed": self.seed,
+                "stop": self.stop,
+                "temperature": self.temperature,
+                "top_p": self.top_p,
+                "user": self.user,
+                "extra_headers": self.extra_headers,
+                "extra_query": self.extra_query,
+                "tools": self.tools,
+                "tool_choice": self.tool_choice
+                if (self.tools is not None and self.tool_choice is not None)
+                else "auto",
+            }
+        )
+        cleaned_dict = {k: v for k, v in _dict.items() if v is not None}
+        return cleaned_dict
 
     def format_message(self, message: Message) -> Dict[str, Any]:
         """
@@ -1005,31 +977,5 @@ class OpenAIChat(Model):
         Returns:
             List[Dict[str, Any]]: The built tool calls.
         """
-        tool_calls: List[Dict[str, Any]] = []
-        for _tool_call in tool_calls_data:
-            _index = _tool_call.index
-            _tool_call_id = _tool_call.id
-            _tool_call_type = _tool_call.type
-            _function_name = _tool_call.function.name if _tool_call.function else None
-            _function_arguments = _tool_call.function.arguments if _tool_call.function else None
 
-            if len(tool_calls) <= _index:
-                tool_calls.extend([{}] * (_index - len(tool_calls) + 1))
-            tool_call_entry = tool_calls[_index]
-            if not tool_call_entry:
-                tool_call_entry["id"] = _tool_call_id
-                tool_call_entry["type"] = _tool_call_type
-                tool_call_entry["function"] = {
-                    "name": _function_name or "",
-                    "arguments": _function_arguments or "",
-                }
-            else:
-                if _function_name:
-                    tool_call_entry["function"]["name"] += _function_name
-                if _function_arguments:
-                    tool_call_entry["function"]["arguments"] += _function_arguments
-                if _tool_call_id:
-                    tool_call_entry["id"] = _tool_call_id
-                if _tool_call_type:
-                    tool_call_entry["type"] = _tool_call_type
-        return tool_calls
+        return self._build_tool_calls(tool_calls_data)

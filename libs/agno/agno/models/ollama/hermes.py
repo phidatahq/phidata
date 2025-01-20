@@ -59,6 +59,19 @@ class OllamaHermes(Ollama):
 
         return tool_call_buffer, True
 
+    def _format_tool_calls(self, message_data: MessageData) -> MessageData:
+        if message_data.tool_call_blocks is not None:
+            for block in message_data.tool_call_blocks:
+                tool_name = block.get("name")
+                tool_args = block.get("arguments")
+
+                function_def = {
+                    "name": tool_name,
+                    "arguments": json.dumps(tool_args) if tool_args is not None else None,
+                }
+                message_data.tool_calls.append({"type": "function", "function": function_def})
+        return message_data
+
     def response_stream(self, messages: List[Message]) -> Iterator[ModelResponse]:
         """
         Generate a streaming response from Ollama.
@@ -103,16 +116,7 @@ class OllamaHermes(Ollama):
         metrics.stop_response_timer()
 
         # Format tool calls
-        if message_data.tool_call_blocks is not None:
-            for block in message_data.tool_call_blocks:
-                tool_name = block.get("name")
-                tool_args = block.get("arguments")
-
-                function_def = {
-                    "name": tool_name,
-                    "arguments": json.dumps(tool_args) if tool_args is not None else None,
-                }
-                message_data.tool_calls.append({"type": "function", "function": function_def})
+        message_data = self._format_tool_calls(message_data)
 
         # -*- Create assistant message
         assistant_message = Message(role="assistant", content=message_data.response_content)
@@ -188,16 +192,7 @@ class OllamaHermes(Ollama):
         metrics.stop_response_timer()
 
         # Format tool calls
-        if message_data.tool_call_blocks is not None:
-            for block in message_data.tool_call_blocks:
-                tool_name = block.get("name")
-                tool_args = block.get("arguments")
-
-                function_def = {
-                    "name": tool_name,
-                    "arguments": json.dumps(tool_args) if tool_args is not None else None,
-                }
-                message_data.tool_calls.append({"type": "function", "function": function_def})
+        message_data = self._format_tool_calls(message_data)
 
         # -*- Create assistant message
         assistant_message = Message(role="assistant", content=message_data.response_content)

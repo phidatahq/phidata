@@ -153,8 +153,6 @@ class Agent:
     goal: Optional[str] = None
     # List of instructions for the agent.
     instructions: Optional[Union[str, List[str], Callable]] = None
-    # List of guidelines for the agent to follow.
-    guidelines: Optional[List[str]] = None
     # Provide the expected output from the Agent.
     expected_output: Optional[str] = None
     # Additional context added to the end of the system message.
@@ -204,6 +202,7 @@ class Agent:
     # --- Agent Team ---
     # The team of agents that this agent can transfer tasks to.
     team: Optional[List[Agent]] = None
+    team_data: Optional[Dict[str, Any]] = None
     # --- If this Agent is part of a team ---
     # If this Agent is part of a team, this is the role of the agent in the team
     role: Optional[str] = None
@@ -301,6 +300,7 @@ class Agent:
         stream: Optional[bool] = None,
         stream_intermediate_steps: bool = False,
         team: Optional[List[Agent]] = None,
+        team_data: Optional[Dict[str, Any]] = None,
         role: Optional[str] = None,
         respond_directly: bool = False,
         add_transfer_instructions: bool = True,
@@ -359,7 +359,6 @@ class Agent:
         self.description = description
         self.goal = goal
         self.instructions = instructions
-        self.guidelines = guidelines
         self.expected_output = expected_output
         self.additional_context = additional_context
         self.markdown = markdown
@@ -382,6 +381,7 @@ class Agent:
         self.stream_intermediate_steps = stream_intermediate_steps
 
         self.team = team
+        self.team_data = team_data
         self.role = role
         self.respond_directly = respond_directly
         self.add_transfer_instructions = add_transfer_instructions
@@ -439,8 +439,6 @@ class Agent:
         self.set_session_id()
         if self._formatter is None:
             self._formatter = SafeFormatter()
-        if self.session_state is None:
-            self.session_state = {}
         if self.memory is None:
             self.memory = AgentMemory()
 
@@ -1379,6 +1377,8 @@ class Agent:
             session_data["session_name"] = self.session_name
         if self.session_state is not None and len(self.session_state) > 0:
             session_data["session_state"] = self.session_state
+        if self.team_data is not None:
+            session_data["team_data"] = self.team_data
         if self.images is not None:
             session_data["images"] = [img.model_dump() for img in self.images]  # type: ignore
         if self.videos is not None:
@@ -1789,32 +1789,24 @@ class Agent:
             system_message_lines.append("<additional_information>")
             system_message_lines.extend([f"- {_api}" for _api in additional_information])
             system_message_lines.append("</additional_information>\n")
-        # 3.3.7 Then add the guidelines for the Agent
-        if self.guidelines is not None and len(self.guidelines) > 0:
-            system_message_lines.append("<guidelines>")
-            if len(self.guidelines) > 1:
-                system_message_lines.extend(self.guidelines)
-            else:
-                system_message_lines.append(self.guidelines[0])
-            system_message_lines.append("</guidelines>")
-        # 3.3.8 Then add the prompt for the Model
+        # 3.3.7 Then add the prompt for the Model
         system_message_from_model = self.model.get_system_message_for_model()
         if system_message_from_model is not None:
             system_message_lines.append(system_message_from_model)
-        # 3.3.9 Then add the expected output
+        # 3.3.8 Then add the expected output
         if self.expected_output is not None:
             system_message_lines.append(f"<expected_output>\n{self.expected_output.strip()}\n</expected_output>\n")
-        # 3.3.10 Then add additional context
+        # 3.3.9 Then add additional context
         if self.additional_context is not None:
             system_message_lines.append(
                 f"<additional_context>\n{self.additional_context.strip()}\n</additional_context>\n"
             )
-        # 3.3.11 Then add information about the team members
+        # 3.3.10 Then add information about the team members
         if self.has_team and self.add_transfer_instructions:
             system_message_lines.append(
                 f"<transfer_instructions>\n{self.get_transfer_instructions().strip()}\n</transfer_instructions>\n"
             )
-        # 3.3.12 Then add memories to the system prompt
+        # 3.3.11 Then add memories to the system prompt
         if self.memory.create_user_memories:
             if self.memory.memories and len(self.memory.memories) > 0:
                 system_message_lines.append(
@@ -1840,7 +1832,7 @@ class Agent:
             system_message_lines.append(
                 "If you use the `update_memory` tool, remember to pass on the response to the user.\n"
             )
-        # 3.6.12 Then add a summary of the interaction to the system prompt
+        # 3.3.12 Then add a summary of the interaction to the system prompt
         if self.memory.create_session_summary:
             if self.memory.summary is not None:
                 system_message_lines.append("Here is a brief summary of your previous interactions if it helps:")
@@ -2166,19 +2158,21 @@ class Agent:
         def _transfer_task_to_agent(
             task_description: str, expected_output: str, additional_information: str
         ) -> Iterator[str]:
-            if member_agent.session_state is None:
-                member_agent.session_state = {}
+            if member_agent.team_data is None:
+                member_agent.team_data = {}
 
-            # Update the member agent session_state to include leader_session_id, leader_agent_id and leader_run_id
-            member_agent.session_state["leader_session_id"] = self.session_id
-            member_agent.session_state["leader_agent_id"] = self.agent_id
-            member_agent.session_state["leader_run_id"] = self.run_id
+            # Update the member agent team_data to include leader_session_id, leader_agent_id and leader_run_id
+            member_agent.team_data["leader_session_id"] = self.session_id
+            member_agent.team_data["leader_agent_id"] = self.agent_id
+            member_agent.team_data["leader_run_id"] = self.run_id
 
             # -*- Run the agent
-            member_agent_messages = f"{task_description}\n\nThe expected output is: {expected_output}"
+            member_agent_messages = f"{task_description}\n<expected_output>{expected_output}</expected_output>"
             try:
                 if additional_information is not None and additional_information.strip() != "":
-                    member_agent_messages += f"\n\nAdditional information: {additional_information}"
+                    member_agent_messages += (
+                        f"\n<additional_information>{additional_information}</additional_information>"
+                    )
             except Exception as e:
                 logger.warning(f"Failed to add additional information to the member agent: {e}")
 
@@ -2190,15 +2184,15 @@ class Agent:
                 "session_id": member_agent_session_id,
                 "agent_id": member_agent_agent_id,
             }
-            # Update the leader agent session_state to include member_agent_info
-            if self.session_state is None:
-                self.session_state = {}
-            if "members" not in self.session_state:
-                self.session_state["members"] = [member_agent_info]
+            # Update the leader agent team_data to include member_agent_info
+            if self.team_data is None:
+                self.team_data = {}
+            if "members" not in self.team_data:
+                self.team_data["members"] = [member_agent_info]
             else:
                 # Check if member_agent_info is already in the list
-                if member_agent_info not in self.session_state["members"]:
-                    self.session_state["members"].append(member_agent_info)
+                if member_agent_info not in self.team_data["members"]:
+                    self.team_data["members"].append(member_agent_info)
 
             if self.stream and member_agent.is_streamable:
                 member_agent_run_response_stream = member_agent.run(member_agent_messages, stream=True)

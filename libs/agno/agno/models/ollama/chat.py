@@ -4,39 +4,16 @@ from typing import Any, Dict, Iterator, List, Mapping, Optional, Union
 
 from pydantic import BaseModel
 
-from agno.models.base import Model
+from agno.models.base import Metrics, Model
 from agno.models.message import Message
 from agno.models.response import ModelResponse
-from agno.tools.function import FunctionCall
 from agno.utils.log import logger
-from agno.utils.timer import Timer
-from agno.utils.tools import get_function_call_for_tool_call
 
 try:
     from ollama import AsyncClient as AsyncOllamaClient
     from ollama import Client as OllamaClient
 except (ModuleNotFoundError, ImportError):
     raise ImportError("`ollama` not installed. Please install using `pip install ollama`")
-
-
-@dataclass
-class Metrics:
-    input_tokens: int = 0
-    output_tokens: int = 0
-    total_tokens: int = 0
-    time_to_first_token: Optional[float] = None
-    response_timer: Timer = field(default_factory=Timer)
-
-    def log(self):
-        logger.debug("**************** METRICS START ****************")
-        if self.time_to_first_token is not None:
-            logger.debug(f"* Time to first token:         {self.time_to_first_token:.4f}s")
-        logger.debug(f"* Time to generate response:   {self.response_timer.elapsed:.4f}s")
-        logger.debug(f"* Tokens per second:           {self.output_tokens / self.response_timer.elapsed:.4f} tokens/s")
-        logger.debug(f"* Input tokens:                {self.input_tokens}")
-        logger.debug(f"* Output tokens:               {self.output_tokens}")
-        logger.debug(f"* Total tokens:                {self.total_tokens}")
-        logger.debug("**************** METRICS END ******************")
 
 
 @dataclass
@@ -63,6 +40,7 @@ class Ollama(Model):
     id: str = "llama3.1"
     name: str = "Ollama"
     provider: str = "Ollama"
+    supports_structured_outputs: bool = True
 
     # Request parameters
     format: Optional[Any] = None
@@ -82,8 +60,6 @@ class Ollama(Model):
     # Internal parameters. Not used for API requests
     # Whether to use the structured outputs with this Model.
     structured_outputs: bool = False
-    # Whether the Model supports structured outputs.
-    supports_structured_outputs: bool = True
 
     def get_client_params(self) -> Dict[str, Any]:
         client_params: Dict[str, Any] = {}
@@ -135,7 +111,7 @@ class Ollama(Model):
         if self.keep_alive is not None:
             request_params["keep_alive"] = self.keep_alive
         if self.tools is not None:
-            request_params["tools"] = self.get_tools_for_api()
+            request_params["tools"] = self.tools
             # Ensure types are valid strings
             for tool in request_params["tools"]:
                 for prop, obj in tool["function"]["parameters"]["properties"].items():
@@ -292,10 +268,10 @@ class Ollama(Model):
         Returns:
             Optional[ModelResponse]: The model response.
         """
-        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
+        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
             model_response.content = assistant_message.get_content_string()
             model_response.content += "\n\n"
-            function_calls_to_run = self.get_function_calls_to_run(assistant_message, messages)
+            function_calls_to_run = self._get_function_calls_to_run(assistant_message, messages)
             function_call_results: List[Message] = []
 
             if self.show_tool_calls:
@@ -333,49 +309,13 @@ class Ollama(Model):
             response (Optional[Mapping[str, Any]]): The response from Ollama.
         """
         # Update time taken to generate response
-        assistant_message.metrics["time"] = metrics.response_timer.elapsed
-        self.metrics.setdefault("response_times", []).append(metrics.response_timer.elapsed)
         if response:
             metrics.input_tokens = response.get("prompt_eval_count", 0)
             metrics.output_tokens = response.get("eval_count", 0)
             metrics.total_tokens = metrics.input_tokens + metrics.output_tokens
 
-            if metrics.input_tokens is not None:
-                assistant_message.metrics["input_tokens"] = metrics.input_tokens
-                self.metrics["input_tokens"] = self.metrics.get("input_tokens", 0) + metrics.input_tokens
-            if metrics.output_tokens is not None:
-                assistant_message.metrics["output_tokens"] = metrics.output_tokens
-                self.metrics["output_tokens"] = self.metrics.get("output_tokens", 0) + metrics.output_tokens
-            if metrics.total_tokens is not None:
-                assistant_message.metrics["total_tokens"] = metrics.total_tokens
-                self.metrics["total_tokens"] = self.metrics.get("total_tokens", 0) + metrics.total_tokens
-            if metrics.time_to_first_token is not None:
-                assistant_message.metrics["time_to_first_token"] = metrics.time_to_first_token
-                self.metrics.setdefault("time_to_first_token", []).append(metrics.time_to_first_token)
-
-    def get_function_calls_to_run(self, assistant_message: Message, messages: List[Message]) -> List[FunctionCall]:
-        """
-        Get the function calls to run from the assistant message.
-
-        Args:
-            assistant_message (Message): The assistant message.
-            messages (List[Message]): The list of messages.
-
-        Returns:
-            List[FunctionCall]: The list of function calls to run.
-        """
-        function_calls_to_run: List[FunctionCall] = []
-        if assistant_message.tool_calls is not None:
-            for tool_call in assistant_message.tool_calls:
-                _function_call = get_function_call_for_tool_call(tool_call, self.functions)
-                if _function_call is None:
-                    messages.append(Message(role="user", content="Could not find function to call."))
-                    continue
-                if _function_call.error is not None:
-                    messages.append(Message(role="user", content=_function_call.error))
-                    continue
-                function_calls_to_run.append(_function_call)
-        return function_calls_to_run
+        self._update_model_metrics(metrics_for_run=metrics)
+        self._update_assistant_message_metrics(assistant_message=assistant_message, metrics_for_run=metrics)
 
     def format_function_call_results(self, function_call_results: List[Message], messages: List[Message]) -> None:
         """
@@ -449,9 +389,9 @@ class Ollama(Model):
         metrics = Metrics()
 
         # -*- Generate response
-        metrics.response_timer.start()
+        metrics.start_response_timer()
         response: Mapping[str, Any] = self.invoke(messages=messages)
-        metrics.response_timer.stop()
+        metrics.stop_response_timer()
 
         # -*- Parse structured outputs
         try:
@@ -514,9 +454,9 @@ class Ollama(Model):
         metrics = Metrics()
 
         # -*- Generate response
-        metrics.response_timer.start()
+        metrics.start_response_timer()
         response: Mapping[str, Any] = await self.ainvoke(messages=messages)
-        metrics.response_timer.stop()
+        metrics.stop_response_timer()
 
         # -*- Parse structured outputs
         try:
@@ -578,9 +518,9 @@ class Ollama(Model):
         Returns:
             Iterator[ModelResponse]: An iterator of the model response.
         """
-        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
+        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
             yield ModelResponse(content="\n\n")
-            function_calls_to_run = self.get_function_calls_to_run(assistant_message, messages)
+            function_calls_to_run = self._get_function_calls_to_run(assistant_message, messages)
             function_call_results: List[Message] = []
 
             if self.show_tool_calls:
@@ -616,7 +556,7 @@ class Ollama(Model):
         metrics: Metrics = Metrics()
 
         # -*- Generate response
-        metrics.response_timer.start()
+        metrics.start_response_timer()
         for response in self.invoke_stream(messages=messages):
             # logger.debug(f"Response: {response}")
             message_data.response_message = response.get("message", {})
@@ -644,7 +584,7 @@ class Ollama(Model):
 
             if response.get("done"):
                 message_data.response_usage = response
-        metrics.response_timer.stop()
+        metrics.stop_response_timer()
 
         # -*- Create assistant message
         assistant_message = Message(role="assistant", content=message_data.response_content)
@@ -667,7 +607,7 @@ class Ollama(Model):
         metrics.log()
 
         # -*- Handle tool calls
-        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
+        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
             yield from self.handle_stream_tool_calls(assistant_message, messages)
             yield from self.handle_post_tool_call_messages_stream(messages=messages)
         logger.debug("---------- Ollama Response End ----------")
@@ -688,7 +628,7 @@ class Ollama(Model):
         metrics: Metrics = Metrics()
 
         # -*- Generate response
-        metrics.response_timer.start()
+        metrics.start_response_timer()
         async for response in self.ainvoke_stream(messages=messages):
             message_data.response_message = response.get("message", {})
             if message_data.response_message:
@@ -715,7 +655,7 @@ class Ollama(Model):
 
             if response.get("done"):
                 message_data.response_usage = response
-        metrics.response_timer.stop()
+        metrics.stop_response_timer()
 
         # -*- Create assistant message
         assistant_message = Message(role="assistant", content=message_data.response_content)
@@ -738,7 +678,7 @@ class Ollama(Model):
         metrics.log()
 
         # -*- Handle tool calls
-        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
+        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
             for tool_call_response in self.handle_stream_tool_calls(assistant_message, messages):
                 yield tool_call_response
             async for post_tool_call_response in self.ahandle_post_tool_call_messages_stream(messages=messages):

@@ -43,7 +43,7 @@ from agno.utils.safe_formatter import SafeFormatter
 from agno.utils.timer import Timer
 
 
-@dataclass(init=False, slots=True)
+@dataclass(init=False, slots=True)  # type: ignore
 class Agent:
     # --- Agent settings ---
     # Model for this Agent
@@ -2959,9 +2959,9 @@ class Agent:
             run_response_format = "markdown"
 
         functions = {}
-        if self.model is not None and self.model.functions is not None:
+        if self.model is not None and self.model._functions is not None:
             functions = {
-                f_name: func.to_dict() for f_name, func in self.model.functions.items() if isinstance(func, Function)
+                f_name: func.to_dict() for f_name, func in self.model._functions.items() if isinstance(func, Function)
             }
 
         run_data: Dict[str, Any] = {

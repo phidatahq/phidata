@@ -1,16 +1,15 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from os import getenv
 from typing import Any, Dict, Iterator, List, Optional, Union
 
 import httpx
 from pydantic import BaseModel
 
-from agno.models.base import Model
+from agno.models.base import Metrics, Model
 from agno.models.message import Message
 from agno.models.response import ModelResponse
 from agno.tools.function import FunctionCall
 from agno.utils.log import logger
-from agno.utils.timer import Timer
 from agno.utils.tools import get_function_call_for_tool_call
 
 try:
@@ -26,34 +25,6 @@ try:
     )
 except (ModuleNotFoundError, ImportError):
     raise ImportError("`huggingface_hub` not installed. Please install using `pip install huggingface_hub`")
-
-
-@dataclass
-class Metrics:
-    input_tokens: int = 0
-    output_tokens: int = 0
-    total_tokens: int = 0
-    prompt_tokens: int = 0
-    completion_tokens: int = 0
-    prompt_tokens_details: Optional[dict] = None
-    completion_tokens_details: Optional[dict] = None
-    time_to_first_token: Optional[float] = None
-    response_timer: Timer = field(default_factory=Timer)
-
-    def log(self):
-        logger.debug("**************** METRICS START ****************")
-        if self.time_to_first_token is not None:
-            logger.debug(f"* Time to first token:         {self.time_to_first_token:.4f}s")
-        logger.debug(f"* Time to generate response:   {self.response_timer.elapsed:.4f}s")
-        logger.debug(f"* Tokens per second:           {self.output_tokens / self.response_timer.elapsed:.4f} tokens/s")
-        logger.debug(f"* Input tokens:                {self.input_tokens or self.prompt_tokens}")
-        logger.debug(f"* Output tokens:               {self.output_tokens or self.completion_tokens}")
-        logger.debug(f"* Total tokens:                {self.total_tokens}")
-        if self.prompt_tokens_details is not None:
-            logger.debug(f"* Prompt tokens details:       {self.prompt_tokens_details}")
-        if self.completion_tokens_details is not None:
-            logger.debug(f"* Completion tokens details:   {self.completion_tokens_details}")
-        logger.debug("**************** METRICS END ******************")
 
 
 @dataclass
@@ -221,7 +192,7 @@ class HuggingFace(Model):
         if self.top_p is not None:
             _request_params["top_p"] = self.top_p
         if self.tools is not None:
-            _request_params["tools"] = self.get_tools_for_api()
+            _request_params["tools"] = self.tools
             if self.tool_choice is None:
                 _request_params["tool_choice"] = "auto"
             else:
@@ -263,7 +234,7 @@ class HuggingFace(Model):
         if self.top_p is not None:
             _dict["top_p"] = self.top_p
         if self.tools is not None:
-            _dict["tools"] = self.get_tools_for_api()
+            _dict["tools"] = self.tools
             if self.tool_choice is None:
                 _dict["tool_choice"] = "auto"
             else:
@@ -354,14 +325,14 @@ class HuggingFace(Model):
         Returns:
             Optional[ModelResponse]: The model response after handling tool calls.
         """
-        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
+        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
             model_response.content = ""
             tool_role: str = "tool"
             function_calls_to_run: List[FunctionCall] = []
             function_call_results: List[Message] = []
             for tool_call in assistant_message.tool_calls:
                 _tool_call_id = tool_call.get("id")
-                _function_call = get_function_call_for_tool_call(tool_call, self.functions)
+                _function_call = get_function_call_for_tool_call(tool_call, self._functions)
                 if _function_call is None:
                     messages.append(
                         Message(
@@ -499,9 +470,9 @@ class HuggingFace(Model):
         metrics = Metrics()
 
         # -*- Generate response
-        metrics.response_timer.start()
+        metrics.start_response_timer()
         response: Union[ChatCompletionOutput] = self.invoke(messages=messages)
-        metrics.response_timer.stop()
+        metrics.stop_response_timer()
 
         # -*- Parse response
         response_message: ChatCompletionOutputMessage = response.choices[0].message
@@ -551,9 +522,9 @@ class HuggingFace(Model):
         metrics = Metrics()
 
         # -*- Generate response
-        metrics.response_timer.start()
+        metrics.start_response_timer()
         response: Union[ChatCompletionOutput] = await self.ainvoke(messages=messages)
-        metrics.response_timer.stop()
+        metrics.stop_response_timer()
 
         # -*- Parse response
         response_message: ChatCompletionOutputMessage = response.choices[0].message
@@ -655,13 +626,13 @@ class HuggingFace(Model):
         Returns:
             Iterator[ModelResponse]: An iterator of the model response.
         """
-        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
+        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
             tool_role: str = "tool"
             function_calls_to_run: List[FunctionCall] = []
             function_call_results: List[Message] = []
             for tool_call in assistant_message.tool_calls:
                 _tool_call_id = tool_call.get("id")
-                _function_call = get_function_call_for_tool_call(tool_call, self.functions)
+                _function_call = get_function_call_for_tool_call(tool_call, self._functions)
                 if _function_call is None:
                     messages.append(
                         Message(
@@ -742,7 +713,7 @@ class HuggingFace(Model):
         messages.append(assistant_message)
 
         # -*- Handle tool calls
-        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
+        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
             yield from self._handle_stream_tool_calls(assistant_message, messages)
             yield from self.response_stream(messages=messages)
         logger.debug("---------- HuggingFace Response End ----------")
@@ -763,7 +734,7 @@ class HuggingFace(Model):
         metrics: Metrics = Metrics()
 
         # -*- Generate response
-        metrics.response_timer.start()
+        metrics.start_response_timer()
         async for response in self.ainvoke_stream(messages=messages):
             if len(response.choices) > 0:
                 metrics.completion_tokens += 1
@@ -782,7 +753,7 @@ class HuggingFace(Model):
                     if stream_data.response_tool_calls is None:
                         stream_data.response_tool_calls = []
                     stream_data.response_tool_calls.extend(response_tool_calls)
-        metrics.response_timer.stop()
+        metrics.stop_response_timer()
 
         # -*- Create assistant message
         assistant_message = Message(role="assistant")
@@ -804,7 +775,7 @@ class HuggingFace(Model):
         metrics.log()
 
         # -*- Handle tool calls
-        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
+        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
             for model_response in self._handle_stream_tool_calls(assistant_message, messages):
                 yield model_response
             async for model_response in self.aresponse_stream(messages=messages):

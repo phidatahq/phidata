@@ -69,11 +69,11 @@ class Claude(AwsBedrock):
         """
         Refactors the tools in a format accepted by the Bedrock API.
         """
-        if not self.functions:
+        if not self._functions:
             return None
 
         tools = []
-        for f_name, function in self.functions.items():
+        for f_name, function in self._functions.items():
             properties = {}
             required = []
 

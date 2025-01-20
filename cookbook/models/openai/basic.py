@@ -9,3 +9,5 @@ agent = Agent(model=OpenAIChat(id="gpt-4o"), markdown=True)
 
 # Print the response in the terminal
 agent.print_response("Share a 2 sentence horror story")
+
+agent.run_response.metrics

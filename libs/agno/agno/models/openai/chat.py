@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from os import getenv
 from typing import Any, Dict, Iterator, List, Optional, Union
 
@@ -6,12 +6,11 @@ import httpx
 from pydantic import BaseModel
 
 from agno.media import AudioOutput
-from agno.models.base import Model
+from agno.models.base import Metrics, Model
 from agno.models.message import Message
 from agno.models.response import ModelResponse
 from agno.tools.function import FunctionCall
 from agno.utils.log import logger
-from agno.utils.timer import Timer
 from agno.utils.tools import get_function_call_for_tool_call
 
 try:
@@ -28,34 +27,6 @@ try:
     from openai.types.completion_usage import CompletionUsage
 except ModuleNotFoundError:
     raise ImportError("`openai` not installed. Please install using `pip install openai`")
-
-
-@dataclass
-class Metrics:
-    input_tokens: int = 0
-    output_tokens: int = 0
-    total_tokens: int = 0
-    prompt_tokens: int = 0
-    completion_tokens: int = 0
-    prompt_tokens_details: Optional[dict] = None
-    completion_tokens_details: Optional[dict] = None
-    time_to_first_token: Optional[float] = None
-    response_timer: Timer = field(default_factory=Timer)
-
-    def log(self):
-        logger.debug("**************** METRICS START ****************")
-        if self.time_to_first_token is not None:
-            logger.debug(f"* Time to first token:         {self.time_to_first_token:.4f}s")
-        logger.debug(f"* Time to generate response:   {self.response_timer.elapsed:.4f}s")
-        logger.debug(f"* Tokens per second:           {self.output_tokens / self.response_timer.elapsed:.4f} tokens/s")
-        logger.debug(f"* Input tokens:                {self.input_tokens or self.prompt_tokens}")
-        logger.debug(f"* Output tokens:               {self.output_tokens or self.completion_tokens}")
-        logger.debug(f"* Total tokens:                {self.total_tokens}")
-        if self.prompt_tokens_details is not None:
-            logger.debug(f"* Prompt tokens details:       {self.prompt_tokens_details}")
-        if self.completion_tokens_details is not None:
-            logger.debug(f"* Completion tokens details:   {self.completion_tokens_details}")
-        logger.debug("**************** METRICS END ******************")
 
 
 @dataclass
@@ -76,6 +47,7 @@ class OpenAIChat(Model):
     id: str = "gpt-4o"
     name: str = "OpenAIChat"
     provider: str = "OpenAI"
+    supports_structured_outputs: bool = True
 
     # Request parameters
     store: Optional[bool] = None
@@ -117,14 +89,13 @@ class OpenAIChat(Model):
     # Internal parameters. Not used for API requests
     # Whether to use the structured outputs with this Model.
     structured_outputs: bool = False
-    # Whether the Model supports structured outputs.
-    supports_structured_outputs: bool = True
+
     # Whether to override the system role.
     override_system_role: bool = True
     # The role to map the system message to.
     system_message_role: str = "developer"
 
-    def get_client_params(self) -> Dict[str, Any]:
+    def _get_client_params(self) -> Dict[str, Any]:
         client_params: Dict[str, Any] = {}
 
         self.api_key = self.api_key or getenv("OPENAI_API_KEY")
@@ -159,7 +130,7 @@ class OpenAIChat(Model):
         if self.client:
             return self.client
 
-        client_params: Dict[str, Any] = self.get_client_params()
+        client_params: Dict[str, Any] = self._get_client_params()
         if self.http_client is not None:
             client_params["http_client"] = self.http_client
         return OpenAIClient(**client_params)
@@ -174,7 +145,7 @@ class OpenAIChat(Model):
         if self.async_client:
             return self.async_client
 
-        client_params: Dict[str, Any] = self.get_client_params()
+        client_params: Dict[str, Any] = self._get_client_params()
         if self.http_client:
             client_params["http_client"] = self.http_client
         else:
@@ -230,7 +201,7 @@ class OpenAIChat(Model):
         if self.extra_query is not None:
             request_params["extra_query"] = self.extra_query
         if self.tools is not None:
-            request_params["tools"] = self.get_tools_for_api()
+            request_params["tools"] = self.tools
             if self.tool_choice is None:
                 request_params["tool_choice"] = "auto"
             else:
@@ -286,7 +257,7 @@ class OpenAIChat(Model):
         if self.extra_query is not None:
             model_dict["extra_query"] = self.extra_query
         if self.tools is not None:
-            model_dict["tools"] = self.get_tools_for_api()
+            model_dict["tools"] = self.tools
             if self.tool_choice is None:
                 model_dict["tool_choice"] = "auto"
             else:
@@ -430,14 +401,14 @@ class OpenAIChat(Model):
         Returns:
             Optional[ModelResponse]: The model response after handling tool calls.
         """
-        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
+        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
             if model_response.content is None:
                 model_response.content = ""
             function_call_results: List[Message] = []
             function_calls_to_run: List[FunctionCall] = []
             for tool_call in assistant_message.tool_calls:
                 _tool_call_id = tool_call.get("id")
-                _function_call = get_function_call_for_tool_call(tool_call, self.functions)
+                _function_call = get_function_call_for_tool_call(tool_call, self._functions)
                 if _function_call is None:
                     messages.append(
                         Message(
@@ -590,9 +561,9 @@ class OpenAIChat(Model):
         metrics = Metrics()
 
         # -*- Generate response
-        metrics.response_timer.start()
+        metrics.start_response_timer()
         response: Union[ChatCompletion, ParsedChatCompletion] = self.invoke(messages=messages)
-        metrics.response_timer.stop()
+        metrics.stop_response_timer()
 
         # -*- Parse response
         response_message: ChatCompletionMessage = response.choices[0].message
@@ -668,9 +639,9 @@ class OpenAIChat(Model):
         metrics = Metrics()
 
         # -*- Generate response
-        metrics.response_timer.start()
+        metrics.start_response_timer()
         response: Union[ChatCompletion, ParsedChatCompletion] = await self.ainvoke(messages=messages)
-        metrics.response_timer.stop()
+        metrics.stop_response_timer()
 
         # -*- Parse response
         response_message: ChatCompletionMessage = response.choices[0].message
@@ -807,12 +778,12 @@ class OpenAIChat(Model):
         Returns:
             Iterator[ModelResponse]: An iterator of the model response.
         """
-        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
+        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
             function_calls_to_run: List[FunctionCall] = []
             function_call_results: List[Message] = []
             for tool_call in assistant_message.tool_calls:
                 _tool_call_id = tool_call.get("id")
-                _function_call = get_function_call_for_tool_call(tool_call, self.functions)
+                _function_call = get_function_call_for_tool_call(tool_call, self._functions)
                 if _function_call is None:
                     messages.append(
                         Message(
@@ -863,7 +834,7 @@ class OpenAIChat(Model):
         metrics: Metrics = Metrics()
 
         # -*- Generate response
-        metrics.response_timer.start()
+        metrics.start_response_timer()
         for response in self.invoke_stream(messages=messages):
             if len(response.choices) > 0:
                 metrics.completion_tokens += 1
@@ -896,7 +867,7 @@ class OpenAIChat(Model):
 
             if response.usage is not None:
                 self.add_response_usage_to_metrics(metrics=metrics, response_usage=response.usage)
-        metrics.response_timer.stop()
+        metrics.stop_response_timer()
 
         # -*- Create assistant message
         assistant_message = Message(role="assistant")
@@ -927,7 +898,7 @@ class OpenAIChat(Model):
         metrics.log()
 
         # -*- Handle tool calls
-        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
+        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
             tool_role = "tool"
             yield from self.handle_stream_tool_calls(
                 assistant_message=assistant_message, messages=messages, tool_role=tool_role
@@ -951,7 +922,7 @@ class OpenAIChat(Model):
         metrics: Metrics = Metrics()
 
         # -*- Generate response
-        metrics.response_timer.start()
+        metrics.start_response_timer()
         async for response in self.ainvoke_stream(messages=messages):
             if response.choices and len(response.choices) > 0:
                 metrics.completion_tokens += 1
@@ -984,7 +955,7 @@ class OpenAIChat(Model):
 
             if response.usage is not None:
                 self.add_response_usage_to_metrics(metrics=metrics, response_usage=response.usage)
-        metrics.response_timer.stop()
+        metrics.stop_response_timer()
 
         # -*- Create assistant message
         assistant_message = Message(role="assistant")
@@ -1014,7 +985,7 @@ class OpenAIChat(Model):
         metrics.log()
 
         # -*- Handle tool calls
-        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
+        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
             tool_role = "tool"
             for tool_call_response in self.handle_stream_tool_calls(
                 assistant_message=assistant_message, messages=messages, tool_role=tool_role

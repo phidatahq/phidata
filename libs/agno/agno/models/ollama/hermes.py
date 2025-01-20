@@ -75,7 +75,7 @@ class OllamaHermes(Ollama):
         metrics: Metrics = Metrics()
 
         # -*- Generate response
-        metrics.response_timer.start()
+        metrics.start_response_timer()
         for response in self.invoke_stream(messages=messages):
             message_data.response_message = response.get("message", {})
             if message_data.response_message:
@@ -100,7 +100,7 @@ class OllamaHermes(Ollama):
 
             if response.get("done"):
                 message_data.response_usage = response
-        metrics.response_timer.stop()
+        metrics.stop_response_timer()
 
         # Format tool calls
         if message_data.tool_call_blocks is not None:
@@ -133,7 +133,7 @@ class OllamaHermes(Ollama):
         metrics.log()
 
         # -*- Handle tool calls
-        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
+        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
             yield from self.handle_stream_tool_calls(assistant_message, messages)
             yield from self.handle_post_tool_call_messages_stream(messages=messages)
         logger.debug("---------- Ollama OllamaHermes Response End ----------")
@@ -154,7 +154,7 @@ class OllamaHermes(Ollama):
         metrics: Metrics = Metrics()
 
         # -*- Generate response
-        metrics.response_timer.start()
+        metrics.start_response_timer()
         async for response in self.ainvoke_stream(messages=messages):
             message_data.response_message = response.get("message", {})
             if message_data.response_message:
@@ -185,7 +185,7 @@ class OllamaHermes(Ollama):
 
             if response.get("done"):
                 message_data.response_usage = response
-        metrics.response_timer.stop()
+        metrics.stop_response_timer()
 
         # Format tool calls
         if message_data.tool_call_blocks is not None:
@@ -218,7 +218,7 @@ class OllamaHermes(Ollama):
         metrics.log()
 
         # -*- Handle tool calls
-        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
+        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
             for tool_call_response in self.handle_stream_tool_calls(assistant_message, messages):
                 yield tool_call_response
             async for post_tool_call_response in self.ahandle_post_tool_call_messages_stream(messages=messages):

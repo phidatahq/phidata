@@ -57,7 +57,7 @@ class Together(OpenAILike):
         response_is_tool_call = False
 
         # -*- Generate response
-        metrics.response_timer.start()
+        metrics.start_response_timer()
         for response in self.invoke_stream(messages=messages):
             if len(response.choices) > 0:
                 metrics.completion_tokens += 1
@@ -85,7 +85,7 @@ class Together(OpenAILike):
                     metrics.output_tokens = response_usage.completion_tokens
                     metrics.completion_tokens = response_usage.completion_tokens
                     metrics.total_tokens = response_usage.total_tokens
-        metrics.response_timer.stop()
+        metrics.stop_response_timer()
         logger.debug(f"Time to generate response: {metrics.response_timer.elapsed:.4f}s")
 
         # -*- Create assistant message
@@ -140,13 +140,13 @@ class Together(OpenAILike):
         metrics.log()
 
         # -*- Parse and run tool calls
-        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
+        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
             tool_role: str = "tool"
             function_calls_to_run: List[FunctionCall] = []
             function_call_results: List[Message] = []
             for tool_call in assistant_message.tool_calls:
                 _tool_call_id = tool_call.get("id")
-                _function_call = get_function_call_for_tool_call(tool_call, self.functions)
+                _function_call = get_function_call_for_tool_call(tool_call, self._functions)
                 if _function_call is None:
                     messages.append(
                         Message(

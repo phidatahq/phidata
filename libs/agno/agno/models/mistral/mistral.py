@@ -132,7 +132,7 @@ class MistralChat(Model):
         if self.safe_prompt:
             _request_params["safe_prompt"] = self.safe_prompt
         if self.tools:
-            _request_params["tools"] = self.get_tools_for_api()
+            _request_params["tools"] = self.tools
             if self.tool_choice is None:
                 _request_params["tool_choice"] = "auto"
             else:
@@ -261,7 +261,7 @@ class MistralChat(Model):
             for tool_call in assistant_message.tool_calls:
                 tool_call["type"] = "function"
                 _tool_call_id = tool_call.get("id")
-                _function_call = get_function_call_for_tool_call(tool_call, self.functions)
+                _function_call = get_function_call_for_tool_call(tool_call, self._functions)
                 if _function_call is None:
                     messages.append(
                         Message(role="tool", tool_call_id=_tool_call_id, content="Could not find function to call.")
@@ -385,7 +385,7 @@ class MistralChat(Model):
         assistant_message.log()
 
         # -*- Parse and run tool calls
-        logger.debug(f"Functions: {self.functions}")
+        logger.debug(f"Functions: {self._functions}")
 
         # -*- Handle tool calls
         if self._handle_tool_calls(assistant_message, messages, model_response):
@@ -515,7 +515,7 @@ class MistralChat(Model):
             for tool_call in assistant_message.tool_calls:
                 _tool_call_id = tool_call.get("id")
                 tool_call["type"] = "function"
-                _function_call = get_function_call_for_tool_call(tool_call, self.functions)
+                _function_call = get_function_call_for_tool_call(tool_call, self._functions)
                 if _function_call is None:
                     messages.append(
                         Message(role="tool", tool_call_id=_tool_call_id, content="Could not find function to call.")
@@ -549,3 +549,15 @@ class MistralChat(Model):
 
             yield from self.response_stream(messages=messages)
         logger.debug("---------- Mistral Response End ----------")
+
+    async def ainvoke(self, *args, **kwargs) -> Any:
+        raise Exception(f"Async not supported on {self.name}.")
+
+    async def ainvoke_stream(self, *args, **kwargs) -> Any:
+        raise Exception(f"Async not supported on {self.name}.")
+
+    async def aresponse(self, messages: List[Message]) -> ModelResponse:
+        raise Exception(f"Async not supported on {self.name}.")
+
+    async def aresponse_stream(self, messages: List[Message]) -> ModelResponse:
+        raise Exception(f"Async not supported on {self.name}.")

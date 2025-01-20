@@ -1,3 +1,20 @@
+"""
+Steps to Get Your ClickUp API Key
+
+Step 1: Log In to ClickUp
+Step 2: Navigate to Settings (usually a circle with your initials) click on it
+Step 3: Access the Apps Section: In the settings sidebar on the left, scroll down until you find Apps. Click on it to access the API settings.
+Step 4: Generate Your API Key
+In the Apps section, you should see an option labeled API Token. If it’s not already generated, look for a button that says Generate and click it.
+Once generated, your API key will be displayed. Make sure to copy this key and store it .env file to use it.
+
+Steps To find your MASTER_SPACE_ID :
+clickup space url structure: https://app.clickup.com/{MASTER_SPACE_ID}/v/o/s/{SPACE_ID}
+1. copy any space url from your clickup workspace all follow above url structure. 
+2. To use clickup tool copy the MASTER_SPACE_ID and store it .env file.
+
+"""
+
 import os 
 from phi.agent import Agent
 from phi.model.openai import OpenAIChat

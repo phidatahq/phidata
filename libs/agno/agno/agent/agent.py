@@ -1434,7 +1434,6 @@ class Agent:
         from agno.memory.memory import Memory
         from agno.memory.summary import SessionSummary
         from agno.utils.merge_dict import merge_dictionaries
-
         # Get the agent_id, user_id and session_id from the database
         if self.agent_id is None and session.agent_id is not None:
             self.agent_id = session.agent_id
@@ -1512,7 +1511,16 @@ class Agent:
             self.extra_data = session.extra_data
 
         # Read memory from the database
-        self.memory = cast(AgentMemory, self.memory)
+        if self.memory is None:
+            self.memory = session.memory # type: ignore
+ 
+        if not isinstance(self.memory, AgentMemory):
+            if isinstance(self.memory, dict):
+                # Convert dict to AgentMemory
+                self.memory = AgentMemory(**self.memory)
+            else:
+                raise TypeError(f"Expected memory to be a dict or AgentMemory, but got {type(self.memory)}")
+
         if session.memory is not None:
             try:
                 if "runs" in session.memory:
@@ -2137,10 +2145,15 @@ class Agent:
         """
         from dataclasses import fields
 
+        # TODO (WCDJ): We need to revisit agent sessions as a whole and determine where data needs to be excluded
+        # when new runs are created.
+        excluded_fields = ["agent_session", "session_name", "memory"]
         # Extract the fields to set for the new Agent
         fields_for_new_agent: Dict[str, Any] = {}
 
         for f in fields(self):
+            if f.name in excluded_fields:
+                continue
             field_value = getattr(self, f.name)
             if field_value is not None:
                 fields_for_new_agent[f.name] = self._deep_copy_field(f.name, field_value)
@@ -2148,7 +2161,6 @@ class Agent:
         # Update fields if provided
         if update:
             fields_for_new_agent.update(update)
-
         # Create a new Agent
         new_agent = self.__class__(**fields_for_new_agent)
         logger.debug(f"Created new {self.__class__.__name__}")

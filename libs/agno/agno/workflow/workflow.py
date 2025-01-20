@@ -346,7 +346,7 @@ class Workflow:
             session_id=self.session_id,
             workflow_id=self.workflow_id,
             user_id=self.user_id,
-            memory=self.memory.to_dict(),
+            memory=self.memory.to_dict() if self.memory is not None else None,
             workflow_data=self.get_workflow_data(),
             session_data=self.get_session_data(),
             extra_data=self.extra_data,
@@ -420,7 +420,14 @@ class Workflow:
             self.extra_data = session.extra_data
 
         # Read memory from the database
-        self.memory = cast(WorkflowMemory, self.memory)
+        if self.memory is None:
+            self.memory = session.memory # type: ignore
+        
+        if not isinstance(self.memory, WorkflowMemory):
+            if isinstance(self.memory, dict):
+                self.memory =WorkflowMemory(**self.memory)
+            else:
+                raise TypeError(f"Expected memory to be a dict or WorkflowMemory, but got {type(self.memory)}")
         if session.memory is not None:
             try:
                 if "runs" in session.memory:

@@ -138,6 +138,7 @@ def get_async_playground_router(
             logger.debug("Creating new session")
 
         # Create a new instance of this agent
+        print(agent)
         new_agent_instance = agent.deep_copy(update={"session_id": session_id})
         if user_id is not None:
             new_agent_instance.user_id = user_id
@@ -205,6 +206,7 @@ def get_async_playground_router(
                     images=[base64_image] if base64_image else None,
                     stream=False,
                 ),
+                
             )
             return run_response
 

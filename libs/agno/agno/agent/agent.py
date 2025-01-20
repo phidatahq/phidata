@@ -2136,10 +2136,16 @@ class Agent:
         """
         from dataclasses import fields
 
+        # TODO (WCDJ): We need to revisit agent sessions as a whole and determine where data needs to be excluded
+        # when new runs are created.
+        excluded_fields = ["agent_session"]
+
         # Extract the fields to set for the new Agent
         fields_for_new_agent: Dict[str, Any] = {}
 
         for f in fields(self):
+            if f.name in excluded_fields:
+                continue
             field_value = getattr(self, f.name)
             if field_value is not None:
                 fields_for_new_agent[f.name] = self._deep_copy_field(f.name, field_value)
@@ -2147,7 +2153,6 @@ class Agent:
         # Update fields if provided
         if update:
             fields_for_new_agent.update(update)
-
         # Create a new Agent
         new_agent = self.__class__(**fields_for_new_agent)
         logger.debug(f"Created new {self.__class__.__name__}")

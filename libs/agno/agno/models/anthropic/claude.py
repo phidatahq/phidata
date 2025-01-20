@@ -412,7 +412,7 @@ class Claude(Model):
         Returns:
             Optional[ModelResponse]: The model response.
         """
-        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
+        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
             model_response.content = str(response_content)
             model_response.content += "\n\n"
             function_calls_to_run = self._get_function_calls_to_run(assistant_message, messages)
@@ -502,7 +502,7 @@ class Claude(Model):
         Yields:
             Iterator[ModelResponse]: Yields model responses during function execution.
         """
-        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
+        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
             yield ModelResponse(content="\n\n")
             function_calls_to_run = self._get_function_calls_to_run(assistant_message, messages)
             function_call_results: List[Message] = []
@@ -587,7 +587,7 @@ class Claude(Model):
         assistant_message.log()
         metrics.log()
 
-        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
+        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
             yield from self.handle_stream_tool_calls(assistant_message, messages, message_data.tool_ids)
             yield from self.response_stream(messages=messages)
         logger.debug("---------- Claude Response End ----------")

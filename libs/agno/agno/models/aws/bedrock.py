@@ -166,7 +166,7 @@ class AwsBedrock(Model):
             Optional[ModelResponse]: The model response after handling tool calls.
         """
         # -*- Parse and run function call
-        if assistant_message.tool_calls is not None and self.run_tools:
+        if assistant_message.tool_calls is not None:
             # Remove the tool call from the response content
             model_response.content = ""
             tool_role: str = "tool"
@@ -521,7 +521,7 @@ class AwsBedrock(Model):
         assistant_message.log()
 
         # Handle tool calls if any
-        if tool_calls and self.run_tools:
+        if tool_calls:
             yield from self._handle_stream_tool_calls(assistant_message, messages, tool_ids)
             yield from self.response_stream(messages=messages)
 

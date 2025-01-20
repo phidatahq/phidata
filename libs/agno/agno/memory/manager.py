@@ -57,7 +57,7 @@ class MemoryManager(BaseModel):
         try:
             if self.db:
                 self.db.upsert_memory(
-                    MemoryRow(user_id=self.user_id, memory=Memory(memory=memory, input=self.input_message).to_dict())
+                    MemoryRow(user_id=self.user_id, memory=Memory(memory=memory, input=self.input_message).model_dump())
                 )
             return "Memory added successfully"
         except Exception as e:
@@ -91,7 +91,7 @@ class MemoryManager(BaseModel):
             if self.db:
                 self.db.upsert_memory(
                     MemoryRow(
-                        id=id, user_id=self.user_id, memory=Memory(memory=memory, input=self.input_message).to_dict()
+                        id=id, user_id=self.user_id, memory=Memory(memory=memory, input=self.input_message).model_dump()
                     )
                 )
             return "Memory updated successfully"

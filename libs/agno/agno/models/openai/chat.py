@@ -89,7 +89,11 @@ class OpenAIChat(Model):
     # Internal parameters. Not used for API requests
     # Whether to use the structured outputs with this Model.
     structured_outputs: bool = False
-    # Whether the Model supports structured outputs.
+
+    # Whether to override the system role.
+    override_system_role: bool = True
+    # The role to map the system message to.
+    system_message_role: str = "developer"
 
     def _get_client_params(self) -> Dict[str, Any]:
         client_params: Dict[str, Any] = {}
@@ -260,21 +264,16 @@ class OpenAIChat(Model):
                 model_dict["tool_choice"] = self.tool_choice
         return model_dict
 
-    def format_message(self, message: Message, map_system_to_developer: bool = True) -> Dict[str, Any]:
+    def format_message(self, message: Message) -> Dict[str, Any]:
         """
         Format a message into the format expected by OpenAI.
 
         Args:
             message (Message): The message to format.
-            map_system_to_developer (bool, optional): Whether the "system" role is mapped to "developer". Defaults to True.
 
         Returns:
             Dict[str, Any]: The formatted message.
         """
-        # New OpenAI format
-        if map_system_to_developer and message.role == "system":
-            message.role = "developer"
-
         if message.role == "user":
             if message.images is not None:
                 message = self.add_images_to_message(message=message, images=message.images)
@@ -402,7 +401,7 @@ class OpenAIChat(Model):
         Returns:
             Optional[ModelResponse]: The model response after handling tool calls.
         """
-        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
+        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
             if model_response.content is None:
                 model_response.content = ""
             function_call_results: List[Message] = []
@@ -779,7 +778,7 @@ class OpenAIChat(Model):
         Returns:
             Iterator[ModelResponse]: An iterator of the model response.
         """
-        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
+        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
             function_calls_to_run: List[FunctionCall] = []
             function_call_results: List[Message] = []
             for tool_call in assistant_message.tool_calls:
@@ -899,7 +898,7 @@ class OpenAIChat(Model):
         metrics.log()
 
         # -*- Handle tool calls
-        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
+        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
             tool_role = "tool"
             yield from self.handle_stream_tool_calls(
                 assistant_message=assistant_message, messages=messages, tool_role=tool_role
@@ -986,7 +985,7 @@ class OpenAIChat(Model):
         metrics.log()
 
         # -*- Handle tool calls
-        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
+        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
             tool_role = "tool"
             for tool_call_response in self.handle_stream_tool_calls(
                 assistant_message=assistant_message, messages=messages, tool_role=tool_role

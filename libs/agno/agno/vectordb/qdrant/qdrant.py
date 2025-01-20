@@ -222,7 +222,7 @@ class Qdrant(VectorDb):
                     meta_data=result.payload["meta_data"],
                     content=result.payload["content"],
                     embedder=self.embedder,
-                    embedding=result.vector,
+                    embedding=result.vector,  # type: ignore
                     usage=result.payload["usage"],
                 )
             )

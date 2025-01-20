@@ -140,7 +140,7 @@ class Together(OpenAILike):
         metrics.log()
 
         # -*- Parse and run tool calls
-        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
+        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
             tool_role: str = "tool"
             function_calls_to_run: List[FunctionCall] = []
             function_call_results: List[Message] = []

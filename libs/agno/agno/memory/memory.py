@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional
+from typing import Optional
 
 from pydantic import BaseModel
 
@@ -10,6 +10,3 @@ class Memory(BaseModel):
     id: Optional[str] = None
     topic: Optional[str] = None
     input: Optional[str] = None
-
-    def to_dict(self) -> Dict[str, Any]:
-        return self.model_dump(exclude_none=True)

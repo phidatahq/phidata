@@ -155,7 +155,7 @@ class OllamaTools(Ollama):
         Returns:
             Optional[ModelResponse]: The model response.
         """
-        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
+        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
             model_response.content = str(remove_tool_calls_from_string(assistant_message.get_content_string()))
             model_response.content += "\n\n"
             function_calls_to_run = self._get_function_calls_to_run(assistant_message, messages)
@@ -303,7 +303,7 @@ class OllamaTools(Ollama):
         metrics.log()
 
         # -*- Handle tool calls
-        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
+        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
             yield from self.handle_stream_tool_calls(assistant_message, messages)
             yield from self.handle_post_tool_call_messages_stream(messages=messages)
         logger.debug("---------- Ollama Response End ----------")

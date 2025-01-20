@@ -368,7 +368,7 @@ class Cohere(Model):
             assistant_message.tool_calls = tool_calls
 
         # Handle tool calls if present and tool running is enabled
-        if assistant_message.tool_calls and self.run_tools:
+        if assistant_message.tool_calls:
             tool_results = self._handle_tool_calls(
                 assistant_message=assistant_message,
                 messages=messages,
@@ -530,7 +530,7 @@ class Cohere(Model):
         logger.debug(f"Assistant Message: {assistant_message}")
 
         # -*- Parse and run function call
-        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
+        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
             tool_role: str = "tool"
             function_calls_to_run: List[FunctionCall] = []
             function_call_results: List[Message] = []

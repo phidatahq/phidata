@@ -1,47 +1,12 @@
-from typing import Any, Callable, Dict, List, Optional, Type, TypeVar, Union, get_type_hints
+from typing import Any, Callable, Dict, Optional, Type, TypeVar, get_type_hints
 
 from docstring_parser import parse
 from pydantic import BaseModel, Field, validate_call
 
-from agno.models.message import Message
+from agno.exceptions import AgentRunException
 from agno.utils.log import logger
 
 T = TypeVar("T")
-
-
-class ToolCallException(Exception):
-    def __init__(
-        self,
-        exc,
-        user_message: Optional[Union[str, Message]] = None,
-        agent_message: Optional[Union[str, Message]] = None,
-        messages: Optional[List[Union[dict, Message]]] = None,
-        stop_execution: bool = False,
-    ):
-        super().__init__(exc)
-        self.user_message = user_message
-        self.agent_message = agent_message
-        self.messages = messages
-        self.stop_execution = stop_execution
-
-
-class RetryAgentRun(ToolCallException):
-    """Exception raised when a tool call should be retried."""
-
-
-class StopAgentRun(ToolCallException):
-    """Exception raised when an agent should stop executing entirely."""
-
-    def __init__(
-        self,
-        exc,
-        user_message: Optional[Union[str, Message]] = None,
-        agent_message: Optional[Union[str, Message]] = None,
-        messages: Optional[List[Union[dict, Message]]] = None,
-    ):
-        super().__init__(
-            exc, user_message=user_message, agent_message=agent_message, messages=messages, stop_execution=True
-        )
 
 
 def get_entrypoint_docstring(entrypoint: Callable) -> str:
@@ -330,7 +295,7 @@ class FunctionCall(BaseModel):
                 if "fc" in signature(self.function.pre_hook).parameters:
                     pre_hook_args["fc"] = self
                 self.function.pre_hook(**pre_hook_args)
-            except ToolCallException as e:
+            except AgentRunException as e:
                 logger.debug(f"{e.__class__.__name__}: {e}")
                 self.error = str(e)
                 raise
@@ -351,7 +316,7 @@ class FunctionCall(BaseModel):
 
                 self.result = self.function.entrypoint(**entrypoint_args)
                 function_call_success = True
-            except ToolCallException as e:
+            except AgentRunException as e:
                 logger.debug(f"{e.__class__.__name__}: {e}")
                 self.error = str(e)
                 raise
@@ -372,7 +337,7 @@ class FunctionCall(BaseModel):
 
                 self.result = self.function.entrypoint(**entrypoint_args, **self.arguments)
                 function_call_success = True
-            except ToolCallException as e:
+            except AgentRunException as e:
                 logger.debug(f"{e.__class__.__name__}: {e}")
                 self.error = str(e)
                 raise
@@ -393,7 +358,7 @@ class FunctionCall(BaseModel):
                 if "fc" in signature(self.function.post_hook).parameters:
                     post_hook_args["fc"] = self
                 self.function.post_hook(**post_hook_args)
-            except ToolCallException as e:
+            except AgentRunException as e:
                 logger.debug(f"{e.__class__.__name__}: {e}")
                 self.error = str(e)
                 raise

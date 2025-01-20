@@ -20,7 +20,8 @@ from typing import Iterator
 
 import httpx
 from agno.agent import Agent
-from agno.tools import FunctionCall, RetryAgentRun, StopAgentRun, tool  # noqa
+from agno.exceptions import StopAgentRun
+from agno.tools import FunctionCall, tool
 from rich.console import Console
 from rich.pretty import pprint
 from rich.prompt import Prompt

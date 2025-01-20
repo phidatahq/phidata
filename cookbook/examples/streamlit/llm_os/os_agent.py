@@ -40,9 +40,9 @@ def get_llm_os(
     file_tools: bool = False,
     shell_tools: bool = False,
     data_analyst: bool = False,
-    python_agent: bool = False,
-    research_agent: bool = False,
-    investment_agent: bool = False,
+    python_agent_enable: bool = False,
+    research_agent_enable: bool = False,
+    investment_agent_enable: bool = False,
     user_id: Optional[str] = None,
     run_id: Optional[str] = None,
     debug_mode: bool = True,
@@ -76,7 +76,7 @@ def get_llm_os(
     team: List[Agent] = []
 
     if data_analyst:
-        data_analyst_agent = DuckDbAgent(
+        data_analyst_agent: Agent = DuckDbAgent(
             name="Data Analyst",
             role="Analyze movie data and provide insights",
             semantic_model=json.dumps(
@@ -97,8 +97,8 @@ def get_llm_os(
             "To answer questions about my favorite movies, delegate the task to the `Data Analyst`."
         )
 
-    if python_agent:
-        python_agent = PythonAgent(
+    if python_agent_enable:
+        python_agent: Agent = PythonAgent(
             name="Python Agent",
             role="Write and run Python code",
             pip_install=True,
@@ -108,7 +108,7 @@ def get_llm_os(
         team.append(python_agent)
         extra_instructions.append("To write and run Python code, delegate the task to the `Python Agent`.")
 
-    if research_agent:
+    if research_agent_enable:
         research_agent = Agent(
             name="Research Agent",
             role="Write a research report on a given topic",
@@ -157,7 +157,7 @@ def get_llm_os(
             "Return the report in the <report_format> to the user as is, without any additional text like 'here is the report'."
         )
 
-    if investment_agent:
+    if investment_agent_enable:
         investment_agent = Agent(
             name="Investment Agent",
             role="Write an investment report on a given company (stock) symbol",

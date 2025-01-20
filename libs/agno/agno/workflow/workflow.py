@@ -419,16 +419,10 @@ class Workflow:
             # Update the current extra_data with the extra_data from the database which is updated in place
             self.extra_data = session.extra_data
 
-        # Read memory from the database
-        if self.memory is None:
-            self.memory = session.memory # type: ignore
-        
-        if not isinstance(self.memory, WorkflowMemory):
-            if isinstance(self.memory, dict):
-                self.memory =WorkflowMemory(**self.memory)
-            else:
-                raise TypeError(f"Expected memory to be a dict or WorkflowMemory, but got {type(self.memory)}")
         if session.memory is not None:
+            if self.memory is None:
+                self.memory = WorkflowMemory()
+
             try:
                 if "runs" in session.memory:
                     try:

@@ -433,7 +433,6 @@ class Workflow:
             try:
                 if "runs" in session.memory:
                     try:
-                        # self.memory["runs"] = [WorkflowRun(**m) for m in session.memory["runs"]]
                         self.memory.runs = [WorkflowRun(**m) for m in session.memory["runs"]]	
                     except Exception as e:
                         logger.warning(f"Failed to load runs from memory: {e}")

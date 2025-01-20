@@ -7,7 +7,7 @@ try:
     import clickhouse_connect
     import clickhouse_connect.driver.client
 except ImportError:
-    raise ImportError("`clickhouse-connect` not installed. Use `pip install 'clickhouse-connect'` to install it")
+    raise ImportError("`clickhouse-connect` not installed. Use `pip install clickhouse-connect` to install it")
 
 from agno.document import Document
 from agno.embedder import Embedder

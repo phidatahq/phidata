@@ -1,6 +1,6 @@
 [project]
 name = "phidata"
-version = "2.7.7"
+version = "2.7.8"
 description = "Build multi-modal Agents with memory, knowledge and tools."
 requires-python = ">=3.7,<4"
 readme = "README.md"
@@ -185,6 +185,7 @@ module = [
   "textract.*",
   "timeout_decorator.*",
   "torch.*",
+  "tzlocal.*",
   "uvicorn.*",
   "vertexai.*",
   "voyageai.*",

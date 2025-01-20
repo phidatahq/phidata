@@ -3193,7 +3193,7 @@ class Agent:
                 # First render the message panel if the message is not None
                 if message and show_message:
                     # Convert message to a panel
-                    message_content = get_text_from_message(self.format_message_with_state_variables(message))
+                    message_content = get_text_from_message(message)
                     message_panel = self.create_panel(
                         content=Text(message_content, style="green"),
                         title="Message",

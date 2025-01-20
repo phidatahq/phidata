@@ -214,42 +214,31 @@ class Groq(Model):
         Returns:
             Dict[str, Any]: The dictionary representation of the model.
         """
-        model_dict = super().to_dict()
-        if self.frequency_penalty:
-            model_dict["frequency_penalty"] = self.frequency_penalty
-        if self.logit_bias:
-            model_dict["logit_bias"] = self.logit_bias
-        if self.logprobs:
-            model_dict["logprobs"] = self.logprobs
-        if self.max_tokens:
-            model_dict["max_tokens"] = self.max_tokens
-        if self.presence_penalty:
-            model_dict["presence_penalty"] = self.presence_penalty
-        if self.response_format:
-            model_dict["response_format"] = self.response_format
-        if self.seed:
-            model_dict["seed"] = self.seed
-        if self.stop:
-            model_dict["stop"] = self.stop
-        if self.temperature:
-            model_dict["temperature"] = self.temperature
-        if self.top_logprobs:
-            model_dict["top_logprobs"] = self.top_logprobs
-        if self.top_p:
-            model_dict["top_p"] = self.top_p
-        if self.user:
-            model_dict["user"] = self.user
-        if self.extra_headers:
-            model_dict["extra_headers"] = self.extra_headers
-        if self.extra_query:
-            model_dict["extra_query"] = self.extra_query
-        if self.tools:
-            model_dict["tools"] = self.tools
-            if self.tool_choice is None:
-                model_dict["tool_choice"] = "auto"
-            else:
-                model_dict["tool_choice"] = self.tool_choice
-        return model_dict
+        _dict = super().to_dict()
+        _dict.update(
+            {
+                "frequency_penalty": self.frequency_penalty,
+                "logit_bias": self.logit_bias,
+                "logprobs": self.logprobs,
+                "max_tokens": self.max_tokens,
+                "presence_penalty": self.presence_penalty,
+                "response_format": self.response_format,
+                "seed": self.seed,
+                "stop": self.stop,
+                "temperature": self.temperature,
+                "top_logprobs": self.top_logprobs,
+                "top_p": self.top_p,
+                "user": self.user,
+                "extra_headers": self.extra_headers,
+                "extra_query": self.extra_query,
+                "tools": self.tools,
+                "tool_choice": self.tool_choice
+                if (self.tools is not None and self.tool_choice is not None)
+                else "auto",
+            }
+        )
+        cleaned_dict = {k: v for k, v in _dict.items() if v is not None}
+        return cleaned_dict
 
     def format_message(self, message: Message) -> Dict[str, Any]:
         """
@@ -264,6 +253,7 @@ class Groq(Model):
         if message.role == "user":
             if message.images is not None:
                 message = self.add_images_to_message(message=message, images=message.images)
+            # TODO: Add audio support
             # if message.audio is not None:
             #     message = self.add_audio_to_message(message=message, audio=message.audio)
 
@@ -862,31 +852,4 @@ class Groq(Model):
         Returns:
             List[Dict[str, Any]]: The built tool calls.
         """
-        tool_calls: List[Dict[str, Any]] = []
-        for _tool_call in tool_calls_data:
-            _index = _tool_call.index
-            _tool_call_id = _tool_call.id
-            _tool_call_type = _tool_call.type
-            _function_name = _tool_call.function.name if _tool_call.function else None
-            _function_arguments = _tool_call.function.arguments if _tool_call.function else None
-
-            if len(tool_calls) <= _index:
-                tool_calls.extend([{}] * (_index - len(tool_calls) + 1))
-            tool_call_entry = tool_calls[_index]
-            if not tool_call_entry:
-                tool_call_entry["id"] = _tool_call_id
-                tool_call_entry["type"] = _tool_call_type
-                tool_call_entry["function"] = {
-                    "name": _function_name or "",
-                    "arguments": _function_arguments or "",
-                }
-            else:
-                if _function_name:
-                    tool_call_entry["function"]["name"] += _function_name
-                if _function_arguments:
-                    tool_call_entry["function"]["arguments"] += _function_arguments
-                if _tool_call_id:
-                    tool_call_entry["id"] = _tool_call_id
-                if _tool_call_type:
-                    tool_call_entry["type"] = _tool_call_type
-        return tool_calls
+        return self._build_tool_calls(tool_calls_data)

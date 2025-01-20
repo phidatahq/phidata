@@ -152,7 +152,7 @@ class Claude(Model):
                             content.append(image_content)
 
                 # Handle tool calls in history
-                if message.role == "assistant" and message.tool_calls:
+                if message.role == "assistant" and isinstance(message.content, str) and message.tool_calls:
                     content = [TextBlock(text=message.content, type="text")]
                     for tool_call in message.tool_calls:
                         content.append(
@@ -419,8 +419,6 @@ class Claude(Model):
         # -*- Update assistant message if tool calls are present
         if len(message_data.tool_calls) > 0:
             assistant_message.tool_calls = message_data.tool_calls
-
-            # assistant_message.content = message_data.response_block
 
         # -*- Update usage metrics
         self.update_usage_metrics(assistant_message, message_data.response_usage, metrics)

@@ -15,6 +15,3 @@ agent = Agent(
 )
 agent.print_response("How many people live in Canada?")
 agent.print_response("What is their national anthem called?")
-
-for message in agent.memory.messages:
-    print(message)

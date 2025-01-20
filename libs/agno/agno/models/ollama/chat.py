@@ -385,7 +385,6 @@ class Ollama(Model):
         except Exception as e:
             logger.warning(f"Error parsing structured outputs: {e}")
 
-
     def response(self, messages: List[Message]) -> ModelResponse:
         """
         Generate a response from Ollama.

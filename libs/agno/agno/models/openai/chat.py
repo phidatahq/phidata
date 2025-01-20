@@ -95,7 +95,6 @@ class OpenAIChat(Model):
     # The role to map the system message to.
     system_message_role: str = "developer"
 
-
     def _get_client_params(self) -> Dict[str, Any]:
         client_params: Dict[str, Any] = {}
 
@@ -202,7 +201,6 @@ class OpenAIChat(Model):
         request_params = {k: v for k, v in request_params.items() if v is not None}
         return request_params
 
-
     def to_dict(self) -> Dict[str, Any]:
         """
         Convert the model to a dictionary.
@@ -223,7 +221,9 @@ class OpenAIChat(Model):
                 "modalities": self.modalities,
                 "audio": self.audio,
                 "presence_penalty": self.presence_penalty,
-                "response_format": self.response_format if isinstance(self.response_format, dict) else str(self.response_format),
+                "response_format": self.response_format
+                if isinstance(self.response_format, dict)
+                else str(self.response_format),
                 "seed": self.seed,
                 "stop": self.stop,
                 "temperature": self.temperature,

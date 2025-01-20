@@ -1,6 +1,6 @@
 import hashlib
 import json
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
 
 
 def hash_string_sha256(input_string):

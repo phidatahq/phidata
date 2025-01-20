@@ -186,11 +186,15 @@ class OpenAIChat(Model):
                 "top_p": self.top_p,
                 "extra_headers": self.extra_headers,
                 "extra_query": self.extra_query,
-                "tool_choice": self.tool_choice
-                if (self.tools is not None and self.tool_choice is not None)
-                else "auto",
             }
         )
+        if self.tools is not None:
+            request_params["tools"] = self.tools
+            if self.tool_choice is None:
+                request_params["tool_choice"] = "auto"
+            else:
+                request_params["tool_choice"] = self.tool_choice
+
         if self.request_params is not None:
             request_params.update(self.client_params)
 
@@ -227,12 +231,14 @@ class OpenAIChat(Model):
                 "user": self.user,
                 "extra_headers": self.extra_headers,
                 "extra_query": self.extra_query,
-                "tools": self.tools,
-                "tool_choice": self.tool_choice
-                if (self.tools is not None and self.tool_choice is not None)
-                else "auto",
             }
         )
+        if self.tools is not None:
+            _dict["tools"] = self.tools
+            if self.tool_choice is None:
+                _dict["tool_choice"] = "auto"
+            else:
+                _dict["tool_choice"] = self.tool_choice
         cleaned_dict = {k: v for k, v in _dict.items() if v is not None}
         return cleaned_dict
 

@@ -762,6 +762,10 @@ class Agent:
             try:
                 # If a response_model is set, return the response as a structured output
                 if self.response_model is not None and self.parse_response:
+                    # Set show_tool_calls=False if we have response_model
+                    self.show_tool_calls = False
+                    logger.debug("Setting show_tool_calls=False as response_model is set")
+
                     # Set stream=False and run the agent
                     logger.debug("Setting stream=False as response_model is set")
                     self.stream = False
@@ -1140,6 +1144,10 @@ class Agent:
             try:
                 # If a response_model is set, return the response as a structured output
                 if self.response_model is not None and self.parse_response:
+                    # Set show_tool_calls=False if we have response_model
+                    self.show_tool_calls = False
+                    logger.debug("Setting show_tool_calls=False as response_model is set")
+
                     # Set stream=False and run the agent
                     logger.debug("Setting stream=False as response_model is set")
                     run_response = await self._arun(
@@ -1187,6 +1195,8 @@ class Agent:
                                 if self.run_response is not None:
                                     self.run_response.content = structured_output
                                     self.run_response.content_type = self.response_model.__name__
+                            else:
+                                logger.warning("Failed to convert response to response_model")
                         except Exception as e:
                             logger.warning(f"Failed to convert response to output model: {e}")
                     else:
@@ -3107,6 +3117,7 @@ class Agent:
                             _response_content += resp.content
                         if resp.extra_data is not None and resp.extra_data.reasoning_steps is not None:
                             reasoning_steps = resp.extra_data.reasoning_steps
+
                     response_content_stream = Markdown(_response_content) if self.markdown else _response_content
 
                     panels = [status]

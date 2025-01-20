@@ -154,7 +154,7 @@ no_implicit_optional = true
 warn_unused_configs = true
 disable_error_code = ["override"]
 plugins = ["pydantic.mypy"]
-exclude = ["scratch*", "wip*", "tmp*"]
+exclude = ["scratch*", "wip*", "tmp*", "tests*"]
 
 [[tool.mypy.overrides]]
 module = [

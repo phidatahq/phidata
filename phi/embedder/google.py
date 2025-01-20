@@ -1,3 +1,4 @@
+from os import getenv
 from types import ModuleType
 from typing import Optional, Dict, List, Tuple, Any, Union
 
@@ -13,10 +14,10 @@ except ImportError:
 
 
 class GeminiEmbedder(Embedder):
-    model: str = "models/embedding-001"
+    model: str = "models/text-embedding-004"
     task_type: str = "RETRIEVAL_QUERY"
     title: Optional[str] = None
-    dimensions: Optional[int] = None
+    dimensions: Optional[int] = 768
     api_key: Optional[str] = None
     request_params: Optional[Dict[str, Any]] = None
     client_params: Optional[Dict[str, Any]] = None
@@ -27,6 +28,11 @@ class GeminiEmbedder(Embedder):
         if self.gemini_client:
             return self.gemini_client
         _client_params: Dict[str, Any] = {}
+
+        self.api_key = self.api_key or getenv("GOOGLE_API_KEY")
+        if not self.api_key:
+            logger.error("GOOGLE_API_KEY not set. Please set the GOOGLE_API_KEY environment variable.")
+
         if self.api_key:
             _client_params["api_key"] = self.api_key
         if self.client_params:

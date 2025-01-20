@@ -102,7 +102,7 @@ class Model(ABC):
     tool_choice: Optional[Union[str, Dict[str, Any]]] = None
 
     # If True, shows function calls in the response.  Is not compatible with response_model
-    show_tool_calls: Optional[bool] = False
+    show_tool_calls: Optional[bool] = None
 
     # Maximum number of tool calls allowed.
     tool_call_limit: Optional[int] = None

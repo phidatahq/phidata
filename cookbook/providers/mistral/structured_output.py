@@ -5,6 +5,7 @@ from rich.pretty import pprint  # noqa
 from pydantic import BaseModel, Field
 from phi.agent import Agent, RunResponse  # noqa
 from phi.model.mistral import MistralChat
+from phi.tools.duckduckgo import DuckDuckGo
 
 mistral_api_key = os.getenv("MISTRAL_API_KEY")
 
@@ -25,13 +26,15 @@ json_mode_agent = Agent(
         id="mistral-large-latest",
         api_key=mistral_api_key,
     ),
+    tools=[DuckDuckGo()],
     description="You help people write movie scripts.",
     response_model=MovieScript,
-    # debug_mode=True,
+    show_tool_calls=True,
+    debug_mode=True,
 )
 
 # Get the response in a variable
 # json_mode_response: RunResponse = json_mode_agent.run("New York")
 # pprint(json_mode_response.content)
 
-json_mode_agent.print_response("New York")
+json_mode_agent.print_response("Find a cool movie idea about London and write it.")

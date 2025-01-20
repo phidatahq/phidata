@@ -12,7 +12,6 @@ from agno.models.response import FileType
 from agno.playground import Playground, serve_playground_app
 from agno.storage.agent.sqlite import SqliteAgentStorage
 from agno.tools.dalle import DalleTools
-from agno.tools.desi_vocal_tools import DesiVocalTools
 from agno.tools.eleven_labs_tools import ElevenLabsTools
 from agno.tools.fal_tools import FalTools
 from agno.tools.giphy import GiphyTools
@@ -162,30 +161,6 @@ image_to_image_agent = Agent(
     ),
 )
 
-hindi_audio_agent = Agent(
-    name="Hindi Audio Generator Agent",
-    agent_id="hindi_audio_agent",
-    model=OpenAIChat(id="gpt-4o"),
-    tools=[DesiVocalTools()],
-    description="You are an AI agent that can generate audio using the DesiVocal API.",
-    instructions=[
-        "When the user asks you to generate audio, use the `text_to_speech` tool to generate the audio."
-        "Send the prompt in hindi language.",
-        "You'll generate the appropriate prompt to send to the tool to generate audio.",
-        "You don't need to find the appropriate voice first, I already specified the voice to user."
-        "Don't return file name or file url in your response or markdown just tell the audio was created successfully.",
-        "The audio should be short.",
-    ],
-    markdown=True,
-    debug_mode=True,
-    add_history_to_messages=True,
-    add_datetime_to_instructions=True,
-    storage=SqliteAgentStorage(
-        table_name="hindi_audio_agent", db_file=image_agent_storage_file
-    ),
-)
-
-
 app = Playground(
     agents=[
         image_agent,
@@ -194,7 +169,6 @@ app = Playground(
         fal_agent,
         gif_agent,
         audio_agent,
-        hindi_audio_agent,
         image_to_image_agent,
     ]
 ).get_app(use_async=False)

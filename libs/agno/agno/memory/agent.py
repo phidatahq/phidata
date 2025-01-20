@@ -82,11 +82,11 @@ class AgentMemory(BaseModel):
             },
         )
         # Add summary if it exists
-        if self.summary:
-            _memory_dict["summary"] = self.summary.model_dump()
+        if self.summary is not None:
+            _memory_dict["summary"] = self.summary.to_dict()
         # Add memories if they exist
-        if self.memories:
-            _memory_dict["memories"] = [memory.model_dump() for memory in self.memories]
+        if self.memories is not None:
+            _memory_dict["memories"] = [memory.to_dict() for memory in self.memories]
         return _memory_dict
 
     def add_run(self, agent_run: AgentRun) -> None:

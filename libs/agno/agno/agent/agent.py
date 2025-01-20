@@ -2138,8 +2138,8 @@ class Agent:
 
         # TODO (WCDJ): We need to revisit agent sessions as a whole and determine where data needs to be excluded
         # when new runs are created.
-        excluded_fields = ["agent_session"]
-
+        excluded_fields = ["agent_session", "session_name", "memory"]
+        print(self)
         # Extract the fields to set for the new Agent
         fields_for_new_agent: Dict[str, Any] = {}
 

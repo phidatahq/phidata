@@ -1,7 +1,7 @@
 import json
 from os import getenv
 from dataclasses import dataclass, field
-from typing import Optional, List, Iterator, Dict, Any, Union, Tuple, Literal
+from typing import Optional, List, Iterator, Dict, Any, Union, Tuple
 
 from phi.model.base import Model
 from phi.model.message import Message
@@ -153,12 +153,15 @@ class Claude(Model):
 
                 # Handle tool calls in history
                 if message.role == "assistant" and message.tool_calls:
-                    content = [
-                        TextBlock(text=message.content, type='text')
-                    ]
+                    content = [TextBlock(text=message.content, type="text")]
                     for tool_call in message.tool_calls:
                         content.append(
-                            ToolUseBlock(id=tool_call["id"], input=json.loads(tool_call["function"]["arguments"]), name=tool_call["function"]["name"], type="tool_use")
+                            ToolUseBlock(
+                                id=tool_call["id"],
+                                input=json.loads(tool_call["function"]["arguments"]),
+                                name=tool_call["function"]["name"],
+                                type="tool_use",
+                            )
                         )
 
                 chat_messages.append({"role": message.role, "content": content})  # type: ignore

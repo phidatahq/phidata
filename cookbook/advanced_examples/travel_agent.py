@@ -3,7 +3,7 @@ from agno.models.openai import OpenAIChat
 from agno.tools.exa import ExaTools
 
 itinerary_agent = Agent(
-    name="GlobeHopper",
+    name="Globe Hopper",
     model=OpenAIChat(id="gpt-4o"),
     tools=[ExaTools()],
     markdown=True,

@@ -1434,7 +1434,6 @@ class Agent:
         from agno.memory.memory import Memory
         from agno.memory.summary import SessionSummary
         from agno.utils.merge_dict import merge_dictionaries
-        
         # Get the agent_id, user_id and session_id from the database
         if self.agent_id is None and session.agent_id is not None:
             self.agent_id = session.agent_id
@@ -2149,7 +2148,6 @@ class Agent:
         # TODO (WCDJ): We need to revisit agent sessions as a whole and determine where data needs to be excluded
         # when new runs are created.
         excluded_fields = ["agent_session", "session_name", "memory"]
-        print(self)
         # Extract the fields to set for the new Agent
         fields_for_new_agent: Dict[str, Any] = {}
 

@@ -138,6 +138,7 @@ def get_async_playground_router(
             logger.debug("Creating new session")
 
         # Create a new instance of this agent
+        
         new_agent_instance = agent.deep_copy(update={"session_id": session_id})
         if user_id is not None:
             new_agent_instance.user_id = user_id
@@ -205,6 +206,7 @@ def get_async_playground_router(
                     images=[base64_image] if base64_image else None,
                     stream=False,
                 ),
+
             )
             return run_response
 
@@ -326,6 +328,7 @@ def get_async_playground_router(
         # Create a new instance of this workflow
         new_workflow_instance = workflow.deep_copy(update={"workflow_id": workflow_id, "session_id": body.session_id})
         new_workflow_instance.user_id = body.user_id
+        new_workflow_instance.session_name = None
 
         # Return based on the response type
         try:
@@ -361,7 +364,6 @@ def get_async_playground_router(
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Error retrieving sessions: {str(e)}")
 
-        print(all_workflow_sessions)
         # Return the sessions
         return [
             WorkflowSessionResponse(
@@ -401,7 +403,6 @@ def get_async_playground_router(
         workflow = get_workflow_by_id(workflow_id, workflows)
         if workflow is None:
             raise HTTPException(status_code=404, detail="Workflow not found")
-
         workflow.session_id = session_id
         workflow.rename_session(body.name)
         return JSONResponse(content={"message": f"successfully renamed workflow {workflow.name}"})

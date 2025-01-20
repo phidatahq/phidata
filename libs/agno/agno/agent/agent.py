@@ -18,9 +18,10 @@ from typing import (
     Union,
     cast,
     overload,
-    TYPE_CHECKING,
 )
 from uuid import uuid4
+
+from pydantic import BaseModel
 
 from agno.exceptions import AgentRunException, StopAgentRun
 from agno.knowledge.agent import AgentKnowledge
@@ -40,9 +41,6 @@ from agno.utils.log import logger, set_log_level_to_debug, set_log_level_to_info
 from agno.utils.message import get_text_from_message
 from agno.utils.safe_formatter import SafeFormatter
 from agno.utils.timer import Timer
-
-if TYPE_CHECKING:
-    from pydantic import BaseModel
 
 
 @dataclass(init=False, slots=True)
@@ -187,7 +185,7 @@ class Agent:
     # Exponential backoff: if True, the delay between retries is doubled each time
     exponential_backoff: bool = False
     # Provide a response model to get the response as a Pydantic model
-    response_model: Optional[Type["BaseModel"]] = None
+    response_model: Optional[Type[BaseModel]] = None
     # If True, the response from the Model is converted into the response_model
     # Otherwise, the response is returned as a JSON string
     parse_response: bool = True
@@ -297,7 +295,7 @@ class Agent:
         retries: int = 0,
         delay_between_retries: int = 1,
         exponential_backoff: bool = False,
-        response_model: Optional[Type["BaseModel"]] = None,
+        response_model: Optional[Type[BaseModel]] = None,
         parse_response: bool = True,
         structured_outputs: bool = False,
         save_response_to_file: Optional[str] = None,
@@ -1625,8 +1623,6 @@ class Agent:
         """
         import json
 
-        from pydantic import BaseModel
-
         json_output_prompt = "Provide your output as a JSON containing the following fields:"
         if self.response_model is not None:
             if isinstance(self.response_model, str):
@@ -2152,8 +2148,6 @@ class Agent:
         """Helper method to deep copy a field based on its type."""
         from copy import copy, deepcopy
 
-        from pydantic import BaseModel
-
         # For memory and model, use their deep_copy methods
         if field_name == "memory":
             return field_value.deep_copy()
@@ -2230,8 +2224,6 @@ class Agent:
                 for member_agent_run_response_chunk in member_agent_run_response_stream:
                     yield member_agent_run_response_chunk.content  # type: ignore
             else:
-                from pydantic import BaseModel
-
                 member_agent_run_response: RunResponse = member_agent.run(member_agent_task, stream=False)
                 if member_agent_run_response.content is None:
                     yield "No response from the member agent."
@@ -3066,7 +3058,6 @@ class Agent:
     ) -> None:
         import json
 
-        from pydantic import BaseModel
         from rich.console import Group
         from rich.json import JSON
         from rich.live import Live
@@ -3301,7 +3292,6 @@ class Agent:
     ) -> None:
         import json
 
-        from pydantic import BaseModel
         from rich.console import Group
         from rich.json import JSON
         from rich.live import Live

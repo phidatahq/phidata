@@ -58,6 +58,11 @@ class Function(BaseModel):
     # Hook that runs after the function is executed, regardless of success/failure.
     # If defined, can accept the FunctionCall instance as a parameter.
     post_hook: Optional[Callable] = None
+    # If True, the function call requires approval before it is run.
+    requires_approval: bool = False
+    # If True, the function call has been approved to run.
+    # This is only required if requires_approval is True.
+    approved: bool = False
 
     # --*-- FOR INTERNAL USE ONLY --*--
     # The agent that the function is associated with

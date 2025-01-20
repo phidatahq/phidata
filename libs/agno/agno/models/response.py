@@ -4,6 +4,7 @@ from time import time
 from typing import Any, Dict, Optional
 
 from agno.media import AudioOutput
+from agno.tools.function import FunctionCall
 
 
 class ModelResponseEvent(str, Enum):
@@ -12,6 +13,7 @@ class ModelResponseEvent(str, Enum):
     tool_call_started = "ToolCallStarted"
     tool_call_completed = "ToolCallCompleted"
     assistant_response = "AssistantResponse"
+    requires_approval = "RequiresApproval"
 
 
 @dataclass
@@ -22,6 +24,7 @@ class ModelResponse:
     parsed: Optional[Any] = None
     audio: Optional[AudioOutput] = None
     tool_call: Optional[Dict[str, Any]] = None
+    function_call: Optional[FunctionCall] = None
     event: str = ModelResponseEvent.assistant_response.value
     created_at: int = int(time())
 

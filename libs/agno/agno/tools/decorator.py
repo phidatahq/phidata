@@ -43,6 +43,8 @@ def tool(*args, **kwargs) -> Union[Function, Callable[[F], Function]]:
         stop_after_call: Optional[bool] - If True, the agent will stop after the function call.
         pre_hook: Optional[Callable] - Hook that runs before the function is executed.
         post_hook: Optional[Callable] - Hook that runs after the function is executed.
+        requires_approval: Optional[bool] - If True, the function call requires approval before it is executed.
+        approved: Optional[bool] - If True, the function call has been approved to run.
 
     Returns:
         Union[Function, Callable[[F], Function]]: Decorated function or decorator
@@ -67,6 +69,8 @@ def tool(*args, **kwargs) -> Union[Function, Callable[[F], Function]]:
             "stop_after_call",
             "pre_hook",
             "post_hook",
+            "requires_approval",
+            "approved",
         }
     )
 

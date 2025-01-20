@@ -191,6 +191,14 @@ class Model:
             if self.function_call_stack is None:
                 self.function_call_stack = []
 
+            # If the function call requires approval, yield a requires_approval event
+            if function_call.function.requires_approval and not function_call.function.approved:
+                yield ModelResponse(
+                    event=ModelResponseEvent.requires_approval.value,
+                    function_call=function_call,
+                )
+                continue
+
             # -*- Start function call
             function_call_timer = Timer()
             function_call_timer.start()

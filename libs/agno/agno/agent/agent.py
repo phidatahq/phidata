@@ -43,6 +43,17 @@ from agno.utils.safe_formatter import SafeFormatter
 from agno.utils.timer import Timer
 
 
+def approve_function_call(model_response: ModelResponse) -> bool:
+    # Ask for confirmation
+    print(f"\nAbout to run [bold blue]{model_response}[/]")
+    message = input("Do you want to continue? [Y/n] ").strip().lower()
+
+    # If the user does not want to continue, raise a StopExecution exception
+    if message in ["", "y", "yes"]:
+        return True
+    return False
+
+
 @dataclass(init=False, slots=True)
 class Agent:
     # --- Agent settings ---
@@ -559,7 +570,6 @@ class Agent:
                             content=model_response_chunk.content,
                             event=RunEvent.tool_call_started,
                         )
-
                 # If the model response is a tool_call_completed, update the existing tool call in the run_response
                 elif model_response_chunk.event == ModelResponseEvent.tool_call_completed.value:
                     # Update the existing tool call in the run_response
@@ -576,6 +586,17 @@ class Agent:
                             content=model_response_chunk.content,
                             event=RunEvent.tool_call_completed,
                         )
+                # If the model response is a requires_approval event, yield a RunResponse with the requires_approval event
+                elif model_response_chunk.event == ModelResponseEvent.requires_approval.value:
+                    function_call_approved = approve_function_call(model_response_chunk)
+                    if function_call_approved:
+                        model_response_chunk.function_call.function.approved = True
+                    else:
+                        # If not approved, stop the execution
+                        raise StopAgentRun(
+                            "Permission denied",
+                            agent_message="Stopping execution as permission was not granted.",
+                        )
         else:
             # Get the model response
             model_response = self.model.response(messages=run_messages.messages)
@@ -591,7 +612,6 @@ class Agent:
             # Update the run_response audio with the model response audio
             if model_response.audio is not None:
                 self.run_response.response_audio = model_response.audio
-
             # Update the run_response messages with the messages
             self.run_response.messages = run_messages.messages
             # Update the run_response created_at with the model response created_at
@@ -3182,7 +3202,7 @@ class Agent:
                 # First render the message panel if the message is not None
                 if message and show_message:
                     # Convert message to a panel
-                    message_content = get_text_from_message(self.format_message_with_state_variables(message))
+                    message_content = get_text_from_message(message)
                     message_panel = self.create_panel(
                         content=Text(message_content, style="green"),
                         title="Message",

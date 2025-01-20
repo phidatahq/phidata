@@ -1768,12 +1768,16 @@ class Agent:
         if self.has_team and self.add_transfer_instructions:
             system_message_lines.extend(
                 [
-                    "## You are the leader of a team of AI Agents.",
+                    "<agent_team>",
+                    "You are the leader of a team of AI Agents:",
                     "- You can either respond directly or transfer tasks to other Agents in your team depending on the tools available to them.",
-                    "- If you transfer a task to another Agent, make sure to include a clear description of the task and the expected output.",
-                    "- You must always validate the output of the other Agents before responding to the user, "
-                    "you can re-assign the task if you are not satisfied with the result.",
-                    "",
+                    "- If you transfer a task to another Agent, make sure to include:",
+                    "  - task_description (str): A clear description of the task.",
+                    "  - expected_output (str): The expected output.",
+                    "  - additional_information (str): Additional information that will help the Agent complete the task.",
+                    "- You must always validate the output of the other Agents before responding to the user.",
+                    "- You can re-assign the task if you are not satisfied with the result.",
+                    "</agent_team>\n",
                 ]
             )
         # 3.3.5 Then add instructions for the Agent
@@ -2156,7 +2160,7 @@ class Agent:
 
     def get_transfer_function(self, member_agent: Agent, index: int) -> Function:
         def _transfer_task_to_agent(
-            task_description: str, expected_output: str, additional_information: str
+            task_description: str, expected_output: str, additional_information: Optional[str] = None
         ) -> Iterator[str]:
             if member_agent.team_data is None:
                 member_agent.team_data = {}
@@ -2167,11 +2171,11 @@ class Agent:
             member_agent.team_data["leader_run_id"] = self.run_id
 
             # -*- Run the agent
-            member_agent_messages = f"{task_description}\n<expected_output>{expected_output}</expected_output>"
+            member_agent_task = f"{task_description}\n\n<expected_output>\n{expected_output}\n</expected_output>"
             try:
                 if additional_information is not None and additional_information.strip() != "":
-                    member_agent_messages += (
-                        f"\n<additional_information>{additional_information}</additional_information>"
+                    member_agent_task += (
+                        f"\n\n<additional_information>\n{additional_information}\n</additional_information>"
                     )
             except Exception as e:
                 logger.warning(f"Failed to add additional information to the member agent: {e}")
@@ -2195,11 +2199,11 @@ class Agent:
                     self.team_data["members"].append(member_agent_info)
 
             if self.stream and member_agent.is_streamable:
-                member_agent_run_response_stream = member_agent.run(member_agent_messages, stream=True)
+                member_agent_run_response_stream = member_agent.run(member_agent_task, stream=True)
                 for member_agent_run_response_chunk in member_agent_run_response_stream:
                     yield member_agent_run_response_chunk.content  # type: ignore
             else:
-                member_agent_run_response: RunResponse = member_agent.run(member_agent_messages, stream=False)
+                member_agent_run_response: RunResponse = member_agent.run(member_agent_task, stream=False)
                 if member_agent_run_response.content is None:
                     yield "No response from the member agent."
                 elif isinstance(member_agent_run_response.content, str):
@@ -2243,8 +2247,7 @@ class Agent:
 
     def get_transfer_instructions(self) -> str:
         if self.team and len(self.team) > 0:
-            transfer_instructions = "## Agents in your team:"
-            transfer_instructions += "\nYou can transfer tasks to the following agents:"
+            transfer_instructions = "You can transfer tasks to the following Agents in your team:\n"
             for agent_index, agent in enumerate(self.team):
                 transfer_instructions += f"\nAgent {agent_index + 1}:\n"
                 if agent.name:

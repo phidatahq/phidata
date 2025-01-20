@@ -4,11 +4,12 @@ from pathlib import Path
 from types import GeneratorType
 from typing import Any, Callable, Dict, Iterator, List, Optional, Sequence, Union
 
+from agno.exceptions import AgentRunException
 from agno.media import Audio, Image
 from agno.models.message import Message
 from agno.models.response import ModelResponse, ModelResponseEvent
 from agno.tools import Toolkit
-from agno.tools.function import Function, FunctionCall, ToolCallException
+from agno.tools.function import Function, FunctionCall
 from agno.utils.log import logger
 from agno.utils.timer import Timer
 
@@ -214,21 +215,21 @@ class Model:
             # -*- Run function call
             try:
                 function_call_success = function_call.execute()
-            except ToolCallException as tce:
-                if tce.user_message is not None:
-                    if isinstance(tce.user_message, str):
-                        additional_messages_from_function_call.append(Message(role="user", content=tce.user_message))
+            except AgentRunException as a_exc:
+                if a_exc.user_message is not None:
+                    if isinstance(a_exc.user_message, str):
+                        additional_messages_from_function_call.append(Message(role="user", content=a_exc.user_message))
                     else:
-                        additional_messages_from_function_call.append(tce.user_message)
-                if tce.agent_message is not None:
-                    if isinstance(tce.agent_message, str):
+                        additional_messages_from_function_call.append(a_exc.user_message)
+                if a_exc.agent_message is not None:
+                    if isinstance(a_exc.agent_message, str):
                         additional_messages_from_function_call.append(
-                            Message(role="assistant", content=tce.agent_message)
+                            Message(role="assistant", content=a_exc.agent_message)
                         )
                     else:
-                        additional_messages_from_function_call.append(tce.agent_message)
-                if tce.messages is not None and len(tce.messages) > 0:
-                    for m in tce.messages:
+                        additional_messages_from_function_call.append(a_exc.agent_message)
+                if a_exc.messages is not None and len(a_exc.messages) > 0:
+                    for m in a_exc.messages:
                         if isinstance(m, Message):
                             additional_messages_from_function_call.append(m)
                         elif isinstance(m, dict):
@@ -236,7 +237,7 @@ class Model:
                                 additional_messages_from_function_call.append(Message(**m))
                             except Exception as e:
                                 logger.warning(f"Failed to convert dict to Message: {e}")
-                if tce.stop_execution:
+                if a_exc.stop_execution:
                     stop_execution_after_tool_call = True
                     if len(additional_messages_from_function_call) > 0:
                         for m in additional_messages_from_function_call:

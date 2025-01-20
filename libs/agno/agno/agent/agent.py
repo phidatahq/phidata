@@ -1,12 +1,8 @@
 from __future__ import annotations
 
-import json
-import traceback
 from collections import ChainMap, defaultdict, deque
 from dataclasses import dataclass
-from datetime import datetime
 from os import getenv
-from pathlib import Path
 from textwrap import dedent
 from typing import (
     Any,
@@ -22,11 +18,11 @@ from typing import (
     Union,
     cast,
     overload,
+    TYPE_CHECKING,
 )
 from uuid import uuid4
 
-from pydantic import BaseModel, ValidationError
-
+from agno.exceptions import AgentRunException, StopAgentRun
 from agno.knowledge.agent import AgentKnowledge
 from agno.media import Audio, AudioArtifact, Image, ImageArtifact, Video, VideoArtifact
 from agno.memory.agent import AgentMemory, AgentRun
@@ -44,6 +40,9 @@ from agno.utils.log import logger, set_log_level_to_debug, set_log_level_to_info
 from agno.utils.message import get_text_from_message
 from agno.utils.safe_formatter import SafeFormatter
 from agno.utils.timer import Timer
+
+if TYPE_CHECKING:
+    from pydantic import BaseModel
 
 
 @dataclass(init=False, slots=True)
@@ -183,8 +182,12 @@ class Agent:
     # --- Agent Response Settings ---
     # Number of retries to attempt
     retries: int = 0
+    # Delay between retries
+    delay_between_retries: int = 1
+    # Exponential backoff: if True, the delay between retries is doubled each time
+    exponential_backoff: bool = False
     # Provide a response model to get the response as a Pydantic model
-    response_model: Optional[Type[BaseModel]] = None
+    response_model: Optional[Type["BaseModel"]] = None
     # If True, the response from the Model is converted into the response_model
     # Otherwise, the response is returned as a JSON string
     parse_response: bool = True
@@ -282,7 +285,6 @@ class Agent:
         description: Optional[str] = None,
         goal: Optional[str] = None,
         instructions: Optional[Union[str, List[str], Callable]] = None,
-        guidelines: Optional[List[str]] = None,
         expected_output: Optional[str] = None,
         additional_context: Optional[str] = None,
         markdown: bool = False,
@@ -293,7 +295,9 @@ class Agent:
         user_message_role: str = "user",
         create_default_user_message: bool = True,
         retries: int = 0,
-        response_model: Optional[Type[BaseModel]] = None,
+        delay_between_retries: int = 1,
+        exponential_backoff: bool = False,
+        response_model: Optional[Type["BaseModel"]] = None,
         parse_response: bool = True,
         structured_outputs: bool = False,
         save_response_to_file: Optional[str] = None,
@@ -372,6 +376,8 @@ class Agent:
         self.create_default_user_message = create_default_user_message
 
         self.retries = retries
+        self.delay_between_retries = delay_between_retries
+        self.exponential_backoff = exponential_backoff
         self.response_model = response_model
         self.parse_response = parse_response
         self.structured_outputs = structured_outputs
@@ -477,7 +483,6 @@ class Agent:
         10. Save session to storage
         11. Save output to file if save_response_to_file is set
         """
-
         # 1. Prepare the Agent for the run
         # 1.1 Initialize the Agent
         self.initialize_agent()
@@ -784,6 +789,8 @@ class Agent:
                     # Otherwise convert the response to the structured format
                     if isinstance(run_response.content, str):
                         try:
+                            from pydantic import ValidationError
+
                             structured_output = None
                             try:
                                 structured_output = self.response_model.model_validate_json(run_response.content)
@@ -839,15 +846,19 @@ class Agent:
                             **kwargs,
                         )
                         return next(resp)
-            except Exception as e:
-                traceback.print_exc()
-                last_exception = e
-                traceback.print_exc()
+            except AgentRunException as e:
                 logger.warning(f"Attempt {attempt + 1}/{num_attempts} failed: {str(e)}")
+                if isinstance(e, StopAgentRun):
+                    raise e
+                last_exception = e
                 if attempt < num_attempts - 1:  # Don't sleep on the last attempt
+                    if self.exponential_backoff:
+                        delay = 2**attempt * self.delay_between_retries
+                    else:
+                        delay = self.delay_between_retries
                     import time
 
-                    time.sleep(1)  # Add a small delay between retries
+                    time.sleep(delay)
 
         # If we get here, all retries failed
         raise Exception(f"Failed after {num_attempts} attempts. Last error: {str(last_exception)}")
@@ -1153,6 +1164,8 @@ class Agent:
                     # Otherwise convert the response to the structured format
                     if isinstance(run_response.content, str):
                         try:
+                            from pydantic import ValidationError
+
                             structured_output = None
                             try:
                                 structured_output = self.response_model.model_validate_json(run_response.content)
@@ -1206,13 +1219,19 @@ class Agent:
                             **kwargs,
                         )
                         return await resp.__anext__()
-            except Exception as e:
-                last_exception = e
+            except AgentRunException as e:
                 logger.warning(f"Attempt {attempt + 1}/{num_attempts} failed: {str(e)}")
+                if isinstance(e, StopAgentRun):
+                    raise e
+                last_exception = e
                 if attempt < num_attempts - 1:  # Don't sleep on the last attempt
+                    if self.exponential_backoff:
+                        delay = 2**attempt * self.delay_between_retries
+                    else:
+                        delay = self.delay_between_retries
                     import time
 
-                    time.sleep(1)  # Add a small delay between retries
+                    time.sleep(delay)
 
         # If we get here, all retries failed
         raise Exception(f"Failed after {num_attempts} attempts. Last error: {str(last_exception)}")
@@ -1604,6 +1623,10 @@ class Agent:
 
         This is added to the system prompt when the response_model is set and structured_outputs is False.
         """
+        import json
+
+        from pydantic import BaseModel
+
         json_output_prompt = "Provide your output as a JSON containing the following fields:"
         if self.response_model is not None:
             if isinstance(self.response_model, str):
@@ -1748,6 +1771,8 @@ class Agent:
             additional_information.append("Use markdown to format your answers.")
         # 3.2.3 Add the current datetime
         if self.add_datetime_to_instructions:
+            from datetime import datetime
+
             additional_information.append(f"The current time is {datetime.now()}")
         # 3.2.4 Add agent name if provided
         if self.name is not None and self.add_name_to_instructions:
@@ -2127,6 +2152,8 @@ class Agent:
         """Helper method to deep copy a field based on its type."""
         from copy import copy, deepcopy
 
+        from pydantic import BaseModel
+
         # For memory and model, use their deep_copy methods
         if field_name == "memory":
             return field_value.deep_copy()
@@ -2203,6 +2230,8 @@ class Agent:
                 for member_agent_run_response_chunk in member_agent_run_response_stream:
                     yield member_agent_run_response_chunk.content  # type: ignore
             else:
+                from pydantic import BaseModel
+
                 member_agent_run_response: RunResponse = member_agent.run(member_agent_task, stream=False)
                 if member_agent_run_response.content is None:
                     yield "No response from the member agent."
@@ -2215,6 +2244,8 @@ class Agent:
                         yield str(e)
                 else:
                     try:
+                        import json
+
                         yield json.dumps(member_agent_run_response.content, indent=2)
                     except Exception as e:
                         yield str(e)
@@ -2294,6 +2325,8 @@ class Agent:
 
             return yaml.dump(docs)
 
+        import json
+
         return json.dumps(docs, indent=2)
 
     def convert_context_to_string(self, context: Dict[str, Any]) -> str:
@@ -2309,6 +2342,8 @@ class Agent:
             return ""
 
         try:
+            import json
+
             return json.dumps(context, indent=2, default=str)
         except (TypeError, ValueError, OverflowError) as e:
             logger.warning(f"Failed to convert context to JSON: {e}")
@@ -2338,6 +2373,8 @@ class Agent:
                 else:
                     logger.warning("Did not use message in output file name: message is not a string")
             try:
+                from pathlib import Path
+
                 fn = self.save_response_to_file.format(
                     name=self.name, session_id=self.session_id, user_id=self.user_id, message=message_str
                 )
@@ -2347,6 +2384,8 @@ class Agent:
                 if isinstance(self.run_response.content, str):
                     fn_path.write_text(self.run_response.content)
                 else:
+                    import json
+
                     fn_path.write_text(json.dumps(self.run_response.content, indent=2))
             except Exception as e:
                 logger.warning(f"Failed to save output to file: {e}")
@@ -2762,6 +2801,8 @@ class Agent:
             - To get all chats, use num_chats=None.
             - To get the first chat, use num_chats=None and pick the first message.
         """
+        import json
+
         history: List[Dict[str, Any]] = []
         self.memory = cast(AgentMemory, self.memory)
         all_chats = self.memory.get_message_pairs()
@@ -2791,6 +2832,8 @@ class Agent:
             - To get the last tool call, use num_calls=1.
             - To get all tool calls, use num_calls=None.
         """
+        import json
+
         self.memory = cast(AgentMemory, self.memory)
         tool_calls = self.memory.get_tool_calls(num_calls)
         if len(tool_calls) == 0:
@@ -2840,6 +2883,8 @@ class Agent:
         Returns:
             str: A string indicating the status of the addition.
         """
+        import json
+
         from agno.document import Document
 
         if self.knowledge is None:
@@ -3019,6 +3064,9 @@ class Agent:
         console: Optional[Any] = None,
         **kwargs: Any,
     ) -> None:
+        import json
+
+        from pydantic import BaseModel
         from rich.console import Group
         from rich.json import JSON
         from rich.live import Live
@@ -3251,6 +3299,9 @@ class Agent:
         console: Optional[Any] = None,
         **kwargs: Any,
     ) -> None:
+        import json
+
+        from pydantic import BaseModel
         from rich.console import Group
         from rich.json import JSON
         from rich.live import Live

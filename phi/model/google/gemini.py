@@ -148,7 +148,13 @@ class Gemini(Model):
             message_for_model: Dict[str, Any] = {}
 
             # Add role to the message for the model
-            role = "model" if message.role == "system" else "user" if message.role == "tool" else message.role
+            role = (
+                "model"
+                if message.role in ["system", "developer"]
+                else "user"
+                if message.role == "tool"
+                else message.role
+            )
             message_for_model["role"] = role
 
             # Add content to the message for the model

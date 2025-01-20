@@ -144,7 +144,7 @@ class Gemini(Model):
                 parts = [Part.from_text(part) for part in msg.content if isinstance(part, str)]
             else:
                 parts = []
-            role = "model" if msg.role == "system" else "user" if msg.role == "tool" else msg.role
+            role = "model" if msg.role in ["system", "developer"] else "user" if msg.role == "tool" else msg.role
 
             formatted_messages.append(Content(role=role, parts=parts))
 

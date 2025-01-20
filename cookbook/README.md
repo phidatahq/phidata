@@ -2,7 +2,7 @@
 
 ## Getting Started
 
-The getting started guide walks through the basics of building Agents with Agno. Recipes build on each other, introducing new concepts and capabilities. Each recipe also contains detailed comments, example prompts and required dependencies, so please have a look at the code.
+The getting started guide walks through the basics of building Agents with Agno. Recipes build on each other, introducing new concepts and capabilities.
 
 ## Agent Concepts
 

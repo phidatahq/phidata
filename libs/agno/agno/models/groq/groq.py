@@ -356,7 +356,7 @@ class Groq(Model):
         Returns:
             Optional[ModelResponse]: The model response after handling tool calls.
         """
-        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
+        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
             if model_response.content is None:
                 model_response.content = ""
             function_call_results: List[Message] = []
@@ -673,7 +673,7 @@ class Groq(Model):
         Returns:
             Iterator[ModelResponse]: An iterator of the model response.
         """
-        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
+        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
             function_calls_to_run: List[FunctionCall] = []
             function_call_results: List[Message] = []
             for tool_call in assistant_message.tool_calls:
@@ -774,7 +774,7 @@ class Groq(Model):
         metrics.log()
 
         # -*- Handle tool calls
-        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
+        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
             tool_role = "tool"
             yield from self.handle_stream_tool_calls(
                 assistant_message=assistant_message, messages=messages, tool_role=tool_role
@@ -842,7 +842,7 @@ class Groq(Model):
         metrics.log()
 
         # -*- Handle tool calls
-        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
+        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
             tool_role = "tool"
             for tool_call_response in self.handle_stream_tool_calls(
                 assistant_message=assistant_message, messages=messages, tool_role=tool_role

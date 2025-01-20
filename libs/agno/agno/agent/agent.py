@@ -1,12 +1,8 @@
 from __future__ import annotations
 
-import json
-import traceback
-from collections import defaultdict, deque
-from dataclasses import dataclass, field
-from datetime import datetime
+from collections import ChainMap, defaultdict, deque
+from dataclasses import dataclass
 from os import getenv
-from pathlib import Path
 from textwrap import dedent
 from typing import (
     Any,
@@ -25,8 +21,9 @@ from typing import (
 )
 from uuid import uuid4
 
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel
 
+from agno.exceptions import AgentRunException, StopAgentRun
 from agno.knowledge.agent import AgentKnowledge
 from agno.media import Audio, AudioArtifact, Image, ImageArtifact, Video, VideoArtifact
 from agno.memory.agent import AgentMemory, AgentRun
@@ -42,10 +39,11 @@ from agno.tools.function import Function
 from agno.tools.toolkit import Toolkit
 from agno.utils.log import logger, set_log_level_to_debug, set_log_level_to_info
 from agno.utils.message import get_text_from_message
+from agno.utils.safe_formatter import SafeFormatter
 from agno.utils.timer import Timer
 
 
-@dataclass(init=False)
+@dataclass(init=False, slots=True)
 class Agent:
     # --- Agent settings ---
     # Model for this Agent
@@ -67,7 +65,7 @@ class Agent:
     # Session name
     session_name: Optional[str] = None
     # Session state stored in the database
-    session_state: Dict[str, Any] = field(default_factory=dict)
+    session_state: Optional[Dict[str, Any]] = None
 
     # --- Agent Context ---
     # Context available for tools and prompt functions
@@ -152,8 +150,6 @@ class Agent:
     goal: Optional[str] = None
     # List of instructions for the agent.
     instructions: Optional[Union[str, List[str], Callable]] = None
-    # List of guidelines for the agent to follow.
-    guidelines: Optional[List[str]] = None
     # Provide the expected output from the Agent.
     expected_output: Optional[str] = None
     # Additional context added to the end of the system message.
@@ -184,6 +180,10 @@ class Agent:
     # --- Agent Response Settings ---
     # Number of retries to attempt
     retries: int = 0
+    # Delay between retries
+    delay_between_retries: int = 1
+    # Exponential backoff: if True, the delay between retries is doubled each time
+    exponential_backoff: bool = False
     # Provide a response model to get the response as a Pydantic model
     response_model: Optional[Type[BaseModel]] = None
     # If True, the response from the Model is converted into the response_model
@@ -203,6 +203,7 @@ class Agent:
     # --- Agent Team ---
     # The team of agents that this agent can transfer tasks to.
     team: Optional[List[Agent]] = None
+    team_data: Optional[Dict[str, Any]] = None
     # --- If this Agent is part of a team ---
     # If this Agent is part of a team, this is the role of the agent in the team
     role: Optional[str] = None
@@ -219,10 +220,10 @@ class Agent:
     # Enable debug logs
     debug_mode: bool = False
     # monitoring=True logs Agent information to agno.com for monitoring
-    monitoring: bool = field(default_factory=lambda: getenv("AGNO_MONITOR", "false").lower() == "true")
+    monitoring: bool = False
     # telemetry=True logs minimal telemetry for analytics
     # This helps us improve the Agent and provide better support
-    telemetry: bool = field(default_factory=lambda: getenv("AGNO_TELEMETRY", "true").lower() == "true")
+    telemetry: bool = True
 
     # --- Run Info: DO NOT SET ---
     run_id: Optional[str] = None
@@ -235,6 +236,10 @@ class Agent:
     videos: Optional[List[VideoArtifact]] = None
     # Audio generated during this session
     audio: Optional[List[AudioArtifact]] = None
+    # Agent session
+    agent_session: Optional[AgentSession] = None
+
+    _formatter: Optional[SafeFormatter] = None
 
     def __init__(
         self,
@@ -278,7 +283,6 @@ class Agent:
         description: Optional[str] = None,
         goal: Optional[str] = None,
         instructions: Optional[Union[str, List[str], Callable]] = None,
-        guidelines: Optional[List[str]] = None,
         expected_output: Optional[str] = None,
         additional_context: Optional[str] = None,
         markdown: bool = False,
@@ -289,6 +293,8 @@ class Agent:
         user_message_role: str = "user",
         create_default_user_message: bool = True,
         retries: int = 0,
+        delay_between_retries: int = 1,
+        exponential_backoff: bool = False,
         response_model: Optional[Type[BaseModel]] = None,
         parse_response: bool = True,
         structured_outputs: bool = False,
@@ -296,6 +302,7 @@ class Agent:
         stream: Optional[bool] = None,
         stream_intermediate_steps: bool = False,
         team: Optional[List[Agent]] = None,
+        team_data: Optional[Dict[str, Any]] = None,
         role: Optional[str] = None,
         respond_directly: bool = False,
         add_transfer_instructions: bool = True,
@@ -313,7 +320,7 @@ class Agent:
 
         self.session_id = session_id
         self.session_name = session_name
-        self.session_state: Dict[str, Any] = session_state or {}
+        self.session_state = session_state
 
         self.context = context
         self.add_context = add_context
@@ -354,7 +361,6 @@ class Agent:
         self.description = description
         self.goal = goal
         self.instructions = instructions
-        self.guidelines = guidelines
         self.expected_output = expected_output
         self.additional_context = additional_context
         self.markdown = markdown
@@ -368,6 +374,8 @@ class Agent:
         self.create_default_user_message = create_default_user_message
 
         self.retries = retries
+        self.delay_between_retries = delay_between_retries
+        self.exponential_backoff = exponential_backoff
         self.response_model = response_model
         self.parse_response = parse_response
         self.structured_outputs = structured_outputs
@@ -377,6 +385,7 @@ class Agent:
         self.stream_intermediate_steps = stream_intermediate_steps
 
         self.team = team
+        self.team_data = team_data
         self.role = role
         self.respond_directly = respond_directly
         self.add_transfer_instructions = add_transfer_instructions
@@ -394,7 +403,8 @@ class Agent:
         self.videos = None
         self.audio = None
 
-        self.agent_session: Optional[AgentSession] = None
+        self.agent_session = None
+        self._formatter = None
 
     def set_agent_id(self) -> str:
         if self.agent_id is None:
@@ -427,7 +437,12 @@ class Agent:
         else:
             self.telemetry = False
 
-    def initialize_memory(self) -> None:
+    def initialize_agent(self) -> None:
+        self.set_debug()
+        self.set_agent_id()
+        self.set_session_id()
+        if self._formatter is None:
+            self._formatter = SafeFormatter()
         if self.memory is None:
             self.memory = AgentMemory()
 
@@ -466,13 +481,9 @@ class Agent:
         10. Save session to storage
         11. Save output to file if save_response_to_file is set
         """
-
         # 1. Prepare the Agent for the run
-        # 1.1 Set agent_id, session_id and initialize memory
-        self.set_debug()
-        self.set_agent_id()
-        self.set_session_id()
-        self.initialize_memory()
+        # 1.1 Initialize the Agent
+        self.initialize_agent()
         self.memory = cast(AgentMemory, self.memory)
         # 1.2 Set streaming and stream intermediate steps
         self.stream = self.stream or (stream and self.is_streamable)
@@ -603,7 +614,9 @@ class Agent:
         # 9. Update Agent Memory
         # Add the system message to the memory
         if run_messages.system_message is not None:
-            self.memory.add_system_message(run_messages.system_message, system_message_role=self.system_message_role)
+            self.memory.add_system_message(
+                run_messages.system_message, system_message_role=self.get_system_message_role()
+            )
 
         # Build a list of messages that should be added to the AgentMemory
         messages_for_memory: List[Message] = (
@@ -774,6 +787,8 @@ class Agent:
                     # Otherwise convert the response to the structured format
                     if isinstance(run_response.content, str):
                         try:
+                            from pydantic import ValidationError
+
                             structured_output = None
                             try:
                                 structured_output = self.response_model.model_validate_json(run_response.content)
@@ -829,15 +844,19 @@ class Agent:
                             **kwargs,
                         )
                         return next(resp)
-            except Exception as e:
-                traceback.print_exc()
-                last_exception = e
-                traceback.print_exc()
+            except AgentRunException as e:
                 logger.warning(f"Attempt {attempt + 1}/{num_attempts} failed: {str(e)}")
+                if isinstance(e, StopAgentRun):
+                    raise e
+                last_exception = e
                 if attempt < num_attempts - 1:  # Don't sleep on the last attempt
+                    if self.exponential_backoff:
+                        delay = 2**attempt * self.delay_between_retries
+                    else:
+                        delay = self.delay_between_retries
                     import time
 
-                    time.sleep(1)  # Add a small delay between retries
+                    time.sleep(delay)
 
         # If we get here, all retries failed
         raise Exception(f"Failed after {num_attempts} attempts. Last error: {str(last_exception)}")
@@ -871,11 +890,8 @@ class Agent:
         """
 
         # 1. Prepare the Agent for the run
-        # 1.1 Set agent_id, session_id and initialize memory
-        self.set_debug()
-        self.set_agent_id()
-        self.set_session_id()
-        self.initialize_memory()
+        # 1.1 Initialize the Agent
+        self.initialize_agent()
         self.memory = cast(AgentMemory, self.memory)
         # 1.2 Set streaming and stream intermediate steps
         self.stream = self.stream or (stream and self.is_streamable)
@@ -1005,7 +1021,10 @@ class Agent:
         # 9. Update Agent Memory
         # Add the system message to the memory
         if run_messages.system_message is not None:
-            self.memory.add_system_message(run_messages.system_message, system_message_role=self.system_message_role)
+            self.memory.add_system_message(
+                run_messages.system_message, system_message_role=self.get_system_message_role()
+            )
+
         # Build a list of messages that should be added to the AgentMemory
         messages_for_memory: List[Message] = (
             [run_messages.user_message] if run_messages.user_message is not None else []
@@ -1143,6 +1162,8 @@ class Agent:
                     # Otherwise convert the response to the structured format
                     if isinstance(run_response.content, str):
                         try:
+                            from pydantic import ValidationError
+
                             structured_output = None
                             try:
                                 structured_output = self.response_model.model_validate_json(run_response.content)
@@ -1196,13 +1217,19 @@ class Agent:
                             **kwargs,
                         )
                         return await resp.__anext__()
-            except Exception as e:
-                last_exception = e
+            except AgentRunException as e:
                 logger.warning(f"Attempt {attempt + 1}/{num_attempts} failed: {str(e)}")
+                if isinstance(e, StopAgentRun):
+                    raise e
+                last_exception = e
                 if attempt < num_attempts - 1:  # Don't sleep on the last attempt
+                    if self.exponential_backoff:
+                        delay = 2**attempt * self.delay_between_retries
+                    else:
+                        delay = self.delay_between_retries
                     import time
 
-                    time.sleep(1)  # Add a small delay between retries
+                    time.sleep(delay)
 
         # If we get here, all retries failed
         raise Exception(f"Failed after {num_attempts} attempts. Last error: {str(last_exception)}")
@@ -1365,8 +1392,10 @@ class Agent:
         session_data: Dict[str, Any] = {}
         if self.session_name is not None:
             session_data["session_name"] = self.session_name
-        if self.session_state and len(self.session_state) > 0:
+        if self.session_state is not None and len(self.session_state) > 0:
             session_data["session_state"] = self.session_state
+        if self.team_data is not None:
+            session_data["team_data"] = self.team_data
         if self.images is not None:
             session_data["images"] = [img.model_dump() for img in self.images]  # type: ignore
         if self.videos is not None:
@@ -1437,7 +1466,7 @@ class Agent:
                     and len(session_state_from_db) > 0
                 ):
                     # If the session_state is already set, merge the session_state from the database with the current session_state
-                    if self.session_state and len(self.session_state) > 0:
+                    if self.session_state is not None and len(self.session_state) > 0:
                         # This updates session_state_from_db
                         merge_dictionaries(session_state_from_db, self.session_state)
                     # Update the current session_state
@@ -1592,6 +1621,8 @@ class Agent:
 
         This is added to the system prompt when the response_model is set and structured_outputs is False.
         """
+        import json
+
         json_output_prompt = "Provide your output as a JSON containing the following fields:"
         if self.response_model is not None:
             if isinstance(self.response_model, str):
@@ -1652,6 +1683,28 @@ class Agent:
         json_output_prompt += "\nMake sure it only contains valid JSON."
         return json_output_prompt
 
+    def format_message_with_state_variables(self, msg: Any) -> Any:
+        """Format a message with the session state variables."""
+        if not isinstance(msg, str):
+            return msg
+
+        format_variables = ChainMap(
+            self.session_state or {},
+            self.context or {},
+            self.extra_data or {},
+            {"user_id": self.user_id} if self.user_id is not None else {},
+        )
+        return self._formatter.format(msg, **format_variables)  # type: ignore
+
+    def get_system_message_role(self) -> str:
+        """Return the role for the system message
+        The role may be updated by the model if map_system_role is True.
+        """
+        self.model = cast(Model, self.model)
+        if self.model.override_system_role and self.system_message_role == "system":
+            return self.model.system_message_role
+        return self.system_message_role
+
     def get_system_message(self) -> Optional[Message]:
         """Return the system message for the Agent.
 
@@ -1674,11 +1727,14 @@ class Agent:
                 if not isinstance(sys_message_content, str):
                     raise Exception("system_message must return a string")
 
+            # Format the system message with the session state variables
+            sys_message_content = self.format_message_with_state_variables(sys_message_content)
+
             # Add the JSON output prompt if response_model is provided and structured_outputs is False
             if self.response_model is not None and not self.structured_outputs:
                 sys_message_content += f"\n{self.get_json_output_prompt()}"
 
-            return Message(role=self.system_message_role, content=sys_message_content)
+            return Message(role=self.get_system_message_role(), content=sys_message_content)
 
         # 2. If create_default_system_message is False, return None.
         if not self.create_default_system_message:
@@ -1689,91 +1745,101 @@ class Agent:
 
         # 3. Build and return the default system message for the Agent.
         # 3.1 Build the list of instructions for the system prompt.
-        instructions = []
+        user_provided_instructions = []
         if self.instructions is not None:
             _instructions = self.instructions
             if callable(self.instructions):
                 _instructions = self.instructions(agent=self)
 
             if isinstance(_instructions, str):
-                instructions.append(_instructions)
+                user_provided_instructions.append(_instructions)
             elif isinstance(_instructions, list):
-                instructions.extend(_instructions)
+                user_provided_instructions.extend(_instructions)
 
-        # 3.2 Add instructions from the Model
-        model_instructions = self.model.get_instructions_for_model()
-        if model_instructions is not None:
-            instructions.extend(model_instructions)
-        # 3.3 Add instructions for using markdown
+        # 3.2 Add additional information
+        additional_information = []
+        # 3.2.1 Add instructions from the Model
+        _model_instructions = self.model.get_instructions_for_model()
+        if _model_instructions is not None:
+            additional_information.extend(_model_instructions)
+        # 3.2.2 Add instructions for using markdown
         if self.markdown and self.response_model is None:
-            instructions.append("Use markdown to format your answers.")
-        # 3.4 Add instructions for adding the current datetime
+            additional_information.append("Use markdown to format your answers.")
+        # 3.2.3 Add the current datetime
         if self.add_datetime_to_instructions:
-            instructions.append(f"The current time is {datetime.now()}")
-        # 3.5 Add agent name if provided
-        if self.name is not None and self.add_name_to_instructions:
-            instructions.append(f"Your name is: {self.name}.")
+            from datetime import datetime
 
-        # 3.6 Build the default system message for the Agent.
+            additional_information.append(f"The current time is {datetime.now()}")
+        # 3.2.4 Add agent name if provided
+        if self.name is not None and self.add_name_to_instructions:
+            additional_information.append(f"Your name is: {self.name}.")
+
+        # 3.3 Build the default system message for the Agent.
         system_message_lines: List[str] = []
-        # 3.6.1 First add the Agent description if provided
+        # 3.3.1 First add the Agent description if provided
         if self.description is not None:
             system_message_lines.append(f"{self.description}\n")
-        # 3.6.2 Then add the Agent goal if provided
+        # 3.3.2 Then add the Agent goal if provided
         if self.goal is not None:
-            system_message_lines.append(f"Your goal is: {self.goal}\n")
-        # 3.6.3 Then add the Agent role
+            system_message_lines.append(f"<your_goal>\n{self.goal}\n</your_goal>\n")
+        # 3.3.3 Then add the Agent role
         if self.role is not None:
-            system_message_lines.append(f"Your role is: {self.role}\n")
-        # 3.6.4 Then add instructions for transferring tasks to team members
+            system_message_lines.append(f"<your_role>\n{self.role}\n</your_role>\n")
+        # 3.3.4 Then add instructions for transferring tasks to team members
         if self.has_team and self.add_transfer_instructions:
             system_message_lines.extend(
                 [
-                    "## You are the leader of a team of AI Agents.",
+                    "<agent_team>",
+                    "You are the leader of a team of AI Agents:",
                     "- You can either respond directly or transfer tasks to other Agents in your team depending on the tools available to them.",
-                    "- If you transfer a task to another Agent, make sure to include a clear description of the task and the expected output.",
-                    "- You must always validate the output of the other Agents before responding to the user, "
-                    "you can re-assign the task if you are not satisfied with the result.",
-                    "",
+                    "- If you transfer a task to another Agent, make sure to include:",
+                    "  - task_description (str): A clear description of the task.",
+                    "  - expected_output (str): The expected output.",
+                    "  - additional_information (str): Additional information that will help the Agent complete the task.",
+                    "- You must always validate the output of the other Agents before responding to the user.",
+                    "- You can re-assign the task if you are not satisfied with the result.",
+                    "</agent_team>\n",
                 ]
             )
-        # 3.6.5 Then add instructions for the Agent
-        if len(instructions) > 0:
-            system_message_lines.append("## Instructions")
-            if len(instructions) > 1:
-                system_message_lines.extend([f"- {instruction}" for instruction in instructions])
+        # 3.3.5 Then add instructions for the Agent
+        if len(user_provided_instructions) > 0:
+            system_message_lines.append("<instructions>")
+            if len(user_provided_instructions) > 1:
+                system_message_lines.extend([f"- {_upi}" for _upi in user_provided_instructions])
             else:
-                system_message_lines.append(instructions[0])
-            system_message_lines.append("")
-        # 3.6.6 Then add the guidelines for the Agent
-        if self.guidelines is not None and len(self.guidelines) > 0:
-            system_message_lines.append("## Guidelines")
-            if len(self.guidelines) > 1:
-                system_message_lines.extend(self.guidelines)
-            else:
-                system_message_lines.append(self.guidelines[0])
-            system_message_lines.append("")
-        # 3.6.7 Then add the prompt for the Model
+                system_message_lines.append(user_provided_instructions[0])
+            system_message_lines.append("</instructions>\n")
+        # 3.3.6 Add additional information
+        if len(additional_information) > 0:
+            system_message_lines.append("<additional_information>")
+            system_message_lines.extend([f"- {_api}" for _api in additional_information])
+            system_message_lines.append("</additional_information>\n")
+        # 3.3.7 Then add the prompt for the Model
         system_message_from_model = self.model.get_system_message_for_model()
         if system_message_from_model is not None:
             system_message_lines.append(system_message_from_model)
-        # 3.6.8 Then add the expected output
+        # 3.3.8 Then add the expected output
         if self.expected_output is not None:
-            system_message_lines.append(f"## Expected output\n{self.expected_output}\n")
-        # 3.6.9 Then add additional context
+            system_message_lines.append(f"<expected_output>\n{self.expected_output.strip()}\n</expected_output>\n")
+        # 3.3.9 Then add additional context
         if self.additional_context is not None:
-            system_message_lines.append(f"{self.additional_context}\n")
-        # 3.6.10 Then add information about the team members
+            system_message_lines.append(
+                f"<additional_context>\n{self.additional_context.strip()}\n</additional_context>\n"
+            )
+        # 3.3.10 Then add information about the team members
         if self.has_team and self.add_transfer_instructions:
-            system_message_lines.append(f"{self.get_transfer_instructions()}\n")
-        # 3.6.11 Then add memories to the system prompt
+            system_message_lines.append(
+                f"<transfer_instructions>\n{self.get_transfer_instructions().strip()}\n</transfer_instructions>\n"
+            )
+        # 3.3.11 Then add memories to the system prompt
         if self.memory.create_user_memories:
             if self.memory.memories and len(self.memory.memories) > 0:
                 system_message_lines.append(
                     "You have access to memories from previous interactions with the user that you can use:"
                 )
-                system_message_lines.append("### Memories from previous interactions")
+                system_message_lines.append("<memories_from_previous_interactions>")
                 system_message_lines.append("\n".join([f"- {memory.memory}" for memory in self.memory.memories]))
+                system_message_lines.append("</memories_from_previous_interactions>")
                 system_message_lines.append(
                     "\nNote: this information is from previous interactions and may be updated in this conversation. "
                     "You should always prefer information from this conversation over the past memories."
@@ -1785,29 +1851,37 @@ class Agent:
                     "but have not had any interactions with the user yet."
                 )
                 system_message_lines.append(
-                    "If the user asks about previous memories, you can let them know that you dont have any memory about the user yet because you have not had any interactions with them yet, "
-                    "but can add new memories using the `update_memory` tool."
+                    "If the user asks about previous memories, you can let them know that you dont have any memory about the user because you haven't had any interactions yet."
+                    "You can add new memories using the `update_memory` tool."
                 )
             system_message_lines.append(
                 "If you use the `update_memory` tool, remember to pass on the response to the user.\n"
             )
-        # 3.6.12 Then add a summary of the interaction to the system prompt
+        # 3.3.12 Then add a summary of the interaction to the system prompt
         if self.memory.create_session_summary:
             if self.memory.summary is not None:
                 system_message_lines.append("Here is a brief summary of your previous interactions if it helps:")
-                system_message_lines.append("### Summary of previous interactions\n")
-                system_message_lines.append(self.memory.summary.model_dump_json(indent=2))
+                system_message_lines.append("<summary_of_previous_interactions>")
+                system_message_lines.append(str(self.memory.summary))
+                system_message_lines.append("</summary_of_previous_interactions>")
                 system_message_lines.append(
                     "\nNote: this information is from previous interactions and may be outdated. "
                     "You should ALWAYS prefer information from this conversation over the past summary.\n"
                 )
-        # 3.6.13 Then add the JSON output prompt if response_model is provided and structured_outputs is False
+
+        # Format the system message with the session state variables
+        system_message_content = self.format_message_with_state_variables("\n".join(system_message_lines).strip())
+
+        # Add the JSON output prompt if response_model is provided and structured_outputs is False
         if self.response_model is not None and not self.structured_outputs:
-            system_message_lines.append(self.get_json_output_prompt() + "\n")
+            system_message_content += f"\n\n{self.get_json_output_prompt()}"
 
         # Return the system prompt
         if len(system_message_lines) > 0:
-            return Message(role=self.system_message_role, content=("\n".join(system_message_lines)).strip())
+            return Message(
+                role=self.get_system_message_role(),
+                content=system_message_content,
+            )
 
         return None
 
@@ -1868,7 +1942,7 @@ class Agent:
 
             return Message(
                 role=self.user_message_role,
-                content=user_message_content,
+                content=self.format_message_with_state_variables(user_message_content),
                 audio=audio,
                 images=images,
                 videos=videos,
@@ -1886,7 +1960,7 @@ class Agent:
         if message is None:
             return None
 
-        user_msg_content = message
+        user_msg_content = self.format_message_with_state_variables(message)
         # 4.1 Add references to user message
         if (
             self.add_references
@@ -1991,7 +2065,7 @@ class Agent:
         # 3. Add history to run_messages
         if self.add_history_to_messages:
             history: List[Message] = self.memory.get_messages_from_last_n_runs(
-                last_n=self.num_history_responses, skip_role=self.system_message_role
+                last_n=self.num_history_responses, skip_role=self.get_system_message_role()
             )
             if len(history) > 0:
                 logger.debug(f"Adding {len(history)} messages from history")
@@ -2107,18 +2181,23 @@ class Agent:
 
     def get_transfer_function(self, member_agent: Agent, index: int) -> Function:
         def _transfer_task_to_agent(
-            task_description: str, expected_output: str, additional_information: str
+            task_description: str, expected_output: str, additional_information: Optional[str] = None
         ) -> Iterator[str]:
-            # Update the member agent session_state to include leader_session_id, leader_agent_id and leader_run_id
-            member_agent.session_state["leader_session_id"] = self.session_id
-            member_agent.session_state["leader_agent_id"] = self.agent_id
-            member_agent.session_state["leader_run_id"] = self.run_id
+            if member_agent.team_data is None:
+                member_agent.team_data = {}
+
+            # Update the member agent team_data to include leader_session_id, leader_agent_id and leader_run_id
+            member_agent.team_data["leader_session_id"] = self.session_id
+            member_agent.team_data["leader_agent_id"] = self.agent_id
+            member_agent.team_data["leader_run_id"] = self.run_id
 
             # -*- Run the agent
-            member_agent_messages = f"{task_description}\n\nThe expected output is: {expected_output}"
+            member_agent_task = f"{task_description}\n\n<expected_output>\n{expected_output}\n</expected_output>"
             try:
                 if additional_information is not None and additional_information.strip() != "":
-                    member_agent_messages += f"\n\nAdditional information: {additional_information}"
+                    member_agent_task += (
+                        f"\n\n<additional_information>\n{additional_information}\n</additional_information>"
+                    )
             except Exception as e:
                 logger.warning(f"Failed to add additional information to the member agent: {e}")
 
@@ -2130,20 +2209,22 @@ class Agent:
                 "session_id": member_agent_session_id,
                 "agent_id": member_agent_agent_id,
             }
-            # Update the leader agent session_state to include member_agent_info
-            if "members" not in self.session_state:
-                self.session_state["members"] = [member_agent_info]
+            # Update the leader agent team_data to include member_agent_info
+            if self.team_data is None:
+                self.team_data = {}
+            if "members" not in self.team_data:
+                self.team_data["members"] = [member_agent_info]
             else:
                 # Check if member_agent_info is already in the list
-                if member_agent_info not in self.session_state["members"]:
-                    self.session_state["members"].append(member_agent_info)
+                if member_agent_info not in self.team_data["members"]:
+                    self.team_data["members"].append(member_agent_info)
 
             if self.stream and member_agent.is_streamable:
-                member_agent_run_response_stream = member_agent.run(member_agent_messages, stream=True)
+                member_agent_run_response_stream = member_agent.run(member_agent_task, stream=True)
                 for member_agent_run_response_chunk in member_agent_run_response_stream:
                     yield member_agent_run_response_chunk.content  # type: ignore
             else:
-                member_agent_run_response: RunResponse = member_agent.run(member_agent_messages, stream=False)
+                member_agent_run_response: RunResponse = member_agent.run(member_agent_task, stream=False)
                 if member_agent_run_response.content is None:
                     yield "No response from the member agent."
                 elif isinstance(member_agent_run_response.content, str):
@@ -2155,6 +2236,8 @@ class Agent:
                         yield str(e)
                 else:
                     try:
+                        import json
+
                         yield json.dumps(member_agent_run_response.content, indent=2)
                     except Exception as e:
                         yield str(e)
@@ -2187,8 +2270,7 @@ class Agent:
 
     def get_transfer_instructions(self) -> str:
         if self.team and len(self.team) > 0:
-            transfer_instructions = "## Agents in your team:"
-            transfer_instructions += "\nYou can transfer tasks to the following agents:"
+            transfer_instructions = "You can transfer tasks to the following Agents in your team:\n"
             for agent_index, agent in enumerate(self.team):
                 transfer_instructions += f"\nAgent {agent_index + 1}:\n"
                 if agent.name:
@@ -2235,6 +2317,8 @@ class Agent:
 
             return yaml.dump(docs)
 
+        import json
+
         return json.dumps(docs, indent=2)
 
     def convert_context_to_string(self, context: Dict[str, Any]) -> str:
@@ -2250,6 +2334,8 @@ class Agent:
             return ""
 
         try:
+            import json
+
             return json.dumps(context, indent=2, default=str)
         except (TypeError, ValueError, OverflowError) as e:
             logger.warning(f"Failed to convert context to JSON: {e}")
@@ -2279,6 +2365,8 @@ class Agent:
                 else:
                     logger.warning("Did not use message in output file name: message is not a string")
             try:
+                from pathlib import Path
+
                 fn = self.save_response_to_file.format(
                     name=self.name, session_id=self.session_id, user_id=self.user_id, message=message_str
                 )
@@ -2288,6 +2376,8 @@ class Agent:
                 if isinstance(self.run_response.content, str):
                     fn_path.write_text(self.run_response.content)
                 else:
+                    import json
+
                     fn_path.write_text(json.dumps(self.run_response.content, indent=2))
             except Exception as e:
                 logger.warning(f"Failed to save output to file: {e}")
@@ -2370,7 +2460,7 @@ class Agent:
         gen_session_name_prompt += "\n\nConversation Name: "
 
         system_message = Message(
-            role=self.system_message_role,
+            role=self.get_system_message_role(),
             content="Please provide a suitable name for this conversation in maximum 5 words. "
             "Remember, do not exceed 5 words.",
         )
@@ -2703,6 +2793,8 @@ class Agent:
             - To get all chats, use num_chats=None.
             - To get the first chat, use num_chats=None and pick the first message.
         """
+        import json
+
         history: List[Dict[str, Any]] = []
         self.memory = cast(AgentMemory, self.memory)
         all_chats = self.memory.get_message_pairs()
@@ -2732,6 +2824,8 @@ class Agent:
             - To get the last tool call, use num_calls=1.
             - To get all tool calls, use num_calls=None.
         """
+        import json
+
         self.memory = cast(AgentMemory, self.memory)
         tool_calls = self.memory.get_tool_calls(num_calls)
         if len(tool_calls) == 0:
@@ -2781,6 +2875,8 @@ class Agent:
         Returns:
             str: A string indicating the status of the addition.
         """
+        import json
+
         from agno.document import Document
 
         if self.knowledge is None:
@@ -2960,6 +3056,8 @@ class Agent:
         console: Optional[Any] = None,
         **kwargs: Any,
     ) -> None:
+        import json
+
         from rich.console import Group
         from rich.json import JSON
         from rich.live import Live
@@ -3084,7 +3182,7 @@ class Agent:
                 # First render the message panel if the message is not None
                 if message and show_message:
                     # Convert message to a panel
-                    message_content = get_text_from_message(message)
+                    message_content = get_text_from_message(self.format_message_with_state_variables(message))
                     message_panel = self.create_panel(
                         content=Text(message_content, style="green"),
                         title="Message",
@@ -3192,6 +3290,8 @@ class Agent:
         console: Optional[Any] = None,
         **kwargs: Any,
     ) -> None:
+        import json
+
         from rich.console import Group
         from rich.json import JSON
         from rich.live import Live
@@ -3249,7 +3349,7 @@ class Agent:
                     if message and show_message:
                         render = True
                         # Convert message to a panel
-                        message_content = get_text_from_message(message)
+                        message_content = get_text_from_message(self.format_message_with_state_variables(message))
                         message_panel = self.create_panel(
                             content=Text(message_content, style="green"),
                             title="Message",

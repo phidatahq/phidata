@@ -325,7 +325,7 @@ class HuggingFace(Model):
         Returns:
             Optional[ModelResponse]: The model response after handling tool calls.
         """
-        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
+        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
             model_response.content = ""
             tool_role: str = "tool"
             function_calls_to_run: List[FunctionCall] = []
@@ -626,7 +626,7 @@ class HuggingFace(Model):
         Returns:
             Iterator[ModelResponse]: An iterator of the model response.
         """
-        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
+        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
             tool_role: str = "tool"
             function_calls_to_run: List[FunctionCall] = []
             function_call_results: List[Message] = []
@@ -713,7 +713,7 @@ class HuggingFace(Model):
         messages.append(assistant_message)
 
         # -*- Handle tool calls
-        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
+        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
             yield from self._handle_stream_tool_calls(assistant_message, messages)
             yield from self.response_stream(messages=messages)
         logger.debug("---------- HuggingFace Response End ----------")
@@ -775,7 +775,7 @@ class HuggingFace(Model):
         metrics.log()
 
         # -*- Handle tool calls
-        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
+        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
             for model_response in self._handle_stream_tool_calls(assistant_message, messages):
                 yield model_response
             async for model_response in self.aresponse_stream(messages=messages):

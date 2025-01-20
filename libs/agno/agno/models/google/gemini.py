@@ -586,7 +586,7 @@ class Gemini(Model):
         Returns:
             Optional[ModelResponse]: The updated model response.
         """
-        if assistant_message.tool_calls and self.run_tools:
+        if assistant_message.tool_calls:
             model_response.content = assistant_message.get_content_string() or ""
             function_calls_to_run = self._get_function_calls_to_run(
                 assistant_message, messages, error_response_role="tool"
@@ -674,7 +674,7 @@ class Gemini(Model):
         Yields:
             Iterator[ModelResponse]: Yields model responses during function execution.
         """
-        if assistant_message.tool_calls and self.run_tools:
+        if assistant_message.tool_calls:
             function_calls_to_run = self._get_function_calls_to_run(
                 assistant_message, messages, error_response_role="tool"
             )
@@ -770,7 +770,7 @@ class Gemini(Model):
         assistant_message.log()
         metrics.log()
 
-        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
+        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
             yield from self.handle_stream_tool_calls(assistant_message, messages)
             yield from self.response_stream(messages=messages)
 

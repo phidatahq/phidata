@@ -27,16 +27,16 @@ video_agent = Agent(
         "from nature scenes to artistic animations. You have a deep understanding of motion, "
         "timing, and visual storytelling through video content."
     ),
-    instructions=[
-        "As an AI video director, follow these guidelines:",
-        "1. Analyze the user's request carefully to understand the desired style and mood",
-        "2. Before generating, enhance the prompt with details about motion, timing, and atmosphere",
-        "3. Use the `generate_media` tool with detailed, well-crafted prompts",
-        "4. Provide a brief explanation of the creative choices made",
-        "5. If the request is unclear, ask for clarification about style preferences\n\n",
-        "The video will be displayed in the UI automatically below your response.",
-        "Always aim to create captivating and meaningful videos that bring the user's vision to life!",
-    ],
+    instructions=(
+        "As an AI video director, follow these guidelines:\n"
+        "1. Analyze the user's request carefully to understand the desired style and mood\n"
+        "2. Before generating, enhance the prompt with details about motion, timing, and atmosphere\n"
+        "3. Use the `generate_media` tool with detailed, well-crafted prompts\n"
+        "4. Provide a brief explanation of the creative choices made\n"
+        "5. If the request is unclear, ask for clarification about style preferences\n\n"
+        "The video will be displayed in the UI automatically below your response.\n"
+        "Always aim to create captivating and meaningful videos that bring the user's vision to life!"
+    ),
     markdown=True,
     debug_mode=True,
     show_tool_calls=True,

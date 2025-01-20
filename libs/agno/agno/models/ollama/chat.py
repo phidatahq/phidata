@@ -268,7 +268,7 @@ class Ollama(Model):
         Returns:
             Optional[ModelResponse]: The model response.
         """
-        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
+        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
             model_response.content = assistant_message.get_content_string()
             model_response.content += "\n\n"
             function_calls_to_run = self._get_function_calls_to_run(assistant_message, messages)
@@ -518,7 +518,7 @@ class Ollama(Model):
         Returns:
             Iterator[ModelResponse]: An iterator of the model response.
         """
-        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
+        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
             yield ModelResponse(content="\n\n")
             function_calls_to_run = self._get_function_calls_to_run(assistant_message, messages)
             function_call_results: List[Message] = []
@@ -607,7 +607,7 @@ class Ollama(Model):
         metrics.log()
 
         # -*- Handle tool calls
-        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
+        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
             yield from self.handle_stream_tool_calls(assistant_message, messages)
             yield from self.handle_post_tool_call_messages_stream(messages=messages)
         logger.debug("---------- Ollama Response End ----------")
@@ -678,7 +678,7 @@ class Ollama(Model):
         metrics.log()
 
         # -*- Handle tool calls
-        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
+        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
             for tool_call_response in self.handle_stream_tool_calls(assistant_message, messages):
                 yield tool_call_response
             async for post_tool_call_response in self.ahandle_post_tool_call_messages_stream(messages=messages):

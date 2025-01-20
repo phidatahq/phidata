@@ -2,61 +2,49 @@
 
 ## Getting Started
 
-Basic examples of setting up an agent with some simple tool calls
+The getting started guide walks through the basics of building Agents with Agno. Recipes build on each other, introducing new concepts and capabilities. Each recipe also contains detailed comments, example prompts and required dependencies, so please have a look at the code.
 
 ## Agent Concepts
 
-- Async
-- Knowledge
-- Memory
-- Models
-- Reasoning
-- Storage
-- Tools
-- Vector DB
+The concepts cookbook walks through the core concepts of Agno.
 
-## Advanced Examples
+- [Async](./agent_concepts/async)
+- [RAG](./agent_concepts/rag)
+- [Knowledge](./agent_concepts/knowledge)
+- [Memory](./agent_concepts/memory)
+- [Storage](./agent_concepts/storage)
+- [Tools](./agent_concepts/tools)
+- [Reasoning](./agent_concepts/reasoning)
+- [Vector DBs](./agent_concepts/vector_dbs)
+- [Multi-modal Agents](./agent_concepts/multimodal)
+- [Agent Teams](./agent_concepts/teams)
+- [Hybrid Search](./agent_concepts/hybrid_search)
+- [Agent Session](./agent_concepts/agent_session)
+- [Other](./agent_concepts/other)
 
-- Hybdrid search
-- Rag
-- Streamlit
-- Teams
+## Examples
 
+The examples cookbook contains real world examples of building agents with Agno.
 
 ## Playground
 
+The playground cookbook contains examples of interacting with agents using the Agno Agent UI.
+
 ## Workflows
+
+The workflows cookbook contains examples of building workflows with Agno.
 
 ## Scripts
 
 Just a place to store setup scripts like `run_pgvector.sh` etc
-
-### old
-
-# Agno Cookbooks
-
-Here you’ll find examples that’ll help you use Agno, from basic agents and workflows to advanced multi-agent examples.
-If you have more, please contribute to this list.
-
-The cookbooks are organised as follows:
- - [Get started](./getting_started): A basic series of agents to get you started.
- - [Advanced examples](./advanced_examples): Interesting use-cases and complex agents and RAG examples.
- - [Playground / Agent UI](./playground): Run a playground app and view it on the Agno Agent UI.
- - [Agent concepts](./agent_concepts): General agent concepts.
- - [Knowledge bases](./knowledge): All about agent knowledge bases.
- - [Models](./models): All the model providers and the various features supported via Agno.
- - [Tools](./tools): All the tools supported via Agno.
- - [VectorDBs](./vector_dbs): Agent VectorDB examples.
- - [Workflows](./workflows): Examples of workflows and a script to run them as a playground app.
-
 
 ## Setup
 
 ### Create and activate a virtual environment
 
 ```shell
-python3 -m venv ~/.venvs/aienv
-source ~/.venvs/aienv/bin/activate
+python3 -m venv .venv
+source .venv/bin/activate
 ```
 
 ### Install libraries

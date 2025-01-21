@@ -151,6 +151,19 @@ class Claude(Model):
                         if image_content:
                             content.append(image_content)
 
+                # Handle tool calls in history
+                if message.role == "assistant" and isinstance(message.content, str) and message.tool_calls:
+                    content = [TextBlock(text=message.content, type="text")]
+                    for tool_call in message.tool_calls:
+                        content.append(
+                            ToolUseBlock(
+                                id=tool_call["id"],
+                                input=json.loads(tool_call["function"]["arguments"]),
+                                name=tool_call["function"]["name"],
+                                type="tool_use",
+                            )
+                        )
+
                 chat_messages.append({"role": message.role, "content": content})  # type: ignore
         return chat_messages, " ".join(system_messages)
 
@@ -291,7 +304,6 @@ class Claude(Model):
         """
         chat_messages, system_message = self.format_messages(messages)
         request_kwargs = self.prepare_request_kwargs(system_message)
-
         return self.get_client().messages.create(
             model=self.id,
             messages=chat_messages,  # type: ignore
@@ -398,6 +410,7 @@ class Claude(Model):
                         function_def["arguments"] = json.dumps(tool_input)
                     message_data.tool_calls.append(
                         {
+                            "id": tool_use.id,
                             "type": "function",
                             "function": function_def,
                         }
@@ -406,7 +419,6 @@ class Claude(Model):
         # -*- Update assistant message if tool calls are present
         if len(message_data.tool_calls) > 0:
             assistant_message.tool_calls = message_data.tool_calls
-            assistant_message.content = message_data.response_block
 
         # -*- Update usage metrics
         self.update_usage_metrics(assistant_message, message_data.response_usage, metrics)

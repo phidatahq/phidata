@@ -44,7 +44,7 @@ pip install -U agno
 
 ## What are Agents?
 
-Agents are programs that use language models to control the execution flow. They can perform tasks autonomously by integrating tools, memory, and knowledge.
+Agents are programs that use language models to control the execution flow. They solve problems autonomously by integrating tools, memory, and knowledge.
 
 - **Level 0**: Agents with no tools (basic inference tasks).
 - **Level 1**: Agents with tools for autonomous task execution.

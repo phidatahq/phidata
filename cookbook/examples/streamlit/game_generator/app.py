@@ -40,7 +40,6 @@ def main() -> None:
     if generate_game:
         with st.spinner("Generating your game... This might take a minute..."):
             try:
-                # Create hash and initialize workflow
                 hash_of_description = hash_string_sha256(game_description)
                 game_generator = GameGenerator(
                     session_id=f"game-gen-{hash_of_description}",
@@ -83,7 +82,6 @@ def main() -> None:
             except Exception as e:
                 st.error(f"Failed to generate game: {str(e)}")
 
-    # Restart button in sidebar
     st.sidebar.markdown("---")
     if st.sidebar.button("Restart"):
         st.rerun()

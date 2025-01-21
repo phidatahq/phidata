@@ -1,12 +1,13 @@
 import os
 from pathlib import Path
 from typing import List
-from pydantic import BaseModel, Field
-from phi.agent import Agent
+
+from agno.agent import Agent
+from agno.models.openai import OpenAIChat
+from agno.tools.arxiv_toolkit import ArxivTools
+from agno.tools.exa import ExaTools
 from dotenv import load_dotenv
-from phi.model.openai import OpenAIChat
-from phi.tools.arxiv_toolkit import ArxivToolkit
-from phi.tools.exa import ExaTools
+from pydantic import BaseModel, Field
 
 load_dotenv()
 
@@ -15,7 +16,9 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 # Define data models
 class SearchTerms(BaseModel):
-    terms: List[str] = Field(..., description="List of search terms related to a topic.")
+    terms: List[str] = Field(
+        ..., description="List of search terms related to a topic."
+    )
 
 
 class ArxivSearchResult(BaseModel):
@@ -29,7 +32,9 @@ class ArxivSearchResult(BaseModel):
 
 
 class ArxivSearchResults(BaseModel):
-    results: List[ArxivSearchResult] = Field(..., description="List of top search results.")
+    results: List[ArxivSearchResult] = Field(
+        ..., description="List of top search results."
+    )
 
 
 class WebSearchResult(BaseModel):
@@ -40,11 +45,17 @@ class WebSearchResult(BaseModel):
 
 
 class WebSearchResults(BaseModel):
-    results: List[WebSearchResult] = Field(..., description="List of top search results.")
+    results: List[WebSearchResult] = Field(
+        ..., description="List of top search results."
+    )
 
 
 # Initialize tools
-arxiv_toolkit = ArxivToolkit(download_dir=Path(__file__).parent.parent.parent.parent.joinpath("wip", "arxiv_pdfs"))
+arxiv_toolkit = ArxivTools(
+    download_dir=Path(__file__).parent.parent.parent.parent.joinpath(
+        "wip", "arxiv_pdfs"
+    )
+)
 exa_tools = ExaTools()
 
 # Initialize agents
@@ -61,7 +72,7 @@ Focus on terms that are:
 Provide the search terms as a list of strings like ["xyz", "abc", ...]
 """,
     response_model=SearchTerms,
-    structured_output=True,
+    structured_outputs=True,
 )
 
 arxiv_search_agent = Agent(
@@ -89,7 +100,7 @@ Ensure the selected research papers directly address the topic and offer valuabl
 """,
     tools=[arxiv_toolkit],
     response_model=ArxivSearchResults,
-    structured_output=True,
+    structured_outputs=True,
 )
 
 exa_search_agent = Agent(
@@ -113,7 +124,7 @@ Ensure the selected articles are credible, relevant, and provide significant ins
 """,
     tools=[ExaTools()],
     response_model=WebSearchResults,
-    structured_output=True,
+    structured_outputs=True,
 )
 
 research_editor = Agent(

@@ -1,15 +1,15 @@
 """Usage:
-1. Install libraries: `pip install groq duckduckgo-search yfinance pypdf sqlalchemy 'fastapi[standard]' youtube-transcript-api phidata`
+1. Install libraries: `pip install groq duckduckgo-search yfinance pypdf sqlalchemy 'fastapi[standard]' youtube-transcript-api agno`
 2. Run the script: `python cookbook/playground/groq_agents.py`
 """
 
-from phi.agent import Agent
-from phi.model.groq import Groq
-from phi.playground import Playground, serve_playground_app
-from phi.storage.agent.sqlite import SqlAgentStorage
-from phi.tools.duckduckgo import DuckDuckGo
-from phi.tools.yfinance import YFinanceTools
-from phi.tools.youtube_tools import YouTubeTools
+from agno.agent import Agent
+from agno.models.groq import Groq
+from agno.playground import Playground, serve_playground_app
+from agno.storage.agent.sqlite import SqliteAgentStorage
+from agno.tools.duckduckgo import DuckDuckGoTools
+from agno.tools.yfinance import YFinanceTools
+from agno.tools.youtube_tools import YouTubeTools
 
 xai_agent_storage: str = "tmp/groq_agents.db"
 common_instructions = [
@@ -21,13 +21,13 @@ web_agent = Agent(
     role="Search the web for information",
     agent_id="web-agent",
     model=Groq(id="llama3-groq-70b-8192-tool-use-preview"),
-    tools=[DuckDuckGo()],
+    tools=[DuckDuckGoTools()],
     instructions=[
         "Use the `duckduckgo_search` or `duckduckgo_news` tools to search the web for information.",
         "Always include sources you used to generate the answer.",
     ]
     + common_instructions,
-    storage=SqlAgentStorage(table_name="web_agent", db_file=xai_agent_storage),
+    storage=SqliteAgentStorage(table_name="web_agent", db_file=xai_agent_storage),
     show_tool_calls=True,
     add_history_to_messages=True,
     num_history_responses=2,
@@ -41,10 +41,17 @@ finance_agent = Agent(
     role="Get financial data",
     agent_id="finance-agent",
     model=Groq(id="llama3-groq-70b-8192-tool-use-preview"),
-    tools=[YFinanceTools(stock_price=True, analyst_recommendations=True, company_info=True, company_news=True)],
+    tools=[
+        YFinanceTools(
+            stock_price=True,
+            analyst_recommendations=True,
+            company_info=True,
+            company_news=True,
+        )
+    ],
     description="You are an investment analyst that researches stocks and helps users make informed decisions.",
     instructions=["Always use tables to display data"] + common_instructions,
-    storage=SqlAgentStorage(table_name="finance_agent", db_file=xai_agent_storage),
+    storage=SqliteAgentStorage(table_name="finance_agent", db_file=xai_agent_storage),
     show_tool_calls=True,
     add_history_to_messages=True,
     num_history_responses=5,
@@ -69,7 +76,7 @@ youtube_agent = Agent(
         "If the user just provides a URL, summarize the video and answer questions about it.",
     ]
     + common_instructions,
-    storage=SqlAgentStorage(table_name="youtube_agent", db_file=xai_agent_storage),
+    storage=SqliteAgentStorage(table_name="youtube_agent", db_file=xai_agent_storage),
     show_tool_calls=True,
     add_history_to_messages=True,
     num_history_responses=5,
@@ -78,7 +85,9 @@ youtube_agent = Agent(
     markdown=True,
 )
 
-app = Playground(agents=[finance_agent, youtube_agent, web_agent]).get_app(use_async=False)
+app = Playground(agents=[finance_agent, youtube_agent, web_agent]).get_app(
+    use_async=False
+)
 
 if __name__ == "__main__":
     serve_playground_app("groq_agents:app", reload=True)

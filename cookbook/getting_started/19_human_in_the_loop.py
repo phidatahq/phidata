@@ -94,7 +94,7 @@ agent = Agent(
         "Style guide:\n"
         "- Use emoji to make your responses more engaging\n"
         "- Keep your summaries concise but informative\n"
-        "- End with a friendly tech-themed sign-off\n"
+        "- End with a friendly tech-themed sign-off"
     ),
     tools=[get_top_hackernews_stories],
     show_tool_calls=True,

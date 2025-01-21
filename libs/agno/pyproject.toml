@@ -48,6 +48,7 @@ google = ["google-generativeai"]
 groq = ["groq"]
 mistral = ["mistralai"]
 openai = ["openai"]
+ollama = ["ollama"]
 
 # Tools
 exa = ["exa_py"]
@@ -78,6 +79,7 @@ models = [
   "agno[google]",
   "agno[groq]",
   "agno[mistral]",
+  "agno[ollama]",
   "agno[openai]",
 ]
 

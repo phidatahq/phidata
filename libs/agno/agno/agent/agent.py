@@ -1730,7 +1730,7 @@ class Agent:
             if isinstance(self.system_message, Message):
                 return self.system_message
 
-            sys_message_content: str
+            sys_message_content: str = ""
             if isinstance(self.system_message, str):
                 sys_message_content = self.system_message
             elif callable(self.system_message):
@@ -1738,8 +1738,8 @@ class Agent:
                 if not isinstance(sys_message_content, str):
                     raise Exception("system_message must return a string")
 
-            # Format the system message with the session state variables
-            sys_message_content = self.format_message_with_state_variables(sys_message_content)
+            # Remove leading and trailing whitespace
+            sys_message_content = sys_message_content.strip()
 
             # Add the JSON output prompt if response_model is provided and structured_outputs is False
             if self.response_model is not None and not self.structured_outputs:
@@ -1755,146 +1755,142 @@ class Agent:
             raise Exception("model not set")
 
         # 3. Build and return the default system message for the Agent.
-        # 3.1 Build the list of instructions for the system prompt.
-        user_provided_instructions = []
+        # 3.1 Build the list of instructions for the system message
+        instructions: List[str] = []
         if self.instructions is not None:
             _instructions = self.instructions
             if callable(self.instructions):
                 _instructions = self.instructions(agent=self)
 
             if isinstance(_instructions, str):
-                user_provided_instructions.append(_instructions)
+                instructions.append(_instructions)
             elif isinstance(_instructions, list):
-                user_provided_instructions.extend(_instructions)
-
-        # 3.2 Add additional information
-        additional_information = []
-        # 3.2.1 Add instructions from the Model
+                instructions.extend(_instructions)
+        # 3.1.1 Add instructions from the Model
         _model_instructions = self.model.get_instructions_for_model()
         if _model_instructions is not None:
-            additional_information.extend(_model_instructions)
-        # 3.2.2 Add instructions for using markdown
+            instructions.extend(_model_instructions)
+
+        # 3.2 Build a list of additional information for the system message
+        additional_information: List[str] = []
+        # 3.2.1 Add instructions for using markdown
         if self.markdown and self.response_model is None:
             additional_information.append("Use markdown to format your answers.")
-        # 3.2.3 Add the current datetime
+        # 3.2.2 Add the current datetime
         if self.add_datetime_to_instructions:
             from datetime import datetime
 
             additional_information.append(f"The current time is {datetime.now()}")
-        # 3.2.4 Add agent name if provided
+        # 3.2.3 Add agent name if provided
         if self.name is not None and self.add_name_to_instructions:
             additional_information.append(f"Your name is: {self.name}.")
 
         # 3.3 Build the default system message for the Agent.
-        system_message_lines: List[str] = []
+        system_message_content: str = ""
         # 3.3.1 First add the Agent description if provided
         if self.description is not None:
-            system_message_lines.append(f"{self.description}\n")
+            system_message_content += f"{self.description}\n"
         # 3.3.2 Then add the Agent goal if provided
         if self.goal is not None:
-            system_message_lines.append(f"<your_goal>\n{self.goal}\n</your_goal>\n")
-        # 3.3.3 Then add the Agent role
+            system_message_content += f"<your_goal>\n{self.goal}\n</your_goal>\n"
+        # 3.3.3 Then add the Agent role if provided
         if self.role is not None:
-            system_message_lines.append(f"<your_role>\n{self.role}\n</your_role>\n")
+            system_message_content += f"<your_role>\n{self.role}\n</your_role>\n"
         # 3.3.4 Then add instructions for transferring tasks to team members
         if self.has_team and self.add_transfer_instructions:
-            system_message_lines.extend(
-                [
-                    "<agent_team>",
-                    "You are the leader of a team of AI Agents:",
-                    "- You can either respond directly or transfer tasks to other Agents in your team depending on the tools available to them.",
-                    "- If you transfer a task to another Agent, make sure to include:",
-                    "  - task_description (str): A clear description of the task.",
-                    "  - expected_output (str): The expected output.",
-                    "  - additional_information (str): Additional information that will help the Agent complete the task.",
-                    "- You must always validate the output of the other Agents before responding to the user.",
-                    "- You can re-assign the task if you are not satisfied with the result.",
-                    "</agent_team>\n",
-                ]
+            system_message_content += (
+                "<agent_team>\n"
+                "You are the leader of a team of AI Agents:\n"
+                "- You can either respond directly or transfer tasks to other Agents in your team depending on the tools available to them.\n"
+                "- If you transfer a task to another Agent, make sure to include:\n"
+                "  - task_description (str): A clear description of the task.\n"
+                "  - expected_output (str): The expected output.\n"
+                "  - additional_information (str): Additional information that will help the Agent complete the task.\n"
+                "- You must always validate the output of the other Agents before responding to the user.\n"
+                "- You can re-assign the task if you are not satisfied with the result.\n"
+                "</agent_team>\n"
             )
         # 3.3.5 Then add instructions for the Agent
-        if len(user_provided_instructions) > 0:
-            system_message_lines.append("<instructions>")
-            if len(user_provided_instructions) > 1:
-                system_message_lines.extend([f"- {_upi}" for _upi in user_provided_instructions])
+        if len(instructions) > 0:
+            system_message_content += "<instructions>\n"
+            if len(instructions) > 1:
+                for _upi in instructions:
+                    system_message_content += f"- {_upi}\n"
             else:
-                system_message_lines.append(user_provided_instructions[0])
-            system_message_lines.append("</instructions>\n")
+                system_message_content += instructions[0]
+            system_message_content += "</instructions>\n"
         # 3.3.6 Add additional information
         if len(additional_information) > 0:
-            system_message_lines.append("<additional_information>")
-            system_message_lines.extend([f"- {_api}" for _api in additional_information])
-            system_message_lines.append("</additional_information>\n")
-        # 3.3.7 Then add the prompt for the Model
+            system_message_content += "<additional_information>\n"
+            for _ai in additional_information:
+                system_message_content += f"- {_ai}\n"
+            system_message_content += "\n</additional_information>\n"
+
+        # Format the system message with the session state variables
+        system_message_content = self.format_message_with_state_variables(system_message_content)
+
+        # 3.3.7 Then add the system message from the Model
         system_message_from_model = self.model.get_system_message_for_model()
         if system_message_from_model is not None:
-            system_message_lines.append(system_message_from_model)
+            system_message_content += system_message_from_model
         # 3.3.8 Then add the expected output
         if self.expected_output is not None:
-            system_message_lines.append(f"<expected_output>\n{self.expected_output.strip()}\n</expected_output>\n")
+            system_message_content += f"<expected_output>\n{self.expected_output.strip()}\n</expected_output>\n"
         # 3.3.9 Then add additional context
         if self.additional_context is not None:
-            system_message_lines.append(
+            system_message_content += (
                 f"<additional_context>\n{self.additional_context.strip()}\n</additional_context>\n"
             )
         # 3.3.10 Then add information about the team members
         if self.has_team and self.add_transfer_instructions:
-            system_message_lines.append(
+            system_message_content += (
                 f"<transfer_instructions>\n{self.get_transfer_instructions().strip()}\n</transfer_instructions>\n"
             )
         # 3.3.11 Then add memories to the system prompt
         if self.memory.create_user_memories:
             if self.memory.memories and len(self.memory.memories) > 0:
-                system_message_lines.append(
+                system_message_content += (
                     "You have access to memories from previous interactions with the user that you can use:"
                 )
-                system_message_lines.append("<memories_from_previous_interactions>")
-                system_message_lines.append("\n".join([f"- {memory.memory}" for memory in self.memory.memories]))
-                system_message_lines.append("</memories_from_previous_interactions>")
-                system_message_lines.append(
+                system_message_content += "<memories_from_previous_interactions>"
+                for _memory in self.memory.memories:
+                    system_message_content += f"- {_memory.memory}\n"
+                system_message_content += "</memories_from_previous_interactions>"
+                system_message_content += (
                     "\nNote: this information is from previous interactions and may be updated in this conversation. "
-                    "You should always prefer information from this conversation over the past memories."
-                )
-                system_message_lines.append("If you need to update the long-term memory, use the `update_memory` tool.")
-            else:
-                system_message_lines.append(
-                    "You have the capability to retain memories from previous interactions with the user, "
-                    "but have not had any interactions with the user yet."
-                )
-                system_message_lines.append(
-                    "If the user asks about previous memories, you can let them know that you dont have any memory about the user because you haven't had any interactions yet."
+                    "You should always prefer information from this conversation over the past memories.\n"
                     "You can add new memories using the `update_memory` tool."
                 )
-            system_message_lines.append(
+            else:
+                system_message_content += (
+                    "You have the capability to retain memories from previous interactions with the user, "
+                    "but have not had any interactions with the user yet.\n"
+                )
+                system_message_content += (
+                    "If the user asks about previous memories, you can let them know that you dont have any memory about the user because you haven't had any interactions yet.\n"
+                    "You can add new memories using the `update_memory` tool.\n"
+                )
+            system_message_content += (
                 "If you use the `update_memory` tool, remember to pass on the response to the user.\n"
             )
         # 3.3.12 Then add a summary of the interaction to the system prompt
         if self.memory.create_session_summary:
             if self.memory.summary is not None:
-                system_message_lines.append("Here is a brief summary of your previous interactions if it helps:")
-                system_message_lines.append("<summary_of_previous_interactions>")
-                system_message_lines.append(str(self.memory.summary))
-                system_message_lines.append("</summary_of_previous_interactions>")
-                system_message_lines.append(
+                system_message_content += "Here is a brief summary of your previous interactions if it helps:\n"
+                system_message_content += "<summary_of_previous_interactions>\n"
+                system_message_content += str(self.memory.summary)
+                system_message_content += "</summary_of_previous_interactions>\n"
+                system_message_content += (
                     "\nNote: this information is from previous interactions and may be outdated. "
                     "You should ALWAYS prefer information from this conversation over the past summary.\n"
                 )
-
-        # Format the system message with the session state variables
-        system_message_content = self.format_message_with_state_variables("\n".join(system_message_lines).strip())
 
         # Add the JSON output prompt if response_model is provided and structured_outputs is False
         if self.response_model is not None and not self.structured_outputs:
             system_message_content += f"\n\n{self.get_json_output_prompt()}"
 
-        # Return the system prompt
-        if len(system_message_lines) > 0:
-            return Message(
-                role=self.get_system_message_role(),
-                content=system_message_content,
-            )
-
-        return None
+        # Return the system message
+        return Message(role=self.get_system_message_role(), content=system_message_content.strip())
 
     def get_user_message(
         self,

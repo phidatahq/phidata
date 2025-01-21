@@ -1,5 +1,5 @@
 from agno.agent import Agent
-from agno.llm.openai import OpenAIChat
+from agno.models.openai import OpenAIChat
 from agno.tools.lumalab import LumaLabTools
 
 """Create an agent specialized for Luma AI video generation"""

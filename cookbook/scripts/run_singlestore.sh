@@ -7,7 +7,7 @@ docker run -d --name singlestoredb \
   -e SINGLESTORE_PASSWORD=password \
   singlestore/cluster-in-a-box
 
-  docker start singlestoredb
+docker start singlestoredb
 
 export SINGLESTORE_HOST="localhost"
 export SINGLESTORE_PORT="3306"

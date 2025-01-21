@@ -12,7 +12,7 @@ from agno.vectordb.milvus import Milvus
 # - If you use [Zilliz Cloud](https://zilliz.com/cloud), the fully managed cloud service for Milvus, adjust the `uri` and `token`, which correspond to the [Public Endpoint and API key](https://docs.zilliz.com/docs/on-zilliz-cloud-console#cluster-details) in Zilliz Cloud.
 vector_db = Milvus(
     collection="recipes",
-    uri="./milvus.db",
+    uri="tmp/milvus.db",
 )
 # Create knowledge base
 knowledge_base = PDFUrlKnowledgeBase(
@@ -23,5 +23,5 @@ knowledge_base = PDFUrlKnowledgeBase(
 knowledge_base.load(recreate=False)  # Comment out after first run
 
 # Create and use the agent
-agent = Agent(knowledge=knowledge_base, use_tools=True, show_tool_calls=True)
+agent = Agent(knowledge=knowledge_base, show_tool_calls=True)
 agent.print_response("How to make Tom Kha Gai", markdown=True)

@@ -262,23 +262,19 @@ def get_llm_os(
         extra_instructions=extra_instructions,
         storage=PgAgentStorage(db_url=db_url, table_name="llm_os_runs"),
         # Define the knowledge base
-        knowledge_base=AgentKnowledge(
+        knowledge=AgentKnowledge(
             vector_db=Qdrant(
                 collection="llm_os_documents",
                 embedder=OpenAIEmbedder(model="text-embedding-ada-002", dimensions=1536),
             ),
             num_documents=3,  # Retrieve 3 most relevant documents
         ),
-        # This setting gives the LLM a tool to search the knowledge base for information
-        search_knowledge=True,
-        # This setting gives the LLM a tool to get chat history
-        read_chat_history=True,
-        # This setting adds chat history to the messages
-        add_chat_history_to_messages=True,
+        search_knowledge=True,  # This setting gives the LLM a tool to search the knowledge base for information
+        read_chat_history=True,  # This setting gives the LLM a tool to get chat history
+        add_chat_history_to_messages=True,  # This setting adds chat history to the messages
         num_history_messages=5,
         markdown=True,
-        # This setting adds the current datetime to the instructions
-        add_datetime_to_instructions=True,
+        add_datetime_to_instructions=True,  # This setting adds the current datetime to the instructions
         # Add an introductory Agent message
         introduction=dedent("""\
         Hi, I'm your LLM OS.

@@ -301,17 +301,19 @@ class OpenAIChat(Model):
                 model_dict["tool_choice"] = self.tool_choice
         return model_dict
 
-    def format_message(self, message: Message) -> Dict[str, Any]:
+    def format_message(self, message: Message, map_system_to_developer: bool = True) -> Dict[str, Any]:
         """
         Format a message into the format expected by OpenAI.
 
         Args:
             message (Message): The message to format.
+            map_system_to_developer (bool, optional): Whether the "system" role is mapped to "developer". Defaults to True.
 
         Returns:
             Dict[str, Any]: The formatted message.
         """
-        if message.role == "system":
+        # New OpenAI format
+        if map_system_to_developer and message.role == "system":
             message.role = "developer"
 
         if message.role == "user":

@@ -4,7 +4,7 @@ from typing import List, Optional, Dict, Any
 try:
     from pymilvus import MilvusClient  # type: ignore
 except ImportError:
-    raise ImportError("The `pymilvus` package is not installed. " "Please install it via `pip install pymilvus`.")
+    raise ImportError("The `pymilvus` package is not installed. Please install it via `pip install pymilvus`.")
 
 from phi.document import Document
 from phi.embedder import Embedder

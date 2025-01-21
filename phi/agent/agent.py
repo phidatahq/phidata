@@ -398,7 +398,7 @@ class Agent(BaseModel):
                     yield "No response from the member agent."
                 elif isinstance(member_agent_run_response.content, str):
                     yield member_agent_run_response.content
-                elif issubclass(member_agent_run_response.content, BaseModel):
+                elif issubclass(type(member_agent_run_response.content), BaseModel):
                     try:
                         yield member_agent_run_response.content.model_dump_json(indent=2)
                     except Exception as e:
@@ -495,8 +495,7 @@ class Agent(BaseModel):
             except ModuleNotFoundError as e:
                 logger.exception(e)
                 logger.error(
-                    "phidata uses `openai` as the default model provider. "
-                    "Please provide a `model` or install `openai`."
+                    "phidata uses `openai` as the default model provider. Please provide a `model` or install `openai`."
                 )
                 exit(1)
             self.model = OpenAIChat()  # We default to OpenAIChat as a base model
@@ -1996,8 +1995,13 @@ class Agent(BaseModel):
 
         # If a response_model is set, return the response as a structured output
         if self.response_model is not None and self.parse_response:
+            # Set show_tool_calls=False if we have response_model
+            self.show_tool_calls = False
+            logger.debug("Setting show_tool_calls=False as response_model is set")
+
             # Set stream=False and run the agent
             logger.debug("Setting stream=False as response_model is set")
+
             run_response: RunResponse = next(
                 self._run(
                     message=message,
@@ -2023,8 +2027,7 @@ class Agent(BaseModel):
                     structured_output = None
                     try:
                         structured_output = self.response_model.model_validate_json(run_response.content)
-                    except ValidationError as exc:
-                        logger.warning(f"Failed to convert response to pydantic model: {exc}")
+                    except ValidationError:
                         # Check if response starts with ```json
                         if run_response.content.startswith("```json"):
                             run_response.content = run_response.content.replace("```json\n", "").replace("\n```", "")
@@ -2042,6 +2045,7 @@ class Agent(BaseModel):
                             self.run_response.content_type = self.response_model.__name__
                     else:
                         logger.warning("Failed to convert response to response_model")
+
                 except Exception as e:
                     logger.warning(f"Failed to convert response to output model: {e}")
             else:
@@ -2312,6 +2316,10 @@ class Agent(BaseModel):
 
         # If a response_model is set, return the response as a structured output
         if self.response_model is not None and self.parse_response:
+            # Set show_tool_calls=False if we have a response_model
+            self.show_tool_calls = False
+            logger.debug("Setting show_tool_calls=False as response_model is set")
+
             # Set stream=False and run the agent
             logger.debug("Setting stream=False as response_model is set")
             run_response = await self._arun(
@@ -2337,8 +2345,7 @@ class Agent(BaseModel):
                     structured_output = None
                     try:
                         structured_output = self.response_model.model_validate_json(run_response.content)
-                    except ValidationError as exc:
-                        logger.warning(f"Failed to convert response to pydantic model: {exc}")
+                    except ValidationError:
                         # Check if response starts with ```json
                         if run_response.content.startswith("```json"):
                             run_response.content = run_response.content.replace("```json\n", "").replace("\n```", "")
@@ -2354,6 +2361,9 @@ class Agent(BaseModel):
                         if self.run_response is not None:
                             self.run_response.content = structured_output
                             self.run_response.content_type = self.response_model.__name__
+                    else:
+                        logger.warning("Failed to convert response to response_model")
+
                 except Exception as e:
                     logger.warning(f"Failed to convert response to output model: {e}")
             else:
@@ -2822,6 +2832,7 @@ class Agent(BaseModel):
                             _response_content += resp.content
                         if resp.extra_data is not None and resp.extra_data.reasoning_steps is not None:
                             reasoning_steps = resp.extra_data.reasoning_steps
+
                     response_content_stream = Markdown(_response_content) if self.markdown else _response_content
 
                     panels = [status]

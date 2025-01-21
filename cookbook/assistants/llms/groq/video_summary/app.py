@@ -89,7 +89,7 @@ def main() -> None:
         if num_chunks > 1:
             chunk_summaries = []
             for i in range(num_chunks):
-                with st.status(f"Summarizing chunk: {i+1}", expanded=False) as status:
+                with st.status(f"Summarizing chunk: {i + 1}", expanded=False) as status:
                     chunk_summary = ""
                     chunk_container = st.empty()
                     chunk_summarizer = get_chunk_summarizer(model=llm_model)
@@ -99,7 +99,7 @@ def main() -> None:
                         chunk_summary += delta  # type: ignore
                         chunk_container.markdown(chunk_summary)
                     chunk_summaries.append(chunk_summary)
-                    status.update(label=f"Chunk {i+1} summarized", state="complete", expanded=False)
+                    status.update(label=f"Chunk {i + 1} summarized", state="complete", expanded=False)
 
             with st.spinner("Generating Summary"):
                 summary = ""

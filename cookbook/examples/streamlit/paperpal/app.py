@@ -3,7 +3,6 @@ from typing import Optional
 
 import pandas as pd
 import streamlit as st
-from pydantic import BaseModel
 from technical_writer import (
     SearchTerms,
     arxiv_search_agent,

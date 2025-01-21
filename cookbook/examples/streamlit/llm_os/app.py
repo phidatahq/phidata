@@ -18,37 +18,6 @@ st.title("LLM OS")
 st.markdown("##### :orange_heart: built using [phidata](https://github.com/phidatahq/phidata)")
 
 
-def initialize_agent(
-    model_id,
-    calculator_enabled,
-    ddg_search_enabled,
-    file_tools_enabled,
-    shell_tools_enabled,
-    data_analyst_enabled,
-    python_agent_enabled,
-    research_agent_enabled,
-    investment_agent_enabled,
-):
-    """Initialize or retrieve the LLM OS agent."""
-
-    if "llm_os" not in st.session_state or st.session_state["llm_os"] is None:
-        logger.info(f"---*--- Creating {model_id} LLM OS ---*---")
-        agent: Agent = get_llm_os(
-            model_id=model_id,
-            calculator=calculator_enabled,
-            ddg_search=ddg_search_enabled,
-            file_tools=file_tools_enabled,
-            shell_tools=shell_tools_enabled,
-            data_analyst=data_analyst_enabled,
-            python_agent_enable=python_agent_enabled,
-            research_agent_enable=research_agent_enabled,
-            investment_agent_enable=investment_agent_enabled,
-        )
-        st.session_state["llm_os"] = agent
-        st.session_state["llm_os_run_id"] = agent.run_id  # Ensure run ID is stored
-    return st.session_state["llm_os"]
-
-
 def main() -> None:
     """Main function to run the Streamlit app."""
 
@@ -181,23 +150,29 @@ def main() -> None:
         restart_agent()
 
     # Initialize the agent
-    llm_os = initialize_agent(
-        model_id,
-        calculator_enabled,
-        ddg_search_enabled,
-        file_tools_enabled,
-        shell_tools_enabled,
-        data_analyst_enabled,
-        python_agent_enabled,
-        research_agent_enabled,
-        investment_agent_enabled,
-    )
+    if "llm_os" not in st.session_state or st.session_state["llm_os"] is None:
+        logger.info(f"---*--- Creating {model_id} LLM OS ---*---")
+        llm_os: Agent = get_llm_os(
+            model_id=model_id,
+            calculator=calculator_enabled,
+            ddg_search=ddg_search_enabled,
+            file_tools=file_tools_enabled,
+            shell_tools=shell_tools_enabled,
+            data_analyst=data_analyst_enabled,
+            python_agent_enable=python_agent_enabled,
+            research_agent_enable=research_agent_enabled,
+            investment_agent_enable=investment_agent_enabled,
+        )
+        st.session_state["llm_os"] = llm_os
+        st.session_state["llm_os"] = llm_os
+    else:
+        llm_os = st.session_state["llm_os"]
 
-    # Create agent run (i.e. log to database) and save run_id in session state
+    # Create agent run (i.e. log to database) and save session_id in session state
     try:
-        st.session_state["llm_os_run_id"] = llm_os.run_id
+        st.session_state["llm_os_run_id"] = llm_os.create_session()
     except Exception as e:
-        st.warning(f"Could not create LLM OS run, is the database running?\n{e}")
+        st.warning(f"Could not create LLM OS session, is the database running?\n{e}")
         return
 
     # Load chat history from memory

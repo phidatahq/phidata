@@ -3,14 +3,16 @@ from typing import Optional
 
 import pandas as pd
 import streamlit as st
-
-from cookbook.examples.streamlit.paperpal.technical_writer import (
+from pydantic import BaseModel
+from technical_writer import (
     SearchTerms,
     arxiv_search_agent,
     arxiv_toolkit,
     exa_search_agent,
     research_editor,
     search_term_generator,
+    WebSearchResults,
+    ArxivSearchResults,
 )
 
 # Streamlit App Configuration
@@ -105,18 +107,24 @@ def main() -> None:
                             raise ValueError(
                                 "Unexpected string response from exa_search_agent"
                             )
-                        if (
-                            exa_search_results
-                            and exa_search_results.content
-                            and len(exa_search_results.content.results) > 0
-                        ):
-                            exa_content = exa_search_results.model_dump_json(indent=4)
-                            exa_container.json(exa_search_results.content.results)
-                            status.update(
-                                label="Exa Search Complete",
-                                state="complete",
-                                expanded=False,
-                            )
+                        
+                        if isinstance(exa_search_results.content, WebSearchResults):
+                            exa_container.json(exa_search_results.content.results)                      
+                            if (
+                                exa_search_results
+                                and exa_search_results.content
+                                and len(exa_search_results.content.results) > 0
+                            ):
+                                exa_content = exa_search_results.content.model_dump_json(indent=4)
+                                exa_container.json(exa_search_results.content.results)
+                                status.update(
+                                    label="Exa Search Complete",
+                                    state="complete",
+                                    expanded=False,
+                                )
+                        else:
+                            raise TypeError("Unexpected response from exa_search_agent")
+                    
                     except Exception as e:
                         st.error(f"An error occurred during Exa search: {e}")
                         status.update(
@@ -133,17 +141,21 @@ def main() -> None:
                     arxiv_search_results = arxiv_search_agent.run(
                         search_terms.model_dump_json(indent=4)
                     )
-                    if (
-                        arxiv_search_results
-                        and arxiv_search_results.content
-                        and arxiv_search_results.content.results
-                    ):
-                        arxiv_container.json(
-                            [
-                                result.model_dump()
-                                for result in arxiv_search_results.content.results
-                            ]
-                        )
+                    if isinstance(arxiv_search_results.content, ArxivSearchResults):
+                        if (
+                            arxiv_search_results
+                            and arxiv_search_results.content
+                            and arxiv_search_results.content.results
+                        ):
+                            arxiv_container.json(
+                                [
+                                    result.model_dump()
+                                    for result in arxiv_search_results.content.results
+                                ]
+                            )
+                    else:
+                        raise TypeError("Unexpected response from arxiv_search_agent")
+                    
                 status.update(
                     label="ArXiv Search Complete", state="complete", expanded=False
                 )

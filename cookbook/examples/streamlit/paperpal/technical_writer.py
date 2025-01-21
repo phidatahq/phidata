@@ -4,7 +4,7 @@ from typing import List
 
 from agno.agent import Agent
 from agno.models.openai import OpenAIChat
-from agno.tools.arxiv_toolkit import ArxivToolkit
+from agno.tools.arxiv_toolkit import ArxivTools
 from agno.tools.exa import ExaTools
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
@@ -51,7 +51,7 @@ class WebSearchResults(BaseModel):
 
 
 # Initialize tools
-arxiv_toolkit = ArxivToolkit(
+arxiv_toolkit = ArxivTools(
     download_dir=Path(__file__).parent.parent.parent.parent.joinpath(
         "wip", "arxiv_pdfs"
     )
@@ -72,7 +72,7 @@ Focus on terms that are:
 Provide the search terms as a list of strings like ["xyz", "abc", ...]
 """,
     response_model=SearchTerms,
-    structured_output=True,
+    structured_outputs=True,
 )
 
 arxiv_search_agent = Agent(
@@ -100,7 +100,7 @@ Ensure the selected research papers directly address the topic and offer valuabl
 """,
     tools=[arxiv_toolkit],
     response_model=ArxivSearchResults,
-    structured_output=True,
+    structured_outputs=True,
 )
 
 exa_search_agent = Agent(
@@ -124,7 +124,7 @@ Ensure the selected articles are credible, relevant, and provide significant ins
 """,
     tools=[ExaTools()],
     response_model=WebSearchResults,
-    structured_output=True,
+    structured_outputs=True,
 )
 
 research_editor = Agent(

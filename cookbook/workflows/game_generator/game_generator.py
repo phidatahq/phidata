@@ -89,7 +89,7 @@ class GameGenerator(Workflow):
             "game_description": game_description,
             "game_code": game_code,
         }
-        qa_output = self.qa_agent.run(json.dumps(qa_input, indent=2))
+        qa_output = self.qa_agent.run({"role": "user", "content": json.dumps(qa_input)})
 
         if qa_output and qa_output.content and isinstance(qa_output.content, QAOutput):
             logger.info(qa_output.content)

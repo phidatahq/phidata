@@ -66,6 +66,8 @@ class Agent:
     session_name: Optional[str] = None
     # Session state stored in the database
     session_state: Optional[Dict[str, Any]] = None
+    # If True, format the session state variables in the user and system messages
+    format_state_in_messages: bool = True
 
     # --- Agent Context ---
     # Context available for tools and prompt functions
@@ -1738,8 +1740,9 @@ class Agent:
                 if not isinstance(sys_message_content, str):
                     raise Exception("system_message must return a string")
 
-            # Remove leading and trailing whitespace
-            sys_message_content = sys_message_content.strip()
+            # Format the system message with the session state variables
+            if self.format_state_in_messages:
+                sys_message_content = self.format_message_with_state_variables(sys_message_content)
 
             # Add the JSON output prompt if response_model is provided and structured_outputs is False
             if self.response_model is not None and not self.structured_outputs:
@@ -1812,22 +1815,23 @@ class Agent:
             )
         # 3.3.5 Then add instructions for the Agent
         if len(instructions) > 0:
-            system_message_content += "<instructions>\n"
+            system_message_content += "<instructions>"
             if len(instructions) > 1:
                 for _upi in instructions:
-                    system_message_content += f"- {_upi}\n"
+                    system_message_content += f"\n- {_upi}"
             else:
                 system_message_content += instructions[0]
-            system_message_content += "</instructions>\n"
+            system_message_content += "</instructions>\n\n"
         # 3.3.6 Add additional information
         if len(additional_information) > 0:
-            system_message_content += "<additional_information>\n"
+            system_message_content += "<additional_information>"
             for _ai in additional_information:
-                system_message_content += f"- {_ai}\n"
-            system_message_content += "\n</additional_information>\n"
+                system_message_content += f"\n- {_ai}"
+            system_message_content += "\n</additional_information>\n\n"
 
         # Format the system message with the session state variables
-        system_message_content = self.format_message_with_state_variables(system_message_content)
+        if self.format_state_in_messages:
+            system_message_content = self.format_message_with_state_variables(system_message_content)
 
         # 3.3.7 Then add the system message from the Model
         system_message_from_model = self.model.get_system_message_for_model()
@@ -1854,7 +1858,7 @@ class Agent:
                 )
                 system_message_content += "<memories_from_previous_interactions>"
                 for _memory in self.memory.memories:
-                    system_message_content += f"- {_memory.memory}\n"
+                    system_message_content += f"\n- {_memory.memory}"
                 system_message_content += "</memories_from_previous_interactions>"
                 system_message_content += (
                     "\nNote: this information is from previous interactions and may be updated in this conversation. "
@@ -1947,9 +1951,12 @@ class Agent:
                 if not isinstance(user_message_content, str):
                     raise Exception("user_message must return a string")
 
+            if self.format_state_in_messages:
+                user_message_content = self.format_message_with_state_variables(user_message_content)
+
             return Message(
                 role=self.user_message_role,
-                content=self.format_message_with_state_variables(user_message_content),
+                content=user_message_content,
                 audio=audio,
                 images=images,
                 videos=videos,
@@ -1967,7 +1974,10 @@ class Agent:
         if message is None:
             return None
 
-        user_msg_content = self.format_message_with_state_variables(message)
+        user_msg_content = ""
+        # Format the message with the session state variables
+        if self.format_state_in_messages:
+            user_msg_content = self.format_message_with_state_variables(message)
         # 4.1 Add references to user message
         if (
             self.add_references

@@ -1683,7 +1683,7 @@ class Agent:
                             f"\n{json.dumps([key for key in response_model_properties.keys() if key != '$defs'])}"
                         )
                         json_output_prompt += "\n</json_fields>"
-                        json_output_prompt += "\nHere are the properties for each field:"
+                        json_output_prompt += "\n\nHere are the properties for each field:"
                         json_output_prompt += "\n<json_field_properties>"
                         json_output_prompt += f"\n{json.dumps(response_model_properties, indent=2)}"
                         json_output_prompt += "\n</json_field_properties>"
@@ -1793,13 +1793,13 @@ class Agent:
         system_message_content: str = ""
         # 3.3.1 First add the Agent description if provided
         if self.description is not None:
-            system_message_content += f"{self.description}\n"
+            system_message_content += f"{self.description}\n\n"
         # 3.3.2 Then add the Agent goal if provided
         if self.goal is not None:
-            system_message_content += f"<your_goal>\n{self.goal}\n</your_goal>\n"
+            system_message_content += f"<your_goal>\n{self.goal}\n</your_goal>\n\n"
         # 3.3.3 Then add the Agent role if provided
         if self.role is not None:
-            system_message_content += f"<your_role>\n{self.role}\n</your_role>\n"
+            system_message_content += f"<your_role>\n{self.role}\n</your_role>\n\n"
         # 3.3.4 Then add instructions for transferring tasks to team members
         if self.has_team and self.add_transfer_instructions:
             system_message_content += (
@@ -1812,7 +1812,7 @@ class Agent:
                 "  - additional_information (str): Additional information that will help the Agent complete the task.\n"
                 "- You must always validate the output of the other Agents before responding to the user.\n"
                 "- You can re-assign the task if you are not satisfied with the result.\n"
-                "</agent_team>\n"
+                "</agent_team>\n\n"
             )
         # 3.3.5 Then add instructions for the Agent
         if len(instructions) > 0:
@@ -1821,8 +1821,8 @@ class Agent:
                 for _upi in instructions:
                     system_message_content += f"\n- {_upi}"
             else:
-                system_message_content += instructions[0]
-            system_message_content += "</instructions>\n\n"
+                system_message_content += "\n" + instructions[0]
+            system_message_content += "\n</instructions>\n\n"
         # 3.3.6 Add additional information
         if len(additional_information) > 0:
             system_message_content += "<additional_information>"
@@ -1840,59 +1840,56 @@ class Agent:
             system_message_content += system_message_from_model
         # 3.3.8 Then add the expected output
         if self.expected_output is not None:
-            system_message_content += f"<expected_output>\n{self.expected_output.strip()}\n</expected_output>\n"
+            system_message_content += f"<expected_output>\n{self.expected_output.strip()}\n</expected_output>\n\n"
         # 3.3.9 Then add additional context
         if self.additional_context is not None:
             system_message_content += (
-                f"<additional_context>\n{self.additional_context.strip()}\n</additional_context>\n"
+                f"<additional_context>\n{self.additional_context.strip()}\n</additional_context>\n\n"
             )
         # 3.3.10 Then add information about the team members
         if self.has_team and self.add_transfer_instructions:
             system_message_content += (
-                f"<transfer_instructions>\n{self.get_transfer_instructions().strip()}\n</transfer_instructions>\n"
+                f"<transfer_instructions>\n{self.get_transfer_instructions().strip()}\n</transfer_instructions>\n\n"
             )
         # 3.3.11 Then add memories to the system prompt
         if self.memory.create_user_memories:
             if self.memory.memories and len(self.memory.memories) > 0:
                 system_message_content += (
-                    "You have access to memories from previous interactions with the user that you can use:"
+                    "You have access to memories from previous interactions with the user that you can use:\n\n"
                 )
                 system_message_content += "<memories_from_previous_interactions>"
                 for _memory in self.memory.memories:
                     system_message_content += f"\n- {_memory.memory}"
-                system_message_content += "</memories_from_previous_interactions>"
+                system_message_content += "\n</memories_from_previous_interactions>\n\n"
                 system_message_content += (
-                    "\nNote: this information is from previous interactions and may be updated in this conversation. "
-                    "You should always prefer information from this conversation over the past memories.\n"
-                    "You can add new memories using the `update_memory` tool."
+                    "Note: this information is from previous interactions and may be updated in this conversation. "
+                    "You should always prefer information from this conversation over the past memories.\n\n"
                 )
             else:
                 system_message_content += (
                     "You have the capability to retain memories from previous interactions with the user, "
                     "but have not had any interactions with the user yet.\n"
-                )
-                system_message_content += (
-                    "If the user asks about previous memories, you can let them know that you dont have any memory about the user because you haven't had any interactions yet.\n"
-                    "You can add new memories using the `update_memory` tool.\n"
+                    "If the user asks about previous memories, you can let them know that you dont have any memory about the user because you haven't had any interactions yet.\n\n"
                 )
             system_message_content += (
-                "If you use the `update_memory` tool, remember to pass on the response to the user.\n"
+                "You can add new memories using the `update_memory` tool.\n"
+                "If you use the `update_memory` tool, remember to pass on the response to the user.\n\n"
             )
         # 3.3.12 Then add a summary of the interaction to the system prompt
         if self.memory.create_session_summary:
             if self.memory.summary is not None:
-                system_message_content += "Here is a brief summary of your previous interactions if it helps:\n"
+                system_message_content += "Here is a brief summary of your previous interactions if it helps:\n\n"
                 system_message_content += "<summary_of_previous_interactions>\n"
                 system_message_content += str(self.memory.summary)
-                system_message_content += "</summary_of_previous_interactions>\n"
+                system_message_content += "\n</summary_of_previous_interactions>\n\n"
                 system_message_content += (
-                    "\nNote: this information is from previous interactions and may be outdated. "
-                    "You should ALWAYS prefer information from this conversation over the past summary.\n"
+                    "Note: this information is from previous interactions and may be outdated. "
+                    "You should ALWAYS prefer information from this conversation over the past summary.\n\n"
                 )
 
         # Add the JSON output prompt if response_model is provided and structured_outputs is False
         if self.response_model is not None and not self.structured_outputs:
-            system_message_content += f"\n\n{self.get_json_output_prompt()}"
+            system_message_content += f"{self.get_json_output_prompt()}"
 
         # Return the system message
         return Message(role=self.get_system_message_role(), content=system_message_content.strip())

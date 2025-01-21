@@ -1,4 +1,4 @@
-# Agent UI
+# Agent Playground
 
 Agno provides a beautiful Agent UI for interacting with your agents.
 
@@ -7,14 +7,15 @@ Agno provides a beautiful Agent UI for interacting with your agents.
 ### Create and activate a virtual environment
 
 ```shell
-python3 -m venv ~/.venvs/aienv
-source ~/.venvs/aienv/bin/activate
+python3 -m venv .venv
+source .venv/bin/activate
 ```
 
 ### Export your API keys
 
 ```shell
 export OPENAI_API_KEY=***
+# If you need Exa search
 export EXA_API_KEY=***
 ...
 ```

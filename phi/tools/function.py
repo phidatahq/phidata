@@ -152,7 +152,7 @@ class Function(BaseModel):
                     if param.default == param.empty and name != "self" and name != "agent"
                 ]
 
-            logger.debug(f"JSON schema for {function_name}: {parameters}")
+            # logger.debug(f"JSON schema for {function_name}: {parameters}")
         except Exception as e:
             logger.warning(f"Could not parse args for {function_name}: {e}", exc_info=True)
 
@@ -228,7 +228,7 @@ class Function(BaseModel):
                     if param.default == param.empty and name != "self" and name != "agent"
                 ]
 
-            logger.debug(f"JSON schema for {self.name}: {parameters}")
+            # logger.debug(f"JSON schema for {self.name}: {parameters}")
         except Exception as e:
             logger.warning(f"Could not parse args for {self.name}: {e}", exc_info=True)
 

@@ -1,6 +1,6 @@
 """
 1. Install dependencies using: `pip install openai agno`
-2. Run the script using: `python cookbook/workflows/game_generator.py`
+2. Run the script using: `python cookbook/examples/streamlit/game_generator/game_generator.py`
 """
 
 import json
@@ -47,6 +47,7 @@ class GameGenerator(Workflow):
             "Create a game based on the user's prompt. "
             "The game should be HTML5, completely self-contained and must be runnable simply by opening on a browser",
             "Ensure the game has a alert that pops up if the user dies and then allows the user to restart or exit the game.",
+            "add full screen mode to the game",
             "Ensure instructions for the game are displayed on the HTML page."
             "Use user-friendly colours and make the game canvas large enough for the game to be playable on a larger screen.",
         ],

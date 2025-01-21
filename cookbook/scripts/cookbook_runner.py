@@ -92,6 +92,7 @@ def select_directory(base_directory):
 def run_python_script(script_path):
     """
     Run a Python script and display its output in real time.
+    Pauses execution on failure to allow user intervention.
     """
     print(f"Running {script_path}...\n")
     try:
@@ -108,8 +109,12 @@ def run_python_script(script_path):
 
         return True  # Script ran successfully
 
+    except subprocess.CalledProcessError as e:
+        print(f"\nError: {script_path} failed with return code {e.returncode}.")
+        return False  # Script failed
+
     except Exception as e:
-        print(f"Error while running {script_path}: {e}")
+        print(f"\nUnexpected error while running {script_path}: {e}")
         return False  # Script failed
 
 
@@ -145,45 +150,70 @@ def drill_and_run_scripts(base_directory):
 
     error_log = []
 
-    # Run each .py file and capture its status
     for py_file in python_files:
         file_path = os.path.join(selected_directory, py_file)
         if not run_python_script(file_path):
             error_log.append(py_file)
 
-    # Log errors and handle rerun logic
     while error_log:
         print("\n--- Error Log ---")
         for py_file in error_log:
             print(f"Cookbook: {py_file} failed to execute.\n")
 
-        # Prompt the user to rerun all failed scripts
+        # Prompt the user for action
         questions = [
-            inquirer.Confirm(
-                "rerun_failed",
-                message="Some cookbooks failed. Do you want to rerun all failed cookbooks?",
-                default=False,
+            inquirer.List(
+                "action",
+                message="Some cookbooks failed. What would you like to do?",
+                choices=[
+                    "Retry failed scripts",
+                    "Pause for manual intervention and retry",
+                    "Exit with error log",
+                ],
             )
         ]
         answers = inquirer.prompt(questions)
 
-        if not answers or not answers.get("rerun_failed"):
-            print("\nExiting. Some cookbooks were not successfully executed:")
+        if answers and answers.get("action") == "Retry failed scripts":
+            print("\nRe-running failed cookbooks...\n")
+            new_error_log = []
+            for py_file in error_log:
+                file_path = os.path.join(selected_directory, py_file)
+                if not run_python_script(file_path):
+                    new_error_log.append(py_file)
+
+            error_log = new_error_log
+
+        elif answers and answers.get("action") == "Pause for manual intervention and retry":
+            print("\nPaused for manual intervention. A shell is now open for you to execute commands (e.g., installing packages).")
+            print("Type 'exit' or 'Ctrl+D' to return and retry failed cookbooks.\n")
+            
+            # Open an interactive shell for the user
+            try:
+                subprocess.run(["bash"], check=True)  # For Unix-like systems
+            except FileNotFoundError:
+                try:
+                    subprocess.run(["cmd"], check=True, shell=True)  # For Windows
+                except Exception as e:
+                    print(f"Error opening shell: {e}")
+                    print("Please manually install required packages in a separate terminal.")
+            
+            print("\nRe-running failed cookbooks after manual intervention...\n")
+            new_error_log = []
+            for py_file in error_log:
+                file_path = os.path.join(selected_directory, py_file)
+                if not run_python_script(file_path):
+                    new_error_log.append(py_file)
+
+            error_log = new_error_log
+
+        elif answers and answers.get("action") == "Exit with error log":
+            print("\nExiting. Remaining cookbooks that failed:")
             for py_file in error_log:
                 print(f" - {py_file}")
             return
 
-        print("\nRe-running failed cookbooks...\n")
-        new_error_log = []
-        for py_file in error_log:
-            file_path = os.path.join(selected_directory, py_file)
-            if not run_python_script(file_path):
-                new_error_log.append(py_file)
-
-        error_log = new_error_log
-
     print("\nAll cookbooks executed successfully!")
-
 
 if __name__ == "__main__":
     drill_and_run_scripts()

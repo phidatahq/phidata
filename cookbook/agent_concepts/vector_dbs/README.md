@@ -120,20 +120,15 @@ python cookbook/vector_dbs/pinecone_db.py
 
 > Install [docker desktop](https://docs.docker.com/desktop/install/mac-install/) first.
 
-#### Run the docker container
+#### Run the setup script
 ```shell
-docker run \
-    -d --name singlestoredb-dev \
-    -e ROOT_PASSWORD="admin" \
-    -p 3306:3306 -p 8080:8080 -p 9000:9000 \
-    --platform linux/amd64 \
-    ghcr.io/singlestore-labs/singlestoredb-dev:latest
+./cookbook/scripts/run_singlestore.sh
 ```
 
 #### Create the database
 
 - Visit http://localhost:8080 and login with `root` and `admin`
-- Create the database with your choice of name
+- Create the database with your choice of name. Default setup script requires AGNO as database name.
 
 #### Add credentials
 

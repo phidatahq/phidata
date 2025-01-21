@@ -12,7 +12,7 @@ Example connection strings:
 "mongodb+srv://<username>:<password>@cluster0.mongodb.net/?retryWrites=true&w=majority"
 "mongodb://localhost/?directConnection=true"
 """
-mdb_connection_string = ""
+mdb_connection_string = "mongodb://ai:ai@localhost:27017/ai?authSource=admin"
 
 knowledge_base = PDFUrlKnowledgeBase(
     urls=["https://phi-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],

@@ -15,16 +15,17 @@
   <a href="https://github.com/agno-agi/agno/stargazers">🌟 Star Us</a>
 </div>
 
-## Overview
+## What is Agno?
 
-[Agno](https://docs.agno.com) is a lightning-fast, model-agnostic framework for building scalable Agents.
+[Agno](https://docs.agno.com) is a lightning-fast, model-agnostic framework for building Agents
 
-### Design principles:
-- **Simplicity**: No graphs, chains, or convoluted patterns — just Python.
+## Design principles
+
+- **Simplicity**: No graphs, chains, or convoluted patterns — just pure python.
 - **Uncompromising Performance**: Blazing fast agents with a minimal memory footprint.
 - **Truly Agnostic**: Any model, any provider, any modality. Future-proof agents.
 
-## Why Agno?
+## Key features
 
 - **🚀 Lightning Fast**: Agent creation is 6000x faster than LangGraph (see [performance](#performance)).
 - **⚙️ Model Agnostic**: Use any provider, any model-no lock-in.
@@ -43,7 +44,7 @@ pip install -U agno
 
 ## What are Agents?
 
-Agents are programs that use language models to control the execution flow. They can perform tasks autonomously by integrating tools, memory, and knowledge.
+Agents are programs that use language models to control the execution flow. They solve problems autonomously by integrating tools, memory, and knowledge.
 
 - **Level 0**: Agents with no tools (basic inference tasks).
 - **Level 1**: Agents with tools for autonomous task execution.

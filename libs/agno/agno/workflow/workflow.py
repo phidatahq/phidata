@@ -346,7 +346,7 @@ class Workflow:
             session_id=self.session_id,
             workflow_id=self.workflow_id,
             user_id=self.user_id,
-            memory=self.memory.to_dict(),
+            memory=self.memory.to_dict() if self.memory is not None else None,
             workflow_data=self.get_workflow_data(),
             session_data=self.get_session_data(),
             extra_data=self.extra_data,
@@ -419,9 +419,10 @@ class Workflow:
             # Update the current extra_data with the extra_data from the database which is updated in place
             self.extra_data = session.extra_data
 
-        # Read memory from the database
-        self.memory = cast(WorkflowMemory, self.memory)
         if session.memory is not None:
+            if self.memory is None:
+                self.memory = WorkflowMemory()
+
             try:
                 if "runs" in session.memory:
                     try:

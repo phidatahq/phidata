@@ -181,11 +181,7 @@ def _format_messages(messages: List[Message]) -> List[Dict[str, Any]]:
 
         # Add role to the message for the model
         role = (
-            "model"
-            if message.role in ["system", "developer"]
-            else "user"
-            if message.role == "tool"
-            else message.role
+            "model" if message.role in ["system", "developer"] else "user" if message.role == "tool" else message.role
         )
         message_for_model["role"] = role
 

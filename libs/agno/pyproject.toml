@@ -1,6 +1,6 @@
 [project]
 name = "agno"
-version = "0.0.2"
+version = "0.0.3"
 description = "Agno: a model-agnostic framework for building AI Agents"
 requires-python = ">=3.7,<4"
 readme = "README.md"
@@ -154,7 +154,7 @@ no_implicit_optional = true
 warn_unused_configs = true
 disable_error_code = ["override"]
 plugins = ["pydantic.mypy"]
-exclude = ["scratch*", "wip*", "tmp*", "tests*"]
+exclude = ["tests*"]
 
 [[tool.mypy.overrides]]
 module = [
@@ -234,6 +234,8 @@ module = [
   "textract.*",
   "timeout_decorator.*",
   "torch.*",
+  "tweepy.*",
+  "twilio.*",
   "tzlocal.*",
   "uvicorn.*",
   "vertexai.*",

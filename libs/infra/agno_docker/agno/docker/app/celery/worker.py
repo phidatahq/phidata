@@ -12,7 +12,6 @@ class CeleryWorker(DockerApp):
     image_tag: str = "latest"
     command: Optional[Union[str, List[str]]] = "celery -A tasks.celery worker --loglevel=info"
 
-
     # -*- Workspace Configuration
     # Path to the workspace directory inside the container
     workspace_dir_container_path: str = "/app"

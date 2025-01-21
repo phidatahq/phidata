@@ -54,7 +54,8 @@ def select_directory(base_directory):
         items = [
             item
             for item in os.listdir(base_directory)
-            if os.path.isdir(os.path.join(base_directory, item)) and item not in ["__pycache__", "__init__.py"]
+            if os.path.isdir(os.path.join(base_directory, item))
+            and item not in ["__pycache__", "__init__.py"]
         ]
         items.sort()
         # Add options to select the current directory or go back

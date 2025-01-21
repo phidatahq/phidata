@@ -1,6 +1,6 @@
 """
 1. Install dependencies using: `pip install openai agno`
-2. Run the script using: `python cookbook/workflows/game_generator.py`
+2. Run the script using: `python cookbook/examples/streamlit/game_generator/game_generator.py`
 """
 
 import json

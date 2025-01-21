@@ -76,7 +76,7 @@ def main() -> None:
                         status.update(
                             label="Game ready to play!",
                             state="complete",
-                            expanded=False,
+                            expanded=True,
                         )
 
             except Exception as e:

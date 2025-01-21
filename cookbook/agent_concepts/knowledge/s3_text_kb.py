@@ -9,7 +9,7 @@ knowledge_base = S3TextKnowledgeBase(
     key="recipes/recipes.docx",
     vector_db=PgVector(table_name="recipes", db_url=db_url),
 )
-knowledge_base.load(recreate=False)  # Comment out after first run
+knowledge_base.load(recreate=True)  # Comment out after first run
 
 agent = Agent(knowledge=knowledge_base, search_knowledge=True)
 agent.print_response("How to make Hummus?", markdown=True)

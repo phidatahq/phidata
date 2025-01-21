@@ -23,5 +23,5 @@ agent = Agent(
 )
 
 agent.print_response(
-    "what is the major focus of the knowledge provided?", markdown=True
+    "What is the major focus of the knowledge provided?", markdown=True
 )

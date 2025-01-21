@@ -8,7 +8,6 @@ duckduckgo-search
 nest_asyncio
 qdrant-client
 pgvector
-phidata
 psycopg[binary]
 pypdf
 sqlalchemy

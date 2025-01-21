@@ -87,7 +87,7 @@ class LanceDb(VectorDb):
         self.fts_index_exists = False
         self.use_tantivy = use_tantivy
 
-        if self.use_tantivy:
+        if self.use_tantivy and (self.search_type in [SearchType.keyword, SearchType.hybrid]):
             try:
                 import tantivy  # noqa: F401
             except ImportError:

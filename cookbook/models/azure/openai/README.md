@@ -11,6 +11,8 @@ source ~/.venvs/aienv/bin/activate
 
 ### 2. Export environment variables
 
+Navigate to the AzureOpenAI on the [Azure Portal](https://portal.azure.com/) and create a service. Then, using the Azure AI Foundry portal, create a deployment and set your environment variables.
+
 ```shell
 export AZURE_OPENAI_MODEL_NAME="gpt-4o"
 export AZURE_OPENAI_API_KEY=***

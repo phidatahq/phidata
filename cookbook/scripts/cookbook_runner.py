@@ -8,20 +8,20 @@ import inquirer
 """
 CLI Tool: Cookbook runner
 
-This tool allows users to interactively navigate through directories, select a target directory, 
-and execute all `.py` files in the selected directory. It also tracks cookbooks that fail to execute 
+This tool allows users to interactively navigate through directories, select a target directory,
+and execute all `.py` files in the selected directory. It also tracks cookbooks that fail to execute
 and prompts the user to rerun all failed cookbooks until all succeed or the user decides to exit.
 
 Usage:
     1. Run the tool from the command line:
         python cookbook/scripts/cookbook_runner.py [base_directory]
-    
+
     2. Navigate through the directory structure using the interactive prompts:
         - Select a directory to drill down or choose the current directory.
         - The default starting directory is the current working directory (".").
-    
+
     3. The tool runs all `.py` files in the selected directory and logs any that fail.
-    
+
     4. If any cookbook fails, the tool prompts the user to rerun all failed cookbooks:
         - Select "yes" to rerun all failed cookbooks.
         - Select "no" to exit, and the tool will log remaining failures.
@@ -54,7 +54,7 @@ def select_directory(base_directory):
         items = [
             item
             for item in os.listdir(base_directory)
-            if os.path.isdir(os.path.join(base_directory, item))
+            if os.path.isdir(os.path.join(base_directory, item)) and item not in ["__pycache__", "__init__.py"]
         ]
         items.sort()
         # Add options to select the current directory or go back

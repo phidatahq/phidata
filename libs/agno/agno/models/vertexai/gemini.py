@@ -188,16 +188,16 @@ class Gemini(Model):
         # If the tool is a Callable or Toolkit, add its functions to the Model
         elif callable(tool) or isinstance(tool, Toolkit) or isinstance(tool, Function):
             if self._functions is None:
-                self.functions: Dict[str, Any] = {}
+                self._functions: Dict[str, Any] = {}
 
             if isinstance(tool, Toolkit):
                 # For each function in the toolkit, process entrypoint and add to self.tools
                 for name, func in tool.functions.items():
-                    # If the function does not exist in self.functions, add to self.tools
-                    if name not in self.functions:
+                    # If the function does not exist in self._functions, add to self.tools
+                    if name not in self._functions:
                         func._agent = agent
                         func.process_entrypoint()
-                        self.functions[name] = func
+                        self._functions[name] = func
                         function_declaration = FunctionDeclaration(
                             name=func.name,
                             description=func.description,
@@ -207,10 +207,10 @@ class Gemini(Model):
                         logger.debug(f"Function {name} from {tool.name} added to model.")
 
             elif isinstance(tool, Function):
-                if tool.name not in self.functions:
+                if tool.name not in self._functions:
                     tool._agent = agent
                     tool.process_entrypoint()
-                    self.functions[tool.name] = tool
+                    self._functions[tool.name] = tool
                     function_declaration = FunctionDeclaration(
                         name=tool.name,
                         description=tool.description,
@@ -222,9 +222,9 @@ class Gemini(Model):
             elif callable(tool):
                 try:
                     function_name = tool.__name__
-                    if function_name not in self.functions:
+                    if function_name not in self._functions:
                         func = Function.from_callable(tool)
-                        self.functions[func.name] = func
+                        self._functions[func.name] = func
                         function_declaration = FunctionDeclaration(
                             name=func.name,
                             description=func.description,

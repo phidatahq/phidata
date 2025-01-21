@@ -2,7 +2,7 @@ import datetime
 import os
 
 from agno.agent import Agent
-from agno.model.mistral import MistralChat
+from agno.models.mistral import MistralChat
 from agno.tools.googlecalendar import GoogleCalendarTools
 
 """

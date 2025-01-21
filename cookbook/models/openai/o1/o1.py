@@ -1,5 +1,5 @@
 from agno.agent import Agent, RunResponse  # noqa
-from agno.model.openai import OpenAIChat
+from agno.models.openai import OpenAIChat
 
 # This will only work if you have access to the o1 model from OpenAI
 agent = Agent(model=OpenAIChat(id="o1"))

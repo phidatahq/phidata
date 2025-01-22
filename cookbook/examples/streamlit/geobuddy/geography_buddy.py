@@ -1,10 +1,11 @@
 import os
 from pathlib import Path
 from dotenv import load_dotenv
+from typing import Optional
+
 from phi.agent import Agent
 from phi.model.google import Gemini
 from phi.tools.duckduckgo import DuckDuckGo
-from typing import Optional
 
 # Load environment variables
 load_dotenv()

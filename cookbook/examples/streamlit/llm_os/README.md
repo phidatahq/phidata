@@ -30,14 +30,14 @@ Lets build the LLM OS
 ### 1. Create a virtual environment
 
 ```shell
-python3 -m venv ~/.venvs/aienv
-source ~/.venvs/aienv/bin/activate
+python3 -m venv ~/.venvs/llmos
+source ~/.venvs/llmos/bin/activate
 ```
 
 ### 2. Install libraries
 
 ```shell
-pip install -r cookbook/llm_os/requirements.txt
+pip install -r cookbook/examples/streamlit/llm_os/requirements.txt
 ```
 
 ### 3. Export credentials
@@ -79,27 +79,27 @@ docker run -d \
   phidata/pgvector:16
 ```
 
-### 5. Run QDrant
+### 5. Run Qdrant
 
-We use QDrant to as a knowledge base to the LLM OS with external data.
+We use Qdrant as a knowledge base that stores external data like websites, uploaded pdf documents.
 
 run using the docker run command
 
 ```shell
-docker run
+docker run -d -p 6333:6333 qdrant/qdrant
 ````
 
 ### 6. Run the LLM OS App
 
 ```shell
-streamlit run cookbook/llm_os/app.py
+streamlit run cookbook/examples/streamlit/llm_os/app.py
 ```
 
 - Open [localhost:8501](http://localhost:8501) to view your LLM OS.
 - Add a blog post to knowledge base: https://blog.samaltman.com/gpt-4o
 - Ask: What is gpt-4o?
-- Web search: Whats happening in france?
-- Calculator: Whats 10!
-- Enable shell tools and ask: is docker running?
-- Enable the Research Assistant and ask: write a report on the ibm hashicorp acquisition
-- Enable the Investment Assistant and ask: shall i invest in nvda?
+- Web search: What is happening in france?
+- Calculator: What is 10!
+- Enable shell tools and ask: Is docker running?
+- Enable the Research Assistant and ask: Write a report on the ibm hashicorp acquisition
+- Enable the Investment Assistant and ask: Shall I invest in nvda?

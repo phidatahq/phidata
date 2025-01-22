@@ -104,10 +104,25 @@ def main() -> None:
         question = last_message["content"]
         with st.chat_message("agent"):
             with st.spinner("Working..."):
-                response = sql_agent.run(question)
-                response_content = response.content if hasattr(response, 'content') else str(response)
-                st.markdown(response_content)
-                add_message("agent", response_content)
+                response = ""
+                resp_container = st.empty()
+                try:
+                    for delta in sql_agent.run(question, stream=True):
+                        # Extract just the content from the RunResponse object
+                        if hasattr(delta, 'content') and delta.content is not None:
+                            response += delta.content
+                            try:
+                                resp_container.markdown(response)
+                            except Exception as e:
+                                st.error(f"Error updating response: {str(e)}")
+                                break
+                    st.session_state["messages"].append({"role": "agent", "content": response})
+                except Exception as e:
+                    st.error(f"Error processing request: {str(e)}")
+                    st.session_state["messages"].append({
+                        "role": "agent", 
+                        "content": "Sorry, I encountered an error while processing your request."
+                    })
 
     st.sidebar.markdown("---")
 

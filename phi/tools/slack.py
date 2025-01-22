@@ -1,6 +1,6 @@
 import os
 import json
-from typing import Optional
+from typing import Optional, Any, List, Dict
 
 from phi.tools.toolkit import Toolkit
 from phi.utils.log import logger
@@ -78,7 +78,7 @@ class SlackTools(Toolkit):
         """
         try:
             response = self.client.conversations_history(channel=channel, limit=limit)
-            messages = [
+            messages: List[Dict[str, Any]] = [
                 {
                     "text": msg.get("text", ""),
                     "user": "webhook" if msg.get("subtype") == "bot_message" else msg.get("user", "unknown"),

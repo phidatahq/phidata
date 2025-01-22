@@ -6,7 +6,7 @@ Step 2: Navigate to Settings (usually a circle with your initials) click on it
 Step 3: Access the Apps Section: In the settings sidebar on the left, scroll down until you find Apps. Click on it to access the API settings.
 Step 4: Generate Your API Key
 In the Apps section, you should see an option labeled API Token. If it’s not already generated, look for a button that says Generate and click it.
-Once generated, your API key will be displayed. Make sure to copy this key and store it .env file to use it.
+Once generated, your API key will be displayed. Make sure to copy this key and store it as CLICKUP_API_KEY in .env file to use it.
 
 Steps To find your MASTER_SPACE_ID :
 clickup space url structure: https://app.clickup.com/{MASTER_SPACE_ID}/v/o/s/{SPACE_ID}
@@ -15,10 +15,9 @@ clickup space url structure: https://app.clickup.com/{MASTER_SPACE_ID}/v/o/s/{SP
 
 """
 
-import os 
 from phi.agent import Agent
 from phi.model.openai import OpenAIChat
-from clickup_tool import ClickUpTools
+from phi.tools.clickup_tool import ClickUpTools
 
 clickup_agent = Agent(
     name="ClickUp Agent",
@@ -45,3 +44,4 @@ clickup_agent = Agent(
     )
 
 clickup_agent.print_response("List all spaces i have", markdown=True,)
+clickup_agent.print_response("Create a TODO task called 'QA task' in Project 1 in the Team Space. The description should be about running basic QA checks on our Python codebase.", markdown=True,)

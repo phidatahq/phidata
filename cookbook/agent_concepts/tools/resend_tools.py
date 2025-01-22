@@ -1,5 +1,5 @@
 from agno.agent import Agent
-from agno.tools.resend_tools import ResendTools
+from agno.tools.resend import ResendTools
 
 from_email = "<enter_from_email>"
 to_email = "<enter_to_email>"

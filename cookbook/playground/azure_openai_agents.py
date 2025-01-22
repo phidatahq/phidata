@@ -11,7 +11,7 @@ from agno.tools.dalle import DalleTools
 from agno.tools.duckduckgo import DuckDuckGoTools
 from agno.tools.exa import ExaTools
 from agno.tools.yfinance import YFinanceTools
-from agno.tools.youtube_tools import YouTubeTools
+from agno.tools.youtube import YouTubeTools
 
 agent_storage_file: str = "tmp/azure_openai_agents.db"
 

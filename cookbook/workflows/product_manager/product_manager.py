@@ -5,7 +5,7 @@ from typing import Dict, List, Optional
 from agno.agent.agent import Agent
 from agno.run.response import RunEvent, RunResponse
 from agno.storage.workflow.postgres import PostgresWorkflowStorage
-from agno.tools.linear_tools import LinearTools
+from agno.tools.linear import LinearTools
 from agno.tools.slack import SlackTools
 from agno.utils.log import logger
 from agno.workflow.workflow import Workflow

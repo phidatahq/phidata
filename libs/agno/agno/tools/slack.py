@@ -9,7 +9,7 @@ try:
     from slack_sdk import WebClient
     from slack_sdk.errors import SlackApiError
 except ImportError:
-    logger.error("Slack tools require the `slack_sdk` package. Run `pip install slack-sdk` to install it.")
+    raise ImportError("Slack tools require the `slack_sdk` package. Run `pip install slack-sdk` to install it.")
 
 
 class SlackTools(Toolkit):

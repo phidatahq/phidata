@@ -1,7 +1,7 @@
 from agno.agent import Agent
 from agno.models.openai import OpenAIChat
 from agno.tools.exa import ExaTools
-from agno.tools.youtube_tools import YouTubeTools
+from agno.tools.youtube import YouTubeTools
 
 study_partner = Agent(
     name="StudyScout",  # Fixed typo in name

@@ -1,5 +1,5 @@
 from agno.agent import Agent
-from agno.tools.linear_tools import LinearTools
+from agno.tools.linear import LinearTools
 
 agent = Agent(
     name="Linear Tool Agent",

@@ -12,8 +12,8 @@ from agno.models.response import FileType
 from agno.playground import Playground, serve_playground_app
 from agno.storage.agent.sqlite import SqliteAgentStorage
 from agno.tools.dalle import DalleTools
-from agno.tools.eleven_labs_tools import ElevenLabsTools
-from agno.tools.fal_tools import FalTools
+from agno.tools.eleven_labs import ElevenLabsTools
+from agno.tools.fal import FalTools
 from agno.tools.giphy import GiphyTools
 from agno.tools.models_labs import ModelsLabTools
 

@@ -8,7 +8,7 @@ from agno.utils.log import logger
 try:
     from openbb import obb as openbb_app
 except ImportError:
-    raise ImportError("`openbb` not installed. Please install using `pip install 'openbb[all]'`.")
+    raise ImportError("`openbb` not installed. Please install using `pip install 'openbb'`.")
 
 
 class OpenBBTools(Toolkit):

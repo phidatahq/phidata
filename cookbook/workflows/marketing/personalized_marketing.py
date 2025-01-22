@@ -15,7 +15,7 @@ from typing import Any, Dict, Iterator, List, Optional
 from agno.agent import Agent
 from agno.models.openai import OpenAIChat
 from agno.tools.firecrawl import FirecrawlTools
-from agno.tools.resend_tools import ResendTools
+from agno.tools.resend import ResendTools
 from agno.utils.log import logger
 from agno.utils.pprint import pprint_run_response
 from agno.workflow import RunResponse, Workflow

@@ -1,6 +1,6 @@
 from agno.agent import Agent
 from agno.models.openai import OpenAIChat
-from agno.tools.fal_tools import FalTools
+from agno.tools.fal import FalTools
 
 fal_agent = Agent(
     name="Fal Video Generator Agent",

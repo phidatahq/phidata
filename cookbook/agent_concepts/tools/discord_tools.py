@@ -1,7 +1,7 @@
 import os
 
 from agno.agent import Agent
-from agno.tools.discord_tools import DiscordTools
+from agno.tools.discord import DiscordTools
 
 # Get Discord token from environment
 discord_token = os.getenv("DISCORD_BOT_TOKEN")

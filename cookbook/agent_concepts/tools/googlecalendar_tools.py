@@ -68,7 +68,7 @@ You should help users to perform these actions in their Google calendar :
     - create events based on provided details
 """
     ],
-    provider=MistralChat(api_key=os.getenv("MISTRAL_API_KEY")),
+    model=MistralChat(api_key=os.getenv("MISTRAL_API_KEY")),
     add_datetime_to_instructions=True,
 )
 

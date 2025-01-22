@@ -4,7 +4,7 @@ pip install requests
 
 from agno.agent import Agent
 from agno.models.openai import OpenAIChat
-from agno.tools.desi_vocal_tools import DesiVocalTools
+from agno.tools.desi_vocal import DesiVocalTools
 
 audio_agent = Agent(
     model=OpenAIChat(id="gpt-4o"),

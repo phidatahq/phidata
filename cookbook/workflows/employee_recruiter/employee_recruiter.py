@@ -15,7 +15,7 @@ except ImportError:
     )
 from agno.agent.agent import Agent
 from agno.models.openai.chat import OpenAIChat
-from agno.tools.resend_tools import ResendTools
+from agno.tools.resend import ResendTools
 from agno.utils.log import logger
 from agno.workflow.workflow import Workflow
 from pydantic import BaseModel, Field

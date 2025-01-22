@@ -12,7 +12,7 @@ st.set_page_config(
     page_icon=":orange_heart:",
 )
 st.title("SQL Agent")
-st.markdown("##### :orange_heart: built using [agno](https://github.com/agno-ai/agno)")
+st.markdown("##### :orange_heart: built using [Agno](https://github.com/agno-ai/agno)")
 with st.expander(":rainbow[:point_down: Example Questions]"):
     st.markdown("- Which driver has the most race wins?")
     st.markdown("- Which team won the most Constructors Championships?")

@@ -20,4 +20,8 @@ agent.print_response("List open pull requests", markdown=True)
 # # Example usage: Create an issue
 # agent.print_response("Explain the comments for the most recent issue", markdown=True)
 # # Example usage: Create a Repo
-# agent.print_response("Create a repo called phi-test and add description hello", markdown=True)
+# agent.print_response("Create a repo called phi-test and add description hello and set it to private", markdown=True)
+# # Example usage: List repositories
+# agent.print_response("List branches of phidatahq/phidata", markdown=True)
+# # Example usage: Delete a repo
+# agent.print_response("Delete the repo called owner/repo-name", markdown=True)

@@ -23,7 +23,7 @@ def restart_assistant():
 
 def main() -> None:
     # Get model
-    model = st.sidebar.selectbox("Select Model", options=["gpt-4o-mini", "gpt-4o", "gpt-4-turbo", "gpt-3.5-turbo"])
+    model = st.sidebar.selectbox("Select Model", options=["gpt-4o-mini", "gpt-4o"])
     # Set assistant_type in session state
     if "model" not in st.session_state:
         st.session_state["model"] = model

@@ -112,7 +112,7 @@ class Gemini(Model):
         formatted_messages: List[Content] = []
 
         for msg in messages:
-            if hasattr(msg, "response_tool_call_block"):
+            if hasattr(msg, "response_tool_call_block") and msg.response_tool_call_block is not None:
                 formatted_messages.append(Content(role=msg.role, parts=msg.response_tool_call_block.parts))
             else:
                 if isinstance(msg.content, str) and msg.content:

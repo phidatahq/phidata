@@ -15,11 +15,13 @@
   <a href="https://github.com/agno-agi/agno/stargazers">🌟 Star Us</a>
 </div>
 
-## What is Agno?
+## Overview
 
 [Agno](https://docs.agno.com) is a lightning-fast, model-agnostic framework for building Agents
 
-## Design principles
+## Simple, Fast, and Agnostic
+
+Agno is designed with three core principles:
 
 - **Simplicity**: No graphs, chains, or convoluted patterns — just pure python.
 - **Uncompromising Performance**: Blazing fast agents with a minimal memory footprint.
@@ -27,14 +29,17 @@
 
 ## Key features
 
-- **🚀 Lightning Fast**: Agent creation is 6000x faster than LangGraph (see [performance](#performance)).
-- **⚙️ Model Agnostic**: Use any provider, any model-no lock-in.
-- **📷 Multi-Modal**: Native support for text, image, audio, and video.
-- **🤝 Multi-Agent**: Delegate tasks across a team of specialized agents.
-- **🧠 Memory Management**: Store user sessions and context in a database.
-- **📚 Knowledge Stores**: Integrate vector databases for Agentic RAG or dynamic few-shot learning.
-- **🧩 Structured Outputs**: Respond with structured data.
-- **📈 Monitoring**: Track agent sessions and performance in real-time on [agno.com](https://app.agno.com).
+Here's why you should build Agno Agents:
+
+- **Lightning Fast**: Agent creation is 6000x faster than LangGraph ([performance](#performance)).
+- **Model Agnostic**: Use any model, any provider, no lock-in.
+- **Multi-Modal**: Built for text, image, audio, and video.
+- **Multi-Agent**: Delegate tasks across a team of specialized agents.
+- **Memory Management**: Store user sessions and context in a database.
+- **Knowledge Stores**: Use vector databases for Agentic RAG or dynamic few-shot.
+- **Structured Outputs**: Make Agents respond with structured data.
+- **Monitoring**: Track agent sessions and performance in real-time on [agno.com](https://app.agno.com).
+
 
 ## Installation
 
@@ -44,7 +49,9 @@ pip install -U agno
 
 ## What are Agents?
 
-Agents are programs that use language models to control the execution flow. They solve problems autonomously by integrating tools, memory, and knowledge.
+Agents are programs that use language models to achieve tasks. They solve problems autonomously by running tools, accessing knowledge and memory to improve responses.
+
+Instead of a rigid binary definition, let's think of Agents in terms of agency and autonomy.
 
 - **Level 0**: Agents with no tools (basic inference tasks).
 - **Level 1**: Agents with tools for autonomous task execution.
@@ -65,7 +72,7 @@ agent = Agent(
 agent.print_response("Tell me about a breaking news story from New York.", stream=True)
 ```
 
-Install dependencies, export your `OPENAI_API_KEY` and run the Agent:
+To run the agent, install dependencies and export your `OPENAI_API_KEY`.
 
 ```shell
 pip install agno openai
@@ -77,9 +84,9 @@ python basic_agent.py
 
 [View this example in the cookbook](./cookbook/getting_started/01_basic_agent.py)
 
-This agent will obviously make up a story, lets give it a tool to search the web.
-
 ## Example - Agent with tools
+
+This basic agent will obviously make up a story, lets give it a tool to search the web.
 
 ```python
 from agno.agent import Agent
@@ -110,7 +117,7 @@ Now you should see a much more relevant result.
 
 ## Example - Agent with knowledge
 
-Agents can store knowledge in a vector database which can be used for RAG or dynamic few-shot. Eg: If you're building a text-to-sql agent, you can store sample queries in the knowledge base and use them to generate better responses.
+Agents can store knowledge in a vector database which can be used for RAG or dynamic few-shot learning.
 
 **Agno agents use Agentic RAG** by default, which means they will search their knowledge base for the specific information they need to achieve their task.
 
@@ -144,7 +151,7 @@ agent = Agent(
     markdown=True
 )
 
-# Comment out after first run
+# Comment out after the knowledge base is loaded
 if agent.knowledge is not None:
     agent.knowledge.load()
 
@@ -164,7 +171,7 @@ python agent_with_knowledge.py
 
 ## Example - Multi Agent Teams
 
-Agents work best when they have a singular purpose, a narrow scope and a small number of tools. When the number of tools grows beyond what the language model can handle or the tools belong to different categories, use a team of agents to achieve the task.
+Agents work best when they have a singular purpose, a narrow scope and a small number of tools. When the number of tools grows beyond what the language model can handle or the tools belong to different categories, use a team of agents to spread the load.
 
 ```python
 from agno.agent import Agent

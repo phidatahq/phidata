@@ -117,9 +117,7 @@ class Function(BaseModel):
             # logger.info(f"Type hints for {function_name}: {type_hints}")
 
             param_type_hints = {
-                name: type_hints.get(name)
-                for name in sig.parameters
-                if name != "return" and name != "agent"
+                name: type_hints.get(name) for name in sig.parameters if name != "return" and name != "agent"
             }
 
             # Parse docstring for parameters
@@ -189,9 +187,7 @@ class Function(BaseModel):
 
             # Filter out return type and only process parameters
             param_type_hints = {
-                name: type_hints.get(name)
-                for name in sig.parameters
-                if name != "return" and name != "agent"
+                name: type_hints.get(name) for name in sig.parameters if name != "return" and name != "agent"
             }
 
             # Parse docstring for parameters

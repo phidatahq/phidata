@@ -135,9 +135,7 @@ def get_sql_agent(
             "Continue till you have accomplished the task.",
             "Show results as a table or a chart if possible.",
             "If the users asks about the tables you have access to, simply share the table names from the `semantic_model`.",
-        ],
-        response_model=dedent(
-            f"""
+                        f"""
 Additional set of guidelines that you MUST follow:
 <rules>
 - You must always get table information from your knowledge base before writing a query.
@@ -160,5 +158,6 @@ After finishing your task, ask the user relevant followup questions like "was th
 If the user says yes, get the previous query using the `get_tool_call_history(num_calls=3)` function and fix the problems.
 If the user wants to see the SQL, get it using the `get_tool_call_history(num_calls=3)` function.
 """
-        ),
+        ],
+       
     )

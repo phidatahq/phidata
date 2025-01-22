@@ -43,8 +43,8 @@ class PlaygroundSettings(BaseSettings):
                 "http://localhost:3000",
                 "https://agno.com",
                 "https://www.agno.com",
-                "https://agno.so",
-                "https://www.agno.so",
+                "https://app.agno.com",
+                "https://app-stg.agno.com",
             ]
         )
 

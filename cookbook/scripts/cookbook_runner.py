@@ -184,10 +184,15 @@ def drill_and_run_scripts(base_directory):
 
             error_log = new_error_log
 
-        elif answers and answers.get("action") == "Pause for manual intervention and retry":
-            print("\nPaused for manual intervention. A shell is now open for you to execute commands (e.g., installing packages).")
+        elif (
+            answers
+            and answers.get("action") == "Pause for manual intervention and retry"
+        ):
+            print(
+                "\nPaused for manual intervention. A shell is now open for you to execute commands (e.g., installing packages)."
+            )
             print("Type 'exit' or 'Ctrl+D' to return and retry failed cookbooks.\n")
-            
+
             # Open an interactive shell for the user
             try:
                 subprocess.run(["bash"], check=True)  # For Unix-like systems
@@ -196,8 +201,10 @@ def drill_and_run_scripts(base_directory):
                     subprocess.run(["cmd"], check=True, shell=True)  # For Windows
                 except Exception as e:
                     print(f"Error opening shell: {e}")
-                    print("Please manually install required packages in a separate terminal.")
-            
+                    print(
+                        "Please manually install required packages in a separate terminal."
+                    )
+
             print("\nRe-running failed cookbooks after manual intervention...\n")
             new_error_log = []
             for py_file in error_log:
@@ -214,6 +221,7 @@ def drill_and_run_scripts(base_directory):
             return
 
     print("\nAll cookbooks executed successfully!")
+
 
 if __name__ == "__main__":
     drill_and_run_scripts()

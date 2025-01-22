@@ -2142,9 +2142,8 @@ class Agent:
         """
         from dataclasses import fields
 
-        # TODO (WCDJ): We need to revisit agent sessions as a whole and determine where data needs to be excluded
-        # when new runs are created.
-        excluded_fields = ["agent_session", "session_name", "memory"]
+        # Do not copy agent_session and session_name to the new agent
+        excluded_fields = ["agent_session", "session_name"]
         # Extract the fields to set for the new Agent
         fields_for_new_agent: Dict[str, Any] = {}
 
@@ -2167,12 +2166,24 @@ class Agent:
         """Helper method to deep copy a field based on its type."""
         from copy import copy, deepcopy
 
-        # For memory and model, use their deep_copy methods
-        if field_name == "memory":
+        # For memory and reasoning_agent, use their deep_copy methods
+        if field_name in ("memory", "reasoning_agent"):
             return field_value.deep_copy()
 
+        # For storage, model and reasoning_model, use a deep copy
+        elif field_name in ("storage", "model", "reasoning_model"):
+            try:
+                return deepcopy(field_value)
+            except Exception as e:
+                logger.warning(f"Failed to deepcopy field: {field_name} - {e}")
+                try:
+                    return copy(field_value)
+                except Exception as e:
+                    logger.warning(f"Failed to copy field: {field_name} - {e}")
+                    return field_value
+
         # For compound types, attempt a deep copy
-        elif isinstance(field_value, (list, dict, set, AgentStorage, Model)):
+        elif isinstance(field_value, (list, dict, set)):
             try:
                 return deepcopy(field_value)
             except Exception as e:
@@ -2195,8 +2206,14 @@ class Agent:
                     logger.warning(f"Failed to copy field: {field_name} - {e}")
                     return field_value
 
-        # For other types, return as is
-        return field_value
+        # For other types, attempt a shallow copy first
+        try:
+            from copy import copy
+
+            return copy(field_value)
+        except Exception:
+            # If copy fails, return as is
+            return field_value
 
     def get_transfer_function(self, member_agent: Agent, index: int) -> Function:
         def _transfer_task_to_agent(

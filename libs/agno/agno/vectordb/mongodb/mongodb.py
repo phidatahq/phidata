@@ -1,11 +1,11 @@
 import time
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, Optional
 
 from agno.document import Document
 from agno.embedder import Embedder
 from agno.embedder.openai import OpenAIEmbedder
-from agno.vectordb.base import VectorDb
 from agno.utils.log import logger
+from agno.vectordb.base import VectorDb
 from agno.vectordb.distance import Distance
 
 try:
@@ -15,8 +15,8 @@ except ImportError:
     raise ImportError("`hashlib` not installed. Please install using `pip install hashlib`")
 try:
     from pymongo import MongoClient, errors
-    from pymongo.operations import SearchIndexModel
     from pymongo.collection import Collection
+    from pymongo.operations import SearchIndexModel
 
 except ImportError:
     raise ImportError("`pymongo` not installed. Please install using `pip install pymongo`")

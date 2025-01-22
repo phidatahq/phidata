@@ -1,18 +1,15 @@
-# Autonomous RAG
+# Agentic RAG
 
-**Auto-RAG** is a chat application that combines LLMs with retrieval-augmented generation.
+**Agentic RAG** is a chat application that combines models with retrieval-augmented generation.
 It allows users to ask questions based on custom knowledge bases, documents, and web data, retrieve context-aware answers, and maintain chat history across sessions.
-
-Auto-RAG is just a fancy name for giving the LLM tools like "search_knowledge_base", "read_chat_history", "search_the_web"
-and letting it decide how to retrieve the information it needs to answer the question.
 
 > Note: Fork and clone this repository if needed
 
 ### 1. Create a virtual environment
 
 ```shell
-python3 -m venv ~/.venvs/autorag
-source ~/.venvs/autorag/bin/activate
+python3 -m venv ~/.venvs/agenticrag
+source ~/.venvs/agenticrag/bin/activate
 ```
 
 ### 2. Export `OPENAI_API_KEY`
@@ -24,7 +21,7 @@ export OPENAI_API_KEY=***
 ### 3. Install libraries
 
 ```shell
-pip install -r cookbook/examples/streamlit/auto_rag/requirements.txt
+pip install -r cookbook/examples/streamlit/agentic_rag/requirements.txt
 ```
 
 ### 4. Run PgVector
@@ -59,10 +56,10 @@ run using the docker run command
 docker run -d -p 6333:6333 qdrant/qdrant
 ```
 
-### 6. Run Autonomous RAG App
+### 6. Run Agentic RAG App
 
 ```shell
-streamlit run cookbook/examples/streamlit/auto_rag/app.py
+streamlit run cookbook/examples/streamlit/agentic_rag/app.py
 ```
 
 

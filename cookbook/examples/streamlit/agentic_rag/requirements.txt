@@ -8,3 +8,4 @@ pgvector
 psycopg[binary]
 pypdf
 nest_asyncio
+sqlalchemy

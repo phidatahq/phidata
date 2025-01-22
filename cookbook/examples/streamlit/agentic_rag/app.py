@@ -8,7 +8,7 @@ from phi.document.reader.pdf import PDFReader
 from phi.document.reader.text import TextReader
 from phi.document.reader.csv_reader import CSVReader
 from phi.utils.log import logger
-from cookbook.examples.streamlit.auto_rag.auto_rag_flow import get_auto_rag_agent
+from cookbook.examples.streamlit.agentic_rag.agentic_rag_flow import get_auto_rag_agent
 
 nest_asyncio.apply()
 st.set_page_config(

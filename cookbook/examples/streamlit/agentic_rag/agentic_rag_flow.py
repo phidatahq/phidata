@@ -20,7 +20,7 @@ db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 def get_auto_rag_agent(
     model_id: str = "gpt-4o-mini",
     user_id: Optional[str] = None,
-    session_id: Optional[str] = None,  # To track the session
+    session_id: Optional[str] = None,
     debug_mode: bool = True,
 ) -> Agent:
     """Get an Auto RAG Agent with Memory."""
@@ -59,10 +59,10 @@ def get_auto_rag_agent(
             "Carefully read the information you have gathered and provide a clear and concise answer to the user.",
             "Do not use phrases like 'based on my knowledge' or 'depending on the information'.",
         ],
-        search_knowledge=True,  # This setting gives the LLM a tool to search the knowledge base for information
-        read_chat_history=True,  # This setting gives the LLM a tool to get chat history
+        search_knowledge=True,  # This setting gives the model a tool to search the knowledge base for information
+        read_chat_history=True,  # This setting gives the model a tool to get chat history
         tools=[DuckDuckGo()],
-        markdown=True,  # This setting tells the LLM to format messages in markdown
+        markdown=True,  # This setting tells the model to format messages in markdown
         add_chat_history_to_messages=True,  # Adds chat history to messages
         add_datetime_to_instructions=True,
         debug_mode=debug_mode,

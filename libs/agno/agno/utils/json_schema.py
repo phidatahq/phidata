@@ -83,7 +83,12 @@ def get_json_schema(
             if is_optional:
                 v = next(arg for arg in type_args if arg is not type(None))
 
-            arg_json_schema = get_json_schema_for_arg(v)
+            # Handle cases with no type hint
+            if v:
+                arg_json_schema = get_json_schema_for_arg(v)
+            else:
+                arg_json_schema = {}
+
             if arg_json_schema is not None:
                 if is_optional:
                     # Handle null type for optional fields

@@ -1,7 +1,7 @@
 from typing import Optional
 import streamlit as st
-from phi.tools.streamlit.components import reload_button_sidebar
 from cookbook.examples.streamlit.parallel_world.parallel_world_builder import get_world_builder, World
+from phi.tools.streamlit.components import reload_button_sidebar
 
 
 st.set_page_config(

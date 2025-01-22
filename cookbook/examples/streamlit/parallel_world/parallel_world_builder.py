@@ -1,9 +1,10 @@
 import os
 from typing import List
 from pydantic import BaseModel, Field
+from dotenv import load_dotenv
+
 from phi.agent import Agent
 from phi.model.openai import OpenAIChat
-from dotenv import load_dotenv
 
 load_dotenv()
 

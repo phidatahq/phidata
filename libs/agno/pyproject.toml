@@ -55,6 +55,7 @@ exa = ["exa_py"]
 yfinance = ["yfinance"]
 ddg = ["duckduckgo-search"]
 duckdb = ["duckdb"]
+newspaper = ["newspaper4k", "lxml_html_clean"]
 
 # Performance
 performance = ["memory_profiler"]
@@ -89,6 +90,7 @@ tools = [
   "agno[yfinance]",
   "agno[ddg]",
   "agno[duckdb]",
+  "agno[newspaper]",
 ]
 
 # All storage

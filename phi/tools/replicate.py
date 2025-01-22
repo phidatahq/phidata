@@ -1,5 +1,6 @@
 import os
 from os import getenv
+from typing import Optional
 from urllib.parse import urlparse
 from uuid import uuid4
 
@@ -18,10 +19,11 @@ except ImportError:
 class ReplicateTools(Toolkit):
     def __init__(
         self,
+        api_key: Optional[str] = None,
         model: str = "minimax/video-01",
     ):
         super().__init__(name="replicate_toolkit")
-        self.api_key = getenv("REPLICATE_API_TOKEN")
+        self.api_key = api_key or getenv("REPLICATE_API_TOKEN")
         if not self.api_key:
             logger.error("REPLICATE_API_TOKEN not set. Please set the REPLICATE_API_TOKEN environment variable.")
         self.model = model

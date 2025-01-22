@@ -3,7 +3,6 @@ from dataclasses import dataclass, field
 from typing import Optional, List, Iterator, Dict, Any, Union
 
 import httpx
-from packaging import version
 from pydantic import BaseModel
 
 from phi.model.base import Model
@@ -14,7 +13,22 @@ from phi.utils.log import logger
 from phi.utils.timer import Timer
 from phi.utils.tools import get_function_call_for_tool_call
 
+
 try:
+    MIN_OPENAI_VERSION = (1, 52, 0)  # v1.52.0
+
+    # Check the installed openai version
+    from openai import __version__ as installed_version
+
+    # Convert installed version to a tuple of integers for comparison
+    installed_version_tuple = tuple(map(int, installed_version.split(".")))
+    if installed_version_tuple < MIN_OPENAI_VERSION:
+        raise ImportError(
+            f"`openai` version must be >= {'.'.join(map(str, MIN_OPENAI_VERSION))}, but found {installed_version}. "
+            f"Please upgrade using `pip install --upgrade openai`."
+        )
+
+    from openai.types.chat.chat_completion_message import ChatCompletionMessage, ChatCompletionAudio
     from openai import OpenAI as OpenAIClient, AsyncOpenAI as AsyncOpenAIClient
     from openai.types.completion_usage import CompletionUsage
     from openai.types.chat.chat_completion import ChatCompletion
@@ -24,19 +38,8 @@ try:
         ChoiceDelta,
         ChoiceDeltaToolCall,
     )
-    from openai.types.chat.chat_completion_message import ChatCompletionMessage
 
-    MIN_OPENAI_VERSION = "1.52.0"
-
-    # Check the installed openai version
-    from openai import __version__ as installed_version
-
-    if version.parse(installed_version) < version.parse(MIN_OPENAI_VERSION):
-        logger.warning(
-            f"`openai` version must be >= {MIN_OPENAI_VERSION}, but found {installed_version}. "
-            f"Please upgrade using `pip install --upgrade openai`."
-        )
-except (ModuleNotFoundError, ImportError):
+except ModuleNotFoundError:
     raise ImportError("`openai` not installed. Please install using `pip install openai`")
 
 
@@ -298,16 +301,21 @@ class OpenAIChat(Model):
                 model_dict["tool_choice"] = self.tool_choice
         return model_dict
 
-    def format_message(self, message: Message) -> Dict[str, Any]:
+    def format_message(self, message: Message, map_system_to_developer: bool = True) -> Dict[str, Any]:
         """
         Format a message into the format expected by OpenAI.
 
         Args:
             message (Message): The message to format.
+            map_system_to_developer (bool, optional): Whether the "system" role is mapped to "developer". Defaults to True.
 
         Returns:
             Dict[str, Any]: The formatted message.
         """
+        # New OpenAI format
+        if map_system_to_developer and message.role == "system":
+            message.role = "developer"
+
         if message.role == "user":
             if message.images is not None:
                 message = self.add_images_to_message(message=message, images=message.images)
@@ -594,6 +602,12 @@ class OpenAIChat(Model):
         # -*- Parse response
         response_message: ChatCompletionMessage = response.choices[0].message
         response_usage: Optional[CompletionUsage] = response.usage
+        response_audio: Optional[ChatCompletionAudio] = response_message.audio
+
+        # -*- Parse transcript if available
+        if response_audio:
+            if response_audio.transcript and not response_message.content:
+                response_message.content = response_audio.transcript
 
         # -*- Parse structured outputs
         try:
@@ -666,6 +680,12 @@ class OpenAIChat(Model):
         # -*- Parse response
         response_message: ChatCompletionMessage = response.choices[0].message
         response_usage: Optional[CompletionUsage] = response.usage
+        response_audio: Optional[ChatCompletionAudio] = response_message.audio
+
+        # -*- Parse transcript if available
+        if response_audio:
+            if response_audio.transcript and not response_message.content:
+                response_message.content = response_audio.transcript
 
         # -*- Parse structured outputs
         try:

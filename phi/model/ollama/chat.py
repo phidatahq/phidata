@@ -723,6 +723,6 @@ class Ollama(Model):
                 yield post_tool_call_response
         logger.debug("---------- Ollama Async Response End ----------")
 
-    def model_copy(self, *, update: Optional[dict[str, Any]] = None, deep: bool = False) -> "Ollama":
+    def model_copy(self, *, update: Optional[Mapping[str, Any]] = None, deep: bool = False) -> "Ollama":
         new_model = Ollama(**self.model_dump(exclude={"client"}), client=self.client)
         return new_model

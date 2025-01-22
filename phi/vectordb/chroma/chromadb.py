@@ -9,7 +9,7 @@ try:
     from chromadb.api.types import QueryResult, GetResult
 
 except ImportError:
-    raise ImportError("The `chromadb` package is not installed. " "Please install it via `pip install chromadb`.")
+    raise ImportError("The `chromadb` package is not installed. Please install it via `pip install chromadb`.")
 
 from phi.document import Document
 from phi.embedder import Embedder
@@ -143,6 +143,10 @@ class ChromaDb(VectorDb):
             logger.debug(f"Committed {len(docs)} documents")
         else:
             logger.error("Collection does not exist")
+
+    def upsert_available(self) -> bool:
+        """Check if upsert is available in ChromaDB."""
+        return True
 
     def upsert(self, documents: List[Document], filters: Optional[Dict[str, Any]] = None) -> None:
         """Upsert documents into the collection.

@@ -97,11 +97,10 @@ class FalTools(Toolkit):
         Args:
             prompt (str): A text description of the task.
             image_url (str): The URL of the image to use for the generation.
-            
+
         Returns:
             str: Return the result of the model.
         """
-
 
         try:
             result = fal_client.subscribe(

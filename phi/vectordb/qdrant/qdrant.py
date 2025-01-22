@@ -6,7 +6,7 @@ try:
     from qdrant_client.http import models
 except ImportError:
     raise ImportError(
-        "The `qdrant-client` package is not installed. " "Please install it via `pip install qdrant-client`."
+        "The `qdrant-client` package is not installed. Please install it via `pip install qdrant-client`."
     )
 
 from phi.document import Document
@@ -86,7 +86,7 @@ class Qdrant(VectorDb):
                 https=self.https,
                 api_key=self.api_key,
                 prefix=self.prefix,
-                timeout=self.timeout,
+                timeout=int(self.timeout) if self.timeout is not None else None,
                 host=self.host,
                 path=self.path,
                 **self.kwargs,

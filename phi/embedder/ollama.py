@@ -5,9 +5,8 @@ from phi.utils.log import logger
 
 try:
     from ollama import Client as OllamaClient
-except ImportError:
-    logger.error("`ollama` not installed")
-    raise
+except (ModuleNotFoundError, ImportError):
+    raise ImportError("`ollama` not installed. Please install using `pip install ollama`")
 
 
 class OllamaEmbedder(Embedder):
@@ -51,12 +50,7 @@ class OllamaEmbedder(Embedder):
             return []
 
     def get_embedding_and_usage(self, text: str) -> Tuple[List[float], Optional[Dict]]:
-        embedding = []
+        embedding = self.get_embedding(text=text)
         usage = None
-        try:
-            response = self._response(text=text)
-            if response is not None:
-                embedding = response.get("embedding", [])
-        except Exception as e:
-            logger.warning(e)
+
         return embedding, usage

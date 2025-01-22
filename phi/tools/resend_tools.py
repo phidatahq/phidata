@@ -50,7 +50,7 @@ class ResendTools(Toolkit):
                 "html": body,
             }
 
-            resend.Emails.send(params)
+            resend.Emails.send(params)  # type: ignore
             return f"Email sent to {to_email} successfully."
         except Exception as e:
             logger.error(f"Failed to send email {e}")

@@ -1,6 +1,6 @@
 [project]
 name = "agno"
-version = "0.0.6"
+version = "0.0.7"
 description = "Agno: a model-agnostic framework for building AI Agents"
 requires-python = ">=3.7,<4"
 readme = "README.md"

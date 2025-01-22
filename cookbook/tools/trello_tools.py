@@ -38,6 +38,6 @@ agent = Agent(
 )
 
 agent.print_response(
-"Create a board called ai-agent and inside it create list called 'todo' and 'doing' and inside each of them create card called 'create agent'",
+    "Create a board called ai-agent and inside it create list called 'todo' and 'doing' and inside each of them create card called 'create agent'",
     stream=True,
 )

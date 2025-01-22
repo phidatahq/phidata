@@ -7,3 +7,4 @@ qdrant-client
 pgvector
 psycopg[binary]
 pypdf
+nest_asyncio

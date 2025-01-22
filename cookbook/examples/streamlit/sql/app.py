@@ -22,32 +22,15 @@ def main() -> None:
     # Get the agent
     sql_agent: Agent
     if "sql_agent" not in st.session_state or st.session_state["sql_agent"] is None:
-        if "sql_agent_run_id" in st.session_state and st.session_state["sql_agent_run_id"] is not None:
-            logger.info("---*--- Reading SQL agent ---*---")
-            sql_agent = get_sql_agent(run_id=st.session_state["sql_agent_run_id"])
-        else:
-            logger.info("---*--- Creating new SQL agent ---*---")
-            sql_agent = get_sql_agent()
+        logger.info("---*--- Creating new SQL agent ---*---")
+        sql_agent = get_sql_agent()
         st.session_state["sql_agent"] = sql_agent
     else:
         sql_agent = st.session_state["sql_agent"]
 
-    # Create agent run and save run_id in session state
-    st.session_state["sql_agent_run_id"] = sql_agent.run()
-
     # Initialize messages as a list if it doesn't exist or isn't a list
     if "messages" not in st.session_state or not isinstance(st.session_state["messages"], list):
-        st.session_state["messages"] = []
-        
-    # Load chat history
-    agent_chat_history = sql_agent.get_chat_history()
-    if isinstance(agent_chat_history, list) and len(agent_chat_history) > 0:
-        logger.debug("Loading chat history")
-        st.session_state["messages"] = agent_chat_history
-    else:
-        logger.debug("No chat history found")
-        if not st.session_state["messages"]:  # Only set if empty
-            st.session_state["messages"] = [{"role": "agent", "content": "Ask me about F1 data from 1950 to 2020."}]
+        st.session_state["messages"] = [{"role": "agent", "content": "Ask me about F1 data from 1950 to 2020."}]
 
     def add_message(role: str, content: str) -> None:
         """Safely add a message to the session state"""
@@ -115,26 +98,10 @@ def main() -> None:
     if st.sidebar.button("New Run"):
         restart_agent()
 
-    if st.sidebar.button("Auto Rename Thread"):
-        sql_agent.auto_rename_run()
-
-
-    if sql_agent.storage:
-        sql_agent_run_ids: List[str] = sql_agent.storage.get_all_session_ids()
-        new_sql_agent_run_id = st.sidebar.selectbox("Run ID", options=sql_agent_run_ids)
-        if st.session_state["sql_agent_run_id"] != new_sql_agent_run_id:
-            logger.info(f"---*--- Loading SQL agent run: {new_sql_agent_run_id} ---*---")
-            st.session_state["sql_agent"] = get_sql_agent(
-                run_id=new_sql_agent_run_id,
-                debug_mode=True,
-            )
-            st.rerun()
-
 
 def restart_agent():
     logger.debug("---*--- Restarting agent ---*---")
     st.session_state["sql_agent"] = None
-    st.session_state["sql_agent_run_id"] = None
     st.rerun()
 
 

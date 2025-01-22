@@ -94,7 +94,6 @@ semantic_model = {
 
 def get_sql_agent(
     user_id: Optional[str] = None,
-    run_id: Optional[str] = None,
     debug_mode: bool = True,
 ) -> Agent:
     """Returns a Sql agent."""
@@ -103,7 +102,6 @@ def get_sql_agent(
         name="sql_agent",
         user_id=user_id, 
         model=OpenAIChat(id="gpt-4o"),
-        run_id=run_id,
         storage=agent_storage,
         knowledge=agent_knowledge,
         show_tool_calls=True,

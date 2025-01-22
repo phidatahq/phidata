@@ -26,7 +26,7 @@ def main() -> None:
         st.session_state["messages"] = []
 
     # Sidebar for selecting model
-    model_id = st.sidebar.selectbox("Select LLM", options=["gpt-4o", "gpt-4-turbo"]) or "gpt-4o"
+    model_id = st.sidebar.selectbox("Select LLM", options=["gpt-4o"]) or "gpt-4o"
     if st.session_state.get("model_id") != model_id:
         st.session_state["model_id"] = model_id
         restart_agent()

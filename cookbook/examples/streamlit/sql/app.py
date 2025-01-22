@@ -4,7 +4,9 @@ import streamlit as st
 from agno.agent import Agent
 from agno.utils.log import logger
 
-from sql_agent import get_sql_agent
+from sql_agent import get_sql_agent, agent_knowledge
+from load_f1_data import load_database
+from load_knowledge import load_sql_agent_knowledge_base
 
 
 st.set_page_config(
@@ -18,7 +20,21 @@ with st.expander(":rainbow[:point_down: Example Questions]"):
     st.markdown("- Which team won the most Constructors Championships?")
 
 
+def initialize_data_and_knowledge():
+    """Initialize database and knowledge base if not already done"""
+    if "data_loaded" not in st.session_state:
+        with st.spinner("Loading F1 data into database..."):
+            load_database()
+        with st.spinner("Loading knowledge base..."):
+            load_sql_agent_knowledge_base()
+        st.session_state["data_loaded"] = True
+        st.success("Data and knowledge base initialized successfully!")
+
+
 def main() -> None:
+    # Initialize data and knowledge base
+    initialize_data_and_knowledge()
+    
     # Get the agent
     sql_agent: Agent
     if "sql_agent" not in st.session_state or st.session_state["sql_agent"] is None:

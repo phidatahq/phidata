@@ -33,9 +33,9 @@ class ClickUpTools(Toolkit):
         self.headers = {"Authorization": self.api_key}
 
         if not self.api_key:
-            raise ValueError("ClickUp API key is required")
+            raise ValueError("CLICKUP_API_KEY not set. Please set the CLICKUP_API_KEY environment variable.")
         if not self.master_space_id:
-            raise ValueError("ClickUp Master Space ID is required")
+            raise ValueError("MASTER_SPACE_ID not set. Please set the MASTER_SPACE_ID environment variable.")
 
         if list_tasks:
             self.register(self.list_tasks)

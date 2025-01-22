@@ -1,6 +1,6 @@
 openai
 pandas
-phidata
+agno
 streamlit
 sqlalchemy
 simplejson

@@ -44,8 +44,6 @@ docker run -d \
   agnohq/pgvector:16
 ```
 
-
-
 For best results, `table_rules` and `column_rules` to the JSON. The Agent is prompted to follow them.
 This is useful when you want to guide the Agent  to always query date, use a particular format, or avoid certain columns.
 
@@ -56,7 +54,7 @@ This will give the Assistant a head start on how to write complex queries.
 
 ### 4. Export OpenAI API Key
 
-> You can use any LLM you like, this is a complex task so best suited for GPT-4o.
+> You can use any Model you like, this is a complex task so best suited for GPT-4o or similar models.
 
 ```shell
 export OPENAI_API_KEY=***

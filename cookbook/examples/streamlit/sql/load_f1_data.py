@@ -1,12 +1,12 @@
-import pandas as pd
-from sqlalchemy import create_engine
-from agno.utils.log import logger
-import requests
 from io import StringIO
 
+import pandas as pd
+import requests
+from agno.utils.log import logger
 from sql_agent import db_url
+from sqlalchemy import create_engine
 
-s3_uri = "https://phi-public.s3.amazonaws.com/f1"
+s3_uri = "https://agno-public.s3.amazonaws.com/f1"
 
 # List of files and their corresponding table names
 files_to_tables = {
@@ -28,11 +28,11 @@ def load_database():
         # Download the file using requests
         response = requests.get(file_path, verify=False)
         response.raise_for_status()  # Raise an exception for bad status codes
-        
+
         # Read the CSV data from the response content
         csv_data = StringIO(response.text)
         df = pd.read_csv(csv_data)
-        
+
         df.to_sql(table_name, engine, if_exists="replace", index=False)
         logger.info(f"{file_path} loaded into {table_name} table.")
 
@@ -42,6 +42,7 @@ def load_database():
 if __name__ == "__main__":
     # Disable SSL verification warnings
     import urllib3
+
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-    
+
     load_database()

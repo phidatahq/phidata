@@ -1,19 +1,18 @@
 import json
-from typing import Optional
-from textwrap import dedent
 from pathlib import Path
+from textwrap import dedent
+from typing import Optional
 
 from agno.agent import Agent
-from agno.tools.sql import SQLTools
-from agno.tools.file import FileTools
-from agno.models.openai import OpenAIChat
 from agno.embedder.openai import OpenAIEmbedder
+from agno.knowledge.combined import CombinedKnowledgeBase
 from agno.knowledge.json import JSONKnowledgeBase
 from agno.knowledge.text import TextKnowledgeBase
-from agno.knowledge.combined import CombinedKnowledgeBase
-from agno.vectordb.pgvector import PgVector
+from agno.models.openai import OpenAIChat
 from agno.storage.agent.postgres import PostgresAgentStorage
-
+from agno.tools.file import FileTools
+from agno.tools.sql import SQLTools
+from agno.vectordb.pgvector import PgVector
 
 # ************* Database Connection *************
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
@@ -32,8 +31,8 @@ sql_queries_dir.mkdir(parents=True, exist_ok=True)
 # ************* Storage & Knowledge *************
 agent_storage = PostgresAgentStorage(
     schema="ai",
-    # Store agent runs in ai.sql_agent_runs table
-    table_name="sql_agent_runs",
+    # Store agent runs in ai.sql_agent_sessions table
+    table_name="sql_agent_sessions",
     db_url=db_url,
 )
 agent_knowledge = CombinedKnowledgeBase(
@@ -100,7 +99,7 @@ def get_sql_agent(
 
     return Agent(
         name="sql_agent",
-        user_id=user_id, 
+        user_id=user_id,
         model=OpenAIChat(id="gpt-4o"),
         storage=agent_storage,
         knowledge=agent_knowledge,
@@ -135,29 +134,28 @@ def get_sql_agent(
             "Continue till you have accomplished the task.",
             "Show results as a table or a chart if possible.",
             "If the users asks about the tables you have access to, simply share the table names from the `semantic_model`.",
-                        f"""
-Additional set of guidelines that you MUST follow:
-<rules>
-- You must always get table information from your knowledge base before writing a query.
-- Do not use phrases like "based on the information provided" or "from the knowledge base".
-- Never mention that you are using example queries from the knowledge base.
-- Always show the SQL queries you use to get the answer.
-- Make sure your query accounts for duplicate records.
-- Make sure your query accounts for null values.
-- If you run a query, explain why you ran it.
-- **NEVER, EVER RUN CODE TO DELETE DATA OR ABUSE THE LOCAL SYSTEM**
-- ALWAYS FOLLOW THE `table rules` if provided. NEVER IGNORE THEM.
-</rules>
+            f"""
+            Additional set of guidelines that you MUST follow:
+            <rules>
+            - You must always get table information from your knowledge base before writing a query.
+            - Do not use phrases like "based on the information provided" or "from the knowledge base".
+            - Never mention that you are using example queries from the knowledge base.
+            - Always show the SQL queries you use to get the answer.
+            - Make sure your query accounts for duplicate records.
+            - Make sure your query accounts for null values.
+            - If you run a query, explain why you ran it.
+            - **NEVER, EVER RUN CODE TO DELETE DATA OR ABUSE THE LOCAL SYSTEM**
+            - ALWAYS FOLLOW THE `table rules` if provided. NEVER IGNORE THEM.
+            </rules>
 
-The following `semantic_model` contains information about tables and the relationships between them:
-<semantic_model>
-{json.dumps(semantic_model, indent=4)}
-</semantic_model>
+            The following `semantic_model` contains information about tables and the relationships between them:
+            <semantic_model>
+            {json.dumps(semantic_model, indent=4)}
+            </semantic_model>
 
-After finishing your task, ask the user relevant followup questions like "was the result okay, would you like me to fix any problems?"
-If the user says yes, get the previous query using the `get_tool_call_history(num_calls=3)` function and fix the problems.
-If the user wants to see the SQL, get it using the `get_tool_call_history(num_calls=3)` function.
-"""
+            After finishing your task, ask the user relevant followup questions like "was the result okay, would you like me to fix any problems?"
+            If the user says yes, get the previous query using the `get_tool_call_history(num_calls=3)` function and fix the problems.
+            If the user wants to see the SQL, get it using the `get_tool_call_history(num_calls=3)` function.
+            """,
         ],
-       
     )

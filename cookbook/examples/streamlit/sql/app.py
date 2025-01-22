@@ -1,20 +1,16 @@
-from typing import List
-
 import streamlit as st
 from agno.agent import Agent
 from agno.utils.log import logger
-
-from sql_agent import get_sql_agent, agent_knowledge
 from load_f1_data import load_database
 from load_knowledge import load_sql_agent_knowledge_base
-
+from sql_agent import get_sql_agent
 
 st.set_page_config(
     page_title="SQL Agent",
     page_icon=":orange_heart:",
 )
 st.title("SQL Agent")
-st.markdown("##### :orange_heart: built using [Agno](https://github.com/agno-ai/agno)")
+st.markdown("##### :orange_heart: built using Agno")
 with st.expander(":rainbow[:point_down: Example Questions]"):
     st.markdown("- Which driver has the most race wins?")
     st.markdown("- Which team won the most Constructors Championships?")
@@ -34,7 +30,7 @@ def initialize_data_and_knowledge():
 def main() -> None:
     # Initialize data and knowledge base
     initialize_data_and_knowledge()
-    
+
     # Get the agent
     sql_agent: Agent
     if "sql_agent" not in st.session_state or st.session_state["sql_agent"] is None:
@@ -45,8 +41,12 @@ def main() -> None:
         sql_agent = st.session_state["sql_agent"]
 
     # Initialize messages as a list if it doesn't exist or isn't a list
-    if "messages" not in st.session_state or not isinstance(st.session_state["messages"], list):
-        st.session_state["messages"] = [{"role": "agent", "content": "Ask me about F1 data from 1950 to 2020."}]
+    if "messages" not in st.session_state or not isinstance(
+        st.session_state["messages"], list
+    ):
+        st.session_state["messages"] = [
+            {"role": "agent", "content": "Ask me about F1 data from 1950 to 2020."}
+        ]
 
     def add_message(role: str, content: str) -> None:
         """Safely add a message to the session state"""
@@ -109,20 +109,24 @@ def main() -> None:
                 try:
                     for delta in sql_agent.run(question, stream=True):
                         # Extract just the content from the RunResponse object
-                        if hasattr(delta, 'content') and delta.content is not None:
+                        if hasattr(delta, "content") and delta.content is not None:
                             response += delta.content
                             try:
                                 resp_container.markdown(response)
                             except Exception as e:
                                 st.error(f"Error updating response: {str(e)}")
                                 break
-                    st.session_state["messages"].append({"role": "agent", "content": response})
+                    st.session_state["messages"].append(
+                        {"role": "agent", "content": response}
+                    )
                 except Exception as e:
                     st.error(f"Error processing request: {str(e)}")
-                    st.session_state["messages"].append({
-                        "role": "agent", 
-                        "content": "Sorry, I encountered an error while processing your request."
-                    })
+                    st.session_state["messages"].append(
+                        {
+                            "role": "agent",
+                            "content": "Sorry, I encountered an error while processing your request.",
+                        }
+                    )
 
     st.sidebar.markdown("---")
 

@@ -9,7 +9,7 @@ from agno.playground import Playground, serve_playground_app
 from agno.storage.agent.sqlite import SqliteAgentStorage
 from agno.tools.duckduckgo import DuckDuckGoTools
 from agno.tools.yfinance import YFinanceTools
-from agno.tools.youtube_tools import YouTubeTools
+from agno.tools.youtube import YouTubeTools
 
 xai_agent_storage: str = "tmp/xai_agents.db"
 common_instructions = [

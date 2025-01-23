@@ -1,6 +1,6 @@
 from agno.agent import Agent
 from agno.models.openai import OpenAIChat
-from agno.tools.youtube_tools import YouTubeTools
+from agno.tools.youtube import YouTubeTools
 
 agent = Agent(
     name="YouTube Timestamps Agent",

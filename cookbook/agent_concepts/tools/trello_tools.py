@@ -19,7 +19,7 @@ Step 3: Generate a Token
 """
 
 from agno.agent import Agent
-from agno.tools.trello_tools import TrelloTools
+from agno.tools.trello import TrelloTools
 
 agent = Agent(
     instructions=[

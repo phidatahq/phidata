@@ -11,10 +11,10 @@ knowledge_base = PDFUrlKnowledgeBase(
     urls=["https://phi-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
     vector_db=PgVector(table_name="recipes", db_url=db_url),
 )
-knowledge_base.load(recreate=False)  # Comment out after first run
+knowledge_base.load(recreate=True)  # Comment out after first run
 
 agent = Agent(
-    model=Claude(id="anthropic.claude-3-5-sonnet-20240620-v1:0"),
+    model=Claude(id="claude-3-5-sonnet-20241022"),
     knowledge=knowledge_base,
     show_tool_calls=True,
 )

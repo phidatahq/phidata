@@ -84,7 +84,7 @@ zoom_tools = CustomZoomTools(
 agent = Agent(
     name="Zoom Meeting Manager",
     agent_id="zoom-meeting-manager",
-    model=OpenAIChat(model="gpt-4"),
+    model=OpenAIChat(id="gpt-4"),
     tools=[zoom_tools],
     markdown=True,
     debug_mode=True,

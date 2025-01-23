@@ -1,5 +1,5 @@
 from agno.agent import Agent
-from agno.llm.openai import OpenAIChat
+from agno.models.openai import OpenAIChat
 from agno.tools.lumalab import LumaLabTools
 
 """Create an agent specialized for Luma AI video generation"""
@@ -7,7 +7,7 @@ from agno.tools.lumalab import LumaLabTools
 luma_agent = Agent(
     name="Luma Video Agent",
     agent_id="luma-video-agent",
-    llm=OpenAIChat(model="gpt-4o"),
+    model=OpenAIChat(id="gpt-4o"),
     tools=[LumaLabTools()],  # Using the LumaLab tool we created
     markdown=True,
     debug_mode=True,

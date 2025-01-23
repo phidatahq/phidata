@@ -112,22 +112,19 @@ class Gemini(Model):
         formatted_messages: List[Content] = []
 
         for msg in messages:
-            if hasattr(msg, "response_tool_call_block"):
+            if hasattr(msg, "response_tool_call_block") and msg.response_tool_call_block is not None:
                 formatted_messages.append(Content(role=msg.role, parts=msg.response_tool_call_block.parts))
-                continue
-            if msg.role == "tool" and hasattr(msg, "tool_call_result"):
-                formatted_messages.append(msg.tool_call_result)
-                continue
-            if isinstance(msg.content, str):
-                parts = [Part.from_text(msg.content)]
-            elif isinstance(msg.content, list):
-                parts = [Part.from_text(part) for part in msg.content if isinstance(part, str)]
             else:
-                parts = []
-            role = "model" if msg.role in ["system", "developer"] else "user" if msg.role == "tool" else msg.role
+                if isinstance(msg.content, str) and msg.content:
+                    parts = [Part.from_text(msg.content)]
+                elif isinstance(msg.content, list):
+                    parts = [Part.from_text(part) for part in msg.content if isinstance(part, str)]
+                else:
+                    parts = []
+                role = "model" if msg.role in ["system", "developer"] else "user" if msg.role == "tool" else msg.role
 
-            formatted_messages.append(Content(role=role, parts=parts))
-
+                if parts:
+                    formatted_messages.append(Content(role=role, parts=parts))
         return formatted_messages
 
     def format_functions(self, params: Dict[str, Any]) -> Dict[str, Any]:
@@ -366,7 +363,7 @@ class Gemini(Model):
                 ]
             )
 
-            messages.append(Message(role="tool", content=list(contents), tool_call_result=Content(parts=list(parts))))
+            messages.append(Message(role="tool", content=contents))
 
     def handle_tool_calls(self, assistant_message: Message, messages: List[Message], model_response: ModelResponse):
         """

@@ -1,5 +1,5 @@
 from agno.agent import Agent
-from agno.tools.openbb_tools import OpenBBTools
+from agno.tools.openbb import OpenBBTools
 
 agent = Agent(tools=[OpenBBTools()], debug_mode=True, show_tool_calls=True)
 

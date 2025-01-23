@@ -94,7 +94,7 @@ class ReliabilityEvaluation:
             status = Status(f"Running evaluation...", spinner="dots", speed=1.0, refresh_per_second=10)
             live_log.update(status)
 
-            last_tool_calls = None
+            actual_tool_calls = None
             for message in reversed(self.agent_response.messages):
                 if message.tool_calls:
                     if last_tool_calls is None:

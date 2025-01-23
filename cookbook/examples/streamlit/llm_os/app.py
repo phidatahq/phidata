@@ -6,7 +6,7 @@ from phi.document import Document
 from phi.document.reader.pdf import PDFReader
 from phi.document.reader.website import WebsiteReader
 from phi.utils.log import logger
-from cookbook.examples.streamlit.os_agent import get_llm_os  # type: ignore
+from os_agent import get_llm_os  # type: ignore
 
 nest_asyncio.apply()
 
@@ -185,19 +185,34 @@ def main() -> None:
         logger.debug("No chat history found")
         st.session_state["messages"] = [{"role": "agent", "content": "Ask me questions..."}]
 
-    # Handle user input and generate responses
-    if prompt := st.chat_input("Ask a question:"):
-        st.session_state["messages"].append({"role": "user", "content": prompt})
-        with st.chat_message("agent"):
-            response = llm_os.run(prompt).content  # type: ignore
-            st.session_state["messages"].append({"role": "agent", "content": response})
-
-    # Display chat history
+    # Display chat history first (all previous messages)
     for message in st.session_state["messages"]:
         if message["role"] == "system":
             continue
         with st.chat_message(message["role"]):
             st.write(message["content"])
+
+    # Handle user input and generate responses
+    if prompt := st.chat_input("Ask a question:"):
+        # Display user message first
+        with st.chat_message("user"):
+            st.write(prompt)
+        
+        # Then display agent response
+        with st.chat_message("agent"):
+            # Create an empty container for the streaming response
+            response_container = st.empty()
+            with st.spinner("Thinking..."):  # Add spinner while generating response
+                response = ""
+                for chunk in llm_os.run(prompt, stream=True):
+                    if chunk and chunk.content:
+                        response += chunk.content
+                        # Update the response in real-time
+                        response_container.markdown(response)
+            
+        # Add messages to session state after completion
+        st.session_state["messages"].append({"role": "user", "content": prompt})
+        st.session_state["messages"].append({"role": "agent", "content": response})
 
     # Load LLM OS knowledge base
     if llm_os.knowledge:

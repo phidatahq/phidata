@@ -19,7 +19,7 @@ Hybrid search examples can be found under `/cookbook/agent_concepts/hybrid_searc
 
 ### Knowledge
 
-Agents use knowledge to supplement their training data with domain expertise.
+Agents use a knowledge base to supplement their training data with domain expertise.
 Knowledge is stored in a vector database and provides agents with business context at query time, helping them respond in a context-aware manner.
 
 Examples of Agents with knowledge can be found under `/cookbook/agent_concepts/knowledge/`
@@ -36,7 +36,7 @@ Examples of Agents using different memory types can be found under `/cookbook/ag
 
 ### Multimodal
 
-Agno agents support text, image, audio and video inputs and can generate text, image, audio and video outputs. 
+In addition to text, Agno agents support image, audio, and video inputs and can generate image and audio outputs. 
 
 Examples with multimodal input and outputs using Agno can be found under `/cookbook/agent_concepts/storage/`
 
@@ -50,9 +50,12 @@ Examples of agentic RAG can be found under `/cookbook/agent_concepts/rag/`
 
 Reasoning is an *experimental feature* that enables an Agent to think through a problem step-by-step before jumping into a response. The Agent works through different ideas, validating and correcting as needed. Once it reaches a final answer, it will validate and provide a response.
 
+Examples of agentic shwowing their reasoning can be found under `/cookbook/agent_concepts/reasoning/`
+
+
 ### Storage
 
-Agents use storage to persist sessions by storing them in a database.
+Agents use storage to persist sessions and session state by storing them in a database.
 
 Agents come with built-in memory, but it only lasts while the session is active. To continue conversations across sessions, we store agent sessions in a database like Sqllite or PostgreSQL.
 

@@ -16,5 +16,5 @@ pip install -U lancedb tantivy pypdf openai agno
 ### 3. Run LanceDB Hybrid Search Agent
 
 ```shell
-python cookbook/examples/hybrid_search/lancedb/agent.py
+python cookbook/agent_concepts/hybrid_search/lancedb/agent.py
 ```

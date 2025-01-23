@@ -11,11 +11,12 @@ knowledge_base = PDFUrlKnowledgeBase(
     ),
 )
 # Load the knowledge base: Comment out after first run
-knowledge_base.load(upsert=True)
+knowledge_base.load(recreate=False)
 
 agent = Agent(
     model=OpenAIChat(id="gpt-4o"),
     knowledge=knowledge_base,
+    search_knowledge=True,
     read_chat_history=True,
     show_tool_calls=True,
     markdown=True,

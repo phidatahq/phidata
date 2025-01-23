@@ -44,7 +44,8 @@ class YFinanceTools(Toolkit):
             self.register(self.get_historical_stock_prices)
 
     def get_current_stock_price(self, symbol: str) -> str:
-        """Use this function to get the current stock price for a given symbol.
+        """
+        Use this function to get the current stock price for a given symbol.
 
         Args:
             symbol (str): The stock symbol.
@@ -110,7 +111,8 @@ class YFinanceTools(Toolkit):
             return f"Error fetching company profile for {symbol}: {e}"
 
     def get_historical_stock_prices(self, symbol: str, period: str = "1mo", interval: str = "1d") -> str:
-        """Use this function to get the historical stock price for a given symbol.
+        """
+        Use this function to get the historical stock price for a given symbol.
 
         Args:
             symbol (str): The stock symbol.
@@ -176,10 +178,10 @@ class YFinanceTools(Toolkit):
         """Use this function to get income statements for a given stock symbol.
 
         Args:
-        symbol (str): The stock symbol.
+            symbol (str): The stock symbol.
 
         Returns:
-        dict: JSON containing income statements or an empty dictionary.
+            dict: JSON containing income statements or an empty dictionary.
         """
         try:
             stock = yf.Ticker(symbol)
@@ -192,10 +194,10 @@ class YFinanceTools(Toolkit):
         """Use this function to get key financial ratios for a given stock symbol.
 
         Args:
-        symbol (str): The stock symbol.
+            symbol (str): The stock symbol.
 
         Returns:
-        dict: JSON containing key financial ratios.
+            dict: JSON containing key financial ratios.
         """
         try:
             stock = yf.Ticker(symbol)
@@ -208,10 +210,10 @@ class YFinanceTools(Toolkit):
         """Use this function to get analyst recommendations for a given stock symbol.
 
         Args:
-        symbol (str): The stock symbol.
+            symbol (str): The stock symbol.
 
         Returns:
-        str: JSON containing analyst recommendations.
+            str: JSON containing analyst recommendations.
         """
         try:
             stock = yf.Ticker(symbol)
@@ -224,11 +226,11 @@ class YFinanceTools(Toolkit):
         """Use this function to get company news and press releases for a given stock symbol.
 
         Args:
-        symbol (str): The stock symbol.
-        num_stories (int): The number of news stories to return. Defaults to 3.
+            symbol (str): The stock symbol.
+            num_stories (int): The number of news stories to return. Defaults to 3.
 
         Returns:
-        str: JSON containing company news and press releases.
+            str: JSON containing company news and press releases.
         """
         try:
             news = yf.Ticker(symbol).news

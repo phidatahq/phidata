@@ -1,14 +1,30 @@
 [project]
 name = "phidata"
-version = "2.7.6"
+version = "2.7.9"
 description = "Build multi-modal Agents with memory, knowledge and tools."
-requires-python = ">=3.7"
+requires-python = ">=3.7,<4"
 readme = "README.md"
+license = { file = "LICENSE" }
 authors = [
   {name = "Ashpreet Bedi", email = "ashpreet@phidata.com"}
 ]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Mozilla Public License 2.0 (MPL 2.0)",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: OS Independent",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
 
 dependencies = [
+  "docstring-parser",
   "gitpython",
   "httpx",
   "pydantic",
@@ -72,6 +88,7 @@ include = ["phi*"]
 
 [tool.setuptools.package-data]
 phi = ["py.typed"]
+include = ["LICENSE"]
 
 [tool.pytest.ini_options]
 log_cli = true
@@ -90,7 +107,7 @@ check_untyped_defs = true
 no_implicit_optional = true
 warn_unused_configs = true
 plugins = ["pydantic.mypy"]
-exclude = ["phienv*", "aienv*", "scratch*", "wip*", "tmp*", "cookbook/assistants/examples/*", "phi/assistant/openai/*"]
+exclude = ["phienv*", "aienv*", "scratch*", "wip*", "tmp*", "cookbook/assistants/examples/*", "phi/assistant/openai/*", "tests/*"]
 
 [[tool.mypy.overrides]]
 module = [
@@ -113,6 +130,7 @@ module = [
   "docx.*",
   "duckdb.*",
   "duckduckgo_search.*",
+  "email_validator.*",
   "exa_py.*",
   "fastapi.*",
   "firecrawl.*",
@@ -152,6 +170,7 @@ module = [
   "rapidocr_onnxruntime.*",
   "replicate.*",
   "requests.*",
+  "scrapegraph_py.*",
   "sentence_transformers.*",
   "serpapi.*",
   "setuptools.*",
@@ -166,6 +185,7 @@ module = [
   "textract.*",
   "timeout_decorator.*",
   "torch.*",
+  "tzlocal.*",
   "uvicorn.*",
   "vertexai.*",
   "voyageai.*",

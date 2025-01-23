@@ -141,17 +141,34 @@ class Claude(Model):
             content = message.content or ""
             if message.role == "system" or (message.role != "user" and idx in [0, 1]):
                 system_messages.append(content)  # type: ignore
-            else:
+                continue
+            elif message.role == "user":
                 if isinstance(content, str):
                     content = [{"type": "text", "text": content}]
 
-                if message.role == "user" and message.images is not None:
+                if message.images is not None:
                     for image in message.images:
                         image_content = self.add_image(image)
                         if image_content:
                             content.append(image_content)
 
-                chat_messages.append({"role": message.role, "content": content})  # type: ignore
+            # Handle tool calls from history
+            elif message.role == "assistant" and isinstance(message.content, str) and message.tool_calls:
+                if message.content:
+                    content = [TextBlock(text=message.content, type="text")]
+                else:
+                    content = []
+                for tool_call in message.tool_calls:
+                    content.append(
+                        ToolUseBlock(
+                            id=tool_call["id"],
+                            input=json.loads(tool_call["function"]["arguments"]),
+                            name=tool_call["function"]["name"],
+                            type="tool_use",
+                        )
+                    )
+
+            chat_messages.append({"role": message.role, "content": content})  # type: ignore
         return chat_messages, " ".join(system_messages)
 
     def add_image(self, image: Union[str, bytes]) -> Optional[Dict[str, Any]]:
@@ -378,12 +395,6 @@ class Claude(Model):
                 if tool_block_input and isinstance(tool_block_input, dict):
                     message_data.response_content = tool_block_input.get("query", "")
 
-        # -*- Create assistant message
-        assistant_message = Message(
-            role=response.role or "assistant",
-            content=message_data.response_content,
-        )
-
         # -*- Extract tool calls from the response
         if response.stop_reason == "tool_use":
             for block in message_data.response_block:
@@ -398,15 +409,21 @@ class Claude(Model):
                         function_def["arguments"] = json.dumps(tool_input)
                     message_data.tool_calls.append(
                         {
+                            "id": tool_use.id,
                             "type": "function",
                             "function": function_def,
                         }
                     )
 
+        # -*- Create assistant message
+        assistant_message = Message(
+            role=response.role or "assistant",
+            content=message_data.response_content,
+        )
+
         # -*- Update assistant message if tool calls are present
         if len(message_data.tool_calls) > 0:
             assistant_message.tool_calls = message_data.tool_calls
-            assistant_message.content = message_data.response_block
 
         # -*- Update usage metrics
         self.update_usage_metrics(assistant_message, message_data.response_usage, metrics)
@@ -623,6 +640,7 @@ class Claude(Model):
                             function_def["arguments"] = json.dumps(tool_input)
                         message_data.tool_calls.append(
                             {
+                                "id": tool_use.id,
                                 "type": "function",
                                 "function": function_def,
                             }
@@ -643,7 +661,6 @@ class Claude(Model):
 
         # -*- Update assistant message if tool calls are present
         if len(message_data.tool_calls) > 0:
-            assistant_message.content = message_data.response_block
             assistant_message.tool_calls = message_data.tool_calls
 
         # -*- Update usage metrics

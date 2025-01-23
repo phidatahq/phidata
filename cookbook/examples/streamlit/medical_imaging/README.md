@@ -5,9 +5,8 @@ Medical Imaging Diagnosis Agent is a medical imaging analysis agent that analyze
 ### 1. Create a virtual environment
 
 ```shell
-python3 -m venv ~/.venvs/aienv
-source ~/.venvs/aienv/bin/activate
-```
+./scripts/cookbook_setup.py
+source ./agnoenv/bin/activate
 
 ### 2. Install requirements
 

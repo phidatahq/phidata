@@ -11,7 +11,7 @@ from agno.vectordb.lancedb import LanceDb
 db_url = "/tmp/lancedb"
 
 # Configure the language model
-model = Ollama(model="llama3:8b", temperature=0.0)
+model = Ollama(id="llama3.1:8b")
 
 # Create Ollama embedder
 embedder = OllamaEmbedder(model="nomic-embed-text", dimensions=768)

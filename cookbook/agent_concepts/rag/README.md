@@ -22,7 +22,7 @@ pip install -U openai sqlalchemy "psycopg[binary]" pgvector lancedb tantivy pypd
 - Run using a helper script
 
 ```shell
-./cookbook/run_pgvector.sh
+./cookbook/scripts/run_pgvector.sh
 ```
 
 - OR run using the docker run command
@@ -42,13 +42,13 @@ docker run -d \
 ### 4. Run the Traditional RAG with PgVector
 
 ```shell
-python cookbook/rag/01_traditional_rag_pgvector.py
+python cookbook/agent_concepts/rag/traditional_rag_pgvector.py
 ```
 
 ### 5. Run the Agentic RAG with PgVector
 
 ```shell
-python cookbook/rag/02_agentic_rag_pgvector.py
+python cookbook/agent_concepts/rag/agentic_rag_pgvector.py
 ```
 
 Continue to run the other RAG examples as you want.

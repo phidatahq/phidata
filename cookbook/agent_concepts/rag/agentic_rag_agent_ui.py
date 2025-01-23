@@ -51,4 +51,4 @@ app = Playground(agents=[rag_agent]).get_app()
 if __name__ == "__main__":
     # Load the knowledge base: Comment after first run as the knowledge base is already loaded
     knowledge_base.load(upsert=True)
-    serve_playground_app("05_agentic_rag_playground:app", reload=True)
+    serve_playground_app("agentic_rag_agent_ui:app", reload=True)

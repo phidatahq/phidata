@@ -29,17 +29,11 @@ agent = Agent(
     model=OpenAIChat(id="gpt-4o"),
     knowledge=knowledge_base,
     # Enable RAG by adding context from the `knowledge` to the user prompt.
-    add_context=True,
+    add_references=True,
     # Set as False because Agents default to `search_knowledge=True`
     search_knowledge=False,
     markdown=True,
 )
 agent.print_response(
     "How do I make chicken and galangal in coconut milk soup", stream=True
-)
-
-agent.print_response(
-    "Hi, i want to make a 3 course meal. Can you recommend some recipes. "
-    "I'd like to start with a soup, then im thinking a thai curry for the main course and finish with a dessert",
-    stream=True,
 )

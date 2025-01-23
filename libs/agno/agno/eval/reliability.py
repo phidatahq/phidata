@@ -78,7 +78,7 @@ class ReliabilityEval:
         else:
             set_log_level_to_info()
 
-    def run(self, *, print_summary: bool = False, print_results: bool = False) -> None:
+    def run(self, *, print_summary: bool = False, print_results: bool = False) -> Optional[ReliabilityResult]:
         from rich.console import Console
         from rich.live import Live
         from rich.status import Status
@@ -95,20 +95,21 @@ class ReliabilityEval:
             live_log.update(status)
 
             actual_tool_calls = None
-            for message in reversed(self.agent_response.messages):
-                if message.tool_calls:
-                    if actual_tool_calls is None:
-                        actual_tool_calls = message.tool_calls
+            if self.agent_response is not None:
+                for message in reversed(self.agent_response.messages):  # type: ignore
+                    if message.tool_calls:
+                        if actual_tool_calls is None:
+                            actual_tool_calls = message.tool_calls
                     else:
-                        actual_tool_calls.append(message.tool_calls[0])
+                        actual_tool_calls.append(message.tool_calls[0])  # type: ignore
 
             failed_tool_calls = []
             passed_tool_calls = []
-            for tool_call in actual_tool_calls:
-                if tool_call["function"]["name"] not in self.expected_tool_calls:
-                    failed_tool_calls.append(tool_call["function"]["name"])
+            for tool_call in actual_tool_calls:  # type: ignore
+                if tool_call.get("function", {}).get("name") not in self.expected_tool_calls:  # type: ignore
+                    failed_tool_calls.append(tool_call.get("function", {}).get("name"))
                 else:
-                    passed_tool_calls.append(tool_call["function"]["name"])
+                    passed_tool_calls.append(tool_call.get("function", {}).get("name"))
 
             self.result = ReliabilityResult(
                 eval_status="PASSED" if len(failed_tool_calls) == 0 else "FAILED",

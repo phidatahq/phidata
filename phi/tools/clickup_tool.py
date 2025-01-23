@@ -182,8 +182,9 @@ class ClickUpTools(Toolkit):
             return json.dumps(space, indent=2)
 
         # Get first list in space
-        lists = self._make_request("GET", f"space/{space['id']}/list")
-        lists_data = lists.get("lists", [])
+        response = self._make_request("GET", f"space/{space['id']}/list")
+        logger.debug(f"Lists: {response}")
+        lists_data = response.get("lists", [])
         if not lists_data:
             return json.dumps({"error": f"No lists found in space '{space_name}'"}, indent=2)
         

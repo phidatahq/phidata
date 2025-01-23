@@ -74,6 +74,8 @@ class Agent:
     add_context: bool = False
     # If True, resolve the context (i.e. call any functions in the context) before running the agent
     resolve_context: bool = True
+    # The type of tags to add the context in.
+    context_type: Optional[str] = None
 
     # --- Agent Memory ---
     memory: Optional[AgentMemory] = None
@@ -256,6 +258,7 @@ class Agent:
         session_state: Optional[Dict[str, Any]] = None,
         context: Optional[Dict[str, Any]] = None,
         add_context: bool = False,
+        context_type: Optional[str] = None,
         resolve_context: bool = True,
         memory: Optional[AgentMemory] = None,
         add_history_to_messages: bool = False,
@@ -327,6 +330,7 @@ class Agent:
 
         self.context = context
         self.add_context = add_context
+        self.context_type = context_type
         self.resolve_context = resolve_context
 
         self.memory = memory
@@ -1989,9 +1993,10 @@ class Agent:
             user_msg_content += "</references>"
         # 4.2 Add context to user message
         if self.add_context and self.context is not None:
-            user_msg_content += "\n\n<context>\n"
+            context_tag = self.context_type or "context"
+            user_msg_content += f"\n\n<{context_tag}>"
             user_msg_content += self.convert_context_to_string(self.context) + "\n"
-            user_msg_content += "</context>"
+            user_msg_content += f"</{context_tag}>"
 
         # Return the user message
         return Message(

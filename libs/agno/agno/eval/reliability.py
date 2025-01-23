@@ -100,7 +100,7 @@ class ReliabilityEval:
                     if actual_tool_calls is None:
                         actual_tool_calls = message.tool_calls
                     else:
-                        actual_tool_calls.append(message.tool_calls)
+                        actual_tool_calls.append(message.tool_calls[0])
 
             failed_tool_calls = []
             passed_tool_calls = []

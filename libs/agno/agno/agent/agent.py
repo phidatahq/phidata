@@ -2854,8 +2854,6 @@ class Agent:
         }
 
         if self.monitoring:
-            print("HERE")
-            print(self.run_input)
 
             run_data.update(
                 {

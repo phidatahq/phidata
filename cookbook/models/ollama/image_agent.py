@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from agno.agent import Agent
+from agno.media import Image
 from agno.models.ollama import Ollama
 
 agent = Agent(
@@ -11,5 +12,5 @@ agent = Agent(
 image_path = Path(__file__).parent.joinpath("super-agents.png")
 agent.print_response(
     "Write a 3 sentence fiction story about the image",
-    images=[str(image_path)],
+    images=[Image(filepath=image_path)],
 )

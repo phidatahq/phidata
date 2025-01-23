@@ -1,3 +1,0 @@
-[console_scripts]
-pip-compile = piptools.scripts.compile:cli
-pip-sync = piptools.scripts.sync:cli

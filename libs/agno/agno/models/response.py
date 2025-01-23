@@ -3,6 +3,8 @@ from enum import Enum
 from time import time
 from typing import Any, Dict, Optional
 
+from agno.media import AudioOutput
+
 
 class ModelResponseEvent(str, Enum):
     """Events that can be sent by the Model.response() method"""
@@ -18,7 +20,7 @@ class ModelResponse:
 
     content: Optional[str] = None
     parsed: Optional[Any] = None
-    audio: Optional[Dict[str, Any]] = None
+    audio: Optional[AudioOutput] = None
     tool_call: Optional[Dict[str, Any]] = None
     event: str = ModelResponseEvent.assistant_response.value
     created_at: int = int(time())

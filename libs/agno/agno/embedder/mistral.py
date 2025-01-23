@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from os import getenv
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -11,8 +12,9 @@ except ImportError:
     raise ImportError("`mistralai` not installed")
 
 
+@dataclass
 class MistralEmbedder(Embedder):
-    model: str = "mistral-embed"
+    id: str = "mistral-embed"
     dimensions: int = 1024
     # -*- Request parameters
     request_params: Optional[Dict[str, Any]] = None
@@ -46,7 +48,7 @@ class MistralEmbedder(Embedder):
     def _response(self, text: str) -> EmbeddingResponse:
         _request_params: Dict[str, Any] = {
             "inputs": text,
-            "model": self.model,
+            "model": self.id,
         }
         if self.request_params:
             _request_params.update(self.request_params)

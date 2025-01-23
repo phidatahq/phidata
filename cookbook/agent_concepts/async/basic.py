@@ -1,4 +1,5 @@
 import asyncio
+
 from agno.agent import Agent
 from agno.models.openai import OpenAIChat
 
@@ -10,4 +11,3 @@ agent = Agent(
 )
 # -*- Print a response to the cli
 asyncio.run(agent.aprint_response("Share a breakfast recipe.", stream=True))
-

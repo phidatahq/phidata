@@ -1,9 +1,9 @@
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from os import getenv
 from typing import Any, Dict, Iterator, List, Optional, Tuple
 
-from agno.models.base import Model
+from agno.models.base import Model, StreamData
 from agno.models.message import Message
 from agno.models.response import ModelResponse
 from agno.tools.function import FunctionCall
@@ -35,19 +35,7 @@ except (ModuleNotFoundError, ImportError):
 
 
 @dataclass
-class StreamData:
-    response_content: str = ""
-    response_tool_calls: Optional[List[Any]] = None
-    completion_tokens: int = 0
-    response_prompt_tokens: int = 0
-    response_completion_tokens: int = 0
-    response_total_tokens: int = 0
-    time_to_first_token: Optional[float] = None
-    response_timer: Timer = field(default_factory=Timer)
-
-
-@dataclass
-class CohereChat(Model):
+class Cohere(Model):
     id: str = "command-r-plus"
     name: str = "cohere"
     provider: str = "Cohere"
@@ -68,8 +56,7 @@ class CohereChat(Model):
     # -*- Provide the Cohere client manually
     cohere_client: Optional[CohereClient] = None
 
-    @property
-    def client(self) -> CohereClient:
+    def get_client(self) -> CohereClient:
         if self.cohere_client:
             return self.cohere_client
 
@@ -111,7 +98,7 @@ class CohereChat(Model):
         Returns:
             Optional[List[CohereTool]]: The list of tools.
         """
-        if not self.functions:
+        if not self._functions:
             return None
 
         # Returns the tools in the format supported by the Cohere API
@@ -127,8 +114,49 @@ class CohereChat(Model):
                     for param_name, param_info in function.parameters.get("properties", {}).items()
                 },
             )
-            for f_name, function in self.functions.items()
+            for f_name, function in self._functions.items()
         ]
+
+    def _prepare_for_invoke(
+        self, messages: List[Message], tool_results: Optional[List[ToolResult]] = None
+    ) -> Tuple[str, Dict[str, Any]]:
+        api_kwargs: Dict[str, Any] = self.request_kwargs
+        chat_message: str = ""
+
+        if self.add_chat_history:
+            logger.debug("Providing chat_history to cohere")
+            chat_history: List = []
+            for m in messages:
+                if m.role == "system" and "preamble" not in api_kwargs:
+                    api_kwargs["preamble"] = m.content
+                elif m.role == "user":
+                    # Update the chat_message to the new user message
+                    chat_message = m.get_content_string()
+                    chat_history.append({"role": "USER", "message": chat_message})
+                else:
+                    chat_history.append({"role": "CHATBOT", "message": m.get_content_string() or ""})
+            if chat_history[-1].get("role") == "USER":
+                chat_history.pop()
+            api_kwargs["chat_history"] = chat_history
+        else:
+            # Set first system message as preamble
+            for m in messages:
+                if m.role == "system" and "preamble" not in api_kwargs:
+                    api_kwargs["preamble"] = m.get_content_string()
+                    break
+            # Set last user message as chat_message
+            for m in reversed(messages):
+                if m.role == "user":
+                    chat_message = m.get_content_string()
+                    break
+
+        if self.tools:
+            api_kwargs["tools"] = self._get_tools()
+
+        if tool_results:
+            api_kwargs["tool_results"] = tool_results
+
+        return chat_message, api_kwargs
 
     def invoke(
         self, messages: List[Message], tool_results: Optional[List[ToolResult]] = None
@@ -143,43 +171,9 @@ class CohereChat(Model):
         Returns:
             NonStreamedChatResponse: The non-streamed chat response.
         """
-        api_kwargs: Dict[str, Any] = self.request_kwargs
-        chat_message: Optional[str] = None
+        chat_message, api_kwargs = self._prepare_for_invoke(messages, tool_results)
 
-        if self.add_chat_history:
-            logger.debug("Providing chat_history to cohere")
-            chat_history: List = []
-            for m in messages:
-                if m.role == "system" and "preamble" not in api_kwargs:
-                    api_kwargs["preamble"] = m.content
-                elif m.role == "user":
-                    # Update the chat_message to the new user message
-                    chat_message = m.get_content_string()
-                    chat_history.append({"role": "USER", "message": chat_message})
-                else:
-                    chat_history.append({"role": "CHATBOT", "message": m.get_content_string() or ""})
-            if chat_history[-1].get("role") == "USER":
-                chat_history.pop()
-            api_kwargs["chat_history"] = chat_history
-        else:
-            # Set first system message as preamble
-            for m in messages:
-                if m.role == "system" and "preamble" not in api_kwargs:
-                    api_kwargs["preamble"] = m.get_content_string()
-                    break
-            # Set last user message as chat_message
-            for m in reversed(messages):
-                if m.role == "user":
-                    chat_message = m.get_content_string()
-                    break
-
-        if self.tools:
-            api_kwargs["tools"] = self._get_tools()
-
-        if tool_results:
-            api_kwargs["tool_results"] = tool_results
-
-        return self.client.chat(message=chat_message or "", model=self.id, **api_kwargs)
+        return self.get_client().chat(model=self.id, message=chat_message, **api_kwargs)
 
     def invoke_stream(
         self, messages: List[Message], tool_results: Optional[List[ToolResult]] = None
@@ -194,53 +188,9 @@ class CohereChat(Model):
         Returns:
             Iterator[StreamedChatResponse]: An iterator of streamed chat responses.
         """
-        api_kwargs: Dict[str, Any] = self.request_kwargs
-        chat_message: Optional[str] = None
+        chat_message, api_kwargs = self._prepare_for_invoke(messages, tool_results)
 
-        if self.add_chat_history:
-            logger.debug("Providing chat_history to cohere")
-            chat_history: List = []
-            for m in messages:
-                if m.role == "system" and "preamble" not in api_kwargs:
-                    api_kwargs["preamble"] = m.content
-                elif m.role == "user":
-                    # Update the chat_message to the new user message
-                    chat_message = m.get_content_string()
-                    chat_history.append({"role": "USER", "message": chat_message})
-                else:
-                    chat_history.append({"role": "CHATBOT", "message": m.get_content_string() or ""})
-            if chat_history[-1].get("role") == "USER":
-                chat_history.pop()
-            api_kwargs["chat_history"] = chat_history
-        else:
-            # Set first system message as preamble
-            for m in messages:
-                if m.role == "system" and "preamble" not in api_kwargs:
-                    api_kwargs["preamble"] = m.get_content_string()
-                    break
-            # Set last user message as chat_message
-            for m in reversed(messages):
-                if m.role == "user":
-                    chat_message = m.get_content_string()
-                    break
-
-        if self.tools:
-            api_kwargs["tools"] = self._get_tools()
-
-        if tool_results:
-            api_kwargs["tool_results"] = tool_results
-
-        return self.client.chat_stream(message=chat_message or "", model=self.id, **api_kwargs)
-
-    def _log_messages(self, messages: List[Message]) -> None:
-        """
-        Log the messages to the console.
-
-        Args:
-            messages (List[Message]): The list of messages.
-        """
-        for m in messages:
-            m.log()
+        return self.get_client().chat_stream(model=self.id, message=chat_message, **api_kwargs)
 
     def _prepare_function_calls(self, agent_message: Message) -> Tuple[List[FunctionCall], List[Message]]:
         """
@@ -267,7 +217,7 @@ class CohereChat(Model):
         # Process each tool call in the agent message
         for tool_call in agent_message.tool_calls:
             # Attempt to get a function call for the tool call
-            _function_call = get_function_call_for_tool_call(tool_call, self.functions)
+            _function_call = get_function_call_for_tool_call(tool_call, self._functions)
 
             # Handle cases where function call cannot be created
             if _function_call is None:
@@ -312,7 +262,7 @@ class CohereChat(Model):
             return None
         for tool_call in assistant_message.tool_calls:
             _tool_call_id = tool_call.get("id")
-            _function_call = get_function_call_for_tool_call(tool_call, self.functions)
+            _function_call = get_function_call_for_tool_call(tool_call, self._functions)
             if _function_call is None:
                 messages.append(
                     Message(
@@ -418,7 +368,7 @@ class CohereChat(Model):
             assistant_message.tool_calls = tool_calls
 
         # Handle tool calls if present and tool running is enabled
-        if assistant_message.tool_calls and self.run_tools:
+        if assistant_message.tool_calls:
             tool_results = self._handle_tool_calls(
                 assistant_message=assistant_message,
                 messages=messages,
@@ -580,13 +530,13 @@ class CohereChat(Model):
         logger.debug(f"Assistant Message: {assistant_message}")
 
         # -*- Parse and run function call
-        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
+        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
             tool_role: str = "tool"
             function_calls_to_run: List[FunctionCall] = []
             function_call_results: List[Message] = []
             for tool_call in assistant_message.tool_calls:
                 _tool_call_id = tool_call.get("id")
-                _function_call = get_function_call_for_tool_call(tool_call, self.functions)
+                _function_call = get_function_call_for_tool_call(tool_call, self._functions)
                 if _function_call is None:
                     messages.append(
                         Message(
@@ -637,3 +587,15 @@ class CohereChat(Model):
             # -*- Yield new response using results of tool calls
             yield from self.response_stream(messages=messages, tool_results=tool_results)
         logger.debug("---------- Cohere Response End ----------")
+
+    async def ainvoke(self, *args, **kwargs) -> Any:
+        raise NotImplementedError(f"Async not supported on {self.name}.")
+
+    async def ainvoke_stream(self, *args, **kwargs) -> Any:
+        raise NotImplementedError(f"Async not supported on {self.name}.")
+
+    async def aresponse(self, messages: List[Message]) -> ModelResponse:
+        raise NotImplementedError(f"Async not supported on {self.name}.")
+
+    async def aresponse_stream(self, messages: List[Message]) -> ModelResponse:
+        raise NotImplementedError(f"Async not supported on {self.name}.")

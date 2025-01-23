@@ -18,10 +18,10 @@ export MISTRAL_API_KEY=***
 ### 3. Install libraries
 
 ```shell
-pip install -U mistralai duckduckgo-search duckdb yfinance phidata
+pip install -U mistralai duckduckgo-search duckdb yfinance agno
 ```
 
-### 4. Run Agent without Tools
+### 4. Run basic Agent
 
 - Streaming on
 
@@ -37,38 +37,15 @@ python cookbook/models/mistral/basic.py
 
 ### 5. Run Agent with Tools
 
-- Yahoo Finance with streaming on
+
+- DuckDuckGo search
 
 ```shell
-python cookbook/models/mistral/agent_stream.py
-```
-
-- Yahoo Finance without streaming
-
-```shell
-python cookbook/models/mistral/agent.py
-```
-
-- Finance Agent
-
-```shell
-python cookbook/models/mistral/finance_agent.py
-```
-
-- Data Analyst
-
-```shell
-python cookbook/models/mistral/data_analyst.py
+python cookbook/models/mistral/tool_use.py
 ```
 
 ### 6. Run Agent that returns structured output
 
 ```shell
 python cookbook/models/mistral/structured_output.py
-```
-
-### 7. Run Agent that uses web search
-
-```shell
-python cookbook/models/mistral/web_search.py
 ```

@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+from os import getenv
 from types import ModuleType
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -12,11 +14,12 @@ except ImportError:
     raise
 
 
+@dataclass
 class GeminiEmbedder(Embedder):
-    model: str = "models/embedding-001"
+    id: str = "models/text-embedding-004"
     task_type: str = "RETRIEVAL_QUERY"
     title: Optional[str] = None
-    dimensions: Optional[int] = None
+    dimensions: Optional[int] = 768
     api_key: Optional[str] = None
     request_params: Optional[Dict[str, Any]] = None
     client_params: Optional[Dict[str, Any]] = None
@@ -27,6 +30,11 @@ class GeminiEmbedder(Embedder):
         if self.gemini_client:
             return self.gemini_client
         _client_params: Dict[str, Any] = {}
+
+        self.api_key = self.api_key or getenv("GOOGLE_API_KEY")
+        if not self.api_key:
+            logger.error("GOOGLE_API_KEY not set. Please set the GOOGLE_API_KEY environment variable.")
+
         if self.api_key:
             _client_params["api_key"] = self.api_key
         if self.client_params:
@@ -38,7 +46,7 @@ class GeminiEmbedder(Embedder):
     def _response(self, text: str) -> Union[EmbeddingDict, BatchEmbeddingDict]:
         _request_params: Dict[str, Any] = {
             "content": text,
-            "model": self.model,
+            "model": self.id,
             "output_dimensionality": self.dimensions,
             "task_type": self.task_type,
             "title": self.title,

@@ -18,10 +18,10 @@ export FIREWORKS_API_KEY=***
 ### 3. Install libraries
 
 ```shell
-pip install -U openai duckduckgo-search duckdb yfinance phidata
+pip install -U openai duckduckgo-search duckdb yfinance agno
 ```
 
-### 4. Run Agent without Tools
+### 4. Run basic Agent
 
 - Streaming on
 
@@ -37,35 +37,12 @@ python cookbook/models/fireworks/basic.py
 
 ### 5. Run Agent with Tools
 
-- Yahoo Finance with streaming on
+- DuckDuckGo Search
 
 ```shell
-python cookbook/models/fireworks/agent_stream.py
+python cookbook/models/fireworks/tool_use.py
 ```
 
-- Yahoo Finance without streaming
-
-```shell
-python cookbook/models/fireworks/agent.py
-```
-
-- Web Search
-
-```shell
-python cookbook/models/fireworks/web_search.py
-```
-
-- Data Analyst
-
-```shell
-python cookbook/models/fireworks/data_analyst.py
-```
-
-- Finance Agent
-
-```shell
-python cookbook/models/fireworks/finance_agent.py
-```
 
 ### 6. Run Agent that returns structured output
 

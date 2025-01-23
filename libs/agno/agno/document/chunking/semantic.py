@@ -17,7 +17,7 @@ class SemanticChunking(ChunkingStrategy):
     def __init__(
         self, embedder: Optional[Embedder] = None, chunk_size: int = 5000, similarity_threshold: Optional[float] = 0.5
     ):
-        self.embedder = embedder or OpenAIEmbedder(model="text-embedding-3-small")
+        self.embedder = embedder or OpenAIEmbedder(id="text-embedding-3-small")  # type: ignore
         self.chunk_size = chunk_size
         self.similarity_threshold = similarity_threshold
         self.chunker = SemanticChunker(

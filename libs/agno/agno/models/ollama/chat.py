@@ -4,39 +4,16 @@ from typing import Any, Dict, Iterator, List, Mapping, Optional, Union
 
 from pydantic import BaseModel
 
-from agno.models.base import Model
+from agno.models.base import Metrics, Model
 from agno.models.message import Message
 from agno.models.response import ModelResponse
-from agno.tools.function import FunctionCall
 from agno.utils.log import logger
-from agno.utils.timer import Timer
-from agno.utils.tools import get_function_call_for_tool_call
 
 try:
     from ollama import AsyncClient as AsyncOllamaClient
     from ollama import Client as OllamaClient
 except (ModuleNotFoundError, ImportError):
     raise ImportError("`ollama` not installed. Please install using `pip install ollama`")
-
-
-@dataclass
-class Metrics:
-    input_tokens: int = 0
-    output_tokens: int = 0
-    total_tokens: int = 0
-    time_to_first_token: Optional[float] = None
-    response_timer: Timer = field(default_factory=Timer)
-
-    def log(self):
-        logger.debug("**************** METRICS START ****************")
-        if self.time_to_first_token is not None:
-            logger.debug(f"* Time to first token:         {self.time_to_first_token:.4f}s")
-        logger.debug(f"* Time to generate response:   {self.response_timer.elapsed:.4f}s")
-        logger.debug(f"* Tokens per second:           {self.output_tokens / self.response_timer.elapsed:.4f} tokens/s")
-        logger.debug(f"* Input tokens:                {self.input_tokens}")
-        logger.debug(f"* Output tokens:               {self.output_tokens}")
-        logger.debug(f"* Total tokens:                {self.total_tokens}")
-        logger.debug("**************** METRICS END ******************")
 
 
 @dataclass
@@ -63,6 +40,7 @@ class Ollama(Model):
     id: str = "llama3.1"
     name: str = "Ollama"
     provider: str = "Ollama"
+    supports_structured_outputs: bool = True
 
     # Request parameters
     format: Optional[Any] = None
@@ -82,8 +60,6 @@ class Ollama(Model):
     # Internal parameters. Not used for API requests
     # Whether to use the structured outputs with this Model.
     structured_outputs: bool = False
-    # Whether the Model supports structured outputs.
-    supports_structured_outputs: bool = True
 
     def get_client_params(self) -> Dict[str, Any]:
         client_params: Dict[str, Any] = {}
@@ -135,7 +111,7 @@ class Ollama(Model):
         if self.keep_alive is not None:
             request_params["keep_alive"] = self.keep_alive
         if self.tools is not None:
-            request_params["tools"] = self.get_tools_for_api()
+            request_params["tools"] = self.tools
             # Ensure types are valid strings
             for tool in request_params["tools"]:
                 for prop, obj in tool["function"]["parameters"]["properties"].items():
@@ -153,15 +129,16 @@ class Ollama(Model):
             Dict[str, Any]: A dictionary representation of the model.
         """
         model_dict = super().to_dict()
-        if self.format is not None:
-            model_dict["format"] = self.format
-        if self.options is not None:
-            model_dict["options"] = self.options
-        if self.keep_alive is not None:
-            model_dict["keep_alive"] = self.keep_alive
-        if self.request_params is not None:
-            model_dict["request_params"] = self.request_params
-        return model_dict
+        model_dict.update(
+            {
+                "format": self.format,
+                "options": self.options,
+                "keep_alive": self.keep_alive,
+                "request_params": self.request_params,
+            }
+        )
+        cleaned_dict = {k: v for k, v in model_dict.items() if v is not None}
+        return cleaned_dict
 
     def format_message(self, message: Message) -> Dict[str, Any]:
         """
@@ -179,8 +156,27 @@ class Ollama(Model):
         }
         if message.role == "user":
             if message.images is not None:
-                _message["images"] = message.images
+                message_images = []
+                for image in message.images:
+                    if image.url is not None:
+                        message_images.append(image.image_url_content)
+                    if image.filepath is not None:
+                        message_images.append(image.filepath)  # type: ignore
+                    if image.content is not None and isinstance(image.content, bytes):
+                        message_images.append(image.content)
+                if message_images:
+                    _message["images"] = message_images
         return _message
+
+    def _prepare_request_kwargs_for_invoke(self) -> Dict[str, Any]:
+        request_kwargs = self.request_kwargs
+        if self.response_format is not None and self.structured_outputs:
+            if isinstance(self.response_format, type) and issubclass(self.response_format, BaseModel):
+                logger.debug("Using structured outputs")
+                format_schema = self.response_format.model_json_schema()
+                if "format" not in request_kwargs:
+                    request_kwargs["format"] = format_schema
+        return request_kwargs
 
     def invoke(self, messages: List[Message]) -> Mapping[str, Any]:
         """
@@ -192,13 +188,7 @@ class Ollama(Model):
         Returns:
             Mapping[str, Any]: The response from the API.
         """
-        request_kwargs = self.request_kwargs
-        if self.response_format is not None and self.structured_outputs:
-            if isinstance(self.response_format, type) and issubclass(self.response_format, BaseModel):
-                logger.debug("Using structured outputs")
-                format_schema = self.response_format.model_json_schema()
-                if "format" not in request_kwargs:
-                    request_kwargs["format"] = format_schema
+        request_kwargs = self._prepare_request_kwargs_for_invoke()
 
         return self.get_client().chat(
             model=self.id,
@@ -216,13 +206,7 @@ class Ollama(Model):
         Returns:
             Mapping[str, Any]: The response from the API.
         """
-        request_kwargs = self.request_kwargs
-        if self.response_format is not None and self.structured_outputs:
-            if isinstance(self.response_format, type) and issubclass(self.response_format, BaseModel):
-                logger.debug("Using structured outputs")
-                format_schema = self.response_format.model_json_schema()
-                if "format" not in request_kwargs:
-                    request_kwargs["format"] = format_schema
+        request_kwargs = self._prepare_request_kwargs_for_invoke()
 
         return await self.get_async_client().chat(
             model=self.id,
@@ -283,10 +267,10 @@ class Ollama(Model):
         Returns:
             Optional[ModelResponse]: The model response.
         """
-        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
+        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
             model_response.content = assistant_message.get_content_string()
             model_response.content += "\n\n"
-            function_calls_to_run = self.get_function_calls_to_run(assistant_message, messages)
+            function_calls_to_run = self._get_function_calls_to_run(assistant_message, messages)
             function_call_results: List[Message] = []
 
             if self.show_tool_calls:
@@ -324,49 +308,13 @@ class Ollama(Model):
             response (Optional[Mapping[str, Any]]): The response from Ollama.
         """
         # Update time taken to generate response
-        assistant_message.metrics["time"] = metrics.response_timer.elapsed
-        self.metrics.setdefault("response_times", []).append(metrics.response_timer.elapsed)
         if response:
             metrics.input_tokens = response.get("prompt_eval_count", 0)
             metrics.output_tokens = response.get("eval_count", 0)
             metrics.total_tokens = metrics.input_tokens + metrics.output_tokens
 
-            if metrics.input_tokens is not None:
-                assistant_message.metrics["input_tokens"] = metrics.input_tokens
-                self.metrics["input_tokens"] = self.metrics.get("input_tokens", 0) + metrics.input_tokens
-            if metrics.output_tokens is not None:
-                assistant_message.metrics["output_tokens"] = metrics.output_tokens
-                self.metrics["output_tokens"] = self.metrics.get("output_tokens", 0) + metrics.output_tokens
-            if metrics.total_tokens is not None:
-                assistant_message.metrics["total_tokens"] = metrics.total_tokens
-                self.metrics["total_tokens"] = self.metrics.get("total_tokens", 0) + metrics.total_tokens
-            if metrics.time_to_first_token is not None:
-                assistant_message.metrics["time_to_first_token"] = metrics.time_to_first_token
-                self.metrics.setdefault("time_to_first_token", []).append(metrics.time_to_first_token)
-
-    def get_function_calls_to_run(self, assistant_message: Message, messages: List[Message]) -> List[FunctionCall]:
-        """
-        Get the function calls to run from the assistant message.
-
-        Args:
-            assistant_message (Message): The assistant message.
-            messages (List[Message]): The list of messages.
-
-        Returns:
-            List[FunctionCall]: The list of function calls to run.
-        """
-        function_calls_to_run: List[FunctionCall] = []
-        if assistant_message.tool_calls is not None:
-            for tool_call in assistant_message.tool_calls:
-                _function_call = get_function_call_for_tool_call(tool_call, self.functions)
-                if _function_call is None:
-                    messages.append(Message(role="user", content="Could not find function to call."))
-                    continue
-                if _function_call.error is not None:
-                    messages.append(Message(role="user", content=_function_call.error))
-                    continue
-                function_calls_to_run.append(_function_call)
-        return function_calls_to_run
+        self._update_model_metrics(metrics_for_run=metrics)
+        self._update_assistant_message_metrics(assistant_message=assistant_message, metrics_for_run=metrics)
 
     def format_function_call_results(self, function_call_results: List[Message], messages: List[Message]) -> None:
         """
@@ -418,9 +366,24 @@ class Ollama(Model):
         if message_data.tool_calls is not None:
             assistant_message.tool_calls = message_data.tool_calls
 
+        # TODO: Handle Audio
+
         # Update metrics
         self.update_usage_metrics(assistant_message=assistant_message, metrics=metrics, response=response)
         return assistant_message
+
+    def _parse_structured_outputs(self, response: Mapping[str, Any], model_response: ModelResponse) -> None:
+        try:
+            if (
+                self.response_format is not None
+                and self.structured_outputs
+                and issubclass(self.response_format, BaseModel)
+            ):
+                parsed_object = self.response_format.model_validate_json(response.get("message", {}).get("content", ""))
+                if parsed_object is not None:
+                    model_response.parsed = parsed_object.model_dump_json()
+        except Exception as e:
+            logger.warning(f"Error parsing structured outputs: {e}")
 
     def response(self, messages: List[Message]) -> ModelResponse:
         """
@@ -438,22 +401,12 @@ class Ollama(Model):
         metrics = Metrics()
 
         # -*- Generate response
-        metrics.response_timer.start()
+        metrics.start_response_timer()
         response: Mapping[str, Any] = self.invoke(messages=messages)
-        metrics.response_timer.stop()
+        metrics.stop_response_timer()
 
         # -*- Parse structured outputs
-        try:
-            if (
-                self.response_format is not None
-                and self.structured_outputs
-                and issubclass(self.response_format, BaseModel)
-            ):
-                parsed_object = self.response_format.model_validate_json(response.get("message", {}).get("content", ""))
-                if parsed_object is not None:
-                    model_response.parsed = parsed_object.model_dump_json()
-        except Exception as e:
-            logger.warning(f"Error parsing structured outputs: {e}")
+        self._parse_structured_outputs(response=response, model_response=model_response)
 
         # -*- Create assistant message
         assistant_message = self.create_assistant_message(response=response, metrics=metrics)
@@ -469,9 +422,10 @@ class Ollama(Model):
         if assistant_message.content is not None:
             # add the content to the model response
             model_response.content = assistant_message.get_content_string()
-        if assistant_message.audio is not None:
-            # add the audio to the model response
-            model_response.audio = assistant_message.audio
+        # TODO: Handle audio
+        # if assistant_message.audio is not None:
+        #     # add the audio to the model response
+        #     model_response.audio = assistant_message.audio
 
         # -*- Handle tool calls
         if (
@@ -503,22 +457,12 @@ class Ollama(Model):
         metrics = Metrics()
 
         # -*- Generate response
-        metrics.response_timer.start()
+        metrics.start_response_timer()
         response: Mapping[str, Any] = await self.ainvoke(messages=messages)
-        metrics.response_timer.stop()
+        metrics.stop_response_timer()
 
         # -*- Parse structured outputs
-        try:
-            if (
-                self.response_format is not None
-                and self.structured_outputs
-                and issubclass(self.response_format, BaseModel)
-            ):
-                parsed_object = self.response_format.model_validate_json(response.get("message", {}).get("content", ""))
-                if parsed_object is not None:
-                    model_response.parsed = parsed_object.model_dump_json()
-        except Exception as e:
-            logger.warning(f"Error parsing structured outputs: {e}")
+        self._parse_structured_outputs(response=response, model_response=model_response)
 
         # -*- Create assistant message
         assistant_message = self.create_assistant_message(response=response, metrics=metrics)
@@ -534,9 +478,9 @@ class Ollama(Model):
         if assistant_message.content is not None:
             # add the content to the model response
             model_response.content = assistant_message.get_content_string()
-        if assistant_message.audio is not None:
-            # add the audio to the model response
-            model_response.audio = assistant_message.audio
+        # if assistant_message.audio is not None
+        #     # add the audio to the model response
+        #     model_response.audio = assistant_message.audio
 
         # -*- Handle tool calls
         if (
@@ -567,9 +511,9 @@ class Ollama(Model):
         Returns:
             Iterator[ModelResponse]: An iterator of the model response.
         """
-        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
+        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
             yield ModelResponse(content="\n\n")
-            function_calls_to_run = self.get_function_calls_to_run(assistant_message, messages)
+            function_calls_to_run = self._get_function_calls_to_run(assistant_message, messages)
             function_call_results: List[Message] = []
 
             if self.show_tool_calls:
@@ -589,6 +533,33 @@ class Ollama(Model):
 
             self.format_function_call_results(function_call_results, messages)
 
+    def _process_stream_response(self, response: Mapping[str, Any], message_data: MessageData, metrics: Metrics):
+        message_data.response_message = response.get("message", {})
+        if message_data.response_message:
+            metrics.output_tokens += 1
+            if metrics.output_tokens == 1:
+                metrics.time_to_first_token = metrics.response_timer.elapsed
+
+            message_data.response_content_chunk = message_data.response_message.get("content", "")
+            if message_data.response_content_chunk is not None and message_data.response_content_chunk != "":
+                message_data.response_content += message_data.response_content_chunk
+                yield ModelResponse(content=message_data.response_content_chunk)
+
+            message_data.tool_call_blocks = message_data.response_message.get("tool_calls")  # type: ignore
+            if message_data.tool_call_blocks is not None:
+                for block in message_data.tool_call_blocks:
+                    tool_call = block.get("function")
+                    tool_name = tool_call.get("name")
+                    tool_args = tool_call.get("arguments")
+                    function_def = {
+                        "name": tool_name,
+                        "arguments": (json.dumps(tool_args) if tool_args is not None else None),
+                    }
+                    message_data.tool_calls.append({"type": "function", "function": function_def})
+
+        if response.get("done"):
+            message_data.response_usage = response
+
     def response_stream(self, messages: List[Message]) -> Iterator[ModelResponse]:
         """
         Generate a streaming response from Ollama.
@@ -605,35 +576,12 @@ class Ollama(Model):
         metrics: Metrics = Metrics()
 
         # -*- Generate response
-        metrics.response_timer.start()
+        metrics.start_response_timer()
         for response in self.invoke_stream(messages=messages):
             # logger.debug(f"Response: {response}")
-            message_data.response_message = response.get("message", {})
-            if message_data.response_message:
-                metrics.output_tokens += 1
-                if metrics.output_tokens == 1:
-                    metrics.time_to_first_token = metrics.response_timer.elapsed
+            self._process_stream_response(response=response, message_data=message_data, metrics=metrics)
 
-                message_data.response_content_chunk = message_data.response_message.get("content", "")
-                if message_data.response_content_chunk is not None and message_data.response_content_chunk != "":
-                    message_data.response_content += message_data.response_content_chunk
-                    yield ModelResponse(content=message_data.response_content_chunk)
-
-                message_data.tool_call_blocks = message_data.response_message.get("tool_calls")  # type: ignore
-                if message_data.tool_call_blocks is not None:
-                    for block in message_data.tool_call_blocks:
-                        tool_call = block.get("function")
-                        tool_name = tool_call.get("name")
-                        tool_args = tool_call.get("arguments")
-                        function_def = {
-                            "name": tool_name,
-                            "arguments": (json.dumps(tool_args) if tool_args is not None else None),
-                        }
-                        message_data.tool_calls.append({"type": "function", "function": function_def})
-
-            if response.get("done"):
-                message_data.response_usage = response
-        metrics.response_timer.stop()
+        metrics.stop_response_timer()
 
         # -*- Create assistant message
         assistant_message = Message(role="assistant", content=message_data.response_content)
@@ -656,7 +604,7 @@ class Ollama(Model):
         metrics.log()
 
         # -*- Handle tool calls
-        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
+        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
             yield from self.handle_stream_tool_calls(assistant_message, messages)
             yield from self.handle_post_tool_call_messages_stream(messages=messages)
         logger.debug("---------- Ollama Response End ----------")
@@ -677,34 +625,11 @@ class Ollama(Model):
         metrics: Metrics = Metrics()
 
         # -*- Generate response
-        metrics.response_timer.start()
+        metrics.start_response_timer()
         async for response in self.ainvoke_stream(messages=messages):
-            message_data.response_message = response.get("message", {})
-            if message_data.response_message:
-                metrics.output_tokens += 1
-                if metrics.output_tokens == 1:
-                    metrics.time_to_first_token = metrics.response_timer.elapsed
+            self._process_stream_response(response=response, message_data=message_data, metrics=metrics)
 
-                message_data.response_content_chunk = message_data.response_message.get("content", "")
-                if message_data.response_content_chunk is not None and message_data.response_content_chunk != "":
-                    message_data.response_content += message_data.response_content_chunk
-                    yield ModelResponse(content=message_data.response_content_chunk)
-
-                message_data.tool_call_blocks = message_data.response_message.get("tool_calls")
-                if message_data.tool_call_blocks is not None:
-                    for block in message_data.tool_call_blocks:
-                        tool_call = block.get("function")
-                        tool_name = tool_call.get("name")
-                        tool_args = tool_call.get("arguments")
-                        function_def = {
-                            "name": tool_name,
-                            "arguments": (json.dumps(tool_args) if tool_args is not None else None),
-                        }
-                        message_data.tool_calls.append({"type": "function", "function": function_def})
-
-            if response.get("done"):
-                message_data.response_usage = response
-        metrics.response_timer.stop()
+        metrics.stop_response_timer()
 
         # -*- Create assistant message
         assistant_message = Message(role="assistant", content=message_data.response_content)
@@ -727,7 +652,7 @@ class Ollama(Model):
         metrics.log()
 
         # -*- Handle tool calls
-        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
+        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
             for tool_call_response in self.handle_stream_tool_calls(assistant_message, messages):
                 yield tool_call_response
             async for post_tool_call_response in self.ahandle_post_tool_call_messages_stream(messages=messages):

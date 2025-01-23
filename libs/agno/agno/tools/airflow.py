@@ -5,7 +5,7 @@ from agno.tools import Toolkit
 from agno.utils.log import logger
 
 
-class AirflowToolkit(Toolkit):
+class AirflowTools(Toolkit):
     def __init__(self, dags_dir: Optional[Union[Path, str]] = None, save_dag: bool = True, read_dag: bool = True):
         """
         quick start to work with airflow : https://airflow.apache.org/docs/apache-airflow/stable/start.html

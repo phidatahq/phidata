@@ -1,11 +1,26 @@
 [project]
 name = "agno"
-version = "0.0.1"
+version = "0.1.0"
 description = "Agno: a model-agnostic framework for building AI Agents"
-requires-python = ">=3.7"
+requires-python = ">=3.7,<4"
 readme = "README.md"
+license = { file = "LICENSE" }
 authors = [
   {name = "Ashpreet Bedi", email = "ashpreet@agno.com"}
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Mozilla Public License 2.0 (MPL 2.0)",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: OS Independent",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 
 dependencies = [
@@ -15,6 +30,7 @@ dependencies = [
   "pydantic-settings",
   "pydantic",
   "python-dotenv",
+  "python-multipart",
   "pyyaml",
   "rich",
   "tomli",
@@ -32,31 +48,79 @@ google = ["google-generativeai"]
 groq = ["groq"]
 mistral = ["mistralai"]
 openai = ["openai"]
+ollama = ["ollama"]
 
 # Tools
 exa = ["exa_py"]
 yfinance = ["yfinance"]
 ddg = ["duckduckgo-search"]
+duckdb = ["duckdb"]
+newspaper = ["newspaper4k", "lxml_html_clean"]
 
 # Performance
-memory_profiler = ["memory_profiler"]
+performance = ["memory_profiler"]
 
 # Storage
-sql = ["sqlalchemy", "psycopg"]
+sql = ["sqlalchemy"]
+postgres = ["psycopg"]
 
+# Vector databases
+pgvector = ["pgvector"]
+chromadb = ["chromadb"]
+lancedb = ["lancedb", "tantivy"]
+qdrant = ["qdrant-client"]
+
+# Knowledge
+pdf = ["pypdf"]
+
+# All models
+models = [
+  "agno[anthropic]",
+  "agno[cohere]",
+  "agno[google]",
+  "agno[groq]",
+  "agno[mistral]",
+  "agno[ollama]",
+  "agno[openai]",
+]
+
+# All tools
+tools = [
+  "agno[exa]",
+  "agno[yfinance]",
+  "agno[ddg]",
+  "agno[duckdb]",
+  "agno[newspaper]",
+]
+
+# All storage
+storage = [
+  "agno[sql]",
+  "agno[postgres]",
+]
+
+# All vector databases
+vectordbs = [
+  "agno[pgvector]",
+  "agno[chromadb]",
+  "agno[lancedb]",
+  "agno[qdrant]",
+]
+
+# All knowledge
+knowledge = [
+  "agno[pdf]",
+]
+
+# All libraries for testing
 tests = [
     "agno[dev]",
-    "agno[anthropic]",
-    "agno[cohere]",
-    "agno[google]",
-    "agno[groq]",
-    "agno[mistral]",
-    "agno[openai]",
-    "agno[exa]",
-    "agno[yfinance]",
-    "agno[ddg]",
-    "agno[memory_profiler]",
-    "agno[sql]",
+    "agno[models]",
+    "agno[tools]",
+    "agno[storage]",
+    "agno[performance]",
+    "agno[vectordbs]",
+    "agno[knowledge]",
 ]
 
 [project.scripts]
@@ -76,6 +140,7 @@ include = ["agno*"]
 
 [tool.setuptools.package-data]
 agno = ["py.typed"]
+include = ["LICENSE"]
 
 [tool.pytest.ini_options]
 log_cli = true
@@ -91,8 +156,9 @@ line-length = 120
 check_untyped_defs = true
 no_implicit_optional = true
 warn_unused_configs = true
+disable_error_code = ["override"]
 plugins = ["pydantic.mypy"]
-exclude = ["scratch*", "wip*", "tmp*"]
+exclude = ["tests*"]
 
 [[tool.mypy.overrides]]
 module = [
@@ -115,6 +181,7 @@ module = [
   "docx.*",
   "duckdb.*",
   "duckduckgo_search.*",
+  "email_validator.*",
   "exa_py.*",
   "fastapi.*",
   "firecrawl.*",
@@ -171,6 +238,9 @@ module = [
   "textract.*",
   "timeout_decorator.*",
   "torch.*",
+  "tweepy.*",
+  "twilio.*",
+  "tzlocal.*",
   "uvicorn.*",
   "vertexai.*",
   "voyageai.*",

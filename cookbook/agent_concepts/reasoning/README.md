@@ -13,7 +13,7 @@ source ~/.venvs/aienv/bin/activate
 ### Install libraries
 
 ```shell
-pip install -U openai phidata
+pip install -U openai agno
 ```
 
 ### Export your `OPENAI_API_KEY`

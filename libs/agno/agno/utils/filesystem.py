@@ -1,7 +1,5 @@
 from pathlib import Path
 
-import requests
-
 
 def rmdir_recursive(dir_path: Path) -> bool:
     """Deletes dir_path recursively, including all files and dirs in that directory
@@ -39,14 +37,3 @@ def delete_from_fs(path_to_del: Path) -> bool:
     else:
         path_to_del.unlink()
     return True if not path_to_del.exists() else False
-
-
-def download_video(url: str, output_path: str) -> str:
-    """Download video from URL"""
-    response = requests.get(url, stream=True)
-    response.raise_for_status()
-
-    with open(output_path, "wb") as f:
-        for chunk in response.iter_content(chunk_size=8192):
-            f.write(chunk)
-    return output_path

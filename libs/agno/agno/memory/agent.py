@@ -82,10 +82,10 @@ class AgentMemory(BaseModel):
             },
         )
         # Add summary if it exists
-        if self.summary:
+        if self.summary is not None:
             _memory_dict["summary"] = self.summary.to_dict()
         # Add memories if they exist
-        if self.memories:
+        if self.memories is not None:
             _memory_dict["memories"] = [memory.to_dict() for memory in self.memories]
         return _memory_dict
 
@@ -214,8 +214,6 @@ class AgentMemory(BaseModel):
         """Load memories from memory db for this user."""
 
         if self.db is None:
-            return
-        if not self.user_id:
             return
 
         try:

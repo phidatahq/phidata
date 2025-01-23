@@ -1,32 +1,19 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from os import getenv
 from typing import Any, Dict, Iterator, List, Optional, Union
 
 import httpx
 from pydantic import BaseModel
 
-from agno.models.base import Model
+from agno.media import AudioOutput
+from agno.models.base import Metrics, Model
 from agno.models.message import Message
 from agno.models.response import ModelResponse
 from agno.tools.function import FunctionCall
 from agno.utils.log import logger
-from agno.utils.timer import Timer
 from agno.utils.tools import get_function_call_for_tool_call
 
 try:
-    MIN_OPENAI_VERSION = (1, 52, 0)  # v1.52.0
-
-    # Check the installed openai version
-    from openai import __version__ as installed_version
-
-    # Convert installed version to a tuple of integers for comparison
-    installed_version_tuple = tuple(map(int, installed_version.split(".")))
-    if installed_version_tuple < MIN_OPENAI_VERSION:
-        raise ImportError(
-            f"`openai` version must be >= {'.'.join(map(str, MIN_OPENAI_VERSION))}, but found {installed_version}. "
-            f"Please upgrade using `pip install --upgrade openai`."
-        )
-
     from openai import AsyncOpenAI as AsyncOpenAIClient
     from openai import OpenAI as OpenAIClient
     from openai.types.chat.chat_completion import ChatCompletion
@@ -43,37 +30,9 @@ except ModuleNotFoundError:
 
 
 @dataclass
-class Metrics:
-    input_tokens: int = 0
-    output_tokens: int = 0
-    total_tokens: int = 0
-    prompt_tokens: int = 0
-    completion_tokens: int = 0
-    prompt_tokens_details: Optional[dict] = None
-    completion_tokens_details: Optional[dict] = None
-    time_to_first_token: Optional[float] = None
-    response_timer: Timer = field(default_factory=Timer)
-
-    def log(self):
-        logger.debug("**************** METRICS START ****************")
-        if self.time_to_first_token is not None:
-            logger.debug(f"* Time to first token:         {self.time_to_first_token:.4f}s")
-        logger.debug(f"* Time to generate response:   {self.response_timer.elapsed:.4f}s")
-        logger.debug(f"* Tokens per second:           {self.output_tokens / self.response_timer.elapsed:.4f} tokens/s")
-        logger.debug(f"* Input tokens:                {self.input_tokens or self.prompt_tokens}")
-        logger.debug(f"* Output tokens:               {self.output_tokens or self.completion_tokens}")
-        logger.debug(f"* Total tokens:                {self.total_tokens}")
-        if self.prompt_tokens_details is not None:
-            logger.debug(f"* Prompt tokens details:       {self.prompt_tokens_details}")
-        if self.completion_tokens_details is not None:
-            logger.debug(f"* Completion tokens details:   {self.completion_tokens_details}")
-        logger.debug("**************** METRICS END ******************")
-
-
-@dataclass
 class StreamData:
     response_content: str = ""
-    response_audio: Optional[dict] = None
+    response_audio: Optional[ChatCompletionAudio] = None
     response_tool_calls: Optional[List[ChoiceDeltaToolCall]] = None
 
 
@@ -88,6 +47,7 @@ class OpenAIChat(Model):
     id: str = "gpt-4o"
     name: str = "OpenAIChat"
     provider: str = "OpenAI"
+    supports_structured_outputs: bool = True
 
     # Request parameters
     store: Optional[bool] = None
@@ -129,32 +89,35 @@ class OpenAIChat(Model):
     # Internal parameters. Not used for API requests
     # Whether to use the structured outputs with this Model.
     structured_outputs: bool = False
-    # Whether the Model supports structured outputs.
-    supports_structured_outputs: bool = True
 
-    def get_client_params(self) -> Dict[str, Any]:
+    # Whether to override the system role.
+    override_system_role: bool = True
+    # The role to map the system message to.
+    system_message_role: str = "developer"
+
+    def _get_client_params(self) -> Dict[str, Any]:
         client_params: Dict[str, Any] = {}
 
         self.api_key = self.api_key or getenv("OPENAI_API_KEY")
         if not self.api_key:
             logger.error("OPENAI_API_KEY not set. Please set the OPENAI_API_KEY environment variable.")
 
-        if self.api_key is not None:
-            client_params["api_key"] = self.api_key
-        if self.organization is not None:
-            client_params["organization"] = self.organization
-        if self.base_url is not None:
-            client_params["base_url"] = self.base_url
-        if self.timeout is not None:
-            client_params["timeout"] = self.timeout
-        if self.max_retries is not None:
-            client_params["max_retries"] = self.max_retries
-        if self.default_headers is not None:
-            client_params["default_headers"] = self.default_headers
-        if self.default_query is not None:
-            client_params["default_query"] = self.default_query
+        client_params.update(
+            {
+                "api_key": self.api_key,
+                "organization": self.organization,
+                "base_url": self.base_url,
+                "timeout": self.timeout,
+                "max_retries": self.max_retries,
+                "default_headers": self.default_headers,
+                "default_query": self.default_query,
+            }
+        )
         if self.client_params is not None:
             client_params.update(self.client_params)
+
+        # Remove None
+        client_params = {k: v for k, v in client_params.items() if v is not None}
         return client_params
 
     def get_client(self) -> OpenAIClient:
@@ -167,7 +130,7 @@ class OpenAIChat(Model):
         if self.client:
             return self.client
 
-        client_params: Dict[str, Any] = self.get_client_params()
+        client_params: Dict[str, Any] = self._get_client_params()
         if self.http_client is not None:
             client_params["http_client"] = self.http_client
         return OpenAIClient(**client_params)
@@ -182,7 +145,7 @@ class OpenAIChat(Model):
         if self.async_client:
             return self.async_client
 
-        client_params: Dict[str, Any] = self.get_client_params()
+        client_params: Dict[str, Any] = self._get_client_params()
         if self.http_client:
             client_params["http_client"] = self.http_client
         else:
@@ -201,50 +164,41 @@ class OpenAIChat(Model):
             Dict[str, Any]: A dictionary of keyword arguments for API requests.
         """
         request_params: Dict[str, Any] = {}
-        if self.store is not None:
-            request_params["store"] = self.store
-        if self.frequency_penalty is not None:
-            request_params["frequency_penalty"] = self.frequency_penalty
-        if self.logit_bias is not None:
-            request_params["logit_bias"] = self.logit_bias
-        if self.logprobs is not None:
-            request_params["logprobs"] = self.logprobs
-        if self.top_logprobs is not None:
-            request_params["top_logprobs"] = self.top_logprobs
-        if self.max_tokens is not None:
-            request_params["max_tokens"] = self.max_tokens
-        if self.max_completion_tokens is not None:
-            request_params["max_completion_tokens"] = self.max_completion_tokens
-        if self.modalities is not None:
-            request_params["modalities"] = self.modalities
-        if self.audio is not None:
-            request_params["audio"] = self.audio
-        if self.presence_penalty is not None:
-            request_params["presence_penalty"] = self.presence_penalty
-        if self.response_format is not None:
-            request_params["response_format"] = self.response_format
-        if self.seed is not None:
-            request_params["seed"] = self.seed
-        if self.stop is not None:
-            request_params["stop"] = self.stop
-        if self.temperature is not None:
-            request_params["temperature"] = self.temperature
-        if self.user is not None:
-            request_params["user"] = self.user
-        if self.top_p is not None:
-            request_params["top_p"] = self.top_p
-        if self.extra_headers is not None:
-            request_params["extra_headers"] = self.extra_headers
-        if self.extra_query is not None:
-            request_params["extra_query"] = self.extra_query
+
+        request_params.update(
+            {
+                "store": self.store,
+                "frequency_penalty": self.frequency_penalty,
+                "logit_bias": self.logit_bias,
+                "logprobs": self.logprobs,
+                "top_logprobs": self.top_logprobs,
+                "max_tokens": self.max_tokens,
+                "max_completion_tokens": self.max_completion_tokens,
+                "modalities": self.modalities,
+                "audio": self.audio,
+                "presence_penalty": self.presence_penalty,
+                "response_format": self.response_format,
+                "seed": self.seed,
+                "stop": self.stop,
+                "temperature": self.temperature,
+                "user": self.user,
+                "top_p": self.top_p,
+                "extra_headers": self.extra_headers,
+                "extra_query": self.extra_query,
+            }
+        )
         if self.tools is not None:
-            request_params["tools"] = self.get_tools_for_api()
+            request_params["tools"] = self.tools
             if self.tool_choice is None:
                 request_params["tool_choice"] = "auto"
             else:
                 request_params["tool_choice"] = self.tool_choice
+
         if self.request_params is not None:
             request_params.update(self.request_params)
+
+        # Remove None
+        request_params = {k: v for k, v in request_params.items() if v is not None}
         return request_params
 
     def to_dict(self) -> Dict[str, Any]:
@@ -252,54 +206,41 @@ class OpenAIChat(Model):
         Convert the model to a dictionary.
 
         Returns:
-            Dict[str, Any]: A dictionary representation of the model.
+            Dict[str, Any]: The dictionary representation of the model.
         """
-        model_dict = super().to_dict()
-        if self.store is not None:
-            model_dict["store"] = self.store
-        if self.frequency_penalty is not None:
-            model_dict["frequency_penalty"] = self.frequency_penalty
-        if self.logit_bias is not None:
-            model_dict["logit_bias"] = self.logit_bias
-        if self.logprobs is not None:
-            model_dict["logprobs"] = self.logprobs
-        if self.top_logprobs is not None:
-            model_dict["top_logprobs"] = self.top_logprobs
-        if self.max_tokens is not None:
-            model_dict["max_tokens"] = self.max_tokens
-        if self.max_completion_tokens is not None:
-            model_dict["max_completion_tokens"] = self.max_completion_tokens
-        if self.modalities is not None:
-            model_dict["modalities"] = self.modalities
-        if self.audio is not None:
-            model_dict["audio"] = self.audio
-        if self.presence_penalty is not None:
-            model_dict["presence_penalty"] = self.presence_penalty
-        if self.response_format is not None:
-            model_dict["response_format"] = (
-                self.response_format if isinstance(self.response_format, dict) else str(self.response_format)
-            )
-        if self.seed is not None:
-            model_dict["seed"] = self.seed
-        if self.stop is not None:
-            model_dict["stop"] = self.stop
-        if self.temperature is not None:
-            model_dict["temperature"] = self.temperature
-        if self.user is not None:
-            model_dict["user"] = self.user
-        if self.top_p is not None:
-            model_dict["top_p"] = self.top_p
-        if self.extra_headers is not None:
-            model_dict["extra_headers"] = self.extra_headers
-        if self.extra_query is not None:
-            model_dict["extra_query"] = self.extra_query
+        _dict = super().to_dict()
+        _dict.update(
+            {
+                "store": self.store,
+                "frequency_penalty": self.frequency_penalty,
+                "logit_bias": self.logit_bias,
+                "logprobs": self.logprobs,
+                "top_logprobs": self.top_logprobs,
+                "max_tokens": self.max_tokens,
+                "max_completion_tokens": self.max_completion_tokens,
+                "modalities": self.modalities,
+                "audio": self.audio,
+                "presence_penalty": self.presence_penalty,
+                "response_format": self.response_format
+                if isinstance(self.response_format, dict)
+                else str(self.response_format),
+                "seed": self.seed,
+                "stop": self.stop,
+                "temperature": self.temperature,
+                "top_p": self.top_p,
+                "user": self.user,
+                "extra_headers": self.extra_headers,
+                "extra_query": self.extra_query,
+            }
+        )
         if self.tools is not None:
-            model_dict["tools"] = self.get_tools_for_api()
+            _dict["tools"] = self.tools
             if self.tool_choice is None:
-                model_dict["tool_choice"] = "auto"
+                _dict["tool_choice"] = "auto"
             else:
-                model_dict["tool_choice"] = self.tool_choice
-        return model_dict
+                _dict["tool_choice"] = self.tool_choice
+        cleaned_dict = {k: v for k, v in _dict.items() if v is not None}
+        return cleaned_dict
 
     def format_message(self, message: Message) -> Dict[str, Any]:
         """
@@ -311,15 +252,15 @@ class OpenAIChat(Model):
         Returns:
             Dict[str, Any]: The formatted message.
         """
-        if message.role == "system":
-            message.role = "developer"
-
         if message.role == "user":
             if message.images is not None:
                 message = self.add_images_to_message(message=message, images=message.images)
 
-        if message.audio is not None:
-            message = self.add_audio_to_message(message=message, audio=message.audio)
+            if message.audio is not None:
+                message = self.add_audio_to_message(message=message, audio=message.audio)
+
+            if message.videos is not None:
+                logger.warning("Video input is currently unsupported.")
 
         return message.to_dict()
 
@@ -438,14 +379,14 @@ class OpenAIChat(Model):
         Returns:
             Optional[ModelResponse]: The model response after handling tool calls.
         """
-        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
+        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
             if model_response.content is None:
                 model_response.content = ""
             function_call_results: List[Message] = []
             function_calls_to_run: List[FunctionCall] = []
             for tool_call in assistant_message.tool_calls:
                 _tool_call_id = tool_call.get("id")
-                _function_call = get_function_call_for_tool_call(tool_call, self.functions)
+                _function_call = get_function_call_for_tool_call(tool_call, self._functions)
                 if _function_call is None:
                     messages.append(
                         Message(
@@ -569,7 +510,12 @@ class OpenAIChat(Model):
                 logger.warning(f"Error processing tool calls: {e}")
         if hasattr(response_message, "audio") and response_message.audio is not None:
             try:
-                assistant_message.audio = response_message.audio.model_dump()
+                assistant_message.audio_output = AudioOutput(
+                    id=response_message.audio.id,
+                    content=response_message.audio.data,
+                    expires_at=response_message.audio.expires_at,
+                    transcript=response_message.audio.transcript,
+                )
             except Exception as e:
                 logger.warning(f"Error processing audio: {e}")
 
@@ -587,15 +533,15 @@ class OpenAIChat(Model):
         Returns:
             ModelResponse: The model response.
         """
-        logger.debug("---------- OpenAI Response Start ----------")
+        logger.debug("---------- OpenAIChat Response Start ----------")
         self._log_messages(messages)
         model_response = ModelResponse()
         metrics = Metrics()
 
         # -*- Generate response
-        metrics.response_timer.start()
+        metrics.start_response_timer()
         response: Union[ChatCompletion, ParsedChatCompletion] = self.invoke(messages=messages)
-        metrics.response_timer.stop()
+        metrics.stop_response_timer()
 
         # -*- Parse response
         response_message: ChatCompletionMessage = response.choices[0].message
@@ -636,9 +582,9 @@ class OpenAIChat(Model):
         if assistant_message.content is not None:
             # add the content to the model response
             model_response.content = assistant_message.get_content_string()
-        if assistant_message.audio is not None:
+        if assistant_message.audio_output is not None:
             # add the audio to the model response
-            model_response.audio = assistant_message.audio
+            model_response.audio = assistant_message.audio_output
 
         # -*- Handle tool calls
         tool_role = "tool"
@@ -652,7 +598,7 @@ class OpenAIChat(Model):
             is not None
         ):
             return self.handle_post_tool_call_messages(messages=messages, model_response=model_response)
-        logger.debug("---------- OpenAI Response End ----------")
+        logger.debug("---------- OpenAIChat Response End ----------")
         return model_response
 
     async def aresponse(self, messages: List[Message]) -> ModelResponse:
@@ -665,15 +611,15 @@ class OpenAIChat(Model):
         Returns:
             ModelResponse: The model response from the API.
         """
-        logger.debug("---------- OpenAI Async Response Start ----------")
+        logger.debug("---------- OpenAIChat Async Response Start ----------")
         self._log_messages(messages)
         model_response = ModelResponse()
         metrics = Metrics()
 
         # -*- Generate response
-        metrics.response_timer.start()
+        metrics.start_response_timer()
         response: Union[ChatCompletion, ParsedChatCompletion] = await self.ainvoke(messages=messages)
-        metrics.response_timer.stop()
+        metrics.stop_response_timer()
 
         # -*- Parse response
         response_message: ChatCompletionMessage = response.choices[0].message
@@ -714,9 +660,9 @@ class OpenAIChat(Model):
         if assistant_message.content is not None:
             # add the content to the model response
             model_response.content = assistant_message.get_content_string()
-        if assistant_message.audio is not None:
+        if assistant_message.audio_output is not None:
             # add the audio to the model response
-            model_response.audio = assistant_message.audio
+            model_response.audio = assistant_message.audio_output
 
         # -*- Handle tool calls
         tool_role = "tool"
@@ -731,7 +677,7 @@ class OpenAIChat(Model):
         ):
             return await self.ahandle_post_tool_call_messages(messages=messages, model_response=model_response)
 
-        logger.debug("---------- OpenAI Async Response End ----------")
+        logger.debug("---------- OpenAIChat Async Response End ----------")
         return model_response
 
     def update_stream_metrics(self, assistant_message: Message, metrics: Metrics):
@@ -810,12 +756,12 @@ class OpenAIChat(Model):
         Returns:
             Iterator[ModelResponse]: An iterator of the model response.
         """
-        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
+        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
             function_calls_to_run: List[FunctionCall] = []
             function_call_results: List[Message] = []
             for tool_call in assistant_message.tool_calls:
                 _tool_call_id = tool_call.get("id")
-                _function_call = get_function_call_for_tool_call(tool_call, self.functions)
+                _function_call = get_function_call_for_tool_call(tool_call, self._functions)
                 if _function_call is None:
                     messages.append(
                         Message(
@@ -860,13 +806,13 @@ class OpenAIChat(Model):
         Returns:
             Iterator[ModelResponse]: An iterator of model responses.
         """
-        logger.debug("---------- OpenAI Response Start ----------")
+        logger.debug("---------- OpenAIChat Response Start ----------")
         self._log_messages(messages)
         stream_data: StreamData = StreamData()
         metrics: Metrics = Metrics()
 
         # -*- Generate response
-        metrics.response_timer.start()
+        metrics.start_response_timer()
         for response in self.invoke_stream(messages=messages):
             if len(response.choices) > 0:
                 metrics.completion_tokens += 1
@@ -882,7 +828,15 @@ class OpenAIChat(Model):
                 if hasattr(response_delta, "audio"):
                     response_audio = response_delta.audio
                     stream_data.response_audio = response_audio
-                    yield ModelResponse(audio=response_audio)
+                    if stream_data.response_audio:
+                        yield ModelResponse(
+                            audio=AudioOutput(
+                                id=stream_data.response_audio.id,
+                                content=stream_data.response_audio.data,
+                                expires_at=stream_data.response_audio.expires_at,
+                                transcript=stream_data.response_audio.transcript,
+                            )
+                        )
 
                 if response_delta.tool_calls is not None:
                     if stream_data.response_tool_calls is None:
@@ -891,7 +845,7 @@ class OpenAIChat(Model):
 
             if response.usage is not None:
                 self.add_response_usage_to_metrics(metrics=metrics, response_usage=response.usage)
-        metrics.response_timer.stop()
+        metrics.stop_response_timer()
 
         # -*- Create assistant message
         assistant_message = Message(role="assistant")
@@ -899,7 +853,12 @@ class OpenAIChat(Model):
             assistant_message.content = stream_data.response_content
 
         if stream_data.response_audio is not None:
-            assistant_message.audio = stream_data.response_audio
+            assistant_message.audio_output = AudioOutput(
+                id=stream_data.response_audio.id,
+                content=stream_data.response_audio.data,
+                expires_at=stream_data.response_audio.expires_at,
+                transcript=stream_data.response_audio.transcript,
+            )
 
         if stream_data.response_tool_calls is not None:
             _tool_calls = self.build_tool_calls(stream_data.response_tool_calls)
@@ -917,13 +876,13 @@ class OpenAIChat(Model):
         metrics.log()
 
         # -*- Handle tool calls
-        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
+        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
             tool_role = "tool"
             yield from self.handle_stream_tool_calls(
                 assistant_message=assistant_message, messages=messages, tool_role=tool_role
             )
             yield from self.handle_post_tool_call_messages_stream(messages=messages)
-        logger.debug("---------- OpenAI Response End ----------")
+        logger.debug("---------- OpenAIChat Response End ----------")
 
     async def aresponse_stream(self, messages: List[Message]) -> Any:
         """
@@ -935,13 +894,13 @@ class OpenAIChat(Model):
         Returns:
             Any: An asynchronous iterator of model responses.
         """
-        logger.debug("---------- OpenAI Async Response Start ----------")
+        logger.debug("---------- OpenAIChat Async Response Start ----------")
         self._log_messages(messages)
         stream_data: StreamData = StreamData()
         metrics: Metrics = Metrics()
 
         # -*- Generate response
-        metrics.response_timer.start()
+        metrics.start_response_timer()
         async for response in self.ainvoke_stream(messages=messages):
             if response.choices and len(response.choices) > 0:
                 metrics.completion_tokens += 1
@@ -957,7 +916,15 @@ class OpenAIChat(Model):
                 if hasattr(response_delta, "audio"):
                     response_audio = response_delta.audio
                     stream_data.response_audio = response_audio
-                    yield ModelResponse(audio=response_audio)
+                    if stream_data.response_audio:
+                        yield ModelResponse(
+                            audio=AudioOutput(
+                                id=stream_data.response_audio.id,
+                                content=stream_data.response_audio.data,
+                                expires_at=stream_data.response_audio.expires_at,
+                                transcript=stream_data.response_audio.transcript,
+                            )
+                        )
 
                 if response_delta.tool_calls is not None:
                     if stream_data.response_tool_calls is None:
@@ -966,7 +933,7 @@ class OpenAIChat(Model):
 
             if response.usage is not None:
                 self.add_response_usage_to_metrics(metrics=metrics, response_usage=response.usage)
-        metrics.response_timer.stop()
+        metrics.stop_response_timer()
 
         # -*- Create assistant message
         assistant_message = Message(role="assistant")
@@ -974,7 +941,12 @@ class OpenAIChat(Model):
             assistant_message.content = stream_data.response_content
 
         if stream_data.response_audio is not None:
-            assistant_message.audio = stream_data.response_audio
+            assistant_message.audio_output = AudioOutput(
+                id=stream_data.response_audio.id,
+                content=stream_data.response_audio.data,
+                expires_at=stream_data.response_audio.expires_at,
+                transcript=stream_data.response_audio.transcript,
+            )
 
         if stream_data.response_tool_calls is not None:
             _tool_calls = self.build_tool_calls(stream_data.response_tool_calls)
@@ -991,7 +963,7 @@ class OpenAIChat(Model):
         metrics.log()
 
         # -*- Handle tool calls
-        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
+        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
             tool_role = "tool"
             for tool_call_response in self.handle_stream_tool_calls(
                 assistant_message=assistant_message, messages=messages, tool_role=tool_role
@@ -999,7 +971,7 @@ class OpenAIChat(Model):
                 yield tool_call_response
             async for post_tool_call_response in self.ahandle_post_tool_call_messages_stream(messages=messages):
                 yield post_tool_call_response
-        logger.debug("---------- OpenAI Async Response End ----------")
+        logger.debug("---------- OpenAIChat Async Response End ----------")
 
     def build_tool_calls(self, tool_calls_data: List[ChoiceDeltaToolCall]) -> List[Dict[str, Any]]:
         """
@@ -1011,31 +983,5 @@ class OpenAIChat(Model):
         Returns:
             List[Dict[str, Any]]: The built tool calls.
         """
-        tool_calls: List[Dict[str, Any]] = []
-        for _tool_call in tool_calls_data:
-            _index = _tool_call.index
-            _tool_call_id = _tool_call.id
-            _tool_call_type = _tool_call.type
-            _function_name = _tool_call.function.name if _tool_call.function else None
-            _function_arguments = _tool_call.function.arguments if _tool_call.function else None
 
-            if len(tool_calls) <= _index:
-                tool_calls.extend([{}] * (_index - len(tool_calls) + 1))
-            tool_call_entry = tool_calls[_index]
-            if not tool_call_entry:
-                tool_call_entry["id"] = _tool_call_id
-                tool_call_entry["type"] = _tool_call_type
-                tool_call_entry["function"] = {
-                    "name": _function_name or "",
-                    "arguments": _function_arguments or "",
-                }
-            else:
-                if _function_name:
-                    tool_call_entry["function"]["name"] += _function_name
-                if _function_arguments:
-                    tool_call_entry["function"]["arguments"] += _function_arguments
-                if _tool_call_id:
-                    tool_call_entry["id"] = _tool_call_id
-                if _tool_call_type:
-                    tool_call_entry["type"] = _tool_call_type
-        return tool_calls
+        return self._build_tool_calls(tool_calls_data)

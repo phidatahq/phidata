@@ -2,7 +2,6 @@ from agno.agent import Agent
 from agno.models.openai import OpenAIChat
 from rich.pretty import pprint
 
-
 agent = Agent(
     model=OpenAIChat(id="gpt-4o"),
     # Set add_history_to_messages=true to add the previous chat history to the messages sent to the Model.

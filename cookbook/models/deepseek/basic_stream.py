@@ -1,7 +1,7 @@
 from agno.agent import Agent, RunResponse  # noqa
-from agno.models.deepseek import DeepSeekChat
+from agno.models.deepseek import DeepSeek
 
-agent = Agent(model=DeepSeekChat(id="deepseek-chat"), markdown=True)
+agent = Agent(model=DeepSeek(id="deepseek-chat"), markdown=True)
 
 # Get the response in a variable
 # run_response: Iterator[RunResponse] = agent.run("Share a 2 sentence horror story", stream=True)

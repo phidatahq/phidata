@@ -7,5 +7,10 @@ task = (
     "fundamentally the same object. Conclude with your own reasoned position on the matter."
 )
 
-reasoning_agent = Agent(model=OpenAIChat(id="gpt-4o"), reasoning=True, markdown=True, structured_outputs=True)
+reasoning_agent = Agent(
+    model=OpenAIChat(id="gpt-4o"),
+    reasoning=True,
+    markdown=True,
+    structured_outputs=True,
+)
 reasoning_agent.print_response(task, stream=True, show_full_reasoning=True)

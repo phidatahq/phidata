@@ -4,10 +4,11 @@
 """
 
 from pathlib import Path
+
 from agno.agent import Agent
-from agno.tools.duckduckgo import DuckDuckGo
-from agno.tools.newspaper4k import Newspaper4k
+from agno.tools.duckduckgo import DuckDuckGoTools
 from agno.tools.file import FileTools
+from agno.tools.newspaper4k import Newspaper4kTools
 
 urls_file = Path(__file__).parent.joinpath("tmp", "urls__{session_id}.md")
 urls_file.parent.mkdir(parents=True, exist_ok=True)
@@ -18,11 +19,10 @@ searcher = Agent(
     role="Searches the top URLs for a topic",
     instructions=[
         "Given a topic, first generate a list of 3 search terms related to that topic.",
-        "For each search term, search the web and analyze the results."
-        "Return the 10 most relevant URLs to the topic.",
+        "For each search term, search the web and analyze the results.Return the 10 most relevant URLs to the topic.",
         "You are writing for the New York Times, so the quality of the sources is important.",
     ],
-    tools=[DuckDuckGo()],
+    tools=[DuckDuckGoTools()],
     save_response_to_file=str(urls_file),
     add_datetime_to_instructions=True,
 )
@@ -43,7 +43,7 @@ writer = Agent(
         "Never make up facts or plagiarize. Always provide proper attribution.",
         "Remember: you are writing for the New York Times, so the quality of the article is important.",
     ],
-    tools=[Newspaper4k(), FileTools(base_dir=urls_file.parent)],
+    tools=[Newspaper4kTools(), FileTools(base_dir=urls_file.parent)],
     add_datetime_to_instructions=True,
 )
 
@@ -61,5 +61,6 @@ editor = Agent(
     ],
     add_datetime_to_instructions=True,
     markdown=True,
+    debug_mode=True
 )
 editor.print_response("Write an article about latest developments in AI.")

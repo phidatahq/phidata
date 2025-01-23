@@ -18,10 +18,10 @@ export OPENAI_API_KEY=***
 ### 3. Install libraries
 
 ```shell
-pip install -U openai duckduckgo-search duckdb yfinance phidata
+pip install -U openai duckduckgo-search duckdb yfinance agno
 ```
 
-### 4. Run Agent without Tools
+### 4. Run basic Agent
 
 - Streaming on
 
@@ -37,34 +37,10 @@ python cookbook/models/openai/basic.py
 
 ### 5. Run Agent with Tools
 
-- Yahoo Finance with streaming on
+- DuckDuckGo Search
 
 ```shell
-python cookbook/models/openai/agent_stream.py
-```
-
-- Yahoo Finance without streaming
-
-```shell
-python cookbook/models/openai/agent.py
-```
-
-- Finance Agent
-
-```shell
-python cookbook/models/openai/finance_agent.py
-```
-
-- Data Analyst
-
-```shell
-python cookbook/models/openai/data_analyst.py
-```
-
-- Web Search
-
-```shell
-python cookbook/models/openai/web_search.py
+python cookbook/models/openai/tool_use.py
 ```
 
 ### 6. Run Agent that returns structured output
@@ -89,4 +65,34 @@ python cookbook/models/openai/storage.py
 
 ```shell
 python cookbook/models/openai/knowledge.py
+```
+
+### 10. Run Agent that generates an image using Dall-E
+
+```shell
+python cookbook/models/openai/generate_images.py
+```
+
+### 11. Run Agent that analyzes an image
+
+```shell
+python cookbook/models/openai/image_agent.py
+```
+
+or
+
+```shell
+python cookbook/models/openai/image_agent_with_memory.py
+```
+
+### 11. Run Agent that analyzes audio
+
+```shell
+python cookbook/models/openai/audio_input_agent.py
+```
+
+### 12. Run Agent that generates audio
+
+```shell
+python cookbook/models/openai/audio_output_agent.py
 ```

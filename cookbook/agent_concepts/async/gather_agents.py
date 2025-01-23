@@ -2,7 +2,7 @@ import asyncio
 
 from agno.agent import Agent
 from agno.models.openai import OpenAIChat
-from agno.tools.duckduckgo import DuckDuckGo
+from agno.tools.duckduckgo import DuckDuckGoTools
 from rich.pretty import pprint
 
 providers = ["openai", "anthropic", "ollama", "cohere", "google"]
@@ -18,9 +18,11 @@ async def get_reports():
         agent = Agent(
             model=OpenAIChat(id="gpt-4"),
             instructions=instructions,
-            tools=[DuckDuckGo()],
+            tools=[DuckDuckGoTools()],
         )
-        tasks.append(agent.arun(f"Write a report on the following AI provider: {provider}"))
+        tasks.append(
+            agent.arun(f"Write a report on the following AI provider: {provider}")
+        )
 
     results = await asyncio.gather(*tasks)
     return results

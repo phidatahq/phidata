@@ -1,15 +1,15 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from os import getenv
 from typing import Any, Dict, Iterator, List, Optional, Union
 
 import httpx
 
+from agno.models.base import Metrics as BaseMetrics
 from agno.models.base import Model
 from agno.models.message import Message
 from agno.models.response import ModelResponse
 from agno.tools.function import FunctionCall
 from agno.utils.log import logger
-from agno.utils.timer import Timer
 from agno.utils.tools import get_function_call_for_tool_call
 
 try:
@@ -23,37 +23,35 @@ except (ModuleNotFoundError, ImportError):
 
 
 @dataclass
-class Metrics:
-    input_tokens: int = 0
-    output_tokens: int = 0
-    total_tokens: int = 0
-    prompt_tokens: int = 0
-    completion_tokens: int = 0
+class Metrics(BaseMetrics):
     completion_time: Optional[float] = None
     prompt_time: Optional[float] = None
     queue_time: Optional[float] = None
     total_time: Optional[float] = None
-    time_to_first_token: Optional[float] = None
-    response_timer: Timer = field(default_factory=Timer)
 
     def log(self):
-        logger.debug("**************** METRICS START ****************")
+        metric_lines = []
         if self.time_to_first_token is not None:
-            logger.debug(f"* Time to first token:         {self.time_to_first_token:.4f}s")
-        logger.debug(f"* Time to generate response:   {self.response_timer.elapsed:.4f}s")
-        logger.debug(f"* Tokens per second:           {self.output_tokens / self.response_timer.elapsed:.4f} tokens/s")
-        logger.debug(f"* Input tokens:                {self.input_tokens or self.prompt_tokens}")
-        logger.debug(f"* Output tokens:               {self.output_tokens or self.completion_tokens}")
-        logger.debug(f"* Total tokens:                {self.total_tokens}")
+            metric_lines.append(f"* Time to first token:         {self.time_to_first_token:.4f}s")
+        metric_lines.extend(
+            [
+                f"* Time to generate response:   {self.response_timer.elapsed:.4f}s",
+                f"* Tokens per second:           {self.output_tokens / self.response_timer.elapsed:.4f} tokens/s",
+                f"* Input tokens:                {self.input_tokens or self.prompt_tokens}",
+                f"* Output tokens:               {self.output_tokens or self.completion_tokens}",
+                f"* Total tokens:                {self.total_tokens}",
+            ]
+        )
         if self.completion_time is not None:
-            logger.debug(f"* Completion time:             {self.completion_time:.4f}s")
+            metric_lines.append(f"* Completion time:             {self.completion_time:.4f}s")
         if self.prompt_time is not None:
-            logger.debug(f"* Prompt time:                 {self.prompt_time:.4f}s")
+            metric_lines.append(f"* Prompt time:                 {self.prompt_time:.4f}s")
         if self.queue_time is not None:
-            logger.debug(f"* Queue time:                  {self.queue_time:.4f}s")
+            metric_lines.append(f"* Queue time:                  {self.queue_time:.4f}s")
         if self.total_time is not None:
-            logger.debug(f"* Total time:                  {self.total_time:.4f}s")
-        logger.debug("**************** METRICS END ******************")
+            metric_lines.append(f"* Total time:                  {self.total_time:.4f}s")
+
+        self._log(metric_lines=metric_lines)
 
 
 @dataclass
@@ -200,7 +198,7 @@ class Groq(Model):
         if self.extra_query:
             request_params["extra_query"] = self.extra_query
         if self.tools:
-            request_params["tools"] = self.get_tools_for_api()
+            request_params["tools"] = self.tools
             if self.tool_choice is None:
                 request_params["tool_choice"] = "auto"
             else:
@@ -216,42 +214,31 @@ class Groq(Model):
         Returns:
             Dict[str, Any]: The dictionary representation of the model.
         """
-        model_dict = super().to_dict()
-        if self.frequency_penalty:
-            model_dict["frequency_penalty"] = self.frequency_penalty
-        if self.logit_bias:
-            model_dict["logit_bias"] = self.logit_bias
-        if self.logprobs:
-            model_dict["logprobs"] = self.logprobs
-        if self.max_tokens:
-            model_dict["max_tokens"] = self.max_tokens
-        if self.presence_penalty:
-            model_dict["presence_penalty"] = self.presence_penalty
-        if self.response_format:
-            model_dict["response_format"] = self.response_format
-        if self.seed:
-            model_dict["seed"] = self.seed
-        if self.stop:
-            model_dict["stop"] = self.stop
-        if self.temperature:
-            model_dict["temperature"] = self.temperature
-        if self.top_logprobs:
-            model_dict["top_logprobs"] = self.top_logprobs
-        if self.top_p:
-            model_dict["top_p"] = self.top_p
-        if self.user:
-            model_dict["user"] = self.user
-        if self.extra_headers:
-            model_dict["extra_headers"] = self.extra_headers
-        if self.extra_query:
-            model_dict["extra_query"] = self.extra_query
-        if self.tools:
-            model_dict["tools"] = self.get_tools_for_api()
-            if self.tool_choice is None:
-                model_dict["tool_choice"] = "auto"
-            else:
-                model_dict["tool_choice"] = self.tool_choice
-        return model_dict
+        _dict = super().to_dict()
+        _dict.update(
+            {
+                "frequency_penalty": self.frequency_penalty,
+                "logit_bias": self.logit_bias,
+                "logprobs": self.logprobs,
+                "max_tokens": self.max_tokens,
+                "presence_penalty": self.presence_penalty,
+                "response_format": self.response_format,
+                "seed": self.seed,
+                "stop": self.stop,
+                "temperature": self.temperature,
+                "top_logprobs": self.top_logprobs,
+                "top_p": self.top_p,
+                "user": self.user,
+                "extra_headers": self.extra_headers,
+                "extra_query": self.extra_query,
+                "tools": self.tools,
+                "tool_choice": self.tool_choice
+                if (self.tools is not None and self.tool_choice is not None)
+                else "auto",
+            }
+        )
+        cleaned_dict = {k: v for k, v in _dict.items() if v is not None}
+        return cleaned_dict
 
     def format_message(self, message: Message) -> Dict[str, Any]:
         """
@@ -266,8 +253,9 @@ class Groq(Model):
         if message.role == "user":
             if message.images is not None:
                 message = self.add_images_to_message(message=message, images=message.images)
-            if message.audio is not None:
-                message = self.add_audio_to_message(message=message, audio=message.audio)
+            # TODO: Add audio support
+            # if message.audio is not None:
+            #     message = self.add_audio_to_message(message=message, audio=message.audio)
 
         return message.to_dict()
 
@@ -358,14 +346,14 @@ class Groq(Model):
         Returns:
             Optional[ModelResponse]: The model response after handling tool calls.
         """
-        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
+        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
             if model_response.content is None:
                 model_response.content = ""
             function_call_results: List[Message] = []
             function_calls_to_run: List[FunctionCall] = []
             for tool_call in assistant_message.tool_calls:
                 _tool_call_id = tool_call.get("id")
-                _function_call = get_function_call_for_tool_call(tool_call, self.functions)
+                _function_call = get_function_call_for_tool_call(tool_call, self._functions)
                 if _function_call is None:
                     messages.append(
                         Message(
@@ -506,9 +494,9 @@ class Groq(Model):
         metrics = Metrics()
 
         # -*- Generate response
-        metrics.response_timer.start()
+        metrics.start_response_timer()
         response: ChatCompletion = self.invoke(messages=messages)
-        metrics.response_timer.stop()
+        metrics.stop_response_timer()
 
         # -*- Parse response
         response_message: ChatCompletionMessage = response.choices[0].message
@@ -562,9 +550,9 @@ class Groq(Model):
         metrics = Metrics()
 
         # -*- Generate response
-        metrics.response_timer.start()
+        metrics.start_response_timer()
         response: ChatCompletion = await self.ainvoke(messages=messages)
-        metrics.response_timer.stop()
+        metrics.stop_response_timer()
 
         # -*- Parse response
         response_message: ChatCompletionMessage = response.choices[0].message
@@ -675,12 +663,12 @@ class Groq(Model):
         Returns:
             Iterator[ModelResponse]: An iterator of the model response.
         """
-        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
+        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
             function_calls_to_run: List[FunctionCall] = []
             function_call_results: List[Message] = []
             for tool_call in assistant_message.tool_calls:
                 _tool_call_id = tool_call.get("id")
-                _function_call = get_function_call_for_tool_call(tool_call, self.functions)
+                _function_call = get_function_call_for_tool_call(tool_call, self._functions)
                 if _function_call is None:
                     messages.append(
                         Message(
@@ -731,7 +719,7 @@ class Groq(Model):
         metrics: Metrics = Metrics()
 
         # -*- Generate response
-        metrics.response_timer.start()
+        metrics.start_response_timer()
         for response in self.invoke_stream(messages=messages):
             if len(response.choices) > 0:
                 metrics.completion_tokens += 1
@@ -753,7 +741,7 @@ class Groq(Model):
 
             if response.usage is not None:
                 self.add_response_usage_to_metrics(metrics=metrics, response_usage=response.usage)
-        metrics.response_timer.stop()
+        metrics.stop_response_timer()
 
         # -*- Create assistant message
         assistant_message = Message(role="assistant")
@@ -776,7 +764,7 @@ class Groq(Model):
         metrics.log()
 
         # -*- Handle tool calls
-        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
+        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
             tool_role = "tool"
             yield from self.handle_stream_tool_calls(
                 assistant_message=assistant_message, messages=messages, tool_role=tool_role
@@ -800,7 +788,7 @@ class Groq(Model):
         metrics: Metrics = Metrics()
 
         # -*- Generate response
-        metrics.response_timer.start()
+        metrics.start_response_timer()
         async for response in self.ainvoke_stream(messages=messages):
             if len(response.choices) > 0:
                 metrics.completion_tokens += 1
@@ -822,7 +810,7 @@ class Groq(Model):
 
             if response.usage is not None:
                 self.add_response_usage_to_metrics(metrics=metrics, response_usage=response.usage)
-        metrics.response_timer.stop()
+        metrics.stop_response_timer()
 
         # -*- Create assistant message
         assistant_message = Message(role="assistant")
@@ -844,7 +832,7 @@ class Groq(Model):
         metrics.log()
 
         # -*- Handle tool calls
-        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
+        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
             tool_role = "tool"
             for tool_call_response in self.handle_stream_tool_calls(
                 assistant_message=assistant_message, messages=messages, tool_role=tool_role
@@ -864,31 +852,4 @@ class Groq(Model):
         Returns:
             List[Dict[str, Any]]: The built tool calls.
         """
-        tool_calls: List[Dict[str, Any]] = []
-        for _tool_call in tool_calls_data:
-            _index = _tool_call.index
-            _tool_call_id = _tool_call.id
-            _tool_call_type = _tool_call.type
-            _function_name = _tool_call.function.name if _tool_call.function else None
-            _function_arguments = _tool_call.function.arguments if _tool_call.function else None
-
-            if len(tool_calls) <= _index:
-                tool_calls.extend([{}] * (_index - len(tool_calls) + 1))
-            tool_call_entry = tool_calls[_index]
-            if not tool_call_entry:
-                tool_call_entry["id"] = _tool_call_id
-                tool_call_entry["type"] = _tool_call_type
-                tool_call_entry["function"] = {
-                    "name": _function_name or "",
-                    "arguments": _function_arguments or "",
-                }
-            else:
-                if _function_name:
-                    tool_call_entry["function"]["name"] += _function_name
-                if _function_arguments:
-                    tool_call_entry["function"]["arguments"] += _function_arguments
-                if _tool_call_id:
-                    tool_call_entry["id"] = _tool_call_id
-                if _tool_call_type:
-                    tool_call_entry["type"] = _tool_call_type
-        return tool_calls
+        return self._build_tool_calls(tool_calls_data)

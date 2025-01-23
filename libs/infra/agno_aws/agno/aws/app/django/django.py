@@ -8,7 +8,7 @@ class Django(AwsApp):
     name: str = "django"
 
     # -*- Image Configuration
-    image_name: str = "phidata/django"
+    image_name: str = "agnohq/django"
     image_tag: str = "4.2.2"
     command: Optional[Union[str, List[str]]] = "python manage.py runserver 0.0.0.0:8000"
 

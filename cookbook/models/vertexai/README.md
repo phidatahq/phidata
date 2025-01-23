@@ -16,10 +16,10 @@ source ~/.venvs/aienv/bin/activate
 ### 3. Install libraries
 
 ```shell
-pip install -U google-cloud-aiplatform duckduckgo-search yfinance phidata
+pip install -U google-cloud-aiplatform duckduckgo-search yfinance agno
 ```
 
-### 4. Run Agent without Tools
+### 4. Run basic Agent
 
 - Streaming on
 
@@ -35,34 +35,10 @@ python cookbook/models/vertexai/basic.py
 
 ### 5. Run Agent with Tools
 
-- Yahoo Finance with streaming on
+- DuckDuckGo Search
 
 ```shell
-python cookbook/models/vertexai/agent_stream.py
-```
-
-- Yahoo Finance without streaming
-
-```shell
-python cookbook/models/vertexai/agent.py
-```
-
-- Finance Agent
-
-```shell
-python cookbook/models/vertexai/finance_agent.py
-```
-
-- Web Search Agent
-
-```shell
-python cookbook/models/vertexai/web_search.py
-```
-
-- Data Analysis Agent
-
-```shell
-python cookbook/models/vertexai/data_analyst.py
+python cookbook/models/vertexai/tool_use.py
 ```
 
 ### 6. Run Agent that returns structured output

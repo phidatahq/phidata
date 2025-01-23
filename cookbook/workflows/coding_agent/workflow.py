@@ -1,13 +1,13 @@
 import os
-from dotenv import load_dotenv
-
-from pydantic import BaseModel, Field
 
 from agno.agent import Agent, RunResponse
 from agno.models.openai import OpenAIChat
-from agno.workflow import Workflow, RunEvent
 from agno.utils.log import logger
-from cookbook.examples.workflows.coding_agent.utils import scrape_and_process, evaluate_response
+from agno.workflow import RunEvent, Workflow
+from dotenv import load_dotenv
+from pydantic import BaseModel, Field
+
+from cookbook.workflows.coding_agent.utils import evaluate_response, scrape_and_process
 
 load_dotenv()
 
@@ -76,7 +76,9 @@ class CodeGenWorkflow(Workflow):
             try:
                 if attempt == 0:
                     # First attempt: Generate initial code
-                    formatted_prompt = self.system_prompt.format(context=context, question=question)
+                    formatted_prompt = self.system_prompt.format(
+                        context=context, question=question
+                    )
                     response = self.coding_agent.run(formatted_prompt, stream=False)
                     logger.info("---GENERATED CODE---")
                     generated_code = response.content
@@ -145,7 +147,13 @@ class CodeGenWorkflow(Workflow):
         logger.info("---NO CODE TEST FAILURES---")
         return "success"
 
-    def fix_code(self, context: str, question: str, error_message: str, previous_code: CodeSolution) -> CodeSolution:
+    def fix_code(
+        self,
+        context: str,
+        question: str,
+        error_message: str,
+        previous_code: CodeSolution,
+    ) -> CodeSolution:
         """
         Fix the code by providing error context to the agent.
 
@@ -189,7 +197,9 @@ if __name__ == "__main__":
     url = "https://python.langchain.com/docs/how_to/sequence/#related"
     question = "How to structure output of an LCEL chain as a JSON object?"
 
-    concatenated_content = scrape_and_process(url)  # Scrape the URL and structure the data
+    concatenated_content = scrape_and_process(
+        url
+    )  # Scrape the URL and structure the data
     workflow = CodeGenWorkflow()
     final_content = workflow.run(question=question, context=concatenated_content)
 

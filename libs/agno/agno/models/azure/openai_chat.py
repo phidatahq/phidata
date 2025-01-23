@@ -14,7 +14,7 @@ except (ModuleNotFoundError, ImportError):
 
 
 @dataclass
-class AzureOpenAIChat(OpenAILike):
+class AzureOpenAI(OpenAILike):
     """
     Azure OpenAI Chat model
 
@@ -35,11 +35,11 @@ class AzureOpenAIChat(OpenAILike):
     """
 
     id: str
-    name: str = "AzureOpenAIChat"
+    name: str = "AzureOpenAI"
     provider: str = "Azure"
 
     api_key: Optional[str] = getenv("AZURE_OPENAI_API_KEY")
-    api_version: str = getenv("AZURE_OPENAI_API_VERSION", "2024-02-01")
+    api_version: str = getenv("AZURE_OPENAI_API_VERSION", "2024-10-21")
     azure_endpoint: Optional[str] = getenv("AZURE_OPENAI_ENDPOINT")
     azure_deployment: Optional[str] = getenv("AZURE_DEPLOYMENT")
     azure_ad_token: Optional[str] = None
@@ -57,7 +57,7 @@ class AzureOpenAIChat(OpenAILike):
         if self.openai_client:
             return self.openai_client
 
-        _client_params: Dict[str, Any] = self.get_client_params()
+        _client_params: Dict[str, Any] = self._get_client_params()
 
         return AzureOpenAIClient(**_client_params)
 
@@ -69,7 +69,7 @@ class AzureOpenAIChat(OpenAILike):
             AsyncAzureOpenAIClient: An instance of the asynchronous OpenAI client.
         """
 
-        _client_params: Dict[str, Any] = self.get_client_params()
+        _client_params: Dict[str, Any] = self._get_client_params()
 
         if self.http_client:
             _client_params["http_client"] = self.http_client
@@ -80,7 +80,7 @@ class AzureOpenAIChat(OpenAILike):
             )
         return AsyncAzureOpenAIClient(**_client_params)
 
-    def get_client_params(self) -> Dict[str, Any]:
+    def _get_client_params(self) -> Dict[str, Any]:
         _client_params: Dict[str, Any] = {}
         if self.api_key:
             _client_params["api_key"] = self.api_key

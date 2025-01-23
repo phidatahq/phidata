@@ -1,3 +1,0 @@
-apiclient
-googleapiclient
-googleapiclient/discovery_cache

@@ -18,10 +18,10 @@ export CO_API_KEY=***
 ### 3. Install libraries
 
 ```shell
-pip install -U cohere duckduckgo-search duckdb yfinance phidata
+pip install -U cohere duckduckgo-search duckdb yfinance agno
 ```
 
-### 4. Run Agent without Tools
+### 4. Run basic Agent
 
 - Streaming on
 
@@ -37,33 +37,10 @@ python cookbook/models/cohere/basic.py
 
 ### 5. Run Agent with Tools
 
-- DuckDuckGo Search with streaming on
+- DuckDuckGo Search
 
 ```shell
-python cookbook/models/cohere/agent_stream.py
-```
-
-- DuckDuckGo Search without streaming
-
-```shell
-python cookbook/models/cohere/agent.py
-```
-
-- Finance Agent
-
-```shell
-python cookbook/models/cohere/finance_agent.py
-```
-
-- Data Analyst
-
-```shell
-python cookbook/models/cohere/data_analyst.py
-```
-- Web Search
-
-```shell
-python cookbook/models/cohere/web_search.py
+python cookbook/models/cohere/tool_use.py
 ```
 
 ### 6. Run Agent that returns structured output

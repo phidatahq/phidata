@@ -3,7 +3,7 @@ from typing import Literal, Optional
 from uuid import uuid4
 
 from agno.agent import Agent
-from agno.run.media import Image
+from agno.media import ImageArtifact
 from agno.tools import Toolkit
 from agno.utils.log import logger
 
@@ -14,7 +14,7 @@ except ImportError:
     raise ImportError("`openai` not installed. Please install using `pip install openai`")
 
 
-class Dalle(Toolkit):
+class DalleTools(Toolkit):
     def __init__(
         self,
         model: str = "dall-e-3",
@@ -85,7 +85,9 @@ class Dalle(Toolkit):
             response_str = ""
             for img in response.data:
                 agent.add_image(
-                    Image(id=str(uuid4()), url=img.url, original_prompt=prompt, revised_prompt=img.revised_prompt)
+                    ImageArtifact(
+                        id=str(uuid4()), url=img.url, original_prompt=prompt, revised_prompt=img.revised_prompt
+                    )
                 )
                 response_str += f"Image has been generated at the URL {img.url}\n"
             return response_str

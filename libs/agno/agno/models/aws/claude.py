@@ -11,7 +11,7 @@ class Claude(AwsBedrock):
     AWS Bedrock Claude model.
 
     Args:
-        model (str): The model to use.
+        id (str): The model to use.
         max_tokens (int): The maximum number of tokens to generate.
         temperature (Optional[float]): The temperature to use.
         top_p (Optional[float]): The top p to use.
@@ -34,6 +34,8 @@ class Claude(AwsBedrock):
     top_k: Optional[int] = None
     stop_sequences: Optional[List[str]] = None
     anthropic_version: str = "bedrock-2023-05-31"
+
+    # -*- Request parameters
     request_params: Optional[Dict[str, Any]] = None
     # -*- Client parameters
     client_params: Optional[Dict[str, Any]] = None
@@ -69,11 +71,11 @@ class Claude(AwsBedrock):
         """
         Refactors the tools in a format accepted by the Bedrock API.
         """
-        if not self.functions:
+        if not self._functions:
             return None
 
         tools = []
-        for f_name, function in self.functions.items():
+        for f_name, function in self._functions.items():
             properties = {}
             required = []
 
@@ -181,14 +183,16 @@ class Claude(AwsBedrock):
                 "role": role,
             }
 
+        stop_reason = None
         if "stopReason" in response:
             stop_reason = response["stopReason"]
 
+        res["stop_reason"] = stop_reason if stop_reason else None
+        res["tool_requests"] = None
+
         if stop_reason == "tool_use":
             tool_requests = response["output"]["message"]["content"]
-
-        res["stop_reason"] = stop_reason if stop_reason else None
-        res["tool_requests"] = tool_requests if stop_reason == "tool_use" else None
+            res["tool_requests"] = tool_requests
 
         return res
 
@@ -202,13 +206,12 @@ class Claude(AwsBedrock):
         Returns:
             Message: The assistant message.
         """
-        mesage = Message(
+
+        return Message(
             role=parsed_response["role"],
             content=parsed_response["content"],
             metrics=parsed_response["metrics"],
         )
-
-        return mesage
 
     def parse_response_delta(self, response: Dict[str, Any]) -> Optional[str]:
         """

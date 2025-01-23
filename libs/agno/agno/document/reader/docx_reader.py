@@ -19,7 +19,7 @@ class DocxReader(Reader):
         try:
             if isinstance(file, Path):
                 logger.info(f"Reading: {file}")
-                docx_document = DocxDocument(file)
+                docx_document = DocxDocument(str(file))
                 doc_name = file.stem
             else:  # Handle file-like object from upload
                 logger.info(f"Reading uploaded file: {file.name}")

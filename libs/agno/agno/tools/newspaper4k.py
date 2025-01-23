@@ -10,7 +10,7 @@ except ImportError:
     raise ImportError("`newspaper4k` not installed. Please run `pip install newspaper4k lxml_html_clean`.")
 
 
-class Newspaper4k(Toolkit):
+class Newspaper4kTools(Toolkit):
     def __init__(
         self,
         read_article: bool = True,

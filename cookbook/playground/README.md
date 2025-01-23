@@ -1,4 +1,4 @@
-# Agent UI
+# Agent Playground
 
 Agno provides a beautiful Agent UI for interacting with your agents.
 
@@ -7,14 +7,15 @@ Agno provides a beautiful Agent UI for interacting with your agents.
 ### Create and activate a virtual environment
 
 ```shell
-python3 -m venv ~/.venvs/aienv
-source ~/.venvs/aienv/bin/activate
+python3 -m venv .venv
+source .venv/bin/activate
 ```
 
 ### Export your API keys
 
 ```shell
 export OPENAI_API_KEY=***
+# If you need Exa search
 export EXA_API_KEY=***
 ...
 ```
@@ -22,13 +23,13 @@ export EXA_API_KEY=***
 ### Install libraries
 
 ```shell
-pip install -U openai exa_py duckduckgo-search yfinance pypdf sqlalchemy 'fastapi[standard]' youtube-transcript-api phidata
+pip install -U openai exa_py duckduckgo-search yfinance pypdf sqlalchemy 'fastapi[standard]' youtube-transcript-api agno
 ```
 
-### Authenticate with phidata.app
+### Authenticate with agno.app
 
 ```
-phi auth
+ag auth
 ```
 
 ## Connect your Agents to the Agent UI

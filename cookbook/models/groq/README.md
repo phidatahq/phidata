@@ -18,10 +18,10 @@ export GROQ_API_KEY=***
 ### 3. Install libraries
 
 ```shell
-pip install -U groq duckduckgo-search duckdb yfinance phidata
+pip install -U groq duckduckgo-search duckdb yfinance agno
 ```
 
-### 4. Run Agent without Tools
+### 4. Run basic Agent
 
 - Streaming on
 
@@ -37,34 +37,16 @@ python cookbook/models/groq/basic.py
 
 ### 5. Run Agent with Tools
 
-- DuckDuckGo Search with streaming on
+- DuckDuckGo Search
 
 ```shell
-python cookbook/models/groq/agent_stream.py
+python cookbook/models/groq/tool_use.py
 ```
 
-- DuckDuckGo Search without streaming
+- Research using Exa
 
 ```shell
-python cookbook/models/groq/agent.py
-```
-
-- Finance Agent
-
-```shell
-python cookbook/models/groq/finance_agent.py
-```
-
-- Data Analyst
-
-```shell
-python cookbook/models/groq/data_analyst.py
-```
-
-- Web Search
-
-```shell
-python cookbook/models/groq/web_search.py
+python cookbook/models/groq/research_agent_exa.py
 ```
 
 ### 6. Run Agent that returns structured output
@@ -94,11 +76,10 @@ python cookbook/models/groq/knowledge.py
 ```
 Take note that by default, OpenAI embeddings are used and an API key will be required. Alternatively, there are other embedders available that can be used. See more examples in `/cookbook/knowledge/embedders`
 
-
-### 9. Run Playground with some Agents
+### 9. Run Agent that analyzes an image
 
 ```shell
-python cookbook/models/groq/agent_team.py
+python cookbook/models/groq/image_agent.py
 ```
 
 ### 10. Run in async mode
@@ -108,13 +89,4 @@ python cookbook/models/groq/async/basic_stream.py
 ```
 ```shell
 python cookbook/models/groq/async/basic.py
-```
-```shell
-python cookbook/models/groq/async/data_analyst.py
-```
-```shell
-python cookbook/models/groq/async/finance_agent.py
-```
-```shell
-python cookbook/models/groq/async/hackernews.py
 ```

@@ -16,7 +16,7 @@ except ImportError:
     raise ImportError("`pypdf` not installed. Please install using `pip install pypdf`")
 
 
-class ArxivToolkit(Toolkit):
+class ArxivTools(Toolkit):
     def __init__(self, search_arxiv: bool = True, read_arxiv_papers: bool = True, download_dir: Optional[Path] = None):
         super().__init__(name="arxiv_tools")
 

@@ -1,8 +1,8 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from os import getenv
 from typing import Any, Dict, Iterator, List, Optional, Union
 
-from agno.models.base import Model
+from agno.models.base import Model, StreamData
 from agno.models.message import Message
 from agno.models.response import ModelResponse
 from agno.tools.function import FunctionCall
@@ -11,7 +11,7 @@ from agno.utils.timer import Timer
 from agno.utils.tools import get_function_call_for_tool_call
 
 try:
-    from mistralai import Mistral
+    from mistralai import Mistral as MistralClient
     from mistralai.models import AssistantMessage, SystemMessage, ToolMessage, UserMessage
     from mistralai.models.chatcompletionresponse import ChatCompletionResponse
     from mistralai.models.deltamessage import DeltaMessage
@@ -20,18 +20,6 @@ except (ModuleNotFoundError, ImportError):
     raise ImportError("`mistralai` not installed. Please install using `pip install mistralai`")
 
 MistralMessage = Union[UserMessage, AssistantMessage, SystemMessage, ToolMessage]
-
-
-@dataclass
-class StreamData:
-    response_content: str = ""
-    response_tool_calls: Optional[List[Any]] = None
-    completion_tokens: int = 0
-    response_prompt_tokens: int = 0
-    response_completion_tokens: int = 0
-    response_total_tokens: int = 0
-    time_to_first_token: Optional[float] = None
-    response_timer: Timer = field(default_factory=Timer)
 
 
 @dataclass
@@ -80,15 +68,15 @@ class MistralChat(Model):
     timeout: Optional[int] = None
     client_params: Optional[Dict[str, Any]] = None
     # -*- Provide the Mistral Client manually
-    mistral_client: Optional[Mistral] = None
+    mistral_client: Optional[MistralClient] = None
 
     @property
-    def client(self) -> Mistral:
+    def client(self) -> MistralClient:
         """
         Get the Mistral client.
 
         Returns:
-            Mistral: The Mistral client.
+            MistralChat: The Mistral client.
         """
         if self.mistral_client:
             return self.mistral_client
@@ -108,7 +96,7 @@ class MistralChat(Model):
             _client_params["timeout"] = self.timeout
         if self.client_params:
             _client_params.update(self.client_params)
-        return Mistral(**_client_params)
+        return MistralClient(**_client_params)
 
     @property
     def api_kwargs(self) -> Dict[str, Any]:
@@ -132,7 +120,7 @@ class MistralChat(Model):
         if self.safe_prompt:
             _request_params["safe_prompt"] = self.safe_prompt
         if self.tools:
-            _request_params["tools"] = self.get_tools_for_api()
+            _request_params["tools"] = self.tools
             if self.tool_choice is None:
                 _request_params["tool_choice"] = "auto"
             else:
@@ -149,30 +137,20 @@ class MistralChat(Model):
             Dict[str, Any]: The dictionary representation of the model.
         """
         _dict = super().to_dict()
-        if self.temperature:
-            _dict["temperature"] = self.temperature
-        if self.max_tokens:
-            _dict["max_tokens"] = self.max_tokens
-        if self.random_seed:
-            _dict["random_seed"] = self.random_seed
-        if self.safe_mode:
-            _dict["safe_mode"] = self.safe_mode
-        if self.safe_prompt:
-            _dict["safe_prompt"] = self.safe_prompt
-        if self.response_format:
-            _dict["response_format"] = self.response_format
-        return _dict
+        _dict.update(
+            {
+                "temperature": self.temperature,
+                "max_tokens": self.max_tokens,
+                "random_seed": self.random_seed,
+                "safe_mode": self.safe_mode,
+                "safe_prompt": self.safe_prompt,
+                "response_format": self.response_format,
+            }
+        )
+        cleaned_dict = {k: v for k, v in _dict.items() if v is not None}
+        return cleaned_dict
 
-    def invoke(self, messages: List[Message]) -> ChatCompletionResponse:
-        """
-        Send a chat completion request to the Mistral model.
-
-        Args:
-            messages (List[Message]): The messages to send to the model.
-
-        Returns:
-            ChatCompletionResponse: The response from the model.
-        """
+    def _prepare_messages(self, messages: List[Message]) -> List[MistralMessage]:
         mistral_messages: List[MistralMessage] = []
         for m in messages:
             mistral_message: MistralMessage
@@ -190,6 +168,19 @@ class MistralChat(Model):
             else:
                 raise ValueError(f"Unknown role: {m.role}")
             mistral_messages.append(mistral_message)
+        return mistral_messages
+
+    def invoke(self, messages: List[Message]) -> ChatCompletionResponse:
+        """
+        Send a chat completion request to the Mistral model.
+
+        Args:
+            messages (List[Message]): The messages to send to the model.
+
+        Returns:
+            ChatCompletionResponse: The response from the model.
+        """
+        mistral_messages = self._prepare_messages(messages)
         logger.debug(f"Mistral messages: {mistral_messages}")
         response = self.client.chat.complete(
             messages=mistral_messages,
@@ -210,24 +201,7 @@ class MistralChat(Model):
         Returns:
             Iterator[Any]: The streamed response.
         """
-        mistral_messages: List[MistralMessage] = []
-        for m in messages:
-            mistral_message: MistralMessage
-            if m.role == "user":
-                mistral_message = UserMessage(role=m.role, content=m.content)
-            elif m.role == "assistant":
-                if m.tool_calls is not None:
-                    mistral_message = AssistantMessage(role=m.role, content=m.content, tool_calls=m.tool_calls)
-                else:
-                    mistral_message = AssistantMessage(role=m.role, content=m.content)
-            elif m.role == "system":
-                mistral_message = SystemMessage(role=m.role, content=m.content)
-            elif m.role == "tool":
-                logger.debug(f"Tool message: {m}")
-                mistral_message = ToolMessage(name=m.name, content=m.content, tool_call_id=m.tool_call_id)
-            else:
-                raise ValueError(f"Unknown role: {m.role}")
-            mistral_messages.append(mistral_message)
+        mistral_messages = self._prepare_messages(messages)
         logger.debug(f"Mistral messages sending to stream endpoint: {mistral_messages}")
         response = self.client.chat.stream(
             messages=mistral_messages,
@@ -261,7 +235,7 @@ class MistralChat(Model):
             for tool_call in assistant_message.tool_calls:
                 tool_call["type"] = "function"
                 _tool_call_id = tool_call.get("id")
-                _function_call = get_function_call_for_tool_call(tool_call, self.functions)
+                _function_call = get_function_call_for_tool_call(tool_call, self._functions)
                 if _function_call is None:
                     messages.append(
                         Message(role="tool", tool_call_id=_tool_call_id, content="Could not find function to call.")
@@ -342,13 +316,6 @@ class MistralChat(Model):
         # Add token usage to metrics
         self.metrics.update(response.usage.model_dump())
 
-    def _log_messages(self, messages: List[Message]) -> None:
-        """
-        Log messages for debugging.
-        """
-        for m in messages:
-            m.log()
-
     def response(self, messages: List[Message]) -> ModelResponse:
         """
         Send a chat completion request to the Mistral model.
@@ -385,7 +352,7 @@ class MistralChat(Model):
         assistant_message.log()
 
         # -*- Parse and run tool calls
-        logger.debug(f"Functions: {self.functions}")
+        logger.debug(f"Functions: {self._functions}")
 
         # -*- Handle tool calls
         if self._handle_tool_calls(assistant_message, messages, model_response):
@@ -515,7 +482,7 @@ class MistralChat(Model):
             for tool_call in assistant_message.tool_calls:
                 _tool_call_id = tool_call.get("id")
                 tool_call["type"] = "function"
-                _function_call = get_function_call_for_tool_call(tool_call, self.functions)
+                _function_call = get_function_call_for_tool_call(tool_call, self._functions)
                 if _function_call is None:
                     messages.append(
                         Message(role="tool", tool_call_id=_tool_call_id, content="Could not find function to call.")
@@ -549,3 +516,15 @@ class MistralChat(Model):
 
             yield from self.response_stream(messages=messages)
         logger.debug("---------- Mistral Response End ----------")
+
+    async def ainvoke(self, *args, **kwargs) -> Any:
+        raise NotImplementedError(f"Async not supported on {self.name}.")
+
+    async def ainvoke_stream(self, *args, **kwargs) -> Any:
+        raise NotImplementedError(f"Async not supported on {self.name}.")
+
+    async def aresponse(self, messages: List[Message]) -> ModelResponse:
+        raise NotImplementedError(f"Async not supported on {self.name}.")
+
+    async def aresponse_stream(self, messages: List[Message]) -> ModelResponse:
+        raise NotImplementedError(f"Async not supported on {self.name}.")

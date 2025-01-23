@@ -7,15 +7,17 @@ Steps:
 """
 
 from agno.agent import Agent
-from agno.tools.duckduckgo import DuckDuckGo
-from agno.storage.agent.mongodb import MongoAgentStorage
+from agno.storage.agent.mongodb import MongoDbAgentStorage
+from agno.tools.duckduckgo import DuckDuckGoTools
 
 # MongoDB connection settings
 db_url = "mongodb://localhost:27017"
 
 agent = Agent(
-    storage=MongoAgentStorage(collection_name="agent_sessions", db_url=db_url, db_name="phi"),
-    tools=[DuckDuckGo()],
+    storage=MongoDbAgentStorage(
+        collection_name="agent_sessions", db_url=db_url, db_name="agno"
+    ),
+    tools=[DuckDuckGoTools()],
     add_history_to_messages=True,
 )
 agent.print_response("How many people live in Canada?")

@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
 from agno.embedder.base import Embedder
@@ -10,8 +11,9 @@ except ImportError:
     raise ImportError("`voyageai` not installed")
 
 
+@dataclass
 class VoyageAIEmbedder(Embedder):
-    model: str = "voyage-2"
+    id: str = "voyage-2"
     dimensions: int = 1024
     request_params: Optional[Dict[str, Any]] = None
     api_key: Optional[str] = None
@@ -40,7 +42,7 @@ class VoyageAIEmbedder(Embedder):
     def _response(self, text: str) -> EmbeddingsObject:
         _request_params: Dict[str, Any] = {
             "texts": [text],
-            "model": self.model,
+            "model": self.id,
         }
         if self.request_params:
             _request_params.update(self.request_params)

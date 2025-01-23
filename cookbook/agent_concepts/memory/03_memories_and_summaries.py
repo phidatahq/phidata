@@ -7,14 +7,13 @@ Steps:
 
 import json
 
-from rich.console import Console
-from rich.panel import Panel
-from rich.json import JSON
-
 from agno.agent import Agent, AgentMemory
-from agno.models.openai import OpenAIChat
 from agno.memory.db.sqlite import SqliteMemoryDb
-from agno.storage.agent.sqlite import SqlAgentStorage
+from agno.models.openai import OpenAIChat
+from agno.storage.agent.sqlite import SqliteAgentStorage
+from rich.console import Console
+from rich.json import JSON
+from rich.panel import Panel
 
 agent = Agent(
     model=OpenAIChat(id="gpt-4o"),
@@ -36,7 +35,9 @@ agent = Agent(
         update_session_summary_after_run=True,
     ),
     # Store agent sessions in a database, that persists between runs
-    storage=SqlAgentStorage(table_name="agent_sessions", db_file="tmp/agent_storage.db"),
+    storage=SqliteAgentStorage(
+        table_name="agent_sessions", db_file="tmp/agent_storage.db"
+    ),
     # add_history_to_messages=true adds the chat history to the messages sent to the Model.
     add_history_to_messages=True,
     # Number of historical responses to add to the messages.
@@ -57,20 +58,33 @@ def print_agent_memory(agent):
     console.print(
         render_panel(
             f"Chat History for session_id: {agent.session_id}",
-            json.dumps([m.model_dump(include={"role", "content"}) for m in agent.memory.messages], indent=4),
+            json.dumps(
+                [
+                    m.model_dump(include={"role", "content"})
+                    for m in agent.memory.messages
+                ],
+                indent=4,
+            ),
         )
     )
     # -*- Print memories
     console.print(
         render_panel(
             f"Memories for user_id: {agent.user_id}",
-            json.dumps([m.model_dump(include={"memory", "input"}) for m in agent.memory.memories], indent=4),
+            json.dumps(
+                [
+                    m.model_dump(include={"memory", "input"})
+                    for m in agent.memory.memories
+                ],
+                indent=4,
+            ),
         )
     )
     # -*- Print summary
     console.print(
         render_panel(
-            f"Summary for session_id: {agent.session_id}", json.dumps(agent.memory.summary.model_dump(), indent=4)
+            f"Summary for session_id: {agent.session_id}",
+            json.dumps(agent.memory.summary.model_dump(), indent=4),
         )
     )
 
@@ -86,4 +100,6 @@ agent.print_response("I'm going to a concert tomorrow?", stream=True)
 print_agent_memory(agent)
 
 # Ask about the conversation
-agent.print_response("What have we been talking about, do you know my name?", stream=True)
+agent.print_response(
+    "What have we been talking about, do you know my name?", stream=True
+)

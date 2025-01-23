@@ -23,14 +23,14 @@ class MessageData:
 
 
 @dataclass
-class Hermes(Ollama):
+class OllamaHermes(Ollama):
     """
-    A class for interacting with the Hermes model via Ollama. This is a subclass of the Ollama model,
+    A class for interacting with the OllamaHermes model via Ollama. This is a subclass of the Ollama model,
     which customizes tool call streaming for the hermes3 model.
     """
 
     id: str = "hermes3"
-    name: str = "Hermes"
+    name: str = "OllamaHermes"
     provider: str = "Ollama"
 
     def handle_tool_call_chunk(self, content, tool_call_buffer, message_data) -> Tuple[str, bool]:
@@ -59,6 +59,19 @@ class Hermes(Ollama):
 
         return tool_call_buffer, True
 
+    def _format_tool_calls(self, message_data: MessageData) -> MessageData:
+        if message_data.tool_call_blocks is not None:
+            for block in message_data.tool_call_blocks:
+                tool_name = block.get("name")
+                tool_args = block.get("arguments")
+
+                function_def = {
+                    "name": tool_name,
+                    "arguments": json.dumps(tool_args) if tool_args is not None else None,
+                }
+                message_data.tool_calls.append({"type": "function", "function": function_def})
+        return message_data
+
     def response_stream(self, messages: List[Message]) -> Iterator[ModelResponse]:
         """
         Generate a streaming response from Ollama.
@@ -69,13 +82,13 @@ class Hermes(Ollama):
         Returns:
             Iterator[ModelResponse]: An iterator of the model responses.
         """
-        logger.debug("---------- Ollama Hermes Response Start ----------")
+        logger.debug("---------- Ollama OllamaHermes Response Start ----------")
         self._log_messages(messages)
         message_data = MessageData()
         metrics: Metrics = Metrics()
 
         # -*- Generate response
-        metrics.response_timer.start()
+        metrics.start_response_timer()
         for response in self.invoke_stream(messages=messages):
             message_data.response_message = response.get("message", {})
             if message_data.response_message:
@@ -100,19 +113,10 @@ class Hermes(Ollama):
 
             if response.get("done"):
                 message_data.response_usage = response
-        metrics.response_timer.stop()
+        metrics.stop_response_timer()
 
         # Format tool calls
-        if message_data.tool_call_blocks is not None:
-            for block in message_data.tool_call_blocks:
-                tool_name = block.get("name")
-                tool_args = block.get("arguments")
-
-                function_def = {
-                    "name": tool_name,
-                    "arguments": json.dumps(tool_args) if tool_args is not None else None,
-                }
-                message_data.tool_calls.append({"type": "function", "function": function_def})
+        message_data = self._format_tool_calls(message_data)
 
         # -*- Create assistant message
         assistant_message = Message(role="assistant", content=message_data.response_content)
@@ -133,10 +137,10 @@ class Hermes(Ollama):
         metrics.log()
 
         # -*- Handle tool calls
-        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
+        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
             yield from self.handle_stream_tool_calls(assistant_message, messages)
             yield from self.handle_post_tool_call_messages_stream(messages=messages)
-        logger.debug("---------- Ollama Hermes Response End ----------")
+        logger.debug("---------- Ollama OllamaHermes Response End ----------")
 
     async def aresponse_stream(self, messages: List[Message]) -> Any:
         """
@@ -148,13 +152,13 @@ class Hermes(Ollama):
         Returns:
             Any: An asynchronous iterator of the model responses.
         """
-        logger.debug("---------- Ollama Hermes Async Response Start ----------")
+        logger.debug("---------- Ollama OllamaHermes Async Response Start ----------")
         self._log_messages(messages)
         message_data = MessageData()
         metrics: Metrics = Metrics()
 
         # -*- Generate response
-        metrics.response_timer.start()
+        metrics.start_response_timer()
         async for response in self.ainvoke_stream(messages=messages):
             message_data.response_message = response.get("message", {})
             if message_data.response_message:
@@ -185,19 +189,10 @@ class Hermes(Ollama):
 
             if response.get("done"):
                 message_data.response_usage = response
-        metrics.response_timer.stop()
+        metrics.stop_response_timer()
 
         # Format tool calls
-        if message_data.tool_call_blocks is not None:
-            for block in message_data.tool_call_blocks:
-                tool_name = block.get("name")
-                tool_args = block.get("arguments")
-
-                function_def = {
-                    "name": tool_name,
-                    "arguments": json.dumps(tool_args) if tool_args is not None else None,
-                }
-                message_data.tool_calls.append({"type": "function", "function": function_def})
+        message_data = self._format_tool_calls(message_data)
 
         # -*- Create assistant message
         assistant_message = Message(role="assistant", content=message_data.response_content)
@@ -218,9 +213,9 @@ class Hermes(Ollama):
         metrics.log()
 
         # -*- Handle tool calls
-        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0 and self.run_tools:
+        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
             for tool_call_response in self.handle_stream_tool_calls(assistant_message, messages):
                 yield tool_call_response
             async for post_tool_call_response in self.ahandle_post_tool_call_messages_stream(messages=messages):
                 yield post_tool_call_response
-        logger.debug("---------- Ollama Hermes Async Response End ----------")
+        logger.debug("---------- Ollama OllamaHermes Async Response End ----------")

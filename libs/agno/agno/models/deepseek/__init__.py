@@ -1,1 +1,1 @@
-from agno.models.deepseek.deepseek import DeepSeekChat
+from agno.models.deepseek.deepseek import DeepSeek

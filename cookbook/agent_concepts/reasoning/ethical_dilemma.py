@@ -9,5 +9,10 @@ task = (
     "Provide your answer also as an ascii art diagram."
 )
 
-reasoning_agent = Agent(model=OpenAIChat(id="gpt-4o"), reasoning=True, markdown=True, structured_outputs=True)
+reasoning_agent = Agent(
+    model=OpenAIChat(id="gpt-4o"),
+    reasoning=True,
+    markdown=True,
+    structured_outputs=True,
+)
 reasoning_agent.print_response(task, stream=True, show_full_reasoning=True)

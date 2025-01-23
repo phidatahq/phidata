@@ -35,14 +35,14 @@ def authenticate_user() -> None:
     )
     from agno.cli.credentials import save_auth_token
 
-    print_heading("Authenticating with agno.com ...")
+    print_heading("Authenticating with agno.com")
 
     auth_server_port = get_port_for_auth_server()
     redirect_uri = "http%3A%2F%2Flocalhost%3A{}%2F".format(auth_server_port)
     auth_url = "{}?source=cli&action=signin&redirecturi={}".format(agno_cli_settings.signin_url, redirect_uri)
     print_info("\nYour browser will be opened to visit:\n{}".format(auth_url))
     typer_launch(auth_url)
-    print_info("\nWaiting for a response from browser...\n")
+    print_info("\nWaiting for a response from the browser...\n")
 
     auth_token = get_auth_token_from_web_flow(auth_server_port)
     if auth_token is None:
@@ -120,6 +120,7 @@ def initialize_agno(reset: bool = False, login: bool = False) -> Optional[AgnoCl
 
     # Authenticate user
     if login:
+        print_info("")
         authenticate_user()
     else:
         anon_user = create_anon_user()

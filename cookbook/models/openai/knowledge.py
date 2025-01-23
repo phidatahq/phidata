@@ -1,8 +1,8 @@
 """Run `pip install duckduckgo-search sqlalchemy pgvector pypdf openai` to install dependencies."""
 
 from agno.agent import Agent
+from agno.knowledge.pdf_url import PDFUrlKnowledgeBase
 from agno.models.openai import OpenAIChat
-from agno.knowledge.pdf import PDFUrlKnowledgeBase
 from agno.vectordb.pgvector import PgVector
 
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"

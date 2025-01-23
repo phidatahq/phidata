@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
 from agno.embedder.base import Embedder
@@ -10,14 +11,15 @@ except ImportError:
     raise ImportError("fastembed not installed, use pip install fastembed")
 
 
+@dataclass
 class FastEmbedEmbedder(Embedder):
     """Using BAAI/bge-small-en-v1.5 model, more models available: https://qdrant.github.io/fastembed/examples/Supported_Models/"""
 
-    model: str = "BAAI/bge-small-en-v1.5"
+    id: str = "BAAI/bge-small-en-v1.5"
     dimensions: int = 384
 
     def get_embedding(self, text: str) -> List[float]:
-        model = TextEmbedding(model_name=self.model)
+        model = TextEmbedding(model_name=self.id)
         embeddings = model.embed(text)
         embedding_list = list(embeddings)
 
@@ -28,4 +30,8 @@ class FastEmbedEmbedder(Embedder):
             return []
 
     def get_embedding_and_usage(self, text: str) -> Tuple[List[float], Optional[Dict]]:
-        return super().get_embedding_and_usage(text)
+        embedding = self.get_embedding(text=text)
+        # Currently, FastEmbed does not provide usage information
+        usage = None
+
+        return embedding, usage

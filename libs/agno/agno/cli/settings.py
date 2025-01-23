@@ -48,7 +48,7 @@ class AgnoCliSettings(BaseSettings):
         if api_runtime == "dev":
             return "http://localhost:3000/login"
         elif api_runtime == "stg":
-            return "https://stg.agno.com/login"
+            return "https://app-stg.agno.com/login"
         else:
             return "https://app.agno.com/login"
 
@@ -58,7 +58,7 @@ class AgnoCliSettings(BaseSettings):
         if api_runtime == "dev":
             return "http://localhost:3000/playground"
         elif api_runtime == "stg":
-            return "https://stg.agno.com/playground"
+            return "https://app-stg.agno.com/playground"
         else:
             return "https://app.agno.com/playground"
 
@@ -72,7 +72,7 @@ class AgnoCliSettings(BaseSettings):
                 return "http://host.docker.internal:7070"
             return "http://localhost:7070"
         elif api_runtime == "stg":
-            return "https://api.stg.agno.com"
+            return "https://api-stg.agno.com"
         else:
             return "https://api.agno.com"
 

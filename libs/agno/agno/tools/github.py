@@ -8,7 +8,7 @@ from agno.utils.log import logger
 try:
     from github import Auth, Github, GithubException
 except ImportError:
-    raise ImportError("`PyGithub` not installed. Please install using `pip install PyGithub`")
+    raise ImportError("`PyGithub` not installed. Please install using `pip install pygithub`")
 
 
 class GithubTools(Toolkit):

@@ -5,8 +5,9 @@ from fastapi.routing import APIRouter
 
 from agno.agent.agent import Agent
 from agno.api.playground import PlaygroundEndpointCreate, create_playground_endpoint
-from agno.playground.router import get_async_playground_router, get_playground_router
+from agno.playground.async_router import get_async_playground_router
 from agno.playground.settings import PlaygroundSettings
+from agno.playground.sync_router import get_sync_playground_router
 from agno.utils.log import logger
 from agno.workflow.workflow import Workflow
 
@@ -31,7 +32,7 @@ class Playground:
         self.endpoints_created: Set[str] = set()
 
     def get_router(self) -> APIRouter:
-        return get_playground_router(self.agents, self.workflows)
+        return get_sync_playground_router(self.agents, self.workflows)
 
     def get_async_router(self) -> APIRouter:
         return get_async_playground_router(self.agents, self.workflows)

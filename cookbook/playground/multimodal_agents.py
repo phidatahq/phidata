@@ -8,15 +8,14 @@ Docs on Agent UI: https://docs.agno.com/agent-ui
 
 from agno.agent import Agent
 from agno.models.openai import OpenAIChat
-from agno.tools.dalle import Dalle
-from agno.tools.eleven_labs_tools import ElevenLabsTools
-from agno.tools.giphy import GiphyTools
-from agno.tools.models_labs import ModelsLabs
 from agno.models.response import FileType
 from agno.playground import Playground, serve_playground_app
-from agno.storage.agent.sqlite import SqlAgentStorage
-from agno.tools.fal_tools import FalTools
-from agno.tools.desi_vocal_tools import DesiVocalTools
+from agno.storage.agent.sqlite import SqliteAgentStorage
+from agno.tools.dalle import DalleTools
+from agno.tools.eleven_labs import ElevenLabsTools
+from agno.tools.fal import FalTools
+from agno.tools.giphy import GiphyTools
+from agno.tools.models_labs import ModelsLabTools
 
 image_agent_storage_file: str = "tmp/image_agent.db"
 
@@ -24,7 +23,7 @@ image_agent = Agent(
     name="DALL-E Image Agent",
     agent_id="image_agent",
     model=OpenAIChat(id="gpt-4o"),
-    tools=[Dalle()],
+    tools=[DalleTools(model="dall-e-3", size="1792x1024", quality="hd", style="vivid")],
     description="You are an AI agent that can generate images using DALL-E.",
     instructions=[
         "When the user asks you to create an image, use the `create_image` tool to create the image.",
@@ -34,14 +33,16 @@ image_agent = Agent(
     debug_mode=True,
     add_history_to_messages=True,
     add_datetime_to_instructions=True,
-    storage=SqlAgentStorage(table_name="image_agent", db_file=image_agent_storage_file),
+    storage=SqliteAgentStorage(
+        table_name="image_agent", db_file=image_agent_storage_file
+    ),
 )
 
 ml_gif_agent = Agent(
     name="ModelsLab GIF Agent",
     agent_id="ml_gif_agent",
     model=OpenAIChat(id="gpt-4o"),
-    tools=[ModelsLabs(wait_for_completion=True, file_type=FileType.GIF)],
+    tools=[ModelsLabTools(wait_for_completion=True, file_type=FileType.GIF)],
     description="You are an AI agent that can generate gifs using the ModelsLabs API.",
     instructions=[
         "When the user asks you to create an image, use the `generate_media` tool to create the image.",
@@ -51,14 +52,16 @@ ml_gif_agent = Agent(
     debug_mode=True,
     add_history_to_messages=True,
     add_datetime_to_instructions=True,
-    storage=SqlAgentStorage(table_name="ml_gif_agent", db_file=image_agent_storage_file),
+    storage=SqliteAgentStorage(
+        table_name="ml_gif_agent", db_file=image_agent_storage_file
+    ),
 )
 
 ml_video_agent = Agent(
     name="ModelsLab Video Agent",
     agent_id="ml_video_agent",
     model=OpenAIChat(id="gpt-4o"),
-    tools=[ModelsLabs(wait_for_completion=True, file_type=FileType.MP4)],
+    tools=[ModelsLabTools(wait_for_completion=True, file_type=FileType.MP4)],
     description="You are an AI agent that can generate videos using the ModelsLabs API.",
     instructions=[
         "When the user asks you to create a video, use the `generate_media` tool to create the video.",
@@ -68,7 +71,9 @@ ml_video_agent = Agent(
     debug_mode=True,
     add_history_to_messages=True,
     add_datetime_to_instructions=True,
-    storage=SqlAgentStorage(table_name="ml_video_agent", db_file=image_agent_storage_file),
+    storage=SqliteAgentStorage(
+        table_name="ml_video_agent", db_file=image_agent_storage_file
+    ),
 )
 
 fal_agent = Agent(
@@ -85,7 +90,9 @@ fal_agent = Agent(
     debug_mode=True,
     add_history_to_messages=True,
     add_datetime_to_instructions=True,
-    storage=SqlAgentStorage(table_name="fal_agent", db_file=image_agent_storage_file),
+    storage=SqliteAgentStorage(
+        table_name="fal_agent", db_file=image_agent_storage_file
+    ),
 )
 
 gif_agent = Agent(
@@ -102,7 +109,9 @@ gif_agent = Agent(
     debug_mode=True,
     add_history_to_messages=True,
     add_datetime_to_instructions=True,
-    storage=SqlAgentStorage(table_name="gif_agent", db_file=image_agent_storage_file),
+    storage=SqliteAgentStorage(
+        table_name="gif_agent", db_file=image_agent_storage_file
+    ),
 )
 
 audio_agent = Agent(
@@ -111,7 +120,9 @@ audio_agent = Agent(
     model=OpenAIChat(id="gpt-4o"),
     tools=[
         ElevenLabsTools(
-            voice_id="JBFqnCBsd6RMkjVDRZzb", model_id="eleven_multilingual_v2", target_directory="audio_generations"
+            voice_id="JBFqnCBsd6RMkjVDRZzb",
+            model_id="eleven_multilingual_v2",
+            target_directory="audio_generations",
         )
     ],
     description="You are an AI agent that can generate audio using the ElevenLabs API.",
@@ -126,7 +137,9 @@ audio_agent = Agent(
     debug_mode=True,
     add_history_to_messages=True,
     add_datetime_to_instructions=True,
-    storage=SqlAgentStorage(table_name="audio_agent", db_file=image_agent_storage_file),
+    storage=SqliteAgentStorage(
+        table_name="audio_agent", db_file=image_agent_storage_file
+    ),
 )
 
 image_to_image_agent = Agent(
@@ -135,7 +148,7 @@ image_to_image_agent = Agent(
     model=OpenAIChat(id="gpt-4o"),
     tools=[FalTools()],
     markdown=True,
-    debug=True,
+    debug_mode=True,
     show_tool_calls=True,
     instructions=[
         "You have to use the `image_to_image` tool to generate the image.",
@@ -143,30 +156,10 @@ image_to_image_agent = Agent(
         "You will be given a prompt and an image URL.",
         "Don't provide the URL of the image in the response. Only describe what image was generated.",
     ],
-    storage=SqlAgentStorage(table_name="image_to_image_agent", db_file=image_agent_storage_file),
+    storage=SqliteAgentStorage(
+        table_name="image_to_image_agent", db_file=image_agent_storage_file
+    ),
 )
-
-hindi_audio_agent = Agent(
-    name="Hindi Audio Generator Agent",
-    agent_id="hindi_audio_agent",
-    model=OpenAIChat(id="gpt-4o"),
-    tools=[DesiVocalTools()],
-    description="You are an AI agent that can generate audio using the DesiVocal API.",
-    instructions=[
-        "When the user asks you to generate audio, use the `text_to_speech` tool to generate the audio."
-        "Send the prompt in hindi language.",
-        "You'll generate the appropriate prompt to send to the tool to generate audio.",
-        "You don't need to find the appropriate voice first, I already specified the voice to user."
-        "Don't return file name or file url in your response or markdown just tell the audio was created successfully.",
-        "The audio should be short.",
-    ],
-    markdown=True,
-    debug_mode=True,
-    add_history_to_messages=True,
-    add_datetime_to_instructions=True,
-    storage=SqlAgentStorage(table_name="hindi_audio_agent", db_file=image_agent_storage_file),
-)
-
 
 app = Playground(
     agents=[
@@ -176,10 +169,9 @@ app = Playground(
         fal_agent,
         gif_agent,
         audio_agent,
-        hindi_audio_agent,
         image_to_image_agent,
     ]
 ).get_app(use_async=False)
 
 if __name__ == "__main__":
-    serve_playground_app("multimodal_agent:app", reload=True)
+    serve_playground_app("multimodal_agents:app", reload=True)

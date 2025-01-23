@@ -1,7 +1,7 @@
 from agno.agent import Agent
-from agno.tools.yfinance import YFinanceTools
-from agno.playground import Playground, serve_playground_app
 from agno.models.google import Gemini
+from agno.playground import Playground, serve_playground_app
+from agno.tools.yfinance import YFinanceTools
 
 finance_agent = Agent(
     name="Finance Agent",

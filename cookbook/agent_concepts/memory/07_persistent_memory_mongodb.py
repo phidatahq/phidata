@@ -8,16 +8,14 @@ Steps:
 
 import json
 
-from rich.console import Console
-from rich.panel import Panel
-from rich.json import JSON
-
 from agno.agent import Agent
 from agno.memory.agent import AgentMemory
 from agno.memory.db.mongodb import MongoMemoryDb
 from agno.models.openai import OpenAIChat
-from agno.storage.agent.mongodb import MongoAgentStorage
-
+from agno.storage.agent.mongodb import MongoDbAgentStorage
+from rich.console import Console
+from rich.json import JSON
+from rich.panel import Panel
 
 # MongoDB connection settings
 db_url = "mongodb://localhost:27017"
@@ -25,10 +23,14 @@ db_url = "mongodb://localhost:27017"
 agent = Agent(
     model=OpenAIChat(id="gpt-4o"),
     # Store agent sessions in MongoDB
-    storage=MongoAgentStorage(collection_name="agent_sessions", db_url=db_url, db_name="phi"),
+    storage=MongoDbAgentStorage(
+        collection_name="agent_sessions", db_url=db_url, db_name="agno"
+    ),
     # Store memories in MongoDB
     memory=AgentMemory(
-        db=MongoMemoryDb(collection_name="agent_sessions", db_url=db_url, db_name="phi"),
+        db=MongoMemoryDb(
+            collection_name="agent_sessions", db_url=db_url, db_name="agno"
+        ),
         create_user_memories=True,
         create_session_summary=True,
     ),
@@ -50,7 +52,15 @@ def print_chat_history(agent):
     # -*- Print history
     console.print(
         Panel(
-            JSON(json.dumps([m.model_dump(include={"role", "content"}) for m in agent.memory.messages]), indent=4),
+            JSON(
+                json.dumps(
+                    [
+                        m.model_dump(include={"role", "content"})
+                        for m in agent.memory.messages
+                    ]
+                ),
+                indent=4,
+            ),
             title=f"Chat History for session_id: {agent.session_id}",
             expand=True,
         )

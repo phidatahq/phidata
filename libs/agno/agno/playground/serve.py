@@ -41,7 +41,7 @@ def serve_playground_app(
     # Create a panel with the playground URL
     url = f"{agno_cli_settings.playground_url}?endpoint={encoded_endpoint}"
     panel = Panel(
-        f"[bold green]URL:[/bold green] [link={url}]{url}[/link]",
+        f"[bold green]Playground URL:[/bold green] [link={url}]{url}[/link]",
         title="Agent Playground",
         expand=False,
         border_style="cyan",

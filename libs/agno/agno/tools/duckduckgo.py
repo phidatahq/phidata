@@ -10,7 +10,7 @@ except ImportError:
     raise ImportError("`duckduckgo-search` not installed. Please install using `pip install duckduckgo-search`")
 
 
-class DuckDuckGo(Toolkit):
+class DuckDuckGoTools(Toolkit):
     """
     DuckDuckGo is a toolkit for searching DuckDuckGo easily.
     Args:

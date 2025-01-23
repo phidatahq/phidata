@@ -12,12 +12,12 @@ try:
 except ImportError:
     raise ImportError("`sqlalchemy` not installed. Please install it using `pip install sqlalchemy`")
 
-from agno.agent.session import AgentSession
 from agno.storage.agent.base import AgentStorage
+from agno.storage.agent.session import AgentSession
 from agno.utils.log import logger
 
 
-class PgAgentStorage(AgentStorage):
+class PostgresAgentStorage(AgentStorage):
     def __init__(
         self,
         table_name: str,
@@ -70,7 +70,7 @@ class PgAgentStorage(AgentStorage):
         self.Session: scoped_session = scoped_session(sessionmaker(bind=self.db_engine))
         # Database table for storage
         self.table: Table = self.get_table()
-        logger.debug(f"Created PgAgentStorage: '{self.schema}.{self.table_name}'")
+        logger.debug(f"Created PostgresAgentStorage: '{self.schema}.{self.table_name}'")
 
     def get_table_v1(self) -> Table:
         """
@@ -90,12 +90,12 @@ class PgAgentStorage(AgentStorage):
             Column("user_id", String),
             # Agent Memory
             Column("memory", postgresql.JSONB),
-            # Agent Metadata
+            # Agent Data
             Column("agent_data", postgresql.JSONB),
-            # User Metadata
-            Column("user_data", postgresql.JSONB),
-            # Session Metadata
+            # Session Data
             Column("session_data", postgresql.JSONB),
+            # Extra Data stored with this agent
+            Column("extra_data", postgresql.JSONB),
             # The Unix timestamp of when this session was created.
             Column("created_at", BigInteger, server_default=text("(extract(epoch from now()))::bigint")),
             # The Unix timestamp of when this session was last updated.
@@ -261,8 +261,8 @@ class PgAgentStorage(AgentStorage):
                     user_id=session.user_id,
                     memory=session.memory,
                     agent_data=session.agent_data,
-                    user_data=session.user_data,
                     session_data=session.session_data,
+                    extra_data=session.extra_data,
                 )
 
                 # Define the upsert if the session_id already exists
@@ -274,8 +274,8 @@ class PgAgentStorage(AgentStorage):
                         user_id=session.user_id,
                         memory=session.memory,
                         agent_data=session.agent_data,
-                        user_data=session.user_data,
                         session_data=session.session_data,
+                        extra_data=session.extra_data,
                         updated_at=int(time.time()),
                     ),  # The updated value for each column
                 )
@@ -334,13 +334,13 @@ class PgAgentStorage(AgentStorage):
 
     def __deepcopy__(self, memo):
         """
-        Create a deep copy of the PgAgentStorage instance, handling unpickleable attributes.
+        Create a deep copy of the PostgresAgentStorage instance, handling unpickleable attributes.
 
         Args:
             memo (dict): A dictionary of objects already copied during the current copying pass.
 
         Returns:
-            PgAgentStorage: A deep-copied instance of PgAgentStorage.
+            PostgresAgentStorage: A deep-copied instance of PostgresAgentStorage.
         """
         from copy import deepcopy
 

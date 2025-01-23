@@ -6,7 +6,7 @@ from agno.tools import Toolkit
 from agno.utils.log import logger
 
 
-class HackerNews(Toolkit):
+class HackerNewsTools(Toolkit):
     def __init__(
         self,
         get_top_stories: bool = True,

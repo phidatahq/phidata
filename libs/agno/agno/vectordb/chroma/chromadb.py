@@ -6,7 +6,7 @@ try:
     from chromadb import PersistentClient as PersistentChromaDbClient
     from chromadb.api.client import ClientAPI
     from chromadb.api.models.Collection import Collection
-    from chromadb.api.types import GetResult, QueryResult
+    from chromadb.api.types import GetResult, IncludeEnum, QueryResult
 
 except ImportError:
     raise ImportError("The `chromadb` package is not installed. Please install it via `pip install chromadb`.")
@@ -94,7 +94,7 @@ class ChromaDb(VectorDb):
         if self.client:
             try:
                 collection: Collection = self.client.get_collection(name=self.collection)
-                collection_data: GetResult = collection.get(include=["documents"])
+                collection_data: GetResult = collection.get(include=[IncludeEnum.documents])
                 if collection_data.get("documents") != []:
                     return True
             except Exception as e:
@@ -110,7 +110,7 @@ class ChromaDb(VectorDb):
         if self.client:
             try:
                 collections: Collection = self.client.get_collection(name=self.collection)
-                for collection in collections:
+                for collection in collections:  # type: ignore
                     if name in collection:
                         return True
             except Exception as e:
@@ -209,9 +209,9 @@ class ChromaDb(VectorDb):
         distances = result.get("distances", [[]])[0]  # type: ignore
         uris = result.get("uris")
         data = result.get("data")
-        metadata["distances"] = distances
-        metadata["uris"] = uris
-        metadata["data"] = data
+        metadata["distances"] = distances  # type: ignore
+        metadata["uris"] = uris  # type: ignore
+        metadata["data"] = data  # type: ignore
 
         try:
             # Use zip to iterate over multiple lists simultaneously
@@ -221,7 +221,7 @@ class ChromaDb(VectorDb):
                         id=id_,
                         meta_data=metadata,
                         content=document,
-                        embedding=embeddings,
+                        embedding=embeddings,  # type: ignore
                     )
                 )
         except Exception as e:

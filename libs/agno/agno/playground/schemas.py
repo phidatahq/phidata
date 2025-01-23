@@ -35,19 +35,7 @@ class AgentRunRequest(BaseModel):
 
 class AgentRenameRequest(BaseModel):
     name: str
-    agent_id: str
-    session_id: str
-
-
-class AgentSessionDeleteRequest(BaseModel):
-    agent_id: str
-    session_id: str
-    user_id: Optional[str] = None
-
-
-class AgentSessionsRequest(BaseModel):
-    agent_id: str
-    user_id: Optional[str] = None
+    user_id: str
 
 
 class AgentSessionsResponse(BaseModel):
@@ -55,10 +43,6 @@ class AgentSessionsResponse(BaseModel):
     session_id: Optional[str] = None
     session_name: Optional[str] = None
     created_at: Optional[int] = None
-
-
-class WorkflowSessionsRequest(BaseModel):
-    user_id: Optional[str] = None
 
 
 class WorkflowRenameRequest(BaseModel):
@@ -69,3 +53,24 @@ class WorkflowRunRequest(BaseModel):
     input: Dict[str, Any]
     user_id: Optional[str] = None
     session_id: Optional[str] = None
+
+
+class WorkflowSessionResponse(BaseModel):
+    title: Optional[str] = None
+    session_id: Optional[str] = None
+    session_name: Optional[str] = None
+    created_at: Optional[int] = None
+
+
+class WorkflowGetResponse(BaseModel):
+    workflow_id: str
+    name: Optional[str] = None
+    description: Optional[str] = None
+    parameters: Optional[Dict[str, Any]] = None
+    storage: Optional[str] = None
+
+
+class WorkflowsGetResponse(BaseModel):
+    workflow_id: str
+    name: str
+    description: Optional[str] = None

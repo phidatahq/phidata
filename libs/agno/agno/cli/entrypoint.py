@@ -28,6 +28,27 @@ Usage:
 )
 
 
+@agno_cli.command(short_help="Setup your account")
+def setup(
+    print_debug_log: bool = typer.Option(
+        False,
+        "-d",
+        "--debug",
+        help="Print debug logs.",
+    ),
+):
+    """
+    \b
+    Setup Agno on your machine
+    """
+    if print_debug_log:
+        set_log_level_to_debug()
+
+    from agno.cli.operator import initialize_agno
+
+    initialize_agno(login=True)
+
+
 @agno_cli.command(short_help="Initialize Agno, use -r to reset")
 def init(
     reset: bool = typer.Option(False, "--reset", "-r", help="Reset Agno", show_default=True),
@@ -75,27 +96,6 @@ def reset(
     from agno.cli.operator import initialize_agno
 
     initialize_agno(reset=True)
-
-
-@agno_cli.command(short_help="Authenticate with agno.com")
-def auth(
-    print_debug_log: bool = typer.Option(
-        False,
-        "-d",
-        "--debug",
-        help="Print debug logs.",
-    ),
-):
-    """
-    \b
-    Authenticate your account with agno.com
-    """
-    if print_debug_log:
-        set_log_level_to_debug()
-
-    from agno.cli.operator import authenticate_user
-
-    authenticate_user()
 
 
 @agno_cli.command(short_help="Ping Agno servers")

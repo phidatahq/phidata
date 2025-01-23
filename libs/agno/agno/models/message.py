@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Optional, Sequence, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from agno.media import Audio, AudioOutput, Image, Video
 from agno.utils.log import logger
 
 
@@ -35,9 +36,12 @@ class Message(BaseModel):
     tool_calls: Optional[List[Dict[str, Any]]] = None
 
     # Additional modalities
-    audio: Optional[Any] = None
-    images: Optional[Sequence[Any]] = None
-    videos: Optional[Sequence[Any]] = None
+    audio: Optional[Sequence[Audio]] = None
+    images: Optional[Sequence[Image]] = None
+    videos: Optional[Sequence[Video]] = None
+
+    # Output from the models
+    audio_output: Optional[AudioOutput] = None
 
     # --- Data not sent to the Model API ---
     # The name of the tool called
@@ -74,6 +78,12 @@ class Message(BaseModel):
             exclude_none=True,
             include={"role", "content", "audio", "name", "tool_call_id", "tool_calls"},
         )
+
+        # Add a message's output as now input (for multi-turn audio)
+        if self.audio_output is not None:
+            _dict["content"] = None
+            _dict["audio"] = {"id": self.audio_output.id}
+
         # Manually add the content field even if it is None
         if self.content is None:
             _dict["content"] = None
@@ -113,14 +123,7 @@ class Message(BaseModel):
         if self.videos:
             _logger(f"Videos added: {len(self.videos)}")
         if self.audio:
-            if isinstance(self.audio, dict):
-                _logger(f"Audio files added: {len(self.audio)}")
-                if "id" in self.audio:
-                    _logger(f"Audio ID: {self.audio['id']}")
-                elif "data" in self.audio:
-                    _logger("Message contains raw audio data")
-            else:
-                _logger(f"Audio file added: {self.audio}")
+            _logger(f"Audio Files added: {len(self.audio)}")
 
     def content_is_valid(self) -> bool:
         """Check if the message content is valid."""

@@ -18,10 +18,10 @@ export XAI_API_KEY=***
 ### 3. Install libraries
 
 ```shell
-pip install -U openai duckduckgo-search duckdb yfinance phidata
+pip install -U openai duckduckgo-search duckdb yfinance agno
 ```
 
-### 4. Run Agent without Tools
+### 4. Run basic Agent
 
 - Streaming on
 
@@ -37,32 +37,8 @@ python cookbook/models/xai/basic.py
 
 ### 5. Run with Tools
 
-- Yahoo Finance with streaming on
+- DuckDuckGo Search
 
 ```shell
-python cookbook/models/xai/agent_stream.py
-```
-
-- Yahoo Finance without streaming
-
-```shell
-python cookbook/models/xai/agent.py
-```
-
-- Finance Agent
-
-```shell
-python cookbook/models/xai/finance_agent.py
-```
-
-- Data Analyst
-
-```shell
-python cookbook/models/xai/data_analyst.py
-```
-
-- Web Search
-
-```shell
-python cookbook/models/xai/web_search.py
+python cookbook/models/xai/tool_use.py
 ```

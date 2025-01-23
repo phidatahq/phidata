@@ -1,7 +1,7 @@
 from agno.agent import Agent, RunResponse  # noqa
 from agno.models.nvidia import Nvidia
 
-agent = Agent(model=Nvidia(id="nvidia/llama-3.1-nemotron-70b-instruct"), markdown=True)
+agent = Agent(model=Nvidia(id="meta/llama-3.3-70b-instruct"), markdown=True)
 
 # Get the response in a variable
 # run_response: Iterator[RunResponse] = agent.run("Share a 2 sentence horror story", stream=True)

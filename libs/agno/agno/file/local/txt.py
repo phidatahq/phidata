@@ -7,7 +7,7 @@ from agno.utils.common import dataclass_to_dict
 
 @dataclass
 class TextFile(File):
-    path: str = ""
+    path: str = ""  # type: ignore
     type: str = "TEXT"
 
     def get_metadata(self) -> dict[str, Any]:

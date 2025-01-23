@@ -4,7 +4,7 @@ from os import getenv
 from typing import Any, Dict, Literal, Optional, TypedDict
 
 from agno.agent import Agent
-from agno.run.media import Video
+from agno.media import VideoArtifact
 from agno.tools import Toolkit
 from agno.utils.log import logger
 
@@ -100,7 +100,7 @@ class LumaLabTools(Toolkit):
                 if generation.state == "completed" and generation.assets:
                     video_url = generation.assets.video
                     if video_url:
-                        agent.add_video(Video(id=video_id, url=video_url, eta="completed"))
+                        agent.add_video(VideoArtifact(id=video_id, url=video_url, eta="completed"))
                         return f"Video generated successfully: {video_url}"
                 elif generation.state == "failed":
                     return f"Generation failed: {generation.failure_reason}"
@@ -152,7 +152,7 @@ class LumaLabTools(Toolkit):
                 if generation.state == "completed" and generation.assets:
                     video_url = generation.assets.video
                     if video_url:
-                        agent.add_video(Video(id=video_id, url=video_url, state="completed"))
+                        agent.add_video(VideoArtifact(id=video_id, url=video_url, state="completed"))
                         return f"Video generated successfully: {video_url}"
                 elif generation.state == "failed":
                     return f"Generation failed: {generation.failure_reason}"

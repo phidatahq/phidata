@@ -2,13 +2,17 @@
 
 import asyncio
 from textwrap import dedent
+
 from agno.agent import Agent
 from agno.models.openai import OpenAIChat
 from agno.tools.duckdb import DuckDbTools
 
-duckdb_tools = DuckDbTools(create_tables=False, export_tables=False, summarize_tables=False)
+duckdb_tools = DuckDbTools(
+    create_tables=False, export_tables=False, summarize_tables=False
+)
 duckdb_tools.create_table_from_path(
-    path="https://phidata-public.s3.amazonaws.com/demo_data/IMDB-Movie-Data.csv", table="movies"
+    path="https://agno-public.s3.amazonaws.com/demo_data/IMDB-Movie-Data.csv",
+    table="movies",
 )
 
 agent = Agent(
@@ -21,4 +25,6 @@ agent = Agent(
     - movies: contains information about movies from IMDB.
     """),
 )
-asyncio.run(agent.aprint_response("What is the average rating of movies?", stream=False))
+asyncio.run(
+    agent.aprint_response("What is the average rating of movies?", stream=False)
+)

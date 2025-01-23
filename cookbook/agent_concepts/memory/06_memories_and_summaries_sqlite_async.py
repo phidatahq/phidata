@@ -5,17 +5,16 @@ Steps:
 2. Run: `python cookbook/agents/memories_and_summaries_sqlite.py` to run the agent
 """
 
-import json
 import asyncio
-
-from rich.console import Console
-from rich.panel import Panel
-from rich.json import JSON
+import json
 
 from agno.agent import Agent, AgentMemory
-from agno.models.openai import OpenAIChat
 from agno.memory.db.sqlite import SqliteMemoryDb
-from agno.storage.agent.sqlite import SqlAgentStorage
+from agno.models.openai import OpenAIChat
+from agno.storage.agent.sqlite import SqliteAgentStorage
+from rich.console import Console
+from rich.json import JSON
+from rich.panel import Panel
 
 agent_memory_file: str = "tmp/agent_memory.db"
 agent_storage_file: str = "tmp/agent_storage.db"
@@ -40,7 +39,7 @@ agent = Agent(
         update_session_summary_after_run=True,
     ),
     # Store agent sessions in a database
-    storage=SqlAgentStorage(table_name="agent_sessions", db_file=agent_storage_file),
+    storage=SqliteAgentStorage(table_name="agent_sessions", db_file=agent_storage_file),
     description="You are a helpful assistant that always responds in a polite, upbeat and positive manner.",
     # Show debug logs to see the memory being created
     # debug_mode=True,
@@ -58,17 +57,32 @@ def print_agent_memory(agent):
     console.print(
         render_panel(
             "Chat History",
-            json.dumps([m.model_dump(include={"role", "content"}) for m in agent.memory.messages], indent=4),
+            json.dumps(
+                [
+                    m.model_dump(include={"role", "content"})
+                    for m in agent.memory.messages
+                ],
+                indent=4,
+            ),
         )
     )
     # -*- Print memories
     console.print(
         render_panel(
-            "Memories", json.dumps([m.model_dump(include={"memory", "input"}) for m in agent.memory.memories], indent=4)
+            "Memories",
+            json.dumps(
+                [
+                    m.model_dump(include={"memory", "input"})
+                    for m in agent.memory.memories
+                ],
+                indent=4,
+            ),
         )
     )
     # -*- Print summary
-    console.print(render_panel("Summary", json.dumps(agent.memory.summary.model_dump(), indent=4)))
+    console.print(
+        render_panel("Summary", json.dumps(agent.memory.summary.model_dump(), indent=4))
+    )
 
 
 async def main():
@@ -88,7 +102,9 @@ async def main():
     print_agent_memory(agent)
 
     # Ask about the conversation
-    await agent.aprint_response("What have we been talking about, do you know my name?", stream=True)
+    await agent.aprint_response(
+        "What have we been talking about, do you know my name?", stream=True
+    )
 
 
 # Run the async main function

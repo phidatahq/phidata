@@ -5,8 +5,8 @@ from typing import Optional
 from uuid import uuid4
 
 from agno.agent import Agent
+from agno.media import ImageArtifact, VideoArtifact
 from agno.models.response import FileType
-from agno.run.media import Image, Video
 from agno.tools import Toolkit
 from agno.utils.log import logger
 
@@ -16,7 +16,7 @@ except ImportError:
     raise ImportError("`requests` not installed. Please install using `pip install requests`")
 
 
-class ModelsLabs(Toolkit):
+class ModelsLabTools(Toolkit):
     def __init__(
         self,
         api_key: Optional[str] = None,
@@ -93,9 +93,9 @@ class ModelsLabs(Toolkit):
             logger.debug(f"Result: {result}")
             for media_url in url_links:
                 if self.file_type == FileType.MP4:
-                    agent.add_video(Video(id=str(video_id), url=media_url, eta=str(eta)))
+                    agent.add_video(VideoArtifact(id=str(video_id), url=media_url, eta=str(eta)))
                 elif self.file_type == FileType.GIF:
-                    agent.add_image(Image(id=str(video_id), url=media_url))
+                    agent.add_image(ImageArtifact(id=str(video_id), url=media_url))
 
             if self.wait_for_completion and isinstance(eta, int):
                 video_ready = False

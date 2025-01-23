@@ -18,10 +18,10 @@ export DEEPSEEK_API_KEY=***
 ### 3. Install libraries
 
 ```shell
-pip install -U openai duckduckgo-search duckdb yfinance phidata
+pip install -U openai duckduckgo-search duckdb yfinance agno
 ```
 
-### 4. Run Agent without Tools
+### 4. Run basic Agent
 
 - Streaming on
 
@@ -37,34 +37,10 @@ python cookbook/models/deepseek/basic.py
 
 ### 5. Run Agent with Tools
 
-- DuckDuckGo Search with streaming on
+- DuckDuckGo Search
 
 ```shell
-python cookbook/models/deepseek/agent_stream.py
-```
-
-- DuckDuckGo Search without streaming
-
-```shell
-python cookbook/models/deepseek/agent.py
-```
-
-- Finance Agent
-
-```shell
-python cookbook/models/deepseek/finance_agent.py
-```
-
-- Data Analyst
-
-```shell
-python cookbook/models/deepseek/data_analyst.py
-```
-
-- Web Search
-
-```shell
-python cookbook/models/deepseek/web_search.py
+python cookbook/models/deepseek/tool_use.py
 ```
 
 ### 6. Run Agent that returns structured output

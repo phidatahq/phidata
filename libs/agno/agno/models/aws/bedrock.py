@@ -1,9 +1,9 @@
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 from agno.aws.api_client import AwsApiClient  # type: ignore
-from agno.models.base import Model
+from agno.models.base import Model, StreamData
 from agno.models.message import Message
 from agno.models.response import ModelResponse
 from agno.utils.log import logger
@@ -20,18 +20,6 @@ except ImportError:
 
 
 @dataclass
-class StreamData:
-    response_content: str = ""
-    response_tool_calls: Optional[List[Any]] = None
-    completion_tokens: int = 0
-    response_prompt_tokens: int = 0
-    response_completion_tokens: int = 0
-    response_total_tokens: int = 0
-    time_to_first_token: Optional[float] = None
-    response_timer: Timer = field(default_factory=Timer)
-
-
-@dataclass
 class AwsBedrock(Model):
     """
     AWS Bedrock model.
@@ -40,7 +28,6 @@ class AwsBedrock(Model):
         aws_region (Optional[str]): The AWS region to use.
         aws_profile (Optional[str]): The AWS profile to use.
         aws_client (Optional[AwsApiClient]): The AWS client to use.
-        request_params (Optional[Dict[str, Any]]): The request parameters to use.
         _bedrock_client (Optional[Any]): The Bedrock client to use.
         _bedrock_runtime_client (Optional[Any]): The Bedrock runtime client to use.
     """
@@ -48,8 +35,6 @@ class AwsBedrock(Model):
     aws_region: Optional[str] = None
     aws_profile: Optional[str] = None
     aws_client: Optional[AwsApiClient] = None
-    # -*- Request parameters
-    request_params: Optional[Dict[str, Any]] = None
 
     _bedrock_client: Optional[Any] = None
     _bedrock_runtime_client: Optional[Any] = None
@@ -100,10 +85,6 @@ class AwsBedrock(Model):
         self._bedrock_runtime_client = boto3_session.client(service_name="bedrock-runtime")
         return self._bedrock_runtime_client
 
-    @property
-    def api_kwargs(self) -> Dict[str, Any]:
-        return {}
-
     def invoke(self, body: Dict[str, Any]) -> Dict[str, Any]:
         """
         Invoke the Bedrock API.
@@ -140,19 +121,6 @@ class AwsBedrock(Model):
 
     def parse_response_message(self, response: Dict[str, Any]) -> Dict[str, Any]:
         raise NotImplementedError("Please use a subclass of AwsBedrock")
-
-    def parse_response_delta(self, response: Dict[str, Any]) -> Optional[str]:
-        raise NotImplementedError("Please use a subclass of AwsBedrock")
-
-    def _log_messages(self, messages: List[Message]):
-        """
-        Log the messages to the console.
-
-        Args:
-            messages (List[Message]): The messages to log.
-        """
-        for m in messages:
-            m.log()
 
     def _create_tool_calls(
         self, stop_reason: str, parsed_response: Dict[str, Any]
@@ -198,7 +166,7 @@ class AwsBedrock(Model):
             Optional[ModelResponse]: The model response after handling tool calls.
         """
         # -*- Parse and run function call
-        if assistant_message.tool_calls is not None and self.run_tools:
+        if assistant_message.tool_calls is not None:
             # Remove the tool call from the response content
             model_response.content = ""
             tool_role: str = "tool"
@@ -206,7 +174,7 @@ class AwsBedrock(Model):
             function_call_results: List[Message] = []
             for tool_call in assistant_message.tool_calls:
                 _tool_call_id = tool_call.get("id")
-                _function_call = get_function_call_for_tool_call(tool_call, self.functions)
+                _function_call = get_function_call_for_tool_call(tool_call, self._functions)
                 if _function_call is None:
                     messages.append(
                         Message(
@@ -348,24 +316,6 @@ class AwsBedrock(Model):
         logger.debug("---------- AWS Response End ----------")
         return model_response
 
-    def _create_stream_assistant_message(
-        self, assistant_message_content: str, tool_calls: List[Dict[str, Any]]
-    ) -> Message:
-        """
-        Create an assistant message.
-
-        Args:
-            assistant_message_content (str): The content of the assistant message.
-            tool_calls (List[Dict[str, Any]]): The tool calls to include in the assistant message.
-
-        Returns:
-            Message: The assistant message.
-        """
-        assistant_message = Message(role="assistant")
-        assistant_message.content = assistant_message_content
-        assistant_message.tool_calls = tool_calls
-        return assistant_message
-
     def _handle_stream_tool_calls(self, assistant_message: Message, messages: List[Message], tool_ids: List[str]):
         """
         Handle tool calls in the assistant message.
@@ -380,7 +330,7 @@ class AwsBedrock(Model):
         function_call_results: List[Message] = []
         for tool_call in assistant_message.tool_calls or []:
             _tool_call_id = tool_call.get("id")
-            _function_call = get_function_call_for_tool_call(tool_call, self.functions)
+            _function_call = get_function_call_for_tool_call(tool_call, self._functions)
             if _function_call is None:
                 messages.append(
                     Message(
@@ -553,7 +503,7 @@ class AwsBedrock(Model):
 
         # Create assistant message
         if stream_data.response_content != "":
-            assistant_message = self._create_stream_assistant_message(stream_data.response_content, tool_calls)
+            assistant_message = Message(role="assistant", content=stream_data.response_content, tool_calls=tool_calls)
 
         if stream_data.completion_tokens > 0:
             logger.debug(
@@ -571,8 +521,20 @@ class AwsBedrock(Model):
         assistant_message.log()
 
         # Handle tool calls if any
-        if tool_calls and self.run_tools:
+        if tool_calls:
             yield from self._handle_stream_tool_calls(assistant_message, messages, tool_ids)
             yield from self.response_stream(messages=messages)
 
         logger.debug("---------- Bedrock Response End ----------")
+
+    async def ainvoke(self, *args, **kwargs) -> Any:
+        raise NotImplementedError(f"Async not supported on {self.name}.")
+
+    async def ainvoke_stream(self, *args, **kwargs) -> Any:
+        raise NotImplementedError(f"Async not supported on {self.name}.")
+
+    async def aresponse(self, messages: List[Message]) -> ModelResponse:
+        raise NotImplementedError(f"Async not supported on {self.name}.")
+
+    async def aresponse_stream(self, messages: List[Message]) -> ModelResponse:
+        raise NotImplementedError(f"Async not supported on {self.name}.")

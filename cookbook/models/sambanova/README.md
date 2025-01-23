@@ -18,10 +18,10 @@ export SAMBANOVA_API_KEY=***
 ### 3. Install libraries
 
 ```shell
-pip install -U openai phidata
+pip install -U openai agno
 ```
 
-### 4. Run Agent without Tools
+### 4. Run basic Agent
 
 - Streaming on
 
@@ -36,7 +36,7 @@ python cookbook/models/sambanova/basic.py
 ```
 ## Disclaimer:
 
-Sambanova does not support all OpenAI features. The following features are not yet supported and will be ignored:
+Sambanova does not support all OpenAIChat features. The following features are not yet supported and will be ignored:
 
 - logprobs
 - top_logprobs

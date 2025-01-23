@@ -2,9 +2,8 @@ from pathlib import Path
 from typing import Iterator, List, Union
 
 from agno.document import Document
-from agno.document.reader.pdf_reader import PDFImageReader, PDFReader, PDFUrlImageReader, PDFUrlReader
+from agno.document.reader.pdf_reader import PDFImageReader, PDFReader
 from agno.knowledge.agent import AgentKnowledge
-from agno.utils.log import logger
 
 
 class PDFKnowledgeBase(AgentKnowledge):
@@ -27,23 +26,3 @@ class PDFKnowledgeBase(AgentKnowledge):
                 yield self.reader.read(pdf=_pdf)
         elif _pdf_path.exists() and _pdf_path.is_file() and _pdf_path.suffix == ".pdf":
             yield self.reader.read(pdf=_pdf_path)
-
-
-class PDFUrlKnowledgeBase(AgentKnowledge):
-    urls: List[str] = []
-    reader: Union[PDFUrlReader, PDFUrlImageReader] = PDFUrlReader()
-
-    @property
-    def document_lists(self) -> Iterator[List[Document]]:
-        """Iterate over PDF urls and yield lists of documents.
-        Each object yielded by the iterator is a list of documents.
-
-        Returns:
-            Iterator[List[Document]]: Iterator yielding list of documents
-        """
-
-        for url in self.urls:
-            if url.endswith(".pdf"):
-                yield self.reader.read(url=url)
-            else:
-                logger.error(f"Unsupported URL: {url}")

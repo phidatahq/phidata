@@ -7,19 +7,19 @@ Steps:
 
 import json
 
-from rich.console import Console
-from rich.panel import Panel
-from rich.json import JSON
-
 from agno.agent import Agent
 from agno.models.openai import OpenAIChat
-from agno.storage.agent.sqlite import SqlAgentStorage
-
+from agno.storage.agent.sqlite import SqliteAgentStorage
+from rich.console import Console
+from rich.json import JSON
+from rich.panel import Panel
 
 agent = Agent(
     model=OpenAIChat(id="gpt-4o"),
     # Store agent sessions in a database
-    storage=SqlAgentStorage(table_name="agent_sessions", db_file="tmp/agent_storage.db"),
+    storage=SqliteAgentStorage(
+        table_name="agent_sessions", db_file="tmp/agent_storage.db"
+    ),
     # Set add_history_to_messages=true to add the previous chat history to the messages sent to the Model.
     add_history_to_messages=True,
     # Number of historical responses to add to the messages.
@@ -38,7 +38,15 @@ def print_chat_history(agent):
     # -*- Print history
     console.print(
         Panel(
-            JSON(json.dumps([m.model_dump(include={"role", "content"}) for m in agent.memory.messages]), indent=4),
+            JSON(
+                json.dumps(
+                    [
+                        m.model_dump(include={"role", "content"})
+                        for m in agent.memory.messages
+                    ]
+                ),
+                indent=4,
+            ),
             title=f"Chat History for session_id: {agent.session_id}",
             expand=True,
         )

@@ -14,7 +14,7 @@ to deploy a PostgreSQL database.
 
 from agno.agent import Agent
 from agno.embedder.ollama import OllamaEmbedder
-from agno.knowledge.pdf import PDFUrlKnowledgeBase
+from agno.knowledge.pdf_url import PDFUrlKnowledgeBase
 from agno.models.ollama import OllamaTools
 from agno.vectordb.pgvector import PgVector
 
@@ -25,7 +25,7 @@ knowledge_base = PDFUrlKnowledgeBase(
     vector_db=PgVector(
         table_name="recipes",
         db_url=db_url,
-        embedder=OllamaEmbedder(model="nomic-embed-text", dimensions=768),
+        embedder=OllamaEmbedder(id="nomic-embed-text", dimensions=768),
     ),
 )
 knowledge_base.load(recreate=False)  # Comment out after first run
@@ -33,7 +33,6 @@ knowledge_base.load(recreate=False)  # Comment out after first run
 agent = Agent(
     model=OllamaTools(id="llama3.1:8b"),
     knowledge=knowledge_base,
-    use_tools=True,
     show_tool_calls=True,
 )
 agent.print_response("How to make Thai curry?", markdown=True)

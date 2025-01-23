@@ -192,10 +192,10 @@ class PerfEval:
                 logger.warning(f"Failed to save result to file: {e}")
 
         # Show results
-        if self.print_summary or self.print_results:
-            self.result.print_summary(console)
         if self.print_results:
             self.result.print_results(console)
+        if self.print_summary or self.print_results:
+            self.result.print_summary(console)
 
         logger.debug(f"*********** Evaluation End: {self.eval_id} ***********")
         return self.result

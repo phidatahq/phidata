@@ -1,7 +1,7 @@
 """
-1. Install dependencies using: `pip install agno opencv-python google-generativeai sqlalchemy pydantic`
+1. Install dependencies using: `pip install opencv-python google-generativeai sqlalchemy`
 2. Install ffmpeg `brew install ffmpeg`
-2. Run the script using: `python cookbook/agents/47_video_to_shorts.py`
+2. Run the script using: `python cookbook/agent_concepts/video_to_shorts.py`
 """
 
 import subprocess
@@ -14,8 +14,8 @@ from agno.models.google import Gemini
 from agno.utils.log import logger
 from google.generativeai import get_file, upload_file
 
-video_path = "sample.mp4"
-output_dir = Path("output/sample")
+video_path = Path(__file__).parent.joinpath("sample.mp4")
+output_dir = Path("tmp/shorts")
 
 agent = Agent(
     name="Video2Shorts",

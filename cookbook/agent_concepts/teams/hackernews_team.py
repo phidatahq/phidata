@@ -54,6 +54,7 @@ hn_team = Agent(
     response_model=Article,
     show_tool_calls=True,
     markdown=True,
+    debug_mode=True
 )
 hn_team.print_response(
     "Write an article about the top 2 stories on hackernews", stream=True

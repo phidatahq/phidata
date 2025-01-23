@@ -10,8 +10,8 @@ from rich.prompt import Prompt
 # LanceDB Vector DB
 vector_db = LanceDb(
     table_name="recipes",
-    uri="/tmp/lancedb",
-    search_type=SearchType.keyword,
+    uri="tmp/lancedb",
+    search_type=SearchType.hybrid,
 )
 
 # Knowledge Base
@@ -20,26 +20,15 @@ knowledge_base = PDFUrlKnowledgeBase(
     vector_db=vector_db,
 )
 
-# Comment out after first run
-knowledge_base.load(recreate=True)
-
 
 def lancedb_agent(user: str = "user"):
-    run_id: Optional[str] = None
-
     agent = Agent(
-        run_id=run_id,
         user_id=user,
         knowledge=knowledge_base,
+        search_knowledge=True,
         show_tool_calls=True,
         debug_mode=True,
     )
-
-    if run_id is None:
-        run_id = agent.run_id
-        print(f"Started Run: {run_id}\n")
-    else:
-        print(f"Continuing Run: {run_id}\n")
 
     while True:
         message = Prompt.ask(f"[bold] :sunglasses: {user} [/bold]")
@@ -49,4 +38,7 @@ def lancedb_agent(user: str = "user"):
 
 
 if __name__ == "__main__":
+    # Comment out after first run
+    knowledge_base.load(recreate=False)
+
     typer.run(lancedb_agent)

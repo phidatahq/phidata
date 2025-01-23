@@ -39,6 +39,7 @@ from phi.memory.agent import AgentMemory, MemoryRetrieval, Memory, AgentRun, Ses
 from phi.prompt.template import PromptTemplate
 from phi.storage.agent.base import AgentStorage
 from phi.tools import Tool, Toolkit, Function
+from phi.utils.json_io import CustomJSONEncoder
 from phi.utils.log import logger, set_log_level_to_debug, set_log_level_to_info
 from phi.utils.message import get_text_from_message
 from phi.utils.merge_dict import merge_dictionaries

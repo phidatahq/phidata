@@ -1,6 +1,6 @@
 import json
 import os
-from typing import Optional, Any, List, Dict
+from typing import Any, Dict, List, Optional
 
 from agno.tools.toolkit import Toolkit
 from agno.utils.log import logger
@@ -78,7 +78,7 @@ class SlackTools(Toolkit):
         """
         try:
             response = self.client.conversations_history(channel=channel, limit=limit)
-            messages: List[Dict[str, Any]] = [
+            messages: List[Dict[str, Any]] = [  # type: ignore
                 {
                     "text": msg.get("text", ""),
                     "user": "webhook" if msg.get("subtype") == "bot_message" else msg.get("user", "unknown"),

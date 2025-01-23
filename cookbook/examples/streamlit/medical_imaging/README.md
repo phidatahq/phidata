@@ -1,6 +1,6 @@
 # Medical Imaging Diagnosis Agent
 
-Medical Imaging Diagnosis Agent is a medical imaging analysis agent that analyzes medical images and provides detailed findings by utilizing models and external tools: DuckDuckGo
+Medical Imaging Diagnosis Agent is a medical imaging analysis agent that analyzes medical images and provides detailed findings by utilizing models and external tools.
 
 ### 1. Create a virtual environment
 

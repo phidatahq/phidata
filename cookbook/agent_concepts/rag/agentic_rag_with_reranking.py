@@ -18,7 +18,7 @@ knowledge_base = PDFUrlKnowledgeBase(
         table_name="recipes",
         uri="tmp/lancedb",
         search_type=SearchType.vector,
-        embedder=OpenAIEmbedder(model="text-embedding-3-small"),
+        embedder=OpenAIEmbedder(id="text-embedding-3-small"),
         reranker=CohereReranker(model="rerank-multilingual-v3.0"),  # Add a reranker
     ),
 )

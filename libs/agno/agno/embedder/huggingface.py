@@ -17,7 +17,7 @@ except ImportError:
 class HuggingfaceCustomEmbedder(Embedder):
     """Huggingface Custom Embedder"""
 
-    model: str = "jinaai/jina-embeddings-v2-base-code"
+    id: str = "jinaai/jina-embeddings-v2-base-code"
     api_key: Optional[str] = getenv("HUGGINGFACE_API_KEY")
     client_params: Optional[Dict[str, Any]] = None
     huggingface_client: Optional[InferenceClient] = None
@@ -36,7 +36,7 @@ class HuggingfaceCustomEmbedder(Embedder):
     def _response(self, text: str):
         _request_params: SentenceSimilarityInput = {
             "json": {"inputs": text},
-            "model": self.model,
+            "model": self.id,
         }
         return self.client.post(**_request_params)
 

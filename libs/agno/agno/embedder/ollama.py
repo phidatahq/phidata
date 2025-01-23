@@ -12,7 +12,7 @@ except (ModuleNotFoundError, ImportError):
 
 @dataclass
 class OllamaEmbedder(Embedder):
-    model: str = "openhermes"
+    id: str = "openhermes"
     dimensions: int = 4096
     host: Optional[str] = None
     timeout: Optional[Any] = None
@@ -39,7 +39,7 @@ class OllamaEmbedder(Embedder):
         if self.options is not None:
             kwargs["options"] = self.options
 
-        return self.client.embeddings(prompt=text, model=self.model, **kwargs)  # type: ignore
+        return self.client.embeddings(prompt=text, model=self.id, **kwargs)  # type: ignore
 
     def get_embedding(self, text: str) -> List[float]:
         try:

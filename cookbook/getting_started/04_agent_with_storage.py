@@ -32,7 +32,7 @@ agent_knowledge = PDFUrlKnowledgeBase(
         uri="tmp/lancedb",
         table_name="recipe_knowledge",
         search_type=SearchType.hybrid,
-        embedder=OpenAIEmbedder(model="text-embedding-3-small"),
+        embedder=OpenAIEmbedder(id="text-embedding-3-small"),
     ),
 )
 # Comment out after the knowledge base is loaded

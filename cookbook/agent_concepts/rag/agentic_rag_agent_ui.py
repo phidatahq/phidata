@@ -21,7 +21,7 @@ knowledge_base = PDFUrlKnowledgeBase(
         table_name="recipes",
         db_url=db_url,
         search_type=SearchType.hybrid,
-        embedder=OpenAIEmbedder(model="text-embedding-3-small"),
+        embedder=OpenAIEmbedder(id="text-embedding-3-small"),
     ),
 )
 

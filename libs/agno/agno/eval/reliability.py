@@ -7,7 +7,6 @@ from uuid import uuid4
 if TYPE_CHECKING:
     from rich.console import Console
 
-from agno.agent.agent import Agent
 from agno.run.response import RunResponse
 from agno.utils.log import logger, set_log_level_to_debug, set_log_level_to_info
 

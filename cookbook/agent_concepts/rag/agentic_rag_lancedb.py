@@ -17,7 +17,7 @@ knowledge_base = PDFUrlKnowledgeBase(
         table_name="recipes",
         uri="tmp/lancedb",
         search_type=SearchType.vector,
-        embedder=OpenAIEmbedder(model="text-embedding-3-small"),
+        embedder=OpenAIEmbedder(id="text-embedding-3-small"),
     ),
 )
 # Load the knowledge base: Comment after first run as the knowledge base is already loaded

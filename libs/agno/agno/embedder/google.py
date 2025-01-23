@@ -16,7 +16,7 @@ except ImportError:
 
 @dataclass
 class GeminiEmbedder(Embedder):
-    model: str = "models/text-embedding-004"
+    id: str = "models/text-embedding-004"
     task_type: str = "RETRIEVAL_QUERY"
     title: Optional[str] = None
     dimensions: Optional[int] = 768
@@ -46,7 +46,7 @@ class GeminiEmbedder(Embedder):
     def _response(self, text: str) -> Union[EmbeddingDict, BatchEmbeddingDict]:
         _request_params: Dict[str, Any] = {
             "content": text,
-            "model": self.model,
+            "model": self.id,
             "output_dimensionality": self.dimensions,
             "task_type": self.task_type,
             "title": self.title,

@@ -14,7 +14,7 @@ db_url = "/tmp/lancedb"
 model = Ollama(id="llama3.1:8b")
 
 # Create Ollama embedder
-embedder = OllamaEmbedder(model="nomic-embed-text", dimensions=768)
+embedder = OllamaEmbedder(id="nomic-embed-text", dimensions=768)
 
 # Create the vector database
 vector_db = LanceDb(

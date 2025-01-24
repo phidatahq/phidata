@@ -3006,7 +3006,6 @@ class Agent:
         }
 
         if self.monitoring:
-
             run_data.update(
                 {
                     "run_input": self.run_input,

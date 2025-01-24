@@ -191,7 +191,7 @@ class Ollama(Model):
         request_kwargs = self._prepare_request_kwargs_for_invoke()
 
         return self.get_client().chat(
-            model=self.id,
+            model=self.id.strip(),
             messages=[self.format_message(m) for m in messages],  # type: ignore
             **request_kwargs,
         )  # type: ignore
@@ -209,7 +209,7 @@ class Ollama(Model):
         request_kwargs = self._prepare_request_kwargs_for_invoke()
 
         return await self.get_async_client().chat(
-            model=self.id,
+            model=self.id.strip(),
             messages=[self.format_message(m) for m in messages],  # type: ignore
             **request_kwargs,
         )  # type: ignore
@@ -242,7 +242,7 @@ class Ollama(Model):
             Any: An asynchronous iterator of chunks from the API.
         """
         async_stream = await self.get_async_client().chat(
-            model=self.id,
+            model=self.id.strip(),
             messages=[self.format_message(m) for m in messages],  # type: ignore
             stream=True,
             **self.request_kwargs,

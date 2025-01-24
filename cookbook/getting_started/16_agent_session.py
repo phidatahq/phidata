@@ -22,6 +22,7 @@ from rich.console import Console
 from rich.json import JSON
 from rich.panel import Panel
 from rich.prompt import Prompt
+from rich import print
 
 console = Console()
 
@@ -85,6 +86,7 @@ def print_messages(agent):
 def main(user: str = "user"):
     agent = create_agent(user)
 
+    print("Chat with an OpenAI agent!")
     exit_on = ["exit", "quit", "bye"]
     while True:
         message = Prompt.ask(f"[bold] :sunglasses: {user} [/bold]")

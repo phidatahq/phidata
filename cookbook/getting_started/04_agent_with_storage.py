@@ -119,6 +119,8 @@ def recipe_agent(user: str = "user"):
         # num_history_responses=3,
         markdown=True,
     )
+
+    print("You are about to chat with an agent!")
     if session_id is None:
         session_id = agent.session_id
         print(f"Started Session: {session_id}\n")

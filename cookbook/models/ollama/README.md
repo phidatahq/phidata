@@ -80,3 +80,16 @@ python cookbook/models/ollama/image_agent.py
 ```shell
 python cookbook/models/ollama/set_client.py
 ```
+
+
+### 11. See demos of some well-known Ollama models
+
+```shell
+python cookbook/models/ollama/demo_deepseek_r1.py
+```
+```shell
+python cookbook/models/ollama/demo_qwen.py
+```
+```shell
+python cookbook/models/ollama/demo_phi4.py
+```

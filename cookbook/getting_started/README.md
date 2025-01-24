@@ -55,6 +55,7 @@ python cookbook/getting_started/03_agent_with_knowledge.py
 - Updates the Thai cooking expert with persistent storage
 - Shows how to save and retrieve agent state
 - Demonstrates session management and history
+- Runs a CLI application for an interactive chat experience
 
 Run this recipe using:
 ```bash

@@ -1,8 +1,8 @@
 from phi.agent import Agent
 from phi.tools.aws_ses import AWSSESTool
 
-receiver_email = "<sender_email>"
-sender_email = "<receiver_email>"
+receiver_email = "<receiver_email>"
+sender_email = "<sender_email>"
 sender_name = "<sender_name>"
 region_name = "<asw_region_name>"
 agent = Agent(

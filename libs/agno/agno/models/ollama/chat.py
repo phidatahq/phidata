@@ -268,6 +268,9 @@ class Ollama(Model):
             Optional[ModelResponse]: The model response.
         """
         if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
+            if model_response.tool_calls is None:
+                model_response.tool_calls = []
+
             model_response.content = assistant_message.get_content_string()
             model_response.content += "\n\n"
             function_calls_to_run = self._get_function_calls_to_run(assistant_message, messages)

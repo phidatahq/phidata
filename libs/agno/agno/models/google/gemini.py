@@ -9,7 +9,7 @@ from typing import Any, Callable, Dict, Iterator, List, Optional, Union
 from agno.media import Audio, Image, Video
 from agno.models.base import Metrics, Model
 from agno.models.message import Message
-from agno.models.response import ModelResponse
+from agno.models.response import ModelResponse, ModelResponseEvent
 from agno.tools import Function, Toolkit
 from agno.utils.log import logger
 
@@ -596,6 +596,8 @@ class Gemini(Model):
             Optional[ModelResponse]: The updated model response.
         """
         if assistant_message.tool_calls:
+            if model_response.tool_calls is None:
+                model_response.tool_calls = []
             model_response.content = assistant_message.get_content_string() or ""
             function_calls_to_run = self._get_function_calls_to_run(
                 assistant_message, messages, error_response_role="tool"
@@ -611,11 +613,15 @@ class Gemini(Model):
                     model_response.content += "\n\n"
 
             function_call_results: List[Message] = []
-            for _ in self.run_function_calls(
+            for function_call_response in self.run_function_calls(
                 function_calls=function_calls_to_run,
                 function_call_results=function_call_results,
             ):
-                pass
+                if (
+                    function_call_response.event == ModelResponseEvent.tool_call_completed.value
+                    and function_call_response.tool_calls is not None
+                ):
+                    model_response.tool_calls.extend(function_call_response.tool_calls)
 
             self.format_function_call_results(function_call_results, messages)
 

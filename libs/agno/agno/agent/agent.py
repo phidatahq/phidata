@@ -600,12 +600,14 @@ class Agent:
             else:
                 # Update the run_response content with the model response content
                 self.run_response.content = model_response.content
+
             # Update the run_response tools with the model response tools
             if model_response.tool_calls is not None:
                 if self.run_response.tools is None:
                     self.run_response.tools = model_response.tool_calls
                 else:
                     self.run_response.tools.extend(model_response.tool_calls)
+
             # Update the run_response audio with the model response audio
             if model_response.audio is not None:
                 self.run_response.response_audio = model_response.audio

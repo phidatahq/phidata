@@ -56,8 +56,8 @@ export EXA_API_KEY=xxx
 
 ### 4. Run PgVector
 
-We use PgVector to provide long-term memory to the LLM OS.
-Please install [docker desktop](https://docs.docker.com/desktop/install/mac-install/) and run PgVector using either the helper script or the `docker run` command.
+We use Postgres to provide long-term memory to the LLM OS.
+Please install [docker desktop](https://docs.docker.com/desktop/install/mac-install/) and run Postgres using either the helper script or the `docker run` command.
 
 - Run using a helper script
 

@@ -13,11 +13,8 @@ image_agent = Agent(
 
 image_agent.print_response("Generate an image of a white siamese cat")
 
-# images = image_agent.get_images()
-# if images and isinstance(images, list):
-#     for image_response in images:
-#         image_url = image_response.url
-#         print(image_url)
-
-print("Run Response:")
-print(image_agent.run_response.tools)
+images = image_agent.get_images()
+if images and isinstance(images, list):
+    for image_response in images:
+        image_url = image_response.url
+        print(image_url)

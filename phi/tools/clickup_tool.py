@@ -1,7 +1,7 @@
 import os
 import json
 import re
-from typing import Optional, List, Dict, Any, Union
+from typing import Optional, List, Dict, Any
 
 from phi.tools import Toolkit
 from phi.utils.log import logger
@@ -52,7 +52,9 @@ class ClickUpTools(Toolkit):
         if list_lists:
             self.register(self.list_lists)
 
-    def _make_request(self, method: str, endpoint: str, params: Dict = None, data: Dict = None) -> Dict[str, Any]:
+    def _make_request(
+        self, method: str, endpoint: str, params: Optional[Dict] = None, data: Optional[Dict] = None
+    ) -> Dict[str, Any]:
         """Make a request to the ClickUp API."""
         url = f"{self.base_url}/{endpoint}"
         try:
@@ -63,13 +65,12 @@ class ClickUpTools(Toolkit):
             logger.error(f"Error making request to {url}: {e}")
             return {"error": str(e)}
 
-    def _find_by_name(self, items: List[Dict[str, Any]], name: str, item_type: str) -> Union[Dict[str, Any], None]:
+    def _find_by_name(self, items: List[Dict[str, Any]], name: str) -> Optional[Dict[str, Any]]:
         """Find an item in a list by name using exact match or regex pattern.
 
         Args:
             items: List of items to search through
             name: Name to search for
-            item_type: Type of item (for error message)
 
         Returns:
             Matching item or None if not found
@@ -87,7 +88,7 @@ class ClickUpTools(Toolkit):
                 return item
         return None
 
-    def _get_space(self, space_name: str = None) -> Dict[str, Any]:
+    def _get_space(self, space_name: str) -> Dict[str, Any]:
         """Get space information by name."""
         spaces = self._make_request("GET", f"team/{self.master_space_id}/space")
         if "error" in spaces:
@@ -97,7 +98,7 @@ class ClickUpTools(Toolkit):
         if not spaces_list:
             return {"error": "No spaces found"}
 
-        space = self._find_by_name(spaces_list, space_name, "space")
+        space = self._find_by_name(spaces_list, space_name)
         if not space:
             return {"error": f"Space '{space_name}' not found"}
         return space
@@ -112,7 +113,7 @@ class ClickUpTools(Toolkit):
         if not lists_data:
             return {"error": "No lists found in space"}
 
-        list_item = self._find_by_name(lists_data, list_name, "list")
+        list_item = self._find_by_name(lists_data, list_name)
         if not list_item:
             return {"error": f"List '{list_name}' not found"}
         return list_item
@@ -125,7 +126,7 @@ class ClickUpTools(Toolkit):
 
         tasks_data = tasks.get("tasks", [])
         if task_name:
-            task = self._find_by_name(tasks_data, task_name, "task")
+            task = self._find_by_name(tasks_data, task_name)
             return [task] if task else []
         return tasks_data
 

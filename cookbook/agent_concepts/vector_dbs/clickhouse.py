@@ -6,7 +6,7 @@ from agno.vectordb.clickhouse import ClickhouseDb
 agent = Agent(
     storage=SqliteAgentStorage(table_name="recipe_agent"),
     knowledge=PDFUrlKnowledgeBase(
-        urls=["https://phi-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
+        urls=["https://agno-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
         vector_db=ClickhouseDb(
             table_name="recipe_documents",
             host="localhost",

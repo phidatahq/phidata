@@ -11,7 +11,7 @@ from agno.vectordb.lancedb import LanceDb, SearchType
 
 # Create a knowledge base of PDFs from URLs
 knowledge_base = PDFUrlKnowledgeBase(
-    urls=["https://phi-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
+    urls=["https://agno-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
     # Use LanceDB as the vector database and store embeddings in the `recipes` table
     vector_db=LanceDb(
         table_name="recipes",

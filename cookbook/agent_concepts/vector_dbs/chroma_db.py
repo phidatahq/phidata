@@ -9,7 +9,7 @@ vector_db = ChromaDb(collection="recipes", path="tmp/chromadb", persistent_clien
 
 # Create knowledge base
 knowledge_base = PDFUrlKnowledgeBase(
-    urls=["https://phi-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
+    urls=["https://agno-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
     vector_db=vector_db,
 )
 

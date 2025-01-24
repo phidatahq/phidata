@@ -22,7 +22,7 @@ simple_agent = Agent(
     role="Answer basic questions",
     agent_id="simple-agent",
     model=OpenAIChat(id="gpt-4o-mini"),
-    storage=SqliteAgentStorage(table_name="web_agent", db_file=agent_storage_file),
+    storage=SqliteAgentStorage(table_name="simple_agent", db_file=agent_storage_file),
     add_history_to_messages=True,
     num_history_responses=3,
     add_datetime_to_instructions=True,

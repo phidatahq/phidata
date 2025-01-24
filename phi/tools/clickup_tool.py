@@ -103,7 +103,7 @@ class ClickUpTools(Toolkit):
             return {"error": f"Space '{space_name}' not found"}
         return space
 
-    def _get_list(self, space_id: str, list_name: str = None) -> Dict[str, Any]:
+    def _get_list(self, space_id: str, list_name: str) -> Dict[str, Any]:
         """Get list information by name."""
         lists = self._make_request("GET", f"space/{space_id}/list")
         if "error" in lists:
@@ -118,16 +118,13 @@ class ClickUpTools(Toolkit):
             return {"error": f"List '{list_name}' not found"}
         return list_item
 
-    def _get_tasks(self, list_id: str, task_name: str = None) -> List[Dict[str, Any]]:
+    def _get_tasks(self, list_id: str) -> List[Dict[str, Any]]:
         """Get tasks in a list, optionally filtered by name."""
         tasks = self._make_request("GET", f"list/{list_id}/task")
         if "error" in tasks:
             return []
 
         tasks_data = tasks.get("tasks", [])
-        if task_name:
-            task = self._find_by_name(tasks_data, task_name)
-            return [task] if task else []
         return tasks_data
 
     def list_tasks(self, space_name: str) -> str:

@@ -698,10 +698,6 @@ class Gemini(Model):
 
             return model_response
 
-        # -*- Remove parts from messages
-        # for m in messages:
-        #     if hasattr(m, "parts"):
-        #         m.parts = None
         logger.debug("---------- Gemini Response End ----------")
         return model_response
 
@@ -813,8 +809,4 @@ class Gemini(Model):
             yield from self.handle_stream_tool_calls(assistant_message, messages)
             yield from self.response_stream(messages=messages)
 
-        # -*- Remove parts from messages
-        # for m in messages:
-        #     if hasattr(m, "parts"):
-        #         m.parts = None
         logger.debug("---------- Gemini Response End ----------")

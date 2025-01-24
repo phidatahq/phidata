@@ -4,7 +4,7 @@ from phi.tools import Toolkit
 try:
     import boto3
 except ImportError:
-    raise ImportError("boto3 is required for AWSLambdaTool. Please install it using `pip install boto3`.")
+    raise ImportError("boto3 is required for AWSSESTool. Please install it using `pip install boto3`.")
 
 
 class AWSSESTool(Toolkit):

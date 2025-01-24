@@ -21,9 +21,7 @@ agent = Agent(
     model=Gemini(id="gemini-2.0-flash-exp"),
     tools=[DuckDuckGo()],
     knowledge=knowledge_base,
-    storage=PgAgentStorage(
-        table_name="agent_sessions", db_url=db_url
-    ),
+    storage=PgAgentStorage(table_name="agent_sessions", db_url=db_url),
     # Store the memories and summary in a database
     memory=AgentMemory(
         db=PgMemoryDb(table_name="agent_memory", db_url=db_url),
@@ -40,6 +38,6 @@ agent = Agent(
     # This setting adds 6 previous messages from chat history to the messages sent to the LLM
     num_history_responses=6,
     markdown=True,
-    debug_mode=True
+    debug_mode=True,
 )
 agent.print_response("Whats is the latest AI news?")

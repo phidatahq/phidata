@@ -17,7 +17,11 @@ from phi.utils.tools import get_function_call_for_tool_call
 
 try:
     import google.generativeai as genai
-    from google.ai.generativelanguage_v1beta.types import Part, FunctionCall as GeminiFunctionCall, FunctionResponse as GeminiFunctionResponse
+    from google.ai.generativelanguage_v1beta.types import (
+        Part,
+        FunctionCall as GeminiFunctionCall,
+        FunctionResponse as GeminiFunctionResponse,
+    )
     from google.generativeai import GenerativeModel
     from google.generativeai.types.generation_types import GenerateContentResponse
     from google.generativeai.types.content_types import FunctionDeclaration, Tool as GeminiTool
@@ -170,7 +174,8 @@ class Gemini(Model):
             if (not content or message.role == "model") and message.tool_calls:
                 for tool_call in message.tool_calls:
                     message_parts.append(
-                        Part(function_call=GeminiFunctionCall(
+                        Part(
+                            function_call=GeminiFunctionCall(
                                 name=tool_call["function"]["name"],
                                 args=json.loads(tool_call["function"]["arguments"]),
                             )
@@ -556,7 +561,6 @@ class Gemini(Model):
         if len(message_data.response_tool_calls) > 0:
             assistant_message.tool_calls = message_data.response_tool_calls
 
-
         # -*- Update usage metrics
         self.update_usage_metrics(assistant_message, message_data.response_usage, metrics)
         return assistant_message
@@ -609,7 +613,9 @@ class Gemini(Model):
                 combined_content.append(result.content)
                 combined_function_result.append((result.tool_name, result.content))
 
-            messages.append(Message(role="tool", content=combined_content, combined_function_details=combined_function_result))
+            messages.append(
+                Message(role="tool", content=combined_content, combined_function_details=combined_function_result)
+            )
 
     def handle_tool_calls(self, assistant_message: Message, messages: List[Message], model_response: ModelResponse):
         """

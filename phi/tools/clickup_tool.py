@@ -1,7 +1,7 @@
 import os
 import json
 import re
-from typing import Optional, List, Dict, Any, Union, Tuple
+from typing import Optional, List, Dict, Any, Union
 
 from phi.tools import Toolkit
 from phi.utils.log import logger
@@ -23,7 +23,7 @@ class ClickUpTools(Toolkit):
         update_task: bool = True,
         delete_task: bool = True,
         list_spaces: bool = True,
-        list_lists: bool = True
+        list_lists: bool = True,
     ):
         super().__init__(name="clickup")
 
@@ -56,13 +56,7 @@ class ClickUpTools(Toolkit):
         """Make a request to the ClickUp API."""
         url = f"{self.base_url}/{endpoint}"
         try:
-            response = requests.request(
-                method=method,
-                url=url,
-                headers=self.headers,
-                params=params,
-                json=data
-            )
+            response = requests.request(method=method, url=url, headers=self.headers, params=params, json=data)
             response.raise_for_status()
             return response.json()
         except requests.exceptions.RequestException as e:
@@ -71,12 +65,12 @@ class ClickUpTools(Toolkit):
 
     def _find_by_name(self, items: List[Dict[str, Any]], name: str, item_type: str) -> Union[Dict[str, Any], None]:
         """Find an item in a list by name using exact match or regex pattern.
-        
+
         Args:
             items: List of items to search through
             name: Name to search for
             item_type: Type of item (for error message)
-            
+
         Returns:
             Matching item or None if not found
         """
@@ -187,18 +181,14 @@ class ClickUpTools(Toolkit):
         lists_data = response.get("lists", [])
         if not lists_data:
             return json.dumps({"error": f"No lists found in space '{space_name}'"}, indent=2)
-        
+
         list_info = lists_data[0]  # Use first list
 
         # Create task
-        data = {
-            "name": task_name,
-            "description": task_description
-        }
+        data = {"name": task_name, "description": task_description}
 
         task = self._make_request("POST", f"list/{list_info['id']}/task", data=data)
         return json.dumps(task, indent=2)
-
 
     def list_spaces(self) -> str:
         """List all spaces in the workspace.

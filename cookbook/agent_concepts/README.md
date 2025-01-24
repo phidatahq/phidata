@@ -6,7 +6,7 @@ Application of several agent concepts using Agno.
 
 ### Async
 
-Async refers to agents built with `async def` support, allowing them to seamlessly integrate into asynchronous Python applications. This non-blocking async-await approach ensures smoother execution in workflows requiring concurrent tasks. While async agents are not inherently parallel, they allow better handling of I/O-bound operations, improving responsiveness in Python apps.
+Async refers to agents built with `async def` support, allowing them to seamlessly integrate into asynchronous Python applications. While async agents are not inherently parallel, they allow better handling of I/O-bound operations, improving responsiveness in Python apps.
 
 For examples of using async agents, see /cookbook/agent_concepts/async/.
 

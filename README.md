@@ -138,7 +138,7 @@ agent = Agent(
         "Prefer the information in your knowledge base over the web results."
     ],
     knowledge=PDFUrlKnowledgeBase(
-        urls=["https://phi-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
+        urls=["https://agno-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
         vector_db=LanceDb(
             uri="tmp/lancedb",
             table_name="recipes",

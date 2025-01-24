@@ -7,7 +7,7 @@ COLLECTION_NAME = "thai-recipes"
 vector_db = Qdrant(collection=COLLECTION_NAME, url="http://localhost:6333")
 
 knowledge_base = PDFUrlKnowledgeBase(
-    urls=["https://phi-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
+    urls=["https://agno-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
     vector_db=vector_db,
 )
 

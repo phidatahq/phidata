@@ -70,7 +70,7 @@ agent = Agent(
         "- Be encouraging and supportive of home cooks at all skill levels"
     ),
     knowledge=PDFUrlKnowledgeBase(
-        urls=["https://phi-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
+        urls=["https://agno-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
         vector_db=LanceDb(
             uri="tmp/lancedb",
             table_name="recipe_knowledge",

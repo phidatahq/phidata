@@ -8,11 +8,13 @@ except ImportError:
 
 
 class AWSSESTool(Toolkit):
-    def __init__(self,
-                 receiver_email: Optional[str] = None,
-                 sender_email: Optional[str] = None,
-                 sender_name: Optional[str] = None,
-                 region_name: str = "us-east-1"):
+    def __init__(
+        self,
+        receiver_email: Optional[str] = None,
+        sender_email: Optional[str] = None,
+        sender_name: Optional[str] = None,
+        region_name: str = "us-east-1",
+    ):
         super().__init__(name="aws_ses_tool")
         self.client = boto3.client("ses", region_name=region_name)
         self.receiver_email = receiver_email
@@ -22,9 +24,9 @@ class AWSSESTool(Toolkit):
 
     def email(self, subject: str, body: str) -> str:
         """
-            Args: subject: The subject of the email
-                    body: The body of the email
-            """
+        Args: subject: The subject of the email
+                body: The body of the email
+        """
         if not self.client:
             raise Exception("AWS SES client not initialized. Please check the configuration.")
         if not subject:

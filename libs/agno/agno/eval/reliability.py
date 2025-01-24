@@ -30,6 +30,9 @@ class ReliabilityResult:
         results_table.add_row("Passed Tool Calls", str(self.passed_tool_calls))
         console.print(results_table)
 
+    def assert_passed(self):
+        assert self.eval_status == "PASSED"
+
 
 @dataclass
 class ReliabilityEval:
@@ -96,8 +99,8 @@ class ReliabilityEval:
                     if message.tool_calls:
                         if actual_tool_calls is None:
                             actual_tool_calls = message.tool_calls
-                    else:
-                        actual_tool_calls.append(message.tool_calls[0])  # type: ignore
+                        else:
+                            actual_tool_calls.append(message.tool_calls[0])  # type: ignore
 
             failed_tool_calls = []
             passed_tool_calls = []

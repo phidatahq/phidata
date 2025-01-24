@@ -43,4 +43,3 @@ agent = Agent(
     debug_mode=True
 )
 agent.print_response("Whats is the latest AI news?")
-print(agent.read_from_storage().memory["messages"])

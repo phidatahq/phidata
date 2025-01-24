@@ -3,7 +3,6 @@ from datetime import datetime, date
 from pathlib import Path
 from typing import Optional, Dict, Union, List
 
-import proto
 from phi.utils.log import logger
 
 
@@ -14,9 +13,6 @@ class CustomJSONEncoder(json.JSONEncoder):
 
         if isinstance(o, Path):
             return str(o)
-
-        if isinstance(o, proto.marshal.collections.repeated.RepeatedComposite):
-            return [v for v in o]  # unpack as a list
 
         return json.JSONEncoder.default(self, o)
 

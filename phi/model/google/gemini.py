@@ -65,6 +65,8 @@ class Gemini(Model):
     """
     Gemini model class for Google's Generative AI models.
 
+    Based on https://ai.google.dev/gemini-api/docs/function-calling
+
     Attributes:
         id (str): Model ID. Default is `gemini-2.0-flash-exp`.
         name (str): The name of this chat model instance. Default is `Gemini`.
@@ -175,11 +177,11 @@ class Gemini(Model):
                         )
                     )
             # Function results
-            elif message.role == "tool":
+            elif message.role == "tool" and hasattr(message, "combined_function_result"):
                 s = Struct()
-                for function_result in message.content:
-                    function_name = function_result[0]
-                    function_response = function_result[0]
+                for combined_result in message.combined_function_result:
+                    function_name = combined_result[0]
+                    function_response = combined_result[1]
                     s.update({"result": [function_response]})
                     message_parts.append(Part(function_response=GeminiFunctionResponse(name=function_name, response=s)))
             # Normal content
@@ -317,6 +319,7 @@ class Gemini(Model):
 
             message_for_model["parts"] = message_parts
             formatted_messages.append(message_for_model)
+
         return formatted_messages
 
     def format_functions(self, params: Dict[str, Any]) -> Dict[str, Any]:
@@ -600,10 +603,13 @@ class Gemini(Model):
         """
         if function_call_results:
             combined_content: List = []
+            combined_function_result: List = []
 
             for result in function_call_results:
-                combined_content.append((result.tool_name, result.content))
-            messages.append(Message(role="tool", content=combined_content))
+                combined_content.append(result.content)
+                combined_function_result.append((result.tool_name, result.content))
+
+            messages.append(Message(role="tool", content=combined_content, combined_function_details=combined_function_result))
 
     def handle_tool_calls(self, assistant_message: Message, messages: List[Message], model_response: ModelResponse):
         """

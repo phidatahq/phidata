@@ -447,12 +447,14 @@ class Agent(BaseModel):
                     _tools = []
                     for _tool in agent.tools:
                         if isinstance(_tool, Toolkit):
-                            _tools.extend(list(_tool.functions.keys()))
+                            for _tool_function in _tool.functions.values():
+                                _tools.append(f" - {_tool_function.name}")
                         elif isinstance(_tool, Function):
-                            _tools.append(_tool.name)
+                            _tools.append(f" - {_tool.name}")
                         elif callable(_tool):
                             _tools.append(_tool.__name__)
-                    transfer_prompt += f"Available tools: {', '.join(_tools)}\n"
+                    _tool_str = '\n'.join(_tools)
+                    transfer_prompt += f"Available tools: \n{_tool_str}\n"
             return transfer_prompt
         return ""
 

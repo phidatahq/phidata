@@ -80,7 +80,7 @@ class PostgresTools(Toolkit):
 
         :return: List of tables in the database
         """
-        stmt = "SELECT table_name FROM information_schema.tables WHERE table_schema = '{self.table_schema}';"
+        stmt = f"SELECT table_name FROM information_schema.tables WHERE table_schema = '{self.table_schema}';"
         tables = self.run_query(stmt)
         logger.debug(f"Tables: {tables}")
         return tables

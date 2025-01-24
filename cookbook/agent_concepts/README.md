@@ -6,10 +6,9 @@ Application of several agent concepts using Agno.
 
 ### Async
 
-Parallel agent execution provides an immense boost in performance by enabling the simultaneous execution of multiple agents. This approach is particularly well-suited for use cases that demand the creation of a large number of agent runs, ensuring faster processing of high-volume workloads.
+Async refers to agents built with `async def` support, allowing them to seamlessly integrate into asynchronous Python applications. This non-blocking async-await approach ensures smoother execution in workflows requiring concurrent tasks. While async agents are not inherently parallel, they allow better handling of I/O-bound operations, improving responsiveness in Python apps.
 
-Examples of async agent runs can be found under `/cookbook/agent_concepts/async/`
-
+For examples of using async agents, see /cookbook/agent_concepts/async/.
 
 ### Hybrid Search
 

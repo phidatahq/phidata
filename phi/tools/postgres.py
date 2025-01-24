@@ -26,7 +26,7 @@ class PostgresTools(Toolkit):
         inspect_queries: bool = False,
         summarize_tables: bool = True,
         export_tables: bool = False,
-        table_schema: Optional[str] = "public",
+        table_schema: str = "public",
     ):
         super().__init__(name="postgres_tools")
         self._connection: Optional[psycopg2.extensions.connection] = connection
@@ -35,7 +35,7 @@ class PostgresTools(Toolkit):
         self.password: Optional[str] = password
         self.host: Optional[str] = host
         self.port: Optional[int] = port
-        self.table_schema: Optional[str] = table_schema
+        self.table_schema: str = table_schema
 
         self.register(self.show_tables)
         self.register(self.describe_table)
@@ -69,6 +69,7 @@ class PostgresTools(Toolkit):
                 connection_kwargs["port"] = self.port
             if self.table_schema is not None:
                 connection_kwargs["options"] = f"-c search_path={self.table_schema}"
+
             self._connection = psycopg2.connect(**connection_kwargs)
             self._connection.set_session(readonly=True)
 
@@ -79,7 +80,7 @@ class PostgresTools(Toolkit):
 
         :return: List of tables in the database
         """
-        stmt = f"SELECT table_name FROM information_schema.tables WHERE table_schema =  '{self.table_schema}';"
+        stmt = f"SELECT table_name FROM information_schema.tables WHERE table_schema = '{self.table_schema}';"
         tables = self.run_query(stmt)
         logger.debug(f"Tables: {tables}")
         return tables
@@ -102,7 +103,6 @@ class PostgresTools(Toolkit):
         including min, max, avg, std and approx_unique.
 
         :param table: Table to summarize
-        :param table_schema: Schema of the table
         :return: Summary of the table
         """
         stmt = f"""WITH column_stats AS (

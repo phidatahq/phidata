@@ -55,7 +55,6 @@ def select_directory(base_directory):
             item
             for item in os.listdir(base_directory)
             if os.path.isdir(os.path.join(base_directory, item))
-            and item not in ["__pycache__", "__init__.py"]
         ]
         items.sort()
         # Add options to select the current directory or go back
@@ -142,6 +141,7 @@ def drill_and_run_scripts(base_directory):
         for filename in os.listdir(selected_directory)
         if filename.endswith(".py")
         and os.path.isfile(os.path.join(selected_directory, filename))
+        and filename not in ["__pycache__", "__init__.py"]
     ]
 
     if not python_files:

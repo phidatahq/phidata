@@ -1892,7 +1892,11 @@ class Agent:
             system_message_content += f"{self.get_json_output_prompt()}"
 
         # Return the system message
-        return Message(role=self.get_system_message_role(), content=system_message_content.strip())
+        return (
+            Message(role=self.get_system_message_role(), content=system_message_content.strip())
+            if system_message_content
+            else None
+        )
 
     def get_user_message(
         self,

@@ -172,7 +172,8 @@ class Claude(Model):
         for idx, message in enumerate(messages):
             content = message.content or ""
             if message.role == "system" or (message.role != "user" and idx in [0, 1]):
-                system_messages.append(content)  # type: ignore
+                if content:
+                    system_messages.append(content)  # type: ignore
                 continue
             elif message.role == "user":
                 if isinstance(content, str):

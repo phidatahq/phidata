@@ -523,7 +523,7 @@ class Agent:
                 deque(reasoning_generator, maxlen=0)
 
         # Get the index of the last "user" message in messages_for_run
-        # We track this so we can add messages after this index to the RunResponse and Memory
+        # We track this, so we can add messages after this index to the RunResponse and Memory
         index_of_last_user_message = len(run_messages.messages)
 
         # 6. Start the Run by yielding a RunStarted event
@@ -1892,7 +1892,11 @@ class Agent:
             system_message_content += f"{self.get_json_output_prompt()}"
 
         # Return the system message
-        return Message(role=self.get_system_message_role(), content=system_message_content.strip())
+        return (
+            Message(role=self.get_system_message_role(), content=system_message_content.strip())
+            if system_message_content
+            else None
+        )
 
     def get_user_message(
         self,
@@ -2615,75 +2619,88 @@ class Agent:
             logger.warning("Reasoning error. Reasoning agent is None, continuing regular session...")
             return
 
-        # Ensure the reasoning agent response model is ReasoningSteps
-        if reasoning_agent.response_model is not None and not isinstance(reasoning_agent.response_model, type):
-            if not issubclass(reasoning_agent.response_model, ReasoningSteps):
-                logger.warning(
-                    "Reasoning agent response model should be `ReasoningSteps`, continuing regular session..."
-                )
-            return
+        if reasoning_model.__class__.__name__ == "DeepSeek" and reasoning_model.id == "deepseek-reasoner":
+            from agno.reasoning.helpers import get_deepseek_reasoning
 
-        # Ensure the reasoning model and agent do not show tool calls
-        reasoning_agent.show_tool_calls = False
-        reasoning_agent.model.show_tool_calls = False  # type: ignore
+            reasoning: Optional[Message] = get_deepseek_reasoning(
+                reasoning_agent, messages=run_messages.get_input_messages()
+            )
+            if reasoning is None:
+                logger.warning("Reasoning error. Reasoning response is None, continuing regular session...")
+                return
+            run_messages.messages.append(reasoning)
+        else:
+            # Ensure the reasoning agent response model is ReasoningSteps
+            if reasoning_agent.response_model is not None and not isinstance(reasoning_agent.response_model, type):
+                if not issubclass(reasoning_agent.response_model, ReasoningSteps):
+                    logger.warning(
+                        "Reasoning agent response model should be `ReasoningSteps`, continuing regular session..."
+                    )
+                return
 
-        step_count = 1
-        next_action = NextAction.CONTINUE
-        logger.debug("==== Starting Reasoning ====")
-        while next_action == NextAction.CONTINUE and step_count < self.reasoning_max_steps:
-            step_count += 1
-            logger.debug(f"==== Step {step_count} ====")
-            try:
-                # Run the reasoning agent
-                reasoning_agent_response: RunResponse = reasoning_agent.run(messages=run_messages.get_input_messages())
-                if reasoning_agent_response.content is None or reasoning_agent_response.messages is None:
-                    logger.warning("Reasoning error. Reasoning response is empty, continuing regular session...")
+            # Ensure the reasoning model and agent do not show tool calls
+            reasoning_agent.show_tool_calls = False
+            reasoning_agent.model.show_tool_calls = False  # type: ignore
+
+            step_count = 1
+            next_action = NextAction.CONTINUE
+            logger.debug("==== Starting Reasoning ====")
+            while next_action == NextAction.CONTINUE and step_count < self.reasoning_max_steps:
+                logger.debug(f"==== Step {step_count} ====")
+                step_count += 1
+                try:
+                    # Run the reasoning agent
+                    reasoning_agent_response: RunResponse = reasoning_agent.run(
+                        messages=run_messages.get_input_messages()
+                    )
+                    if reasoning_agent_response.content is None or reasoning_agent_response.messages is None:
+                        logger.warning("Reasoning error. Reasoning response is empty, continuing regular session...")
+                        break
+
+                    if reasoning_agent_response.content.reasoning_steps is None:
+                        logger.warning("Reasoning error. Reasoning steps are empty, continuing regular session...")
+                        break
+
+                    reasoning_steps: List[ReasoningStep] = reasoning_agent_response.content.reasoning_steps
+                    all_reasoning_steps.extend(reasoning_steps)
+                    # Yield reasoning steps
+                    if self.stream_intermediate_steps:
+                        for reasoning_step in reasoning_steps:
+                            yield self.create_run_response(
+                                content=reasoning_step,
+                                content_type=reasoning_step.__class__.__name__,
+                                event=RunEvent.reasoning_step,
+                            )
+
+                    # Find the index of the first assistant message
+                    first_assistant_index = next(
+                        (i for i, m in enumerate(reasoning_agent_response.messages) if m.role == "assistant"),
+                        len(reasoning_agent_response.messages),
+                    )
+                    # Extract reasoning messages starting from the message after the first assistant message
+                    reasoning_messages = reasoning_agent_response.messages[first_assistant_index:]
+
+                    # Add reasoning step to the Agent's run_response
+                    self.update_run_response_with_reasoning(
+                        reasoning_steps=reasoning_steps, reasoning_agent_messages=reasoning_agent_response.messages
+                    )
+
+                    # Get the next action
+                    next_action = get_next_action(reasoning_steps[-1])
+                    if next_action == NextAction.FINAL_ANSWER:
+                        break
+                except Exception as e:
+                    logger.error(f"Reasoning error: {e}")
                     break
 
-                if reasoning_agent_response.content.reasoning_steps is None:
-                    logger.warning("Reasoning error. Reasoning steps are empty, continuing regular session...")
-                    break
+            logger.debug(f"Total Reasoning steps: {len(all_reasoning_steps)}")
+            logger.debug("==== Reasoning finished====")
 
-                reasoning_steps: List[ReasoningStep] = reasoning_agent_response.content.reasoning_steps
-                all_reasoning_steps.extend(reasoning_steps)
-                # Yield reasoning steps
-                if self.stream_intermediate_steps:
-                    for reasoning_step in reasoning_steps:
-                        yield self.create_run_response(
-                            content=reasoning_step,
-                            content_type=reasoning_step.__class__.__name__,
-                            event=RunEvent.reasoning_step,
-                        )
-
-                # Find the index of the first assistant message
-                first_assistant_index = next(
-                    (i for i, m in enumerate(reasoning_agent_response.messages) if m.role == "assistant"),
-                    len(reasoning_agent_response.messages),
-                )
-                # Extract reasoning messages starting from the message after the first assistant message
-                reasoning_messages = reasoning_agent_response.messages[first_assistant_index:]
-
-                # Add reasoning step to the Agent's run_response
-                self.update_run_response_with_reasoning(
-                    reasoning_steps=reasoning_steps, reasoning_agent_messages=reasoning_agent_response.messages
-                )
-
-                # Get the next action
-                next_action = get_next_action(reasoning_steps[-1])
-                if next_action == NextAction.FINAL_ANSWER:
-                    break
-            except Exception as e:
-                logger.error(f"Reasoning error: {e}")
-                break
-
-        logger.debug(f"Total Reasoning steps: {len(all_reasoning_steps)}")
-        logger.debug("==== Reasoning finished====")
-
-        # Update the messages_for_model to include reasoning messages
-        update_messages_with_reasoning(
-            run_messages=run_messages,
-            reasoning_messages=reasoning_messages,
-        )
+            # Update the messages_for_model to include reasoning messages
+            update_messages_with_reasoning(
+                run_messages=run_messages,
+                reasoning_messages=reasoning_messages,
+            )
 
         # Yield the final reasoning completed event
         if self.stream_intermediate_steps:
@@ -2728,77 +2745,88 @@ class Agent:
             logger.warning("Reasoning error. Reasoning agent is None, continuing regular session...")
             return
 
-        # Ensure the reasoning agent response model is ReasoningSteps
-        if reasoning_agent.response_model is not None and not isinstance(reasoning_agent.response_model, type):
-            if not issubclass(reasoning_agent.response_model, ReasoningSteps):
-                logger.warning(
-                    "Reasoning agent response model should be `ReasoningSteps`, continuing regular session..."
-                )
-            return
+        if reasoning_model.__class__.__name__ == "DeepSeek" and reasoning_model.id == "deepseek-reasoner":
+            from agno.reasoning.helpers import get_deepseek_reasoning
 
-        # Ensure the reasoning model and agent do not show tool calls
-        reasoning_agent.show_tool_calls = False
-        reasoning_agent.model.show_tool_calls = False  # type: ignore
+            reasoning: Optional[Message] = get_deepseek_reasoning(
+                reasoning_agent, messages=run_messages.get_input_messages()
+            )
+            if reasoning is None:
+                logger.warning("Reasoning error. Reasoning response is None, continuing regular session...")
+                return
+            run_messages.messages.append(reasoning)
+        else:
+            # Ensure the reasoning agent response model is ReasoningSteps
+            if reasoning_agent.response_model is not None and not isinstance(reasoning_agent.response_model, type):
+                if not issubclass(reasoning_agent.response_model, ReasoningSteps):
+                    logger.warning(
+                        "Reasoning agent response model should be `ReasoningSteps`, continuing regular session..."
+                    )
+                return
 
-        step_count = 1
-        next_action = NextAction.CONTINUE
-        logger.debug("==== Starting Reasoning ====")
-        while next_action == NextAction.CONTINUE and step_count < self.reasoning_max_steps:
-            step_count += 1
-            logger.debug(f"==== Step {step_count} ====")
-            try:
-                # Run the reasoning agent
-                reasoning_agent_response: RunResponse = await reasoning_agent.arun(
-                    messages=run_messages.get_input_messages()
-                )
-                if reasoning_agent_response.content is None or reasoning_agent_response.messages is None:
-                    logger.warning("Reasoning error. Reasoning response is empty, continuing regular session...")
+            # Ensure the reasoning model and agent do not show tool calls
+            reasoning_agent.show_tool_calls = False
+            reasoning_agent.model.show_tool_calls = False  # type: ignore
+
+            step_count = 1
+            next_action = NextAction.CONTINUE
+            logger.debug("==== Starting Reasoning ====")
+            while next_action == NextAction.CONTINUE and step_count < self.reasoning_max_steps:
+                logger.debug(f"==== Step {step_count} ====")
+                step_count += 1
+                try:
+                    # Run the reasoning agent
+                    reasoning_agent_response: RunResponse = await reasoning_agent.arun(
+                        messages=run_messages.get_input_messages()
+                    )
+                    if reasoning_agent_response.content is None or reasoning_agent_response.messages is None:
+                        logger.warning("Reasoning error. Reasoning response is empty, continuing regular session...")
+                        break
+
+                    if reasoning_agent_response.content.reasoning_steps is None:
+                        logger.warning("Reasoning error. Reasoning steps are empty, continuing regular session...")
+                        break
+
+                    reasoning_steps: List[ReasoningStep] = reasoning_agent_response.content.reasoning_steps
+                    all_reasoning_steps.extend(reasoning_steps)
+                    # Yield reasoning steps
+                    if self.stream_intermediate_steps:
+                        for reasoning_step in reasoning_steps:
+                            yield self.create_run_response(
+                                content=reasoning_step,
+                                content_type=reasoning_step.__class__.__name__,
+                                event=RunEvent.reasoning_step,
+                            )
+
+                    # Find the index of the first assistant message
+                    first_assistant_index = next(
+                        (i for i, m in enumerate(reasoning_agent_response.messages) if m.role == "assistant"),
+                        len(reasoning_agent_response.messages),
+                    )
+                    # Extract reasoning messages starting from the message after the first assistant message
+                    reasoning_messages = reasoning_agent_response.messages[first_assistant_index:]
+
+                    # Add reasoning step to the Agent's run_response
+                    self.update_run_response_with_reasoning(
+                        reasoning_steps=reasoning_steps, reasoning_agent_messages=reasoning_agent_response.messages
+                    )
+
+                    # Get the next action
+                    next_action = get_next_action(reasoning_steps[-1])
+                    if next_action == NextAction.FINAL_ANSWER:
+                        break
+                except Exception as e:
+                    logger.error(f"Reasoning error: {e}")
                     break
 
-                if reasoning_agent_response.content.reasoning_steps is None:
-                    logger.warning("Reasoning error. Reasoning steps are empty, continuing regular session...")
-                    break
+            logger.debug(f"Total Reasoning steps: {len(all_reasoning_steps)}")
+            logger.debug("==== Reasoning finished====")
 
-                reasoning_steps: List[ReasoningStep] = reasoning_agent_response.content.reasoning_steps
-                all_reasoning_steps.extend(reasoning_steps)
-                # Yield reasoning steps
-                if self.stream_intermediate_steps:
-                    for reasoning_step in reasoning_steps:
-                        yield self.create_run_response(
-                            content=reasoning_step,
-                            content_type=reasoning_step.__class__.__name__,
-                            event=RunEvent.reasoning_step,
-                        )
-
-                # Find the index of the first assistant message
-                first_assistant_index = next(
-                    (i for i, m in enumerate(reasoning_agent_response.messages) if m.role == "assistant"),
-                    len(reasoning_agent_response.messages),
-                )
-                # Extract reasoning messages starting from the message after the first assistant message
-                reasoning_messages = reasoning_agent_response.messages[first_assistant_index:]
-
-                # Add reasoning step to the Agent's run_response
-                self.update_run_response_with_reasoning(
-                    reasoning_steps=reasoning_steps, reasoning_agent_messages=reasoning_agent_response.messages
-                )
-
-                # Get the next action
-                next_action = get_next_action(reasoning_steps[-1])
-                if next_action == NextAction.FINAL_ANSWER:
-                    break
-            except Exception as e:
-                logger.error(f"Reasoning error: {e}")
-                break
-
-        logger.debug(f"Total Reasoning steps: {len(all_reasoning_steps)}")
-        logger.debug("==== Reasoning finished====")
-
-        # Update the messages_for_model to include reasoning messages
-        update_messages_with_reasoning(
-            run_messages=run_messages,
-            reasoning_messages=reasoning_messages,
-        )
+            # Update the messages_for_model to include reasoning messages
+            update_messages_with_reasoning(
+                run_messages=run_messages,
+                reasoning_messages=reasoning_messages,
+            )
 
         # Yield the final reasoning completed event
         if self.stream_intermediate_steps:

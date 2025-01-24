@@ -61,6 +61,6 @@ editor = Agent(
     ],
     add_datetime_to_instructions=True,
     markdown=True,
-    debug_mode=True
+    debug_mode=True,
 )
 editor.print_response("Write an article about latest developments in AI.")

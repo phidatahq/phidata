@@ -44,7 +44,7 @@ agent_team = Agent(
     team=[web_agent, finance_agent],
     instructions=["Always include sources", "Use tables to display data"],
     markdown=True,
-    debug_mode=True
+    debug_mode=True,
 )
 
 agent_team.print_response(

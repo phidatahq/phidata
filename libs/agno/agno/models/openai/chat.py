@@ -262,6 +262,10 @@ class OpenAIChat(Model):
             if message.videos is not None:
                 logger.warning("Video input is currently unsupported.")
 
+        # OpenAI expects the tool_calls to be None if empty, not an empty list
+        if message.tool_calls == []:
+            message.tool_calls = None
+
         return message.to_dict()
 
     def invoke(self, messages: List[Message]) -> Union[ChatCompletion, ParsedChatCompletion]:

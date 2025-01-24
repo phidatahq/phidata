@@ -6,7 +6,7 @@ from pydantic import BaseModel
 
 from agno.models.base import Metrics, Model
 from agno.models.message import Message
-from agno.models.response import ModelResponse
+from agno.models.response import ModelResponse, ModelResponseEvent
 from agno.utils.log import logger
 
 try:
@@ -282,11 +282,15 @@ class Ollama(Model):
                         model_response.content += f"\n - {_f.get_call_str()}"
                     model_response.content += "\n\n"
 
-            for _ in self.run_function_calls(
+            for function_call_response in self.run_function_calls(
                 function_calls=function_calls_to_run,
                 function_call_results=function_call_results,
             ):
-                pass
+                if (
+                    function_call_response.event == ModelResponseEvent.tool_call_completed.value
+                    and function_call_response.tool_calls is not None
+                ):
+                    model_response.tool_calls.extend(function_call_response.tool_calls)
 
             self.format_function_call_results(function_call_results, messages)
 

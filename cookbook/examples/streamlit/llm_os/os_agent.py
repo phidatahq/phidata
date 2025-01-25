@@ -1,4 +1,3 @@
-import json
 from pathlib import Path
 from typing import Optional, List
 from textwrap import dedent
@@ -242,7 +241,7 @@ def get_llm_os(
             "You can delegate tasks to an AI Agent in your team depending of their role and the tools available to them.",
              extra_instructions,
         ],
-       
+
         storage=PostgresAgentStorage(db_url=db_url, table_name="llm_os_runs"),
         # Define the knowledge base
         knowledge=AgentKnowledge(

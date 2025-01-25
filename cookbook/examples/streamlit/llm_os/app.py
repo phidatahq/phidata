@@ -195,7 +195,7 @@ def main() -> None:
         # Display user message first
         with st.chat_message("user"):
             st.write(prompt)
-        
+
         # Then display agent response
         with st.chat_message("agent"):
             # Create an empty container for the streaming response
@@ -207,7 +207,7 @@ def main() -> None:
                         response += chunk.content
                         # Update the response in real-time
                         response_container.markdown(response)
-            
+
         # Add messages to session state after completion
         st.session_state["messages"].append({"role": "user", "content": prompt})
         st.session_state["messages"].append({"role": "agent", "content": response})

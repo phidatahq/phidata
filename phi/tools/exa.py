@@ -14,18 +14,6 @@ except ImportError:
     raise ImportError("`exa_py` not installed. Please install using `pip install exa_py`")
 
 
-class Category(Enum):
-    COMPANY = "company"
-    RESEARCH_PAPER = "research paper"
-    NEWS = "news"
-    PDF = "pdf"
-    GITHUB = "github"
-    TWEET = "tweet"
-    PERSONAL_SITE = "personal site"
-    LINKEDIN_PROFILE = "linkedin profile"
-    FINANCIAL_REPORT = "financial report"
-
-
 class ExaTools(Toolkit):
     """
     ExaTools is a toolkit for interfacing with the Exa web search engine, providing
@@ -43,7 +31,7 @@ class ExaTools(Toolkit):
         end_published_date (Optional[str]): Include results published on/before this date (`YYYY-MM-DD`).
         use_autoprompt (Optional[bool]): Enable autoprompt features in queries.
         type (Optional[str]): Specify content type (e.g., article, blog, video).
-        category (Optional[Category]): Filter results by category.
+        category (Optional[str]): Filter results by category. Options are "company", "research paper", "news", "pdf", "github", "tweet", "personal site", "linkedin profile", "financial report".
         include_domains (Optional[List[str]]): Restrict results to these domains.
         exclude_domains (Optional[List[str]]): Exclude results from these domains.
         show_results (bool): Log search results for debugging. Default is False.
@@ -63,7 +51,7 @@ class ExaTools(Toolkit):
         end_published_date: Optional[str] = None,
         use_autoprompt: Optional[bool] = None,
         type: Optional[str] = None,
-        category: Optional[Category] = None,
+        category: Optional[str] = None,
         include_domains: Optional[List[str]] = None,
         exclude_domains: Optional[List[str]] = None,
         show_results: bool = False,
@@ -87,7 +75,7 @@ class ExaTools(Toolkit):
         self.end_published_date: Optional[str] = end_published_date
         self.use_autoprompt: Optional[bool] = use_autoprompt
         self.type: Optional[str] = type
-        self.category: Optional[str] = category.value() if category else None
+        self.category: Optional[str] = category
         self.include_domains: Optional[List[str]] = include_domains
         self.exclude_domains: Optional[List[str]] = exclude_domains
 

@@ -10,11 +10,21 @@ from agno.media import Audio, Image, Video
 from agno.models.base import Metrics, Model
 from agno.models.message import Message
 from agno.models.response import ModelResponse
-from agno.tools import Function, Toolkit
+from agno.tools import Toolkit
+from agno.tools.function import Function
 from agno.utils.log import logger
 
 try:
     import google.generativeai as genai
+    from google.ai.generativelanguage_v1beta.types import (
+        FunctionCall as GeminiFunctionCall,
+    )
+    from google.ai.generativelanguage_v1beta.types import (
+        FunctionResponse as GeminiFunctionResponse,
+    )
+    from google.ai.generativelanguage_v1beta.types import (
+        Part,
+    )
     from google.ai.generativelanguage_v1beta.types.generative_service import (
         GenerateContentResponse as ResultGenerateContentResponse,
     )
@@ -190,8 +200,26 @@ def _format_messages(messages: List[Message]) -> List[Dict[str, Any]]:
         # Initialize message_parts to be used for Gemini
         message_parts: List[Any] = []
 
-        if (not content or message.role in ["tool", "model"]) and hasattr(message, "parts"):
-            message_parts = message.parts  # type: ignore
+        # Function calls
+        if (not content or message.role == "model") and message.tool_calls:
+            for tool_call in message.tool_calls:
+                message_parts.append(
+                    Part(
+                        function_call=GeminiFunctionCall(
+                            name=tool_call["function"]["name"],
+                            args=json.loads(tool_call["function"]["arguments"]),
+                        )
+                    )
+                )
+        # Function results
+        elif message.role == "tool" and hasattr(message, "combined_function_result"):
+            s = Struct()
+            for combined_result in message.combined_function_result:
+                function_name = combined_result[0]
+                function_response = combined_result[1]
+                s.update({"result": [function_response]})
+                message_parts.append(Part(function_response=GeminiFunctionResponse(name=function_name, response=s)))
+        # Normal content
         else:
             if isinstance(content, str):
                 message_parts = [content]
@@ -200,51 +228,52 @@ def _format_messages(messages: List[Message]) -> List[Dict[str, Any]]:
             else:
                 message_parts = [" "]
 
-        # Add images to the message for the model
-        if message.images is not None and message.role == "user":
-            for image in message.images:
-                if image.content is not None and isinstance(image.content, file_types.File):
-                    # Google recommends that if using a single image, place the text prompt after the image.
-                    message_parts.insert(0, image.content)
-                else:
-                    image_content = _format_image_for_message(image)
-                    if image_content:
-                        message_parts.append(image_content)
-
-        # Add videos to the message for the model
-        if message.videos is not None and message.role == "user":
-            try:
-                for video in message.videos:
-                    # Case 1: Video is a file_types.File object (Recommended)
-                    # Add it as a File object
-                    if video.content is not None and isinstance(video.content, file_types.File):
+        if message.role == "user":
+            # Add images to the message for the model
+            if message.images is not None:
+                for image in message.images:
+                    if image.content is not None and isinstance(image.content, file_types.File):
                         # Google recommends that if using a single image, place the text prompt after the image.
-                        message_parts.insert(0, video.content)
+                        message_parts.insert(0, image.content)
                     else:
-                        video_file = _format_video_for_message(video)
+                        image_content = _format_image_for_message(image)
+                        if image_content:
+                            message_parts.append(image_content)
 
-                        # Google recommends that if using a single video, place the text prompt after the video.
-                        if video_file is not None:
-                            message_parts.insert(0, video_file)  # type: ignore
-            except Exception as e:
-                traceback.print_exc()
-                logger.warning(f"Failed to load video from {message.videos}: {e}")
-                continue
+            # Add videos to the message for the model
+            if message.videos is not None:
+                try:
+                    for video in message.videos:
+                        # Case 1: Video is a file_types.File object (Recommended)
+                        # Add it as a File object
+                        if video.content is not None and isinstance(video.content, file_types.File):
+                            # Google recommends that if using a single image, place the text prompt after the image.
+                            message_parts.insert(0, video.content)
+                        else:
+                            video_file = _format_video_for_message(video)
 
-        # Add audio to the message for the model
-        if message.audio is not None and len(message.audio) > 0 and message.role == "user":
-            try:
-                for audio_snippet in message.audio:
-                    if audio_snippet.content is not None and isinstance(audio_snippet.content, file_types.File):
-                        # Google recommends that if using a single image, place the text prompt after the image.
-                        message_parts.insert(0, audio_snippet.content)
-                    else:
-                        audio_content = _format_audio_for_message(audio_snippet)
-                        if audio_content:
-                            message_parts.append(audio_content)
-            except Exception as e:
-                logger.warning(f"Failed to load audio from {message.audio}: {e}")
-                continue
+                            # Google recommends that if using a single video, place the text prompt after the video.
+                            if video_file is not None:
+                                message_parts.insert(0, video_file)  # type: ignore
+                except Exception as e:
+                    traceback.print_exc()
+                    logger.warning(f"Failed to load video from {message.videos}: {e}")
+                    continue
+
+            # Add audio to the message for the model
+            if message.audio is not None:
+                try:
+                    for audio_snippet in message.audio:
+                        if audio_snippet.content is not None and isinstance(audio_snippet.content, file_types.File):
+                            # Google recommends that if using a single image, place the text prompt after the image.
+                            message_parts.insert(0, audio_snippet.content)
+                        else:
+                            audio_content = _format_audio_for_message(audio_snippet)
+                            if audio_content:
+                                message_parts.append(audio_content)
+                except Exception as e:
+                    logger.warning(f"Failed to load audio from {message.audio}: {e}")
+                    continue
 
         message_for_model["parts"] = message_parts
         formatted_messages.append(message_for_model)
@@ -324,6 +353,8 @@ def _build_function_declaration(func: Function) -> FunctionDeclaration:
 class Gemini(Model):
     """
     Gemini model class for Google's Generative AI models.
+
+    Based on https://ai.google.dev/gemini-api/docs/function-calling
 
     Attributes:
         id (str): Model ID. Default is `gemini-2.0-flash-exp`.
@@ -546,7 +577,6 @@ class Gemini(Model):
         assistant_message = Message(
             role=message_data.response_role or "model",
             content=message_data.response_content,
-            parts=message_data.response_parts,
         )
 
         # -*- Update assistant message if tool calls are present
@@ -571,17 +601,15 @@ class Gemini(Model):
         """
         if function_call_results:
             combined_content: List = []
-            combined_parts: List = []
+            combined_function_result: List = []
 
             for result in function_call_results:
-                s = Struct()
-                s.update({"result": [result.content]})
-                function_response = genai.protos.Part(
-                    function_response=genai.protos.FunctionResponse(name=result.tool_name, response=s)
-                )
                 combined_content.append(result.content)
-                combined_parts.append(function_response)
-            messages.append(Message(role="tool", content=combined_content, parts=combined_parts))
+                combined_function_result.append((result.tool_name, result.content))
+
+            messages.append(
+                Message(role="tool", content=combined_content, combined_function_details=combined_function_result)
+            )
 
     def handle_tool_calls(self, assistant_message: Message, messages: List[Message], model_response: ModelResponse):
         """
@@ -663,12 +691,9 @@ class Gemini(Model):
                 if model_response.content is None:
                     model_response.content = ""
                 model_response.content += response_after_tool_calls.content
+
             return model_response
 
-        # -*- Remove parts from messages
-        # for m in messages:
-        #     if hasattr(m, "parts"):
-        #         m.parts = None
         logger.debug("---------- Gemini Response End ----------")
         return model_response
 
@@ -761,7 +786,6 @@ class Gemini(Model):
         # -*- Create assistant message
         assistant_message = Message(
             role=message_data.response_role or "model",
-            parts=message_data.valid_response_parts,
             content=message_data.response_content,
         )
 
@@ -783,10 +807,6 @@ class Gemini(Model):
             yield from self.handle_stream_tool_calls(assistant_message, messages)
             yield from self.response_stream(messages=messages)
 
-        # -*- Remove parts from messages
-        # for m in messages:
-        #     if hasattr(m, "parts"):
-        #         m.parts = None
         logger.debug("---------- Gemini Response End ----------")
 
     async def ainvoke(self, *args, **kwargs) -> Any:

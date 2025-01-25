@@ -21,7 +21,7 @@ if SSL_CERT:
 db_engine = create_engine(db_url)
 
 knowledge_base = PDFUrlKnowledgeBase(
-    urls=["https://phi-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
+    urls=["https://agno-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
     vector_db=S2VectorDb(
         collection="recipes",
         db_engine=db_engine,

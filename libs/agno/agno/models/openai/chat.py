@@ -263,7 +263,7 @@ class OpenAIChat(Model):
                 logger.warning("Video input is currently unsupported.")
 
         # OpenAI expects the tool_calls to be None if empty, not an empty list
-        if message.tool_calls == []:
+        if message.tool_calls is not None and len(message.tool_calls) == 0:
             message.tool_calls = None
 
         return message.to_dict()

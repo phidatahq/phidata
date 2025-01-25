@@ -15,7 +15,7 @@ def pre_hook(fc: FunctionCall):
     num_calls += 1
     if num_calls < 2:
         raise RetryAgentRun(
-            "This wasnt interesting enough, please retry with a different argument"
+            "This wasn't interesting enough, please retry with a different argument"
         )
 
 

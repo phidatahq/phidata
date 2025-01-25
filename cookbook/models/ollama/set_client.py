@@ -2,13 +2,10 @@
 
 from agno.agent import Agent, RunResponse  # noqa
 from agno.models.ollama import Ollama
-from agno.playground import Playground, serve_playground_app
-from agno.tools.yfinance import YFinanceTools
 from ollama import Client as OllamaClient
 
 agent = Agent(
-    model=Ollama(id="llama3.2", client=OllamaClient()),
-    tools=[YFinanceTools(stock_price=True)],
+    model=Ollama(id="llama3.1:8b", client=OllamaClient()),
     markdown=True,
 )
 

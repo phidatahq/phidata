@@ -18,6 +18,8 @@ Run `pip install openai lancedb tantivy pypdf duckduckgo-search sqlalchemy agno`
 from typing import List, Optional
 
 import typer
+from rich import print
+
 from agno.agent import Agent
 from agno.embedder.openai import OpenAIEmbedder
 from agno.knowledge.pdf_url import PDFUrlKnowledgeBase
@@ -119,9 +121,14 @@ def recipe_agent(user: str = "user"):
         # num_history_responses=3,
         markdown=True,
     )
+
+    print("You are about to chat with an agent!")
     if session_id is None:
         session_id = agent.session_id
-        print(f"Started Session: {session_id}\n")
+        if session_id is not None:
+            print(f"Started Session: {session_id}\n")
+        else:
+            print("Started Session\n")
     else:
         print(f"Continuing Session: {session_id}\n")
 

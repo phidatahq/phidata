@@ -12,7 +12,7 @@ For examples of using async agents, see /cookbook/agent_concepts/async/.
 
 ### Hybrid Search
 
-Hybrid Search combines multiple search paradigms—such as vector similarity search and traditional keyword-based search—to retrieve the most relevant results for a given query. This approach ensures that agents can find both semantically similar results and exact keyword matches, improving accuracy and context-awareness in diverse use cases. 
+Hybrid Search combines multiple search paradigms—such as vector similarity search and traditional keyword-based search—to retrieve the most relevant results for a given query. This approach ensures that agents can find both semantically similar results and exact keyword matches, improving accuracy and context-awareness in diverse use cases.
 
 Hybrid search examples can be found under `/cookbook/agent_concepts/hybrid_search/`
 
@@ -35,7 +35,7 @@ Examples of Agents using different memory types can be found under `/cookbook/ag
 
 ### Multimodal
 
-In addition to text, Agno agents support image, audio, and video inputs and can generate image and audio outputs. 
+In addition to text, Agno agents support image, audio, and video inputs and can generate image and audio outputs.
 
 Examples with multimodal input and outputs using Agno can be found under `/cookbook/agent_concepts/storage/`
 
@@ -50,7 +50,6 @@ Examples of agentic RAG can be found under `/cookbook/agent_concepts/rag/`
 Reasoning is an *experimental feature* that enables an Agent to think through a problem step-by-step before jumping into a response. The Agent works through different ideas, validating and correcting as needed. Once it reaches a final answer, it will validate and provide a response.
 
 Examples of agentic shwowing their reasoning can be found under `/cookbook/agent_concepts/reasoning/`
-
 
 ### Storage
 
@@ -68,7 +67,7 @@ Examples of using agent teams with Agno can be found under `/cookbook/agent_conc
 
 ### Tools
 
-Agents use tools to take actions and interact with external systems. A tool is a function that an Agent can use to achieve a task. For example: searching the web, running SQL, sending an email or calling APIs. 
+Agents use tools to take actions and interact with external systems. A tool is a function that an Agent can use to achieve a task. For example: searching the web, running SQL, sending an email or calling APIs.
 
 Examples of using tools with Agno agents can be found under `/cookbook/agent_concepts/tools/`
 

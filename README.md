@@ -7,9 +7,6 @@
   </a>
 </div>
 <div align="center">
-  Lightning Fast AI Agents
-</div>
-<div align="center">
   <a href="https://docs.agno.com">📚 Documentation</a> &nbsp;|&nbsp;
   <a href="https://github.com/agno-agi/agno/tree/main/cookbook">💡 Examples</a> &nbsp;|&nbsp;
   <a href="https://github.com/agno-agi/agno/stargazers">🌟 Star Us</a>
@@ -17,7 +14,7 @@
 
 ## Overview
 
-[Agno](https://docs.agno.com) is a lightning-fast, model-agnostic framework for building Agents
+[Agno](https://docs.agno.com) is a lightning-fast, model-agnostic framework for building pure AI Agents
 
 ## Simple, Fast, and Agnostic
 

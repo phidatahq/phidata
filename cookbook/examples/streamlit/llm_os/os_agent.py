@@ -1,24 +1,24 @@
+import os
 from pathlib import Path
-from typing import Optional, List
 from textwrap import dedent
+from typing import List, Optional
 
 from agno.agent import Agent
+from agno.embedder.openai import OpenAIEmbedder
+from agno.knowledge import AgentKnowledge
 from agno.models.openai import OpenAIChat
+from agno.storage.agent.postgres import PostgresAgentStorage
 from agno.tools import Toolkit
 from agno.tools.calculator import CalculatorTools
+from agno.tools.duckdb import DuckDbTools
 from agno.tools.duckduckgo import DuckDuckGoTools
 from agno.tools.exa import ExaTools
 from agno.tools.file import FileTools
+from agno.tools.python import PythonTools
 from agno.tools.shell import ShellTools
 from agno.tools.yfinance import YFinanceTools
-from agno.tools.duckdb import DuckDbTools
-from agno.tools.python import PythonTools
-from agno.knowledge import AgentKnowledge
-from agno.storage.agent.postgres import PostgresAgentStorage
-from agno.vectordb.qdrant import Qdrant
-from agno.embedder.openai import OpenAIEmbedder
 from agno.utils.log import logger
-import os
+from agno.vectordb.qdrant import Qdrant
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -75,21 +75,26 @@ def get_llm_os(
 
     if data_analyst:
         data_analyst_agent: Agent = Agent(
-    tools=[DuckDbTools()],
-    show_tool_calls=True,
-    instructions="Use this file for Movies data: https://phidata-public.s3.amazonaws.com/demo_data/IMDB-Movie-Data.csv",
-
-)
+            tools=[DuckDbTools()],
+            show_tool_calls=True,
+            instructions="Use this file for Movies data: https://phidata-public.s3.amazonaws.com/demo_data/IMDB-Movie-Data.csv",
+        )
         team.append(data_analyst_agent)
         extra_instructions.append(
             "To answer questions about my favorite movies, delegate the task to the `Data Analyst`."
         )
 
     if python_agent_enable:
-        python_agent: Agent = Agent(tools=[PythonTools(base_dir=Path("tmp/python"))], show_tool_calls=True , instructions="To write and run Python code, delegate the task to the `Python Agent`.")
+        python_agent: Agent = Agent(
+            tools=[PythonTools(base_dir=Path("tmp/python"))],
+            show_tool_calls=True,
+            instructions="To write and run Python code, delegate the task to the `Python Agent`.",
+        )
 
         team.append(python_agent)
-        extra_instructions.append("To write and run Python code, delegate the task to the `Python Agent`.")
+        extra_instructions.append(
+            "To write and run Python code, delegate the task to the `Python Agent`."
+        )
     if research_agent_enable:
         research_agent = Agent(
             name="Research Agent",
@@ -239,9 +244,8 @@ def get_llm_os(
             "Carefully read the information you have gathered and provide a clear and concise answer to the user.",
             "Do not use phrases like 'based on my knowledge' or 'depending on the information'.",
             "You can delegate tasks to an AI Agent in your team depending of their role and the tools available to them.",
-             extra_instructions,
+            extra_instructions,
         ],
-
         storage=PostgresAgentStorage(db_url=db_url, table_name="llm_os_runs"),
         # Define the knowledge base
         knowledge=AgentKnowledge(

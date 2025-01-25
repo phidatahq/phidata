@@ -1,10 +1,10 @@
 """Run `pip install duckduckgo-search pgvector google.generativeai` to install dependencies."""
 
 from agno.agent import Agent
+from agno.knowledge.pdf_url import PDFUrlKnowledgeBase
 from agno.memory import AgentMemory
 from agno.memory.db.postgres import PgMemoryDb
 from agno.models.google import Gemini
-from agno.knowledge.pdf_url import PDFUrlKnowledgeBase
 from agno.storage.agent.postgres import PostgresAgentStorage
 from agno.tools.duckduckgo import DuckDuckGoTools
 from agno.vectordb.pgvector import PgVector

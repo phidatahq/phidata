@@ -6,29 +6,34 @@ from os import getenv
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterator, List, Optional, Union
 
-from agno.media import Image, Audio, Video
-from agno.models.base import Model, Metrics
+from agno.media import Audio, Image, Video
+from agno.models.base import Metrics, Model
 from agno.models.message import Message
 from agno.models.response import ModelResponse
-from agno.tools.function import Function
 from agno.tools import Toolkit
+from agno.tools.function import Function
 from agno.utils.log import logger
 
 try:
     import google.generativeai as genai
     from google.ai.generativelanguage_v1beta.types import (
-        Part,
         FunctionCall as GeminiFunctionCall,
+    )
+    from google.ai.generativelanguage_v1beta.types import (
         FunctionResponse as GeminiFunctionResponse,
     )
-    from google.generativeai import GenerativeModel
-    from google.generativeai.types.generation_types import GenerateContentResponse
-    from google.generativeai.types.content_types import FunctionDeclaration, Tool as GeminiTool
-    from google.generativeai.types import file_types
+    from google.ai.generativelanguage_v1beta.types import (
+        Part,
+    )
     from google.ai.generativelanguage_v1beta.types.generative_service import (
         GenerateContentResponse as ResultGenerateContentResponse,
     )
     from google.api_core.exceptions import PermissionDenied
+    from google.generativeai import GenerativeModel
+    from google.generativeai.types import file_types
+    from google.generativeai.types.content_types import FunctionDeclaration
+    from google.generativeai.types.content_types import Tool as GeminiTool
+    from google.generativeai.types.generation_types import GenerateContentResponse
     from google.protobuf.struct_pb2 import Struct
 except (ModuleNotFoundError, ImportError):
     raise ImportError("`google-generativeai` not installed. Please install it using `pip install google-generativeai`")
@@ -186,11 +191,7 @@ def _format_messages(messages: List[Message]) -> List[Dict[str, Any]]:
 
         # Add role to the message for the model
         role = (
-            "model"
-            if message.role in ["system", "developer"]
-            else "user"
-            if message.role == "tool"
-            else message.role
+            "model" if message.role in ["system", "developer"] else "user" if message.role == "tool" else message.role
         )
         message_for_model["role"] = role
 
@@ -424,7 +425,6 @@ class Gemini(Model):
         if self.function_declarations:
             request_params["tools"] = [GeminiTool(function_declarations=self.function_declarations)]
         return request_params
-
 
     def add_tool(
         self,

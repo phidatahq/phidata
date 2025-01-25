@@ -1,4 +1,5 @@
 from typing import List
+
 import nest_asyncio
 import streamlit as st
 from agno.agent import Agent
@@ -15,7 +16,9 @@ st.set_page_config(
     page_icon=":orange_heart:",
 )
 st.title("LLM OS")
-st.markdown("##### :orange_heart: built using [Agno](https://github.com/phidatahq/agno)")
+st.markdown(
+    "##### :orange_heart: built using [Agno](https://github.com/phidatahq/agno)"
+)
 
 
 def main() -> None:
@@ -40,7 +43,9 @@ def main() -> None:
     # Get calculator_enabled from session state if set
     calculator_enabled = st.session_state["calculator_enabled"]
     # Checkbox for enabling calculator
-    calculator = st.sidebar.checkbox("Calculator", value=calculator_enabled, help="Enable calculator.")
+    calculator = st.sidebar.checkbox(
+        "Calculator", value=calculator_enabled, help="Enable calculator."
+    )
     if calculator_enabled != calculator:
         st.session_state["calculator_enabled"] = calculator
         calculator_enabled = calculator
@@ -52,7 +57,9 @@ def main() -> None:
     # Get file_tools_enabled from session state if set
     file_tools_enabled = st.session_state["file_tools_enabled"]
     # Checkbox for enabling shell tools
-    file_tools = st.sidebar.checkbox("File Tools", value=file_tools_enabled, help="Enable file tools.")
+    file_tools = st.sidebar.checkbox(
+        "File Tools", value=file_tools_enabled, help="Enable file tools."
+    )
     if file_tools_enabled != file_tools:
         st.session_state["file_tools_enabled"] = file_tools
         file_tools_enabled = file_tools
@@ -64,7 +71,11 @@ def main() -> None:
     # Get ddg_search_enabled from session state if set
     ddg_search_enabled = st.session_state["ddg_search_enabled"]
     # Checkbox for enabling web search
-    ddg_search = st.sidebar.checkbox("Web Search", value=ddg_search_enabled, help="Enable web search using DuckDuckGo.")
+    ddg_search = st.sidebar.checkbox(
+        "Web Search",
+        value=ddg_search_enabled,
+        help="Enable web search using DuckDuckGo.",
+    )
     if ddg_search_enabled != ddg_search:
         st.session_state["ddg_search_enabled"] = ddg_search
         ddg_search_enabled = ddg_search
@@ -76,7 +87,9 @@ def main() -> None:
     # Get shell_tools_enabled from session state if set
     shell_tools_enabled = st.session_state["shell_tools_enabled"]
     # Checkbox for enabling shell tools
-    shell_tools = st.sidebar.checkbox("Shell Tools", value=shell_tools_enabled, help="Enable shell tools.")
+    shell_tools = st.sidebar.checkbox(
+        "Shell Tools", value=shell_tools_enabled, help="Enable shell tools."
+    )
     if shell_tools_enabled != shell_tools:
         st.session_state["shell_tools_enabled"] = shell_tools
         shell_tools_enabled = shell_tools
@@ -159,7 +172,9 @@ def main() -> None:
             st.session_state["llm_os"] = llm_os
         except RuntimeError as e:
             st.error(f"Database Error: {str(e)}")
-            st.info("Please make sure your PostgreSQL database is running at postgresql+psycopg://ai:ai@localhost:5532/ai")
+            st.info(
+                "Please make sure your PostgreSQL database is running at postgresql+psycopg://ai:ai@localhost:5532/ai"
+            )
             return
     else:
         llm_os = st.session_state["llm_os"]
@@ -177,11 +192,14 @@ def main() -> None:
     if llm_os.memory and not st.session_state["messages"]:
         logger.debug("Loading chat history")
         st.session_state["messages"] = [
-            {"role": message.role, "content": message.content} for message in llm_os.memory.messages
+            {"role": message.role, "content": message.content}
+            for message in llm_os.memory.messages
         ]
     elif not st.session_state["messages"]:
         logger.debug("No chat history found")
-        st.session_state["messages"] = [{"role": "agent", "content": "Ask me questions..."}]
+        st.session_state["messages"] = [
+            {"role": "agent", "content": "Ask me questions..."}
+        ]
 
     # Display chat history first (all previous messages)
     for message in st.session_state["messages"]:
@@ -219,7 +237,9 @@ def main() -> None:
             st.session_state["url_scrape_key"] = 0
 
         input_url = st.sidebar.text_input(
-            "Add URL to Knowledge Base", type="default", key=st.session_state["url_scrape_key"]
+            "Add URL to Knowledge Base",
+            type="default",
+            key=st.session_state["url_scrape_key"],
         )
         add_url_button = st.sidebar.button("Add URL")
         if add_url_button:
@@ -240,7 +260,9 @@ def main() -> None:
             st.session_state["file_uploader_key"] = 100
 
         uploaded_file = st.sidebar.file_uploader(
-            "Add a PDF :page_facing_up:", type="pdf", key=st.session_state["file_uploader_key"]
+            "Add a PDF :page_facing_up:",
+            type="pdf",
+            key=st.session_state["file_uploader_key"],
         )
         if uploaded_file is not None:
             alert = st.sidebar.info("Processing PDF...", icon="🧠")
@@ -264,10 +286,14 @@ def main() -> None:
     if llm_os.team and len(llm_os.team) > 0:
         for team_member in llm_os.team:
             if team_member.memory and len(team_member.memory.messages) > 0:
-                with st.status(f"{team_member.name} Memory", expanded=False, state="complete"):
+                with st.status(
+                    f"{team_member.name} Memory", expanded=False, state="complete"
+                ):
                     with st.container():
                         _team_member_memory_container = st.empty()
-                        _team_member_memory_container.json(team_member.memory.get_messages())
+                        _team_member_memory_container.json(
+                            team_member.memory.get_messages()
+                        )
 
     # Remove the run history section entirely
     if st.sidebar.button("New Run"):
@@ -280,7 +306,9 @@ def restart_agent():
     for key in ["llm_os", "messages"]:  # Removed "llm_os_run_id"
         st.session_state.pop(key, None)
     st.session_state["url_scrape_key"] = st.session_state.get("url_scrape_key", 0) + 1
-    st.session_state["file_uploader_key"] = st.session_state.get("file_uploader_key", 100) + 1
+    st.session_state["file_uploader_key"] = (
+        st.session_state.get("file_uploader_key", 100) + 1
+    )
     st.rerun()
 
 

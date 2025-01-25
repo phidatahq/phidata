@@ -15,7 +15,7 @@ except ImportError:
 class HuggingfaceCustomEmbedder(Embedder):
     """Huggingface Custom Embedder"""
 
-    model: str = "jinaai/jina-embeddings-v2-base-code"
+    model: str = "thenlper/gte-large"
     api_key: Optional[str] = getenv("HUGGINGFACE_API_KEY")
     client_params: Optional[Dict[str, Any]] = None
     huggingface_client: Optional[InferenceClient] = None

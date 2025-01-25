@@ -548,13 +548,14 @@ class Agent:
                         )
                 # If the model response is a tool_call_started, add the tool call to the run_response
                 elif model_response_chunk.event == ModelResponseEvent.tool_call_started.value:
-                    # Add tool call to the run_response
-                    tool_call_dict = model_response_chunk.tool_call
-                    if tool_call_dict is not None:
-                        # Add tool call to the agent.run_response
+                    # Add tool calls to the run_response
+                    tool_calls_list = model_response_chunk.tool_calls
+                    if tool_calls_list is not None:
+                        # Add tool calls to the agent.run_response
                         if self.run_response.tools is None:
-                            self.run_response.tools = []
-                        self.run_response.tools.append(tool_call_dict)
+                            self.run_response.tools = tool_calls_list
+                        else:
+                            self.run_response.tools.extend(tool_calls_list)
 
                     # If the agent is streaming intermediate steps, yield a RunResponse with the tool_call_started event
                     if self.stream_intermediate_steps:
@@ -565,20 +566,28 @@ class Agent:
 
                 # If the model response is a tool_call_completed, update the existing tool call in the run_response
                 elif model_response_chunk.event == ModelResponseEvent.tool_call_completed.value:
-                    # Update the existing tool call in the run_response
-                    tool_call_dict = model_response_chunk.tool_call
-                    if tool_call_dict is not None and self.run_response.tools:
-                        tool_call_id_to_update = tool_call_dict["tool_call_id"]
-                        # Use a dictionary comprehension to create a mapping of tool_call_id to index
-                        tool_call_index_map = {tc["tool_call_id"]: i for i, tc in enumerate(self.run_response.tools)}
-                        # Update the tool call if it exists
-                        if tool_call_id_to_update in tool_call_index_map:
-                            self.run_response.tools[tool_call_index_map[tool_call_id_to_update]] = tool_call_dict
-                    if self.stream_intermediate_steps:
-                        yield self.create_run_response(
-                            content=model_response_chunk.content,
-                            event=RunEvent.tool_call_completed,
-                        )
+                    tool_calls_list = model_response_chunk.tool_calls
+                    if tool_calls_list is not None:
+                        # Update the existing tool call in the run_response
+                        if self.run_response.tools:
+                            # Create a mapping of tool_call_id to index
+                            tool_call_index_map = {
+                                tc["tool_call_id"]: i for i, tc in enumerate(self.run_response.tools)
+                            }
+                            # Process tool calls
+                            for tool_call_dict in tool_calls_list:
+                                tool_call_id = tool_call_dict["tool_call_id"]
+                                index = tool_call_index_map.get(tool_call_id)
+                                if index is not None:
+                                    self.run_response.tools[index] = tool_call_dict
+                        else:
+                            self.run_response.tools = tool_calls_list
+
+                        if self.stream_intermediate_steps:
+                            yield self.create_run_response(
+                                content=model_response_chunk.content,
+                                event=RunEvent.tool_call_completed,
+                            )
         else:
             # Get the model response
             model_response = self.model.response(messages=run_messages.messages)
@@ -591,6 +600,14 @@ class Agent:
             else:
                 # Update the run_response content with the model response content
                 self.run_response.content = model_response.content
+
+            # Update the run_response tools with the model response tools
+            if model_response.tool_calls is not None:
+                if self.run_response.tools is None:
+                    self.run_response.tools = model_response.tool_calls
+                else:
+                    self.run_response.tools.extend(model_response.tool_calls)
+
             # Update the run_response audio with the model response audio
             if model_response.audio is not None:
                 self.run_response.response_audio = model_response.audio
@@ -962,13 +979,15 @@ class Agent:
                         )
                 # If the model response is a tool_call_started, add the tool call to the run_response
                 elif model_response_chunk.event == ModelResponseEvent.tool_call_started.value:
-                    # Add tool call to the run_response
-                    tool_call_dict = model_response_chunk.tool_call
-                    if tool_call_dict is not None:
-                        # Add tool call to the agent.run_response
+                    # Add tool calls to the run_response
+                    tool_calls_list = model_response_chunk.tool_calls
+                    if tool_calls_list is not None:
+                        # Add tool calls to the agent.run_response
                         if self.run_response.tools is None:
-                            self.run_response.tools = []
-                        self.run_response.tools.append(tool_call_dict)
+                            self.run_response.tools = tool_calls_list
+                        else:
+                            self.run_response.tools.extend(tool_calls_list)
+
                     # If the agent is streaming intermediate steps, yield a RunResponse with the tool_call_started event
                     if self.stream_intermediate_steps:
                         yield self.create_run_response(
@@ -977,15 +996,23 @@ class Agent:
                         )
                 # If the model response is a tool_call_completed, update the existing tool call in the run_response
                 elif model_response_chunk.event == ModelResponseEvent.tool_call_completed.value:
-                    # Update the existing tool call in the run_response
-                    tool_call_dict = model_response_chunk.tool_call
-                    if tool_call_dict is not None and self.run_response.tools:
-                        tool_call_id = tool_call_dict["tool_call_id"]
-                        # Use a dictionary comprehension to create a mapping of tool_call_id to index
-                        tool_call_index_map = {tc["tool_call_id"]: i for i, tc in enumerate(self.run_response.tools)}
-                        # Update the tool call if it exists
-                        if tool_call_id in tool_call_index_map:
-                            self.run_response.tools[tool_call_index_map[tool_call_id]] = tool_call_dict
+                    tool_calls_list = model_response_chunk.tool_calls
+                    if tool_calls_list is not None:
+                        # Update the existing tool call in the run_response
+                        if self.run_response.tools:
+                            # Create a mapping of tool_call_id to index
+                            tool_call_index_map = {
+                                tc["tool_call_id"]: i for i, tc in enumerate(self.run_response.tools)
+                            }
+                            # Process tool calls
+                            for tool_call_dict in tool_calls_list:
+                                tool_call_id = tool_call_dict["tool_call_id"]
+                                index = tool_call_index_map.get(tool_call_id)
+                                if index is not None:
+                                    self.run_response.tools[index] = tool_call_dict
+                        else:
+                            self.run_response.tools = tool_calls_list
+
                     if self.stream_intermediate_steps:
                         yield self.create_run_response(
                             content=model_response_chunk.content,
@@ -1003,9 +1030,16 @@ class Agent:
             else:
                 # Update the run_response content with the model response content
                 self.run_response.content = model_response.content
+            # Update the run_response tools with the model response tools
+            if model_response.tool_calls is not None:
+                if self.run_response.tools is None:
+                    self.run_response.tools = model_response.tool_calls
+                else:
+                    self.run_response.tools.extend(model_response.tool_calls)
             # Update the run_response audio with the model response audio
             if model_response.audio is not None:
                 self.run_response.response_audio = model_response.audio
+
             # Update the run_response messages with the messages
             self.run_response.messages = run_messages.messages
             # Update the run_response created_at with the model response created_at

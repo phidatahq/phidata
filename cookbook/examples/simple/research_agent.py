@@ -1,22 +1,25 @@
-"""🔍 Web Research Agent - Your AI News Research Assistant!
+"""🔍 Research Agent - Your AI Investigative Journalist!
 
-This example shows a research agent that combines web search and scraping capabilities
-with journalistic writing skills to produce well-structured news articles.
+This example shows how to create a sophisticated research agent that combines
+web search capabilities with professional journalistic writing skills. The agent performs
+comprehensive research using multiple sources, fact-checks information, and delivers
+well-structured, NYT-style articles on any topic.
 
-Key features demonstrated:
-- Using DuckDuckGo for web searches
-- Article extraction and analysis
-- Professional news article generation
+Key capabilities:
+- Advanced web search across multiple sources
+- Content extraction and analysis
+- Cross-reference verification
+- Professional journalistic writing
+- Balanced and objective reporting
 
 Example prompts to try:
-- "Analyze the impact of AI on creative industries"
-- "Report on recent developments in renewable energy"
-- "Investigate the future of remote work trends"
-- "Explore the latest advances in electric vehicles"
-- "Research the state of space tourism industry"
+- "Analyze the impact of AI on healthcare delivery and patient outcomes"
+- "Report on the latest breakthroughs in quantum computing"
+- "Investigate the global transition to renewable energy sources"
+- "Explore the evolution of cybersecurity threats and defenses"
+- "Research the development of autonomous vehicle technology"
 
-Please install dependencies using:
-pip install openai duckduckgo-search newspaper4k lxml_html_clean agno
+Dependencies: `pip install openai duckduckgo-search newspaper4k lxml_html_clean agno`
 """
 
 from textwrap import dedent
@@ -26,77 +29,121 @@ from agno.models.openai import OpenAIChat
 from agno.tools.duckduckgo import DuckDuckGoTools
 from agno.tools.newspaper4k import Newspaper4kTools
 
-# Initialize the research agent with journalistic capabilities
-agent = Agent(
+# Initialize the research agent with advanced journalistic capabilities
+research_agent = Agent(
     model=OpenAIChat(id="gpt-4o"),
     tools=[DuckDuckGoTools(), Newspaper4kTools()],
     description=dedent("""\
-        You are a seasoned NYT investigative journalist with decades of experience
-        in researching and writing compelling news articles. Your expertise lies in:
+        You are an elite investigative journalist with decades of experience at the New York Times.
+        Your expertise encompasses: 📰
 
-        - Thorough fact-checking and verification
-        - Clear and engaging narrative writing
-        - Balanced and objective reporting
-        - Making complex topics accessible to general readers
-        - Crafting headlines that capture attention while maintaining integrity\
+        - Deep investigative research and analysis
+        - Meticulous fact-checking and source verification
+        - Compelling narrative construction
+        - Data-driven reporting and visualization
+        - Expert interview synthesis
+        - Trend analysis and future predictions
+        - Complex topic simplification
+        - Ethical journalism practices
+        - Balanced perspective presentation
+        - Global context integration\
     """),
-    instructions=[
-        "Begin by searching for 10 recent and reliable sources on the topic",
-        "Extract and analyze the content from each accessible URL",
-        "Cross-reference information for accuracy and consistency",
-        "Structure your article in the NYT style with a compelling headline",
-        "Include relevant quotes and statistics with proper attribution",
-        "Conclude with implications and future outlook",
-    ],
+    instructions=(
+        "1. Research Phase 🔍\n"
+        "   - Search for 10+ authoritative sources on the topic\n"
+        "   - Prioritize recent publications and expert opinions\n"
+        "   - Identify key stakeholders and perspectives\n"
+        "2. Analysis Phase 📊\n"
+        "   - Extract and verify critical information\n"
+        "   - Cross-reference facts across multiple sources\n"
+        "   - Identify emerging patterns and trends\n"
+        "   - Evaluate conflicting viewpoints\n"
+        "3. Writing Phase ✍️\n"
+        "   - Craft an attention-grabbing headline\n"
+        "   - Structure content in NYT style\n"
+        "   - Include relevant quotes and statistics\n"
+        "   - Maintain objectivity and balance\n"
+        "   - Explain complex concepts clearly\n"
+        "4. Quality Control ✓\n"
+        "   - Verify all facts and attributions\n"
+        "   - Ensure narrative flow and readability\n"
+        "   - Add context where necessary\n"
+        "   - Include future implications"
+    ),
     expected_output=dedent("""\
-        # {Compelling Headline}
+        # {Compelling Headline} 📰
 
-        ## Summary
-        {A concise overview of the main story}
+        ## Executive Summary
+        {Concise overview of key findings and significance}
 
-        ## Background
-        {Context and importance of the topic}
+        ## Background & Context
+        {Historical context and importance}
+        {Current landscape overview}
 
-        ## Key Developments
-        {Main findings and analysis}
-        {Supporting evidence and expert opinions}
+        ## Key Findings
+        {Main discoveries and analysis}
+        {Expert insights and quotes}
+        {Statistical evidence}
 
-        ## Impact and Implications
-        {Current and future effects on society/industry}
-        {Expert predictions and analysis}
+        ## Impact Analysis
+        {Current implications}
+        {Stakeholder perspectives}
+        {Industry/societal effects}
 
-        ## Looking Ahead
-        {Future developments and trends}
+        ## Future Outlook
+        {Emerging trends}
+        {Expert predictions}
         {Potential challenges and opportunities}
 
-        ## Sources
-        - [Source 1] - Key finding/quote
-        - [Source 2] - Key finding/quote
-        - [Source 3] - Key finding/quote
+        ## Expert Insights
+        {Notable quotes and analysis from industry leaders}
+        {Contrasting viewpoints}
+
+        ## Sources & Methodology
+        {List of primary sources with key contributions}
+        {Research methodology overview}
 
         ---
-        Article by AI Research Journalist
+        Research conducted by AI Investigative Journalist
         New York Times Style Report
-        Date: {current_date}\
+        Published: {current_date}
+        Last Updated: {current_time}\
     """),
     markdown=True,
     show_tool_calls=True,
     add_datetime_to_instructions=True,
 )
 
-# Example usage
+# Example usage with detailed research request
 if __name__ == "__main__":
-    # Generate a news article on a current topic
-    agent.print_response(
-        "The current state of artificial intelligence regulation", stream=True
+    research_agent.print_response(
+        "Analyze the current state and future implications of artificial intelligence regulation worldwide",
+        stream=True,
     )
 
-# More example prompts to try:
+# Advanced research topics to explore:
 """
-Try these research topics:
-1. "Analyze the growth of sustainable fashion industry"
-2. "Report on breakthrough medical technologies"
-3. "Investigate the impact of social media on mental health"
-4. "Explore the rise of vertical farming"
-5. "Study the evolution of cryptocurrency adoption"
+Technology & Innovation:
+1. "Investigate the development and impact of large language models in 2024"
+2. "Research the current state of quantum computing and its practical applications"
+3. "Analyze the evolution and future of edge computing technologies"
+4. "Explore the latest advances in brain-computer interface technology"
+
+Environmental & Sustainability:
+1. "Report on innovative carbon capture technologies and their effectiveness"
+2. "Investigate the global progress in renewable energy adoption"
+3. "Analyze the impact of circular economy practices on global sustainability"
+4. "Research the development of sustainable aviation technologies"
+
+Healthcare & Biotechnology:
+1. "Explore the latest developments in CRISPR gene editing technology"
+2. "Analyze the impact of AI on drug discovery and development"
+3. "Investigate the evolution of personalized medicine approaches"
+4. "Research the current state of longevity science and anti-aging research"
+
+Societal Impact:
+1. "Examine the effects of social media on democratic processes"
+2. "Analyze the impact of remote work on urban development"
+3. "Investigate the role of blockchain in transforming financial systems"
+4. "Research the evolution of digital privacy and data protection measures"
 """

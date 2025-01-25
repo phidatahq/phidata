@@ -1,6 +1,6 @@
 [project]
 name = "agno"
-version = "0.1.0"
+version = "0.1.1"
 description = "Agno: a model-agnostic framework for building AI Agents"
 requires-python = ">=3.7,<4"
 readme = "README.md"
@@ -41,7 +41,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["mypy", "pytest", "ruff", "timeout-decorator", "types-pyyaml", "fastapi", "uvicorn"]
 
-# Models
+# Dependencies for Models
 anthropic = ["anthropic"]
 cohere = ["cohere"]
 google = ["google-generativeai"]
@@ -50,28 +50,32 @@ mistral = ["mistralai"]
 openai = ["openai"]
 ollama = ["ollama"]
 
-# Tools
+# Dependencies for Tools
 exa = ["exa_py"]
 yfinance = ["yfinance"]
 ddg = ["duckduckgo-search"]
 duckdb = ["duckdb"]
 newspaper = ["newspaper4k", "lxml_html_clean"]
+youtube = ["youtube_transcript_api"]
 
-# Performance
-performance = ["memory_profiler"]
-
-# Storage
+# Dependencies for Storage
 sql = ["sqlalchemy"]
 postgres = ["psycopg"]
 
-# Vector databases
+# Dependencies for Vector databases
 pgvector = ["pgvector"]
 chromadb = ["chromadb"]
 lancedb = ["lancedb", "tantivy"]
 qdrant = ["qdrant-client"]
 
-# Knowledge
+# Dependencies for Knowledge
 pdf = ["pypdf"]
+
+# Dependencies for Performance
+performance = ["memory_profiler"]
+
+# Dependencies for Running cookbook
+cookbooks = ["inquirer"]
 
 # All models
 models = [
@@ -91,6 +95,7 @@ tools = [
   "agno[ddg]",
   "agno[duckdb]",
   "agno[newspaper]",
+  "agno[youtube]",
 ]
 
 # All storage
@@ -118,9 +123,10 @@ tests = [
     "agno[models]",
     "agno[tools]",
     "agno[storage]",
-    "agno[performance]",
     "agno[vectordbs]",
     "agno[knowledge]",
+    "agno[performance]",
+    "agno[cookbooks]",
 ]
 
 [project.scripts]

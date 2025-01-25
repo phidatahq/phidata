@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from agno.media import AudioOutput
 from agno.models.base import Metrics, Model
 from agno.models.message import Message
-from agno.models.response import ModelResponse
+from agno.models.response import ModelResponse, ModelResponseEvent
 from agno.tools.function import FunctionCall
 from agno.utils.log import logger
 from agno.utils.tools import get_function_call_for_tool_call
@@ -386,6 +386,8 @@ class OpenAIChat(Model):
         if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
             if model_response.content is None:
                 model_response.content = ""
+            if model_response.tool_calls is None:
+                model_response.tool_calls = []
             function_call_results: List[Message] = []
             function_calls_to_run: List[FunctionCall] = []
             for tool_call in assistant_message.tool_calls:
@@ -417,10 +419,14 @@ class OpenAIChat(Model):
                     model_response.content += f"\n - {_f.get_call_str()}"
                 model_response.content += "\n\n"
 
-            for _ in self.run_function_calls(
+            for function_call_response in self.run_function_calls(
                 function_calls=function_calls_to_run, function_call_results=function_call_results, tool_role=tool_role
             ):
-                pass
+                if (
+                    function_call_response.event == ModelResponseEvent.tool_call_completed.value
+                    and function_call_response.tool_calls is not None
+                ):
+                    model_response.tool_calls.extend(function_call_response.tool_calls)
 
             if len(function_call_results) > 0:
                 messages.extend(function_call_results)

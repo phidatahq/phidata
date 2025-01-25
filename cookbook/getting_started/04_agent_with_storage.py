@@ -18,6 +18,8 @@ Run `pip install openai lancedb tantivy pypdf duckduckgo-search sqlalchemy agno`
 from typing import List, Optional
 
 import typer
+from rich import print
+
 from agno.agent import Agent
 from agno.embedder.openai import OpenAIEmbedder
 from agno.knowledge.pdf_url import PDFUrlKnowledgeBase
@@ -27,12 +29,12 @@ from agno.tools.duckduckgo import DuckDuckGoTools
 from agno.vectordb.lancedb import LanceDb, SearchType
 
 agent_knowledge = PDFUrlKnowledgeBase(
-    urls=["https://phi-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
+    urls=["https://agno-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
     vector_db=LanceDb(
         uri="tmp/lancedb",
         table_name="recipe_knowledge",
         search_type=SearchType.hybrid,
-        embedder=OpenAIEmbedder(model="text-embedding-3-small"),
+        embedder=OpenAIEmbedder(id="text-embedding-3-small"),
     ),
 )
 # Comment out after the knowledge base is loaded
@@ -119,9 +121,14 @@ def recipe_agent(user: str = "user"):
         # num_history_responses=3,
         markdown=True,
     )
+
+    print("You are about to chat with an agent!")
     if session_id is None:
         session_id = agent.session_id
-        print(f"Started Session: {session_id}\n")
+        if session_id is not None:
+            print(f"Started Session: {session_id}\n")
+        else:
+            print("Started Session\n")
     else:
         print(f"Continuing Session: {session_id}\n")
 

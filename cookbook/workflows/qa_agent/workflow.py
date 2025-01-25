@@ -52,7 +52,7 @@ class QAWorkflow(Workflow):
             table_name="qa_agent_workflow",
             uri="/tmp/lancedb",
             search_type=SearchType.vector,
-            embedder=OpenAIEmbedder(model="text-embedding-ada-002"),
+            embedder=OpenAIEmbedder(id="text-embedding-ada-002"),
         ),
         chunking_strategy=RecursiveChunking(),
     )

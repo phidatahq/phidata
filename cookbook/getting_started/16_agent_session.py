@@ -22,6 +22,7 @@ from rich.console import Console
 from rich.json import JSON
 from rich.panel import Panel
 from rich.prompt import Prompt
+from rich import print
 
 console = Console()
 
@@ -56,7 +57,10 @@ def create_agent(user: str = "user"):
 
     if session_id is None:
         session_id = agent.session_id
-        print(f"Started Session: {session_id}\n")
+        if session_id is not None:
+            print(f"Started Session: {session_id}\n")
+        else:
+            print("Started Session\n")
     else:
         print(f"Continuing Session: {session_id}\n")
 
@@ -85,6 +89,7 @@ def print_messages(agent):
 def main(user: str = "user"):
     agent = create_agent(user)
 
+    print("Chat with an OpenAI agent!")
     exit_on = ["exit", "quit", "bye"]
     while True:
         message = Prompt.ask(f"[bold] :sunglasses: {user} [/bold]")

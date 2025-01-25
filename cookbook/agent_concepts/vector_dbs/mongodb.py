@@ -15,7 +15,7 @@ Example connection strings:
 mdb_connection_string = "mongodb://ai:ai@localhost:27017/ai?authSource=admin"
 
 knowledge_base = PDFUrlKnowledgeBase(
-    urls=["https://phi-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
+    urls=["https://agno-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
     vector_db=MongoDBVector(
         collection_name="recipes",
         db_url=mdb_connection_string,

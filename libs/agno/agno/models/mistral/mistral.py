@@ -4,7 +4,7 @@ from typing import Any, Dict, Iterator, List, Optional, Union
 
 from agno.models.base import Model, StreamData
 from agno.models.message import Message
-from agno.models.response import ModelResponse
+from agno.models.response import ModelResponse, ModelResponseEvent
 from agno.tools.function import FunctionCall
 from agno.utils.log import logger
 from agno.utils.timer import Timer
@@ -228,6 +228,8 @@ class MistralChat(Model):
             Optional[ModelResponse]: The model response after handling tool calls.
         """
         if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
+            if model_response.tool_calls is None:
+                model_response.tool_calls = []
             model_response.content = ""
             tool_role: str = "tool"
             function_calls_to_run: List[FunctionCall] = []
@@ -259,10 +261,14 @@ class MistralChat(Model):
                         model_response.content += f"\n - {_f.get_call_str()}"
                     model_response.content += "\n\n"
 
-            for _ in self.run_function_calls(
+            for function_call_response in self.run_function_calls(
                 function_calls=function_calls_to_run, function_call_results=function_call_results, tool_role=tool_role
             ):
-                pass
+                if (
+                    function_call_response.event == ModelResponseEvent.tool_call_completed.value
+                    and function_call_response.tool_calls is not None
+                ):
+                    model_response.tool_calls.extend(function_call_response.tool_calls)
 
             if len(function_call_results) > 0:
                 messages.extend(function_call_results)

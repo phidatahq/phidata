@@ -18,6 +18,7 @@ class YouTubeTools(Toolkit):
         self,
         get_video_captions: bool = True,
         get_video_data: bool = True,
+        get_video_timestamps: bool = True,
         languages: Optional[List[str]] = None,
         proxies: Optional[Dict[str, Any]] = None,
     ):
@@ -29,6 +30,8 @@ class YouTubeTools(Toolkit):
             self.register(self.get_youtube_video_captions)
         if get_video_data:
             self.register(self.get_youtube_video_data)
+        if get_video_timestamps:
+            self.register(self.get_video_timestamps)
 
     def get_youtube_video_id(self, url: str) -> Optional[str]:
         """Function to get the video ID from a YouTube URL.

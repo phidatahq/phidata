@@ -15,13 +15,13 @@ from agno.vectordb.pgvector import PgVector, SearchType
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 # Create a knowledge base of PDFs from URLs
 knowledge_base = PDFUrlKnowledgeBase(
-    urls=["https://phi-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
+    urls=["https://agno-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
     # Use PgVector as the vector database and store embeddings in the `ai.recipes` table
     vector_db=PgVector(
         table_name="recipes",
         db_url=db_url,
         search_type=SearchType.hybrid,
-        embedder=OpenAIEmbedder(model="text-embedding-3-small"),
+        embedder=OpenAIEmbedder(id="text-embedding-3-small"),
     ),
 )
 

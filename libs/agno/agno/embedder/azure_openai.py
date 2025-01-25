@@ -14,7 +14,7 @@ except ImportError:
 
 
 class AzureOpenAIEmbedder(Embedder):
-    model: str = "text-embedding-3-small"  # This has to match the model that you deployed at the provided URL
+    id: str = "text-embedding-3-small"  # This has to match the model that you deployed at the provided URL
 
     dimensions: int = 1536
     encoding_format: Literal["float", "base64"] = "float"
@@ -58,12 +58,12 @@ class AzureOpenAIEmbedder(Embedder):
     def _response(self, text: str) -> CreateEmbeddingResponse:
         _request_params: Dict[str, Any] = {
             "input": text,
-            "model": self.model,
+            "model": self.id,
             "encoding_format": self.encoding_format,
         }
         if self.user is not None:
             _request_params["user"] = self.user
-        if self.model.startswith("text-embedding-3"):
+        if self.id.startswith("text-embedding-3"):
             _request_params["dimensions"] = self.dimensions
         if self.request_params:
             _request_params.update(self.request_params)

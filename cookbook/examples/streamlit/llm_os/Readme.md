@@ -62,7 +62,7 @@ Please install [docker desktop](https://docs.docker.com/desktop/install/mac-inst
 - Run using a helper script
 
 ```shell
-./cookbook/run_pgvector.sh
+./cookbook/scripts/run_pgvector.sh
 ```
 
 - OR run using the docker run command
@@ -86,7 +86,7 @@ We use Qdrant as a knowledge base that stores external data like websites, uploa
 run using the docker run command
 
 ```shell
-docker run -d -p 6333:6333 qdrant/qdrant
+./cookbook/scripts/run_qdrant.sh
 ````
 
 ### 6. Run the LLM OS App

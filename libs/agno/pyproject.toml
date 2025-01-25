@@ -1,6 +1,6 @@
 [project]
 name = "agno"
-version = "0.1.0"
+version = "0.1.1"
 description = "Agno: a model-agnostic framework for building AI Agents"
 requires-python = ">=3.7,<4"
 readme = "README.md"
@@ -56,6 +56,7 @@ yfinance = ["yfinance"]
 ddg = ["duckduckgo-search"]
 duckdb = ["duckdb"]
 newspaper = ["newspaper4k", "lxml_html_clean"]
+youtube = ["youtube_transcript_api"]
 
 # Performance
 performance = ["memory_profiler"]
@@ -91,6 +92,7 @@ tools = [
   "agno[ddg]",
   "agno[duckdb]",
   "agno[newspaper]",
+  "agno[youtube]",
 ]
 
 # All storage

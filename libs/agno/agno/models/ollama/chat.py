@@ -191,7 +191,7 @@ class Ollama(Model):
         request_kwargs = self._prepare_request_kwargs_for_invoke()
 
         return self.get_client().chat(
-            model=self.id,
+            model=self.id.strip(),
             messages=[self.format_message(m) for m in messages],  # type: ignore
             **request_kwargs,
         )  # type: ignore
@@ -209,7 +209,7 @@ class Ollama(Model):
         request_kwargs = self._prepare_request_kwargs_for_invoke()
 
         return await self.get_async_client().chat(
-            model=self.id,
+            model=self.id.strip(),
             messages=[self.format_message(m) for m in messages],  # type: ignore
             **request_kwargs,
         )  # type: ignore
@@ -242,7 +242,7 @@ class Ollama(Model):
             Any: An asynchronous iterator of chunks from the API.
         """
         async_stream = await self.get_async_client().chat(
-            model=self.id,
+            model=self.id.strip(),
             messages=[self.format_message(m) for m in messages],  # type: ignore
             stream=True,
             **self.request_kwargs,
@@ -540,33 +540,6 @@ class Ollama(Model):
 
             self.format_function_call_results(function_call_results, messages)
 
-    def _process_stream_response(self, response: Mapping[str, Any], message_data: MessageData, metrics: Metrics):
-        message_data.response_message = response.get("message", {})
-        if message_data.response_message:
-            metrics.output_tokens += 1
-            if metrics.output_tokens == 1:
-                metrics.time_to_first_token = metrics.response_timer.elapsed
-
-            message_data.response_content_chunk = message_data.response_message.get("content", "")
-            if message_data.response_content_chunk is not None and message_data.response_content_chunk != "":
-                message_data.response_content += message_data.response_content_chunk
-                yield ModelResponse(content=message_data.response_content_chunk)
-
-            message_data.tool_call_blocks = message_data.response_message.get("tool_calls")  # type: ignore
-            if message_data.tool_call_blocks is not None:
-                for block in message_data.tool_call_blocks:
-                    tool_call = block.get("function")
-                    tool_name = tool_call.get("name")
-                    tool_args = tool_call.get("arguments")
-                    function_def = {
-                        "name": tool_name,
-                        "arguments": (json.dumps(tool_args) if tool_args is not None else None),
-                    }
-                    message_data.tool_calls.append({"type": "function", "function": function_def})
-
-        if response.get("done"):
-            message_data.response_usage = response
-
     def response_stream(self, messages: List[Message]) -> Iterator[ModelResponse]:
         """
         Generate a streaming response from Ollama.
@@ -585,9 +558,31 @@ class Ollama(Model):
         # -*- Generate response
         metrics.start_response_timer()
         for response in self.invoke_stream(messages=messages):
-            # logger.debug(f"Response: {response}")
-            self._process_stream_response(response=response, message_data=message_data, metrics=metrics)
+            message_data.response_message = response.get("message", {})
+            if message_data.response_message:
+                metrics.output_tokens += 1
+                if metrics.output_tokens == 1:
+                    metrics.time_to_first_token = metrics.response_timer.elapsed
 
+                message_data.response_content_chunk = message_data.response_message.get("content", "")
+                if message_data.response_content_chunk is not None and message_data.response_content_chunk != "":
+                    message_data.response_content += message_data.response_content_chunk
+                    yield ModelResponse(content=message_data.response_content_chunk)
+
+                message_data.tool_call_blocks = message_data.response_message.get("tool_calls")  # type: ignore
+                if message_data.tool_call_blocks is not None:
+                    for block in message_data.tool_call_blocks:
+                        tool_call = block.get("function")
+                        tool_name = tool_call.get("name")
+                        tool_args = tool_call.get("arguments")
+                        function_def = {
+                            "name": tool_name,
+                            "arguments": json.dumps(tool_args) if tool_args is not None else None,
+                        }
+                        message_data.tool_calls.append({"type": "function", "function": function_def})
+
+            if response.get("done"):
+                message_data.response_usage = response
         metrics.stop_response_timer()
 
         # -*- Create assistant message
@@ -598,9 +593,7 @@ class Ollama(Model):
 
         # -*- Update usage metrics
         self.update_usage_metrics(
-            assistant_message=assistant_message,
-            metrics=metrics,
-            response=message_data.response_usage,
+            assistant_message=assistant_message, metrics=metrics, response=message_data.response_usage
         )
 
         # -*- Add assistant message to messages
@@ -634,8 +627,31 @@ class Ollama(Model):
         # -*- Generate response
         metrics.start_response_timer()
         async for response in self.ainvoke_stream(messages=messages):
-            self._process_stream_response(response=response, message_data=message_data, metrics=metrics)
+            message_data.response_message = response.get("message", {})
+            if message_data.response_message:
+                metrics.output_tokens += 1
+                if metrics.output_tokens == 1:
+                    metrics.time_to_first_token = metrics.response_timer.elapsed
 
+                message_data.response_content_chunk = message_data.response_message.get("content", "")
+                if message_data.response_content_chunk is not None and message_data.response_content_chunk != "":
+                    message_data.response_content += message_data.response_content_chunk
+                    yield ModelResponse(content=message_data.response_content_chunk)
+
+                message_data.tool_call_blocks = message_data.response_message.get("tool_calls")
+                if message_data.tool_call_blocks is not None:
+                    for block in message_data.tool_call_blocks:
+                        tool_call = block.get("function")
+                        tool_name = tool_call.get("name")
+                        tool_args = tool_call.get("arguments")
+                        function_def = {
+                            "name": tool_name,
+                            "arguments": json.dumps(tool_args) if tool_args is not None else None,
+                        }
+                        message_data.tool_calls.append({"type": "function", "function": function_def})
+
+            if response.get("done"):
+                message_data.response_usage = response
         metrics.stop_response_timer()
 
         # -*- Create assistant message
@@ -646,9 +662,7 @@ class Ollama(Model):
 
         # -*- Update usage metrics
         self.update_usage_metrics(
-            assistant_message=assistant_message,
-            metrics=metrics,
-            response=message_data.response_usage,
+            assistant_message=assistant_message, metrics=metrics, response=message_data.response_usage
         )
 
         # -*- Add assistant message to messages

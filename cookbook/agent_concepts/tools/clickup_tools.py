@@ -15,9 +15,9 @@ clickup space url structure: https://app.clickup.com/{MASTER_SPACE_ID}/v/o/s/{SP
 
 """
 
-from phi.agent import Agent
-from phi.model.openai import OpenAIChat
-from phi.tools.clickup_tool import ClickUpTools
+from agno.agent import Agent
+from agno.models.openai import OpenAIChat
+from agno.tools.clickup_tool import ClickUpTools
 
 clickup_agent = Agent(
     name="ClickUp Agent",

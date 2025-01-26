@@ -2,8 +2,8 @@ from io import StringIO
 
 import pandas as pd
 import requests
+from agents import db_url
 from agno.utils.log import logger
-from sql_agent import db_url
 from sqlalchemy import create_engine
 
 s3_uri = "https://agno-public.s3.amazonaws.com/f1"
@@ -18,7 +18,9 @@ files_to_tables = {
 }
 
 
-def load_database():
+def load_f1_data():
+    """Load F1 data into the database"""
+
     logger.info("Loading database.")
     engine = create_engine(db_url)
 
@@ -45,4 +47,4 @@ if __name__ == "__main__":
 
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-    load_database()
+    load_f1_data()

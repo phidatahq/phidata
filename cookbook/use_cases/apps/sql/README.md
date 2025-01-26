@@ -1,26 +1,26 @@
 # SQL Agent
 
-This cookbook showcases a SQL Agent that can write and run SQL queries.
-It uses RAG to provide additional information and rules that can be used to improve the responses.
+Let's build a text-to-SQL Agent for interacting with F1 data in a Postgres database.
+We use Agentic RAG to search for table metadata and rules, which are then used by the Agent to improve responses.
 
-> Note: Fork and clone this repository if needed
+> Note: Fork and clone the repository if needed
 
 ### 1. Create a virtual environment
 
 ```shell
-python3 -m venv ~/.venvs/aienv
-source ~/.venvs/aienv/bin/activate
+python3 -m venv .venv
+source .venv/bin/activate
 ```
 
 ### 2. Install libraries
 
 ```shell
-pip install -r cookbook/examples/streamlit/sql/requirements.txt
+pip install -r cookbook/use_cases/apps/sql/requirements.txt
 ```
 
 ### 3. Run PgVector
 
-We use Postgres as a database to demonstrate the SQL Agent.
+Let's use Postgres for storing our data, but the SQL Agent should work with any database.
 
 > Install [docker desktop](https://docs.docker.com/desktop/install/mac-install/) first.
 
@@ -44,29 +44,47 @@ docker run -d \
   agnohq/pgvector:16
 ```
 
-For best results, `table_rules` and `column_rules` to the JSON. The Agent is prompted to follow them.
-This is useful when you want to guide the Agent  to always query date, use a particular format, or avoid certain columns.
+### 4. Load F1 data
 
-You are also free to add sample SQL queries to the `cookbook/examples/streamlit/sql/knowledge_base/sample_queries.sql` file.
-This will give the Assistant a head start on how to write complex queries.
+```shell
+python cookbook/use_cases/apps/sql/load_f1_data.py
+```
 
-> After testing with the f1 knowledge, you should update this file to load your own knowledge.
+### 5. Load the knowledge base
 
-### 4. Export OpenAI API Key
+The knowledge base contains table metadata, rules and sample queries, which are used by the Agent to improve responses.
 
-> You can use any Model you like, this is a complex task so best suited for GPT-4o or similar models.
+We recommend adding the following as you go along.
+  - Add `table_rules` and `column_rules` to the table metadata. The Agent is prompted to follow them. This is useful when you want to guide the Agent to always query date in a particular format, or avoid certain columns.
+  - Add sample SQL queries to the `cookbook/use_cases/apps/sql/knowledge_base/sample_queries.sql` file. This will give the Assistant a head start on how to write complex queries.
+
+```shell
+python cookbook/use_cases/apps/sql/load_knowledge.py
+```
+
+### 6. Export API Keys
+
+We recommend using gpt-4o for this task, but you can use any Model you like.
 
 ```shell
 export OPENAI_API_KEY=***
 ```
 
-### 5. Run SQL Agent
+Other API keys are optional, but if you'd like to test:
 
 ```shell
-streamlit run cookbook/examples/streamlit/sql/app.py
+export ANTHROPIC_API_KEY=***
+export GOOGLE_API_KEY=***
+export GROQ_API_KEY=***
 ```
 
-- Open [localhost:8501](http://localhost:8501) to view your SQL Assistant.
+### 7. Run SQL Agent
 
-### 6. Message on [discord](https://discord.gg/4MtYHHrgA8) if you have any questions
+```shell
+streamlit run cookbook/use_cases/apps/sql/app.py
+```
+
+- Open [localhost:8501](http://localhost:8501) to view the SQL Agent.
+
+### 8. Message us on [discord](https://agno.link/discord) if you have any questions
 

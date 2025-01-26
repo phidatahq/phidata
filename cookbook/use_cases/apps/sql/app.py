@@ -125,6 +125,42 @@ def export_chat_history():
     return ""
 
 
+def display_tool_calls(tool_calls_container, tools):
+    """Display tool calls in a streamlit container with expandable sections.
+
+    Args:
+        tool_calls_container: Streamlit container to display the tool calls
+        tools: List of tool call dictionaries containing name, args, content, and metrics
+    """
+    with tool_calls_container.container():
+        for tool_call in tools:
+            _tool_name = tool_call.get("tool_name")
+            _tool_args = tool_call.get("tool_args")
+            _content = tool_call.get("content")
+            _metrics = tool_call.get("metrics")
+
+            with st.expander(
+                f"🛠️ {_tool_name.replace('_', ' ').title()}", expanded=False
+            ):
+                if isinstance(_tool_args, dict) and "query" in _tool_args:
+                    st.code(_tool_args["query"], language="sql")
+
+                if _tool_args and _tool_args != {"query": None}:
+                    st.markdown("**Arguments:**")
+                    st.json(_tool_args)
+
+                if _content:
+                    st.markdown("**Results:**")
+                    try:
+                        st.json(_content)
+                    except Exception as e:
+                        st.markdown(_content)
+
+                if _metrics:
+                    st.markdown("**Metrics:**")
+                    st.json(_metrics)
+
+
 def main() -> None:
     # Header
     st.markdown("<h1 class='main-title'>F1 SQL Agent</h1>", unsafe_allow_html=True)
@@ -241,46 +277,24 @@ def main() -> None:
                 with st.spinner("🤔 Thinking..."):
                     response = ""
                     try:
+                        # Create container for tool calls
+                        tool_calls_container = st.empty()
+
+                        # Run the agent and stream the response
                         run_stream: Iterator[RunResponse] = sql_agent.run(
                             question, stream=True
                         )
                         for _resp_chunk in run_stream:
+                            # Display tool calls if available
+                            if _resp_chunk.tools and len(_resp_chunk.tools) > 0:
+                                display_tool_calls(
+                                    tool_calls_container, _resp_chunk.tools
+                                )
+
                             # Display response
                             if _resp_chunk.content is not None:
                                 response += _resp_chunk.content
                                 resp_container.markdown(response)
-
-                        # Display tool calls
-                        tool_calls = sql_agent.run_response.tools
-                        if tool_calls and len(tool_calls) > 0:
-                            for tool_call in tool_calls:
-                                _tool_name = tool_call.get("tool_name")
-                                _tool_args = tool_call.get("tool_args")
-                                _content = tool_call.get("content")
-
-                                with st.expander(
-                                    f"📝 {_tool_name.replace('_', ' ').title()}",
-                                    expanded=False,
-                                ):
-                                    # Display SQL query if present
-                                    if (
-                                        isinstance(_tool_args, dict)
-                                        and "query" in _tool_args
-                                    ):
-                                        st.code(_tool_args["query"], language="sql")
-
-                                    # Display other arguments if present
-                                    if _tool_args and _tool_args != {"query": None}:
-                                        st.markdown("**Arguments:**")
-                                        st.json(_tool_args)
-
-                                    # Display results
-                                    if _content:
-                                        st.markdown("**Results:**")
-                                        try:
-                                            st.json(_content)
-                                        except Exception as e:
-                                            st.markdown(_content)
 
                         st.session_state["messages"].append(
                             {"role": "assistant", "content": response}

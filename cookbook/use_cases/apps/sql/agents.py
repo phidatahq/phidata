@@ -126,7 +126,6 @@ def get_sql_agent(
         model=OpenAIChat(id="gpt-4o"),
         storage=agent_storage,
         knowledge=agent_knowledge,
-        show_tool_calls=True,
         # Enable Agentic RAG i.e. the ability to search the knowledge base on-demand
         search_knowledge=True,
         # Enable the ability to read the chat history
@@ -201,4 +200,6 @@ def get_sql_agent(
         + dedent("""\
         </semantic_model>\
         """),
+        # Set to True to display tool calls in the response message
+        # show_tool_calls=True,
     )

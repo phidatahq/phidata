@@ -1,3 +1,4 @@
+import base64
 import collections.abc
 
 from types import GeneratorType
@@ -490,6 +491,14 @@ class Model(BaseModel):
         """
         if audio is None:
             return message
+
+        # supporting raw audio data
+        if isinstance(audio, bytes):
+            audio = base64.b64encode(audio).decode("utf-8")
+
+        # supporting pre-formatted audio data
+        if isinstance(audio, str):
+            audio = {"data": audio, "format": "wav"}
 
         # If `id` is in the audio, this means the audio is already processed
         # This is used in multi-turn conversations

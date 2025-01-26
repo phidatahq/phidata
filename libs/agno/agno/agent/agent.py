@@ -161,8 +161,8 @@ class Agent:
     # If True, add the current datetime to the instructions to give the agent a sense of time
     # This allows for relative times like "tomorrow" to be used in the prompt
     add_datetime_to_instructions: bool = False
-    # If True, format the session state variables in the user and system messages
-    format_state_in_messages: bool = True
+    # If True, add the session state variables in the user and system messages
+    add_state_in_messages: bool = False
 
     # --- Extra Messages ---
     # A list of extra messages added after the system message and before the user message.
@@ -290,7 +290,7 @@ class Agent:
         markdown: bool = False,
         add_name_to_instructions: bool = False,
         add_datetime_to_instructions: bool = False,
-        format_state_in_messages: bool = True,
+        add_state_in_messages: bool = False,
         add_messages: Optional[List[Union[Dict, Message]]] = None,
         user_message: Optional[Union[List, Dict, str, Callable, Message]] = None,
         user_message_role: str = "user",
@@ -369,7 +369,7 @@ class Agent:
         self.markdown = markdown
         self.add_name_to_instructions = add_name_to_instructions
         self.add_datetime_to_instructions = add_datetime_to_instructions
-        self.format_state_in_messages = format_state_in_messages
+        self.add_state_in_messages = add_state_in_messages
         self.add_messages = add_messages
 
         self.user_message = user_message
@@ -1776,7 +1776,7 @@ class Agent:
                     raise Exception("system_message must return a string")
 
             # Format the system message with the session state variables
-            if self.format_state_in_messages:
+            if self.add_state_in_messages:
                 sys_message_content = self.format_message_with_state_variables(sys_message_content)
 
             # Add the JSON output prompt if response_model is provided and structured_outputs is False
@@ -1865,7 +1865,7 @@ class Agent:
             system_message_content += "\n</additional_information>\n\n"
 
         # Format the system message with the session state variables
-        if self.format_state_in_messages:
+        if self.add_state_in_messages:
             system_message_content = self.format_message_with_state_variables(system_message_content)
 
         # 3.3.7 Then add the system message from the Model
@@ -1987,7 +1987,7 @@ class Agent:
                 if not isinstance(user_message_content, str):
                     raise Exception("user_message must return a string")
 
-            if self.format_state_in_messages:
+            if self.add_state_in_messages:
                 user_message_content = self.format_message_with_state_variables(user_message_content)
 
             return Message(
@@ -2010,9 +2010,9 @@ class Agent:
         if message is None:
             return None
 
-        user_msg_content = ""
+        user_msg_content = message
         # Format the message with the session state variables
-        if self.format_state_in_messages:
+        if self.add_state_in_messages:
             user_msg_content = self.format_message_with_state_variables(message)
         # 4.1 Add references to user message
         if (

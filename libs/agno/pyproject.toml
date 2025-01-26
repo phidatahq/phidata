@@ -57,6 +57,7 @@ ddg = ["duckduckgo-search"]
 duckdb = ["duckdb"]
 newspaper = ["newspaper4k", "lxml_html_clean"]
 youtube = ["youtube_transcript_api"]
+firecrawl = ["firecrawl-py"]
 
 # Dependencies for Storage
 sql = ["sqlalchemy"]
@@ -75,7 +76,7 @@ pdf = ["pypdf"]
 performance = ["memory_profiler"]
 
 # Dependencies for Running cookbook
-cookbooks = ["inquirer"]
+cookbooks = ["inquirer", "email_validator"]
 
 # All models
 models = [
@@ -96,6 +97,7 @@ tools = [
   "agno[duckdb]",
   "agno[newspaper]",
   "agno[youtube]",
+  "agno[firecrawl]",
 ]
 
 # All storage

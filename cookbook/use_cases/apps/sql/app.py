@@ -8,7 +8,7 @@ from agno.utils.log import logger
 # Page configuration
 st.set_page_config(
     page_title="F1 SQL Agent",
-    page_icon="🏎️",
+    page_icon=":checkered_flag:",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -230,7 +230,6 @@ def main() -> None:
         Built with:
         - 🚀 Agno
         - 💫 Streamlit
-        - 📊 SQL
         """)
 
     # Initialize SQL agent

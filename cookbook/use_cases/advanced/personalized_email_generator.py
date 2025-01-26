@@ -1,4 +1,5 @@
-"""🎯 AI-Powered Sales Email Generator - Your Personal Sales Writing Assistant!
+"""
+🎯 AI-Powered B2B Email Outreach Workflow - Your Personal Sales Writing Assistant!
 
 This workflow helps sales professionals craft highly personalized cold emails by:
 1. Researching target companies through their websites
@@ -6,39 +7,46 @@ This workflow helps sales professionals craft highly personalized cold emails by
 3. Generating personalized email drafts
 4. Sending test emails to yourself for review before actual outreach
 
-⭐️ KEY FEATURE: All emails are sent to YOU first for review, allowing you to:
-- Fine-tune the messaging
-- Add personal touches
-- Verify accuracy
-- Test different approaches
-- Perfect the tone before sending to actual prospects
+Why is this helpful?
+--------------------------------------------------------------------------------
+• You always have an extra review step—emails are sent to you first.
+  This ensures you can fine-tune messaging before reaching your actual prospect.
+• Ideal for iterating on tone, style, and personalization en masse.
 
-Perfect for:
-- Sales Development Representatives (SDRs)
-- Account Executives
-- Business Development Managers
-- Marketing Professionals
-- Startup Founders
-- Anyone doing B2B outreach
+Who should use this?
+--------------------------------------------------------------------------------
+• SDRs, Account Executives, Business Development Managers
+• Founders, Marketing Professionals, B2B Sales Representatives
+• Anyone building relationships or conducting outreach at scale
 
 Example use cases:
-- SaaS sales outreach
-- Consulting service proposals
-- Partnership opportunities
-- Investor relations
-- Recruitment outreach
-- Event invitations
+--------------------------------------------------------------------------------
+• SaaS sales outreach
+• Consulting service proposals
+• Partnership opportunities
+• Investor relations
+• Recruitment outreach
+• Event invitations
 
 Quick Start:
-1. Install dependencies: `pip install openai agno`
+--------------------------------------------------------------------------------
+1. Install dependencies:
+   pip install openai agno
+
 2. Set environment variables:
    - OPENAI_API_KEY
-3. Update sender_details_dict with your information
-4. Add target companies to company_info dictionary
-5. Run: `python personalized_marketing.py`
 
-The emails will be sent to your inbox for review, allowing you to perfect them
-before sending to actual prospects.
+3. Update sender_details_dict with YOUR info.
+
+4. Add target companies to "leads" dictionary.
+
+5. Run:
+   python personalized_email_generator.py
+
+The script will send draft emails to your email first if DEMO_MODE=False.
+If DEMO_MODE=True, it prints the email to the console for review.
+
+Then you can confidently send the refined emails to your prospects!
 """
 
 import json
@@ -104,6 +112,10 @@ P.S. You can also dm me on X\
 
 
 class CompanyInfo(BaseModel):
+    """
+    Stores in-depth data about a company gathered during the research phase.
+    """
+
     # Basic Information
     company_name: str = Field(..., description="Company name")
     website_url: str = Field(..., description="Company website URL")
@@ -156,7 +168,7 @@ class CompanyInfo(BaseModel):
         None, description="Social media links"
     )
 
-    # Adding more relevant fields
+    # Additional Fields
     pricing_model: Optional[str] = Field(None, description="Pricing strategy and tiers")
     user_base: Optional[str] = Field(None, description="Estimated user base size")
     key_features: Optional[List[str]] = Field(None, description="Main product features")
@@ -172,12 +184,28 @@ class CompanyInfo(BaseModel):
 
 
 class PersonalisedMarketing(Workflow):
-    """AI-powered email generation system for targeting enterprise software companies"""
+    """
+    Personalized email generation system that:
+
+    1. Scrapes the target company's website
+    2. Gathers essential info (tech stack, position in market, new updates)
+    3. Generates a personalized cold email used for B2B outreach
+
+    This workflow is designed to help you craft outreach that resonates
+    specifically with your prospect, addressing known challenges and
+    highlighting tailored solutions.
+    """
 
     description: str = dedent("""\
-        Your intelligent sales assistant for enterprise software sales.
-        Research → Analyze → Generate → Review → Perfect → Send
-        Specializing in data-driven personalization for B2B SaaS outreach.
+        AI-Powered B2B Outreach Workflow:
+        --------------------------------------------------------
+        1. Research & Analyze
+        2. Generate Personalized Email
+        3. Send Draft to Yourself
+        --------------------------------------------------------
+        This creates a frictionless review layer, letting you refine each
+        email before sending it to real prospects.
+        Perfect for data-driven, personalized B2B outreach at scale.
     """)
 
     scraper: Agent = Agent(
@@ -251,28 +279,31 @@ class PersonalisedMarketing(Workflow):
     email_creator: Agent = Agent(
         model=OpenAIChat(id="gpt-4o"),
         description=dedent("""\
-            You are writing for a friendly, empathetic 20 year old sales representative who genuinely wants to help your prospect succeed.
-            Your style is cool, concise, and respectful. Keep it easy, don't try to hard.
+            You are writing for a friendly, empathetic 20-year-old sales rep whose
+            style is cool, concise, and respectful. Tone is casual yet professional.
 
-            - Use polite, simple language.
-            - Focus on sounding human, relatable, and professional (not robotic).
-            - Talk about the problems you are solving. Don't be generic.
+            - Be polite but natural, using simple language.
+            - Never sound robotic or use big cliché words like "delve", "synergy" or "revolutionary."
+            - Clearly address problems the prospect might be facing and how we solve them.
             - Keep paragraphs short and friendly, with a natural voice.
-            - End on a positive note, expressing your willingness to help further.\
+            - End on a warm, upbeat note, showing willingness to help.\
         """),
         instructions=dedent("""\
-            Please craft a highly personalized draft email that:
-            1. The subject line should be simple, personal and related to the problem we are solving.
-            2. Mention at least one potential area of improvement or opportunity from your research—show you did your homework.
-            3. Explains how our offering can help them in a specific, relatable way (no heavy jargon).
-            4. References a known challenge or potential improvement area from the research.
-            5. Never use words like "delve", "explore", "synergy", "amplify", "game changer", "revolutionary", "breakthrough".
-            6. Use first-person language "I" where natural.
-            7. Just use plain language and dont sound robotic. You're a 20 year old.
-            8. Dont use the recipient name in the subject line.
+            Please craft a highly personalized email that has:
 
-            Use the given template structure, but the tone and content should feel like it comes from a real person, not an AI. In other words, keep it conversational, positive, and concise.
-        """)
+            1. A simple, personal subject line referencing the problem or opportunity.
+            2. At least one area for improvement or highlight from research.
+            3. A quick explanation of how we can help them (no heavy jargon).
+            4. References a known challenge from the research.
+            5. Avoid words like "delve", "explore", "synergy", "amplify", "game changer", "revolutionary", "breakthrough".
+            6. Use first-person language ("I") naturally.
+            7. Maintain a 20-year-old’s friendly style—brief and to the point.
+            8. Avoid placing the recipient's name in the subject line.
+
+            Use the following structural template, but ensure the final tone
+            feels personal and conversation-like, not automatically generated:
+            ----------------------------------------------------------------------
+            """)
         + "Email Template to work with:\n"
         + email_template,
         markdown=False,
@@ -312,7 +343,12 @@ class PersonalisedMarketing(Workflow):
         use_email_cache: bool = True,
     ) -> Iterator[RunResponse]:
         """
-        Execute the personalized marketing workflow.
+        Orchestrates the entire personalized marketing workflow:
+
+        1. Looks up or retrieves from cache the company's data.
+        2. If uncached, uses the scraper agent to research the company website.
+        3. Passes that data to the email_creator agent to generate a targeted email.
+        4. Yields the generated email content for review or distribution.
         """
         logger.info("Starting personalized marketing workflow...")
 
@@ -375,40 +411,47 @@ class PersonalisedMarketing(Workflow):
                     f"Generate a personalized email using this context:\n{email_context}",
                     stream=True,
                 )
+
                 # Cache the generated email content
                 self.cache_email(company_name, self.email_creator.run_response.content)
-                # Get email:
+
+                # Obtain final email content:
                 email_content = self.email_creator.run_response.content
 
-                # In production mode, add the tools to send the email
+                # 3. If not in demo mode, you'd handle sending the email here.
+                #    Implementation details omitted.
                 if not DEMO_MODE:
-                    logger.info("Production mode: Sending email...")
-                    # Send the email
-                    # Left as an exercise for the reader to implement
+                    logger.info(
+                        "Production mode: Attempting to send email to yourself..."
+                    )
+                    # Implementation for sending the email goes here.
+
             except Exception as e:
                 logger.error(f"Error processing {company_name}: {e}")
                 raise
 
 
 def main():
-    """Main execution function with error handling"""
+    """
+    Main entry point for running the personalized email generator workflow.
+    """
     try:
         # Create workflow with SQLite storage
-        workflow = PersonalisedMarketing(
-            session_id="personalized-marketing",
+        workflow = PersonalisedMarketing()(
+            session_id="personalized-email-generator",
             storage=SqliteWorkflowStorage(
-                table_name="personalized_marketing_workflows",
+                table_name="personalized_email_workflows",
                 db_file="tmp/workflows.db",
             ),
         )
 
-        # Run workflow with caching enabled
+        # Run workflow with caching
         responses = workflow.run(
             use_research_cache=True,
             use_email_cache=False,
         )
 
-        # Process responses
+        # Process and pretty-print responses
         pprint_run_response(responses, markdown=True)
 
         logger.info("Workflow completed successfully!")

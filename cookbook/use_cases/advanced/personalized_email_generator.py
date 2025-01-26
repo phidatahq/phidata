@@ -1,5 +1,5 @@
 """
-🎯 AI-Powered B2B Email Outreach Workflow - Your Personal Sales Writing Assistant!
+🎯 B2B Email Outreach - Your Personal Sales Writing Assistant!
 
 This workflow helps sales professionals craft highly personalized cold emails by:
 1. Researching target companies through their websites

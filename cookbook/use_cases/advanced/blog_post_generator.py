@@ -388,14 +388,14 @@ if __name__ == "__main__":
 
     # Fun example prompts to showcase the generator's versatility
     example_prompts = [
-        # "Why Cats Secretly Run the Internet",
-        # "The Science Behind Why Pizza Tastes Better at 2 AM",
-        # "Time Travelers' Guide to Modern Social Media",
-        # "How Rubber Ducks Revolutionized Software Development",
-        # "The Secret Society of Office Plants: A Survival Guide",
-        # "Why Dogs Think We're Bad at Smelling Things",
+        "Why Cats Secretly Run the Internet",
+        "The Science Behind Why Pizza Tastes Better at 2 AM",
+        "Time Travelers' Guide to Modern Social Media",
+        "How Rubber Ducks Revolutionized Software Development",
+        "The Secret Society of Office Plants: A Survival Guide",
+        "Why Dogs Think We're Bad at Smelling Things",
         "The Underground Economy of Coffee Shop WiFi Passwords",
-        # "A Historical Analysis of Dad Jokes Through the Ages",
+        "A Historical Analysis of Dad Jokes Through the Ages",
     ]
 
     # Get topic from user

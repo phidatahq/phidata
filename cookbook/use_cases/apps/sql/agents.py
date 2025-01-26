@@ -155,7 +155,7 @@ def get_sql_agent(
 
         If you need to query the database to answer the user's question, follow these steps:
         1. First identify the tables you need to query from the semantic model.
-        2. Then, ALWAYS use the `search_knowledge_base` tool with table names to get metadata, rules and sample queries.
+        2. Then, ALWAYS use the `search_knowledge_base(table_name)` tool to get table metadata, rules and sample queries.
         3. If table rules are provided, ALWAYS follow them.
         4. Then, think step-by-step about query construction, don't rush this step.
         5. Follow a chain of thought approach before writing SQL, ask clarifying questions where needed.
@@ -182,7 +182,7 @@ def get_sql_agent(
 
         Finally, here are the set of rules that you MUST follow:
         <rules>
-        - You must always get table information from your knowledge base before writing a query.
+        - Use the `search_knowledge_base(table_name)` tool to get table information from your knowledge base before writing a query.
         - Do not use phrases like "based on the information provided" or "from the knowledge base".
         - Always show the SQL queries you use to get the answer.
         - Make sure your query accounts for duplicate records.

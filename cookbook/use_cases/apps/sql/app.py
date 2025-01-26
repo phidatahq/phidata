@@ -213,7 +213,7 @@ def main() -> None:
         st.session_state["messages"] = [
             {
                 "role": "assistant",
-                "content": "👋 Ask me anything about F1 data from 1950 to 2020!",
+                "content": "👋 Ask me about F1 data from 1950 to 2020!",
             }
         ]
 
@@ -241,17 +241,47 @@ def main() -> None:
                 with st.spinner("🤔 Thinking..."):
                     response = ""
                     try:
-                        run_response: Iterator[RunResponse] = sql_agent.run(
+                        run_stream: Iterator[RunResponse] = sql_agent.run(
                             question, stream=True
                         )
-                        for _resp_chunk in run_response:
+                        for _resp_chunk in run_stream:
+                            # Display response
                             if _resp_chunk.content is not None:
                                 response += _resp_chunk.content
-                                try:
-                                    resp_container.markdown(response)
-                                except Exception as e:
-                                    st.error(f"Error updating response: {str(e)}")
-                                    break
+                                resp_container.markdown(response)
+
+                        # Display tool calls
+                        tool_calls = sql_agent.run_response.tools
+                        if tool_calls and len(tool_calls) > 0:
+                            for tool_call in tool_calls:
+                                _tool_name = tool_call.get("tool_name")
+                                _tool_args = tool_call.get("tool_args")
+                                _content = tool_call.get("content")
+
+                                with st.expander(
+                                    f"📝 {_tool_name.replace('_', ' ').title()}",
+                                    expanded=False,
+                                ):
+                                    # Display SQL query if present
+                                    if (
+                                        isinstance(_tool_args, dict)
+                                        and "query" in _tool_args
+                                    ):
+                                        st.code(_tool_args["query"], language="sql")
+
+                                    # Display other arguments if present
+                                    if _tool_args and _tool_args != {"query": None}:
+                                        st.markdown("**Arguments:**")
+                                        st.json(_tool_args)
+
+                                    # Display results
+                                    if _content:
+                                        st.markdown("**Results:**")
+                                        try:
+                                            st.json(_content)
+                                        except Exception as e:
+                                            st.markdown(_content)
+
                         st.session_state["messages"].append(
                             {"role": "assistant", "content": response}
                         )

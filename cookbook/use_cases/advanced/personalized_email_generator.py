@@ -183,7 +183,7 @@ class CompanyInfo(BaseModel):
     )
 
 
-class PersonalisedMarketing(Workflow):
+class PersonalisedEmailGenerator(Workflow):
     """
     Personalized email generation system that:
 
@@ -437,7 +437,7 @@ def main():
     """
     try:
         # Create workflow with SQLite storage
-        workflow = PersonalisedMarketing()(
+        workflow = PersonalisedEmailGenerator(
             session_id="personalized-email-generator",
             storage=SqliteWorkflowStorage(
                 table_name="personalized_email_workflows",

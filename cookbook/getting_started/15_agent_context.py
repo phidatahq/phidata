@@ -1,6 +1,7 @@
 """📰 Agent with Context
 
 This example shows how to inject external dependencies into an agent.
+The context is evaluated when the agent is run, acting like dependency injection for Agents.
 
 Run `pip install openai agno` to install dependencies.
 """

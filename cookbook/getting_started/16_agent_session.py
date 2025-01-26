@@ -18,11 +18,11 @@ import typer
 from agno.agent import Agent
 from agno.models.openai import OpenAIChat
 from agno.storage.agent.sqlite import SqliteAgentStorage
+from rich import print
 from rich.console import Console
 from rich.json import JSON
 from rich.panel import Panel
 from rich.prompt import Prompt
-from rich import print
 
 console = Console()
 

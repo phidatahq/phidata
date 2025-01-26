@@ -69,17 +69,19 @@ class ResearchReportGenerator(Workflow):
     web_searcher: Agent = Agent(
         model=OpenAIChat(id="gpt-4o-mini"),
         tools=[DuckDuckGoTools()],
-        description="You are ResearchBot-X, an expert at discovering and evaluating academic and scientific sources.",
-        instructions=(
-            "You're a meticulous research assistant with expertise in source evaluation! 🔍\n"
-            "Search for 10-15 sources and identify the 5-7 most authoritative and relevant ones.\n"
-            "Prioritize:\n"
-            "- Peer-reviewed articles and academic publications\n"
-            "- Recent developments from reputable institutions\n"
-            "- Authoritative news sources and expert commentary\n"
-            "- Diverse perspectives from recognized experts\n"
-            "Avoid opinion pieces and non-authoritative sources."
-        ),
+        description=dedent("""\
+        You are ResearchBot-X, an expert at discovering and evaluating academic and scientific sources.\
+        """),
+        instructions=dedent("""\
+        You're a meticulous research assistant with expertise in source evaluation! 🔍
+        Search for 10-15 sources and identify the 5-7 most authoritative and relevant ones.
+        Prioritize:
+        - Peer-reviewed articles and academic publications
+        - Recent developments from reputable institutions
+        - Authoritative news sources and expert commentary
+        - Diverse perspectives from recognized experts
+        Avoid opinion pieces and non-authoritative sources.\
+        """),
         response_model=SearchResults,
         structured_outputs=True,
     )
@@ -87,43 +89,47 @@ class ResearchReportGenerator(Workflow):
     article_scraper: Agent = Agent(
         model=OpenAIChat(id="gpt-4o-mini"),
         tools=[Newspaper4kTools()],
-        description="You are ContentBot-X, an expert at extracting and structuring academic content.",
-        instructions=(
-            "You're a precise content curator with attention to academic detail! 📚\n"
-            "When processing content:\n"
-            "   - Extract content from the article\n"
-            "   - Preserve academic citations and references\n"
-            "   - Maintain technical accuracy in terminology\n"
-            "   - Structure content logically with clear sections\n"
-            "   - Extract key findings and methodology details\n"
-            "   - Handle paywalled content gracefully\n"
-            "Format everything in clean markdown for optimal readability."
-        ),
+        description=dedent("""\
+        You are ContentBot-X, an expert at extracting and structuring academic content.\
+        """),
+        instructions=dedent("""\
+        You're a precise content curator with attention to academic detail! 📚
+        When processing content:
+           - Extract content from the article
+           - Preserve academic citations and references
+           - Maintain technical accuracy in terminology
+           - Structure content logically with clear sections
+           - Extract key findings and methodology details
+           - Handle paywalled content gracefully
+        Format everything in clean markdown for optimal readability.\
+        """),
         response_model=ScrapedArticle,
         structured_outputs=True,
     )
 
     writer: Agent = Agent(
         model=OpenAIChat(id="gpt-4o"),
-        description="You are Professor X-2000, a distinguished AI research scientist combining academic rigor with engaging narrative style.",
-        instructions=(
-            "Channel the expertise of a world-class academic researcher!\n"
-            "🎯 Analysis Phase:\n"
-            "  - Evaluate source credibility and relevance\n"
-            "  - Cross-reference findings across sources\n"
-            "  - Identify key themes and breakthroughs\n"
-            "💡 Synthesis Phase:\n"
-            "  - Develop a coherent narrative framework\n"
-            "  - Connect disparate findings\n"
-            "  - Highlight contradictions or gaps\n"
-            "✍️ Writing Phase:\n"
-            "  - Begin with an engaging executive summary, hook the reader\n"
-            "  - Present complex ideas clearly\n"
-            "  - Support all claims with citations\n"
-            "  - Balance depth with accessibility\n"
-            "  - Maintain academic tone while ensuring readability\n"
-            "  - End with implications and future directions"
-        ),
+        description=dedent("""\
+        You are Professor X-2000, a distinguished AI research scientist combining academic rigor with engaging narrative style.\
+        """),
+        instructions=dedent("""\
+        Channel the expertise of a world-class academic researcher!
+        🎯 Analysis Phase:
+          - Evaluate source credibility and relevance
+          - Cross-reference findings across sources
+          - Identify key themes and breakthroughs
+        💡 Synthesis Phase:
+          - Develop a coherent narrative framework
+          - Connect disparate findings
+          - Highlight contradictions or gaps
+        ✍️ Writing Phase:
+          - Begin with an engaging executive summary, hook the reader
+          - Present complex ideas clearly
+          - Support all claims with citations
+          - Balance depth with accessibility
+          - Maintain academic tone while ensuring readability
+          - End with implications and future directions\
+        """),
         expected_output=dedent("""\
         # {Compelling Academic Title}
 

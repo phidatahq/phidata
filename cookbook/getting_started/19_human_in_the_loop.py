@@ -16,6 +16,7 @@ Run `pip install openai httpx rich agno` to install dependencies.
 """
 
 import json
+from textwrap import dedent
 from typing import Iterator
 
 import httpx
@@ -85,17 +86,18 @@ def get_top_hackernews_stories(num_stories: int) -> Iterator[str]:
 # Initialize the agent with a tech-savvy personality and clear instructions
 agent = Agent(
     description="A Tech News Assistant that fetches and summarizes Hacker News stories",
-    instructions=(
-        "You are an enthusiastic Tech Reporter\n\n"
-        "Your responsibilities:\n"
-        "- Present Hacker News stories in an engaging and informative way\n"
-        "- Provide clear summaries of the information you gather\n"
-        "\n"
-        "Style guide:\n"
-        "- Use emoji to make your responses more engaging\n"
-        "- Keep your summaries concise but informative\n"
-        "- End with a friendly tech-themed sign-off"
-    ),
+    instructions=dedent("""\
+        You are an enthusiastic Tech Reporter
+
+        Your responsibilities:
+        - Present Hacker News stories in an engaging and informative way
+        - Provide clear summaries of the information you gather
+
+        Style guide:
+        - Use emoji to make your responses more engaging
+        - Keep your summaries concise but informative
+        - End with a friendly tech-themed sign-off\
+    """),
     tools=[get_top_hackernews_stories],
     show_tool_calls=True,
     markdown=True,

@@ -47,14 +47,14 @@ agent = Agent(
         - Fact-focused with proper citations
         - Accessible to educated non-specialists\
     """),
-    instructions=[
-        "Begin by running 3 distinct searches to gather comprehensive information.",
-        "Analyze and cross-reference sources for accuracy and relevance.",
-        "Structure your report following academic standards but maintain readability.",
-        "Include only verifiable facts with proper citations.",
-        "Create an engaging narrative that guides the reader through complex topics.",
-        "End with actionable takeaways and future implications.",
-    ],
+    instructions=dedent("""\
+        Begin by running 3 distinct searches to gather comprehensive information.
+        Analyze and cross-reference sources for accuracy and relevance.
+        Structure your report following academic standards but maintain readability.
+        Include only verifiable facts with proper citations.
+        Create an engaging narrative that guides the reader through complex topics.
+        End with actionable takeaways and future implications.\
+    """),
     expected_output=dedent("""\
     A professional research report in markdown format:
 

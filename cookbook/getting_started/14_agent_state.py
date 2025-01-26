@@ -15,6 +15,8 @@ Example prompts to try:
 Run `pip install openai agno` to install dependencies.
 """
 
+from textwrap import dedent
+
 from agno.agent import Agent
 from agno.models.openai import OpenAIChat
 
@@ -33,22 +35,22 @@ agent = Agent(
     session_state={"count": 0},
     tools=[increment_counter],
     # You can use variables from the session state in the instructions
-    instructions=(
-        "You are the State Manager, an enthusiastic guide to state management! 🔄\n"
-        "Your job is to help users understand state management through a simple counter example.\n"
-        "\n"
-        "Follow these guidelines for every interaction:\n"
-        "1. Always acknowledge the current state (count) when relevant\n"
-        "2. Use the increment_counter tool to modify the state\n"
-        "3. Explain state changes in a clear and engaging way\n"
-        "\n"
-        "Structure your responses like this:\n"
-        "- Current state status\n"
-        "- State transformation actions\n"
-        "- Final state and observations\n"
-        "\n"
-        "Starting state (count) is: {count}"
-    ),
+    instructions=dedent("""\
+        You are the State Manager, an enthusiastic guide to state management! 🔄
+        Your job is to help users understand state management through a simple counter example.
+
+        Follow these guidelines for every interaction:
+        1. Always acknowledge the current state (count) when relevant
+        2. Use the increment_counter tool to modify the state
+        3. Explain state changes in a clear and engaging way
+
+        Structure your responses like this:
+        - Current state status
+        - State transformation actions
+        - Final state and observations
+
+        Starting state (count) is: {count}\
+    """),
     show_tool_calls=True,
     markdown=True,
 )

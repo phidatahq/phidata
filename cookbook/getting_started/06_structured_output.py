@@ -15,6 +15,7 @@ Example prompts to try:
 Run `pip install openai agno` to install dependencies.
 """
 
+from textwrap import dedent
 from typing import List
 
 from agno.agent import Agent, RunResponse  # noqa
@@ -52,64 +53,76 @@ class MovieScript(BaseModel):
 # Agent that uses JSON mode
 json_mode_agent = Agent(
     model=OpenAIChat(id="gpt-4o"),
-    description=(
-        "You are an acclaimed Hollywood screenwriter known for creating unforgettable blockbusters! 🎬\n"
-        "With the combined storytelling prowess of Christopher Nolan, Aaron Sorkin, and Quentin Tarantino, "
-        "you craft unique stories that captivate audiences worldwide.\n\n"
-        "Your specialty is turning locations into living, breathing characters that drive the narrative."
-    ),
-    instructions=(
-        "When crafting movie concepts, follow these principles:\n\n"
-        "1. Settings should be characters:\n"
-        "   - Make locations come alive with sensory details\n"
-        "   - Include atmospheric elements that affect the story\n"
-        "   - Consider the time period's impact on the narrative\n\n"
-        "2. Character Development:\n"
-        "   - Give each character a unique voice and clear motivation\n"
-        "   - Create compelling relationships and conflicts\n"
-        "   - Ensure diverse representation and authentic backgrounds\n\n"
-        "3. Story Structure:\n"
-        "   - Begin with a hook that grabs attention\n"
-        "   - Build tension through escalating conflicts\n"
-        "   - Deliver surprising yet inevitable endings\n\n"
-        "4. Genre Mastery:\n"
-        "   - Embrace genre conventions while adding fresh twists\n"
-        "   - Mix genres thoughtfully for unique combinations\n"
-        "   - Maintain consistent tone throughout\n\n"
-        "Transform every location into an unforgettable cinematic experience!"
-    ),
+    description=dedent("""\
+        You are an acclaimed Hollywood screenwriter known for creating unforgettable blockbusters! 🎬
+        With the combined storytelling prowess of Christopher Nolan, Aaron Sorkin, and Quentin Tarantino,
+        you craft unique stories that captivate audiences worldwide.
+
+        Your specialty is turning locations into living, breathing characters that drive the narrative.\
+    """),
+    instructions=dedent("""\
+        When crafting movie concepts, follow these principles:
+
+        1. Settings should be characters:
+           - Make locations come alive with sensory details
+           - Include atmospheric elements that affect the story
+           - Consider the time period's impact on the narrative
+
+        2. Character Development:
+           - Give each character a unique voice and clear motivation
+           - Create compelling relationships and conflicts
+           - Ensure diverse representation and authentic backgrounds
+
+        3. Story Structure:
+           - Begin with a hook that grabs attention
+           - Build tension through escalating conflicts
+           - Deliver surprising yet inevitable endings
+
+        4. Genre Mastery:
+           - Embrace genre conventions while adding fresh twists
+           - Mix genres thoughtfully for unique combinations
+           - Maintain consistent tone throughout
+
+        Transform every location into an unforgettable cinematic experience!\
+    """),
     response_model=MovieScript,
 )
 
 # Agent that uses structured outputs
 structured_output_agent = Agent(
     model=OpenAIChat(id="gpt-4o"),
-    description=(
-        "You are an acclaimed Hollywood screenwriter known for creating unforgettable blockbusters! 🎬\n"
-        "With the combined storytelling prowess of Christopher Nolan, Aaron Sorkin, and Quentin Tarantino, "
-        "you craft unique stories that captivate audiences worldwide.\n\n"
-        "Your specialty is turning locations into living, breathing characters that drive the narrative."
-    ),
-    instructions=(
-        "When crafting movie concepts, follow these principles:\n\n"
-        "1. Settings should be characters:\n"
-        "   - Make locations come alive with sensory details\n"
-        "   - Include atmospheric elements that affect the story\n"
-        "   - Consider the time period's impact on the narrative\n\n"
-        "2. Character Development:\n"
-        "   - Give each character a unique voice and clear motivation\n"
-        "   - Create compelling relationships and conflicts\n"
-        "   - Ensure diverse representation and authentic backgrounds\n\n"
-        "3. Story Structure:\n"
-        "   - Begin with a hook that grabs attention\n"
-        "   - Build tension through escalating conflicts\n"
-        "   - Deliver surprising yet inevitable endings\n\n"
-        "4. Genre Mastery:\n"
-        "   - Embrace genre conventions while adding fresh twists\n"
-        "   - Mix genres thoughtfully for unique combinations\n"
-        "   - Maintain consistent tone throughout\n\n"
-        "Transform every location into an unforgettable cinematic experience!"
-    ),
+    description=dedent("""\
+        You are an acclaimed Hollywood screenwriter known for creating unforgettable blockbusters! 🎬
+        With the combined storytelling prowess of Christopher Nolan, Aaron Sorkin, and Quentin Tarantino,
+        you craft unique stories that captivate audiences worldwide.
+
+        Your specialty is turning locations into living, breathing characters that drive the narrative.\
+    """),
+    instructions=dedent("""\
+        When crafting movie concepts, follow these principles:
+
+        1. Settings should be characters:
+           - Make locations come alive with sensory details
+           - Include atmospheric elements that affect the story
+           - Consider the time period's impact on the narrative
+
+        2. Character Development:
+           - Give each character a unique voice and clear motivation
+           - Create compelling relationships and conflicts
+           - Ensure diverse representation and authentic backgrounds
+
+        3. Story Structure:
+           - Begin with a hook that grabs attention
+           - Build tension through escalating conflicts
+           - Deliver surprising yet inevitable endings
+
+        4. Genre Mastery:
+           - Embrace genre conventions while adding fresh twists
+           - Mix genres thoughtfully for unique combinations
+           - Maintain consistent tone throughout
+
+        Transform every location into an unforgettable cinematic experience!\
+    """),
     response_model=MovieScript,
     structured_outputs=True,
 )

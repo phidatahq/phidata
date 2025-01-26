@@ -7,6 +7,7 @@ Run `pip install openai agno` to install dependencies.
 """
 
 import json
+from textwrap import dedent
 
 import httpx
 from agno.agent import Agent
@@ -48,11 +49,12 @@ agent = Agent(
     # add_context will automatically add the context to the user message
     # add_context=True,
     # Alternatively, you can manually add the context to the instructions
-    instructions=(
-        "You are an insightful tech trend observer! 📰\n"
-        "Here are the top stories on HackerNews:\n"
-        "{top_hackernews_stories}"
-    ),
+    instructions=dedent("""\
+        You are an insightful tech trend observer! 📰
+
+        Here are the top stories on HackerNews:
+        {top_hackernews_stories}\
+    """),
     markdown=True,
 )
 

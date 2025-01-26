@@ -90,20 +90,20 @@ class BlogPostGenerator(Workflow):
         - Discovering unique angles and insights
         - Ensuring comprehensive topic coverage\
         """),
-        instructions=(
-            "1. Search Strategy 🔍\n"
-            "   - Find 10-15 relevant sources and select the 5-7 best ones\n"
-            "   - Prioritize recent, authoritative content\n"
-            "   - Look for unique angles and expert insights\n"
-            "2. Source Evaluation 📊\n"
-            "   - Verify source credibility and expertise\n"
-            "   - Check publication dates for timeliness\n"
-            "   - Assess content depth and uniqueness\n"
-            "3. Diversity of Perspectives 🌐\n"
-            "   - Include different viewpoints\n"
-            "   - Gather both mainstream and expert opinions\n"
-            "   - Find supporting data and statistics"
-        ),
+        instructions=dedent("""\
+        1. Search Strategy 🔍
+           - Find 10-15 relevant sources and select the 5-7 best ones
+           - Prioritize recent, authoritative content
+           - Look for unique angles and expert insights
+        2. Source Evaluation 📊
+           - Verify source credibility and expertise
+           - Check publication dates for timeliness
+           - Assess content depth and uniqueness
+        3. Diversity of Perspectives 🌐
+           - Include different viewpoints
+           - Gather both mainstream and expert opinions
+           - Find supporting data and statistics\
+        """),
         response_model=SearchResults,
         structured_outputs=True,
     )
@@ -122,21 +122,21 @@ class BlogPostGenerator(Workflow):
         - Quote and statistic preservation
         - Maintaining source attribution\
         """),
-        instructions=(
-            "1. Content Extraction 📑\n"
-            "   - Extract content from the article\n"
-            "   - Preserve important quotes and statistics\n"
-            "   - Maintain proper attribution\n"
-            "   - Handle paywalls gracefully\n"
-            "2. Content Processing 🔄\n"
-            "   - Format text in clean markdown\n"
-            "   - Preserve key information\n"
-            "   - Structure content logically\n"
-            "3. Quality Control ✅\n"
-            "   - Verify content relevance\n"
-            "   - Ensure accurate extraction\n"
-            "   - Maintain readability"
-        ),
+        instructions=dedent("""\
+        1. Content Extraction 📑
+           - Extract content from the article
+           - Preserve important quotes and statistics
+           - Maintain proper attribution
+           - Handle paywalls gracefully
+        2. Content Processing 🔄
+           - Format text in clean markdown
+           - Preserve key information
+           - Structure content logically
+        3. Quality Control ✅
+           - Verify content relevance
+           - Ensure accurate extraction
+           - Maintain readability\
+        """),
         response_model=ScrapedArticle,
         structured_outputs=True,
     )
@@ -155,27 +155,27 @@ class BlogPostGenerator(Workflow):
         - Optimizing for SEO while maintaining quality
         - Creating shareable conclusions\
         """),
-        instructions=(
-            "1. Content Strategy 📝\n"
-            "   - Craft attention-grabbing headlines\n"
-            "   - Write compelling introductions\n"
-            "   - Structure content for engagement\n"
-            "   - Include relevant subheadings\n"
-            "2. Writing Excellence ✍️\n"
-            "   - Balance expertise with accessibility\n"
-            "   - Use clear, engaging language\n"
-            "   - Include relevant examples\n"
-            "   - Incorporate statistics naturally\n"
-            "3. Source Integration 🔍\n"
-            "   - Cite sources properly\n"
-            "   - Include expert quotes\n"
-            "   - Maintain factual accuracy\n"
-            "4. Digital Optimization 💻\n"
-            "   - Structure for scanability\n"
-            "   - Include shareable takeaways\n"
-            "   - Optimize for SEO\n"
-            "   - Add engaging subheadings"
-        ),
+        instructions=dedent("""\
+        1. Content Strategy 📝
+           - Craft attention-grabbing headlines
+           - Write compelling introductions
+           - Structure content for engagement
+           - Include relevant subheadings
+        2. Writing Excellence ✍️
+           - Balance expertise with accessibility
+           - Use clear, engaging language
+           - Include relevant examples
+           - Incorporate statistics naturally
+        3. Source Integration 🔍
+           - Cite sources properly
+           - Include expert quotes
+           - Maintain factual accuracy
+        4. Digital Optimization 💻
+           - Structure for scanability
+           - Include shareable takeaways
+           - Optimize for SEO
+           - Add engaging subheadings\
+        """),
         expected_output=dedent("""\
         # {Viral-Worthy Headline}
 
@@ -200,7 +200,7 @@ class BlogPostGenerator(Workflow):
         - {Notable finding 3}
 
         ## Sources
-        {Properly attributed sources with links}
+        {Properly attributed sources with links}\
         """),
         markdown=True,
     )

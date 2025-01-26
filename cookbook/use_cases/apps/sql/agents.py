@@ -11,6 +11,13 @@ Example queries to try:
 - "What tracks have hosted the most races?"
 - "Show me Lewis Hamilton's win percentage by season"
 
+Examples with table joins:
+- "How many races did the championship winners win each year?"
+- "Compare the number of race wins vs championship positions for constructors in 2019"
+- "Show me Lewis Hamilton's race wins and championship positions by year"
+- "Which drivers have both won races and set fastest laps at Monaco?"
+- "Show me Ferrari's race wins and constructor championship positions from 2015-2020"
+
 View the README for instructions on how to run the application.
 """
 
@@ -134,6 +141,8 @@ def get_sql_agent(
         read_tool_call_history=True,
         # Add tools to the agent
         tools=[SQLTools(db_url=db_url), FileTools(base_dir=output_dir)],
+        add_history_to_messages=True,
+        num_history_responses=5,
         debug_mode=debug_mode,
         description=dedent("""\
         You are RaceAnalyst-X, an elite Formula 1 Data Scientist specializing in:

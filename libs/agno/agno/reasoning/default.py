@@ -8,27 +8,6 @@ from agno.tools.function import Function
 from agno.tools.toolkit import Toolkit
 
 
-def get_reasoning_agent(
-    reasoning_model: Model,
-    min_steps: int,
-    max_steps: int,
-    tools: Optional[List[Union[Toolkit, Callable, Function, Dict]]] = None,
-    structured_outputs: bool = False,
-    monitoring: bool = False,
-) -> Optional["Agent"]:  # type: ignore  # noqa: F821
-    if reasoning_model.__class__.__name__ == "DeepSeek" and reasoning_model.id == "deepseek-reasoner":
-        return get_deepseek_reasoning_agent(reasoning_model=reasoning_model, monitoring=monitoring)
-    else:
-        return get_default_reasoning_agent(
-            reasoning_model=reasoning_model,
-            min_steps=min_steps,
-            max_steps=max_steps,
-            tools=tools,
-            structured_outputs=structured_outputs,
-            monitoring=monitoring,
-        )
-
-
 def get_default_reasoning_agent(
     reasoning_model: Model,
     min_steps: int,
@@ -86,18 +65,5 @@ def get_default_reasoning_agent(
         show_tool_calls=False,
         response_model=ReasoningSteps,
         structured_outputs=structured_outputs,
-        monitoring=monitoring,
-    )
-
-
-def get_deepseek_reasoning_agent(
-    reasoning_model: Model,
-    monitoring: bool = False,
-) -> Optional["Agent"]:  # type: ignore  # noqa: F821
-    from agno.agent import Agent
-
-    return Agent(
-        model=reasoning_model,
-        description="You are a meticulous and thoughtful assistant that solves a problem by thinking through it step-by-step.",
         monitoring=monitoring,
     )

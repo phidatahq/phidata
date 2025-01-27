@@ -18,14 +18,9 @@ except ModuleNotFoundError:
 @dataclass
 class DeepSeek(OpenAILike):
     """
-    A model class for DeepSeek Chat API.
+    A class for interacting with DeepSeek models.
 
-    Attributes:
-    - id: str: The unique identifier of the model. Default: "deepseek-chat".
-    - name: str: The name of the model. Default: "DeepSeek".
-    - provider: str: The provider of the model. Default: "DeepSeek".
-    - api_key: Optional[str]: The API key for the model.
-    - base_url: str: The base URL for the model. Default: "https://api.deepseek.com".
+    For more information, see: https://api-docs.deepseek.com/
     """
 
     id: str = "deepseek-chat"

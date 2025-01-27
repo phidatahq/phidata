@@ -513,7 +513,7 @@ class Agent:
         self.run_messages = run_messages
 
         # 4. Reason about the task if reasoning is enabled
-        if self.reasoning:
+        if self.reasoning or self.reasoning_model is not None:
             reasoning_generator = self.reason(run_messages=run_messages)
 
             if self.stream:
@@ -942,7 +942,7 @@ class Agent:
         self.run_messages = run_messages
 
         # 4. Reason about the task if reasoning is enabled
-        if self.reasoning:
+        if self.reasoning or self.reasoning_model is not None:
             areason_generator = self.areason(run_messages=run_messages)
             if self.stream:
                 async for item in areason_generator:
@@ -2620,16 +2620,9 @@ class Agent:
     ###########################################################################
 
     def reason(self, run_messages: RunMessages) -> Iterator[RunResponse]:
-        from agno.reasoning.agent import get_reasoning_agent
-        from agno.reasoning.helpers import get_next_action, update_messages_with_reasoning
-
         # Yield a reasoning started event
         if self.stream_intermediate_steps:
             yield self.create_run_response(content="Reasoning started", event=RunEvent.reasoning_started)
-
-        # Initialize reasoning
-        reasoning_messages: List[Message] = []
-        all_reasoning_steps: List[ReasoningStep] = []
 
         # Get the reasoning model
         reasoning_model: Optional[Model] = self.reasoning_model
@@ -2639,32 +2632,41 @@ class Agent:
             logger.warning("Reasoning error. Reasoning model is None, continuing regular session...")
             return
 
-        # Get the reasoning agent
-        reasoning_agent: Optional[Agent] = self.reasoning_agent
-        if reasoning_agent is None:
-            reasoning_agent = get_reasoning_agent(
-                reasoning_model=reasoning_model,
-                min_steps=self.reasoning_min_steps,
-                max_steps=self.reasoning_max_steps,
-                tools=self.tools,
-                structured_outputs=self.structured_outputs,
-                monitoring=self.monitoring,
-            )
-        if reasoning_agent is None:
-            logger.warning("Reasoning error. Reasoning agent is None, continuing regular session...")
-            return
-
+        # Get reasoning using DeepSeek
         if reasoning_model.__class__.__name__ == "DeepSeek" and reasoning_model.id == "deepseek-reasoner":
-            from agno.reasoning.helpers import get_deepseek_reasoning
+            from agno.reasoning.deepseek import get_deepseek_reasoning, get_deepseek_reasoning_agent
 
+            deepseek_reasoning_agent = self.reasoning_agent or get_deepseek_reasoning_agent(
+                reasoning_model=reasoning_model, monitoring=self.monitoring
+            )
             reasoning: Optional[Message] = get_deepseek_reasoning(
-                reasoning_agent, messages=run_messages.get_input_messages()
+                reasoning_agent=deepseek_reasoning_agent, messages=run_messages.get_input_messages()
             )
             if reasoning is None:
                 logger.warning("Reasoning error. Reasoning response is None, continuing regular session...")
                 return
             run_messages.messages.append(reasoning)
+        # Get default reasoning
         else:
+            from agno.reasoning.default import get_default_reasoning_agent
+            from agno.reasoning.helpers import get_next_action, update_messages_with_reasoning
+
+            # Get default reasoning agent
+            reasoning_agent: Optional[Agent] = self.reasoning_agent
+            if reasoning_agent is None:
+                reasoning_agent = get_default_reasoning_agent(
+                    reasoning_model=reasoning_model,
+                    min_steps=self.reasoning_min_steps,
+                    max_steps=self.reasoning_max_steps,
+                    tools=self.tools,
+                    structured_outputs=self.structured_outputs,
+                    monitoring=self.monitoring,
+                )
+
+            # Validate reasoning agent
+            if reasoning_agent is None:
+                logger.warning("Reasoning error. Reasoning agent is None, continuing regular session...")
+                return
             # Ensure the reasoning agent response model is ReasoningSteps
             if reasoning_agent.response_model is not None and not isinstance(reasoning_agent.response_model, type):
                 if not issubclass(reasoning_agent.response_model, ReasoningSteps):
@@ -2672,13 +2674,14 @@ class Agent:
                         "Reasoning agent response model should be `ReasoningSteps`, continuing regular session..."
                     )
                 return
-
             # Ensure the reasoning model and agent do not show tool calls
             reasoning_agent.show_tool_calls = False
             reasoning_agent.model.show_tool_calls = False  # type: ignore
 
             step_count = 1
             next_action = NextAction.CONTINUE
+            reasoning_messages: List[Message] = []
+            all_reasoning_steps: List[ReasoningStep] = []
             logger.debug("==== Starting Reasoning ====")
             while next_action == NextAction.CONTINUE and step_count < self.reasoning_max_steps:
                 logger.debug(f"==== Step {step_count} ====")
@@ -2746,16 +2749,9 @@ class Agent:
             )
 
     async def areason(self, run_messages: RunMessages) -> Any:
-        from agno.reasoning.agent import get_reasoning_agent
-        from agno.reasoning.helpers import get_next_action, update_messages_with_reasoning
-
         # Yield a reasoning started event
         if self.stream_intermediate_steps:
             yield self.create_run_response(content="Reasoning started", event=RunEvent.reasoning_started)
-
-        # Initialize reasoning
-        reasoning_messages: List[Message] = []
-        all_reasoning_steps: List[ReasoningStep] = []
 
         # Get the reasoning model
         reasoning_model: Optional[Model] = self.reasoning_model
@@ -2765,32 +2761,41 @@ class Agent:
             logger.warning("Reasoning error. Reasoning model is None, continuing regular session...")
             return
 
-        # Get the reasoning agent
-        reasoning_agent: Optional[Agent] = self.reasoning_agent
-        if reasoning_agent is None:
-            reasoning_agent = get_reasoning_agent(
-                reasoning_model=reasoning_model,
-                min_steps=self.reasoning_min_steps,
-                max_steps=self.reasoning_max_steps,
-                tools=self.tools,
-                structured_outputs=self.structured_outputs,
-                monitoring=self.monitoring,
-            )
-        if reasoning_agent is None:
-            logger.warning("Reasoning error. Reasoning agent is None, continuing regular session...")
-            return
-
+        # Get reasoning using DeepSeek
         if reasoning_model.__class__.__name__ == "DeepSeek" and reasoning_model.id == "deepseek-reasoner":
-            from agno.reasoning.helpers import get_deepseek_reasoning
+            from agno.reasoning.deepseek import aget_deepseek_reasoning, get_deepseek_reasoning_agent
 
-            reasoning: Optional[Message] = get_deepseek_reasoning(
-                reasoning_agent, messages=run_messages.get_input_messages()
+            deepseek_reasoning_agent = self.reasoning_agent or get_deepseek_reasoning_agent(
+                reasoning_model=reasoning_model, monitoring=self.monitoring
+            )
+            reasoning: Optional[Message] = await aget_deepseek_reasoning(
+                reasoning_agent=deepseek_reasoning_agent, messages=run_messages.get_input_messages()
             )
             if reasoning is None:
                 logger.warning("Reasoning error. Reasoning response is None, continuing regular session...")
                 return
             run_messages.messages.append(reasoning)
+        # Get default reasoning
         else:
+            from agno.reasoning.default import get_default_reasoning_agent
+            from agno.reasoning.helpers import get_next_action, update_messages_with_reasoning
+
+            # Get default reasoning agent
+            reasoning_agent: Optional[Agent] = self.reasoning_agent
+            if reasoning_agent is None:
+                reasoning_agent = get_default_reasoning_agent(
+                    reasoning_model=reasoning_model,
+                    min_steps=self.reasoning_min_steps,
+                    max_steps=self.reasoning_max_steps,
+                    tools=self.tools,
+                    structured_outputs=self.structured_outputs,
+                    monitoring=self.monitoring,
+                )
+
+            # Validate reasoning agent
+            if reasoning_agent is None:
+                logger.warning("Reasoning error. Reasoning agent is None, continuing regular session...")
+                return
             # Ensure the reasoning agent response model is ReasoningSteps
             if reasoning_agent.response_model is not None and not isinstance(reasoning_agent.response_model, type):
                 if not issubclass(reasoning_agent.response_model, ReasoningSteps):
@@ -2798,13 +2803,14 @@ class Agent:
                         "Reasoning agent response model should be `ReasoningSteps`, continuing regular session..."
                     )
                 return
-
             # Ensure the reasoning model and agent do not show tool calls
             reasoning_agent.show_tool_calls = False
             reasoning_agent.model.show_tool_calls = False  # type: ignore
 
             step_count = 1
             next_action = NextAction.CONTINUE
+            reasoning_messages: List[Message] = []
+            all_reasoning_steps: List[ReasoningStep] = []
             logger.debug("==== Starting Reasoning ====")
             while next_action == NextAction.CONTINUE and step_count < self.reasoning_max_steps:
                 logger.debug(f"==== Step {step_count} ====")

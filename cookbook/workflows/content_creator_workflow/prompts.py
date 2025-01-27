@@ -102,7 +102,7 @@ tasks_config = {
             "and business leaders while maintaining technical accuracy.\n\n"
         ),
         "expected_output": (
-            "A LinkedIn post plan containing:\n" "- content\n" "- a main blog URL that is associated with the post\n\n"
+            "A LinkedIn post plan containing:\n- content\n- a main blog URL that is associated with the post\n\n"
         ),
     },
 }

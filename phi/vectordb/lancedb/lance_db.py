@@ -87,7 +87,7 @@ class LanceDb(VectorDb):
         self.fts_index_exists = False
         self.use_tantivy = use_tantivy
 
-        if self.use_tantivy:
+        if self.use_tantivy and (self.search_type in [SearchType.keyword, SearchType.hybrid]):
             try:
                 import tantivy  # noqa: F401
             except ImportError:
@@ -128,7 +128,7 @@ class LanceDb(VectorDb):
         Args:
             document (Document): Document to validate
         """
-        if self.table:
+        if self.table is not None:
             cleaned_content = document.content.replace("\x00", "\ufffd")
             doc_id = md5(cleaned_content.encode()).hexdigest()
             result = self.table.search().where(f"{self._id}='{doc_id}'").to_arrow()
@@ -164,11 +164,16 @@ class LanceDb(VectorDb):
             )
             logger.debug(f"Inserted document: {document.name} ({document.meta_data})")
 
-        if self.table:
-            self.table.add(data)
-            logger.debug(f"Upsert {len(data)} documents")
-        else:
+        if self.table is None:
             logger.error("Table not initialized. Please create the table first")
+            return
+
+        if not data:
+            logger.debug("No new data to insert")
+            return
+
+        self.table.add(data)
+        logger.debug(f"Inserted {len(data)} documents")
 
     def upsert(self, documents: List[Document], filters: Optional[Dict[str, Any]] = None) -> None:
         """

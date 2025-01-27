@@ -24,7 +24,7 @@ class GithubTools(Toolkit):
         get_pull_request_changes: bool = True,
         create_issue: bool = True,
         create_repository: bool = True,
-        get_repository_languages: bool = True
+        get_repository_languages: bool = True,
     ):
         super().__init__(name="github")
 
@@ -136,7 +136,7 @@ class GithubTools(Toolkit):
         logger.debug(f"Creating repository: {name}")
         try:
             description = description if description is not None else ""
-            
+
             if organization:
                 logger.debug(f"Creating in organization: {organization}")
                 org = self.g.get_organization(organization)
@@ -153,7 +153,7 @@ class GithubTools(Toolkit):
                     description=description,
                     auto_init=auto_init,
                 )
-                
+
             repo_info = {
                 "name": repo.full_name,
                 "url": repo.html_url,

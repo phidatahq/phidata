@@ -1,6 +1,6 @@
 import os
 import json
-from typing import Optional
+from typing import Optional, Any, List, Dict
 
 from phi.tools.toolkit import Toolkit
 from phi.utils.log import logger
@@ -9,18 +9,19 @@ try:
     from slack_sdk import WebClient
     from slack_sdk.errors import SlackApiError
 except ImportError:
-    logger.error("Slack tools require the `slack_sdk` package. Run `pip install slack-sdk` to install it.")
+    raise ImportError("Slack tools require the `slack_sdk` package. Run `pip install slack-sdk` to install it.")
 
 
 class SlackTools(Toolkit):
     def __init__(
         self,
+        token: Optional[str] = None,
         send_message: bool = True,
         list_channels: bool = True,
         get_channel_history: bool = True,
     ):
         super().__init__(name="slack")
-        self.token: Optional[str] = os.getenv("SLACK_TOKEN")
+        self.token: Optional[str] = token or os.getenv("SLACK_TOKEN")
         if self.token is None or self.token == "":
             raise ValueError("SLACK_TOKEN is not set")
         self.client = WebClient(token=self.token)
@@ -77,7 +78,16 @@ class SlackTools(Toolkit):
         """
         try:
             response = self.client.conversations_history(channel=channel, limit=limit)
-            messages = [{"text": msg["text"], "user": msg["user"], "ts": msg["ts"]} for msg in response["messages"]]
+            messages: List[Dict[str, Any]] = [  # type: ignore
+                {
+                    "text": msg.get("text", ""),
+                    "user": "webhook" if msg.get("subtype") == "bot_message" else msg.get("user", "unknown"),
+                    "ts": msg.get("ts", ""),
+                    "sub_type": msg.get("subtype", "unknown"),
+                    "attachments": msg.get("attachments", []) if msg.get("subtype") == "bot_message" else "n/a",
+                }
+                for msg in response.get("messages", [])
+            ]
             return json.dumps(messages)
         except SlackApiError as e:
             logger.error(f"Error getting channel history: {e}")

@@ -30,7 +30,7 @@ class AgenticChunking(ChunkingStrategy):
             Consider semantic completeness, paragraph boundaries, and topic transitions.
             Return only the character position number of where to break the text:
             
-            {remaining_text[:self.max_chunk_size]}"""
+            {remaining_text[: self.max_chunk_size]}"""
 
             try:
                 response = self.model.response([Message(role="user", content=prompt)])

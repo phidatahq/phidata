@@ -129,6 +129,7 @@ tests = [
     "agno[knowledge]",
     "agno[performance]",
     "agno[cookbooks]",
+    "twine", "build"
 ]
 
 [project.scripts]

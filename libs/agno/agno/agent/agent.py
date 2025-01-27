@@ -3246,18 +3246,18 @@ class Agent:
                         for i, step in enumerate(reasoning_steps, 1):
                             # Build step content with optional fields
                             step_parts = []
-                            if step.title:
+                            if step.title is not None:
                                 step_parts.append((f"{step.title}\n", "bold"))
-                            if step.action:
-                                step_parts.append((step.action, "dim"))
+                            if step.action is not None:
+                                step_parts.append((f"{step.action}\n", "dim"))
                             step_content = Text.assemble(*step_parts)
 
                             if show_full_reasoning:
                                 # Add detailed reasoning information if available
                                 details = []
-                                if step.result:
+                                if step.result is not None:
                                     details.append(Text.from_markup(step.result, style="dim"))
-                                if step.reasoning:
+                                if step.reasoning is not None:
                                     details.append(
                                         Text.from_markup(f"\n[bold]Reasoning:[/bold] {step.reasoning}", style="dim")
                                     )
@@ -3341,18 +3341,18 @@ class Agent:
                     for i, step in enumerate(reasoning_steps, 1):
                         # Build step content with optional fields
                         step_parts = []
-                        if step.title:
+                        if step.title is not None:
                             step_parts.append((f"{step.title}\n", "bold"))
-                        if step.action:
-                            step_parts.append((step.action, "dim"))
+                        if step.action is not None:
+                            step_parts.append((f"{step.action}\n", "dim"))
                         step_content = Text.assemble(*step_parts)
 
                         if show_full_reasoning:
                             # Add detailed reasoning information if available
                             details = []
-                            if step.result:
+                            if step.result is not None:
                                 details.append(Text.from_markup(step.result, style="dim"))
-                            if step.reasoning:
+                            if step.reasoning is not None:
                                 details.append(
                                     Text.from_markup(f"\n[bold]Reasoning:[/bold] {step.reasoning}", style="dim")
                                 )
@@ -3493,24 +3493,31 @@ class Agent:
                         render = True
                         # Create panels for reasoning steps
                         for i, step in enumerate(reasoning_steps, 1):
-                            step_content = Text.assemble(
-                                (f"{step.title}\n", "bold"),
-                                (step.action or "", "dim"),
-                            )
+                            # Build step content with optional fields
+                            step_parts = []
+                            if step.title is not None:
+                                step_parts.append((f"{step.title}\n", "bold"))
+                            if step.action is not None:
+                                step_parts.append((f"{step.action}\n", "dim"))
+                            step_content = Text.assemble(*step_parts)
+
                             if show_full_reasoning:
-                                step_content.append("\n")
-                                if step.result:
-                                    step_content.append(
-                                        Text.from_markup(f"\n[bold]Result:[/bold] {step.result}", style="dim")
-                                    )
-                                if step.reasoning:
-                                    step_content.append(
+                                # Add detailed reasoning information if available
+                                details = []
+                                if step.result is not None:
+                                    details.append(Text.from_markup(step.result, style="dim"))
+                                if step.reasoning is not None:
+                                    details.append(
                                         Text.from_markup(f"\n[bold]Reasoning:[/bold] {step.reasoning}", style="dim")
                                     )
                                 if step.confidence is not None:
-                                    step_content.append(
+                                    details.append(
                                         Text.from_markup(f"\n[bold]Confidence:[/bold] {step.confidence}", style="dim")
                                     )
+                                if len(details) > 0:
+                                    step_content.append("\n")  # Add spacing before details
+                                    for detail in details:
+                                        step_content.append(detail)
                             reasoning_panel = self.create_panel(
                                 content=step_content, title=f"Reasoning step {i}", border_style="green"
                             )
@@ -3581,24 +3588,31 @@ class Agent:
                     render = True
                     # Create panels for reasoning steps
                     for i, step in enumerate(reasoning_steps, 1):
-                        step_content = Text.assemble(
-                            (f"{step.title}\n", "bold"),
-                            (step.action or "", "dim"),
-                        )
+                        # Build step content with optional fields
+                        step_parts = []
+                        if step.title is not None:
+                            step_parts.append((f"{step.title}\n", "bold"))
+                        if step.action is not None:
+                            step_parts.append((f"{step.action}\n", "dim"))
+                        step_content = Text.assemble(*step_parts)
+
                         if show_full_reasoning:
-                            step_content.append("\n")
-                            if step.result:
-                                step_content.append(
-                                    Text.from_markup(f"\n[bold]Result:[/bold] {step.result}", style="dim")
-                                )
-                            if step.reasoning:
-                                step_content.append(
+                            # Add detailed reasoning information if available
+                            details = []
+                            if step.result is not None:
+                                details.append(Text.from_markup(step.result, style="dim"))
+                            if step.reasoning is not None:
+                                details.append(
                                     Text.from_markup(f"\n[bold]Reasoning:[/bold] {step.reasoning}", style="dim")
                                 )
                             if step.confidence is not None:
-                                step_content.append(
+                                details.append(
                                     Text.from_markup(f"\n[bold]Confidence:[/bold] {step.confidence}", style="dim")
                                 )
+                            if len(details) > 0:
+                                step_content.append("\n")  # Add spacing before details
+                                for detail in details:
+                                    step_content.append(detail)
                         reasoning_panel = self.create_panel(
                             content=step_content, title=f"Reasoning step {i}", border_style="green"
                         )

@@ -4,7 +4,7 @@ Lets build the LLM OS
 
 ## The LLM OS design:
 
-<img alt="LLM OS" src="https://github.com/phidatahq/phidata/assets/22579644/5cab9655-55a9-4027-80ac-badfeefa4c14" width="600" />
+<img alt="LLM OS" src="https://github.com/phidatahq/agno/assets/22579644/5cab9655-55a9-4027-80ac-badfeefa4c14" width="600" />
 
 - LLMs are the kernel process of an emerging operating system.
 - This process (LLM) can solve problems by coordinating other resources (memory, computation tools).
@@ -37,12 +37,12 @@ source ~/.venvs/llmos/bin/activate
 ### 2. Install libraries
 
 ```shell
-pip install -r cookbook/examples/streamlit/llm_os/requirements.txt
+pip install -r cookbook/use_cases/apps/llm_os/requirements.txt
 ```
 
 ### 3. Export credentials
 
-- Our initial implementation uses GPT-4, so export your OpenAI API Key
+- Our initial implementation uses GPT-4o, so export your OpenAI API Key
 
 ```shell
 export OPENAI_API_KEY=***
@@ -76,7 +76,7 @@ docker run -d \
   -v pgvolume:/var/lib/postgresql/data \
   -p 5532:5432 \
   --name pgvector \
-  phidata/pgvector:16
+  agnohq/pgvector:16
 ```
 
 ### 5. Run Qdrant
@@ -92,7 +92,7 @@ docker run -d -p 6333:6333 qdrant/qdrant
 ### 6. Run the LLM OS App
 
 ```shell
-streamlit run cookbook/examples/streamlit/llm_os/app.py
+streamlit run cookbook/use_cases/apps/llm_os/app.py
 ```
 
 - Open [localhost:8501](http://localhost:8501) to view your LLM OS.

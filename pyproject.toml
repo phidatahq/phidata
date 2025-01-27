@@ -159,6 +159,7 @@ module = [
   "PIL.*",
   "pinecone.*",
   "pinecone_text.*",
+  "weaviate-client.*",
   "psycopg.*",
   "psycopg2.*",
   "pyarrow.*",

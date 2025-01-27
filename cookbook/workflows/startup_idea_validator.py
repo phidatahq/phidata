@@ -17,7 +17,7 @@ Why is this helpful?
 Who should use this?
 --------------------------------------------------------------------------------
 • Entrepreneurs and Startup Founders
-• Product Managers and Business Strategists  
+• Product Managers and Business Strategists
 • Innovation Teams
 • Angel Investors and VCs doing initial screening
 

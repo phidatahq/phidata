@@ -13,7 +13,8 @@ from investment_report_generator.investment_report_generator import (
     InvestmentReportGenerator,
 )
 from news_report_generator.news_report_generator import NewsReportGenerator
-from startup_idea_validator.startup_idea_validator import StartupIdeaValidator
+
+from cookbook.workflows.startup_idea_validator import StartupIdeaValidator
 
 # Initialize the workflows with SQLite storage
 

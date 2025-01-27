@@ -1,15 +1,21 @@
 # Getting Started with Agno 🚀
 
-This guide walks through the basics of building Agents with Agno. Recipes build on each other, introducing new concepts and capabilities. Each recipe also contains detailed comments, example prompts and required dependencies, so please have a look at the code.
+This guide walks through the basics of building Agents with Agno.
+
+The examples build on each other, introducing new concepts and capabilities progressively. Each example contains detailed comments, example prompts, and required dependencies.
 
 ## Setup
 
-Create a virtual environment and install the required dependencies:
+Create a virtual environment:
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
+```
 
+Install the required dependencies:
+
+```bash
 pip install openai duckduckgo-search yfinance lancedb tantivy pypdf requests exa-py newspaper4k lxml_html_clean sqlalchemy agno
 ```
 

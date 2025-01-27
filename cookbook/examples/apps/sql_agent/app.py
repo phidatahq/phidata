@@ -5,11 +5,12 @@ from agno.agent import Agent
 from agno.utils.log import logger
 from utils import (
     CUSTOM_CSS,
+    about_widget,
     add_message,
     display_tool_calls,
-    export_chat_history,
-    load_data_and_knowledge,
-    restart_agent,
+    rename_session_widget,
+    session_selector_widget,
+    sidebar_widget,
 )
 
 nest_asyncio.apply()
@@ -27,14 +28,18 @@ st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 
 
 def main() -> None:
-    # Header
+    ####################################################################
+    # App header
+    ####################################################################
     st.markdown("<h1 class='main-title'>F1 SQL Agent</h1>", unsafe_allow_html=True)
     st.markdown(
         "<p class='subtitle'>Your intelligent F1 data analyst powered by Agno</p>",
         unsafe_allow_html=True,
     )
 
-    # Select model
+    ####################################################################
+    # Model selector
+    ####################################################################
     model_options = {
         "gpt-4o": "openai:gpt-4o",
         "gemini-2.0-flash-exp": "google:gemini-2.0-flash-exp",
@@ -48,7 +53,9 @@ def main() -> None:
     )
     model_id = model_options[selected_model]
 
+    ####################################################################
     # Initialize Agent
+    ####################################################################
     sql_agent: Agent
     if (
         "sql_agent" not in st.session_state
@@ -62,15 +69,18 @@ def main() -> None:
     else:
         sql_agent = st.session_state["sql_agent"]
 
-    # Load Agent Session
-    # This will create a new session if it does not exist
+    ####################################################################
+    # Load Agent Session from the database
+    ####################################################################
     try:
         st.session_state["sql_agent_session_id"] = sql_agent.load_session()
     except Exception:
         st.warning("Could not create Agent session, is the database running?")
         return
 
+    ####################################################################
     # Load runs from memory
+    ####################################################################
     agent_runs = sql_agent.memory.runs
     if len(agent_runs) > 0:
         logger.debug("Loading run history")
@@ -84,63 +94,20 @@ def main() -> None:
         logger.debug("No run history found")
         st.session_state["messages"] = []
 
+    ####################################################################
     # Sidebar
-    with st.sidebar:
-        # Basic Information
-        st.markdown("#### 🏎️ Basic Information")
-        if st.button("📋 Show Tables"):
-            add_message("user", "Which tables do you have access to?")
-        if st.button("ℹ️ Describe Tables"):
-            add_message("user", "Tell me more about these tables.")
+    ####################################################################
+    sidebar_widget()
 
-        # Statistics
-        st.markdown("#### 🏆 Statistics")
-        if st.button("🥇 Most Race Wins"):
-            add_message("user", "Which driver has the most race wins?")
-
-        if st.button("🏆 Constructor Champs"):
-            add_message("user", "Which team won the most Constructors Championships?")
-
-        if st.button("⏳ Longest Career"):
-            add_message(
-                "user",
-                "Tell me the name of the driver with the longest racing career? Also tell me when they started and when they retired.",
-            )
-
-        # Analysis
-        st.markdown("#### 📊 Analysis")
-        if st.button("📈 Races per Year"):
-            add_message("user", "Show me the number of races per year.")
-
-        if st.button("🔍 Team Performance"):
-            add_message(
-                "user",
-                "Write a query to identify the drivers that won the most races per year from 2010 onwards and the position of their team that year.",
-            )
-
-        # Utility buttons
-        st.markdown("#### 🛠️ Utilities")
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("🔄 New Chat"):
-                restart_agent()
-        with col2:
-            if st.download_button(
-                "💾 Export Chat",
-                export_chat_history(),
-                file_name="f1_chat_history.md",
-                mime="text/markdown",
-            ):
-                st.success("Chat history exported!")
-
-        if st.sidebar.button("🚀 Load F1 Data"):
-            load_data_and_knowledge()
-
+    ####################################################################
     # Get user input
+    ####################################################################
     if prompt := st.chat_input("👋 Ask me about F1 data from 1950 to 2020!"):
         add_message("user", prompt)
 
+    ####################################################################
     # Display chat history
+    ####################################################################
     for message in st.session_state["messages"]:
         if message["role"] in ["user", "assistant"]:
             _content = message["content"]
@@ -151,7 +118,9 @@ def main() -> None:
                         display_tool_calls(st.empty(), message["tool_calls"])
                     st.markdown(_content)
 
-    # Generate response for last user message
+    ####################################################################
+    # Generate response for user message
+    ####################################################################
     last_message = (
         st.session_state["messages"][-1] if st.session_state["messages"] else None
     )
@@ -185,33 +154,13 @@ def main() -> None:
     ####################################################################
     # Session selector
     ####################################################################
-    if sql_agent.storage:
-        sql_agent_sessions = sql_agent.storage.get_all_session_ids()
-        new_sql_agent_session_id = st.sidebar.selectbox(
-            "Session Id", options=sql_agent_sessions
-        )
-        if st.session_state["sql_agent_session_id"] != new_sql_agent_session_id:
-            logger.info(
-                f"---*--- Loading {model_id} run: {new_sql_agent_session_id} ---*---"
-            )
-            st.session_state["sql_agent"] = get_sql_agent(
-                model_id=model_id,
-                session_id=new_sql_agent_session_id,
-            )
-            st.rerun()
+    session_selector_widget(sql_agent, model_id)
+    rename_session_widget(sql_agent)
 
     ####################################################################
     # About section
     ####################################################################
-    st.sidebar.markdown("---")
-    st.sidebar.markdown("### ℹ️ About")
-    st.sidebar.markdown("""
-    This F1 SQL Assistant helps you analyze Formula 1 data from 1950 to 2020 using natural language queries.
-
-    Built with:
-    - 🚀 Agno
-    - 💫 Streamlit
-    """)
+    about_widget()
 
 
 if __name__ == "__main__":

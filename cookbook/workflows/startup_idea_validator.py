@@ -1,6 +1,48 @@
 """
-1. Install dependencies using: `pip install openai exa_py sqlalchemy agno`
-2. Run the script using: `python cookbook/workflows/blog_post_generator.py`
+🚀 Startup Idea Validator - Your Personal Business Validation Assistant!
+
+This workflow helps entrepreneurs validate their startup ideas by:
+1. Clarifying and refining the core business concept
+2. Evaluating originality compared to existing solutions
+3. Defining clear mission and objectives
+4. Conducting comprehensive market research and analysis
+
+Why is this helpful?
+--------------------------------------------------------------------------------
+• Get objective feedback on your startup idea before investing resources
+• Understand your total addressable market and target segments
+• Validate assumptions about market opportunity and competition
+• Define clear mission and objectives to guide execution
+
+Who should use this?
+--------------------------------------------------------------------------------
+• Entrepreneurs and Startup Founders
+• Product Managers and Business Strategists
+• Innovation Teams
+• Angel Investors and VCs doing initial screening
+
+Example use cases:
+--------------------------------------------------------------------------------
+• New product/service validation
+• Market opportunity assessment
+• Competitive analysis
+• Business model validation
+• Target customer segmentation
+• Mission/vision refinement
+
+Quick Start:
+--------------------------------------------------------------------------------
+1. Install dependencies:
+   pip install openai agno
+
+2. Set environment variables:
+   - OPENAI_API_KEY
+
+3. Run:
+   python startup_idea_validator.py
+
+The workflow will guide you through validating your startup idea with AI-powered
+analysis and research. Use the insights to refine your concept and business plan!
 """
 
 import json

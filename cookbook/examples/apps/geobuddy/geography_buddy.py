@@ -1,12 +1,12 @@
 import os
 from pathlib import Path
-from dotenv import load_dotenv
 from typing import Optional
 
 from agno.agent import Agent
+from agno.media import Image
 from agno.models.google import Gemini
 from agno.tools.duckduckgo import DuckDuckGoTools
-from agno.media import Image
+from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
@@ -34,7 +34,9 @@ Instructions:
 """
 
 # Initialize the GeoBuddy agent
-geo_agent = Agent(model=Gemini(id="gemini-2.0-flash-exp"), tools=[DuckDuckGoTools()], markdown=True)
+geo_agent = Agent(
+    model=Gemini(id="gemini-2.0-flash-exp"), tools=[DuckDuckGoTools()], markdown=True
+)
 
 
 # Function to analyze the image and return location information

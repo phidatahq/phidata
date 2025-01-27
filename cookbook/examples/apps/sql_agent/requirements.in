@@ -6,3 +6,4 @@ psycopg[binary]
 simplejson
 sqlalchemy
 streamlit
+nest_asyncio

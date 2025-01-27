@@ -260,6 +260,12 @@ In the benchmarks above, ~30Mib of memory usage is from the memory profiler, Agn
 
 > We understand that these aren't the most accurate benchmarks, but we are planning on publishing accuracy, reliability and performance benchmarks running on Github actions in the coming weeks.
 
+## Cursor Setup
+
+When building Agno agents, using the Agno docs as a documentation source in Cursor is a great way to get started.
+
+To add `docs.agno.com` as a documentation source in Cursor, you need to configure your Cursor settings to include the URL as a reference. This can typically be done by navigating to the settings or preferences section of Cursor, where you can manage documentation sources. Add `https://docs.agno.com` to the list of documentation URLs. Once added, Cursor will be able to access and display the Agno documentation, providing you with quick and easy access to all the resources and guides available on the site.
+
 ## Documentation, Community & More examples
 
 - Docs: <a href="https://docs.agno.com" target="_blank" rel="noopener noreferrer">docs.agno.com</a>

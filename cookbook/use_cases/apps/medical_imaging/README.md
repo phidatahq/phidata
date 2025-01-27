@@ -11,7 +11,7 @@ source ./agnoenv/bin/activate
 ### 2. Install requirements
 
 ```shell
-pip install -r cookbook/examples/streamlit/medical_imaging/requirements.txt
+pip install -r cookbook/use_cases/apps/medical_imaging/requirements.txt
 ```
 
 ### 3. Export `OPENAI_API_KEY`
@@ -23,5 +23,5 @@ export OPENAI_API_KEY=sk-***
 ### 4. Run Streamlit App
 
 ```shell
-streamlit run cookbook/examples/streamlit/medical_imaging/app.py
+streamlit run cookbook/use_cases/apps/medical_imaging/app.py
 ```

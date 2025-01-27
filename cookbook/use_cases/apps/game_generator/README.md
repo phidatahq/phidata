@@ -12,7 +12,7 @@ source ~/.venvs/aienv/bin/activate
 ### 2. Install requirements
 
 ```shell
-pip install -r cookbook/examples/streamlit/game_generator/requirements.txt
+pip install -r cookbook/use_cases/apps/game_generator/requirements.txt
 ```
 
 ### 3. Export `OPENAI_API_KEY` 
@@ -24,5 +24,5 @@ export OPENAI_API_KEY=sk-***
 ### 4. Run Streamlit App
 
 ```shell
-streamlit run cookbook/examples/streamlit/game_generator/app.py
+streamlit run cookbook/use_cases/apps/game_generator/app.py
 ```

@@ -1,6 +1,8 @@
 from typing import Any, Dict, List, Optional
 
 import streamlit as st
+from agents import get_sql_agent
+from agno.agent.agent import Agent
 from agno.utils.log import logger
 
 
@@ -10,12 +12,12 @@ def load_data_and_knowledge():
     from load_knowledge import load_knowledge
 
     if "data_loaded" not in st.session_state:
-        with st.spinner("🔄 Loading F1 data into database..."):
+        with st.spinner("🔄 Loading data into database..."):
             load_f1_data()
         with st.spinner("📚 Loading knowledge base..."):
             load_knowledge()
         st.session_state["data_loaded"] = True
-        st.success("✅ F1 data and knowledge loaded successfully!")
+        st.success("✅ Data and knowledge loaded successfully!")
 
 
 def add_message(
@@ -85,6 +87,145 @@ def display_tool_calls(tool_calls_container, tools):
                 if _metrics:
                     st.markdown("**Metrics:**")
                     st.json(_metrics)
+
+
+def sidebar_widget() -> None:
+    """Display a sidebar with sample user queries"""
+    with st.sidebar:
+        # Basic Information
+        st.markdown("#### 🏎️ Basic Information")
+        if st.button("📋 Show Tables"):
+            add_message("user", "Which tables do you have access to?")
+        if st.button("ℹ️ Describe Tables"):
+            add_message("user", "Tell me more about these tables.")
+
+        # Statistics
+        st.markdown("#### 🏆 Statistics")
+        if st.button("🥇 Most Race Wins"):
+            add_message("user", "Which driver has the most race wins?")
+
+        if st.button("🏆 Constructor Champs"):
+            add_message("user", "Which team won the most Constructors Championships?")
+
+        if st.button("⏳ Longest Career"):
+            add_message(
+                "user",
+                "Tell me the name of the driver with the longest racing career? Also tell me when they started and when they retired.",
+            )
+
+        # Analysis
+        st.markdown("#### 📊 Analysis")
+        if st.button("📈 Races per Year"):
+            add_message("user", "Show me the number of races per year.")
+
+        if st.button("🔍 Team Performance"):
+            add_message(
+                "user",
+                "Write a query to identify the drivers that won the most races per year from 2010 onwards and the position of their team that year.",
+            )
+
+        # Utility buttons
+        st.markdown("#### 🛠️ Utilities")
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("🔄 New Chat"):
+                restart_agent()
+        with col2:
+            if st.download_button(
+                "💾 Export Chat",
+                export_chat_history(),
+                file_name="f1_chat_history.md",
+                mime="text/markdown",
+            ):
+                st.success("Chat history exported!")
+
+        if st.sidebar.button("🚀 Load Data & Knowledge"):
+            load_data_and_knowledge()
+
+
+def session_selector_widget(agent: Agent, model_id: str) -> None:
+    """Display a session selector in the sidebar"""
+
+    if agent.storage:
+        agent_sessions = agent.storage.get_all_sessions()
+        # Get session names if available, otherwise use IDs
+        session_options = []
+        for session in agent_sessions:
+            session_id = session.session_id
+            session_name = (
+                session.session_data.get("session_name", None)
+                if session.session_data
+                else None
+            )
+            display_name = session_name if session_name else session_id
+            session_options.append({"id": session_id, "display": display_name})
+
+        # Display session selector
+        selected_session = st.sidebar.selectbox(
+            "Session",
+            options=[s["display"] for s in session_options],
+            key="session_selector",
+        )
+        # Find the selected session ID
+        selected_session_id = next(
+            s["id"] for s in session_options if s["display"] == selected_session
+        )
+
+        if st.session_state["sql_agent_session_id"] != selected_session_id:
+            logger.info(
+                f"---*--- Loading {model_id} run: {selected_session_id} ---*---"
+            )
+            st.session_state["sql_agent"] = get_sql_agent(
+                model_id=model_id,
+                session_id=selected_session_id,
+            )
+            st.rerun()
+
+
+def rename_session_widget(agent: Agent) -> None:
+    """Rename the current session of the agent and save to storage"""
+
+    container = st.sidebar.container()
+    session_row = container.columns([3, 1], vertical_alignment="center")
+
+    # Initialize session_edit_mode if needed
+    if "session_edit_mode" not in st.session_state:
+        st.session_state.session_edit_mode = False
+
+    with session_row[0]:
+        if st.session_state.session_edit_mode:
+            new_session_name = st.text_input(
+                "Session Name",
+                value=agent.session_name,
+                key="session_name_input",
+                label_visibility="collapsed",
+            )
+        else:
+            st.markdown(f"Session Name: **{agent.session_name}**")
+
+    with session_row[1]:
+        if st.session_state.session_edit_mode:
+            if st.button("✓", key="save_session_name", type="primary"):
+                if new_session_name:
+                    agent.rename_session(new_session_name)
+                    st.session_state.session_edit_mode = False
+                    container.success("Renamed!")
+        else:
+            if st.button("✎", key="edit_session_name"):
+                st.session_state.session_edit_mode = True
+
+
+def about_widget() -> None:
+    """Display an about section in the sidebar"""
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("### ℹ️ About")
+    st.sidebar.markdown("""
+    This SQL Assistant helps you analyze Formula 1 data from 1950 to 2020 using natural language queries.
+
+    Built with:
+    - 🚀 Agno
+    - 💫 Streamlit
+    """)
 
 
 CUSTOM_CSS = """

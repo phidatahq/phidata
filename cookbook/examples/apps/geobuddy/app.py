@@ -1,9 +1,10 @@
 import os
 from pathlib import Path
-from PIL import Image
-import streamlit as st
-from cookbook.use_cases.apps.geobuddy.geography_buddy import analyze_image
 
+import streamlit as st
+from PIL import Image
+
+from cookbook.use_cases.apps.geobuddy.geography_buddy import analyze_image
 
 # Streamlit App Configuration
 st.set_page_config(
@@ -26,7 +27,9 @@ def main() -> None:
         st.markdown("let me guess the location based on visible cues from your image!")
 
         # Upload Image
-        uploaded_file = st.file_uploader("📷 Upload here..", type=["jpg", "jpeg", "png"])
+        uploaded_file = st.file_uploader(
+            "📷 Upload here..", type=["jpg", "jpeg", "png"]
+        )
         st.markdown("---")
 
     # App Logic
@@ -56,7 +59,9 @@ def main() -> None:
                             st.success("🌍 Here's my guess:")
                             st.markdown(result)
                         else:
-                            st.warning("Sorry, I couldn't determine the location. Try another image.")
+                            st.warning(
+                                "Sorry, I couldn't determine the location. Try another image."
+                            )
                     except Exception as e:
                         st.error(f"An error occurred: {e}")
 

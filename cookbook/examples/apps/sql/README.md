@@ -16,7 +16,7 @@ source .venv/bin/activate
 ### 2. Install libraries
 
 ```shell
-pip install -r cookbook/use_cases/apps/sql/requirements.txt
+pip install -r cookbook/examples/apps/sql/requirements.txt
 ```
 
 ### 3. Run PgVector
@@ -48,7 +48,7 @@ docker run -d \
 ### 4. Load F1 data
 
 ```shell
-python cookbook/use_cases/apps/sql/load_f1_data.py
+python cookbook/examples/apps/sql/load_f1_data.py
 ```
 
 ### 5. Load the knowledge base
@@ -60,7 +60,7 @@ We recommend adding the following as you go along:
   - Add sample SQL queries to the `cookbook/use_cases/apps/sql/knowledge_base/sample_queries.sql` file. This will give the Assistant a head start on how to write complex queries.
 
 ```shell
-python cookbook/use_cases/apps/sql/load_knowledge.py
+python cookbook/examples/apps/sql/load_knowledge.py
 ```
 
 ### 6. Export API Keys
@@ -82,7 +82,7 @@ export GROQ_API_KEY=***
 ### 7. Run SQL Agent
 
 ```shell
-streamlit run cookbook/use_cases/apps/sql/app.py
+streamlit run cookbook/examples/apps/sql/app.py
 ```
 
 - Open [localhost:8501](http://localhost:8501) to view the SQL Agent.

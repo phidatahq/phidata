@@ -9,4 +9,4 @@ reasoning_agent = Agent(
     reasoning_model=DeepSeek(id="deepseek-reasoner"),
     markdown=True,
 )
-reasoning_agent.print_response(task, stream=True, show_full_reasoning=True)
+reasoning_agent.print_response(task, stream=True)

@@ -543,7 +543,7 @@ class OpenAIChat(Model):
         Returns:
             ModelResponse: The model response.
         """
-        logger.debug("---------- OpenAIChat Response Start ----------")
+        logger.debug(f"---------- {self.get_provider()} Response Start ----------")
         self._log_messages(messages)
         model_response = ModelResponse()
         metrics = Metrics()
@@ -608,7 +608,7 @@ class OpenAIChat(Model):
             is not None
         ):
             return self.handle_post_tool_call_messages(messages=messages, model_response=model_response)
-        logger.debug("---------- OpenAIChat Response End ----------")
+        logger.debug(f"---------- {self.get_provider()} Response End ----------")
         return model_response
 
     async def aresponse(self, messages: List[Message]) -> ModelResponse:
@@ -621,7 +621,7 @@ class OpenAIChat(Model):
         Returns:
             ModelResponse: The model response from the API.
         """
-        logger.debug("---------- OpenAIChat Async Response Start ----------")
+        logger.debug(f"---------- {self.get_provider()} Async Response Start ----------")
         self._log_messages(messages)
         model_response = ModelResponse()
         metrics = Metrics()
@@ -687,7 +687,7 @@ class OpenAIChat(Model):
         ):
             return await self.ahandle_post_tool_call_messages(messages=messages, model_response=model_response)
 
-        logger.debug("---------- OpenAIChat Async Response End ----------")
+        logger.debug(f"---------- {self.get_provider()} Async Response End ----------")
         return model_response
 
     def update_stream_metrics(self, assistant_message: Message, metrics: Metrics):
@@ -816,7 +816,7 @@ class OpenAIChat(Model):
         Returns:
             Iterator[ModelResponse]: An iterator of model responses.
         """
-        logger.debug("---------- OpenAIChat Response Start ----------")
+        logger.debug(f"---------- {self.get_provider()} Response Start ----------")
         self._log_messages(messages)
         stream_data: StreamData = StreamData()
         metrics: Metrics = Metrics()
@@ -892,7 +892,7 @@ class OpenAIChat(Model):
                 assistant_message=assistant_message, messages=messages, tool_role=tool_role
             )
             yield from self.handle_post_tool_call_messages_stream(messages=messages)
-        logger.debug("---------- OpenAIChat Response End ----------")
+        logger.debug(f"---------- {self.get_provider()} Response End ----------")
 
     async def aresponse_stream(self, messages: List[Message]) -> Any:
         """
@@ -904,7 +904,7 @@ class OpenAIChat(Model):
         Returns:
             Any: An asynchronous iterator of model responses.
         """
-        logger.debug("---------- OpenAIChat Async Response Start ----------")
+        logger.debug(f"---------- {self.get_provider()} Async Response Start ----------")
         self._log_messages(messages)
         stream_data: StreamData = StreamData()
         metrics: Metrics = Metrics()
@@ -981,7 +981,7 @@ class OpenAIChat(Model):
                 yield tool_call_response
             async for post_tool_call_response in self.ahandle_post_tool_call_messages_stream(messages=messages):
                 yield post_tool_call_response
-        logger.debug("---------- OpenAIChat Async Response End ----------")
+        logger.debug(f"---------- {self.get_provider()} Async Response End ----------")
 
     def build_tool_calls(self, tool_calls_data: List[ChoiceDeltaToolCall]) -> List[Dict[str, Any]]:
         """

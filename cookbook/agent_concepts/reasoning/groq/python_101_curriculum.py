@@ -1,12 +1,14 @@
 from agno.agent import Agent
-from agno.models.deepseek import DeepSeek
+from agno.models.groq import Groq
 from agno.models.openai import OpenAIChat
 
-task = "Write a short story about life in 500000 years"
+task = "Craft a curriculum for Python 101"
 
 reasoning_agent = Agent(
     model=OpenAIChat(id="gpt-4o"),
-    reasoning_model=DeepSeek(id="deepseek-reasoner"),
+    reasoning_model=Groq(
+        id="deepseek-r1-distill-llama-70b", temperature=0.6, max_tokens=1024, top_p=0.95
+    ),
     markdown=True,
 )
 reasoning_agent.print_response(task, stream=True)

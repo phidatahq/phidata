@@ -143,6 +143,9 @@ class Model(ABC):
             _dict["tool_call_limit"] = self.tool_call_limit
         return _dict
 
+    def get_provider(self) -> str:
+        return self.provider or self.name or self.__class__.__name__
+
     @abstractmethod
     def invoke(self, *args, **kwargs) -> Any:
         pass

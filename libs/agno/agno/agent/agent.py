@@ -425,7 +425,6 @@ class Agent:
         if self.debug_mode or getenv("AGNO_DEBUG", "false").lower() == "true":
             self.debug_mode = True
             set_log_level_to_debug()
-            logger.debug("Debug logs enabled")
         else:
             set_log_level_to_info()
 
@@ -2632,8 +2631,8 @@ class Agent:
             logger.warning("Reasoning error. Reasoning model is None, continuing regular session...")
             return
 
-        # Get reasoning using DeepSeek
-        if reasoning_model.__class__.__name__ == "DeepSeek" and reasoning_model.id == "deepseek-reasoner":
+        # Use DeepSeek for reasoning
+        if reasoning_model.__class__.__name__ == "DeepSeek":
             from agno.reasoning.deepseek import get_deepseek_reasoning, get_deepseek_reasoning_agent
 
             ds_reasoning_agent = self.reasoning_agent or get_deepseek_reasoning_agent(
@@ -2650,6 +2649,25 @@ class Agent:
             self.update_run_response_with_reasoning(
                 reasoning_steps=[ReasoningStep(result=ds_reasoning_message.content)],
                 reasoning_agent_messages=[ds_reasoning_message],
+            )
+        # Use Groq for reasoning
+        if reasoning_model.__class__.__name__ == "Groq":
+            from agno.reasoning.groq import get_groq_reasoning, get_groq_reasoning_agent
+
+            groq_reasoning_agent = self.reasoning_agent or get_groq_reasoning_agent(
+                reasoning_model=reasoning_model, monitoring=self.monitoring
+            )
+            groq_reasoning_message: Optional[Message] = get_groq_reasoning(
+                reasoning_agent=groq_reasoning_agent, messages=run_messages.get_input_messages()
+            )
+            if groq_reasoning_message is None:
+                logger.warning("Reasoning error. Reasoning response is None, continuing regular session...")
+                return
+            run_messages.messages.append(groq_reasoning_message)
+            # Add reasoning step to the Agent's run_response
+            self.update_run_response_with_reasoning(
+                reasoning_steps=[ReasoningStep(result=groq_reasoning_message.content)],
+                reasoning_agent_messages=[groq_reasoning_message],
             )
         # Get default reasoning
         else:
@@ -2766,8 +2784,8 @@ class Agent:
             logger.warning("Reasoning error. Reasoning model is None, continuing regular session...")
             return
 
-        # Get reasoning using DeepSeek
-        if reasoning_model.__class__.__name__ == "DeepSeek" and reasoning_model.id == "deepseek-reasoner":
+        # Use DeepSeek for reasoning
+        if reasoning_model.__class__.__name__ == "DeepSeek":
             from agno.reasoning.deepseek import aget_deepseek_reasoning, get_deepseek_reasoning_agent
 
             ds_reasoning_agent = self.reasoning_agent or get_deepseek_reasoning_agent(
@@ -2784,6 +2802,25 @@ class Agent:
             self.update_run_response_with_reasoning(
                 reasoning_steps=[ReasoningStep(result=ds_reasoning_message.content)],
                 reasoning_agent_messages=[ds_reasoning_message],
+            )
+        # Use Groq for reasoning
+        if reasoning_model.__class__.__name__ == "Groq":
+            from agno.reasoning.groq import aget_groq_reasoning, get_groq_reasoning_agent
+
+            groq_reasoning_agent = self.reasoning_agent or get_groq_reasoning_agent(
+                reasoning_model=reasoning_model, monitoring=self.monitoring
+            )
+            groq_reasoning_message: Optional[Message] = await aget_groq_reasoning(
+                reasoning_agent=groq_reasoning_agent, messages=run_messages.get_input_messages()
+            )
+            if groq_reasoning_message is None:
+                logger.warning("Reasoning error. Reasoning response is None, continuing regular session...")
+                return
+            run_messages.messages.append(groq_reasoning_message)
+            # Add reasoning step to the Agent's run_response
+            self.update_run_response_with_reasoning(
+                reasoning_steps=[ReasoningStep(result=groq_reasoning_message.content)],
+                reasoning_agent_messages=[groq_reasoning_message],
             )
         # Get default reasoning
         else:
@@ -3244,31 +3281,25 @@ class Agent:
                         render = True
                         # Create panels for reasoning steps
                         for i, step in enumerate(reasoning_steps, 1):
-                            # Build step content with optional fields
-                            step_parts = []
+                            # Build step content
+                            step_content = Text.assemble()
                             if step.title is not None:
-                                step_parts.append((f"{step.title}\n", "bold"))
+                                step_content.append(f"{step.title}\n", "bold")
                             if step.action is not None:
-                                step_parts.append((f"{step.action}\n", "dim"))
-                            step_content = Text.assemble(*step_parts)
+                                step_content.append(f"{step.action}\n", "dim")
+                            if step.result is not None:
+                                step_content.append(Text.from_markup(step.result, style="dim"))
 
                             if show_full_reasoning:
                                 # Add detailed reasoning information if available
-                                details = []
-                                if step.result is not None:
-                                    details.append(Text.from_markup(step.result, style="dim"))
                                 if step.reasoning is not None:
-                                    details.append(
+                                    step_content.append(
                                         Text.from_markup(f"\n[bold]Reasoning:[/bold] {step.reasoning}", style="dim")
                                     )
                                 if step.confidence is not None:
-                                    details.append(
+                                    step_content.append(
                                         Text.from_markup(f"\n[bold]Confidence:[/bold] {step.confidence}", style="dim")
                                     )
-                                if len(details) > 0:
-                                    step_content.append("\n")  # Add spacing before details
-                                    for detail in details:
-                                        step_content.append(detail)
                             reasoning_panel = self.create_panel(
                                 content=step_content, title=f"Reasoning step {i}", border_style="green"
                             )
@@ -3339,31 +3370,25 @@ class Agent:
                     render = True
                     # Create panels for reasoning steps
                     for i, step in enumerate(reasoning_steps, 1):
-                        # Build step content with optional fields
-                        step_parts = []
+                        # Build step content
+                        step_content = Text.assemble()
                         if step.title is not None:
-                            step_parts.append((f"{step.title}\n", "bold"))
+                            step_content.append(f"{step.title}\n", "bold")
                         if step.action is not None:
-                            step_parts.append((f"{step.action}\n", "dim"))
-                        step_content = Text.assemble(*step_parts)
+                            step_content.append(f"{step.action}\n", "dim")
+                        if step.result is not None:
+                            step_content.append(Text.from_markup(step.result, style="dim"))
 
                         if show_full_reasoning:
                             # Add detailed reasoning information if available
-                            details = []
-                            if step.result is not None:
-                                details.append(Text.from_markup(step.result, style="dim"))
                             if step.reasoning is not None:
-                                details.append(
+                                step_content.append(
                                     Text.from_markup(f"\n[bold]Reasoning:[/bold] {step.reasoning}", style="dim")
                                 )
                             if step.confidence is not None:
-                                details.append(
+                                step_content.append(
                                     Text.from_markup(f"\n[bold]Confidence:[/bold] {step.confidence}", style="dim")
                                 )
-                            if len(details) > 0:
-                                step_content.append("\n")  # Add spacing before details
-                                for detail in details:
-                                    step_content.append(detail)
                         reasoning_panel = self.create_panel(
                             content=step_content, title=f"Reasoning step {i}", border_style="green"
                         )
@@ -3493,31 +3518,25 @@ class Agent:
                         render = True
                         # Create panels for reasoning steps
                         for i, step in enumerate(reasoning_steps, 1):
-                            # Build step content with optional fields
-                            step_parts = []
+                            # Build step content
+                            step_content = Text.assemble()
                             if step.title is not None:
-                                step_parts.append((f"{step.title}\n", "bold"))
+                                step_content.append(f"{step.title}\n", "bold")
                             if step.action is not None:
-                                step_parts.append((f"{step.action}\n", "dim"))
-                            step_content = Text.assemble(*step_parts)
+                                step_content.append(f"{step.action}\n", "dim")
+                            if step.result is not None:
+                                step_content.append(Text.from_markup(step.result, style="dim"))
 
                             if show_full_reasoning:
                                 # Add detailed reasoning information if available
-                                details = []
-                                if step.result is not None:
-                                    details.append(Text.from_markup(step.result, style="dim"))
                                 if step.reasoning is not None:
-                                    details.append(
+                                    step_content.append(
                                         Text.from_markup(f"\n[bold]Reasoning:[/bold] {step.reasoning}", style="dim")
                                     )
                                 if step.confidence is not None:
-                                    details.append(
+                                    step_content.append(
                                         Text.from_markup(f"\n[bold]Confidence:[/bold] {step.confidence}", style="dim")
                                     )
-                                if len(details) > 0:
-                                    step_content.append("\n")  # Add spacing before details
-                                    for detail in details:
-                                        step_content.append(detail)
                             reasoning_panel = self.create_panel(
                                 content=step_content, title=f"Reasoning step {i}", border_style="green"
                             )
@@ -3588,31 +3607,25 @@ class Agent:
                     render = True
                     # Create panels for reasoning steps
                     for i, step in enumerate(reasoning_steps, 1):
-                        # Build step content with optional fields
-                        step_parts = []
+                        # Build step content
+                        step_content = Text.assemble()
                         if step.title is not None:
-                            step_parts.append((f"{step.title}\n", "bold"))
+                            step_content.append(f"{step.title}\n", "bold")
                         if step.action is not None:
-                            step_parts.append((f"{step.action}\n", "dim"))
-                        step_content = Text.assemble(*step_parts)
+                            step_content.append(f"{step.action}\n", "dim")
+                        if step.result is not None:
+                            step_content.append(Text.from_markup(step.result, style="dim"))
 
                         if show_full_reasoning:
                             # Add detailed reasoning information if available
-                            details = []
-                            if step.result is not None:
-                                details.append(Text.from_markup(step.result, style="dim"))
                             if step.reasoning is not None:
-                                details.append(
+                                step_content.append(
                                     Text.from_markup(f"\n[bold]Reasoning:[/bold] {step.reasoning}", style="dim")
                                 )
                             if step.confidence is not None:
-                                details.append(
+                                step_content.append(
                                     Text.from_markup(f"\n[bold]Confidence:[/bold] {step.confidence}", style="dim")
                                 )
-                            if len(details) > 0:
-                                step_content.append("\n")  # Add spacing before details
-                                for detail in details:
-                                    step_content.append(detail)
                         reasoning_panel = self.create_panel(
                             content=step_content, title=f"Reasoning step {i}", border_style="green"
                         )

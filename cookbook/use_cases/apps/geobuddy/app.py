@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 from PIL import Image
 import streamlit as st
-from cookbook.examples.streamlit.geobuddy.geography_buddy import analyze_image
+from cookbook.use_cases.apps.geobuddy.geography_buddy import analyze_image
 
 
 # Streamlit App Configuration
@@ -11,7 +11,7 @@ st.set_page_config(
     page_icon="🌍",
 )
 st.title("GeoBuddy 🌍")
-st.markdown("##### :orange_heart: built by [phidata](https://github.com/phidatahq/phidata)")
+st.markdown("##### :orange_heart: built by [agno](https://github.com/phidatahq/agno)")
 st.markdown(
     """
     **Upload your image** and let model guess the location based on visual cues such as landmarks, architecture, and more.

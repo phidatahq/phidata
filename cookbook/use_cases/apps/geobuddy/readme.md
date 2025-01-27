@@ -22,7 +22,7 @@ source ~/.venvs/geobuddyenv/bin/activate
 ### 2. Install requirements
 
 ```shell
-pip install -r cookbook/examples/streamlit/geobuddy/requirements.txt
+pip install -r cookbook/use_cases/apps/geobuddy/requirements.txt
 ```
 
 ### 3. Export `GOOGLE_API_KEY`
@@ -34,5 +34,5 @@ export GOOGLE_API_KEY=***
 ### 4. Run Streamlit App
 
 ```shell
-streamlit run cookbook/examples/streamlit/geobuddy/app.py
+streamlit run cookbook/use_cases/apps/geobuddy/app.py
 ```

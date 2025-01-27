@@ -3,9 +3,10 @@ from pathlib import Path
 from dotenv import load_dotenv
 from typing import Optional
 
-from phi.agent import Agent
-from phi.model.google import Gemini
-from phi.tools.duckduckgo import DuckDuckGo
+from agno.agent import Agent
+from agno.models.google import Gemini
+from agno.tools.duckduckgo import DuckDuckGoTools
+from agno.media import Image
 
 # Load environment variables
 load_dotenv()
@@ -33,13 +34,13 @@ Instructions:
 """
 
 # Initialize the GeoBuddy agent
-geo_agent = Agent(model=Gemini(id="gemini-2.0-flash-exp"), tools=[DuckDuckGo()], markdown=True)
+geo_agent = Agent(model=Gemini(id="gemini-2.0-flash-exp"), tools=[DuckDuckGoTools()], markdown=True)
 
 
 # Function to analyze the image and return location information
 def analyze_image(image_path: Path) -> Optional[str]:
     try:
-        response = geo_agent.run(geo_query, images=[str(image_path)])
+        response = geo_agent.run(geo_query, images=[Image(filepath=image_path)])
         return response.content
     except Exception as e:
         raise RuntimeError(f"An error occurred while analyzing the image: {e}")

@@ -233,6 +233,7 @@ def main() -> None:
                         viz_agent = get_viz_agent()
                         st.session_state["viz_agent"] = viz_agent
                     viz_agent.knowledge.load_documents(auto_rag_documents, upsert=True)
+                
                 st.session_state[f"{auto_rag_name}_uploaded"] = True
             alert.empty()
 
@@ -288,15 +289,47 @@ def main() -> None:
         st.session_state["messages"].append({"role": "user", "content": prompt})
         st.rerun()  # Add this to force a rerun when new message is added
 
-
 def restart_agent():
+    """Clear all session state and restart the agent"""
     logger.debug("---*--- Restarting agent ---*---")
-    st.session_state["viz_agent"] = None
-    st.session_state["knowledge_loaded"] = None  # Reset knowledge base state
-    st.session_state["current_file"] = None  # Reset current file
-    st.session_state["current_df"] = None  # Reset current dataframe
-    st.rerun()
+    viz_agent: Agent
+    if "viz_agent" not in st.session_state:
+        logger.info("---*--- Creating new Data Analysis agent ---*---")
+        viz_agent = get_viz_agent()
+        st.session_state["viz_agent"] = viz_agent
+    else:
+        viz_agent = st.session_state["viz_agent"]
 
+    viz_agent.knowledge.delete()  # Delete knowledge base
+
+    
+    # Clear conversation history
+    st.session_state["messages"] = []
+    
+    # Clear data
+    st.session_state["current_df"] = None
+    if 'uploaded_file' in st.session_state:
+        del st.session_state['uploaded_file']
+    
+    # Clear any uploaded file states
+    for key in list(st.session_state.keys()):
+        if key.endswith("_uploaded") or key.endswith(".csv"):
+            del st.session_state[key]
+            
+    # Add initial welcome message
+    st.session_state["messages"] = [
+        {
+            "role": "agent",
+            "content": "Upload a CSV file and I'll help you analyze the data!",
+        }
+    ]
+    
+    # Force a complete session reset
+    for key in list(st.session_state.keys()):
+        if key != "messages":  # Keep only the welcome message
+            del st.session_state[key]
+    
+    st.rerun()
 
 if __name__ == "__main__":
     main()

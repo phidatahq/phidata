@@ -25,10 +25,11 @@ def get_deepseek_reasoning(reasoning_agent: "Agent", messages: List[Message]) ->
     extracted_reasoning: str = ""
     if reasoning_agent_response.messages is not None:
         for msg in reasoning_agent_response.messages:
-            if hasattr(msg, "reasoning_content"):
+            if msg.reasoning_content is not None:
                 extracted_reasoning = msg.reasoning_content
                 break
 
+    logger.debug(f"Extracted reasoning: {extracted_reasoning}")
     return Message(
         role="assistant", content=f"<thinking>{extracted_reasoning}</thinking>", reasoning_content=extracted_reasoning
     )
@@ -46,7 +47,7 @@ async def aget_deepseek_reasoning(reasoning_agent: "Agent", messages: List[Messa
     extracted_reasoning: str = ""
     if reasoning_agent_response.messages is not None:
         for msg in reasoning_agent_response.messages:
-            if hasattr(msg, "reasoning_content"):
+            if msg.reasoning_content is not None:
                 extracted_reasoning = msg.reasoning_content
                 break
 

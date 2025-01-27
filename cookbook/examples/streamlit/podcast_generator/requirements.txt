@@ -1,3 +1,4 @@
 phidata
 openai
 streamlit
+duckduckgo-search

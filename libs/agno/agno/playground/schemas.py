@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Union
 
 from fastapi import UploadFile
 from pydantic import BaseModel
@@ -20,7 +20,7 @@ class AgentGetResponse(BaseModel):
     storage: Optional[Dict[str, Any]] = None
     knowledge: Optional[Dict[str, Any]] = None
     description: Optional[str] = None
-    instructions: Optional[List[str]] = None
+    instructions: Optional[Union[List[str], str, Callable]] = None
 
 
 class AgentRunRequest(BaseModel):

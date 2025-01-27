@@ -21,7 +21,7 @@ from utils import (
 
 nest_asyncio.apply()
 st.set_page_config(
-    page_title="Autonomous RAG",
+    page_title="Agentic RAG",
     page_icon="💎",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -67,7 +67,7 @@ def main():
     ####################################################################
     # App header
     ####################################################################
-    st.markdown("<h1 class='main-title'>Auto RAG Agent</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 class='main-title'>Agentic RAG Agent</h1>", unsafe_allow_html=True)
     st.markdown(
         "<p class='subtitle'>Your intelligent research assistant powered by Agno</p>",
         unsafe_allow_html=True,

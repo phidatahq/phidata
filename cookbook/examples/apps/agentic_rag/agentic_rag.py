@@ -1,6 +1,6 @@
-"""🏎️ Auto RAG Agent - Your AI Data Analyst!
+"""🏎️ Agentic RAG Agent - Your AI Data Analyst!
 
-This advanced example shows how to build a Auto RAG Agent that
+This advanced example shows how to build a Agentic RAG Agent that
 leverages Agentic RAG to provide deep insights into any data.
 
 Example queries to try:

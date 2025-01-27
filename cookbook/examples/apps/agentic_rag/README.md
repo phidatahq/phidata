@@ -1,6 +1,6 @@
-# Auto RAG Agent
+# Agentic RAG Agent
 
-**Auto RAG Agent** is a chat application that combines models with retrieval-augmented generation.
+**Agentic RAG Agent** is a chat application that combines models with retrieval-augmented generation.
 It allows users to ask questions based on custom knowledge bases, documents, and web data, retrieve context-aware answers, and maintain chat history across sessions.
 
 > Note: Fork and clone this repository if needed

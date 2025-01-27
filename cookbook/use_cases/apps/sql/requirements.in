@@ -1,8 +1,8 @@
+agno
 openai
 pandas
-agno
-streamlit
-sqlalchemy
-simplejson
 pgvector
 psycopg[binary]
+simplejson
+sqlalchemy
+streamlit

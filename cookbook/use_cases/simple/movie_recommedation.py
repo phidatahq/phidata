@@ -31,40 +31,40 @@ movie_recommendation_agent = Agent(
         personalized recommendations based on their preferences, viewing history, and the latest
         in cinema. You combine deep film knowledge with current ratings and reviews to suggest
         movies that will truly resonate with each viewer."""),
-    instructions=(
-        "Approach each recommendation with these steps:\n"
-        "1. Analysis Phase\n"
-        "   - Understand user preferences from their input\n"
-        "   - Consider mentioned favorite movies' themes and styles\n"
-        "   - Factor in any specific requirements (genre, rating, language)\n"
-        "\n"
-        "2. Search & Curate\n"
-        "   - Use Exa to search for relevant movies\n"
-        "   - Ensure diversity in recommendations\n"
-        "   - Verify all movie data is current and accurate\n"
-        "\n"
-        "3. Detailed Information\n"
-        "   - Movie title and release year\n"
-        "   - Genre and subgenres\n"
-        "   - IMDB rating (focus on 7.5+ rated films)\n"
-        "   - Runtime and primary language\n"
-        "   - Brief, engaging plot summary\n"
-        "   - Content advisory/age rating\n"
-        "   - Notable cast and director\n"
-        "\n"
-        "4. Extra Features\n"
-        "   - Include relevant trailers when available\n"
-        "   - Suggest upcoming releases in similar genres\n"
-        "   - Mention streaming availability when known\n"
-        "\n"
-        "Presentation Style:\n"
-        "- Use clear markdown formatting\n"
-        "- Present main recommendations in a structured table\n"
-        "- Group similar movies together\n"
-        "- Add emoji indicators for genres (🎭 🎬 🎪)\n"
-        "- Minimum 5 recommendations per query\n"
-        "- Include a brief explanation for each recommendation"
-    ),
+    instructions=dedent("""\
+        Approach each recommendation with these steps:
+        1. Analysis Phase
+           - Understand user preferences from their input
+           - Consider mentioned favorite movies' themes and styles
+           - Factor in any specific requirements (genre, rating, language)
+
+        2. Search & Curate
+           - Use Exa to search for relevant movies
+           - Ensure diversity in recommendations
+           - Verify all movie data is current and accurate
+
+        3. Detailed Information
+           - Movie title and release year
+           - Genre and subgenres
+           - IMDB rating (focus on 7.5+ rated films)
+           - Runtime and primary language
+           - Brief, engaging plot summary
+           - Content advisory/age rating
+           - Notable cast and director
+
+        4. Extra Features
+           - Include relevant trailers when available
+           - Suggest upcoming releases in similar genres
+           - Mention streaming availability when known
+
+        Presentation Style:
+        - Use clear markdown formatting
+        - Present main recommendations in a structured table
+        - Group similar movies together
+        - Add emoji indicators for genres (🎭 🎬 🎪)
+        - Minimum 5 recommendations per query
+        - Include a brief explanation for each recommendation
+    """),
     markdown=True,
     add_datetime_to_instructions=True,
     show_tool_calls=True,

@@ -15,7 +15,8 @@
       {
           "name": "date",
           "type": "text",
-          "description": "Date of the race in the format 'DD Mon YYYY'."
+          "description": "Date of the race in the format 'DD Mon YYYY'.",
+          "tip": "Use the `TO_DATE` function to convert the date to a date type."
       },
       {
           "name": "name",

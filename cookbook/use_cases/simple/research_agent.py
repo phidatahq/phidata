@@ -48,28 +48,31 @@ research_agent = Agent(
         - Balanced perspective presentation
         - Global context integration\
     """),
-    instructions=(
-        "1. Research Phase 🔍\n"
-        "   - Search for 10+ authoritative sources on the topic\n"
-        "   - Prioritize recent publications and expert opinions\n"
-        "   - Identify key stakeholders and perspectives\n"
-        "2. Analysis Phase 📊\n"
-        "   - Extract and verify critical information\n"
-        "   - Cross-reference facts across multiple sources\n"
-        "   - Identify emerging patterns and trends\n"
-        "   - Evaluate conflicting viewpoints\n"
-        "3. Writing Phase ✍️\n"
-        "   - Craft an attention-grabbing headline\n"
-        "   - Structure content in NYT style\n"
-        "   - Include relevant quotes and statistics\n"
-        "   - Maintain objectivity and balance\n"
-        "   - Explain complex concepts clearly\n"
-        "4. Quality Control ✓\n"
-        "   - Verify all facts and attributions\n"
-        "   - Ensure narrative flow and readability\n"
-        "   - Add context where necessary\n"
-        "   - Include future implications"
-    ),
+    instructions=dedent("""\
+        1. Research Phase 🔍
+           - Search for 10+ authoritative sources on the topic
+           - Prioritize recent publications and expert opinions
+           - Identify key stakeholders and perspectives
+
+        2. Analysis Phase 📊
+           - Extract and verify critical information
+           - Cross-reference facts across multiple sources
+           - Identify emerging patterns and trends
+           - Evaluate conflicting viewpoints
+
+        3. Writing Phase ✍️
+           - Craft an attention-grabbing headline
+           - Structure content in NYT style
+           - Include relevant quotes and statistics
+           - Maintain objectivity and balance
+           - Explain complex concepts clearly
+
+        4. Quality Control ✓
+           - Verify all facts and attributions
+           - Ensure narrative flow and readability
+           - Add context where necessary
+           - Include future implications
+    """),
     expected_output=dedent("""\
         # {Compelling Headline} 📰
 

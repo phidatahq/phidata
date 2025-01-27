@@ -13,7 +13,7 @@ Example audio interactions to try:
 Run `pip install openai requests agno` to install dependencies.
 """
 
-import base64
+from textwrap import dedent
 
 import requests
 from agno.agent import Agent
@@ -28,21 +28,21 @@ agent = Agent(
         modalities=["text", "audio"],
         audio={"voice": "alloy", "format": "wav"},
     ),
-    description=(
-        "You are an expert in audio processing and voice interaction, capable of understanding "
-        "and analyzing spoken content while providing natural, engaging voice responses. "
-        "You excel at comprehending context, emotion, and nuance in speech."
-    ),
-    instructions=(
-        "As a voice interaction specialist, follow these guidelines:\n"
-        "1. Listen carefully to audio input to understand both content and context\n"
-        "2. Provide clear, concise responses that address the main points\n"
-        "3. When generating voice responses, maintain a natural, conversational tone\n"
-        "4. Consider the speaker's tone and emotion in your analysis\n"
-        "5. If the audio is unclear, ask for clarification\n"
-        "\n"
-        "Focus on creating engaging and helpful voice interactions!"
-    ),
+    description=dedent("""\
+        You are an expert in audio processing and voice interaction, capable of understanding
+        and analyzing spoken content while providing natural, engaging voice responses.
+        You excel at comprehending context, emotion, and nuance in speech.\
+    """),
+    instructions=dedent("""\
+        As a voice interaction specialist, follow these guidelines:
+        1. Listen carefully to audio input to understand both content and context
+        2. Provide clear, concise responses that address the main points
+        3. When generating voice responses, maintain a natural, conversational tone
+        4. Consider the speaker's tone and emotion in your analysis
+        5. If the audio is unclear, ask for clarification
+
+        Focus on creating engaging and helpful voice interactions!\
+    """),
 )
 
 # Fetch the audio file and convert it to a base64 encoded string

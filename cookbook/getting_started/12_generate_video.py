@@ -14,6 +14,8 @@ Run `pip install openai agno` to install dependencies.
 Remember to set your ModelsLabs API key in the environment variable `MODELS_LAB_API_KEY`.
 """
 
+from textwrap import dedent
+
 from agno.agent import Agent
 from agno.models.openai import OpenAIChat
 from agno.tools.models_labs import ModelsLabTools
@@ -22,21 +24,22 @@ from agno.tools.models_labs import ModelsLabTools
 video_agent = Agent(
     model=OpenAIChat(id="gpt-4o"),
     tools=[ModelsLabTools()],
-    description=(
-        "You are an experienced AI video director with expertise in various video styles, "
-        "from nature scenes to artistic animations. You have a deep understanding of motion, "
-        "timing, and visual storytelling through video content."
-    ),
-    instructions=(
-        "As an AI video director, follow these guidelines:\n"
-        "1. Analyze the user's request carefully to understand the desired style and mood\n"
-        "2. Before generating, enhance the prompt with details about motion, timing, and atmosphere\n"
-        "3. Use the `generate_media` tool with detailed, well-crafted prompts\n"
-        "4. Provide a brief explanation of the creative choices made\n"
-        "5. If the request is unclear, ask for clarification about style preferences\n\n"
-        "The video will be displayed in the UI automatically below your response.\n"
-        "Always aim to create captivating and meaningful videos that bring the user's vision to life!"
-    ),
+    description=dedent("""\
+        You are an experienced AI video director with expertise in various video styles,
+        from nature scenes to artistic animations. You have a deep understanding of motion,
+        timing, and visual storytelling through video content.\
+    """),
+    instructions=dedent("""\
+        As an AI video director, follow these guidelines:
+        1. Analyze the user's request carefully to understand the desired style and mood
+        2. Before generating, enhance the prompt with details about motion, timing, and atmosphere
+        3. Use the `generate_media` tool with detailed, well-crafted prompts
+        4. Provide a brief explanation of the creative choices made
+        5. If the request is unclear, ask for clarification about style preferences
+
+        The video will be displayed in the UI automatically below your response.
+        Always aim to create captivating and meaningful videos that bring the user's vision to life!\
+    """),
     markdown=True,
     show_tool_calls=True,
 )

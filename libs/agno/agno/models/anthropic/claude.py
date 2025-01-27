@@ -589,7 +589,6 @@ class Claude(Model):
 
                 if isinstance(delta, MessageStopEvent):
                     message_data.response_usage = delta.message.usage
-        yield ModelResponse(content="\n\n")
 
         metrics.stop_response_timer()
 

@@ -16,6 +16,11 @@ def get_deepseek_reasoning_agent(reasoning_model: Model, monitoring: bool = Fals
 def get_deepseek_reasoning(reasoning_agent: "Agent", messages: List[Message]) -> Optional[Message]:  # type: ignore  # noqa: F821
     from agno.run.response import RunResponse
 
+    # get_system_message_role function does not consider the reasoning model
+    for message in messages:
+        if message.role == "developer":
+            message.role = "system"
+
     try:
         reasoning_agent_response: RunResponse = reasoning_agent.run(messages=messages)
     except Exception as e:
@@ -36,6 +41,11 @@ def get_deepseek_reasoning(reasoning_agent: "Agent", messages: List[Message]) ->
 
 async def aget_deepseek_reasoning(reasoning_agent: "Agent", messages: List[Message]) -> Optional[Message]:  # type: ignore  # noqa: F821
     from agno.run.response import RunResponse
+
+    # get_system_message_role function does not consider the reasoning model
+    for message in messages:
+        if message.role == "developer":
+            message.role = "system"
 
     try:
         reasoning_agent_response: RunResponse = await reasoning_agent.arun(messages=messages)

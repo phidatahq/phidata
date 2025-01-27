@@ -45,7 +45,9 @@ class TwitterTools(Toolkit):
             access_token=self.access_token,
             access_token_secret=self.access_token_secret,
         )
-        self.auth = tweepy.OAuth1UserHandler(consumer_key, consumer_secret, access_token, access_token_secret)
+        self.auth = tweepy.OAuth1UserHandler(
+            self.consumer_key, self.consumer_secret, self.access_token, self.access_token_secret
+        )
         self.api = tweepy.API(self.auth)
         self.register(self.create_tweet)
         self.register(self.reply_to_tweet)

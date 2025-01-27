@@ -8,7 +8,7 @@ from agno.tools.function import Function
 from agno.tools.toolkit import Toolkit
 
 
-def get_reasoning_agent(
+def get_default_reasoning_agent(
     reasoning_model: Model,
     min_steps: int,
     max_steps: int,
@@ -57,6 +57,7 @@ def get_reasoning_agent(
             "Additional Guidelines:\n"
             "  - Remember to run any tools you need to solve the problem.\n"
             f"  - Take at least {min_steps} steps to solve the problem.\n"
+            f"  - Take at most {max_steps} steps to solve the problem.\n"
             "  - If you have all the information you need, provide the final answer.\n"
             "  - IMPORTANT: IF AT ANY TIME THE RESULT IS WRONG, RESET AND START OVER.",
         ],

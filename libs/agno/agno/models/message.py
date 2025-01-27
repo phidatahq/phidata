@@ -44,6 +44,8 @@ class Message(BaseModel):
     audio_output: Optional[AudioOutput] = None
 
     # --- Data not sent to the Model API ---
+    # The reasoning content from the model
+    reasoning_content: Optional[str] = None
     # The name of the tool called
     tool_name: Optional[str] = None
     # Arguments passed to the tool

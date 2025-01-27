@@ -1,0 +1,9 @@
+agno
+openai
+duckdb
+pgvector
+psycopg[binary]
+sqlalchemy
+streamlit
+pandas
+

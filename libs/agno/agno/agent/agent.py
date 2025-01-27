@@ -1749,7 +1749,7 @@ class Agent:
 
     def get_system_message_role(self) -> str:
         """Return the role for the system message
-        The role may be updated by the model if map_system_role is True.
+        The role may be updated by the model if override_system_role is True.
         """
         self.model = cast(Model, self.model)
         if self.model.override_system_role and self.system_message_role == "system":
@@ -2639,8 +2639,13 @@ class Agent:
             ds_reasoning_agent = self.reasoning_agent or get_deepseek_reasoning_agent(
                 reasoning_model=reasoning_model, monitoring=self.monitoring
             )
+            messages = run_messages.get_input_messages()
+            # get_system_message_role function does not consider the reasoning model
+            for message in messages:
+                if message.role == "developer":
+                    message.role = "system"
             ds_reasoning_message: Optional[Message] = get_deepseek_reasoning(
-                reasoning_agent=ds_reasoning_agent, messages=run_messages.get_input_messages()
+                reasoning_agent=ds_reasoning_agent, messages=messages
             )
             if ds_reasoning_message is None:
                 logger.warning("Reasoning error. Reasoning response is None, continuing regular session...")
@@ -2773,8 +2778,13 @@ class Agent:
             ds_reasoning_agent = self.reasoning_agent or get_deepseek_reasoning_agent(
                 reasoning_model=reasoning_model, monitoring=self.monitoring
             )
+            # get_system_message_role function does not consider the reasoning model
+            messages = run_messages.get_input_messages()
+            for message in messages:
+                if message.role == "developer":
+                    message.role = "system"
             ds_reasoning_message: Optional[Message] = await aget_deepseek_reasoning(
-                reasoning_agent=ds_reasoning_agent, messages=run_messages.get_input_messages()
+                reasoning_agent=ds_reasoning_agent, messages=messages
             )
             if ds_reasoning_message is None:
                 logger.warning("Reasoning error. Reasoning response is None, continuing regular session...")

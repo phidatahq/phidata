@@ -1,5 +1,4 @@
 import json
-from enum import Enum
 from os import getenv
 from typing import Optional, Dict, Any, List
 

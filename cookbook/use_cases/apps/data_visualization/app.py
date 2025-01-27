@@ -1,4 +1,5 @@
 from typing import List
+import json
 
 import pandas as pd
 import streamlit as st
@@ -132,21 +133,31 @@ def display_tool_calls(tool_calls_container, tools):
     with tool_calls_container.container():
         for tool_call in tools:
             _tool_name = tool_call.get("tool_name")
-            _tool_args = tool_call.get("tool_args")
+            _tool_args = tool_call.get("tool_args", {})
             _content = tool_call.get("content")
             _metrics = tool_call.get("metrics")
 
             with st.expander(f"🛠️ {_tool_name.replace('_', ' ').title()}", expanded=False):
                 if _tool_args:
                     st.markdown("**Arguments:**")
+                    # Ensure _tool_args is properly formatted JSON
+                    if isinstance(_tool_args, str):
+                        try:
+                            _tool_args = json.loads(_tool_args)
+                        except json.JSONDecodeError:
+                            pass
                     st.json(_tool_args)
 
                 if _content:
                     st.markdown("**Results:**")
-                    try:
+                    if isinstance(_content, str):
+                        try:
+                            _content = json.loads(_content)
+                            st.json(_content)
+                        except json.JSONDecodeError:
+                            st.markdown(_content)
+                    else:
                         st.json(_content)
-                    except Exception:
-                        st.markdown(_content)
 
                 if _metrics:
                     st.markdown("**Metrics:**")

@@ -9,6 +9,7 @@ from agno.models.openai import OpenAIChat
 from agno.storage.agent.postgres import PostgresAgentStorage
 from agno.tools.duckdb import DuckDbTools
 from agno.vectordb.pgvector import PgVector
+from textwrap import dedent
 
 # ************* Paths *************
 cwd = Path(__file__).parent
@@ -55,22 +56,32 @@ def get_viz_agent(
             ),
             num_documents=3,  # Retrieve 3 most relevant documents
         ),
-        tools=[DuckDbTools()],
+        tools=[
+            DuckDbTools()
+        ],
         show_tool_calls=True,
         read_chat_history=True,
         search_knowledge=True,
         read_tool_call_history=True,
         debug_mode=debug_mode,
-        description="""You are a Data Visualization expert called `VizWiz`. Your goal is to help users understand and analyze their data.
-You can help users with:
-- Understanding data distributions and patterns
-- Finding relationships between variables
-- Identifying trends and outliers
-- Basic statistical analysis
-- Data quality assessment""",
-        instructions=[
-            "1 You need to search the knowledge base"
-            "2 you will get data from knowledge_base"
-            "3. use duckdb tools to answer the question"
-        ],
+        instructions=dedent(f"""\
+        You are a data visualization expert focused on writing precise, efficient SQL queries.
+        
+        When working with DuckDB:
+        1. Use `SHOW TABLES` to list available tables
+        2. Use `DESCRIBE <table_name>` to see table structure
+        3. Write SQL queries without semicolons at the end
+        4. Always include a LIMIT clause unless explicitly asked for all results
+        
+        {dedent(get_viz_agent.__doc__)}
+        
+        Rules for querying:
+        - Always check table existence before querying
+        - Verify column names using DESCRIBE
+        - Handle NULL values appropriately
+        - Account for duplicate records
+        - Use proper JOIN conditions
+        - Explain your query logic
+        - Never use DELETE or DROP statements
+        """)
     )

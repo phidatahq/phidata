@@ -42,5 +42,28 @@ constructors_positions_2019 AS (
 SELECT cp.team, cp.position, COALESCE(rw.wins, 0) AS wins
 FROM constructors_positions_2019 cp
 LEFT JOIN race_wins_2019 rw ON cp.team = rw.team
-ORDER BY cp.position
+ORDER BY cp.position;
+-- </query>
+
+-- <query description>
+-- Most race wins by a driver
+-- </query description>
+-- <query>
+SELECT name, COUNT(*) AS win_count
+FROM race_wins
+GROUP BY name
+ORDER BY win_count DESC
+LIMIT 1;
+-- </query>
+
+-- <query description>
+-- Which team won the most Constructors Championships?
+-- </query description>
+-- <query>
+SELECT team, COUNT(*) AS championship_wins
+FROM constructors_championship
+WHERE position = 1
+GROUP BY team
+ORDER BY championship_wins DESC
+LIMIT 1;
 -- </query>

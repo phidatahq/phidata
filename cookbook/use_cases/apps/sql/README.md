@@ -1,7 +1,8 @@
 # SQL Agent
 
-Let's build a text-to-SQL Agent for interacting with F1 data in a Postgres database.
-We use Agentic RAG to search for table metadata and rules, which are then used by the Agent to improve responses.
+This advanced example shows how to build a sophisticated text-to-SQL system that leverages Agentic RAG to provide deep insights into any data. We'll use the F1 dataset as an example, but the system is designed to be easily extensible to other datasets.
+
+The agent uses Agentic RAG to search for table metadata and rules, enabling it to write and run better SQL queries.
 
 > Note: Fork and clone the repository if needed
 
@@ -54,7 +55,7 @@ python cookbook/use_cases/apps/sql/load_f1_data.py
 
 The knowledge base contains table metadata, rules and sample queries, which are used by the Agent to improve responses.
 
-We recommend adding the following as you go along.
+We recommend adding the following as you go along:
   - Add `table_rules` and `column_rules` to the table metadata. The Agent is prompted to follow them. This is useful when you want to guide the Agent to always query date in a particular format, or avoid certain columns.
   - Add sample SQL queries to the `cookbook/use_cases/apps/sql/knowledge_base/sample_queries.sql` file. This will give the Assistant a head start on how to write complex queries.
 

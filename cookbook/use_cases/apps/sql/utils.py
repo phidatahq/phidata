@@ -1,3 +1,5 @@
+from typing import Any, Dict, List, Optional
+
 import streamlit as st
 from agno.utils.log import logger
 
@@ -16,19 +18,24 @@ def load_data_and_knowledge():
         st.success("✅ F1 data and knowledge loaded successfully!")
 
 
-def add_message(role: str, content: str) -> None:
+def add_message(
+    role: str, content: str, tool_calls: Optional[List[Dict[str, Any]]] = None
+) -> None:
     """Safely add a message to the session state"""
     if "messages" not in st.session_state or not isinstance(
         st.session_state["messages"], list
     ):
         st.session_state["messages"] = []
-    st.session_state["messages"].append({"role": role, "content": content})
+    st.session_state["messages"].append(
+        {"role": role, "content": content, "tool_calls": tool_calls}
+    )
 
 
 def restart_agent():
     """Reset the agent and clear chat history"""
     logger.debug("---*--- Restarting agent ---*---")
     st.session_state["sql_agent"] = None
+    st.session_state["sql_agent_session_id"] = None
     st.session_state["messages"] = []
     st.rerun()
 

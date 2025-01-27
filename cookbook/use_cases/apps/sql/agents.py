@@ -31,6 +31,8 @@ from agno.embedder.openai import OpenAIEmbedder
 from agno.knowledge.combined import CombinedKnowledgeBase
 from agno.knowledge.json import JSONKnowledgeBase
 from agno.knowledge.text import TextKnowledgeBase
+from agno.models.anthropic import Claude
+from agno.models.google import Gemini
 from agno.models.openai import OpenAIChat
 from agno.storage.agent.postgres import PostgresAgentStorage
 from agno.tools.file import FileTools
@@ -123,14 +125,35 @@ semantic_model_str = json.dumps(semantic_model, indent=2)
 
 def get_sql_agent(
     user_id: Optional[str] = None,
+    model_id: str = "openai:gpt-4o",
+    session_id: Optional[str] = None,
     debug_mode: bool = True,
 ) -> Agent:
-    """Returns an instance of the SQL Agent."""
+    """Returns an instance of the SQL Agent.
+
+    Args:
+        user_id: Optional user identifier
+        debug_mode: Enable debug logging
+        model_id: Model identifier in format 'provider:model_name'
+    """
+    # Parse model provider and name
+    provider, model_name = model_id.split(":")
+
+    # Select appropriate model class based on provider
+    if provider == "openai":
+        model = OpenAIChat(id=model_name)
+    elif provider == "google":
+        model = Gemini(id=model_name)
+    elif provider == "anthropic":
+        model = Claude(id=model_name)
+    else:
+        raise ValueError(f"Unsupported model provider: {provider}")
 
     return Agent(
         name="SQL Agent",
+        model=model,
         user_id=user_id,
-        model=OpenAIChat(id="gpt-4o"),
+        session_id=session_id,
         storage=agent_storage,
         knowledge=agent_knowledge,
         # Enable Agentic RAG i.e. the ability to search the knowledge base on-demand
@@ -142,7 +165,7 @@ def get_sql_agent(
         # Add tools to the agent
         tools=[SQLTools(db_url=db_url), FileTools(base_dir=output_dir)],
         add_history_to_messages=True,
-        num_history_responses=5,
+        num_history_responses=3,
         debug_mode=debug_mode,
         description=dedent("""\
         You are RaceAnalyst-X, an elite Formula 1 Data Scientist specializing in:

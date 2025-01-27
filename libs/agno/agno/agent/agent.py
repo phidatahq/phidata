@@ -1637,6 +1637,9 @@ class Agent:
             # Create a new session if it does not exist
             if self.agent_session is None:
                 logger.debug("-*- Creating new AgentSession")
+                # Initialize the agent_id and session_id if they are not set
+                if self.agent_id is None or self.session_id is None:
+                    self.initialize_agent()
                 if self.introduction is not None:
                     self.add_introduction(self.introduction)
                 # write_to_storage() will create a new AgentSession

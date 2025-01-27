@@ -3152,7 +3152,7 @@ class Agent:
             _response_content: str = ""
             reasoning_steps: List[ReasoningStep] = []
             with Live(console=console) as live_log:
-                status = Status("Thinking...", spinner="aesthetic", speed=2.0, refresh_per_second=10)
+                status = Status("Thinking...", spinner="aesthetic", speed=0.4, refresh_per_second=10)
                 live_log.update(status)
                 response_timer = Timer()
                 response_timer.start()
@@ -3247,7 +3247,7 @@ class Agent:
                 live_log.update(Group(*panels))
         else:
             with Live(console=console) as live_log:
-                status = Status("Thinking...", spinner="aesthetic", speed=2.0, refresh_per_second=10)
+                status = Status("Thinking...", spinner="aesthetic", speed=0.4, refresh_per_second=10)
                 live_log.update(status)
                 response_timer = Timer()
                 response_timer.start()
@@ -3387,7 +3387,7 @@ class Agent:
             _response_content: str = ""
             reasoning_steps: List[ReasoningStep] = []
             with Live(console=console) as live_log:
-                status = Status("Thinking...", spinner="aesthetic", speed=2.0, refresh_per_second=10)
+                status = Status("Thinking...", spinner="aesthetic", speed=0.4, refresh_per_second=10)
                 live_log.update(status)
                 response_timer = Timer()
                 response_timer.start()
@@ -3482,7 +3482,7 @@ class Agent:
                 live_log.update(Group(*panels))
         else:
             with Live(console=console) as live_log:
-                status = Status("Thinking...", spinner="aesthetic", speed=2.0, refresh_per_second=10)
+                status = Status("Thinking...", spinner="aesthetic", speed=0.4, refresh_per_second=10)
                 live_log.update(status)
                 response_timer = Timer()
                 response_timer.start()

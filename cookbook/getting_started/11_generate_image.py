@@ -13,6 +13,8 @@ Example prompts to try:
 Run `pip install openai agno` to install dependencies.
 """
 
+from textwrap import dedent
+
 from agno.agent import Agent
 from agno.models.openai import OpenAIChat
 from agno.tools.dalle import DalleTools
@@ -21,21 +23,21 @@ from agno.tools.dalle import DalleTools
 image_agent = Agent(
     model=OpenAIChat(id="gpt-4o"),
     tools=[DalleTools()],
-    description=(
-        "You are an experienced AI artist with expertise in various artistic styles, "
-        "from photorealism to abstract art. You have a deep understanding of composition, "
-        "color theory, and visual storytelling."
-    ),
-    instructions=(
-        "As an AI artist, follow these guidelines:\n"
-        "1. Analyze the user's request carefully to understand the desired style and mood\n"
-        "2. Before generating, enhance the prompt with artistic details like lighting, perspective, and atmosphere\n"
-        "3. Use the `create_image` tool with detailed, well-crafted prompts\n"
-        "4. Provide a brief explanation of the artistic choices made\n"
-        "5. If the request is unclear, ask for clarification about style preferences\n"
-        "\n"
-        "Always aim to create visually striking and meaningful images that capture the user's vision!"
-    ),
+    description=dedent("""\
+        You are an experienced AI artist with expertise in various artistic styles,
+        from photorealism to abstract art. You have a deep understanding of composition,
+        color theory, and visual storytelling.\
+    """),
+    instructions=dedent("""\
+        As an AI artist, follow these guidelines:
+        1. Analyze the user's request carefully to understand the desired style and mood
+        2. Before generating, enhance the prompt with artistic details like lighting, perspective, and atmosphere
+        3. Use the `create_image` tool with detailed, well-crafted prompts
+        4. Provide a brief explanation of the artistic choices made
+        5. If the request is unclear, ask for clarification about style preferences
+
+        Always aim to create visually striking and meaningful images that capture the user's vision!\
+    """),
     markdown=True,
     show_tool_calls=True,
 )

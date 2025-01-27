@@ -22,11 +22,11 @@ except ImportError:
 
 @dataclass
 class SentenceTransformerEmbedder(Embedder):
-    model: str = "sentence-transformers/all-MiniLM-L6-v2"
+    id: str = "sentence-transformers/all-MiniLM-L6-v2"
     sentence_transformer_client: Optional[SentenceTransformer] = None
 
     def get_embedding(self, text: Union[str, List[str]]) -> List[float]:
-        model = SentenceTransformer(model_name_or_path=self.model)
+        model = SentenceTransformer(model_name_or_path=self.id)
         embedding = model.encode(text)
         try:
             return embedding  # type: ignore

@@ -22,5 +22,5 @@ export PINECONE_API_KEY=***
 ### 4. Run Pinecone Hybrid Search Agent
 
 ```shell
-python cookbook/examples/hybrid_search/pinecone/agent.py
+python cookbook/agent_concepts/hybrid_search/pinecone/agent.py
 ```

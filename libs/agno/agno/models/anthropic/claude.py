@@ -6,7 +6,7 @@ from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 from agno.media import Image
 from agno.models.base import Metrics, Model
 from agno.models.message import Message
-from agno.models.response import ModelResponse
+from agno.models.response import ModelResponse, ModelResponseEvent
 from agno.utils.log import logger
 
 try:
@@ -172,7 +172,8 @@ class Claude(Model):
         for idx, message in enumerate(messages):
             content = message.content or ""
             if message.role == "system" or (message.role != "user" and idx in [0, 1]):
-                system_messages.append(content)  # type: ignore
+                if content is not None:
+                    system_messages.append(content)  # type: ignore
                 continue
             elif message.role == "user":
                 if isinstance(content, str):
@@ -430,8 +431,12 @@ class Claude(Model):
             Optional[ModelResponse]: The model response.
         """
         if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
+            if model_response.tool_calls is None:
+                model_response.tool_calls = []
+
             model_response.content = str(response_content)
             model_response.content += "\n\n"
+
             function_calls_to_run = self._get_function_calls_to_run(assistant_message, messages)
             function_call_results: List[Message] = []
 
@@ -444,11 +449,15 @@ class Claude(Model):
                         model_response.content += f"\n - {_f.get_call_str()}"
                     model_response.content += "\n\n"
 
-            for _ in self.run_function_calls(
+            for function_call_response in self.run_function_calls(
                 function_calls=function_calls_to_run,
                 function_call_results=function_call_results,
             ):
-                pass
+                if (
+                    function_call_response.event == ModelResponseEvent.tool_call_completed.value
+                    and function_call_response.tool_calls is not None
+                ):
+                    model_response.tool_calls.extend(function_call_response.tool_calls)
 
             self.format_function_call_results(function_call_results, tool_ids, messages)
 
@@ -580,7 +589,6 @@ class Claude(Model):
 
                 if isinstance(delta, MessageStopEvent):
                     message_data.response_usage = delta.message.usage
-        yield ModelResponse(content="\n\n")
 
         metrics.stop_response_timer()
 

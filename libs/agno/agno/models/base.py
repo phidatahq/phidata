@@ -143,6 +143,9 @@ class Model(ABC):
             _dict["tool_call_limit"] = self.tool_call_limit
         return _dict
 
+    def get_provider(self) -> str:
+        return self.provider or self.name or self.__class__.__name__
+
     @abstractmethod
     def invoke(self, *args, **kwargs) -> Any:
         pass
@@ -300,12 +303,14 @@ class Model(ABC):
             function_call_timer.start()
             yield ModelResponse(
                 content=function_call.get_call_str(),
-                tool_call={
-                    "role": tool_role,
-                    "tool_call_id": function_call.call_id,
-                    "tool_name": function_call.function.name,
-                    "tool_args": function_call.arguments,
-                },
+                tool_calls=[
+                    {
+                        "role": tool_role,
+                        "tool_call_id": function_call.call_id,
+                        "tool_name": function_call.function.name,
+                        "tool_args": function_call.arguments,
+                    }
+                ],
                 event=ModelResponseEvent.tool_call_started.value,
             )
 
@@ -376,17 +381,19 @@ class Model(ABC):
             # -*- Yield function call result
             yield ModelResponse(
                 content=f"{function_call.get_call_str()} completed in {function_call_timer.elapsed:.4f}s.",
-                tool_call=function_call_result.model_dump(
-                    include={
-                        "content",
-                        "tool_call_id",
-                        "tool_name",
-                        "tool_args",
-                        "tool_call_error",
-                        "metrics",
-                        "created_at",
-                    }
-                ),
+                tool_calls=[
+                    function_call_result.model_dump(
+                        include={
+                            "content",
+                            "tool_call_id",
+                            "tool_name",
+                            "tool_args",
+                            "tool_call_error",
+                            "metrics",
+                            "created_at",
+                        }
+                    )
+                ],
                 event=ModelResponseEvent.tool_call_completed.value,
             )
 

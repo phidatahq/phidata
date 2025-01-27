@@ -161,8 +161,8 @@ class Agent:
     # If True, add the current datetime to the instructions to give the agent a sense of time
     # This allows for relative times like "tomorrow" to be used in the prompt
     add_datetime_to_instructions: bool = False
-    # If True, format the session state variables in the user and system messages
-    format_state_in_messages: bool = True
+    # If True, add the session state variables in the user and system messages
+    add_state_in_messages: bool = False
 
     # --- Extra Messages ---
     # A list of extra messages added after the system message and before the user message.
@@ -290,7 +290,7 @@ class Agent:
         markdown: bool = False,
         add_name_to_instructions: bool = False,
         add_datetime_to_instructions: bool = False,
-        format_state_in_messages: bool = True,
+        add_state_in_messages: bool = False,
         add_messages: Optional[List[Union[Dict, Message]]] = None,
         user_message: Optional[Union[List, Dict, str, Callable, Message]] = None,
         user_message_role: str = "user",
@@ -369,7 +369,7 @@ class Agent:
         self.markdown = markdown
         self.add_name_to_instructions = add_name_to_instructions
         self.add_datetime_to_instructions = add_datetime_to_instructions
-        self.format_state_in_messages = format_state_in_messages
+        self.add_state_in_messages = add_state_in_messages
         self.add_messages = add_messages
 
         self.user_message = user_message
@@ -425,7 +425,6 @@ class Agent:
         if self.debug_mode or getenv("AGNO_DEBUG", "false").lower() == "true":
             self.debug_mode = True
             set_log_level_to_debug()
-            logger.debug("Debug logs enabled")
         else:
             set_log_level_to_info()
 
@@ -513,7 +512,7 @@ class Agent:
         self.run_messages = run_messages
 
         # 4. Reason about the task if reasoning is enabled
-        if self.reasoning:
+        if self.reasoning or self.reasoning_model is not None:
             reasoning_generator = self.reason(run_messages=run_messages)
 
             if self.stream:
@@ -523,7 +522,7 @@ class Agent:
                 deque(reasoning_generator, maxlen=0)
 
         # Get the index of the last "user" message in messages_for_run
-        # We track this so we can add messages after this index to the RunResponse and Memory
+        # We track this, so we can add messages after this index to the RunResponse and Memory
         index_of_last_user_message = len(run_messages.messages)
 
         # 6. Start the Run by yielding a RunStarted event
@@ -548,13 +547,14 @@ class Agent:
                         )
                 # If the model response is a tool_call_started, add the tool call to the run_response
                 elif model_response_chunk.event == ModelResponseEvent.tool_call_started.value:
-                    # Add tool call to the run_response
-                    tool_call_dict = model_response_chunk.tool_call
-                    if tool_call_dict is not None:
-                        # Add tool call to the agent.run_response
+                    # Add tool calls to the run_response
+                    tool_calls_list = model_response_chunk.tool_calls
+                    if tool_calls_list is not None:
+                        # Add tool calls to the agent.run_response
                         if self.run_response.tools is None:
-                            self.run_response.tools = []
-                        self.run_response.tools.append(tool_call_dict)
+                            self.run_response.tools = tool_calls_list
+                        else:
+                            self.run_response.tools.extend(tool_calls_list)
 
                     # If the agent is streaming intermediate steps, yield a RunResponse with the tool_call_started event
                     if self.stream_intermediate_steps:
@@ -565,20 +565,28 @@ class Agent:
 
                 # If the model response is a tool_call_completed, update the existing tool call in the run_response
                 elif model_response_chunk.event == ModelResponseEvent.tool_call_completed.value:
-                    # Update the existing tool call in the run_response
-                    tool_call_dict = model_response_chunk.tool_call
-                    if tool_call_dict is not None and self.run_response.tools:
-                        tool_call_id_to_update = tool_call_dict["tool_call_id"]
-                        # Use a dictionary comprehension to create a mapping of tool_call_id to index
-                        tool_call_index_map = {tc["tool_call_id"]: i for i, tc in enumerate(self.run_response.tools)}
-                        # Update the tool call if it exists
-                        if tool_call_id_to_update in tool_call_index_map:
-                            self.run_response.tools[tool_call_index_map[tool_call_id_to_update]] = tool_call_dict
-                    if self.stream_intermediate_steps:
-                        yield self.create_run_response(
-                            content=model_response_chunk.content,
-                            event=RunEvent.tool_call_completed,
-                        )
+                    tool_calls_list = model_response_chunk.tool_calls
+                    if tool_calls_list is not None:
+                        # Update the existing tool call in the run_response
+                        if self.run_response.tools:
+                            # Create a mapping of tool_call_id to index
+                            tool_call_index_map = {
+                                tc["tool_call_id"]: i for i, tc in enumerate(self.run_response.tools)
+                            }
+                            # Process tool calls
+                            for tool_call_dict in tool_calls_list:
+                                tool_call_id = tool_call_dict["tool_call_id"]
+                                index = tool_call_index_map.get(tool_call_id)
+                                if index is not None:
+                                    self.run_response.tools[index] = tool_call_dict
+                        else:
+                            self.run_response.tools = tool_calls_list
+
+                        if self.stream_intermediate_steps:
+                            yield self.create_run_response(
+                                content=model_response_chunk.content,
+                                event=RunEvent.tool_call_completed,
+                            )
         else:
             # Get the model response
             model_response = self.model.response(messages=run_messages.messages)
@@ -591,6 +599,14 @@ class Agent:
             else:
                 # Update the run_response content with the model response content
                 self.run_response.content = model_response.content
+
+            # Update the run_response tools with the model response tools
+            if model_response.tool_calls is not None:
+                if self.run_response.tools is None:
+                    self.run_response.tools = model_response.tool_calls
+                else:
+                    self.run_response.tools.extend(model_response.tool_calls)
+
             # Update the run_response audio with the model response audio
             if model_response.audio is not None:
                 self.run_response.response_audio = model_response.audio
@@ -925,7 +941,7 @@ class Agent:
         self.run_messages = run_messages
 
         # 4. Reason about the task if reasoning is enabled
-        if self.reasoning:
+        if self.reasoning or self.reasoning_model is not None:
             areason_generator = self.areason(run_messages=run_messages)
             if self.stream:
                 async for item in areason_generator:
@@ -962,13 +978,15 @@ class Agent:
                         )
                 # If the model response is a tool_call_started, add the tool call to the run_response
                 elif model_response_chunk.event == ModelResponseEvent.tool_call_started.value:
-                    # Add tool call to the run_response
-                    tool_call_dict = model_response_chunk.tool_call
-                    if tool_call_dict is not None:
-                        # Add tool call to the agent.run_response
+                    # Add tool calls to the run_response
+                    tool_calls_list = model_response_chunk.tool_calls
+                    if tool_calls_list is not None:
+                        # Add tool calls to the agent.run_response
                         if self.run_response.tools is None:
-                            self.run_response.tools = []
-                        self.run_response.tools.append(tool_call_dict)
+                            self.run_response.tools = tool_calls_list
+                        else:
+                            self.run_response.tools.extend(tool_calls_list)
+
                     # If the agent is streaming intermediate steps, yield a RunResponse with the tool_call_started event
                     if self.stream_intermediate_steps:
                         yield self.create_run_response(
@@ -977,15 +995,23 @@ class Agent:
                         )
                 # If the model response is a tool_call_completed, update the existing tool call in the run_response
                 elif model_response_chunk.event == ModelResponseEvent.tool_call_completed.value:
-                    # Update the existing tool call in the run_response
-                    tool_call_dict = model_response_chunk.tool_call
-                    if tool_call_dict is not None and self.run_response.tools:
-                        tool_call_id = tool_call_dict["tool_call_id"]
-                        # Use a dictionary comprehension to create a mapping of tool_call_id to index
-                        tool_call_index_map = {tc["tool_call_id"]: i for i, tc in enumerate(self.run_response.tools)}
-                        # Update the tool call if it exists
-                        if tool_call_id in tool_call_index_map:
-                            self.run_response.tools[tool_call_index_map[tool_call_id]] = tool_call_dict
+                    tool_calls_list = model_response_chunk.tool_calls
+                    if tool_calls_list is not None:
+                        # Update the existing tool call in the run_response
+                        if self.run_response.tools:
+                            # Create a mapping of tool_call_id to index
+                            tool_call_index_map = {
+                                tc["tool_call_id"]: i for i, tc in enumerate(self.run_response.tools)
+                            }
+                            # Process tool calls
+                            for tool_call_dict in tool_calls_list:
+                                tool_call_id = tool_call_dict["tool_call_id"]
+                                index = tool_call_index_map.get(tool_call_id)
+                                if index is not None:
+                                    self.run_response.tools[index] = tool_call_dict
+                        else:
+                            self.run_response.tools = tool_calls_list
+
                     if self.stream_intermediate_steps:
                         yield self.create_run_response(
                             content=model_response_chunk.content,
@@ -1003,9 +1029,16 @@ class Agent:
             else:
                 # Update the run_response content with the model response content
                 self.run_response.content = model_response.content
+            # Update the run_response tools with the model response tools
+            if model_response.tool_calls is not None:
+                if self.run_response.tools is None:
+                    self.run_response.tools = model_response.tool_calls
+                else:
+                    self.run_response.tools.extend(model_response.tool_calls)
             # Update the run_response audio with the model response audio
             if model_response.audio is not None:
                 self.run_response.response_audio = model_response.audio
+
             # Update the run_response messages with the messages
             self.run_response.messages = run_messages.messages
             # Update the run_response created_at with the model response created_at
@@ -1603,6 +1636,9 @@ class Agent:
             # Create a new session if it does not exist
             if self.agent_session is None:
                 logger.debug("-*- Creating new AgentSession")
+                # Initialize the agent_id and session_id if they are not set
+                if self.agent_id is None or self.session_id is None:
+                    self.initialize_agent()
                 if self.introduction is not None:
                     self.add_introduction(self.introduction)
                 # write_to_storage() will create a new AgentSession
@@ -1712,7 +1748,7 @@ class Agent:
 
     def get_system_message_role(self) -> str:
         """Return the role for the system message
-        The role may be updated by the model if map_system_role is True.
+        The role may be updated by the model if override_system_role is True.
         """
         self.model = cast(Model, self.model)
         if self.model.override_system_role and self.system_message_role == "system":
@@ -1742,7 +1778,7 @@ class Agent:
                     raise Exception("system_message must return a string")
 
             # Format the system message with the session state variables
-            if self.format_state_in_messages:
+            if self.add_state_in_messages:
                 sys_message_content = self.format_message_with_state_variables(sys_message_content)
 
             # Add the JSON output prompt if response_model is provided and structured_outputs is False
@@ -1831,7 +1867,7 @@ class Agent:
             system_message_content += "\n</additional_information>\n\n"
 
         # Format the system message with the session state variables
-        if self.format_state_in_messages:
+        if self.add_state_in_messages:
             system_message_content = self.format_message_with_state_variables(system_message_content)
 
         # 3.3.7 Then add the system message from the Model
@@ -1843,9 +1879,7 @@ class Agent:
             system_message_content += f"<expected_output>\n{self.expected_output.strip()}\n</expected_output>\n\n"
         # 3.3.9 Then add additional context
         if self.additional_context is not None:
-            system_message_content += (
-                f"<additional_context>\n{self.additional_context.strip()}\n</additional_context>\n\n"
-            )
+            system_message_content += f"{self.additional_context.strip()}\n"
         # 3.3.10 Then add information about the team members
         if self.has_team and self.add_transfer_instructions:
             system_message_content += (
@@ -1892,7 +1926,11 @@ class Agent:
             system_message_content += f"{self.get_json_output_prompt()}"
 
         # Return the system message
-        return Message(role=self.get_system_message_role(), content=system_message_content.strip())
+        return (
+            Message(role=self.get_system_message_role(), content=system_message_content.strip())
+            if system_message_content
+            else None
+        )
 
     def get_user_message(
         self,
@@ -1949,7 +1987,7 @@ class Agent:
                 if not isinstance(user_message_content, str):
                     raise Exception("user_message must return a string")
 
-            if self.format_state_in_messages:
+            if self.add_state_in_messages:
                 user_message_content = self.format_message_with_state_variables(user_message_content)
 
             return Message(
@@ -1972,9 +2010,9 @@ class Agent:
         if message is None:
             return None
 
-        user_msg_content = ""
+        user_msg_content = message
         # Format the message with the session state variables
-        if self.format_state_in_messages:
+        if self.add_state_in_messages:
             user_msg_content = self.format_message_with_state_variables(message)
         # 4.1 Add references to user message
         if (
@@ -2581,16 +2619,9 @@ class Agent:
     ###########################################################################
 
     def reason(self, run_messages: RunMessages) -> Iterator[RunResponse]:
-        from agno.reasoning.agent import get_reasoning_agent
-        from agno.reasoning.helpers import get_next_action, update_messages_with_reasoning
-
         # Yield a reasoning started event
         if self.stream_intermediate_steps:
             yield self.create_run_response(content="Reasoning started", event=RunEvent.reasoning_started)
-
-        # Initialize reasoning
-        reasoning_messages: List[Message] = []
-        all_reasoning_steps: List[ReasoningStep] = []
 
         # Get the reasoning model
         reasoning_model: Optional[Model] = self.reasoning_model
@@ -2600,90 +2631,137 @@ class Agent:
             logger.warning("Reasoning error. Reasoning model is None, continuing regular session...")
             return
 
-        # Get the reasoning agent
-        reasoning_agent: Optional[Agent] = self.reasoning_agent
-        if reasoning_agent is None:
-            reasoning_agent = get_reasoning_agent(
-                reasoning_model=reasoning_model,
-                min_steps=self.reasoning_min_steps,
-                max_steps=self.reasoning_max_steps,
-                tools=self.tools,
-                structured_outputs=self.structured_outputs,
-                monitoring=self.monitoring,
+        # Use DeepSeek for reasoning
+        if reasoning_model.__class__.__name__ == "DeepSeek" and reasoning_model.id == "deepseek-reasoner":
+            from agno.reasoning.deepseek import get_deepseek_reasoning, get_deepseek_reasoning_agent
+
+            ds_reasoning_agent = self.reasoning_agent or get_deepseek_reasoning_agent(
+                reasoning_model=reasoning_model, monitoring=self.monitoring
             )
-        if reasoning_agent is None:
-            logger.warning("Reasoning error. Reasoning agent is None, continuing regular session...")
-            return
+            ds_reasoning_message: Optional[Message] = get_deepseek_reasoning(
+                reasoning_agent=ds_reasoning_agent, messages=run_messages.get_input_messages()
+            )
+            if ds_reasoning_message is None:
+                logger.warning("Reasoning error. Reasoning response is None, continuing regular session...")
+                return
+            run_messages.messages.append(ds_reasoning_message)
+            # Add reasoning step to the Agent's run_response
+            self.update_run_response_with_reasoning(
+                reasoning_steps=[ReasoningStep(result=ds_reasoning_message.content)],
+                reasoning_agent_messages=[ds_reasoning_message],
+            )
+        # Use Groq for reasoning
+        if reasoning_model.__class__.__name__ == "Groq" and "deepseek" in reasoning_model.id:
+            from agno.reasoning.groq import get_groq_reasoning, get_groq_reasoning_agent
 
-        # Ensure the reasoning agent response model is ReasoningSteps
-        if reasoning_agent.response_model is not None and not isinstance(reasoning_agent.response_model, type):
-            if not issubclass(reasoning_agent.response_model, ReasoningSteps):
-                logger.warning(
-                    "Reasoning agent response model should be `ReasoningSteps`, continuing regular session..."
-                )
-            return
+            groq_reasoning_agent = self.reasoning_agent or get_groq_reasoning_agent(
+                reasoning_model=reasoning_model, monitoring=self.monitoring
+            )
+            groq_reasoning_message: Optional[Message] = get_groq_reasoning(
+                reasoning_agent=groq_reasoning_agent, messages=run_messages.get_input_messages()
+            )
+            if groq_reasoning_message is None:
+                logger.warning("Reasoning error. Reasoning response is None, continuing regular session...")
+                return
+            run_messages.messages.append(groq_reasoning_message)
+            # Add reasoning step to the Agent's run_response
+            self.update_run_response_with_reasoning(
+                reasoning_steps=[ReasoningStep(result=groq_reasoning_message.content)],
+                reasoning_agent_messages=[groq_reasoning_message],
+            )
+        # Get default reasoning
+        else:
+            from agno.reasoning.default import get_default_reasoning_agent
+            from agno.reasoning.helpers import get_next_action, update_messages_with_reasoning
 
-        # Ensure the reasoning model and agent do not show tool calls
-        reasoning_agent.show_tool_calls = False
-        reasoning_agent.model.show_tool_calls = False  # type: ignore
-
-        step_count = 1
-        next_action = NextAction.CONTINUE
-        logger.debug("==== Starting Reasoning ====")
-        while next_action == NextAction.CONTINUE and step_count < self.reasoning_max_steps:
-            step_count += 1
-            logger.debug(f"==== Step {step_count} ====")
-            try:
-                # Run the reasoning agent
-                reasoning_agent_response: RunResponse = reasoning_agent.run(messages=run_messages.get_input_messages())
-                if reasoning_agent_response.content is None or reasoning_agent_response.messages is None:
-                    logger.warning("Reasoning error. Reasoning response is empty, continuing regular session...")
-                    break
-
-                if reasoning_agent_response.content.reasoning_steps is None:
-                    logger.warning("Reasoning error. Reasoning steps are empty, continuing regular session...")
-                    break
-
-                reasoning_steps: List[ReasoningStep] = reasoning_agent_response.content.reasoning_steps
-                all_reasoning_steps.extend(reasoning_steps)
-                # Yield reasoning steps
-                if self.stream_intermediate_steps:
-                    for reasoning_step in reasoning_steps:
-                        yield self.create_run_response(
-                            content=reasoning_step,
-                            content_type=reasoning_step.__class__.__name__,
-                            event=RunEvent.reasoning_step,
-                        )
-
-                # Find the index of the first assistant message
-                first_assistant_index = next(
-                    (i for i, m in enumerate(reasoning_agent_response.messages) if m.role == "assistant"),
-                    len(reasoning_agent_response.messages),
-                )
-                # Extract reasoning messages starting from the message after the first assistant message
-                reasoning_messages = reasoning_agent_response.messages[first_assistant_index:]
-
-                # Add reasoning step to the Agent's run_response
-                self.update_run_response_with_reasoning(
-                    reasoning_steps=reasoning_steps, reasoning_agent_messages=reasoning_agent_response.messages
+            # Get default reasoning agent
+            reasoning_agent: Optional[Agent] = self.reasoning_agent
+            if reasoning_agent is None:
+                reasoning_agent = get_default_reasoning_agent(
+                    reasoning_model=reasoning_model,
+                    min_steps=self.reasoning_min_steps,
+                    max_steps=self.reasoning_max_steps,
+                    tools=self.tools,
+                    structured_outputs=self.structured_outputs,
+                    monitoring=self.monitoring,
                 )
 
-                # Get the next action
-                next_action = get_next_action(reasoning_steps[-1])
-                if next_action == NextAction.FINAL_ANSWER:
+            # Validate reasoning agent
+            if reasoning_agent is None:
+                logger.warning("Reasoning error. Reasoning agent is None, continuing regular session...")
+                return
+            # Ensure the reasoning agent response model is ReasoningSteps
+            if reasoning_agent.response_model is not None and not isinstance(reasoning_agent.response_model, type):
+                if not issubclass(reasoning_agent.response_model, ReasoningSteps):
+                    logger.warning(
+                        "Reasoning agent response model should be `ReasoningSteps`, continuing regular session..."
+                    )
+                return
+            # Ensure the reasoning model and agent do not show tool calls
+            reasoning_agent.show_tool_calls = False
+            reasoning_agent.model.show_tool_calls = False  # type: ignore
+
+            step_count = 1
+            next_action = NextAction.CONTINUE
+            reasoning_messages: List[Message] = []
+            all_reasoning_steps: List[ReasoningStep] = []
+            logger.debug("==== Starting Reasoning ====")
+            while next_action == NextAction.CONTINUE and step_count < self.reasoning_max_steps:
+                logger.debug(f"==== Step {step_count} ====")
+                step_count += 1
+                try:
+                    # Run the reasoning agent
+                    reasoning_agent_response: RunResponse = reasoning_agent.run(
+                        messages=run_messages.get_input_messages()
+                    )
+                    if reasoning_agent_response.content is None or reasoning_agent_response.messages is None:
+                        logger.warning("Reasoning error. Reasoning response is empty, continuing regular session...")
+                        break
+
+                    if reasoning_agent_response.content.reasoning_steps is None:
+                        logger.warning("Reasoning error. Reasoning steps are empty, continuing regular session...")
+                        break
+
+                    reasoning_steps: List[ReasoningStep] = reasoning_agent_response.content.reasoning_steps
+                    all_reasoning_steps.extend(reasoning_steps)
+                    # Yield reasoning steps
+                    if self.stream_intermediate_steps:
+                        for reasoning_step in reasoning_steps:
+                            yield self.create_run_response(
+                                content=reasoning_step,
+                                content_type=reasoning_step.__class__.__name__,
+                                event=RunEvent.reasoning_step,
+                            )
+
+                    # Find the index of the first assistant message
+                    first_assistant_index = next(
+                        (i for i, m in enumerate(reasoning_agent_response.messages) if m.role == "assistant"),
+                        len(reasoning_agent_response.messages),
+                    )
+                    # Extract reasoning messages starting from the message after the first assistant message
+                    reasoning_messages = reasoning_agent_response.messages[first_assistant_index:]
+
+                    # Add reasoning step to the Agent's run_response
+                    self.update_run_response_with_reasoning(
+                        reasoning_steps=reasoning_steps, reasoning_agent_messages=reasoning_agent_response.messages
+                    )
+
+                    # Get the next action
+                    next_action = get_next_action(reasoning_steps[-1])
+                    if next_action == NextAction.FINAL_ANSWER:
+                        break
+                except Exception as e:
+                    logger.error(f"Reasoning error: {e}")
                     break
-            except Exception as e:
-                logger.error(f"Reasoning error: {e}")
-                break
 
-        logger.debug(f"Total Reasoning steps: {len(all_reasoning_steps)}")
-        logger.debug("==== Reasoning finished====")
+            logger.debug(f"Total Reasoning steps: {len(all_reasoning_steps)}")
+            logger.debug("==== Reasoning finished====")
 
-        # Update the messages_for_model to include reasoning messages
-        update_messages_with_reasoning(
-            run_messages=run_messages,
-            reasoning_messages=reasoning_messages,
-        )
+            # Update the messages_for_model to include reasoning messages
+            update_messages_with_reasoning(
+                run_messages=run_messages,
+                reasoning_messages=reasoning_messages,
+            )
 
         # Yield the final reasoning completed event
         if self.stream_intermediate_steps:
@@ -2694,16 +2772,9 @@ class Agent:
             )
 
     async def areason(self, run_messages: RunMessages) -> Any:
-        from agno.reasoning.agent import get_reasoning_agent
-        from agno.reasoning.helpers import get_next_action, update_messages_with_reasoning
-
         # Yield a reasoning started event
         if self.stream_intermediate_steps:
             yield self.create_run_response(content="Reasoning started", event=RunEvent.reasoning_started)
-
-        # Initialize reasoning
-        reasoning_messages: List[Message] = []
-        all_reasoning_steps: List[ReasoningStep] = []
 
         # Get the reasoning model
         reasoning_model: Optional[Model] = self.reasoning_model
@@ -2713,92 +2784,137 @@ class Agent:
             logger.warning("Reasoning error. Reasoning model is None, continuing regular session...")
             return
 
-        # Get the reasoning agent
-        reasoning_agent: Optional[Agent] = self.reasoning_agent
-        if reasoning_agent is None:
-            reasoning_agent = get_reasoning_agent(
-                reasoning_model=reasoning_model,
-                min_steps=self.reasoning_min_steps,
-                max_steps=self.reasoning_max_steps,
-                tools=self.tools,
-                structured_outputs=self.structured_outputs,
-                monitoring=self.monitoring,
+        # Use DeepSeek for reasoning
+        if reasoning_model.__class__.__name__ == "DeepSeek" and reasoning_model.id == "deepseek-reasoner":
+            from agno.reasoning.deepseek import aget_deepseek_reasoning, get_deepseek_reasoning_agent
+
+            ds_reasoning_agent = self.reasoning_agent or get_deepseek_reasoning_agent(
+                reasoning_model=reasoning_model, monitoring=self.monitoring
             )
-        if reasoning_agent is None:
-            logger.warning("Reasoning error. Reasoning agent is None, continuing regular session...")
-            return
+            ds_reasoning_message: Optional[Message] = await aget_deepseek_reasoning(
+                reasoning_agent=ds_reasoning_agent, messages=run_messages.get_input_messages()
+            )
+            if ds_reasoning_message is None:
+                logger.warning("Reasoning error. Reasoning response is None, continuing regular session...")
+                return
+            run_messages.messages.append(ds_reasoning_message)
+            # Add reasoning step to the Agent's run_response
+            self.update_run_response_with_reasoning(
+                reasoning_steps=[ReasoningStep(result=ds_reasoning_message.content)],
+                reasoning_agent_messages=[ds_reasoning_message],
+            )
+        # Use Groq for reasoning
+        if reasoning_model.__class__.__name__ == "Groq" and "deepseek" in reasoning_model.id:
+            from agno.reasoning.groq import aget_groq_reasoning, get_groq_reasoning_agent
 
-        # Ensure the reasoning agent response model is ReasoningSteps
-        if reasoning_agent.response_model is not None and not isinstance(reasoning_agent.response_model, type):
-            if not issubclass(reasoning_agent.response_model, ReasoningSteps):
-                logger.warning(
-                    "Reasoning agent response model should be `ReasoningSteps`, continuing regular session..."
+            groq_reasoning_agent = self.reasoning_agent or get_groq_reasoning_agent(
+                reasoning_model=reasoning_model, monitoring=self.monitoring
+            )
+            groq_reasoning_message: Optional[Message] = await aget_groq_reasoning(
+                reasoning_agent=groq_reasoning_agent, messages=run_messages.get_input_messages()
+            )
+            if groq_reasoning_message is None:
+                logger.warning("Reasoning error. Reasoning response is None, continuing regular session...")
+                return
+            run_messages.messages.append(groq_reasoning_message)
+            # Add reasoning step to the Agent's run_response
+            self.update_run_response_with_reasoning(
+                reasoning_steps=[ReasoningStep(result=groq_reasoning_message.content)],
+                reasoning_agent_messages=[groq_reasoning_message],
+            )
+        # Get default reasoning
+        else:
+            from agno.reasoning.default import get_default_reasoning_agent
+            from agno.reasoning.helpers import get_next_action, update_messages_with_reasoning
+
+            # Get default reasoning agent
+            reasoning_agent: Optional[Agent] = self.reasoning_agent
+            if reasoning_agent is None:
+                reasoning_agent = get_default_reasoning_agent(
+                    reasoning_model=reasoning_model,
+                    min_steps=self.reasoning_min_steps,
+                    max_steps=self.reasoning_max_steps,
+                    tools=self.tools,
+                    structured_outputs=self.structured_outputs,
+                    monitoring=self.monitoring,
                 )
-            return
 
-        # Ensure the reasoning model and agent do not show tool calls
-        reasoning_agent.show_tool_calls = False
-        reasoning_agent.model.show_tool_calls = False  # type: ignore
+            # Validate reasoning agent
+            if reasoning_agent is None:
+                logger.warning("Reasoning error. Reasoning agent is None, continuing regular session...")
+                return
+            # Ensure the reasoning agent response model is ReasoningSteps
+            if reasoning_agent.response_model is not None and not isinstance(reasoning_agent.response_model, type):
+                if not issubclass(reasoning_agent.response_model, ReasoningSteps):
+                    logger.warning(
+                        "Reasoning agent response model should be `ReasoningSteps`, continuing regular session..."
+                    )
+                return
+            # Ensure the reasoning model and agent do not show tool calls
+            reasoning_agent.show_tool_calls = False
+            reasoning_agent.model.show_tool_calls = False  # type: ignore
 
-        step_count = 1
-        next_action = NextAction.CONTINUE
-        logger.debug("==== Starting Reasoning ====")
-        while next_action == NextAction.CONTINUE and step_count < self.reasoning_max_steps:
-            step_count += 1
-            logger.debug(f"==== Step {step_count} ====")
-            try:
-                # Run the reasoning agent
-                reasoning_agent_response: RunResponse = await reasoning_agent.arun(
-                    messages=run_messages.get_input_messages()
-                )
-                if reasoning_agent_response.content is None or reasoning_agent_response.messages is None:
-                    logger.warning("Reasoning error. Reasoning response is empty, continuing regular session...")
+            step_count = 1
+            next_action = NextAction.CONTINUE
+            reasoning_messages: List[Message] = []
+            all_reasoning_steps: List[ReasoningStep] = []
+            logger.debug("==== Starting Reasoning ====")
+            while next_action == NextAction.CONTINUE and step_count < self.reasoning_max_steps:
+                logger.debug(f"==== Step {step_count} ====")
+                step_count += 1
+                try:
+                    # Run the reasoning agent
+                    reasoning_agent_response: RunResponse = await reasoning_agent.arun(
+                        messages=run_messages.get_input_messages()
+                    )
+                    if reasoning_agent_response.content is None or reasoning_agent_response.messages is None:
+                        logger.warning("Reasoning error. Reasoning response is empty, continuing regular session...")
+                        break
+
+                    if reasoning_agent_response.content.reasoning_steps is None:
+                        logger.warning("Reasoning error. Reasoning steps are empty, continuing regular session...")
+                        break
+
+                    reasoning_steps: List[ReasoningStep] = reasoning_agent_response.content.reasoning_steps
+                    all_reasoning_steps.extend(reasoning_steps)
+                    # Yield reasoning steps
+                    if self.stream_intermediate_steps:
+                        for reasoning_step in reasoning_steps:
+                            yield self.create_run_response(
+                                content=reasoning_step,
+                                content_type=reasoning_step.__class__.__name__,
+                                event=RunEvent.reasoning_step,
+                            )
+
+                    # Find the index of the first assistant message
+                    first_assistant_index = next(
+                        (i for i, m in enumerate(reasoning_agent_response.messages) if m.role == "assistant"),
+                        len(reasoning_agent_response.messages),
+                    )
+                    # Extract reasoning messages starting from the message after the first assistant message
+                    reasoning_messages = reasoning_agent_response.messages[first_assistant_index:]
+
+                    # Add reasoning step to the Agent's run_response
+                    self.update_run_response_with_reasoning(
+                        reasoning_steps=reasoning_steps, reasoning_agent_messages=reasoning_agent_response.messages
+                    )
+
+                    # Get the next action
+                    next_action = get_next_action(reasoning_steps[-1])
+                    if next_action == NextAction.FINAL_ANSWER:
+                        break
+                except Exception as e:
+                    logger.error(f"Reasoning error: {e}")
                     break
 
-                if reasoning_agent_response.content.reasoning_steps is None:
-                    logger.warning("Reasoning error. Reasoning steps are empty, continuing regular session...")
-                    break
+            logger.debug(f"Total Reasoning steps: {len(all_reasoning_steps)}")
+            logger.debug("==== Reasoning finished====")
 
-                reasoning_steps: List[ReasoningStep] = reasoning_agent_response.content.reasoning_steps
-                all_reasoning_steps.extend(reasoning_steps)
-                # Yield reasoning steps
-                if self.stream_intermediate_steps:
-                    for reasoning_step in reasoning_steps:
-                        yield self.create_run_response(
-                            content=reasoning_step,
-                            content_type=reasoning_step.__class__.__name__,
-                            event=RunEvent.reasoning_step,
-                        )
-
-                # Find the index of the first assistant message
-                first_assistant_index = next(
-                    (i for i, m in enumerate(reasoning_agent_response.messages) if m.role == "assistant"),
-                    len(reasoning_agent_response.messages),
-                )
-                # Extract reasoning messages starting from the message after the first assistant message
-                reasoning_messages = reasoning_agent_response.messages[first_assistant_index:]
-
-                # Add reasoning step to the Agent's run_response
-                self.update_run_response_with_reasoning(
-                    reasoning_steps=reasoning_steps, reasoning_agent_messages=reasoning_agent_response.messages
-                )
-
-                # Get the next action
-                next_action = get_next_action(reasoning_steps[-1])
-                if next_action == NextAction.FINAL_ANSWER:
-                    break
-            except Exception as e:
-                logger.error(f"Reasoning error: {e}")
-                break
-
-        logger.debug(f"Total Reasoning steps: {len(all_reasoning_steps)}")
-        logger.debug("==== Reasoning finished====")
-
-        # Update the messages_for_model to include reasoning messages
-        update_messages_with_reasoning(
-            run_messages=run_messages,
-            reasoning_messages=reasoning_messages,
-        )
+            # Update the messages_for_model to include reasoning messages
+            update_messages_with_reasoning(
+                run_messages=run_messages,
+                reasoning_messages=reasoning_messages,
+            )
 
         # Yield the final reasoning completed event
         if self.stream_intermediate_steps:
@@ -3113,7 +3229,7 @@ class Agent:
             _response_content: str = ""
             reasoning_steps: List[ReasoningStep] = []
             with Live(console=console) as live_log:
-                status = Status("Thinking...", spinner="aesthetic", speed=2.0, refresh_per_second=10)
+                status = Status("Thinking...", spinner="aesthetic", speed=0.4, refresh_per_second=10)
                 live_log.update(status)
                 response_timer = Timer()
                 response_timer.start()
@@ -3165,17 +3281,18 @@ class Agent:
                         render = True
                         # Create panels for reasoning steps
                         for i, step in enumerate(reasoning_steps, 1):
-                            step_content = Text.assemble(
-                                (f"{step.title}\n", "bold"),
-                                (step.action or "", "dim"),
-                            )
+                            # Build step content
+                            step_content = Text.assemble()
+                            if step.title is not None:
+                                step_content.append(f"{step.title}\n", "bold")
+                            if step.action is not None:
+                                step_content.append(f"{step.action}\n", "dim")
+                            if step.result is not None:
+                                step_content.append(Text.from_markup(step.result, style="dim"))
+
                             if show_full_reasoning:
-                                step_content.append("\n")
-                                if step.result:
-                                    step_content.append(
-                                        Text.from_markup(f"\n[bold]Result:[/bold] {step.result}", style="dim")
-                                    )
-                                if step.reasoning:
+                                # Add detailed reasoning information if available
+                                if step.reasoning is not None:
                                     step_content.append(
                                         Text.from_markup(f"\n[bold]Reasoning:[/bold] {step.reasoning}", style="dim")
                                     )
@@ -3208,7 +3325,7 @@ class Agent:
                 live_log.update(Group(*panels))
         else:
             with Live(console=console) as live_log:
-                status = Status("Thinking...", spinner="aesthetic", speed=2.0, refresh_per_second=10)
+                status = Status("Thinking...", spinner="aesthetic", speed=0.4, refresh_per_second=10)
                 live_log.update(status)
                 response_timer = Timer()
                 response_timer.start()
@@ -3253,17 +3370,18 @@ class Agent:
                     render = True
                     # Create panels for reasoning steps
                     for i, step in enumerate(reasoning_steps, 1):
-                        step_content = Text.assemble(
-                            (f"{step.title}\n", "bold"),
-                            (step.action or "", "dim"),
-                        )
+                        # Build step content
+                        step_content = Text.assemble()
+                        if step.title is not None:
+                            step_content.append(f"{step.title}\n", "bold")
+                        if step.action is not None:
+                            step_content.append(f"{step.action}\n", "dim")
+                        if step.result is not None:
+                            step_content.append(Text.from_markup(step.result, style="dim"))
+
                         if show_full_reasoning:
-                            step_content.append("\n")
-                            if step.result:
-                                step_content.append(
-                                    Text.from_markup(f"\n[bold]Result:[/bold] {step.result}", style="dim")
-                                )
-                            if step.reasoning:
+                            # Add detailed reasoning information if available
+                            if step.reasoning is not None:
                                 step_content.append(
                                     Text.from_markup(f"\n[bold]Reasoning:[/bold] {step.reasoning}", style="dim")
                                 )
@@ -3348,7 +3466,7 @@ class Agent:
             _response_content: str = ""
             reasoning_steps: List[ReasoningStep] = []
             with Live(console=console) as live_log:
-                status = Status("Thinking...", spinner="aesthetic", speed=2.0, refresh_per_second=10)
+                status = Status("Thinking...", spinner="aesthetic", speed=0.4, refresh_per_second=10)
                 live_log.update(status)
                 response_timer = Timer()
                 response_timer.start()
@@ -3400,17 +3518,18 @@ class Agent:
                         render = True
                         # Create panels for reasoning steps
                         for i, step in enumerate(reasoning_steps, 1):
-                            step_content = Text.assemble(
-                                (f"{step.title}\n", "bold"),
-                                (step.action or "", "dim"),
-                            )
+                            # Build step content
+                            step_content = Text.assemble()
+                            if step.title is not None:
+                                step_content.append(f"{step.title}\n", "bold")
+                            if step.action is not None:
+                                step_content.append(f"{step.action}\n", "dim")
+                            if step.result is not None:
+                                step_content.append(Text.from_markup(step.result, style="dim"))
+
                             if show_full_reasoning:
-                                step_content.append("\n")
-                                if step.result:
-                                    step_content.append(
-                                        Text.from_markup(f"\n[bold]Result:[/bold] {step.result}", style="dim")
-                                    )
-                                if step.reasoning:
+                                # Add detailed reasoning information if available
+                                if step.reasoning is not None:
                                     step_content.append(
                                         Text.from_markup(f"\n[bold]Reasoning:[/bold] {step.reasoning}", style="dim")
                                     )
@@ -3443,7 +3562,7 @@ class Agent:
                 live_log.update(Group(*panels))
         else:
             with Live(console=console) as live_log:
-                status = Status("Thinking...", spinner="aesthetic", speed=2.0, refresh_per_second=10)
+                status = Status("Thinking...", spinner="aesthetic", speed=0.4, refresh_per_second=10)
                 live_log.update(status)
                 response_timer = Timer()
                 response_timer.start()
@@ -3488,17 +3607,18 @@ class Agent:
                     render = True
                     # Create panels for reasoning steps
                     for i, step in enumerate(reasoning_steps, 1):
-                        step_content = Text.assemble(
-                            (f"{step.title}\n", "bold"),
-                            (step.action or "", "dim"),
-                        )
+                        # Build step content
+                        step_content = Text.assemble()
+                        if step.title is not None:
+                            step_content.append(f"{step.title}\n", "bold")
+                        if step.action is not None:
+                            step_content.append(f"{step.action}\n", "dim")
+                        if step.result is not None:
+                            step_content.append(Text.from_markup(step.result, style="dim"))
+
                         if show_full_reasoning:
-                            step_content.append("\n")
-                            if step.result:
-                                step_content.append(
-                                    Text.from_markup(f"\n[bold]Result:[/bold] {step.result}", style="dim")
-                                )
-                            if step.reasoning:
+                            # Add detailed reasoning information if available
+                            if step.reasoning is not None:
                                 step_content.append(
                                     Text.from_markup(f"\n[bold]Reasoning:[/bold] {step.reasoning}", style="dim")
                                 )

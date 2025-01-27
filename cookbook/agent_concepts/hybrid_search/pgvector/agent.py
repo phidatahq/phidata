@@ -5,17 +5,18 @@ from agno.vectordb.pgvector import PgVector, SearchType
 
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 knowledge_base = PDFUrlKnowledgeBase(
-    urls=["https://phi-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
+    urls=["https://agno-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
     vector_db=PgVector(
         table_name="recipes", db_url=db_url, search_type=SearchType.hybrid
     ),
 )
 # Load the knowledge base: Comment out after first run
-knowledge_base.load(upsert=True)
+knowledge_base.load(recreate=False)
 
 agent = Agent(
     model=OpenAIChat(id="gpt-4o"),
     knowledge=knowledge_base,
+    search_knowledge=True,
     read_chat_history=True,
     show_tool_calls=True,
     markdown=True,

@@ -81,7 +81,10 @@ def create_agent(user: str = "user"):
 
     if session_id is None:
         session_id = agent.session_id
-        print(f"Started Session: {session_id}\n")
+        if session_id is not None:
+            print(f"Started Session: {session_id}\n")
+        else:
+            print("Started Session\n")
     else:
         print(f"Continuing Session: {session_id}\n")
 

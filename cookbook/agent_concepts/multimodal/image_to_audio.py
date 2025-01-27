@@ -11,7 +11,7 @@ cwd = Path(__file__).parent.resolve()
 
 image_agent = Agent(model=OpenAIChat(id="gpt-4o"))
 
-image_path = Path(__file__).parent.joinpath("multimodal-agents.jpg")
+image_path = Path(__file__).parent.joinpath("sample.jpg")
 image_story: RunResponse = image_agent.run(
     "Write a 3 sentence fiction story about the image",
     images=[Image(filepath=image_path)],
@@ -34,5 +34,5 @@ audio_story: RunResponse = audio_agent.run(
 )
 if audio_story.response_audio is not None:
     write_audio_to_file(
-        audio=audio_story.response_audio.content, filename="tmp/multimodal-agents.wav"
+        audio=audio_story.response_audio.content, filename="tmp/sample_story.wav"
     )

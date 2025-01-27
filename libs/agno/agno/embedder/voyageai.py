@@ -13,7 +13,7 @@ except ImportError:
 
 @dataclass
 class VoyageAIEmbedder(Embedder):
-    model: str = "voyage-2"
+    id: str = "voyage-2"
     dimensions: int = 1024
     request_params: Optional[Dict[str, Any]] = None
     api_key: Optional[str] = None
@@ -42,7 +42,7 @@ class VoyageAIEmbedder(Embedder):
     def _response(self, text: str) -> EmbeddingsObject:
         _request_params: Dict[str, Any] = {
             "texts": [text],
-            "model": self.model,
+            "model": self.id,
         }
         if self.request_params:
             _request_params.update(self.request_params)

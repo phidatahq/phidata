@@ -7,9 +7,6 @@
   </a>
 </div>
 <div align="center">
-  Lightning Fast AI Agents
-</div>
-<div align="center">
   <a href="https://docs.agno.com">📚 Documentation</a> &nbsp;|&nbsp;
   <a href="https://github.com/agno-agi/agno/tree/main/cookbook">💡 Examples</a> &nbsp;|&nbsp;
   <a href="https://github.com/agno-agi/agno/stargazers">🌟 Star Us</a>
@@ -17,7 +14,7 @@
 
 ## Overview
 
-[Agno](https://docs.agno.com) is a lightning-fast, model-agnostic framework for building Agents
+[Agno](https://docs.agno.com) is a lightning-fast, model-agnostic framework for building pure AI Agents
 
 ## Simple, Fast, and Agnostic
 
@@ -138,12 +135,12 @@ agent = Agent(
         "Prefer the information in your knowledge base over the web results."
     ],
     knowledge=PDFUrlKnowledgeBase(
-        urls=["https://phi-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
+        urls=["https://agno-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
         vector_db=LanceDb(
             uri="tmp/lancedb",
             table_name="recipes",
             search_type=SearchType.hybrid,
-            embedder=OpenAIEmbedder(model="text-embedding-3-small"),
+            embedder=OpenAIEmbedder(id="text-embedding-3-small"),
         ),
     ),
     tools=[DuckDuckGoTools()],

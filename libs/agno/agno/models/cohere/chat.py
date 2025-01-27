@@ -5,7 +5,7 @@ from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 from agno.models.base import Model, StreamData
 from agno.models.message import Message
-from agno.models.response import ModelResponse
+from agno.models.response import ModelResponse, ModelResponseEvent
 from agno.tools.function import FunctionCall
 from agno.utils.log import logger
 from agno.utils.timer import Timer
@@ -260,6 +260,10 @@ class Cohere(Model):
         function_call_results: List[Message] = []
         if assistant_message.tool_calls is None:
             return None
+
+        if model_response.tool_calls is None:
+            model_response.tool_calls = []
+
         for tool_call in assistant_message.tool_calls:
             _tool_call_id = tool_call.get("id")
             _function_call = get_function_call_for_tool_call(tool_call, self._functions)
@@ -283,20 +287,24 @@ class Cohere(Model):
                 continue
             function_calls_to_run.append(_function_call)
 
+        model_response.content = assistant_message.get_content_string() + "\n\n"
+
         if self.show_tool_calls:
             model_response.content += "\nRunning:"
             for _f in function_calls_to_run:
                 model_response.content += f"\n - {_f.get_call_str()}"
             model_response.content += "\n\n"
 
-        model_response.content = assistant_message.get_content_string() + "\n\n"
-
         function_calls_to_run, error_messages = self._prepare_function_calls(assistant_message)
 
-        for _ in self.run_function_calls(
+        for function_call_response in self.run_function_calls(
             function_calls=function_calls_to_run, function_call_results=function_call_results, tool_role=tool_role
         ):
-            pass
+            if (
+                function_call_response.event == ModelResponseEvent.tool_call_completed.value
+                and function_call_response.tool_calls is not None
+            ):
+                model_response.tool_calls.extend(function_call_response.tool_calls)
 
         if len(function_call_results) > 0:
             messages.extend(function_call_results)

@@ -4,8 +4,8 @@ Briefly describe the issue you’re experiencing or the bug you’ve found.
 ## Steps to Reproduce
 List the steps needed to encounter this bug or issue.
 
-## Agent Configuration (If Applicable)
-Provide any relevant configuration settings for the agent.
+## Agent Configuration (if applicable)
+Provide relevant agent configuration.
 
 ## Expected Behavior
 What did you expect to happen?
@@ -13,7 +13,7 @@ What did you expect to happen?
 ## Actual Behavior
 What actually happened instead?
 
-## Screenshots or Logs (If Applicable)
+## Screenshots or Logs (if applicable)
 Include any relevant screenshots or error logs that demonstrate the issue.
 
 ## Environment
@@ -23,7 +23,7 @@ Include any relevant screenshots or error logs that demonstrate the issue.
 - External Dependency Versions: (e.g., yfinance 0.2.52)
 - Additional Environment Details: (e.g., Python 3.10)
 
-## Possible Solutions (Optional)
+## Possible Solutions (optional)
 Suggest any ideas you might have to fix or address the issue.
 
 ## Additional Context

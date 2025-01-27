@@ -11,10 +11,10 @@ from agno.vectordb.lancedb import LanceDb
 db_url = "/tmp/lancedb"
 
 # Configure the language model
-model = Ollama(model="llama3:8b", temperature=0.0)
+model = Ollama(id="llama3.1:8b")
 
 # Create Ollama embedder
-embedder = OllamaEmbedder(model="nomic-embed-text", dimensions=768)
+embedder = OllamaEmbedder(id="nomic-embed-text", dimensions=768)
 
 # Create the vector database
 vector_db = LanceDb(
@@ -25,7 +25,7 @@ vector_db = LanceDb(
 
 # Create a knowledge base from a PDF URL using LanceDb for vector storage and OllamaEmbedder for embedding
 knowledge_base = PDFUrlKnowledgeBase(
-    urls=["https://phi-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
+    urls=["https://agno-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
     vector_db=vector_db,
 )
 

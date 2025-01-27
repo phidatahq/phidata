@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from agno.media import AudioOutput
 from agno.models.base import Metrics, Model
 from agno.models.message import Message
-from agno.models.response import ModelResponse
+from agno.models.response import ModelResponse, ModelResponseEvent
 from agno.tools.function import FunctionCall
 from agno.utils.log import logger
 from agno.utils.tools import get_function_call_for_tool_call
@@ -262,6 +262,10 @@ class OpenAIChat(Model):
             if message.videos is not None:
                 logger.warning("Video input is currently unsupported.")
 
+        # OpenAI expects the tool_calls to be None if empty, not an empty list
+        if message.tool_calls is not None and len(message.tool_calls) == 0:
+            message.tool_calls = None
+
         return message.to_dict()
 
     def invoke(self, messages: List[Message]) -> Union[ChatCompletion, ParsedChatCompletion]:
@@ -382,6 +386,8 @@ class OpenAIChat(Model):
         if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
             if model_response.content is None:
                 model_response.content = ""
+            if model_response.tool_calls is None:
+                model_response.tool_calls = []
             function_call_results: List[Message] = []
             function_calls_to_run: List[FunctionCall] = []
             for tool_call in assistant_message.tool_calls:
@@ -413,10 +419,14 @@ class OpenAIChat(Model):
                     model_response.content += f"\n - {_f.get_call_str()}"
                 model_response.content += "\n\n"
 
-            for _ in self.run_function_calls(
+            for function_call_response in self.run_function_calls(
                 function_calls=function_calls_to_run, function_call_results=function_call_results, tool_role=tool_role
             ):
-                pass
+                if (
+                    function_call_response.event == ModelResponseEvent.tool_call_completed.value
+                    and function_call_response.tool_calls is not None
+                ):
+                    model_response.tool_calls.extend(function_call_response.tool_calls)
 
             if len(function_call_results) > 0:
                 messages.extend(function_call_results)
@@ -533,7 +543,7 @@ class OpenAIChat(Model):
         Returns:
             ModelResponse: The model response.
         """
-        logger.debug("---------- OpenAIChat Response Start ----------")
+        logger.debug(f"---------- {self.get_provider()} Response Start ----------")
         self._log_messages(messages)
         model_response = ModelResponse()
         metrics = Metrics()
@@ -598,7 +608,7 @@ class OpenAIChat(Model):
             is not None
         ):
             return self.handle_post_tool_call_messages(messages=messages, model_response=model_response)
-        logger.debug("---------- OpenAIChat Response End ----------")
+        logger.debug(f"---------- {self.get_provider()} Response End ----------")
         return model_response
 
     async def aresponse(self, messages: List[Message]) -> ModelResponse:
@@ -611,7 +621,7 @@ class OpenAIChat(Model):
         Returns:
             ModelResponse: The model response from the API.
         """
-        logger.debug("---------- OpenAIChat Async Response Start ----------")
+        logger.debug(f"---------- {self.get_provider()} Async Response Start ----------")
         self._log_messages(messages)
         model_response = ModelResponse()
         metrics = Metrics()
@@ -677,7 +687,7 @@ class OpenAIChat(Model):
         ):
             return await self.ahandle_post_tool_call_messages(messages=messages, model_response=model_response)
 
-        logger.debug("---------- OpenAIChat Async Response End ----------")
+        logger.debug(f"---------- {self.get_provider()} Async Response End ----------")
         return model_response
 
     def update_stream_metrics(self, assistant_message: Message, metrics: Metrics):
@@ -806,7 +816,7 @@ class OpenAIChat(Model):
         Returns:
             Iterator[ModelResponse]: An iterator of model responses.
         """
-        logger.debug("---------- OpenAIChat Response Start ----------")
+        logger.debug(f"---------- {self.get_provider()} Response Start ----------")
         self._log_messages(messages)
         stream_data: StreamData = StreamData()
         metrics: Metrics = Metrics()
@@ -882,7 +892,7 @@ class OpenAIChat(Model):
                 assistant_message=assistant_message, messages=messages, tool_role=tool_role
             )
             yield from self.handle_post_tool_call_messages_stream(messages=messages)
-        logger.debug("---------- OpenAIChat Response End ----------")
+        logger.debug(f"---------- {self.get_provider()} Response End ----------")
 
     async def aresponse_stream(self, messages: List[Message]) -> Any:
         """
@@ -894,7 +904,7 @@ class OpenAIChat(Model):
         Returns:
             Any: An asynchronous iterator of model responses.
         """
-        logger.debug("---------- OpenAIChat Async Response Start ----------")
+        logger.debug(f"---------- {self.get_provider()} Async Response Start ----------")
         self._log_messages(messages)
         stream_data: StreamData = StreamData()
         metrics: Metrics = Metrics()
@@ -971,7 +981,7 @@ class OpenAIChat(Model):
                 yield tool_call_response
             async for post_tool_call_response in self.ahandle_post_tool_call_messages_stream(messages=messages):
                 yield post_tool_call_response
-        logger.debug("---------- OpenAIChat Async Response End ----------")
+        logger.debug(f"---------- {self.get_provider()} Async Response End ----------")
 
     def build_tool_calls(self, tool_calls_data: List[ChoiceDeltaToolCall]) -> List[Dict[str, Any]]:
         """

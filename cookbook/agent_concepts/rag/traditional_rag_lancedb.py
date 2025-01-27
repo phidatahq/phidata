@@ -11,13 +11,13 @@ from agno.vectordb.lancedb import LanceDb, SearchType
 
 # Create a knowledge base of PDFs from URLs
 knowledge_base = PDFUrlKnowledgeBase(
-    urls=["https://phi-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
+    urls=["https://agno-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
     # Use LanceDB as the vector database and store embeddings in the `recipes` table
     vector_db=LanceDb(
         table_name="recipes",
         uri="tmp/lancedb",
         search_type=SearchType.vector,
-        embedder=OpenAIEmbedder(model="text-embedding-3-small"),
+        embedder=OpenAIEmbedder(id="text-embedding-3-small"),
     ),
 )
 # Load the knowledge base: Comment after first run as the knowledge base is already loaded
@@ -27,7 +27,7 @@ agent = Agent(
     model=OpenAIChat(id="gpt-4o"),
     knowledge=knowledge_base,
     # Enable RAG by adding references from AgentKnowledge to the user prompt.
-    add_context=True,
+    add_references=True,
     # Set as False because Agents default to `search_knowledge=True`
     search_knowledge=False,
     show_tool_calls=True,

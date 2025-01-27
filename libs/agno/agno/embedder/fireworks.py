@@ -7,7 +7,7 @@ from agno.embedder.openai import OpenAIEmbedder
 
 @dataclass
 class FireworksEmbedder(OpenAIEmbedder):
-    model: str = "nomic-ai/nomic-embed-text-v1.5"
+    id: str = "nomic-ai/nomic-embed-text-v1.5"
     dimensions: int = 768
     api_key: Optional[str] = getenv("FIREWORKS_API_KEY")
     base_url: str = "https://api.fireworks.ai/inference/v1"

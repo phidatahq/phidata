@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List
 import nest_asyncio
 import streamlit as st
 from agno.agent import Agent

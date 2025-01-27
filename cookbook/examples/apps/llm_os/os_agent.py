@@ -77,7 +77,7 @@ def get_llm_os(
         data_analyst_agent: Agent = Agent(
             tools=[DuckDbTools()],
             show_tool_calls=True,
-            instructions="Use this file for Movies data: https://phidata-public.s3.amazonaws.com/demo_data/IMDB-Movie-Data.csv",
+            instructions="Use this file for Movies data: https://agno-public.s3.amazonaws.com/demo_data/IMDB-Movie-Data.csv",
         )
         team.append(data_analyst_agent)
         extra_instructions.append(

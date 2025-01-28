@@ -2,13 +2,12 @@ import json
 from os import getenv
 from typing import Optional, Dict, Any, List
 
-from exa_py.api import SearchResponse
-
 from phi.tools import Toolkit
 from phi.utils.log import logger
 
 try:
     from exa_py import Exa
+    from exa_py.api import SearchResponse
 except ImportError:
     raise ImportError("`exa_py` not installed. Please install using `pip install exa_py`")
 
@@ -103,6 +102,7 @@ class ExaTools(Toolkit):
                         result_dict["highlights"] = result.highlights  # type: ignore
                 except Exception as e:
                     logger.debug(f"Failed to get highlights {e}")
+                    result_dict["highlights"] = f"Failed to get highlights {e}"
             exa_results_parsed.append(result_dict)
         return json.dumps(exa_results_parsed, indent=4)
 

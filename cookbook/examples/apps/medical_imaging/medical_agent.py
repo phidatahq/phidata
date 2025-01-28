@@ -12,7 +12,6 @@ from pathlib import Path
 
 from agno.agent import Agent
 from agno.models.google import Gemini
-from agno.models.openai import OpenAIChat
 from agno.tools.duckduckgo import DuckDuckGoTools
 
 # Base prompt that defines the agent's expertise and response structure
@@ -72,7 +71,6 @@ FULL_INSTRUCTIONS = BASE_PROMPT + ANALYSIS_TEMPLATE
 # Initialize the Medical Imaging Expert agent
 agent = Agent(
     name="Medical Imaging Expert",   
-    # model=OpenAIChat(id="gpt-4o"),
     model=Gemini(id="gemini-2.0-flash-exp"),
     tools=[DuckDuckGoTools()],  # Enable web search for medical literature
     markdown=True,  # Enable markdown formatting for structured output

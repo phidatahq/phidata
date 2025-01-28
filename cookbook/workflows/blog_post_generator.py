@@ -32,15 +32,13 @@ from typing import Dict, Iterator, Optional
 
 from agno.agent import Agent
 from agno.models.openai import OpenAIChat
-from agno.storage.workflow.postgres import PostgresWorkflowStorage
+from agno.storage.workflow.sqlite import SqliteWorkflowStorage
 from agno.tools.duckduckgo import DuckDuckGoTools
 from agno.tools.newspaper4k import Newspaper4kTools
 from agno.utils.log import logger
 from agno.utils.pprint import pprint_run_response
 from agno.workflow import RunEvent, RunResponse, Workflow
 from pydantic import BaseModel, Field
-
-db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 
 
 class NewsArticle(BaseModel):
@@ -411,9 +409,9 @@ if __name__ == "__main__":
     # - Sets up SQLite storage for caching results
     generate_blog_post = BlogPostGenerator(
         session_id=f"generate-blog-post-on-{url_safe_topic}",
-        storage=PostgresWorkflowStorage(
+        storage=SqliteWorkflowStorage(
             table_name="generate_blog_post_workflows",
-            db_url=db_url,
+            db_file="tmp/workflows.db",
         ),
         debug_mode=True,
     )

@@ -149,7 +149,7 @@ class ElevenLabsTools(Toolkit):
             logger.error(f"Failed to generate audio: {e}")
             return f"Error: {e}"
 
-    def text_to_speech(self, agent: Agent, prompt: str, voice_id: Optional[str] = None) -> str:
+    def text_to_speech(self, agent: Agent, prompt: str) -> str:
         """
         Use this function to convert text to speech audio.
 
@@ -162,7 +162,7 @@ class ElevenLabsTools(Toolkit):
         try:
             audio_generator = self.eleven_labs_client.text_to_speech.convert(
                 text=prompt,
-                voice_id=voice_id or self.voice_id,
+                voice_id=self.voice_id,
                 model_id=self.model_id,
                 output_format=self.output_format,
             )

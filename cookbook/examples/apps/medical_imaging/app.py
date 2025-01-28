@@ -79,9 +79,9 @@ def main():
                         # Use AgnoImage for the agent
                         agno_image = AgnoImage(filepath=image_path)
                         prompt = (
-                            "Analyze this medical image and provide detailed findings."
-                            if not additional_info else
                             f"Analyze this medical image considering the following context: {additional_info}"
+                            if additional_info else
+                            "Analyze this medical image and provide detailed findings."
                         )
                         response = agent.run(
                             prompt,

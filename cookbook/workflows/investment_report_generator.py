@@ -32,11 +32,13 @@ from textwrap import dedent
 from typing import Iterator
 
 from agno.agent import Agent, RunResponse
-from agno.storage.workflow.sqlite import SqliteWorkflowStorage
+from agno.storage.workflow.postgres import PostgresWorkflowStorage
 from agno.tools.yfinance import YFinanceTools
 from agno.utils.log import logger
 from agno.utils.pprint import pprint_run_response
 from agno.workflow import Workflow
+
+db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 
 reports_dir = Path(__file__).parent.joinpath("reports", "investment")
 if reports_dir.is_dir():
@@ -215,9 +217,9 @@ if __name__ == "__main__":
     # Initialize the investment analyst workflow
     investment_report_generator = InvestmentReportGenerator(
         session_id=f"investment-report-{url_safe_companies}",
-        storage=SqliteWorkflowStorage(
+        storage=PostgresWorkflowStorage(
             table_name="investment_report_workflows",
-            db_file="tmp/workflows.db",
+            db_url=db_url,
         ),
     )
 

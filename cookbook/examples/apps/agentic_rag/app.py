@@ -8,7 +8,7 @@ from agno.document.reader.pdf_reader import PDFReader
 from agno.document.reader.text_reader import TextReader
 from agno.document.reader.csv_reader import CSVReader
 from agno.utils.log import logger
-from agentic_rag import get_auto_rag_agent
+from agentic_rag import get_agentic_rag_agent
 from utils import (
     CUSTOM_CSS,
     add_message,
@@ -34,7 +34,7 @@ st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 def restart_agent():
     """Restart the agent and reset session state."""
     logger.debug("---*--- Restarting Agent ---*---")
-    for key in ["auto_rag_agent", "auto_rag_agent_session_id", "messages"]:
+    for key in ["agentic_rag_agent", "agentic_rag_agent_session_id", "messages"]:
         st.session_state.pop(key, None)
     st.session_state["url_scrape_key"] = st.session_state.get("url_scrape_key", 0) + 1
     st.session_state["file_uploader_key"] = st.session_state.get("file_uploader_key", 100) + 1
@@ -53,21 +53,21 @@ def get_reader(file_type: str):
 
 def initialize_agent(model_id: str):
     """Initialize or retrieve the AutoRAG agent."""
-    if "auto_rag_agent" not in st.session_state or st.session_state["auto_rag_agent"] is None:
+    if "agentic_rag_agent" not in st.session_state or st.session_state["agentic_rag_agent"] is None:
         logger.info(f"---*--- Creating {model_id} Agent ---*---")
-        agent: Agent = get_auto_rag_agent(
-            model_id=model_id, session_id=st.session_state.get("auto_rag_agent_session_id")
+        agent: Agent = get_agentic_rag_agent(
+            model_id=model_id, session_id=st.session_state.get("agentic_rag_agent_session_id")
         )
-        st.session_state["auto_rag_agent"] = agent
-        st.session_state["auto_rag_agent_session_id"] = agent.session_id
-    return st.session_state["auto_rag_agent"]
+        st.session_state["agentic_rag_agent"] = agent
+        st.session_state["agentic_rag_agent_session_id"] = agent.session_id
+    return st.session_state["agentic_rag_agent"]
 
 
 def main():
     ####################################################################
     # App header
     ####################################################################
-    st.markdown("<h1 class='main-title'>Agentic RAG Agent</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 class='main-title'>Agentic RAG </h1>", unsafe_allow_html=True)
     st.markdown(
         "<p class='subtitle'>Your intelligent research assistant powered by Agno</p>",
         unsafe_allow_html=True,
@@ -92,24 +92,24 @@ def main():
     ####################################################################
     # Initialize Agent
     ####################################################################
-    auto_rag_agent: Agent
+    agentic_rag_agent: Agent
     if (
-        "auto_rag_agent" not in st.session_state
-        or st.session_state["auto_rag_agent"] is None
+        "agentic_rag_agent" not in st.session_state
+        or st.session_state["agentic_rag_agent"] is None
         or st.session_state.get("current_model") != model_id
     ):
         logger.info("---*--- Creating new Auto RAG agent ---*---")
-        auto_rag_agent = get_auto_rag_agent(model_id=model_id)
-        st.session_state["auto_rag_agent"] = auto_rag_agent
+        agentic_rag_agent = get_agentic_rag_agent(model_id=model_id)
+        st.session_state["agentic_rag_agent"] = agentic_rag_agent
         st.session_state["current_model"] = model_id
     else:
-        auto_rag_agent = st.session_state["auto_rag_agent"]
+        agentic_rag_agent = st.session_state["agentic_rag_agent"]
 
     ####################################################################
     # Load Agent Session from the database
     ####################################################################
     try:
-        st.session_state["auto_rag_agent_session_id"] = auto_rag_agent.load_session()
+        st.session_state["agentic_rag_agent_session_id"] = agentic_rag_agent.load_session()
     except Exception:
         st.warning("Could not create Agent session, is the database running?")
         return
@@ -117,7 +117,7 @@ def main():
     ####################################################################
     # Load runs from memory
     ####################################################################
-    agent_runs = auto_rag_agent.memory.runs
+    agent_runs = agentic_rag_agent.memory.runs
     if len(agent_runs) > 0:
         logger.debug("Loading run history")
         st.session_state["messages"] = []
@@ -141,7 +141,7 @@ def main():
         scraper = WebsiteReader(max_links=2, max_depth=1)
         docs: List[Document] = scraper.read(input_url)
         if docs:
-            auto_rag_agent.knowledge.load_documents(docs, upsert=True)
+            agentic_rag_agent.knowledge.load_documents(docs, upsert=True)
             st.sidebar.success("URL added to knowledge base")
         else:
             st.sidebar.error("Could not process the provided URL")
@@ -153,10 +153,10 @@ def main():
         reader = get_reader(file_type)
         if reader:
             docs = reader.read(uploaded_file)
-            auto_rag_agent.knowledge.load_documents(docs, upsert=True)
+            agentic_rag_agent.knowledge.load_documents(docs, upsert=True)
 
     if st.sidebar.button("Clear Knowledge Base"):
-        auto_rag_agent.knowledge.vector_db.delete()
+        agentic_rag_agent.knowledge.vector_db.delete()
         st.sidebar.success("Knowledge base cleared")
 
     sidebar_widget()
@@ -194,7 +194,7 @@ def main():
                 response = ""
                 try:
                     # Run the agent and stream the response
-                    run_response = auto_rag_agent.run(question, stream=True)
+                    run_response = agentic_rag_agent.run(question, stream=True)
                     for _resp_chunk in run_response:
                         # Display tool calls if available
                         if _resp_chunk.tools and len(_resp_chunk.tools) > 0:
@@ -205,7 +205,7 @@ def main():
                             response += _resp_chunk.content
                             resp_container.markdown(response)
 
-                    add_message("assistant", response, auto_rag_agent.run_response.tools)
+                    add_message("assistant", response, agentic_rag_agent.run_response.tools)
                 except Exception as e:
                     error_message = f"Sorry, I encountered an error: {str(e)}"
                     add_message("assistant", error_message)
@@ -214,8 +214,8 @@ def main():
     ####################################################################
     # Session selector
     ####################################################################
-    session_selector_widget(auto_rag_agent, model_id)
-    rename_session_widget(auto_rag_agent)
+    session_selector_widget(agentic_rag_agent, model_id)
+    rename_session_widget(agentic_rag_agent)
 
     ####################################################################
     # About section

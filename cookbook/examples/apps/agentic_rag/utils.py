@@ -1,11 +1,9 @@
 from typing import Any, Dict, List, Optional
 
 import streamlit as st
-from agno.document.base import Document
-from agno.document.reader.website_reader import WebsiteReader
 from agno.utils.log import logger
 from agno.agent.agent import Agent
-from agentic_rag import get_auto_rag_agent
+from agentic_rag import get_agentic_rag_agent
 
 
 def add_message(
@@ -24,8 +22,8 @@ def add_message(
 def restart_agent():
     """Reset the agent and clear chat history"""
     logger.debug("---*--- Restarting agent ---*---")
-    st.session_state["auto_rag_agent"] = None
-    st.session_state["auto_rag_agent_session_id"] = None
+    st.session_state["agentic_rag_agent"] = None
+    st.session_state["agentic_rag_agent_session_id"] = None
     st.session_state["messages"] = []
     st.rerun()
 
@@ -146,11 +144,11 @@ def session_selector_widget(agent: Agent, model_id: str) -> None:
             s["id"] for s in session_options if s["display"] == selected_session
         )
 
-        if st.session_state["auto_rag_agent_session_id"] != selected_session_id:
+        if st.session_state["agentic_rag_agent_session_id"] != selected_session_id:
             logger.info(
                 f"---*--- Loading {model_id} run: {selected_session_id} ---*---"
             )
-            st.session_state["auto_rag_agent"] = get_auto_rag_agent(
+            st.session_state["agentic_rag_agent"] = get_agentic_rag_agent(
                 model_id=model_id,
                 session_id=selected_session_id,
             )

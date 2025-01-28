@@ -31,7 +31,7 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 
 
-def get_auto_rag_agent(
+def get_agentic_rag_agent(
     model_id: str = "gpt-4o-mini",
     user_id: Optional[str] = None,
     session_id: Optional[str] = None,
@@ -49,19 +49,19 @@ def get_auto_rag_agent(
     # Define the knowledge base
     knowledge_base = AgentKnowledge(
         vector_db=Qdrant(
-            collection="auto_rag_documents_openai",
+            collection="agentic_rag_documents_openai",
             embedder=OpenAIEmbedder(id="text-embedding-ada-002", dimensions=1536),
         ),
         num_documents=3,  # Retrieve 3 most relevant documents
     )
 
     # Create the Agent
-    auto_rag_agent: Agent = Agent(
-        name="auto_rag_agent",
+    agentic_rag_agent: Agent = Agent(
+        name="agentic_rag_agent",
         session_id=session_id,  # Track session ID for persistent conversations
         user_id=user_id,
         model=OpenAIChat(id=model_id),
-        storage=PostgresAgentStorage(table_name="auto_rag_agent_sessions", db_url=db_url),  # Persist session data
+        storage=PostgresAgentStorage(table_name="agentic_rag_agent_sessions", db_url=db_url),  # Persist session data
         memory=memory,  # Add memory to the agent
         knowledge=knowledge_base,  # Add knowledge base
         description="You are a helpful Agent called 'AutoRAG' and your goal is to assist the user in the best way possible.",
@@ -86,4 +86,4 @@ def get_auto_rag_agent(
         num_history_responses=3,
     )
 
-    return auto_rag_agent
+    return agentic_rag_agent

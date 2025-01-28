@@ -37,7 +37,7 @@ def get_agentic_rag_agent(
     session_id: Optional[str] = None,
     debug_mode: bool = True,
 ) -> Agent:
-    """Get an Auto RAG Agent with Memory."""
+    """Get an Agentic RAG Agent with Memory."""
 
     # Define persistent memory for chat history
     memory = AgentMemory(

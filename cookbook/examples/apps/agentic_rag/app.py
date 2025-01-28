@@ -52,7 +52,7 @@ def get_reader(file_type: str):
 
 
 def initialize_agent(model_id: str):
-    """Initialize or retrieve the AutoRAG agent."""
+    """Initialize or retrieve the Agentic RAG."""
     if "agentic_rag_agent" not in st.session_state or st.session_state["agentic_rag_agent"] is None:
         logger.info(f"---*--- Creating {model_id} Agent ---*---")
         agent: Agent = get_agentic_rag_agent(
@@ -98,7 +98,7 @@ def main():
         or st.session_state["agentic_rag_agent"] is None
         or st.session_state.get("current_model") != model_id
     ):
-        logger.info("---*--- Creating new Auto RAG agent ---*---")
+        logger.info("---*--- Creating new Agentic RAG  ---*---")
         agentic_rag_agent = get_agentic_rag_agent(model_id=model_id)
         st.session_state["agentic_rag_agent"] = agentic_rag_agent
         st.session_state["current_model"] = model_id
@@ -130,41 +130,61 @@ def main():
         logger.debug("No run history found")
         st.session_state["messages"] = []
 
+    
+    
+    if prompt := st.chat_input("👋 Ask me anything!"):
+        add_message("user", prompt)
+
     ####################################################################
-    # Sidebar
+    # Track loaded URLs and files in session state
     ####################################################################
-            
+    if "loaded_urls" not in st.session_state:
+        st.session_state.loaded_urls = set()
+    if "loaded_files" not in st.session_state:
+        st.session_state.loaded_files = set()
+    
     st.sidebar.markdown("#### 📚 Document Management")
     input_url = st.sidebar.text_input("Add URL to Knowledge Base")
-    if input_url:  # Check if the user has entered a URL
-        alert = st.sidebar.info("Processing URLs...", icon="ℹ️")
-        scraper = WebsiteReader(max_links=2, max_depth=1)
-        docs: List[Document] = scraper.read(input_url)
-        if docs:
-            agentic_rag_agent.knowledge.load_documents(docs, upsert=True)
-            st.sidebar.success("URL added to knowledge base")
+    if input_url and not prompt:  # Check if the user has entered a URL
+        if input_url not in st.session_state.loaded_urls:
+            alert = st.sidebar.info("Processing URLs...", icon="ℹ️")
+            scraper = WebsiteReader(max_links=2, max_depth=1)
+            docs: List[Document] = scraper.read(input_url)
+            if docs:
+                agentic_rag_agent.knowledge.load_documents(docs, upsert=True)
+                st.session_state.loaded_urls.add(input_url)
+                st.sidebar.success("URL added to knowledge base")
+            else:
+                st.sidebar.error("Could not process the provided URL")
+            alert.empty()
         else:
-            st.sidebar.error("Could not process the provided URL")
-        alert.empty()
+            st.sidebar.info("URL already loaded in knowledge base")
 
     uploaded_file = st.sidebar.file_uploader("Add a Document (.pdf, .csv, or .txt)", key="file_upload")
-    if uploaded_file:
-        file_type = uploaded_file.name.split(".")[-1].lower()
-        reader = get_reader(file_type)
-        if reader:
-            docs = reader.read(uploaded_file)
-            agentic_rag_agent.knowledge.load_documents(docs, upsert=True)
+    if uploaded_file and not prompt:
+        file_identifier = f"{uploaded_file.name}_{uploaded_file.size}"
+        if file_identifier not in st.session_state.loaded_files:
+            file_type = uploaded_file.name.split(".")[-1].lower()
+            reader = get_reader(file_type)
+            if reader:
+                docs = reader.read(uploaded_file)
+                agentic_rag_agent.knowledge.load_documents(docs, upsert=True)
+                st.session_state.loaded_files.add(file_identifier)
+                st.sidebar.success(f"{uploaded_file.name} added to knowledge base")
+        else:
+            st.sidebar.info(f"{uploaded_file.name} already loaded in knowledge base")
 
     if st.sidebar.button("Clear Knowledge Base"):
         agentic_rag_agent.knowledge.vector_db.delete()
+        st.session_state.loaded_urls.clear()
+        st.session_state.loaded_files.clear()
         st.sidebar.success("Knowledge base cleared")
 
     sidebar_widget()
 
     ####################################################################
       ####################################################################
-    if prompt := st.chat_input("👋 Ask me anything!"):
-        add_message("user", prompt)
+ 
     ####################################################################
     # Display chat history
     ####################################################################

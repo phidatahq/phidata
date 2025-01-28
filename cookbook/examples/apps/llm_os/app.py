@@ -17,7 +17,7 @@ st.set_page_config(
 )
 st.title("LLM OS")
 st.markdown(
-    "##### :orange_heart: built using [Agno](https://github.com/phidatahq/agno)"
+    "##### :orange_heart: built using [Agno](https://github.com/agno-agi/agno)"
 )
 
 

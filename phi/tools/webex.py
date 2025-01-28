@@ -11,7 +11,7 @@ except ImportError:
 
 class WebexTools(Toolkit):
     def __init__(self, token: str, send_message: bool = True, list_rooms: bool = True):
-        super().__init__(name="slack")
+        super().__init__(name="webex")
         self.client = WebexAPI(access_token=token)
         if send_message:
             self.register(self.send_message)

@@ -1,7 +1,6 @@
-
 from typing import Any, Dict, List, Optional
-import streamlit as st
 
+import streamlit as st
 from agno.utils.log import logger
 
 
@@ -39,9 +38,7 @@ def sidebar_widget() -> None:
                 "user",
                 "An advanced futuristic city on distant planet with only 1 island. Dark history. Population 1 trillion.",
             )
-        if st.button(
-            "A medieval fantasy world with dragons, castles, and knights."
-        ):
+        if st.button("A medieval fantasy world with dragons, castles, and knights."):
             add_message(
                 "user",
                 "A medieval fantasy world with dragons, castles, and knights.",

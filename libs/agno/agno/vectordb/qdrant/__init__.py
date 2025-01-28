@@ -1,1 +1,1 @@
-from libs.agno.agno.vectordb.qdrant.qdrantdb import QdrantDb
+from agno.vectordb.qdrant.qdrantdb import QdrantDb

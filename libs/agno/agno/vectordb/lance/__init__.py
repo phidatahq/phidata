@@ -1,1 +1,1 @@
-from libs.agno.agno.vectordb.lance.lancedb import LanceDb, SearchType
+from agno.vectordb.lance.lancedb import LanceDb, SearchType

@@ -50,6 +50,7 @@ def dataclass_to_dict(dataclass_object, exclude: Optional[set[str]] = None, excl
         final_dict = {k: v for k, v in final_dict.items() if v is not None}
     return final_dict
 
+
 def nested_model_dump(value):
     if isinstance(value, BaseModel):
         return value.model_dump()

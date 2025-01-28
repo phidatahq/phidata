@@ -42,6 +42,7 @@ from pydantic import BaseModel, Field
 
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 
+
 class NewsArticle(BaseModel):
     title: str = Field(..., description="Title of the article.")
     url: str = Field(..., description="Link to the article.")
@@ -263,7 +264,11 @@ class BlogPostGenerator(Workflow):
     def get_cached_search_results(self, topic: str) -> Optional[SearchResults]:
         logger.info("Checking if cached search results exist")
         search_results = self.session_state.get("search_results", {}).get(topic)
-        return SearchResults.model_validate(search_results) if search_results and isinstance(search_results, dict) else search_results
+        return (
+            SearchResults.model_validate(search_results)
+            if search_results and isinstance(search_results, dict)
+            else search_results
+        )
 
     def add_search_results_to_cache(self, topic: str, search_results: SearchResults):
         logger.info(f"Saving search results for topic: {topic}")
@@ -275,7 +280,11 @@ class BlogPostGenerator(Workflow):
     ) -> Optional[Dict[str, ScrapedArticle]]:
         logger.info("Checking if cached scraped articles exist")
         scraped_articles = self.session_state.get("scraped_articles", {}).get(topic)
-        return ScrapedArticle.model_validate(scraped_articles) if scraped_articles and isinstance(scraped_articles, dict) else scraped_articles
+        return (
+            ScrapedArticle.model_validate(scraped_articles)
+            if scraped_articles and isinstance(scraped_articles, dict)
+            else scraped_articles
+        )
 
     def add_scraped_articles_to_cache(
         self, topic: str, scraped_articles: Dict[str, ScrapedArticle]
@@ -368,7 +377,6 @@ class BlogPostGenerator(Workflow):
         # Save the scraped articles in the session state
         self.add_scraped_articles_to_cache(topic, scraped_articles)
         return scraped_articles
-
 
 
 # Run the workflow if the script is executed directly

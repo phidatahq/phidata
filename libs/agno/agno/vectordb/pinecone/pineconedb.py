@@ -1,7 +1,7 @@
 from typing import Any, Dict, List, Optional, Union
 
 try:
-    from libs.agno.agno.vectordb.pinecone.pineconedb import Pinecone, PodSpec, ServerlessSpec
+    from agno.vectordb.pinecone.pineconedb import Pinecone, PodSpec, ServerlessSpec
     from pinecone.config import Config
 except ImportError:
     raise ImportError("The `pinecone` package is not installed, please install using `pip install pinecone`.")

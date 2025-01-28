@@ -2,7 +2,7 @@ from agno.agent import Agent
 from agno.embedder.mistral import MistralEmbedder
 from agno.knowledge.pdf_url import PDFUrlKnowledgeBase
 from agno.models.mistral import MistralChat
-from agno.vectordb.cassandra.cassandra import CassandraDb
+from agno.vectordb.cassandra import CassandraDb
 
 try:
     from cassandra.cluster import Cluster  # type: ignore

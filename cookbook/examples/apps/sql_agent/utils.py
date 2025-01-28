@@ -143,48 +143,35 @@ def sidebar_widget() -> None:
             load_data_and_knowledge()
 
 
-def session_selector_widget(agent: Agent, model_id: str) -> None:
-    """Display a session selector in the sidebar"""
+def session_manager(agent: Agent, model_id: str) -> None:
+    """Display session management widgets in the sidebar"""
+    if not agent.storage:
+        return
 
-    if agent.storage:
-        agent_sessions = agent.storage.get_all_sessions()
-        # Get session names if available, otherwise use IDs
-        session_options = []
-        for session in agent_sessions:
-            session_id = session.session_id
-            session_name = (
-                session.session_data.get("session_name", None)
-                if session.session_data
-                else None
-            )
-            display_name = session_name if session_name else session_id
-            session_options.append({"id": session_id, "display": display_name})
-
-        # Display session selector
-        selected_session = st.sidebar.selectbox(
-            "Session",
-            options=[s["display"] for s in session_options],
-            key="session_selector",
+    # Get all sessions and prepare options
+    agent_sessions = agent.storage.get_all_sessions()
+    session_options = []
+    for session in agent_sessions:
+        session_id = session.session_id
+        session_name = (
+            session.session_data.get("session_name", None)
+            if session.session_data
+            else None
         )
-        # Find the selected session ID
-        selected_session_id = next(
-            s["id"] for s in session_options if s["display"] == selected_session
-        )
+        display_name = session_name if session_name else session_id
+        session_options.append({"id": session_id, "display": display_name})
 
-        if st.session_state["sql_agent_session_id"] != selected_session_id:
-            logger.info(
-                f"---*--- Loading {model_id} run: {selected_session_id} ---*---"
-            )
-            st.session_state["sql_agent"] = get_sql_agent(
-                model_id=model_id,
-                session_id=selected_session_id,
-            )
-            st.rerun()
+    # Session selector
+    selected_session = st.sidebar.selectbox(
+        "Session",
+        options=[s["display"] for s in session_options],
+        key="session_selector",
+    )
+    selected_session_id = next(
+        s["id"] for s in session_options if s["display"] == selected_session
+    )
 
-
-def rename_session_widget(agent: Agent) -> None:
-    """Rename the current session of the agent and save to storage"""
-
+    # Session rename interface
     container = st.sidebar.container()
     session_row = container.columns([3, 1], vertical_alignment="center")
 
@@ -210,9 +197,19 @@ def rename_session_widget(agent: Agent) -> None:
                     agent.rename_session(new_session_name)
                     st.session_state.session_edit_mode = False
                     container.success("Renamed!")
+                    st.rerun()  # Refresh to update the session selector
         else:
             if st.button("✎", key="edit_session_name"):
                 st.session_state.session_edit_mode = True
+
+    # Handle session switching
+    if st.session_state["sql_agent_session_id"] != selected_session_id:
+        logger.info(f"---*--- Loading {model_id} run: {selected_session_id} ---*---")
+        st.session_state["sql_agent"] = get_sql_agent(
+            model_id=model_id,
+            session_id=selected_session_id,
+        )
+        st.rerun()
 
 
 def about_widget() -> None:

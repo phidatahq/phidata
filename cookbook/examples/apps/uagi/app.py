@@ -1,13 +1,15 @@
 import nest_asyncio
 import streamlit as st
-from agents import get_sql_agent
+from agents import get_uagi
 from agno.agent import Agent
 from agno.utils.log import logger
 from utils import (
     CUSTOM_CSS,
     about_widget,
     add_message,
+    display_team_memory,
     display_tool_calls,
+    knowledge_manager,
     session_manager,
     sidebar_widget,
 )
@@ -16,7 +18,7 @@ nest_asyncio.apply()
 
 # Page configuration
 st.set_page_config(
-    page_title="F1 SQL Agent",
+    page_title="UAgI",
     page_icon=":checkered_flag:",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -30,9 +32,11 @@ def main() -> None:
     ####################################################################
     # App header
     ####################################################################
-    st.markdown("<h1 class='main-title'>F1 SQL Agent</h1>", unsafe_allow_html=True)
     st.markdown(
-        "<p class='subtitle'>Your intelligent F1 data analyst powered by Agno</p>",
+        "<h1 class='main-title'>Universal Agent Interface</h1>", unsafe_allow_html=True
+    )
+    st.markdown(
+        "<p class='subtitle'>Your intelligent AI assistant powered by Agno</p>",
         unsafe_allow_html=True,
     )
 
@@ -53,34 +57,65 @@ def main() -> None:
     model_id = model_options[selected_model]
 
     ####################################################################
+    # Sidebar
+    ####################################################################
+    sidebar_widget()
+
+    ####################################################################
     # Initialize Agent
     ####################################################################
-    sql_agent: Agent
+    uagi: Agent
     if (
-        "sql_agent" not in st.session_state
-        or st.session_state["sql_agent"] is None
+        "uagi" not in st.session_state
+        or st.session_state["uagi"] is None
         or st.session_state.get("current_model") != model_id
     ):
-        logger.info("---*--- Creating new SQL agent ---*---")
-        sql_agent = get_sql_agent(model_id=model_id)
-        st.session_state["sql_agent"] = sql_agent
+        uagi = get_uagi(
+            model_id=model_id,
+            # Pull tools from session state
+            calculator=st.session_state.get("calculator_enabled", True),
+            ddg_search=st.session_state.get("ddg_search_enabled", True),
+            shell_tools=st.session_state.get("shell_tools_enabled", False),
+            file_tools=st.session_state.get("file_tools_enabled", True),
+            # Pull team members from session state
+            data_analyst=st.session_state.get("data_analyst_enabled", False),
+            python_agent=st.session_state.get("python_agent_enabled", False),
+            research_agent=st.session_state.get("research_agent_enabled", False),
+            investment_agent=st.session_state.get("investment_agent_enabled", False),
+        )
+        st.session_state["uagi"] = uagi
         st.session_state["current_model"] = model_id
     else:
-        sql_agent = st.session_state["sql_agent"]
+        uagi = st.session_state["uagi"]
 
     ####################################################################
     # Load Agent Session from the database
     ####################################################################
     try:
-        st.session_state["sql_agent_session_id"] = sql_agent.load_session()
+        st.session_state["uagi_session_id"] = uagi.load_session()
     except Exception:
         st.warning("Could not create Agent session, is the database running?")
         return
 
     ####################################################################
+    # Session manager
+    ####################################################################
+    session_manager(uagi, model_id)
+
+    ####################################################################
+    # Knowledge manager
+    ####################################################################
+    knowledge_manager(uagi)
+
+    ####################################################################
+    # About section
+    ####################################################################
+    about_widget()
+
+    ####################################################################
     # Load runs from memory
     ####################################################################
-    agent_runs = sql_agent.memory.runs
+    agent_runs = uagi.memory.runs
     if len(agent_runs) > 0:
         logger.debug("Loading run history")
         st.session_state["messages"] = []
@@ -94,14 +129,9 @@ def main() -> None:
         st.session_state["messages"] = []
 
     ####################################################################
-    # Sidebar
-    ####################################################################
-    sidebar_widget()
-
-    ####################################################################
     # Get user input
     ####################################################################
-    if prompt := st.chat_input("👋 Ask me about F1 data from 1950 to 2020!"):
+    if prompt := st.chat_input("👋 How can I help?"):
         add_message("user", prompt)
 
     ####################################################################
@@ -133,7 +163,7 @@ def main() -> None:
                 response = ""
                 try:
                     # Run the agent and stream the response
-                    run_response = sql_agent.run(question, stream=True)
+                    run_response = uagi.run(question, stream=True)
                     for _resp_chunk in run_response:
                         # Display tool calls if available
                         if _resp_chunk.tools and len(_resp_chunk.tools) > 0:
@@ -144,21 +174,11 @@ def main() -> None:
                             response += _resp_chunk.content
                             resp_container.markdown(response)
 
-                    add_message("assistant", response, sql_agent.run_response.tools)
+                    add_message("assistant", response, uagi.run_response.tools)
                 except Exception as e:
                     error_message = f"Sorry, I encountered an error: {str(e)}"
                     add_message("assistant", error_message)
                     st.error(error_message)
-
-    ####################################################################
-    # Session manager
-    ####################################################################
-    session_manager(sql_agent, model_id)
-
-    ####################################################################
-    # About section
-    ####################################################################
-    about_widget()
 
 
 if __name__ == "__main__":

@@ -3,7 +3,6 @@
 from agno.agent import Agent
 from agno.knowledge.pdf_url import PDFUrlKnowledgeBase
 
-# os.environ["OPENAI_API_KEY"] = ""
 from agno.vectordb.mongodb import MongoDBVector
 
 # MongoDB Atlas connection string

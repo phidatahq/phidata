@@ -1,19 +1,27 @@
 """
 1. Install dependencies using: `pip install openai duckduckgo-search sqlalchemy 'fastapi[standard]' newspaper4k lxml_html_clean yfinance agno`
-2. Run the script using: `python cookbook/workflows/workflows_playground.py`
+2. Run the script using: `python cookbook/examples/tbd/workflows/workflows_playground.py`
 """
+
+import sys
+from pathlib import Path
+
+# Add the project root to Python path
+project_root = str(Path(__file__).parent.parent.parent.parent.parent)
+if project_root not in sys.path:
+    sys.path.append(project_root)
 
 from agno.playground import Playground, serve_playground_app
 from agno.storage.workflow.sqlite import SqliteWorkflowStorage
 
-# Import the workflows
-from blog_post_generator.blog_post_generator import BlogPostGenerator
-from game_generator.game_generator import GameGenerator
-from investment_report_generator.investment_report_generator import (
-    InvestmentReportGenerator,
-)
-from news_report_generator.news_report_generator import NewsReportGenerator
 
+# Import the workflows
+from cookbook.workflows.blog_post_generator import BlogPostGenerator
+from cookbook.workflows.investment_report_generator import InvestmentReportGenerator
+from cookbook.examples.apps.game_generator.game_generator import GameGenerator
+
+
+# from cookbook.workflows.news_report_generator import NewsReportGenerator
 from cookbook.workflows.startup_idea_validator import StartupIdeaValidator
 
 # Initialize the workflows with SQLite storage
@@ -25,13 +33,13 @@ blog_post_generator = BlogPostGenerator(
         db_file="tmp/workflows.db",
     ),
 )
-news_report_generator = NewsReportGenerator(
-    workflow_id="generate-news-report",
-    storage=SqliteWorkflowStorage(
-        table_name="generate_news_report_workflows",
-        db_file="tmp/workflows.db",
-    ),
-)
+# news_report_generator = NewsReportGenerator(
+#     workflow_id="generate-news-report",
+#     storage=SqliteWorkflowStorage(
+#         table_name="generate_news_report_workflows",
+#         db_file="tmp/workflows.db",
+#     ),
+# )
 
 investment_report_generator = InvestmentReportGenerator(
     workflow_id="generate-investment-report",
@@ -61,7 +69,6 @@ game_generator = GameGenerator(
 app = Playground(
     workflows=[
         blog_post_generator,
-        news_report_generator,
         investment_report_generator,
         game_generator,
         startup_idea_validator,

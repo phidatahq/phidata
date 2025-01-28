@@ -1,1 +1,1 @@
-from agno.vectordb.pinecone.pineconedb import PineconeDB
+from agno.vectordb.pinecone.pineconedb import PineconeDb

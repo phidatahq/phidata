@@ -1,5 +1,5 @@
 """
-1. Run: `./cookbook/run_pgvector.sh` to start a postgres container with pgvector
+1. Run: `./cookbook/run_pgvector.sh` to start a postgres container with PostgresDb
 2. Run: `pip install openai sqlalchemy 'psycopg[binary]' pgvector agno` to install the dependencies
 3. Run: `python cookbook/rag/01_traditional_rag_pgvector.py` to run the agent
 """
@@ -8,14 +8,14 @@ from agno.agent import Agent
 from agno.embedder.openai import OpenAIEmbedder
 from agno.knowledge.pdf_url import PDFUrlKnowledgeBase
 from agno.models.openai import OpenAIChat
-from agno.vectordb.pgvector import PgVector, SearchType
+from agno.vectordb.postgres import PostgresDb, SearchType
 
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 # Create a knowledge base of PDFs from URLs
 knowledge_base = PDFUrlKnowledgeBase(
     urls=["https://agno-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
-    # Use PgVector as the vector database and store embeddings in the `ai.recipes` table
-    vector_db=PgVector(
+    # Use PostgresDb as the vector database and store embeddings in the `ai.recipes` table
+    vector_db=PostgresDb(
         table_name="recipes",
         db_url=db_url,
         search_type=SearchType.hybrid,

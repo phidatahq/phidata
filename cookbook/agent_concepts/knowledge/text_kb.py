@@ -2,7 +2,7 @@ from pathlib import Path
 
 from agno.agent import Agent
 from agno.knowledge.text import TextKnowledgeBase
-from agno.vectordb.pgvector import PgVector
+from agno.vectordb.postgres import PostgresDb
 
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 
@@ -10,7 +10,7 @@ db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 # Initialize the TextKnowledgeBase
 knowledge_base = TextKnowledgeBase(
     path=Path("data/docs"),  # Table name: ai.text_documents
-    vector_db=PgVector(
+    vector_db=PostgresDb(
         table_name="text_documents",
         db_url=db_url,
     ),

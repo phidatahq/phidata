@@ -1,7 +1,7 @@
 from typing import Any, Dict, List, Optional, Union
 
 try:
-    from pinecone import Pinecone, PodSpec, ServerlessSpec
+    from libs.agno.agno.vectordb.pinecone.pineconedb import Pinecone, PodSpec, ServerlessSpec
     from pinecone.config import Config
 except ImportError:
     raise ImportError("The `pinecone` package is not installed, please install using `pip install pinecone`.")
@@ -13,7 +13,7 @@ from agno.utils.log import logger
 from agno.vectordb.base import VectorDb
 
 
-class PineconeDB(VectorDb):
+class PineconeDb(VectorDb):
     """A class representing a Pinecone database.
 
     Args:

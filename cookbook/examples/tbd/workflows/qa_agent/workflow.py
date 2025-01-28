@@ -10,7 +10,7 @@ from agno.knowledge.website import WebsiteKnowledgeBase
 from agno.models.openai import OpenAIChat
 from agno.run.response import RunResponse
 from agno.utils.log import logger
-from agno.vectordb.lancedb import LanceDb
+from agno.vectordb.lance import LanceDb
 from agno.vectordb.search import SearchType
 from agno.workflow import Workflow
 from dotenv import load_dotenv

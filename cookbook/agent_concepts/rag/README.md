@@ -15,7 +15,7 @@ source ~/.venvs/aienv/bin/activate
 pip install -U openai sqlalchemy "psycopg[binary]" pgvector lancedb tantivy pypdf sqlalchemy "fastapi[standard]" agno
 ```
 
-### 3. Run PgVector
+### 3. Run PostgresDb
 
 > Install [docker desktop](https://docs.docker.com/desktop/install/mac-install/) first.
 
@@ -39,13 +39,13 @@ docker run -d \
   agnohq/pgvector:16
 ```
 
-### 4. Run the Traditional RAG with PgVector
+### 4. Run the Traditional RAG with PostgresDb
 
 ```shell
 python cookbook/agent_concepts/rag/traditional_rag_pgvector.py
 ```
 
-### 5. Run the Agentic RAG with PgVector
+### 5. Run the Agentic RAG with PostgresDb
 
 ```shell
 python cookbook/agent_concepts/rag/agentic_rag_pgvector.py

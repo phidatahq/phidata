@@ -24,13 +24,13 @@ from agno.reranker.base import Reranker
 from agno.utils.log import logger
 from agno.vectordb.base import VectorDb
 from agno.vectordb.distance import Distance
-from agno.vectordb.pgvector.index import HNSW, Ivfflat
+from agno.vectordb.postgres.index import HNSW, Ivfflat
 from agno.vectordb.search import SearchType
 
 
-class PgVector(VectorDb):
+class PostgresDb(VectorDb):
     """
-    PgVector class for managing vector operations with PostgreSQL and pgvector.
+    PostgresDb class for managing vector operations with PostgreSQL and pgvector.
 
     This class provides methods for creating, inserting, searching, and managing
     vector data in a PostgreSQL database using the pgvector extension.
@@ -54,7 +54,7 @@ class PgVector(VectorDb):
         reranker: Optional[Reranker] = None,
     ):
         """
-        Initialize the PgVector instance.
+        Initialize the PostgresDb instance.
 
         Args:
             table_name (str): Name of the table to store vector data.
@@ -129,7 +129,7 @@ class PgVector(VectorDb):
         self.Session: scoped_session = scoped_session(sessionmaker(bind=self.db_engine))
         # Database table
         self.table: Table = self.get_table()
-        logger.debug(f"Initialized PgVector with table '{self.schema}.{self.table_name}'")
+        logger.debug(f"Initialized PostgresDb with table '{self.schema}.{self.table_name}'")
 
     def get_table_v1(self) -> Table:
         """
@@ -333,7 +333,7 @@ class PgVector(VectorDb):
         Check if upsert operation is available.
 
         Returns:
-            bool: Always returns True for PgVector.
+            bool: Always returns True for PostgresDb.
         """
         return True
 
@@ -993,13 +993,13 @@ class PgVector(VectorDb):
 
     def __deepcopy__(self, memo):
         """
-        Create a deep copy of the PgVector instance, handling unpickleable attributes.
+        Create a deep copy of the PostgresDb instance, handling unpickleable attributes.
 
         Args:
             memo (dict): A dictionary of objects already copied during the current copying pass.
 
         Returns:
-            PgVector: A deep-copied instance of PgVector.
+            PostgresDb: A deep-copied instance of PostgresDb.
         """
         from copy import deepcopy
 

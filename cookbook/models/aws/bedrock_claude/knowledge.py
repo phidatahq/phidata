@@ -3,13 +3,13 @@
 from agno.agent import Agent
 from agno.knowledge.pdf_url import PDFUrlKnowledgeBase
 from agno.models.aws.claude import Claude
-from agno.vectordb.pgvector import PgVector
+from agno.vectordb.postgres import PostgresDb
 
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 
 knowledge_base = PDFUrlKnowledgeBase(
     urls=["https://agno-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
-    vector_db=PgVector(table_name="recipes", db_url=db_url),
+    vector_db=PostgresDb(table_name="recipes", db_url=db_url),
 )
 knowledge_base.load(recreate=True)  # Comment out after first run
 

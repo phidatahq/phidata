@@ -13,13 +13,13 @@ source ~/.venvs/aienv/bin/activate
 pip install -U pgvector pypdf "psycopg[binary]" sqlalchemy openai agno
 ```
 
-### 3. Run PgVector
+### 3. Run PostgresDb
 
 ```shell
 ./cookbook/scripts/run_pgvector.sh
 ```
 
-### 4. Run PgVector Hybrid Search Agent
+### 4. Run PostgresDb Hybrid Search Agent
 
 ```shell
 python cookbook/agent_concepts/hybrid_search/pgvector/agent.py

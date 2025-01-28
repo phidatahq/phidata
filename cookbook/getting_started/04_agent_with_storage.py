@@ -25,7 +25,7 @@ from agno.knowledge.pdf_url import PDFUrlKnowledgeBase
 from agno.models.openai import OpenAIChat
 from agno.storage.agent.sqlite import SqliteAgentStorage
 from agno.tools.duckduckgo import DuckDuckGoTools
-from agno.vectordb.lancedb import LanceDb, SearchType
+from agno.vectordb.lance import LanceDb, SearchType
 from rich import print
 
 agent_knowledge = PDFUrlKnowledgeBase(

@@ -7,7 +7,7 @@ from agno.knowledge.pdf_url import PDFUrlKnowledgeBase
 from agno.models.openai import OpenAIChat
 from agno.tools.duckduckgo import DuckDuckGoTools
 from agno.tools.yfinance import YFinanceTools
-from agno.vectordb.lancedb import LanceDb, SearchType
+from agno.vectordb.lance import LanceDb, SearchType
 
 # Level 0: Agents with no tools (basic inference tasks).
 level_0_agent = Agent(

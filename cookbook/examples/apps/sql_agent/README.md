@@ -19,7 +19,7 @@ source .venv/bin/activate
 pip install -r cookbook/examples/apps/sql_agent/requirements.txt
 ```
 
-### 3. Run PgVector
+### 3. Run PostgresDb
 
 Let's use Postgres for storing our data, but the SQL Agent should work with any database.
 

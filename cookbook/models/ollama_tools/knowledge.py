@@ -16,13 +16,13 @@ from agno.agent import Agent
 from agno.embedder.ollama import OllamaEmbedder
 from agno.knowledge.pdf_url import PDFUrlKnowledgeBase
 from agno.models.ollama import OllamaTools
-from agno.vectordb.pgvector import PgVector
+from agno.vectordb.postgres import PostgresDb
 
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 
 knowledge_base = PDFUrlKnowledgeBase(
     urls=["https://agno-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
-    vector_db=PgVector(
+    vector_db=PostgresDb(
         table_name="ollama_recipes",
         db_url=db_url,
         embedder=OllamaEmbedder(id="nomic-embed-text", dimensions=768),

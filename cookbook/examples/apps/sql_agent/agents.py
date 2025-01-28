@@ -37,7 +37,7 @@ from agno.models.openai import OpenAIChat
 from agno.storage.agent.postgres import PostgresAgentStorage
 from agno.tools.file import FileTools
 from agno.tools.sql import SQLTools
-from agno.vectordb.pgvector import PgVector
+from agno.vectordb.postgres import PostgresDb
 
 # ************* Database Connection *************
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
@@ -70,7 +70,7 @@ agent_knowledge = CombinedKnowledgeBase(
         JSONKnowledgeBase(path=knowledge_dir),
     ],
     # Store agent knowledge in the ai.sql_agent_knowledge table
-    vector_db=PgVector(
+    vector_db=PostgresDb(
         db_url=db_url,
         table_name="sql_agent_knowledge",
         schema="ai",

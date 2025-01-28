@@ -17,7 +17,7 @@ source ~/.venvs/aienv/bin/activate
 pip install -U pgvector "psycopg[binary]" sqlalchemy openai agno
 ```
 
-### 3. Run PgVector
+### 3. Run PostgresDb
 
 > Install [docker desktop](https://docs.docker.com/desktop/install/mac-install/) first.
 

@@ -14,7 +14,7 @@ from agno.vectordb.base import VectorDb
 from agno.vectordb.distance import Distance
 
 
-class Milvus(VectorDb):
+class MilvusDb(VectorDb):
     def __init__(
         self,
         collection: str,

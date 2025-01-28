@@ -1,6 +1,6 @@
 from agno.agent import Agent
 from agno.knowledge.wikipedia import WikipediaKnowledgeBase
-from agno.vectordb.pgvector import PgVector
+from agno.vectordb.postgres import PostgresDb
 
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 
@@ -8,7 +8,7 @@ db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 knowledge_base = WikipediaKnowledgeBase(
     topics=["Manchester United", "Real Madrid"],
     # Table name: ai.wikipedia_documents
-    vector_db=PgVector(
+    vector_db=PostgresDb(
         table_name="wikipedia_documents",
         db_url=db_url,
     ),

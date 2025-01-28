@@ -1,7 +1,7 @@
 from agno.agent import Agent
 from agno.document.base import Document
 from agno.knowledge.document import DocumentKnowledgeBase
-from agno.vectordb.pgvector import PgVector
+from agno.vectordb.postgres import PostgresDb
 
 fun_facts = """
 - Earth is the third planet from the Sun and the only known astronomical object to support life.
@@ -26,7 +26,7 @@ db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 # Create a knowledge base with the loaded documents
 knowledge_base = DocumentKnowledgeBase(
     documents=documents,
-    vector_db=PgVector(
+    vector_db=PostgresDb(
         table_name="documents",
         db_url=db_url,
     ),

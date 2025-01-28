@@ -2,14 +2,14 @@ from pathlib import Path
 
 from agno.agent import Agent
 from agno.knowledge.json import JSONKnowledgeBase
-from agno.vectordb.pgvector import PgVector
+from agno.vectordb.postgres import PostgresDb
 
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 
 # Initialize the JSONKnowledgeBase
 knowledge_base = JSONKnowledgeBase(
     path=Path("data/json"),  # Table name: ai.json_documents
-    vector_db=PgVector(
+    vector_db=PostgresDb(
         table_name="json_documents",
         db_url=db_url,
     ),

@@ -24,7 +24,7 @@ from agno.vectordb.base import VectorDb
 from agno.vectordb.distance import Distance
 
 
-class S2VectorDb(VectorDb):
+class SinglestoreDb(VectorDb):
     def __init__(
         self,
         collection: str,

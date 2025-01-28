@@ -1,6 +1,6 @@
 from agno.agent import Agent
 from agno.knowledge.website import WebsiteKnowledgeBase
-from agno.vectordb.pgvector import PgVector
+from agno.vectordb.postgres import PostgresDb
 
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 
@@ -10,7 +10,7 @@ knowledge_base = WebsiteKnowledgeBase(
     # Number of links to follow from the seed URLs
     max_links=10,
     # Table name: ai.website_documents
-    vector_db=PgVector(
+    vector_db=PostgresDb(
         table_name="website_documents",
         db_url=db_url,
     ),

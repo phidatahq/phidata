@@ -8,7 +8,7 @@ from agno.embedder.openai import OpenAIEmbedder
 from agno.knowledge.pdf_url import PDFUrlKnowledgeBase
 from agno.models.openai import OpenAIChat
 from agno.reranker.cohere import CohereReranker
-from agno.vectordb.lancedb import LanceDb, SearchType
+from agno.vectordb.lance import LanceDb, SearchType
 
 # Create a knowledge base of PDFs from URLs
 knowledge_base = PDFUrlKnowledgeBase(

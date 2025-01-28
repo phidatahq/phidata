@@ -5,7 +5,7 @@ from agno.embedder.ollama import OllamaEmbedder
 from agno.knowledge.pdf_url import PDFUrlKnowledgeBase
 from agno.models.ollama import Ollama
 from agno.storage.agent.sqlite import SqliteAgentStorage
-from agno.vectordb.lancedb import LanceDb
+from agno.vectordb.lance import LanceDb
 
 # Define the database URL where the vector database will be stored
 db_url = "/tmp/lancedb"

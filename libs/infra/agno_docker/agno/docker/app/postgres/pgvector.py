@@ -1,7 +1,7 @@
 from agno.docker.app.postgres.postgres import PostgresDb
 
 
-class PgVectorDb(PostgresDb):
+class PostgresDbDb(PostgresDb):
     # -*- App Name
     name: str = "pgvector"
 

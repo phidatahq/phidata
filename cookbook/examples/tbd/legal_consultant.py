@@ -1,7 +1,7 @@
 from agno.agent import Agent
 from agno.knowledge.pdf_url import PDFUrlKnowledgeBase
 from agno.models.openai import OpenAIChat
-from agno.vectordb.pgvector import PgVector
+from agno.vectordb.postgres import PostgresDb
 
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 
@@ -9,7 +9,7 @@ knowledge_base = PDFUrlKnowledgeBase(
     urls=[
         "https://www.justice.gov/d9/criminal-ccips/legacy/2015/01/14/ccmanual_0.pdf",
     ],
-    vector_db=PgVector(table_name="legal_docs", db_url=db_url),
+    vector_db=PostgresDb(table_name="legal_docs", db_url=db_url),
 )
 knowledge_base.load(recreate=False)
 

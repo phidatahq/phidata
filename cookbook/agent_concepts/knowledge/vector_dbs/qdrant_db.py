@@ -1,10 +1,10 @@
 from agno.agent import Agent
 from agno.knowledge.pdf_url import PDFUrlKnowledgeBase
-from agno.vectordb.qdrant import Qdrant
+from agno.vectordb.qdrant import QdrantDb
 
 COLLECTION_NAME = "thai-recipes"
 
-vector_db = Qdrant(collection=COLLECTION_NAME, url="http://localhost:6333")
+vector_db = QdrantDb(collection=COLLECTION_NAME, url="http://localhost:6333")
 
 knowledge_base = PDFUrlKnowledgeBase(
     urls=["https://agno-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],

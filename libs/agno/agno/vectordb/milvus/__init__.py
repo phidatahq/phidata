@@ -1,1 +1,1 @@
-from agno.vectordb.milvus.milvus import Milvus
+from libs.agno.agno.vectordb.milvus.milvusdb import MilvusDb

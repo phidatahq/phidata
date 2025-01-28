@@ -70,7 +70,7 @@ python cookbook/vector_dbs/clickhouse.py
 python cookbook/vector_dbs/lance_db.py
 ```
 
-### PgVector
+### PostgresDb
 
 > Install [docker desktop](https://docs.docker.com/desktop/install/mac-install/) first.
 

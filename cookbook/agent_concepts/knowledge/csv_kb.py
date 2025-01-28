@@ -2,14 +2,14 @@ from pathlib import Path
 
 from agno.agent import Agent
 from agno.knowledge.csv import CSVKnowledgeBase
-from agno.vectordb.pgvector import PgVector
+from agno.vectordb.postgres import PostgresDb
 
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 
 
 knowledge_base = CSVKnowledgeBase(
     path=Path("data/csvs"),
-    vector_db=PgVector(
+    vector_db=PostgresDb(
         table_name="csv_documents",
         db_url=db_url,
     ),

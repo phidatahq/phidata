@@ -17,7 +17,7 @@ from agno.vectordb.base import VectorDb
 from agno.vectordb.distance import Distance
 
 
-class Qdrant(VectorDb):
+class QdrantDb(VectorDb):
     def __init__(
         self,
         collection: str,

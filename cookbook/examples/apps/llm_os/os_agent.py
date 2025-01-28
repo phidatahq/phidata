@@ -18,7 +18,7 @@ from agno.tools.python import PythonTools
 from agno.tools.shell import ShellTools
 from agno.tools.yfinance import YFinanceTools
 from agno.utils.log import logger
-from agno.vectordb.qdrant import Qdrant
+from agno.vectordb.qdrant import QdrantDb
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -249,7 +249,7 @@ def get_llm_os(
         storage=PostgresAgentStorage(db_url=db_url, table_name="llm_os_runs"),
         # Define the knowledge base
         knowledge=AgentKnowledge(
-            vector_db=Qdrant(
+            vector_db=QdrantDb(
                 collection="llm_os_documents",
                 embedder=OpenAIEmbedder(),
             ),

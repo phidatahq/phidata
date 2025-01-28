@@ -54,7 +54,7 @@ export OPENAI_API_KEY=***
 export EXA_API_KEY=xxx
 ```
 
-### 4. Run PgVector
+### 4. Run PostgresDb
 
 We use Postgres to provide long-term memory to the LLM OS.
 Please install [docker desktop](https://docs.docker.com/desktop/install/mac-install/) and run Postgres using either the helper script or the `docker run` command.

@@ -2,14 +2,14 @@ from pathlib import Path
 
 from agno.agent import Agent
 from agno.knowledge.docx import DocxKnowledgeBase
-from agno.vectordb.pgvector import PgVector
+from agno.vectordb.postgres import PostgresDb
 
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 
 # Create a knowledge base with the DOCX files from the data/docs directory
 knowledge_base = DocxKnowledgeBase(
     path=Path("data/docs"),
-    vector_db=PgVector(
+    vector_db=PostgresDb(
         table_name="docx_documents",
         db_url=db_url,
     ),

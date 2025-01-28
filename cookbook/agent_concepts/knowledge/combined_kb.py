@@ -6,14 +6,14 @@ from agno.knowledge.csv import CSVKnowledgeBase
 from agno.knowledge.pdf import PDFKnowledgeBase
 from agno.knowledge.pdf_url import PDFUrlKnowledgeBase
 from agno.knowledge.website import WebsiteKnowledgeBase
-from agno.vectordb.pgvector import PgVector
+from agno.vectordb.postgres import PostgresDb
 
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 
 # Create CSV knowledge base
 csv_kb = CSVKnowledgeBase(
     path=Path("data/csvs"),
-    vector_db=PgVector(
+    vector_db=PostgresDb(
         table_name="csv_documents",
         db_url=db_url,
     ),
@@ -22,7 +22,7 @@ csv_kb = CSVKnowledgeBase(
 # Create PDF URL knowledge base
 pdf_url_kb = PDFUrlKnowledgeBase(
     urls=["https://agno-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
-    vector_db=PgVector(
+    vector_db=PostgresDb(
         table_name="pdf_documents",
         db_url=db_url,
     ),
@@ -32,7 +32,7 @@ pdf_url_kb = PDFUrlKnowledgeBase(
 website_kb = WebsiteKnowledgeBase(
     urls=["https://docs.agno.com/introduction"],
     max_links=10,
-    vector_db=PgVector(
+    vector_db=PostgresDb(
         table_name="website_documents",
         db_url=db_url,
     ),
@@ -41,7 +41,7 @@ website_kb = WebsiteKnowledgeBase(
 # Create Local PDF knowledge base
 local_pdf_kb = PDFKnowledgeBase(
     path="data/pdfs",
-    vector_db=PgVector(
+    vector_db=PostgresDb(
         table_name="pdf_documents",
         db_url=db_url,
     ),
@@ -55,7 +55,7 @@ knowledge_base = CombinedKnowledgeBase(
         website_kb,
         local_pdf_kb,
     ],
-    vector_db=PgVector(
+    vector_db=PostgresDb(
         table_name="combined_documents",
         db_url=db_url,
     ),

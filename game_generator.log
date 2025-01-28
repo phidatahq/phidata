@@ -1,0 +1,47 @@
+2025-01-29 17:10:43,702 - httpcore.connection - DEBUG - connect_tcp.started host='localhost' port=7070 local_address=None timeout=60 socket_options=None
+2025-01-29 17:10:43,703 - httpcore.connection - DEBUG - connect_tcp.complete return_value=<httpcore._backends.sync.SyncStream object at 0x1099d3710>
+2025-01-29 17:10:43,703 - httpcore.http11 - DEBUG - send_request_headers.started request=<Request [b'POST']>
+2025-01-29 17:10:43,703 - httpcore.http11 - DEBUG - send_request_headers.complete
+2025-01-29 17:10:43,703 - httpcore.http11 - DEBUG - send_request_body.started request=<Request [b'POST']>
+2025-01-29 17:10:43,703 - httpcore.http11 - DEBUG - send_request_body.complete
+2025-01-29 17:10:43,703 - httpcore.http11 - DEBUG - receive_response_headers.started request=<Request [b'POST']>
+2025-01-29 17:10:43,762 - httpcore.http11 - DEBUG - receive_response_headers.complete return_value=(b'HTTP/1.1', 500, b'Internal Server Error', [(b'date', b'Wed, 29 Jan 2025 15:10:43 GMT'), (b'server', b'uvicorn'), (b'content-length', b'21'), (b'content-type', b'text/plain; charset=utf-8')])
+2025-01-29 17:10:43,762 - httpx - INFO - HTTP Request: POST http://localhost:7070/v1/telemetry/agent/session/create "HTTP/1.1 500 Internal Server Error"
+2025-01-29 17:10:43,762 - httpcore.http11 - DEBUG - receive_response_body.started request=<Request [b'POST']>
+2025-01-29 17:10:43,762 - httpcore.http11 - DEBUG - receive_response_body.complete
+2025-01-29 17:10:43,763 - httpcore.http11 - DEBUG - response_closed.started
+2025-01-29 17:10:43,763 - httpcore.http11 - DEBUG - response_closed.complete
+2025-01-29 17:10:43,763 - httpcore.connection - DEBUG - close.started
+2025-01-29 17:10:43,763 - httpcore.connection - DEBUG - close.complete
+2025-01-29 17:10:53,215 - asyncio - DEBUG - Using selector: KqueueSelector
+2025-01-29 17:10:53,257 - httpcore.connection - DEBUG - connect_tcp.started host='localhost' port=7070 local_address=None timeout=60 socket_options=None
+2025-01-29 17:10:53,257 - httpcore.connection - DEBUG - connect_tcp.complete return_value=<httpcore._backends.sync.SyncStream object at 0x1099f6990>
+2025-01-29 17:10:53,258 - httpcore.http11 - DEBUG - send_request_headers.started request=<Request [b'POST']>
+2025-01-29 17:10:53,258 - httpcore.http11 - DEBUG - send_request_headers.complete
+2025-01-29 17:10:53,258 - httpcore.http11 - DEBUG - send_request_body.started request=<Request [b'POST']>
+2025-01-29 17:10:53,258 - httpcore.http11 - DEBUG - send_request_body.complete
+2025-01-29 17:10:53,258 - httpcore.http11 - DEBUG - receive_response_headers.started request=<Request [b'POST']>
+2025-01-29 17:10:53,280 - httpcore.http11 - DEBUG - receive_response_headers.complete return_value=(b'HTTP/1.1', 500, b'Internal Server Error', [(b'date', b'Wed, 29 Jan 2025 15:10:53 GMT'), (b'server', b'uvicorn'), (b'content-length', b'21'), (b'content-type', b'text/plain; charset=utf-8')])
+2025-01-29 17:10:53,280 - httpx - INFO - HTTP Request: POST http://localhost:7070/v1/telemetry/agent/session/create "HTTP/1.1 500 Internal Server Error"
+2025-01-29 17:10:53,280 - httpcore.http11 - DEBUG - receive_response_body.started request=<Request [b'POST']>
+2025-01-29 17:10:53,281 - httpcore.http11 - DEBUG - receive_response_body.complete
+2025-01-29 17:10:53,281 - httpcore.http11 - DEBUG - response_closed.started
+2025-01-29 17:10:53,281 - httpcore.http11 - DEBUG - response_closed.complete
+2025-01-29 17:10:53,281 - httpcore.connection - DEBUG - close.started
+2025-01-29 17:10:53,281 - httpcore.connection - DEBUG - close.complete
+2025-01-29 17:10:55,638 - asyncio - DEBUG - Using selector: KqueueSelector
+2025-01-29 17:11:16,722 - httpcore.connection - DEBUG - connect_tcp.started host='localhost' port=7070 local_address=None timeout=60 socket_options=None
+2025-01-29 17:11:16,723 - httpcore.connection - DEBUG - connect_tcp.complete return_value=<httpcore._backends.sync.SyncStream object at 0x109dbe450>
+2025-01-29 17:11:16,723 - httpcore.http11 - DEBUG - send_request_headers.started request=<Request [b'POST']>
+2025-01-29 17:11:16,723 - httpcore.http11 - DEBUG - send_request_headers.complete
+2025-01-29 17:11:16,723 - httpcore.http11 - DEBUG - send_request_body.started request=<Request [b'POST']>
+2025-01-29 17:11:16,724 - httpcore.http11 - DEBUG - send_request_body.complete
+2025-01-29 17:11:16,724 - httpcore.http11 - DEBUG - receive_response_headers.started request=<Request [b'POST']>
+2025-01-29 17:11:16,733 - httpcore.http11 - DEBUG - receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'date', b'Wed, 29 Jan 2025 15:11:16 GMT'), (b'server', b'uvicorn'), (b'content-length', b'63'), (b'content-type', b'application/json')])
+2025-01-29 17:11:16,733 - httpx - INFO - HTTP Request: POST http://localhost:7070/v1/agent/run/create "HTTP/1.1 200 OK"
+2025-01-29 17:11:16,733 - httpcore.http11 - DEBUG - receive_response_body.started request=<Request [b'POST']>
+2025-01-29 17:11:16,733 - httpcore.http11 - DEBUG - receive_response_body.complete
+2025-01-29 17:11:16,733 - httpcore.http11 - DEBUG - response_closed.started
+2025-01-29 17:11:16,733 - httpcore.http11 - DEBUG - response_closed.complete
+2025-01-29 17:11:16,733 - httpcore.connection - DEBUG - close.started
+2025-01-29 17:11:16,734 - httpcore.connection - DEBUG - close.complete

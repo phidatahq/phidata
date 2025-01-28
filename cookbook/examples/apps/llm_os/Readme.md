@@ -37,7 +37,7 @@ source ~/.venvs/llmos/bin/activate
 ### 2. Install libraries
 
 ```shell
-pip install -r cookbook/use_cases/apps/llm_os/requirements.txt
+pip install -r cookbook/examples/apps/llm_os/requirements.txt
 ```
 
 ### 3. Export credentials
@@ -92,7 +92,7 @@ docker run -d -p 6333:6333 qdrant/qdrant
 ### 6. Run the LLM OS App
 
 ```shell
-streamlit run cookbook/use_cases/apps/llm_os/app.py
+streamlit run cookbook/examples/apps/llm_os/app.py
 ```
 
 - Open [localhost:8501](http://localhost:8501) to view your LLM OS.

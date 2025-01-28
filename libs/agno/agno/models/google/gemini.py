@@ -184,55 +184,58 @@ def _format_messages(messages: List[Message]) -> List[Dict[str, Any]]:
     Returns:
         List[Dict[str, Any]]: The formatted_messages list of messages.
     """
-    formatted_messages: List = []
+    formatted_messages = []
     for message in messages:
-        message_for_model: Dict[str, Any] = {}
+        # Skip messages with no content and no tool calls
+        if not message.content and not message.tool_calls:
+            continue
 
         # Add role to the message for the model
         role = (
             "model" if message.role in ["system", "developer"] else "user" if message.role == "tool" else message.role
         )
-        message_for_model["role"] = role
 
-        # Add content to the message for the model
-        content = message.content
         # Initialize message_parts to be used for Gemini
-        message_parts: List[Any] = []
+        message_parts = []
 
         # Function calls
-        if (not content or message.role == "model") and message.tool_calls:
+        if message.tool_calls:
             for tool_call in message.tool_calls:
                 message_parts.append(
-                    Part(
-                        function_call=GeminiFunctionCall(
-                            name=tool_call["function"]["name"],
-                            args=json.loads(tool_call["function"]["arguments"]),
-                        )
-                    )
+                    {
+                        "function_call": {
+                            "name": tool_call["function"]["name"],
+                            "args": json.loads(tool_call["function"]["arguments"]),
+                        }
+                    }
                 )
         # Function results
         elif message.role == "tool" and hasattr(message, "combined_function_result"):
-            s = Struct()
+            s = {}
             for combined_result in message.combined_function_result:
                 function_name = combined_result[0]
                 function_response = combined_result[1]
                 s.update({"result": [function_response]})
-                message_parts.append(Part(function_response=GeminiFunctionResponse(name=function_name, response=s)))
+                message_parts.append({"function_response": {"name": function_name, "response": s}})
         # Normal content
         else:
-            if isinstance(content, str):
-                message_parts = [content]
+            content = message.content
+            if isinstance(content, str) and content.strip():
+                message_parts.append({"text": content})
             elif isinstance(content, list):
-                message_parts = content
-            else:
-                message_parts = [" "]
+                text_parts = [{"text": part} for part in content if isinstance(part, str) and part.strip()]
+                if text_parts:
+                    message_parts.extend(text_parts)
+
+        # Skip if no valid parts were added
+        if not message_parts:
+            continue
 
         if message.role == "user":
             # Add images to the message for the model
             if message.images is not None:
                 for image in message.images:
                     if image.content is not None and isinstance(image.content, file_types.File):
-                        # Google recommends that if using a single image, place the text prompt after the image.
                         message_parts.insert(0, image.content)
                     else:
                         image_content = _format_image_for_message(image)
@@ -243,19 +246,13 @@ def _format_messages(messages: List[Message]) -> List[Dict[str, Any]]:
             if message.videos is not None:
                 try:
                     for video in message.videos:
-                        # Case 1: Video is a file_types.File object (Recommended)
-                        # Add it as a File object
                         if video.content is not None and isinstance(video.content, file_types.File):
-                            # Google recommends that if using a single image, place the text prompt after the image.
                             message_parts.insert(0, video.content)
                         else:
                             video_file = _format_video_for_message(video)
-
-                            # Google recommends that if using a single video, place the text prompt after the video.
                             if video_file is not None:
-                                message_parts.insert(0, video_file)  # type: ignore
+                                message_parts.insert(0, video_file)
                 except Exception as e:
-                    traceback.print_exc()
                     logger.warning(f"Failed to load video from {message.videos}: {e}")
                     continue
 
@@ -264,7 +261,6 @@ def _format_messages(messages: List[Message]) -> List[Dict[str, Any]]:
                 try:
                     for audio_snippet in message.audio:
                         if audio_snippet.content is not None and isinstance(audio_snippet.content, file_types.File):
-                            # Google recommends that if using a single image, place the text prompt after the image.
                             message_parts.insert(0, audio_snippet.content)
                         else:
                             audio_content = _format_audio_for_message(audio_snippet)
@@ -274,8 +270,10 @@ def _format_messages(messages: List[Message]) -> List[Dict[str, Any]]:
                     logger.warning(f"Failed to load audio from {message.audio}: {e}")
                     continue
 
-        message_for_model["parts"] = message_parts
-        formatted_messages.append(message_for_model)
+        # Only add message if it has parts
+        if message_parts:
+            formatted_messages.append({"role": role, "parts": message_parts})
+
     return formatted_messages
 
 

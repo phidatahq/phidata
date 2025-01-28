@@ -48,15 +48,7 @@ docker run -d \
   agnohq/pgvector:16
 ```
 
-### 5. Run QDrant
-
-run using the docker run command
-
-```shell
-docker run -d -p 6333:6333 qdrant/qdrant
-```
-
-### 6. Run Agentic RAG App
+### 5. Run Agentic RAG App
 
 ```shell
 streamlit run cookbook/examples/apps/agentic_rag/app.py

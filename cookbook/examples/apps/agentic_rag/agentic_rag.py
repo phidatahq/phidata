@@ -1,4 +1,4 @@
-"""🏎️ Agentic RAG Agent - Your AI Data Analyst!
+"""🏎️ Agentic RAG 
 
 This advanced example shows how to build a Agentic RAG Agent that
 leverages Agentic RAG to provide deep insights into any data.
@@ -18,7 +18,7 @@ from agno.agent import Agent, AgentMemory
 from agno.models.openai import OpenAIChat
 from agno.tools.duckduckgo import DuckDuckGoTools
 from agno.embedder.openai import OpenAIEmbedder
-from agno.vectordb.qdrant import Qdrant
+from agno.vectordb.pgvector import PgVector
 from agno.knowledge import AgentKnowledge
 from agno.memory.db.postgres import PgMemoryDb
 from agno.storage.agent.postgres import PostgresAgentStorage
@@ -48,8 +48,10 @@ def get_agentic_rag_agent(
 
     # Define the knowledge base
     knowledge_base = AgentKnowledge(
-        vector_db=Qdrant(
-            collection="agentic_rag_documents_openai",
+        vector_db=PgVector(
+            db_url=db_url,
+            table_name="agentic_rag_documents_openai",
+            schema="ai",    
             embedder=OpenAIEmbedder(id="text-embedding-ada-002", dimensions=1536),
         ),
         num_documents=3,  # Retrieve 3 most relevant documents
@@ -64,7 +66,7 @@ def get_agentic_rag_agent(
         storage=PostgresAgentStorage(table_name="agentic_rag_agent_sessions", db_url=db_url),  # Persist session data
         memory=memory,  # Add memory to the agent
         knowledge=knowledge_base,  # Add knowledge base
-        description="You are a helpful Agent called 'AutoRAG' and your goal is to assist the user in the best way possible.",
+        description="You are a helpful Agent called 'Agentic RAG' and your goal is to assist the user in the best way possible.",
         instructions=[
             "Given a user query, first ALWAYS search your knowledge base using the search_knowledge_base tool to see if you have relevant information.",
             "If you don't find relevant information in your knowledge base, use the duckduckgo_search tool to search the internet.",

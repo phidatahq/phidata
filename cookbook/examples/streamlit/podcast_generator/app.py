@@ -8,27 +8,6 @@ st.set_page_config(
     layout="wide",
 )
 
-# Apply Custom Styling
-st.markdown(
-    """
-    <style>
-        .stApp { background-color: #121212; }
-        .big-title { font-size: 26px; font-weight: bold; color: #FFAA33; }
-        .about-section { font-size: 16px; color: #BBBBBB; }
-        .stTextInput>div>div>input { font-size: 18px; }
-        .stButton>button {
-            font-size: 18px;
-            background-color: #FFAA33;
-            color: #FFFFFF;
-            border-radius: 10px;
-            padding: 10px 20px;
-        }
-        .stMarkdown { font-size: 18px; }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-
 # Sidebar Section
 with st.sidebar:
     st.title("🎧 Podify AI")
@@ -41,17 +20,21 @@ with st.sidebar:
     st.markdown("---")
     st.subheader("🔥 Suggested Topics:")
     trending_topics = [
-        "🎭 The Impact of AI on Creativity and Art",
-        "🏥 How AI is Revolutionizing Healthcare",
-        "🚀 The Future of Space Exploration",
+        "🎭 Impact of AI on Creativity and Art",
         "💡 Elon Musk vs Sam Altman",
+        "🏥 Using AI in healthcare",
+        "🚀 The Future of Space Exploration",
     ]
 
-    # Store selected topic in session state and trigger generation
-    for topic in trending_topics:
-        if st.button(topic):
-            st.session_state["topic"] = topic
-            st.session_state["generate"] = True
+    # Create row-wise aligned buttons
+    num_cols = 1  # Change this to 3 for three buttons in a row
+    cols = st.columns(num_cols)  # Define columns
+
+    for i, topic in enumerate(trending_topics):
+        with cols[i % num_cols]:  # Distribute buttons evenly across columns
+            if st.button(topic):
+                st.session_state["topic"] = topic
+                st.session_state["generate"] = True
 
     st.markdown("---")
     st.subheader("ℹ️ About")

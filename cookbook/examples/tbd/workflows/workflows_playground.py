@@ -3,6 +3,13 @@
 2. Run the script using: `python cookbook/examples/tbd/workflows/workflows_playground.py`
 """
 
+import sys
+from pathlib import Path
+
+# Add the project root to Python path
+project_root = str(Path(__file__).parent.parent.parent.parent.parent)
+if project_root not in sys.path:
+    sys.path.append(project_root)
 
 from agno.playground import Playground, serve_playground_app
 from agno.storage.workflow.sqlite import SqliteWorkflowStorage

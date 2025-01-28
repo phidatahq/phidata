@@ -68,7 +68,7 @@ def get_sync_playground_router(
 
             agent_list.append(
                 AgentGetResponse(
-                    agent_id=agent.agent_id,
+                    agent_id=agent.agent_id if agent.agent_id else None,
                     name=agent.name,
                     model=AgentModel(
                         name=name,

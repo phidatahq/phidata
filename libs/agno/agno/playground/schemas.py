@@ -11,7 +11,7 @@ class AgentModel(BaseModel):
 
 
 class AgentGetResponse(BaseModel):
-    agent_id: str
+    agent_id: Optional[str] = None
     name: Optional[str] = None
     model: Optional[AgentModel] = None
     add_context: Optional[bool] = None

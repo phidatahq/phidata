@@ -3,7 +3,7 @@ from agno.tools.github import GithubTools
 
 agent = Agent(
     instructions=[
-        "Use your tools to answer questions about the repo: phidatahq/agno",
+        "Use your tools to answer questions about the repo: agno-agi/agno",
         "Do not create any issues or pull requests unless explicitly asked to do so",
     ],
     tools=[GithubTools()],

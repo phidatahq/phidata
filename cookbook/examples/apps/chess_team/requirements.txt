@@ -1,0 +1,6 @@
+agno>=0.1.2
+streamlit>=1.41.1
+nest_asyncio>=1.6.0
+groq>=0.3.0
+pydantic>=2.10.6
+typing-extensions>=4.12.2 

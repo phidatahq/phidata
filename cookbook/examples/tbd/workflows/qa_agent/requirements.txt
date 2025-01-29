@@ -1,4 +1,0 @@
-agno
-lancedb
-openai
-tantivy

@@ -22,7 +22,7 @@ except ImportError:
     raise ImportError("`pymongo` not installed. Please install using `pip install pymongo`")
 
 
-class MongoDBVector(VectorDb):
+class MongoDb(VectorDb):
     """
     MongoDB Vector Database implementation with elegant handling of Atlas Search index creation.
     """
@@ -40,7 +40,7 @@ class MongoDBVector(VectorDb):
         **kwargs,
     ):
         """
-        Initialize the MongoDBVector with MongoDB collection details.
+        Initialize the MongoDb with MongoDB collection details.
 
         Args:
             collection_name (str): Name of the MongoDB collection.

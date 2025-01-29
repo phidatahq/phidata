@@ -220,9 +220,9 @@ python agent_team.py
 
 ## Performance
 
-Agno is specifically designed for high performance:
+Agno is specifically designed for building high performance agentic systems:
 
-- Agent instantiation: <10μs on average (5000x faster than LangGraph).
+- Agent instantiation: <5μs on average (5000x faster than LangGraph).
 - Memory footprint: <0.01Mib on average (50x less memory than LangGraph).
 
 > Tested on an Apple M4 Mackbook Pro.
@@ -248,17 +248,23 @@ python evals/performance/instantiation_with_tool.py
 python evals/performance/other/langgraph_instantiation.py
 ```
 
-The following evaluation is run on an Apple M4 Mackbook Pro, but we'll soon be moving this to a Github actions runner for consistency. LangGraph is on the right, **we start it first to give it a head start** and Agno is on the left.
+The following evaluation is run on an Apple M4 Mackbook Pro, but we'll soon be moving this to a Github actions runner for consistency.
 
-![Agno vs LangGraph](.assets/agno_vs_langgraph_benchmark.mp4)
+LangGraph is on the right, **we start it first to give it a head start**.
 
-Dividing the average time taken to instantiate a Langgraph Agent by the average time taken to instantiate an Agno Agent:
+Agno is on the left, notice how it finishes before LangGraph gets 1/2 way through the runtime measurement and hasn't even started the memory measurement. That's how fast Agno is.
+
+https://github.com/user-attachments/assets/ba466d45-75dd-45ac-917b-0a56c5742e23
+
+Dividing the average time of a Langgraph Agent by the average time of an Agno Agent:
 
 ```
-0.019413s / 0.000001s ~ 19,413
+0.020526s / 0.000002s ~ 10,263
 ```
 
-**Agno Agent instantiation is roughly 19000 times faster than Langgraph Agent instantiation**. Sure, the runtime will be dominated by inference, but these numbers will add up as the number of Agents grows.
+In this particular run, **Agno Agent instantiation is roughly 10,000 times faster than Langgraph Agent instantiation**. Sure, the runtime will be dominated by inference, but these numbers will add up as the number of Agents grows.
+
+Because there is a lot of overhead in Langgraph, the numbers will get worse as the number of tools grows and the number of Agents grows.
 
 ### Memory usage
 
@@ -269,10 +275,10 @@ We recommend running the evaluation yourself on your own machine, and digging in
 Dividing the average memory usage of a Langgraph Agent by the average memory usage of an Agno Agent:
 
 ```
-0.137111/0.002529 ~ 54.2
+0.137273/0.002528 ~ 54.3
 ```
 
-**Langgraph Agents use 54.2x more memory than Agno Agents**. In our opinion, memory usage is a much more important metric than instantiation time. As we start running thousands of Agents in production, these numbers directly start affecting the cost of running the Agents.
+**Langgraph Agents use ~50x more memory than Agno Agents**. In our opinion, memory usage is a much more important metric than instantiation time. As we start running thousands of Agents in production, these numbers directly start affecting the cost of running the Agents.
 
 ### Conclusion
 

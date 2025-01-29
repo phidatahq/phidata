@@ -70,7 +70,7 @@ FULL_INSTRUCTIONS = BASE_PROMPT + ANALYSIS_TEMPLATE
 
 # Initialize the Medical Imaging Expert agent
 agent = Agent(
-    name="Medical Imaging Expert",   
+    name="Medical Imaging Expert",
     model=Gemini(id="gemini-2.0-flash-exp"),
     tools=[DuckDuckGoTools()],  # Enable web search for medical literature
     markdown=True,  # Enable markdown formatting for structured output
@@ -81,10 +81,10 @@ agent = Agent(
 if __name__ == "__main__":
     # Example image path (users should replace with their own image)
     image_path = Path(__file__).parent.joinpath("test.jpg")
-    
+
     # Uncomment to run the analysis
     # agent.print_response("Please analyze this medical image.", images=[image_path])
-    
+
     # Example with specific focus
     # agent.print_response(
     #     "Please analyze this image with special attention to bone density.",

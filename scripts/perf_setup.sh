@@ -13,7 +13,7 @@ REPO_ROOT="$(dirname "${CURR_DIR}")"
 AGNO_DIR="${REPO_ROOT}/libs/agno"
 source "${CURR_DIR}/_utils.sh"
 
-VENV_DIR="${REPO_ROOT}/.perfenv"
+VENV_DIR="${REPO_ROOT}/.venvs/perfenv"
 PYTHON_VERSION=$(python3 --version)
 
 print_heading "Performance Testing setup..."
@@ -33,4 +33,4 @@ print_heading "uv pip list"
 VIRTUAL_ENV=${VENV_DIR} uv pip list
 
 print_heading "Performance Testing setup complete"
-print_heading "Activate venv using: source .perfenv/bin/activate"
+print_heading "Activate venv using: source ${VENV_DIR}/bin/activate"

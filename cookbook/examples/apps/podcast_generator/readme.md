@@ -25,7 +25,7 @@ source ~/.venvs/podifyenv/bin/activate
 ### 2. Install requirements
 
 ```shell
-pip install -r cookbook/examples/streamlit/podcast_generator/requirements.txt
+pip install -r cookbook/examples/apps/podcast_generator/requirements.txt
 ```
 
 ### 3. Export `OPENAI_API_KEY`
@@ -37,5 +37,5 @@ export OPENAI_API_KEY=***
 ### 4. Run Streamlit App
 
 ```shell
-streamlit run cookbook/examples/streamlit/podcast_generator/app.py
+streamlit run cookbook/examples/apps/podcast_generator/app.py
 ```

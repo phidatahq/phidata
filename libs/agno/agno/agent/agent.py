@@ -1599,7 +1599,7 @@ class Agent:
             self.agent_session = self.storage.read(session_id=self.session_id)
             if self.agent_session is not None:
                 self.load_agent_session(session=self.agent_session)
-        self.load_user_memories()
+            self.load_user_memories()
         return self.agent_session
 
     def write_to_storage(self) -> Optional[AgentSession]:

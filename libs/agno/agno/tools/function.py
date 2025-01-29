@@ -300,7 +300,7 @@ class FunctionCall(BaseModel):
                 logger.exception(e)
 
         # Call the function with no arguments if none are provided.
-        if self.arguments is None:
+        if self.arguments == {} or self.arguments is None:
             try:
                 entrypoint_args = {}
                 # Check if the entrypoint has and agent argument
@@ -361,5 +361,64 @@ class FunctionCall(BaseModel):
             except Exception as e:
                 logger.warning(f"Error in post-hook callback: {e}")
                 logger.exception(e)
+
+        return function_call_success
+
+    async def aexecute(self) -> bool:
+        """Runs the function call asynchronously.
+        Returns True if the function call was successful, False otherwise.
+        The result of the function call is stored in self.result.
+        """
+        from inspect import signature
+
+        if self.function.entrypoint is None:
+            return False
+
+        logger.debug(f"Running: {self.get_call_str()}")
+        function_call_success = False
+
+        # Call the function with no arguments if none are provided.
+        if self.arguments == {} or self.arguments is None:
+            try:
+                entrypoint_args = {}
+                # Check if the entrypoint has and agent argument
+                if "agent" in signature(self.function.entrypoint).parameters:
+                    entrypoint_args["agent"] = self.function._agent
+                # Check if the entrypoint has an fc argument
+                if "fc" in signature(self.function.entrypoint).parameters:
+                    entrypoint_args["fc"] = self
+
+                self.result = await self.function.entrypoint(**entrypoint_args)
+                function_call_success = True
+            except AgentRunException as e:
+                logger.debug(f"{e.__class__.__name__}: {e}")
+                self.error = str(e)
+                raise
+            except Exception as e:
+                logger.warning(f"Could not run function {self.get_call_str()}")
+                logger.exception(e)
+                self.error = str(e)
+                return function_call_success
+        else:
+            try:
+                entrypoint_args = {}
+                # Check if the entrypoint has and agent argument
+                if "agent" in signature(self.function.entrypoint).parameters:
+                    entrypoint_args["agent"] = self.function._agent
+                # Check if the entrypoint has an fc argument
+                if "fc" in signature(self.function.entrypoint).parameters:
+                    entrypoint_args["fc"] = self
+
+                self.result = await self.function.entrypoint(**entrypoint_args, **self.arguments)
+                function_call_success = True
+            except AgentRunException as e:
+                logger.debug(f"{e.__class__.__name__}: {e}")
+                self.error = str(e)
+                raise
+            except Exception as e:
+                logger.warning(f"Could not run function {self.get_call_str()}")
+                logger.exception(e)
+                self.error = str(e)
+                return function_call_success
 
         return function_call_success

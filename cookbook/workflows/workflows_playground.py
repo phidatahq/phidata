@@ -12,7 +12,6 @@ from investment_report_generator import (
     InvestmentReportGenerator,
 )
 from personalized_email_generator import PersonalisedEmailGenerator
-
 from startup_idea_validator import StartupIdeaValidator
 
 # Initialize the workflows with SQLite storage

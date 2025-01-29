@@ -1,3 +1,4 @@
+import asyncio
 import collections.abc
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
@@ -415,6 +416,138 @@ class Model(ABC):
                 # Deactivate tool calls by setting future tool calls to "none"
                 self.tool_choice = "none"
                 break  # Exit early if we reach the function call limit
+
+    async def arun_function_calls(
+        self, function_calls: List[FunctionCall], function_call_results: List[Message], tool_role: str = "tool"
+    ):
+        from inspect import iscoroutinefunction
+
+        functions_list: List = []
+        for function_call in function_calls:
+            if self._function_call_stack is None:
+                self._function_call_stack = []
+            self._function_call_stack.append(function_call)
+            if iscoroutinefunction(function_call.function.entrypoint):
+                # -*- If the function is async, append the aexecute() method to the functions list
+                functions_list.append(function_call.aexecute())
+            else:
+                # -*- Else, append the execute method to the functions list wrapped in a separate thread
+                functions_list.append(asyncio.to_thread(function_call.execute))
+
+        # -*- Check function call limit
+        if self.tool_call_limit and len(self._function_call_stack) >= self.tool_call_limit:
+            # Deactivate tool calls by setting future tool calls to "none"
+            self.tool_choice = "none"
+            return
+
+        # -*- Start function call
+        function_call_timer = Timer()
+        function_call_timer.start()
+
+        # -*- Run all function calls
+        results = await asyncio.gather(*functions_list, return_exceptions=True)
+
+        # Additional messages from the function call that will be added to the function call results
+        additional_messages_from_function_call = []
+
+        for idx, result in enumerate(results):
+            if isinstance(result, AgentRunException):
+                a_exc = result
+                if a_exc.user_message is not None:
+                    if isinstance(a_exc.user_message, str):
+                        additional_messages_from_function_call.append(Message(role="user", content=a_exc.user_message))
+                    else:
+                        additional_messages_from_function_call.append(a_exc.user_message)
+                if a_exc.agent_message is not None:
+                    if isinstance(a_exc.agent_message, str):
+                        additional_messages_from_function_call.append(
+                            Message(role="assistant", content=a_exc.agent_message)
+                        )
+                    else:
+                        additional_messages_from_function_call.append(a_exc.agent_message)
+                if a_exc.messages is not None and len(a_exc.messages) > 0:
+                    for m in a_exc.messages:
+                        if isinstance(m, Message):
+                            additional_messages_from_function_call.append(m)
+                        elif isinstance(m, dict):
+                            try:
+                                additional_messages_from_function_call.append(Message(**m))
+                            except Exception as e:
+                                logger.warning(f"Failed to convert dict to Message: {e}")
+                if a_exc.stop_execution:
+                    if len(additional_messages_from_function_call) > 0:
+                        for m in additional_messages_from_function_call:
+                            m.stop_after_tool_call = True
+                results[idx] = False
+
+        # -*- Stop function call timer
+        function_call_timer.stop()
+        # logger.info(f"Gather operations completed in {function_call_timer.elapsed} seconds")
+
+        for function_call_success, fc in zip(results, function_calls):
+            function_call_output: Optional[Union[List[Any], str]] = ""
+
+            yield ModelResponse(
+                content=fc.get_call_str(),
+                tool_calls=[
+                    {
+                        "role": tool_role,
+                        "tool_call_id": fc.call_id,
+                        "tool_name": fc.function.name,
+                        "tool_args": fc.arguments,
+                    }
+                ],
+                event=ModelResponseEvent.tool_call_started.value,
+            )
+
+            if isinstance(fc.result, (GeneratorType, collections.abc.Iterator)):
+                for item in fc.result:
+                    function_call_output += item
+            else:
+                function_call_output = fc.result
+
+            # -*- Create function call result message
+            function_call_result = Message(
+                role=tool_role,
+                content=function_call_output if function_call_success else fc.error,
+                tool_call_id=fc.call_id,
+                tool_name=fc.function.name,
+                tool_args=fc.arguments,
+                tool_call_error=not function_call_success,
+                stop_after_tool_call=fc.function.stop_after_tool_call,
+                metrics={"time": function_call_timer.elapsed},
+            )
+
+            # -*- Yield function call result
+            yield ModelResponse(
+                content=f"{fc.get_call_str()} completed in {function_call_timer.elapsed:.4f}s.",
+                tool_calls=[
+                    function_call_result.model_dump(
+                        include={
+                            "content",
+                            "tool_call_id",
+                            "tool_name",
+                            "tool_args",
+                            "tool_call_error",
+                            "metrics",
+                            "created_at",
+                        }
+                    )
+                ],
+                event=ModelResponseEvent.tool_call_completed.value,
+            )
+
+            # Add the function call result to the function call results
+            function_call_results.append(function_call_result)
+            if len(additional_messages_from_function_call) > 0:
+                function_call_results.extend(additional_messages_from_function_call)
+
+            # Add metrics to the model
+            if "tool_call_times" not in self.metrics:
+                self.metrics["tool_call_times"] = {}
+            if fc.function.name not in self.metrics["tool_call_times"]:
+                self.metrics["tool_call_times"][fc.function.name] = []
+            self.metrics["tool_call_times"][fc.function.name].append(function_call_timer.elapsed)
 
     def _handle_response_after_tool_calls(
         self, response_after_tool_calls: ModelResponse, model_response: ModelResponse

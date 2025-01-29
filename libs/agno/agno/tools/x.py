@@ -45,10 +45,6 @@ class XTools(Toolkit):
             access_token=self.access_token,
             access_token_secret=self.access_token_secret,
         )
-        self.auth = tweepy.OAuth1UserHandler(
-            self.consumer_key, self.consumer_secret, self.access_token, self.access_token_secret
-        )
-        self.api = tweepy.Client()
 
         self.register(self.create_post)
         self.register(self.reply_to_post)
@@ -137,7 +133,7 @@ class XTools(Toolkit):
             }
             return json.dumps(result, indent=2)
         except tweepy.TweepyException as e:
-            logger.error(f"Error sending DM: {e}")
+            logger.error(f"Error from X while sending DM: {e}")
             error_message = str(e)
             if "User not found" in error_message:
                 error_message = f"User '{recipient}' not found. Please check the username or user ID."

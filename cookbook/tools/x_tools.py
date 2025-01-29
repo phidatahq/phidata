@@ -1,12 +1,38 @@
 from agno.agent import Agent
 from agno.tools.x import XTools
 
-# Export the following environment variables or provide them as arguments to the XTools constructor
-# - X_CONSUMER_KEY
-# - X_CONSUMER_SECRET
-# - X_ACCESS_TOKEN
-# - X_ACCESS_TOKEN_SECRET
-# - X_BEARER_TOKEN
+"""
+To set up an X developer account and obtain the necessary keys, follow these steps:
+
+1. **Create an X Developer Account:**
+   - Go to the X Developer website: https://developer.x.com/
+   - Sign in with your X account or create a new one if you don't have an account.
+   - Apply for a developer account by providing the required information about your intended use of the X API.
+
+2. **Create a Project and App:**
+   - Once your developer account is approved, log in to the X Developer portal.
+   - Navigate to the "Projects & Apps" section and create a new project.
+   - Within the project, create a new app. This app will be used to generate the necessary API keys and tokens.
+   - You'll get a client id and client secret, but you can ignore them.
+
+3. **Generate API Keys, Tokens, and Client Credentials:**
+   - After creating the app, navigate to the "Keys and tokens" tab.
+   - Generate the following keys, tokens, and client credentials:
+     - **API Key (Consumer Key)**
+     - **API Secret Key (Consumer Secret)**
+     - **Bearer Token**
+     - **Access Token**
+     - **Access Token Secret**
+
+4. **Set Environment Variables:**
+   - Export the generated keys, tokens, and client credentials as environment variables in your system or provide them as arguments to the `XTools` constructor.
+     - `X_CONSUMER_KEY`
+     - `X_CONSUMER_SECRET`
+     - `X_ACCESS_TOKEN`
+     - `X_ACCESS_TOKEN_SECRET`
+     - `X_BEARER_TOKEN`
+"""
+
 
 # Initialize the x toolkit
 x_tools = XTools()
@@ -22,25 +48,31 @@ agent = Agent(
     ],
     tools=[x_tools],
     show_tool_calls=True,
+    debug_mode=True,
 )
-agent.print_response(
-    "Can you retrieve information about this user https://x.com/AgnoAgi ",
-    markdown=True,
-)
+
+# Example usage: Get your details
+agent.print_response("Can you return my x profile with my home timeline?", markdown=True)
+
+# # Example usage: Get information about a user
+# agent.print_response(
+#     "Can you retrieve information about this user https://x.com/AgnoAgi ",
+#     markdown=True,
+# )
 
 # # Example usage: Reply To a Post
 # agent.print_response(
-#     "Can you reply to this post as a general message as to how great this project is: https://x.com/AgnoAgi",
+#     "Can you reply to this [post ID] post as a general message as to how great this project is: https://x.com/AgnoAgi",
 #     markdown=True,
 # )
-# # Example usage: Get your details
-# agent.print_response("Can you return my x profile?", markdown=True)
+
 # # Example usage: Send a direct message
 # agent.print_response(
-#     "Can a send direct message to the user: https://x.com/AgnoAgi asking you want learn more about them and a link to their community?",
+#     "Send direct message to the user @AgnoAgi telling them I want to learn more about them and a link to their community.",
 #     markdown=True,
 # )
+
 # # Example usage: Create a new post
-# agent.print_response("Create & post content about the importance of AI ethics", markdown=True)
-# # Example usage: Get home timeline
-# agent.print_response("Get my timeline", markdown=True)
+# agent.print_response("Create & post content about how 2025 is the year of the AI agent", markdown=True)
+
+

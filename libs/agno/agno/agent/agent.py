@@ -1547,12 +1547,9 @@ class Agent:
             # Update the current extra_data with the extra_data from the database which is updated in place
             self.extra_data = session.extra_data
 
-
-
-
         if self.memory is None:
-            self.memory = session.memory # type: ignore
- 
+            self.memory = session.memory  # type: ignore
+
         if not isinstance(self.memory, AgentMemory):
             if isinstance(self.memory, dict):
                 # Convert dict to AgentMemory
@@ -2585,7 +2582,7 @@ class Agent:
             return
         # -*- Delete session
         self.storage.delete_session(session_id=session_id)
-        
+
     ###########################################################################
     # Handle images, videos and audio
     ###########################################################################

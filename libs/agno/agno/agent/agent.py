@@ -1561,9 +1561,6 @@ class Agent:
                 raise TypeError(f"Expected memory to be a dict or AgentMemory, but got {type(self.memory)}")
 
         if session.memory is not None:
-            # if self.memory is None:
-            #     self.memory = AgentMemory()
-
             try:
                 if "runs" in session.memory:
                     try:
@@ -2203,8 +2200,6 @@ class Agent:
                 continue
             field_value = getattr(self, f.name)
             if field_value is not None:
-                print(f.name, field_value)
-                print()
                 fields_for_new_agent[f.name] = self._deep_copy_field(f.name, field_value)
 
         # Update fields if provided
@@ -2590,9 +2585,7 @@ class Agent:
             return
         # -*- Delete session
         self.storage.delete_session(session_id=session_id)
-        # -*- Save to storage
-        # self.write_to_storage()
-
+        
     ###########################################################################
     # Handle images, videos and audio
     ###########################################################################

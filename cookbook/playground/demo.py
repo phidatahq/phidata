@@ -12,12 +12,10 @@ from agno.tools.duckduckgo import DuckDuckGoTools
 from agno.tools.exa import ExaTools
 from agno.tools.yfinance import YFinanceTools
 from agno.tools.youtube import YouTubeTools
-from agno.storage.agent.postgres import PostgresAgentStorage
 
 agent_storage_file: str = "tmp/agents.db"
 image_agent_storage_file: str = "tmp/image_agent.db"
 
-db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 
 simple_agent = Agent(
     name="Simple Agent",
@@ -25,7 +23,6 @@ simple_agent = Agent(
     agent_id="simple-agent",
     model=OpenAIChat(id="gpt-4o-mini"),
     storage=SqliteAgentStorage(table_name="simple_agent", db_file=agent_storage_file),
-    # storage=PostgresAgentStorage(table_name="simple_agent", db_url=db_url),
     add_history_to_messages=True,
     num_history_responses=3,
     add_datetime_to_instructions=True,

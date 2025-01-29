@@ -23,6 +23,13 @@ pip install -r cookbook/examples/apps/parallel_world_builder/requirements.txt
 export OPENAI_API_KEY=sk-***
 ```
 
+Other API keys are optional, but if you'd like to test:
+
+```shell
+export ANTHROPIC_API_KEY=***
+export GOOGLE_API_KEY=***
+```
+
 ### 4. Run Streamlit App
 
 ```shell

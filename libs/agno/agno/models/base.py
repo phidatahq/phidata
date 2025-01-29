@@ -292,6 +292,61 @@ class Model(ABC):
                 except Exception as e:
                     logger.warning(f"Could not add function {tool}: {e}")
 
+    def _handle_agent_exception(self, a_exc: AgentRunException, additional_messages: List[Message]) -> None:
+        """Handle AgentRunException and collect additional messages."""
+        if a_exc.user_message is not None:
+            msg = (
+                Message(role="user", content=a_exc.user_message)
+                if isinstance(a_exc.user_message, str)
+                else a_exc.user_message
+            )
+            additional_messages.append(msg)
+
+        if a_exc.agent_message is not None:
+            msg = (
+                Message(role="assistant", content=a_exc.agent_message)
+                if isinstance(a_exc.agent_message, str)
+                else a_exc.agent_message
+            )
+            additional_messages.append(msg)
+
+        if a_exc.messages:
+            for m in a_exc.messages:
+                if isinstance(m, Message):
+                    additional_messages.append(m)
+                elif isinstance(m, dict):
+                    try:
+                        additional_messages.append(Message(**m))
+                    except Exception as e:
+                        logger.warning(f"Failed to convert dict to Message: {e}")
+
+        if a_exc.stop_execution:
+            for m in additional_messages:
+                m.stop_after_tool_call = True
+
+    def _create_function_call_result(
+        self, fc: FunctionCall, success: bool, output: Optional[Union[List[Any], str]], timer: Timer, tool_role: str
+    ) -> Message:
+        """Create a function call result message."""
+        return Message(
+            role=tool_role,
+            content=output if success else fc.error,
+            tool_call_id=fc.call_id,
+            tool_name=fc.function.name,
+            tool_args=fc.arguments,
+            tool_call_error=not success,
+            stop_after_tool_call=fc.function.stop_after_tool_call,
+            metrics={"time": timer.elapsed},
+        )
+
+    def _update_metrics(self, function_name: str, elapsed_time: float) -> None:
+        """Update metrics for function calls."""
+        if "tool_call_times" not in self.metrics:
+            self.metrics["tool_call_times"] = {}
+        if function_name not in self.metrics["tool_call_times"]:
+            self.metrics["tool_call_times"][function_name] = []
+        self.metrics["tool_call_times"][function_name].append(elapsed_time)
+
     def run_function_calls(
         self, function_calls: List[FunctionCall], function_call_results: List[Message], tool_role: str = "tool"
     ) -> Iterator[ModelResponse]:
@@ -321,9 +376,6 @@ class Model(ABC):
 
             # Track if the function call was successful
             function_call_success = False
-            # If True, stop execution after this function call
-            stop_execution_after_tool_call = False
-
             # Run function calls sequentially
             try:
                 function_call_success = fc.execute()
@@ -441,7 +493,15 @@ class Model(ABC):
         results = await asyncio.gather(*(self._arun_function_call(fc) for fc in function_calls), return_exceptions=True)
 
         # Process results
-        for function_call_success, function_call_timer, fc in results:
+        for result in results:
+            # If result is an exception, skip processing it
+            if isinstance(result, BaseException):
+                logger.error(f"Error during function call: {result}")
+                raise result
+
+            # Unpack result
+            function_call_success, function_call_timer, fc = result
+
             # Handle AgentRunException
             if isinstance(function_call_success, AgentRunException):
                 a_exc = function_call_success
@@ -498,60 +558,265 @@ class Model(ABC):
         if additional_messages:
             function_call_results.extend(additional_messages)
 
-    def _create_function_call_result(
-        self, fc: FunctionCall, success: bool, output: str, timer: Timer, tool_role: str
-    ) -> Message:
-        """Create a function call result message."""
-        return Message(
-            role=tool_role,
-            content=output if success else fc.error,
-            tool_call_id=fc.call_id,
-            tool_name=fc.function.name,
-            tool_args=fc.arguments,
-            tool_call_error=not success,
-            stop_after_tool_call=fc.function.stop_after_tool_call,
-            metrics={"time": timer.elapsed},
-        )
+    def _prepare_function_calls(
+        self,
+        assistant_message: Message,
+        messages: List[Message],
+        model_response: ModelResponse,
+        tool_role: str = "tool",
+    ) -> Tuple[List[FunctionCall], List[Message]]:
+        """
+        Prepare function calls from tool calls in the assistant message.
 
-    def _handle_agent_exception(self, a_exc: AgentRunException, additional_messages: List[Message]) -> None:
-        """Handle AgentRunException and collect additional messages."""
-        if a_exc.user_message is not None:
-            msg = (
-                Message(role="user", content=a_exc.user_message)
-                if isinstance(a_exc.user_message, str)
-                else a_exc.user_message
+        Args:
+            assistant_message (Message): The assistant message containing tool calls
+            messages (List[Message]): The list of messages to append tool responses to
+            model_response (ModelResponse): The model response to update
+            tool_role (str): The role of the tool call. Defaults to "tool".
+        Returns:
+            Tuple[List[FunctionCall], List[Message]]: Tuple of function calls to run and function call results
+        """
+        if model_response.content is None:
+            model_response.content = ""
+        if model_response.tool_calls is None:
+            model_response.tool_calls = []
+
+        function_call_results: List[Message] = []
+        function_calls_to_run: List[FunctionCall] = []
+
+        for tool_call in assistant_message.tool_calls:  # type: ignore  # assistant_message.tool_calls are checked before calling this method
+            _tool_call_id = tool_call.get("id")
+            _function_call = get_function_call_for_tool_call(tool_call, self._functions)
+            if _function_call is None:
+                messages.append(
+                    Message(
+                        role=tool_role,
+                        tool_call_id=_tool_call_id,
+                        content="Could not find function to call.",
+                    )
+                )
+                continue
+            if _function_call.error is not None:
+                messages.append(
+                    Message(
+                        role=tool_role,
+                        tool_call_id=_tool_call_id,
+                        content=_function_call.error,
+                    )
+                )
+                continue
+            function_calls_to_run.append(_function_call)
+
+        if self.show_tool_calls:
+            model_response.content += "\nRunning:"
+            for _f in function_calls_to_run:
+                model_response.content += f"\n - {_f.get_call_str()}"
+            model_response.content += "\n\n"
+
+        return function_calls_to_run, function_call_results
+
+    def handle_tool_calls(
+        self,
+        assistant_message: Message,
+        messages: List[Message],
+        model_response: ModelResponse,
+        tool_role: str = "tool",
+    ) -> Optional[ModelResponse]:
+        """
+        Handle tool calls in the assistant message.
+
+        Args:
+            assistant_message (Message): The assistant message.
+            messages (List[Message]): The list of messages.
+            model_response (ModelResponse): The model response.
+            tool_role (str): The role of the tool call. Defaults to "tool".
+
+        Returns:
+            Optional[ModelResponse]: The model response after handling tool calls.
+        """
+        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
+            function_calls_to_run, function_call_results = self._prepare_function_calls(
+                assistant_message=assistant_message,
+                messages=messages,
+                model_response=model_response,
+                tool_role=tool_role,
             )
-            additional_messages.append(msg)
 
-        if a_exc.agent_message is not None:
-            msg = (
-                Message(role="assistant", content=a_exc.agent_message)
-                if isinstance(a_exc.agent_message, str)
-                else a_exc.agent_message
+            for function_call_response in self.run_function_calls(
+                function_calls=function_calls_to_run, function_call_results=function_call_results, tool_role=tool_role
+            ):
+                if (
+                    function_call_response.event == ModelResponseEvent.tool_call_completed.value
+                    and function_call_response.tool_calls is not None
+                ):
+                    model_response.tool_calls.extend(function_call_response.tool_calls)  # type: ignore  # model_response.tool_calls are initialized before calling this method
+
+            if len(function_call_results) > 0:
+                messages.extend(function_call_results)
+
+            return model_response
+        return None
+
+    async def ahandle_tool_calls(
+        self,
+        assistant_message: Message,
+        messages: List[Message],
+        model_response: ModelResponse,
+        tool_role: str = "tool",
+    ) -> Optional[ModelResponse]:
+        """
+        Handle tool calls in the assistant message.
+        Args:
+            assistant_message (Message): The assistant message.
+            messages (List[Message]): The list of messages.
+            model_response (ModelResponse): The model response.
+            tool_role (str): The role of the tool call. Defaults to "tool".
+
+        Returns:
+            Optional[ModelResponse]: The model response after handling tool calls.
+        """
+        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
+            function_calls_to_run, function_call_results = self._prepare_function_calls(
+                assistant_message=assistant_message,
+                messages=messages,
+                model_response=model_response,
             )
-            additional_messages.append(msg)
 
-        if a_exc.messages:
-            for m in a_exc.messages:
-                if isinstance(m, Message):
-                    additional_messages.append(m)
-                elif isinstance(m, dict):
-                    try:
-                        additional_messages.append(Message(**m))
-                    except Exception as e:
-                        logger.warning(f"Failed to convert dict to Message: {e}")
+            async for function_call_response in self.arun_function_calls(
+                function_calls=function_calls_to_run, function_call_results=function_call_results, tool_role=tool_role
+            ):
+                if (
+                    function_call_response.event == ModelResponseEvent.tool_call_completed.value
+                    and function_call_response.tool_calls is not None
+                ):
+                    model_response.tool_calls.extend(function_call_response.tool_calls)  # type: ignore  # model_response.tool_calls are initialized before calling this method
 
-        if a_exc.stop_execution:
-            for m in additional_messages:
-                m.stop_after_tool_call = True
+            if len(function_call_results) > 0:
+                messages.extend(function_call_results)
 
-    def _update_metrics(self, function_name: str, elapsed_time: float) -> None:
-        """Update metrics for function calls."""
-        if "tool_call_times" not in self.metrics:
-            self.metrics["tool_call_times"] = {}
-        if function_name not in self.metrics["tool_call_times"]:
-            self.metrics["tool_call_times"][function_name] = []
-        self.metrics["tool_call_times"][function_name].append(elapsed_time)
+            return model_response
+        return None
+
+    def _prepare_stream_tool_calls(
+        self,
+        assistant_message: Message,
+        messages: List[Message],
+        tool_role: str = "tool",
+    ) -> Tuple[List[FunctionCall], List[Message]]:
+        """
+        Prepare function calls from tool calls in the assistant message for streaming.
+
+        Args:
+            assistant_message (Message): The assistant message containing tool calls
+            messages (List[Message]): The list of messages to append tool responses to
+            tool_role (str): The role to use for tool messages
+
+        Returns:
+            Tuple[List[FunctionCall], List[Message]]: Tuple of function calls to run and function call results
+        """
+        function_calls_to_run: List[FunctionCall] = []
+        function_call_results: List[Message] = []
+
+        for tool_call in assistant_message.tool_calls:  # type: ignore  # assistant_message.tool_calls are checked before calling this method
+            _tool_call_id = tool_call.get("id")
+            _function_call = get_function_call_for_tool_call(tool_call, self._functions)
+            if _function_call is None:
+                messages.append(
+                    Message(
+                        role=tool_role,
+                        tool_call_id=_tool_call_id,
+                        content="Could not find function to call.",
+                    )
+                )
+                continue
+            if _function_call.error is not None:
+                messages.append(
+                    Message(
+                        role=tool_role,
+                        tool_call_id=_tool_call_id,
+                        content=_function_call.error,
+                    )
+                )
+                continue
+            function_calls_to_run.append(_function_call)
+
+        return function_calls_to_run, function_call_results
+
+    def handle_stream_tool_calls(
+        self,
+        assistant_message: Message,
+        messages: List[Message],
+        tool_role: str = "tool",
+    ) -> Iterator[ModelResponse]:
+        """
+        Handle tool calls for response stream.
+
+        Args:
+            assistant_message (Message): The assistant message.
+            messages (List[Message]): The list of messages.
+            tool_role (str): The role of the tool call. Defaults to "tool".
+
+        Returns:
+            Iterator[ModelResponse]: An iterator of the model response.
+        """
+        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
+            function_calls_to_run, function_call_results = self._prepare_stream_tool_calls(
+                assistant_message=assistant_message,
+                messages=messages,
+                tool_role=tool_role,
+            )
+
+            if self.show_tool_calls:
+                yield ModelResponse(content="\nRunning:")
+                for _f in function_calls_to_run:
+                    yield ModelResponse(content=f"\n - {_f.get_call_str()}")
+                yield ModelResponse(content="\n\n")
+
+            for function_call_response in self.run_function_calls(
+                function_calls=function_calls_to_run, function_call_results=function_call_results, tool_role=tool_role
+            ):
+                yield function_call_response
+
+            if len(function_call_results) > 0:
+                messages.extend(function_call_results)
+
+    async def ahandle_stream_tool_calls(
+        self,
+        assistant_message: Message,
+        messages: List[Message],
+        tool_role: str = "tool",
+    ):
+        """
+        Handle tool calls for response stream.
+
+        Args:
+            assistant_message (Message): The assistant message.
+            messages (List[Message]): The list of messages.
+            tool_role (str): The role of the tool call. Defaults to "tool".
+
+        Returns:
+            Iterator[ModelResponse]: An iterator of the model response.
+        """
+        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
+            function_calls_to_run, function_call_results = self._prepare_stream_tool_calls(
+                assistant_message=assistant_message,
+                messages=messages,
+                tool_role=tool_role,
+            )
+
+            if self.show_tool_calls:
+                yield ModelResponse(content="\nRunning:")
+                for _f in function_calls_to_run:
+                    yield ModelResponse(content=f"\n - {_f.get_call_str()}")
+                yield ModelResponse(content="\n\n")
+
+            async for function_call_response in self.arun_function_calls(
+                function_calls=function_calls_to_run, function_call_results=function_call_results, tool_role=tool_role
+            ):
+                yield function_call_response
+
+            if len(function_call_results) > 0:
+                messages.extend(function_call_results)
 
     def _handle_response_after_tool_calls(
         self, response_after_tool_calls: ModelResponse, model_response: ModelResponse

@@ -5,7 +5,7 @@ from typing import List
 
 import requests
 from agno.run.response import RunResponse
-from agno.tools.zoom import ZoomTool
+from agno.tools.zoom import ZoomTools
 
 try:
     from pypdf import PdfReader
@@ -46,7 +46,7 @@ current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 class EmployeeRecruitmentWorkflow(Workflow):
     screening_agent: Agent = Agent(
         description="You are an HR agent that screens candidates for a job interview.",
-        model=OpenAIChat(model="gpt-4o"),
+        model=OpenAIChat(id="gpt-4o"),
         instructions=[
             "You are an expert HR agent that screens candidates for a job interview.",
             "You are given a candidate's name and resume and job description.",
@@ -59,7 +59,7 @@ class EmployeeRecruitmentWorkflow(Workflow):
 
     interview_scheduler_agent: Agent = Agent(
         description="You are an interview scheduler agent that schedules interviews for candidates.",
-        model=OpenAIChat(model="gpt-4o"),
+        model=OpenAIChat(id="gpt-4o"),
         instructions=[
             "You are an interview scheduler agent that schedules interviews for candidates.",
             "You need to schedule interviews for the candidates using the Zoom tool.",
@@ -68,7 +68,7 @@ class EmployeeRecruitmentWorkflow(Workflow):
             "You are in IST timezone and the current time is {current_time}. So schedule the call in future time with reference to current time.",
         ],
         tools=[
-            ZoomTool(
+            ZoomTools(
                 account_id=os.getenv("ZOOM_ACCOUNT_ID"),
                 client_id=os.getenv("ZOOM_CLIENT_ID"),
                 client_secret=os.getenv("ZOOM_CLIENT_SECRET"),
@@ -79,7 +79,7 @@ class EmployeeRecruitmentWorkflow(Workflow):
 
     email_writer_agent: Agent = Agent(
         description="You are an expert email writer agent that writes emails to selected candidates.",
-        model=OpenAIChat(model="gpt-4o"),
+        model=OpenAIChat(id="gpt-4o"),
         instructions=[
             "You are an expert email writer agent that writes emails to selected candidates.",
             "You need to write an email and send it to the candidates using the Resend tool.",
@@ -94,7 +94,7 @@ class EmployeeRecruitmentWorkflow(Workflow):
 
     email_sender_agent: Agent = Agent(
         description="You are an expert email sender agent that sends emails to selected candidates.",
-        model=OpenAIChat(model="gpt-4o"),
+        model=OpenAIChat(id="gpt-4o"),
         instructions=[
             "You are an expert email sender agent that sends emails to selected candidates.",
             "You need to send an email to the candidate using the Resend tool.",

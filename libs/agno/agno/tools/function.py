@@ -268,10 +268,10 @@ class FunctionCall(BaseModel):
 
     def _handle_pre_hook(self):
         """Handles the pre-hook for the function call."""
-        from inspect import signature
-
         if self.function.pre_hook is not None:
             try:
+                from inspect import signature
+
                 pre_hook_args = {}
                 # Check if the pre-hook has and agent argument
                 if "agent" in signature(self.function.pre_hook).parameters:
@@ -290,10 +290,10 @@ class FunctionCall(BaseModel):
 
     def _handle_post_hook(self):
         """Handles the post-hook for the function call."""
-        from inspect import signature
-
         if self.function.post_hook is not None:
             try:
+                from inspect import signature
+
                 post_hook_args = {}
                 # Check if the post-hook has and agent argument
                 if "agent" in signature(self.function.post_hook).parameters:
@@ -319,7 +319,7 @@ class FunctionCall(BaseModel):
         if "agent" in signature(self.function.entrypoint).parameters:  # type: ignore
             entrypoint_args["agent"] = self.function._agent
         # Check if the entrypoint has an fc argument
-        if "fc" in signature(self.function.entrypoint).parameters:  # type: ignore  
+        if "fc" in signature(self.function.entrypoint).parameters:  # type: ignore
             entrypoint_args["fc"] = self
         return entrypoint_args
 
@@ -335,6 +335,7 @@ class FunctionCall(BaseModel):
         logger.debug(f"Running: {self.get_call_str()}")
         function_call_success = False
 
+        # Execute pre-hook if it exists
         self._handle_pre_hook()
 
         # Call the function with no arguments if none are provided.
@@ -374,15 +375,18 @@ class FunctionCall(BaseModel):
 
     async def aexecute(self) -> bool:
         """Runs the function call asynchronously.
+
         Returns True if the function call was successful, False otherwise.
         The result of the function call is stored in self.result.
         """
-
         if self.function.entrypoint is None:
             return False
 
         logger.debug(f"Running: {self.get_call_str()}")
         function_call_success = False
+
+        # Execute pre-hook if it exists
+        self._handle_pre_hook()
 
         # Call the function with no arguments if none are provided.
         if self.arguments == {} or self.arguments is None:
@@ -413,5 +417,8 @@ class FunctionCall(BaseModel):
                 logger.exception(e)
                 self.error = str(e)
                 return function_call_success
+
+        # Execute post-hook if it exists
+        self._handle_post_hook()
 
         return function_call_success

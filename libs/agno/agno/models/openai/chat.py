@@ -448,6 +448,7 @@ class OpenAIChat(Model):
             messages (List[Message]): The list of messages.
             model_response (ModelResponse): The model response.
             tool_role (str): The role of the tool call. Defaults to "tool".
+
         Returns:
             Optional[ModelResponse]: The model response after handling tool calls.
         """

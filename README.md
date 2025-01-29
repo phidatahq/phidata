@@ -248,7 +248,9 @@ python evals/performance/instantiation_with_tool.py
 python evals/performance/other/langgraph_instantiation.py
 ```
 
-The following evaluation is run on an Apple M4 Mackbook Pro, but we'll soon be moving this to a Github actions runner for consistency. LangGraph is on the right, **we start it first to give it a head start** and Agno is on the left.
+The following evaluation is run on an Apple M4 Mackbook Pro, but we'll soon be moving this to a Github actions runner for consistency. LangGraph is on the right, **we start it first to give it a head start**.
+
+Agno is on the left, notice how it finishes almost instantly while LangGraph is still 1/4th of the way through the runtime measurement and hasn't even started the memory measurement. That's how fast Agno is.
 
 https://github.com/user-attachments/assets/f9b91369-d6a4-4d69-89a8-b266d19338f3
 

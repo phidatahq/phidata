@@ -173,6 +173,7 @@ def main():
     if uploaded_file and not prompt:
         file_identifier = f"{uploaded_file.name}_{uploaded_file.size}"
         if file_identifier not in st.session_state.loaded_files:
+            alert = st.sidebar.info("Processing document...", icon="ℹ️")
             file_type = uploaded_file.name.split(".")[-1].lower()
             reader = get_reader(file_type)
             if reader:
@@ -180,6 +181,7 @@ def main():
                 agentic_rag_agent.knowledge.load_documents(docs, upsert=True)
                 st.session_state.loaded_files.add(file_identifier)
                 st.sidebar.success(f"{uploaded_file.name} added to knowledge base")
+            alert.empty()
         else:
             st.sidebar.info(f"{uploaded_file.name} already loaded in knowledge base")
 

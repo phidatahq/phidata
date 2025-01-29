@@ -413,7 +413,7 @@ if __name__ == "__main__":
             table_name="generate_blog_post_workflows",
             db_file="tmp/workflows.db",
         ),
-        debug_mode=True,
+        debug_mode=False,
     )
 
     # Execute the workflow with caching enabled

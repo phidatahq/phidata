@@ -5,7 +5,7 @@ import nltk  # type: ignore
 import typer
 from agno.agent import Agent
 from agno.knowledge.pdf_url import PDFUrlKnowledgeBase
-from agno.vectordb.pineconedb import PineconeDB
+from agno.vectordb.pineconedb import Pinecone
 from rich.prompt import Prompt
 
 nltk.download("punkt")
@@ -14,7 +14,7 @@ nltk.download("punkt_tab")
 api_key = os.getenv("PINECONE_API_KEY")
 index_name = "thai-recipe-hybrid-search"
 
-vector_db = PineconeDB(
+vector_db = Pinecone(
     name=index_name,
     dimension=1536,
     metric="cosine",

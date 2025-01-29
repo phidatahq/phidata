@@ -13,7 +13,7 @@ from agno.utils.log import logger
 from agno.vectordb.base import VectorDb
 
 
-class PineconeDB(VectorDb):
+class Pinecone(VectorDb):
     """A class representing a Pinecone database.
 
     Args:

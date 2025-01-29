@@ -7,7 +7,7 @@ from agno.vectordb.base import VectorDb
 from agno.vectordb.cassandra.index import AgnoMetadataVectorCassandraTable
 
 
-class CassandraDb(VectorDb):
+class Cassandra(VectorDb):
     def __init__(
         self,
         table_name: str,

@@ -266,10 +266,10 @@ class FunctionCall(BaseModel):
         call_str = f"{self.function.name}({', '.join([f'{k}={v}' for k, v in trimmed_arguments.items()])})"
         return call_str
 
-    def _handle_pre_hook(self) -> bool:
+    def _handle_pre_hook(self):
         """Handles the pre-hook for the function call."""
         from inspect import signature
-        
+
         if self.function.pre_hook is not None:
             try:
                 pre_hook_args = {}
@@ -288,7 +288,7 @@ class FunctionCall(BaseModel):
                 logger.warning(f"Error in pre-hook callback: {e}")
                 logger.exception(e)
 
-    def _handle_post_hook(self) -> bool:
+    def _handle_post_hook(self):
         """Handles the post-hook for the function call."""
         from inspect import signature
 
@@ -316,10 +316,10 @@ class FunctionCall(BaseModel):
 
         entrypoint_args = {}
         # Check if the entrypoint has an agent argument
-        if "agent" in signature(self.function.entrypoint).parameters:
+        if "agent" in signature(self.function.entrypoint).parameters:  # type: ignore
             entrypoint_args["agent"] = self.function._agent
         # Check if the entrypoint has an fc argument
-        if "fc" in signature(self.function.entrypoint).parameters:
+        if "fc" in signature(self.function.entrypoint).parameters:  # type: ignore  
             entrypoint_args["fc"] = self
         return entrypoint_args
 
@@ -329,8 +329,6 @@ class FunctionCall(BaseModel):
         Returns True if the function call was successful, False otherwise.
         The result of the function call is stored in self.result.
         """
-        from inspect import signature
-
         if self.function.entrypoint is None:
             return False
 
@@ -340,11 +338,9 @@ class FunctionCall(BaseModel):
         self._handle_pre_hook()
 
         # Call the function with no arguments if none are provided.
-        entrypoint_args = self._build_entrypoint_args()
-
         if self.arguments == {} or self.arguments is None:
             try:
-
+                entrypoint_args = self._build_entrypoint_args()
                 self.result = self.function.entrypoint(**entrypoint_args)
                 function_call_success = True
             except AgentRunException as e:
@@ -358,6 +354,7 @@ class FunctionCall(BaseModel):
                 return function_call_success
         else:
             try:
+                entrypoint_args = self._build_entrypoint_args()
                 self.result = self.function.entrypoint(**entrypoint_args, **self.arguments)
                 function_call_success = True
             except AgentRunException as e:
@@ -380,7 +377,6 @@ class FunctionCall(BaseModel):
         Returns True if the function call was successful, False otherwise.
         The result of the function call is stored in self.result.
         """
-        from inspect import signature
 
         if self.function.entrypoint is None:
             return False
@@ -388,11 +384,10 @@ class FunctionCall(BaseModel):
         logger.debug(f"Running: {self.get_call_str()}")
         function_call_success = False
 
-
-        entrypoint_args = self._build_entrypoint_args()
         # Call the function with no arguments if none are provided.
         if self.arguments == {} or self.arguments is None:
             try:
+                entrypoint_args = self._build_entrypoint_args()
                 self.result = await self.function.entrypoint(**entrypoint_args)
                 function_call_success = True
             except AgentRunException as e:
@@ -406,6 +401,7 @@ class FunctionCall(BaseModel):
                 return function_call_success
         else:
             try:
+                entrypoint_args = self._build_entrypoint_args()
                 self.result = await self.function.entrypoint(**entrypoint_args, **self.arguments)
                 function_call_success = True
             except AgentRunException as e:

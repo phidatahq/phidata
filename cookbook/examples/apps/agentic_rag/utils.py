@@ -1,9 +1,9 @@
 from typing import Any, Dict, List, Optional
 
 import streamlit as st
-from agno.utils.log import logger
-from agno.agent.agent import Agent
 from agentic_rag import get_agentic_rag_agent
+from agno.agent.agent import Agent
+from agno.utils.log import logger
 
 
 def add_message(
@@ -39,9 +39,9 @@ def export_chat_history():
                 chat_text += "#### Tools Used:\n"
                 for tool in msg["tool_calls"]:
                     if isinstance(tool, dict):
-                        tool_name = tool.get('name', 'Unknown Tool')
+                        tool_name = tool.get("name", "Unknown Tool")
                     else:
-                        tool_name = getattr(tool, 'name', 'Unknown Tool')
+                        tool_name = getattr(tool, "name", "Unknown Tool")
                     chat_text += f"- {tool_name}\n"
         return chat_text
     return ""
@@ -83,7 +83,6 @@ def display_tool_calls(tool_calls_container, tools):
                     st.json(_metrics)
 
 
-
 def rename_session_widget(agent: Agent) -> None:
     """Rename the current session of the agent and save to storage"""
 
@@ -115,6 +114,7 @@ def rename_session_widget(agent: Agent) -> None:
         else:
             if st.button("✎", key="edit_session_name"):
                 st.session_state.session_edit_mode = True
+
 
 def session_selector_widget(agent: Agent, model_id: str) -> None:
     """Display a session selector in the sidebar"""
@@ -154,22 +154,14 @@ def session_selector_widget(agent: Agent, model_id: str) -> None:
             )
             st.rerun()
 
+
 def sidebar_widget() -> None:
     """Display a sidebar with sample user queries and utilities"""
     with st.sidebar:
-
-        
-
         # Sample Questions
         st.markdown("#### ❓ Sample Questions")
         if st.button("📝 Summarize"):
-            add_message("user", "Can you summarize the main points of this document?")
-        if st.button("🔍 Key Insights"):
-            add_message("user", "What are the key insights from this document?")
-        if st.button("📊 Data Analysis"):
-            add_message(
-                "user", "Are there any important statistics or data points in this document?"
-            )
+            add_message("user", "Can you summarize (use search_knowledge_base tool)?")
 
         # Utility buttons
         st.markdown("#### 🛠️ Utilities")
@@ -186,17 +178,19 @@ def sidebar_widget() -> None:
             ):
                 st.success("Chat history exported!")
 
+
 def about_widget() -> None:
     """Display an about section in the sidebar"""
     st.sidebar.markdown("---")
     st.sidebar.markdown("### ℹ️ About")
     st.sidebar.markdown("""
-    This Auto RAG Assistant helps you analyze documents and web content using natural language queries.
+    This Agentic RAG Assistant helps you analyze documents and web content using natural language queries.
 
     Built with:
     - 🚀 Agno
     - 💫 Streamlit
     """)
+
 
 CUSTOM_CSS = """
     <style>

@@ -32,28 +32,43 @@ View the README for instructions on how to run the application.
 from typing import Optional
 
 from agno.agent import Agent, AgentMemory
-from agno.models.openai import OpenAIChat
-from agno.tools.duckduckgo import DuckDuckGoTools
 from agno.embedder.openai import OpenAIEmbedder
-from agno.vectordb.pgvector import PgVector
 from agno.knowledge import AgentKnowledge
 from agno.memory.db.postgres import PgMemoryDb
+from agno.models.anthropic import Claude
+from agno.models.google import Gemini
+from agno.models.openai import OpenAIChat
 from agno.storage.agent.postgres import PostgresAgentStorage
+from agno.tools.duckduckgo import DuckDuckGoTools
+from agno.vectordb.pgvector import PgVector
 
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 
 
 def get_agentic_rag_agent(
-    model_id: str = "gpt-4o-mini",
+    model_id: str = "openai:gpt-4o",
     user_id: Optional[str] = None,
     session_id: Optional[str] = None,
     debug_mode: bool = True,
 ) -> Agent:
     """Get an Agentic RAG Agent with Memory."""
+    # Parse model provider and name
+    provider, model_name = model_id.split(":")
 
+    # Select appropriate model class based on provider
+    if provider == "openai":
+        model = OpenAIChat(id=model_name)
+    elif provider == "google":
+        model = Gemini(id=model_name)
+    elif provider == "anthropic":
+        model = Claude(id=model_name)
+    else:
+        raise ValueError(f"Unsupported model provider: {provider}")
     # Define persistent memory for chat history
     memory = AgentMemory(
-        db=PgMemoryDb(table_name="agent_memory", db_url=db_url),  # Persist memory in Postgres
+        db=PgMemoryDb(
+            table_name="agent_memory", db_url=db_url
+        ),  # Persist memory in Postgres
         create_user_memories=True,  # Store user preferences
         create_session_summary=True,  # Store conversation summaries
     )
@@ -63,7 +78,7 @@ def get_agentic_rag_agent(
         vector_db=PgVector(
             db_url=db_url,
             table_name="agentic_rag_documents",
-            schema="ai",    
+            schema="ai",
             embedder=OpenAIEmbedder(id="text-embedding-ada-002", dimensions=1536),
         ),
         num_documents=3,  # Retrieve 3 most relevant documents
@@ -74,8 +89,10 @@ def get_agentic_rag_agent(
         name="agentic_rag_agent",
         session_id=session_id,  # Track session ID for persistent conversations
         user_id=user_id,
-        model=OpenAIChat(id=model_id),
-        storage=PostgresAgentStorage(table_name="agentic_rag_agent_sessions", db_url=db_url),  # Persist session data
+        model=model,
+        storage=PostgresAgentStorage(
+            table_name="agentic_rag_agent_sessions", db_url=db_url
+        ),  # Persist session data
         memory=memory,  # Add memory to the agent
         knowledge=knowledge_base,  # Add knowledge base
         description="You are a helpful Agent called 'Agentic RAG' and your goal is to assist the user in the best way possible.",
@@ -84,32 +101,27 @@ def get_agentic_rag_agent(
             "   - ALWAYS start by searching the knowledge base using search_knowledge_base tool",
             "   - Analyze ALL returned documents thoroughly before responding",
             "   - If multiple documents are returned, synthesize the information coherently",
-            
             "2. External Search:",
             "   - If knowledge base search yields insufficient results, use duckduckgo_search",
             "   - Focus on reputable sources and recent information",
             "   - Cross-reference information from multiple sources when possible",
-            
             "3. Context Management:",
             "   - Use get_chat_history tool to maintain conversation continuity",
             "   - Reference previous interactions when relevant",
             "   - Keep track of user preferences and prior clarifications",
-            
             "4. Response Quality:",
             "   - Provide specific citations and sources for claims",
             "   - Structure responses with clear sections and bullet points when appropriate",
             "   - Include relevant quotes from source materials",
             "   - Avoid hedging phrases like 'based on my knowledge' or 'depending on the information'",
-            
             "5. User Interaction:",
             "   - Ask for clarification if the query is ambiguous",
             "   - Break down complex questions into manageable parts",
             "   - Proactively suggest related topics or follow-up questions",
-            
             "6. Error Handling:",
             "   - If no relevant information is found, clearly state this",
             "   - Suggest alternative approaches or questions",
-            "   - Be transparent about limitations in available information"
+            "   - Be transparent about limitations in available information",
         ],
         search_knowledge=True,  # This setting gives the model a tool to search the knowledge base for information
         read_chat_history=True,  # This setting gives the model a tool to get chat history

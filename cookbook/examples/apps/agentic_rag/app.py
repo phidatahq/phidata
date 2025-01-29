@@ -1,22 +1,23 @@
 from typing import List
+
 import nest_asyncio
 import streamlit as st
+from agentic_rag import get_agentic_rag_agent
 from agno.agent import Agent
 from agno.document import Document
-from agno.document.reader.website_reader import WebsiteReader
+from agno.document.reader.csv_reader import CSVReader
 from agno.document.reader.pdf_reader import PDFReader
 from agno.document.reader.text_reader import TextReader
-from agno.document.reader.csv_reader import CSVReader
+from agno.document.reader.website_reader import WebsiteReader
 from agno.utils.log import logger
-from agentic_rag import get_agentic_rag_agent
 from utils import (
     CUSTOM_CSS,
+    about_widget,
     add_message,
     display_tool_calls,
-    sidebar_widget,
-    session_selector_widget,
     rename_session_widget,
-    about_widget,
+    session_selector_widget,
+    sidebar_widget,
 )
 
 nest_asyncio.apply()
@@ -37,7 +38,9 @@ def restart_agent():
     for key in ["agentic_rag_agent", "agentic_rag_agent_session_id", "messages"]:
         st.session_state.pop(key, None)
     st.session_state["url_scrape_key"] = st.session_state.get("url_scrape_key", 0) + 1
-    st.session_state["file_uploader_key"] = st.session_state.get("file_uploader_key", 100) + 1
+    st.session_state["file_uploader_key"] = (
+        st.session_state.get("file_uploader_key", 100) + 1
+    )
     st.rerun()
 
 
@@ -53,10 +56,14 @@ def get_reader(file_type: str):
 
 def initialize_agent(model_id: str):
     """Initialize or retrieve the Agentic RAG."""
-    if "agentic_rag_agent" not in st.session_state or st.session_state["agentic_rag_agent"] is None:
+    if (
+        "agentic_rag_agent" not in st.session_state
+        or st.session_state["agentic_rag_agent"] is None
+    ):
         logger.info(f"---*--- Creating {model_id} Agent ---*---")
         agent: Agent = get_agentic_rag_agent(
-            model_id=model_id, session_id=st.session_state.get("agentic_rag_agent_session_id")
+            model_id=model_id,
+            session_id=st.session_state.get("agentic_rag_agent_session_id"),
         )
         st.session_state["agentic_rag_agent"] = agent
         st.session_state["agentic_rag_agent_session_id"] = agent.session_id
@@ -77,8 +84,9 @@ def main():
     # Model selector
     ####################################################################
     model_options = {
-        "gpt-4o-mini": "gpt-4o-mini",
-        "gpt-4o": "gpt-4o",
+        "gpt-4o": "openai:gpt-4o",
+        "gemini-2.0-flash-exp": "google:gemini-2.0-flash-exp",
+        "claude-3-5-sonnet": "anthropic:claude-3-5-sonnet-20241022",
     }
     selected_model = st.sidebar.selectbox(
         "Select a model",
@@ -108,7 +116,9 @@ def main():
     # Load Agent Session from the database
     ####################################################################
     try:
-        st.session_state["agentic_rag_agent_session_id"] = agentic_rag_agent.load_session()
+        st.session_state["agentic_rag_agent_session_id"] = (
+            agentic_rag_agent.load_session()
+        )
     except Exception:
         st.warning("Could not create Agent session, is the database running?")
         return
@@ -129,8 +139,6 @@ def main():
         logger.debug("No run history found")
         st.session_state["messages"] = []
 
-    
-    
     if prompt := st.chat_input("👋 Ask me anything!"):
         add_message("user", prompt)
 
@@ -141,7 +149,7 @@ def main():
         st.session_state.loaded_urls = set()
     if "loaded_files" not in st.session_state:
         st.session_state.loaded_files = set()
-    
+
     st.sidebar.markdown("#### 📚 Document Management")
     input_url = st.sidebar.text_input("Add URL to Knowledge Base")
     if input_url and not prompt:  # Check if the user has entered a URL
@@ -159,7 +167,9 @@ def main():
         else:
             st.sidebar.info("URL already loaded in knowledge base")
 
-    uploaded_file = st.sidebar.file_uploader("Add a Document (.pdf, .csv, or .txt)", key="file_upload")
+    uploaded_file = st.sidebar.file_uploader(
+        "Add a Document (.pdf, .csv, or .txt)", key="file_upload"
+    )
     if uploaded_file and not prompt:
         file_identifier = f"{uploaded_file.name}_{uploaded_file.size}"
         if file_identifier not in st.session_state.loaded_files:
@@ -181,9 +191,6 @@ def main():
 
     sidebar_widget()
 
-    ####################################################################
-      ####################################################################
- 
     ####################################################################
     # Display chat history
     ####################################################################
@@ -224,7 +231,9 @@ def main():
                             response += _resp_chunk.content
                             resp_container.markdown(response)
 
-                    add_message("assistant", response, agentic_rag_agent.run_response.tools)
+                    add_message(
+                        "assistant", response, agentic_rag_agent.run_response.tools
+                    )
                 except Exception as e:
                     error_message = f"Sorry, I encountered an error: {str(e)}"
                     add_message("assistant", error_message)

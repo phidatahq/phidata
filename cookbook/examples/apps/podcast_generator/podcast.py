@@ -1,10 +1,10 @@
 import os
 from dotenv import load_dotenv
 
-from phi.tools.duckduckgo import DuckDuckGo
-from phi.agent import Agent
-from phi.model.openai import OpenAIChat
-from phi.utils.audio import write_audio_to_file
+from agno.tools.duckduckgo import DuckDuckGoTools
+from agno.agent import Agent
+from agno.models.openai import OpenAIChat
+from agno.utils.audio import write_audio_to_file
 
 # Load environment variables
 load_dotenv()
@@ -17,14 +17,14 @@ os.makedirs("tmp", exist_ok=True)
 
 def generate_podcast(topic, voice="alloy"):
     """
-    Generates a podcast script using a Phidata Agent and converts it to speech using OpenAI TTS.
+    Generates a podcast script using a agnodata Agent and converts it to speech using OpenAI TTS.
 
     Args:
         topic (str): The topic of the podcast.
         voice (str): Voice model for OpenAI TTS. Options: ["alloy", "echo", "fable", "onyx", "nova", "shimmer"]
     """
 
-    # Create a Phidata agent to generate the podcast script
+    # Create a agnodata agent to generate the podcast script
     audio_agent = Agent(
         system_prompt="You are a podcast scriptwriter specializing in concise and engaging narratives. Your task is to research a given topic using Exa and DuckDuckGo, gather relevant insights, and compose a short, compelling podcast script.",
         instructions="""### **Instructions:**
@@ -57,7 +57,7 @@ def generate_podcast(topic, voice="alloy"):
         model=OpenAIChat(
             id="gpt-4o-audio-preview", modalities=["text", "audio"], audio={"voice": voice, "format": "wav"}
         ),
-        tools=[DuckDuckGo()],
+        tools=[DuckDuckGoTools()],
     )
 
     # Generate the podcast script

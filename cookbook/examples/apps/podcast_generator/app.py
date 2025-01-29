@@ -50,7 +50,7 @@ with st.sidebar:
 
 # Main Content
 st.title("Podify AI🎙️")
-st.markdown(":orange_heart: **Built by [phidata](https://github.com/phidatahq/phidata)**")
+st.markdown(":orange_heart: **powered by Agno**")
 
 st.markdown(
     "Create high-quality podcasts on **any topic**! Simply enter a topic and let Podify AI generate a professional podcast with **realistic AI voices**. 🚀"

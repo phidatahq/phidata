@@ -20,7 +20,7 @@ st.set_page_config(
     page_icon=":orange_heart:",
 )
 st.title("Paperpal")
-st.markdown("##### :orange_heart: built by [agno](https://github.com/phidatahq/agno)")
+st.markdown("##### :orange_heart: built by [agno](https://github.com/agno-agi/agno)")
 
 
 def main() -> None:

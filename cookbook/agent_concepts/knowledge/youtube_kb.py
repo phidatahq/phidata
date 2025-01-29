@@ -7,7 +7,7 @@ from agno.vectordb.qdrant import Qdrant
 api_key = getenv("QDRANT_API_KEY")
 qdrant_url = getenv("QDRANT_URL")
 
-vector_db = Qdrant(collection="youtube-phidata", url=qdrant_url, api_key=api_key)
+vector_db = Qdrant(collection="youtube-agno", url=qdrant_url, api_key=api_key)
 
 # Create a knowledge base with the PDFs from the data/pdfs directory
 knowledge_base = YouTubeKnowledgeBase(

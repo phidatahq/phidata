@@ -59,6 +59,7 @@ class InvestmentReportGenerator(Workflow):
     """)
 
     stock_analyst: Agent = Agent(
+        name="Stock Analyst",
         tools=[
             YFinanceTools(
                 company_info=True, analyst_recommendations=True, company_news=True

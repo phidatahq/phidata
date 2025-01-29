@@ -8,13 +8,13 @@
 </div>
 <div align="center">
   <a href="https://docs.agno.com">📚 Documentation</a> &nbsp;|&nbsp;
-  <a href="https://github.com/agno-agi/agno/tree/main/cookbook">💡 Examples</a> &nbsp;|&nbsp;
+  <a href="https://docs.agno.com/examples/introduction">💡 Examples</a> &nbsp;|&nbsp;
   <a href="https://github.com/agno-agi/agno/stargazers">🌟 Star Us</a>
 </div>
 
 ## Overview
 
-[Agno](https://docs.agno.com) is a lightning-fast, model-agnostic framework for building pure AI Agents
+[Agno](https://docs.agno.com) is a lightweight framework for building multi-modal Agents.
 
 ## Simple, Fast, and Agnostic
 
@@ -26,12 +26,12 @@ Agno is designed with three core principles:
 
 ## Key features
 
-Here's why you should build Agno Agents:
+Here's why you should build Agents with Agno:
 
 - **Lightning Fast**: Agent creation is 6000x faster than LangGraph ([performance](#performance)).
 - **Model Agnostic**: Use any model, any provider, no lock-in.
-- **Multi-Modal**: Built for text, image, audio, and video.
-- **Multi-Agent**: Delegate tasks across a team of specialized agents.
+- **Multi Modal**: Input and output text, image, audio or video.
+- **Multi Agent**: Delegate tasks across a team of specialized agents.
 - **Memory Management**: Store user sessions and context in a database.
 - **Knowledge Stores**: Use vector databases for Agentic RAG or dynamic few-shot.
 - **Structured Outputs**: Make Agents respond with structured data.
@@ -46,7 +46,7 @@ pip install -U agno
 
 ## What are Agents?
 
-Agents are programs that use language models to achieve tasks. They solve problems autonomously by running tools, accessing knowledge and memory to improve responses.
+Agents are autonomous programs that use language models to achieve tasks. They solve problems by running tools, accessing knowledge and memory to improve responses.
 
 Instead of a rigid binary definition, let's think of Agents in terms of agency and autonomy.
 
@@ -233,7 +233,10 @@ While an Agent's performance is bottlenecked by inference, we must do all we can
 Let's compare instantiating an Agent with 1 tool using Agno vs LangGraph, we'll run the evaluation 50 times and take the average. You should run the evaluation yourself on your own machine, please, do not take these results at face value.
 
 ```shell
-pip install openai memory_profiler agno langgraph langchain_openai
+# Setup virtual environment
+./scripts/perf_setup.sh
+# OR Install dependencies manually
+# pip install openai memory_profiler agno langgraph langchain_openai
 
 # Agno
 python evals/performance/instantiation_with_tool.py
@@ -259,6 +262,17 @@ Dividing the average time taken to instantiate a Langgraph Agent by the average 
 In the benchmarks above, ~30Mib of memory usage is from the memory profiler, Agno Agents use 66.6 - 30 ~ 36.6Mib of memory. Whereas Langgraph Agents use 125.3 - 30 ~ 95.3Mib of memory. Langgraph Agents use ~2.6x more memory than Agno Agents. When you're running 1000s of Agents in production, these numbers will add up.
 
 > We understand that these aren't the most accurate benchmarks, but we are planning on publishing accuracy, reliability and performance benchmarks running on Github actions in the coming weeks.
+
+## Cursor Setup
+
+When building Agno agents, using the Agno docs as a documentation source in Cursor is a great way to get started.
+
+1. In Cursor, go to the settings or preferences section.
+2. Find the section to manage documentation sources.
+3. Add `https://docs.agno.com` to the list of documentation URLs.
+4. Save the changes.
+
+Now, Cursor will have access to the Agno documentation.
 
 ## Documentation, Community & More examples
 

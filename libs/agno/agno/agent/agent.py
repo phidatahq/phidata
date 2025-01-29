@@ -1547,9 +1547,22 @@ class Agent:
             # Update the current extra_data with the extra_data from the database which is updated in place
             self.extra_data = session.extra_data
 
+
+
+
+        if self.memory is None:
+            self.memory = session.memory # type: ignore
+ 
+        if not isinstance(self.memory, AgentMemory):
+            if isinstance(self.memory, dict):
+                # Convert dict to AgentMemory
+                self.memory = AgentMemory(**self.memory)
+            else:
+                raise TypeError(f"Expected memory to be a dict or AgentMemory, but got {type(self.memory)}")
+
         if session.memory is not None:
-            if self.memory is None:
-                self.memory = AgentMemory()
+            # if self.memory is None:
+            #     self.memory = AgentMemory()
 
             try:
                 if "runs" in session.memory:
@@ -2576,7 +2589,7 @@ class Agent:
         # -*- Delete session
         self.storage.delete_session(session_id=session_id)
         # -*- Save to storage
-        self.write_to_storage()
+        # self.write_to_storage()
 
     ###########################################################################
     # Handle images, videos and audio

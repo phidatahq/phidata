@@ -23,7 +23,7 @@ tools = [get_weather]
 def instantiate_agent():
     return create_react_agent(model=ChatOpenAI(model="gpt-4o"), tools=tools)
 
-langgraph_instantiation = PerfEval(func=instantiate_agent, num_iterations=50)
+langgraph_instantiation = PerfEval(func=instantiate_agent, num_iterations=1000)
 
 if __name__ == "__main__":
     langgraph_instantiation.run(print_results=True)

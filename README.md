@@ -252,7 +252,7 @@ The following evaluation is run on an Apple M4 Mackbook Pro, but we'll soon be m
 
 LangGraph is on the right, **we start it first to give it a head start**.
 
-Agno is on the left, notice how it finishes before LangGraph gets 1/4th of the way through the runtime measurement and hasn't even started the memory measurement. That's how fast Agno is.
+Agno is on the left, notice how it finishes before LangGraph gets 1/2 way through the runtime measurement and hasn't even started the memory measurement. That's how fast Agno is.
 
 https://github.com/user-attachments/assets/f9b91369-d6a4-4d69-89a8-b266d19338f3
 
@@ -262,7 +262,9 @@ Dividing the average time taken to instantiate a Langgraph Agent by the average 
 0.019413s / 0.000001s ~ 19,413
 ```
 
-**Agno Agent instantiation is roughly 19000 times faster than Langgraph Agent instantiation**. Sure, the runtime will be dominated by inference, but these numbers will add up as the number of Agents grows.
+In this particular run, **Agno Agent instantiation is roughly 19000 times faster than Langgraph Agent instantiation**. Sure, the runtime will be dominated by inference, but these numbers will add up as the number of Agents grows.
+
+Because there is a lot of overhead in Langgraph, the numbers will get worse as the number of tools grows and the number of Agents grows.
 
 ### Memory usage
 

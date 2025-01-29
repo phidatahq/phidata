@@ -21,7 +21,7 @@ pip install -U qdrant-client pypdf openai agno
 ### Cassandra DB
 
 ```shell
-python cookbook/vector_dbs/cassandraDb.py
+python cookbook/vector_dbs/cassandra_db.py
 ```
 
 

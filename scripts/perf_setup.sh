@@ -13,7 +13,7 @@ REPO_ROOT="$(dirname "${CURR_DIR}")"
 AGNO_DIR="${REPO_ROOT}/libs/agno"
 source "${CURR_DIR}/_utils.sh"
 
-VENV_DIR="${REPO_ROOT}/.perfenv"
+VENV_DIR="${REPO_ROOT}/.venvs/perfenv"
 PYTHON_VERSION=$(python3 --version)
 
 print_heading "Performance Testing setup..."
@@ -27,10 +27,10 @@ print_info "uv venv --python 3.12 ${VENV_DIR}"
 uv venv --python 3.12 ${VENV_DIR}
 
 print_heading "Installing libraries"
-VIRTUAL_ENV=${VENV_DIR} uv pip install memory_profiler agno langgraph langchain_openai crewai pydantic_ai smolagents
+VIRTUAL_ENV=${VENV_DIR} uv pip install -U agno langgraph langchain_openai crewai pydantic_ai smolagents
 
 print_heading "uv pip list"
 VIRTUAL_ENV=${VENV_DIR} uv pip list
 
 print_heading "Performance Testing setup complete"
-print_heading "Activate venv using: source .perfenv/bin/activate"
+print_heading "Activate venv using: source ${VENV_DIR}/bin/activate"

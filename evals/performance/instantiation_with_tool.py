@@ -20,7 +20,7 @@ tools = [get_weather]
 def instantiate_agent():
     return Agent(model=OpenAIChat(id='gpt-4o'), tools=tools)
 
-instantiation_perf = PerfEval(func=instantiate_agent, num_iterations=50)
+instantiation_perf = PerfEval(func=instantiate_agent, num_iterations=1000)
 
 if __name__ == "__main__":
     instantiation_perf.run(print_results=True)

@@ -105,7 +105,7 @@ class BlogPostGenerator(Workflow):
            - Find supporting data and statistics\
         """),
         response_model=SearchResults,
-        structured_outputs=True,
+        structured_outputs=True
     )
 
     # Content Scraper: Extracts and processes article content
@@ -138,7 +138,7 @@ class BlogPostGenerator(Workflow):
            - Maintain readability\
         """),
         response_model=ScrapedArticle,
-        structured_outputs=True,
+        structured_outputs=True
     )
 
     # Content Writer Agent: Crafts engaging blog posts from research
@@ -237,39 +237,55 @@ class BlogPostGenerator(Workflow):
 
         # Scrape the search results
         scraped_articles: Dict[str, ScrapedArticle] = self.scrape_articles(
-            search_results, use_scrape_cache
+            topic, search_results, use_scrape_cache
         )
 
-        # Write a blog post
-        yield from self.write_blog_post(topic, scraped_articles)
+        # Prepare the input for the writer
+        writer_input = {
+            "topic": topic,
+            "articles": [v.model_dump() for v in scraped_articles.values()],
+        }
+
+        # Run the writer and yield the response
+        yield from self.writer.run(json.dumps(writer_input, indent=4), stream=True)
+
+        # Save the blog post in the cache
+        self.add_blog_post_to_cache(topic, self.writer.run_response.content)
 
     def get_cached_blog_post(self, topic: str) -> Optional[str]:
         logger.info("Checking if cached blog post exists")
+
         return self.session_state.get("blog_posts", {}).get(topic)
 
     def add_blog_post_to_cache(self, topic: str, blog_post: str):
         logger.info(f"Saving blog post for topic: {topic}")
         self.session_state.setdefault("blog_posts", {})
         self.session_state["blog_posts"][topic] = blog_post
-        # Save the blog post to the storage
-        self.write_to_storage()
 
     def get_cached_search_results(self, topic: str) -> Optional[SearchResults]:
         logger.info("Checking if cached search results exist")
-        return self.session_state.get("search_results", {}).get(topic)
+        search_results = self.session_state.get("search_results", {}).get(topic)
+        return (
+            SearchResults.model_validate(search_results)
+            if search_results and isinstance(search_results, dict)
+            else search_results
+        )
 
     def add_search_results_to_cache(self, topic: str, search_results: SearchResults):
         logger.info(f"Saving search results for topic: {topic}")
         self.session_state.setdefault("search_results", {})
-        self.session_state["search_results"][topic] = search_results.model_dump()
-        # Save the search results to the storage
-        self.write_to_storage()
+        self.session_state["search_results"][topic] = search_results
 
     def get_cached_scraped_articles(
         self, topic: str
     ) -> Optional[Dict[str, ScrapedArticle]]:
         logger.info("Checking if cached scraped articles exist")
-        return self.session_state.get("scraped_articles", {}).get(topic)
+        scraped_articles = self.session_state.get("scraped_articles", {}).get(topic)
+        return (
+            ScrapedArticle.model_validate(scraped_articles)
+            if scraped_articles and isinstance(scraped_articles, dict)
+            else scraped_articles
+        )
 
     def add_scraped_articles_to_cache(
         self, topic: str, scraped_articles: Dict[str, ScrapedArticle]
@@ -277,8 +293,6 @@ class BlogPostGenerator(Workflow):
         logger.info(f"Saving scraped articles for topic: {topic}")
         self.session_state.setdefault("scraped_articles", {})
         self.session_state["scraped_articles"][topic] = scraped_articles
-        # Save the scraped articles to the storage
-        self.write_to_storage()
 
     def get_search_results(
         self, topic: str, use_search_cache: bool, num_attempts: int = 3
@@ -325,7 +339,7 @@ class BlogPostGenerator(Workflow):
         return None
 
     def scrape_articles(
-        self, search_results: SearchResults, use_scrape_cache: bool
+        self, topic: str, search_results: SearchResults, use_scrape_cache: bool
     ) -> Dict[str, ScrapedArticle]:
         scraped_articles: Dict[str, ScrapedArticle] = {}
 
@@ -365,20 +379,6 @@ class BlogPostGenerator(Workflow):
         self.add_scraped_articles_to_cache(topic, scraped_articles)
         return scraped_articles
 
-    def write_blog_post(
-        self, topic: str, scraped_articles: Dict[str, ScrapedArticle]
-    ) -> Iterator[RunResponse]:
-        logger.info("Writing blog post")
-        # Prepare the input for the writer
-        writer_input = {
-            "topic": topic,
-            "articles": [v.model_dump() for v in scraped_articles.values()],
-        }
-        # Run the writer and yield the response
-        yield from self.writer.run(json.dumps(writer_input, indent=4), stream=True)
-        # Save the blog post in the cache
-        self.add_blog_post_to_cache(topic, self.writer.run_response.content)
-
 
 # Run the workflow if the script is executed directly
 if __name__ == "__main__":
@@ -414,8 +414,9 @@ if __name__ == "__main__":
         session_id=f"generate-blog-post-on-{url_safe_topic}",
         storage=SqliteWorkflowStorage(
             table_name="generate_blog_post_workflows",
-            db_file="tmp/workflows.db",
+            db_file="tmp/agno_workflows.db",
         ),
+        debug_mode=True,
     )
 
     # Execute the workflow with caching enabled

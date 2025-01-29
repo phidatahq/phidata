@@ -441,7 +441,7 @@ def main():
             session_id="personalized-email-generator",
             storage=SqliteWorkflowStorage(
                 table_name="personalized_email_workflows",
-                db_file="tmp/workflows.db",
+                db_file="tmp/agno_workflows.db",
             ),
         )
 

@@ -266,23 +266,12 @@ class FunctionCall(BaseModel):
         call_str = f"{self.function.name}({', '.join([f'{k}={v}' for k, v in trimmed_arguments.items()])})"
         return call_str
 
-    def execute(self) -> bool:
-        """Runs the function call.
-
-        Returns True if the function call was successful, False otherwise.
-        The result of the function call is stored in self.result.
-        """
-        from inspect import signature
-
-        if self.function.entrypoint is None:
-            return False
-
-        logger.debug(f"Running: {self.get_call_str()}")
-        function_call_success = False
-
-        # Execute pre-hook if it exists
+    def _handle_pre_hook(self):
+        """Handles the pre-hook for the function call."""
         if self.function.pre_hook is not None:
             try:
+                from inspect import signature
+
                 pre_hook_args = {}
                 # Check if the pre-hook has and agent argument
                 if "agent" in signature(self.function.pre_hook).parameters:
@@ -299,53 +288,12 @@ class FunctionCall(BaseModel):
                 logger.warning(f"Error in pre-hook callback: {e}")
                 logger.exception(e)
 
-        # Call the function with no arguments if none are provided.
-        if self.arguments is None:
-            try:
-                entrypoint_args = {}
-                # Check if the entrypoint has and agent argument
-                if "agent" in signature(self.function.entrypoint).parameters:
-                    entrypoint_args["agent"] = self.function._agent
-                # Check if the entrypoint has an fc argument
-                if "fc" in signature(self.function.entrypoint).parameters:
-                    entrypoint_args["fc"] = self
-
-                self.result = self.function.entrypoint(**entrypoint_args)
-                function_call_success = True
-            except AgentRunException as e:
-                logger.debug(f"{e.__class__.__name__}: {e}")
-                self.error = str(e)
-                raise
-            except Exception as e:
-                logger.warning(f"Could not run function {self.get_call_str()}")
-                logger.exception(e)
-                self.error = str(e)
-                return function_call_success
-        else:
-            try:
-                entrypoint_args = {}
-                # Check if the entrypoint has and agent argument
-                if "agent" in signature(self.function.entrypoint).parameters:
-                    entrypoint_args["agent"] = self.function._agent
-                # Check if the entrypoint has an fc argument
-                if "fc" in signature(self.function.entrypoint).parameters:
-                    entrypoint_args["fc"] = self
-
-                self.result = self.function.entrypoint(**entrypoint_args, **self.arguments)
-                function_call_success = True
-            except AgentRunException as e:
-                logger.debug(f"{e.__class__.__name__}: {e}")
-                self.error = str(e)
-                raise
-            except Exception as e:
-                logger.warning(f"Could not run function {self.get_call_str()}")
-                logger.exception(e)
-                self.error = str(e)
-                return function_call_success
-
-        # Execute post-hook if it exists
+    def _handle_post_hook(self):
+        """Handles the post-hook for the function call."""
         if self.function.post_hook is not None:
             try:
+                from inspect import signature
+
                 post_hook_args = {}
                 # Check if the post-hook has and agent argument
                 if "agent" in signature(self.function.post_hook).parameters:
@@ -361,5 +309,116 @@ class FunctionCall(BaseModel):
             except Exception as e:
                 logger.warning(f"Error in post-hook callback: {e}")
                 logger.exception(e)
+
+    def _build_entrypoint_args(self) -> Dict[str, Any]:
+        """Builds the arguments for the entrypoint."""
+        from inspect import signature
+
+        entrypoint_args = {}
+        # Check if the entrypoint has an agent argument
+        if "agent" in signature(self.function.entrypoint).parameters:  # type: ignore
+            entrypoint_args["agent"] = self.function._agent
+        # Check if the entrypoint has an fc argument
+        if "fc" in signature(self.function.entrypoint).parameters:  # type: ignore
+            entrypoint_args["fc"] = self
+        return entrypoint_args
+
+    def execute(self) -> bool:
+        """Runs the function call.
+
+        Returns True if the function call was successful, False otherwise.
+        The result of the function call is stored in self.result.
+        """
+        if self.function.entrypoint is None:
+            return False
+
+        logger.debug(f"Running: {self.get_call_str()}")
+        function_call_success = False
+
+        # Execute pre-hook if it exists
+        self._handle_pre_hook()
+
+        # Call the function with no arguments if none are provided.
+        if self.arguments == {} or self.arguments is None:
+            try:
+                entrypoint_args = self._build_entrypoint_args()
+                self.result = self.function.entrypoint(**entrypoint_args)
+                function_call_success = True
+            except AgentRunException as e:
+                logger.debug(f"{e.__class__.__name__}: {e}")
+                self.error = str(e)
+                raise
+            except Exception as e:
+                logger.warning(f"Could not run function {self.get_call_str()}")
+                logger.exception(e)
+                self.error = str(e)
+                return function_call_success
+        else:
+            try:
+                entrypoint_args = self._build_entrypoint_args()
+                self.result = self.function.entrypoint(**entrypoint_args, **self.arguments)
+                function_call_success = True
+            except AgentRunException as e:
+                logger.debug(f"{e.__class__.__name__}: {e}")
+                self.error = str(e)
+                raise
+            except Exception as e:
+                logger.warning(f"Could not run function {self.get_call_str()}")
+                logger.exception(e)
+                self.error = str(e)
+                return function_call_success
+
+        # Execute post-hook if it exists
+        self._handle_post_hook()
+
+        return function_call_success
+
+    async def aexecute(self) -> bool:
+        """Runs the function call asynchronously.
+
+        Returns True if the function call was successful, False otherwise.
+        The result of the function call is stored in self.result.
+        """
+        if self.function.entrypoint is None:
+            return False
+
+        logger.debug(f"Running: {self.get_call_str()}")
+        function_call_success = False
+
+        # Execute pre-hook if it exists
+        self._handle_pre_hook()
+
+        # Call the function with no arguments if none are provided.
+        if self.arguments == {} or self.arguments is None:
+            try:
+                entrypoint_args = self._build_entrypoint_args()
+                self.result = await self.function.entrypoint(**entrypoint_args)
+                function_call_success = True
+            except AgentRunException as e:
+                logger.debug(f"{e.__class__.__name__}: {e}")
+                self.error = str(e)
+                raise
+            except Exception as e:
+                logger.warning(f"Could not run function {self.get_call_str()}")
+                logger.exception(e)
+                self.error = str(e)
+                return function_call_success
+        else:
+            try:
+                entrypoint_args = self._build_entrypoint_args()
+                self.result = await self.function.entrypoint(**entrypoint_args, **self.arguments)
+                function_call_success = True
+            except AgentRunException as e:
+                logger.debug(f"{e.__class__.__name__}: {e}")
+                self.error = str(e)
+                raise
+            except Exception as e:
+                logger.warning(f"Could not run function {self.get_call_str()}")
+                logger.exception(e)
+                self.error = str(e)
+                return function_call_success
+
+        # Execute post-hook if it exists
+        self._handle_post_hook()
 
         return function_call_success

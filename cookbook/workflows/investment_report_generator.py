@@ -59,6 +59,7 @@ class InvestmentReportGenerator(Workflow):
     """)
 
     stock_analyst: Agent = Agent(
+        name="Stock Analyst",
         tools=[
             YFinanceTools(
                 company_info=True, analyst_recommendations=True, company_news=True
@@ -217,7 +218,7 @@ if __name__ == "__main__":
         session_id=f"investment-report-{url_safe_companies}",
         storage=SqliteWorkflowStorage(
             table_name="investment_report_workflows",
-            db_file="tmp/workflows.db",
+            db_file="tmp/agno_workflows.db",
         ),
     )
 

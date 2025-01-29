@@ -2,12 +2,12 @@ from os import getenv
 
 from agno.agent import Agent
 from agno.knowledge.pdf_url import PDFUrlKnowledgeBase
-from agno.vectordb.pineconedb import PineconeDB
+from agno.vectordb.pineconedb import PineconeDb
 
 api_key = getenv("PINECONE_API_KEY")
 index_name = "thai-recipe-index"
 
-vector_db = PineconeDB(
+vector_db = PineconeDb(
     name=index_name,
     dimension=1536,
     metric="cosine",

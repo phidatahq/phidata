@@ -1,1 +1,1 @@
-from agno.vectordb.chroma.chromadb import ChromaDb
+from agno.vectordb.cassandra.cassandra import Cassandra

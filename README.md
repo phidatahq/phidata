@@ -254,9 +254,9 @@ LangGraph is on the right, **we start it first to give it a head start**.
 
 Agno is on the left, notice how it finishes before LangGraph gets 1/2 way through the runtime measurement and hasn't even started the memory measurement. That's how fast Agno is.
 
-https://github.com/user-attachments/assets/f9b91369-d6a4-4d69-89a8-b266d19338f3
+https://github.com/user-attachments/assets/ba466d45-75dd-45ac-917b-0a56c5742e23
 
-Dividing the average time taken to instantiate a Langgraph Agent by the average time taken to instantiate an Agno Agent:
+Dividing the average time of a Langgraph Agent by the average time of an Agno Agent:
 
 ```
 0.020526s / 0.000002s ~ 10,263

@@ -216,13 +216,16 @@ def main():
         st.session_state.loaded_files.clear()
         st.session_state.knowledge_base_initialized = False  # Reset initialization flag
         st.sidebar.success("Knowledge base cleared")
-
+###############################################################
     # Sample Questions
+###############################################################
     st.sidebar.markdown("#### ❓ Sample Questions")
     if st.sidebar.button("📝 Summarize"):
         add_message("user", "Can you summarize (use search_knowledge_base tool)?")
 
+###############################################################
     # Utility buttons
+###############################################################
     st.sidebar.markdown("#### 🛠️ Utilities")
     col1, col2 = st.sidebar.columns([1, 1])  # Equal width columns
     with col1:

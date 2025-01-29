@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, ValidationIn
 
 from phi.model.message import Message
 from phi.model.response import ModelResponse, ModelResponseEvent
+from phi.run.response import RunResponse
 from phi.tools import Tool, Toolkit
 from phi.tools.function import Function, FunctionCall, ToolCallException
 from phi.utils.log import logger
@@ -119,6 +120,8 @@ class Model(BaseModel):
                 tools_for_api.append(tool.to_dict())
             elif isinstance(tool, Dict):
                 tools_for_api.append(tool)
+            elif isinstance(tool, Function):
+                tools_for_api.append({"type": "function", "function": tool.to_dict()})
         return tools_for_api
 
     def add_tool(
@@ -242,7 +245,22 @@ class Model(BaseModel):
             function_call_output: Optional[Union[List[Any], str]] = ""
             if isinstance(function_call.result, (GeneratorType, collections.abc.Iterator)):
                 for item in function_call.result:
-                    function_call_output += item
+                    if isinstance(item, str):
+                        if isinstance(function_call_output, str):
+                            function_call_output += item
+                        else:
+                            if function_call_output is None:
+                                function_call_output = [item]
+                            else:
+                                function_call_output.append(item)
+                    elif isinstance(item, RunResponse):
+                        if isinstance(function_call_output, str):
+                            function_call_output = item.content
+                        else:
+                            if function_call_output is None:
+                                function_call_output = [item.content]
+                            else:
+                                function_call_output.append(item.content)
                     if function_call.function.show_result:
                         yield ModelResponse(content=item)
             else:

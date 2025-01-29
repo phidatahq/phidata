@@ -1,4 +1,5 @@
 import collections.abc
+from functools import wraps
 import inspect
 
 from os import getenv
@@ -8,7 +9,6 @@ from typing import Any, Optional, Callable, Dict
 
 from pydantic import BaseModel, Field, ConfigDict, field_validator, PrivateAttr
 
-from phi.agent import Agent
 from phi.run.response import RunResponse, RunEvent  # noqa: F401
 from phi.memory.workflow import WorkflowMemory, WorkflowRun
 from phi.storage.workflow.base import WorkflowStorage
@@ -74,6 +74,8 @@ class Workflow(BaseModel):
     _run_parameters: Dict[str, Any] = PrivateAttr()
     # Return type of the run function
     _run_return_type: Optional[str] = PrivateAttr()
+    # Registered functions
+    _registered_functions: Dict[str, Any] = PrivateAttr(default_factory=dict)
 
     model_config = ConfigDict(arbitrary_types_allowed=True, populate_by_name=True)
 
@@ -356,8 +358,11 @@ class Workflow(BaseModel):
             self._subclass_run = self.run
             self._run_parameters = {}
             self._run_return_type = None
+            self._registered_functions = {}
 
     def model_post_init(self, __context: Any) -> None:
+        from phi.agent import Agent
+
         super().model_post_init(__context)
         for field_name, field in self.__fields__.items():
             value = getattr(self, field_name)
@@ -385,6 +390,8 @@ class Workflow(BaseModel):
         self.storage.delete_session(session_id)
 
     def deep_copy(self, *, update: Optional[Dict[str, Any]] = None) -> "Workflow":
+        from phi.agent import Agent
+
         """Create and return a deep copy of this Workflow, optionally updating fields.
 
         Args:
@@ -449,3 +456,58 @@ class Workflow(BaseModel):
 
         # For other types, return as is
         return field_value
+
+    @classmethod
+    def register(cls, description: Optional[str] = None) -> Callable:
+        """
+        Decorator to register functions within the workflow.
+
+        Args:
+            description: Optional description of what the function does
+        """
+
+        def decorator(func: Callable) -> Callable:
+            @wraps(func)
+            def wrapper(*args, **kwargs):
+                return func(*args, **kwargs)
+
+            # Get function signature parameters
+            type_mapping = {
+                str: "string",
+                int: "integer",
+                bool: "boolean",
+                float: "number",
+                list: "array",
+                dict: "object",
+            }
+            sig = inspect.signature(func)
+            params = {
+                name: {
+                    "type": type_mapping.get(param.annotation, param.annotation.__name__)
+                    if param.annotation != inspect.Parameter.empty
+                    else None,
+                }
+                for name, param in sig.parameters.items()
+                if name != "self"
+            }
+
+            # Ensure _registered_functions is initialized as a dictionary
+            if not hasattr(cls, "_registered_functions") or not isinstance(cls._registered_functions, dict):
+                cls._registered_functions = {}
+
+            # Update function metadata
+
+            cls._registered_functions[func.__name__] = {
+                "function": wrapper,
+                "description": description or func.__doc__ or "No description provided",
+                "parameters": params,
+                "required": [
+                    name
+                    for name, param in sig.parameters.items()
+                    if param.default is inspect.Parameter.empty and name != "self"
+                ],
+            }
+
+            return wrapper
+
+        return decorator

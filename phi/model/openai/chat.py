@@ -348,6 +348,7 @@ class OpenAIChat(Model):
             except Exception as e:
                 logger.error(f"Error from OpenAI API: {e}")
 
+        # logger.debug(f"*********** Messages for model: {[self.format_message(m) for m in messages]} ***********")
         return self.get_client().chat.completions.create(
             model=self.id,
             messages=[self.format_message(m) for m in messages],  # type: ignore

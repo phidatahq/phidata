@@ -2,7 +2,7 @@ from os import getenv
 
 from agno.agent import Agent
 from agno.knowledge.pdf_url import PDFUrlKnowledgeBase
-from agno.vectordb.singlestore import S2VectorDb
+from agno.vectordb.singlestore import SingleStore
 from sqlalchemy.engine import create_engine
 
 USERNAME = getenv("SINGLESTORE_USERNAME")
@@ -22,7 +22,7 @@ db_engine = create_engine(db_url)
 
 knowledge_base = PDFUrlKnowledgeBase(
     urls=["https://agno-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
-    vector_db=S2VectorDb(
+    vector_db=SingleStore(
         collection="recipes",
         db_engine=db_engine,
         schema=DATABASE,

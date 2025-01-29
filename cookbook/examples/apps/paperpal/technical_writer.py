@@ -4,7 +4,7 @@ from typing import List
 
 from agno.agent import Agent
 from agno.models.openai import OpenAIChat
-from agno.tools.arxiv_toolkit import ArxivTools
+from agno.tools.arxiv import ArxivTools
 from agno.tools.exa import ExaTools
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field

@@ -14,7 +14,7 @@
 
 ## Overview
 
-[Agno](https://docs.agno.com) is a lightweight, model-agnostic framework for building AI Agents
+[Agno](https://docs.agno.com) is a lightweight framework for building multi-modal Agents.
 
 ## Simple, Fast, and Agnostic
 
@@ -233,7 +233,10 @@ While an Agent's performance is bottlenecked by inference, we must do all we can
 Let's compare instantiating an Agent with 1 tool using Agno vs LangGraph, we'll run the evaluation 50 times and take the average. You should run the evaluation yourself on your own machine, please, do not take these results at face value.
 
 ```shell
-pip install openai memory_profiler agno langgraph langchain_openai
+# Setup virtual environment
+./scripts/perf_setup.sh
+# OR Install dependencies manually
+# pip install openai memory_profiler agno langgraph langchain_openai
 
 # Agno
 python evals/performance/instantiation_with_tool.py

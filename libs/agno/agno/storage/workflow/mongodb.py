@@ -15,7 +15,7 @@ from agno.storage.workflow.session import WorkflowSession
 from agno.utils.log import logger
 
 
-class MongoWorkflowStorage(WorkflowStorage):
+class MongoDbWorkflowStorage(WorkflowStorage):
     def __init__(
         self,
         collection_name: str,
@@ -214,7 +214,7 @@ class MongoWorkflowStorage(WorkflowStorage):
         pass
 
     def __deepcopy__(self, memo):
-        """Create a deep copy of the MongoWorkflowStorage instance"""
+        """Create a deep copy of the MongoDbWorkflowStorage instance"""
         from copy import deepcopy
 
         # Create a new instance without calling __init__

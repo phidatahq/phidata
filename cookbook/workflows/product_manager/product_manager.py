@@ -164,7 +164,7 @@ product_manager = ProductManagerWorkflow(
     ),
 )
 
-meeting_notes = open("cookbook/workflows/meeting_notes.txt", "r").read()
+meeting_notes = open("cookbook/workflows/product_manager/meeting_notes.txt", "r").read()
 users_uuid = {
     "Sarah": "8d4e1c9a-b5f2-4e3d-9a76-f12d8e3b4c5a",
     "Mike": "2f9b7d6c-e4a3-42f1-b890-1c5d4e8f9a3b",

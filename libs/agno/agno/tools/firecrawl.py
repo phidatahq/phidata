@@ -31,8 +31,10 @@ class FirecrawlTools(Toolkit):
         elif not scrape:
             crawl = True
 
-        self.register(self.scrape_website)
-        self.register(self.crawl_website)
+        if scrape:
+            self.register(self.scrape_website)
+        if crawl:
+            self.register(self.crawl_website)
 
     def scrape_website(self, url: str) -> str:
         """Use this function to Scrapes a website using Firecrawl.

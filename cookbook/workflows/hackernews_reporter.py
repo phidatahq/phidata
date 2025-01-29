@@ -81,7 +81,11 @@ class HackerNewsReporter(Workflow):
         yield from self.writer.run(top_stories.content, stream=True)
 
 
-# Run workflow
-report: Iterator[RunResponse] = HackerNewsReporter(debug_mode=False).run(num_stories=5)
-# Print the report
-pprint_run_response(report, markdown=True, show_time=True)
+if __name__ == "__main__":
+    # Run workflow
+    report: Iterator[RunResponse] = HackerNewsReporter(debug_mode=False).run(
+        num_stories=5
+    )
+    # Print the report
+    pprint_run_response(report, markdown=True, show_time=True)
+

@@ -1,4 +1,5 @@
 import time
+import traceback
 from typing import List, Optional
 
 try:
@@ -280,6 +281,10 @@ class PostgresWorkflowStorage(WorkflowStorage):
                 )
 
                 sess.execute(stmt)
+        except TypeError as e:
+            traceback.print_exc()
+            logger.error(f"Exception upserting into table: {e}")
+            return None
         except Exception as e:
             logger.debug(f"Exception upserting into table: {e}")
             if create_and_retry and not self.table_exists():

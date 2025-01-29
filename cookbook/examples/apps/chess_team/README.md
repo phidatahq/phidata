@@ -37,5 +37,5 @@ streamlit run cookbook/examples/apps/chess_team/app.py
 ```
 - Open [localhost:8501](http://localhost:8501) to view the Chess Teams Agent.
 
-### 8. Message us on [discord](https://agno.link/discord) if you have any questions
+### 5. Message us on [discord](https://agno.link/discord) if you have any questions
 

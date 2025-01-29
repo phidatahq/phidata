@@ -163,7 +163,7 @@ class CalCom(Toolkit):
         """Get all upcoming bookings for an attendee.
 
         Args:
-            email: Optional Attendee's email
+            email (str): Attendee's email [Optional]
 
         Returns:
             str: List of upcoming bookings or error message

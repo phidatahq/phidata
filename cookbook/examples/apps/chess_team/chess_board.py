@@ -114,10 +114,11 @@ class ChessBoard:
             'r': 'Rook',
             'b': 'Bishop',
             'n': 'Knight',
-            'p': 'Pawn'
+            'p': 'Pawn',
+            '.': 'Empty'  # Add empty square mapping
         }
-        return piece_names.get(piece)
+        return piece_names.get(piece, 'Unknown')  # Return 'Unknown' if piece not found
 
     def get_piece_at_position(self, pos: Tuple[int, int]) -> str:
         """Returns the piece at the given position"""
-        return self.board[pos[0]][pos[1]] 
+        return self.board[pos[0]][pos[1]]   

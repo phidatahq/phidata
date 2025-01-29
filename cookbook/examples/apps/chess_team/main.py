@@ -1,9 +1,8 @@
 from typing import Dict, Any
 from agno.agent import Agent
-from agno.models.openai import OpenAIChat
 from agno.utils.log import logger
 from chess_board import ChessBoard
-
+from agno.models.anthropic import Claude
 class ChessGame:
     def __init__(self):
         self.board = ChessBoard()
@@ -23,7 +22,7 @@ class ChessGame:
                        Return the moves as a comma-separated list, for example:
                        'e2e4, d2d4, g1f3, b1c3'
                        Include all possible pawn moves, piece moves, castling if available.""",
-                model=OpenAIChat(id="gpt-4o-mini"),
+                model=Claude(id="claude-3-5-sonnet-20241022"),
             )
 
             white_piece_agent = Agent(
@@ -32,7 +31,7 @@ class ChessGame:
                        analyze them and choose the best one based on standard chess strategy.
                        Consider piece development, center control, and king safety.
                        Respond ONLY with your chosen move in algebraic notation (e.g., 'e2e4').""",
-                model=OpenAIChat(id="gpt-4o-mini"),
+                model=Claude(id="claude-3-5-sonnet-20241022"),
             )
 
             black_piece_agent = Agent(
@@ -41,7 +40,7 @@ class ChessGame:
                        analyze them and choose the best one based on standard chess strategy.
                        Consider piece development, center control, and king safety.
                        Respond ONLY with your chosen move in algebraic notation (e.g., 'e7e5').""",
-                model=OpenAIChat(id="gpt-4o-mini"),
+                model=Claude(id="claude-3-5-sonnet-20241022"),
             )
 
             master_agent = Agent(
@@ -66,7 +65,7 @@ class ChessGame:
                     "4. Update and maintain the board state after each valid move",
                     "5. Check for game-ending conditions after each move"
                 ],
-                model=OpenAIChat(id="gpt-4o-mini"),
+                model=Claude(id="claude-3-5-sonnet-20241022"),
                 markdown=True,
                 team=[white_piece_agent, black_piece_agent, legal_move_agent],
                 show_tool_calls=True,
@@ -110,6 +109,10 @@ class ChessGame:
             # Get piece information before moving
             piece = self.board.get_piece_at_position(from_pos)
             piece_name = self.board.get_piece_name(piece)
+            
+            # Only proceed if we have a valid piece (not empty or unknown)
+            if piece_name in ['Empty', 'Unknown']:
+                return {"status": f"Invalid move: No piece at position {move[:2]}"}
             
             # Make the move
             self.board.update_position(from_pos, to_pos)

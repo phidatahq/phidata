@@ -2194,7 +2194,7 @@ class Agent:
         from dataclasses import fields
 
         # Do not copy agent_session and session_name to the new agent
-        excluded_fields = ["agent_session", "session_name"]
+        excluded_fields = ["agent_session", "session_name", "memory"]
         # Extract the fields to set for the new Agent
         fields_for_new_agent: Dict[str, Any] = {}
 
@@ -2203,6 +2203,8 @@ class Agent:
                 continue
             field_value = getattr(self, f.name)
             if field_value is not None:
+                print(f.name, field_value)
+                print()
                 fields_for_new_agent[f.name] = self._deep_copy_field(f.name, field_value)
 
         # Update fields if provided

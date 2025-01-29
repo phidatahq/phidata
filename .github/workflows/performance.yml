@@ -21,8 +21,8 @@ jobs:
         pip install openai agno langgraph langchain_openai
 
     - name: Run Performance Tests
-      # env:
-        # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      env:
+        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       run: |
         echo "Running LangGraph Performance Test..."
         python evals/performance/other/langgraph_instantiation.py > langgraph_results.txt

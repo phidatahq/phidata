@@ -252,6 +252,7 @@ class BlogPostGenerator(Workflow):
 
     def get_cached_blog_post(self, topic: str) -> Optional[str]:
         logger.info("Checking if cached blog post exists")
+
         return self.session_state.get("blog_posts", {}).get(topic)
 
     def add_blog_post_to_cache(self, topic: str, blog_post: str):
@@ -413,7 +414,7 @@ if __name__ == "__main__":
             table_name="generate_blog_post_workflows",
             db_file="tmp/workflows.db",
         ),
-        debug_mode=False,
+        debug_mode=True,
     )
 
     # Execute the workflow with caching enabled

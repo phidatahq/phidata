@@ -1,5 +1,5 @@
-import time
 import asyncio
+import time
 
 from agno.agent import Agent
 from agno.models.openai import OpenAIChat
@@ -39,9 +39,7 @@ agent = Agent(
     markdown=True,
 )
 # Non-streaming response
-asyncio.run(
-    agent.aprint_response("Please run all tasks with a delay of 5s")
-)
+asyncio.run(agent.aprint_response("Please run all tasks with a delay of 5s"))
 # Streaming response
 # asyncio.run(
 #     agent.aprint_response("Please run all tasks with a delay of 5s", stream=True)

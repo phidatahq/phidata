@@ -435,7 +435,7 @@ class Model(ABC):
                 functions_list.append(asyncio.to_thread(function_call.execute))
 
         # -*- Check function call limit
-        if self.tool_call_limit and len(self._function_call_stack) >= self.tool_call_limit:
+        if self.tool_call_limit and len(self._function_call_stack) >= self.tool_call_limit:  # type: ignore
             # Deactivate tool calls by setting future tool calls to "none"
             self.tool_choice = "none"
             return

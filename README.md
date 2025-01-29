@@ -250,7 +250,10 @@ python evals/performance/other/langgraph_instantiation.py
 
 The following evaluation is run on an Apple M4 Mackbook Pro, but we'll soon be moving this to a Github actions runner for consistency. LangGraph is on the right, **we start it first to give it a head start** and Agno is on the left.
 
-![Agno vs LangGraph](.assets/agno_vs_langgraph_benchmark.mp4)
+<video width="100%" controls autoplay loop muted>
+  <source src=".assets/agno_vs_langgraph_benchmark.mp4" type="video/mp4">
+  Your browser does not support the video tag.
+</video>
 
 Dividing the average time taken to instantiate a Langgraph Agent by the average time taken to instantiate an Agno Agent:
 

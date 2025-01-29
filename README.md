@@ -220,7 +220,7 @@ python agent_team.py
 
 ## Performance
 
-Agno is specifically designed for building high performance agentic systems:
+Agno is designed for high performance agentic systems:
 
 - Agent instantiation: <5μs on average (5000x faster than LangGraph).
 - Memory footprint: <0.01Mib on average (50x less memory than LangGraph).
@@ -238,6 +238,7 @@ You should run the evaluation yourself on your own machine, please, do not take 
 ```shell
 # Setup virtual environment
 ./scripts/perf_setup.sh
+source .venvs/perfenv/bin/activate
 # OR Install dependencies manually
 # pip install openai agno langgraph langchain_openai
 
@@ -252,7 +253,7 @@ The following evaluation is run on an Apple M4 Mackbook Pro, but we'll soon be m
 
 LangGraph is on the right, **we start it first to give it a head start**.
 
-Agno is on the left, notice how it finishes before LangGraph gets 1/2 way through the runtime measurement and hasn't even started the memory measurement. That's how fast Agno is.
+Agno is on the left, notice how it finishes before LangGraph gets 1/2 way through the runtime measurement, and hasn't even started the memory measurement. That's how fast Agno is.
 
 https://github.com/user-attachments/assets/ba466d45-75dd-45ac-917b-0a56c5742e23
 
@@ -262,9 +263,9 @@ Dividing the average time of a Langgraph Agent by the average time of an Agno Ag
 0.020526s / 0.000002s ~ 10,263
 ```
 
-In this particular run, **Agno Agent instantiation is roughly 10,000 times faster than Langgraph Agent instantiation**. Sure, the runtime will be dominated by inference, but these numbers will add up as the number of Agents grows.
+In this particular run, **Agno Agent instantiation is roughly 10,000 times faster than Langgraph Agent instantiation**. Sure, the runtime will be dominated by inference, but these numbers add up as the number of Agents grows.
 
-Because there is a lot of overhead in Langgraph, the numbers will get worse as the number of tools grows and the number of Agents grows.
+The numbers continue to favor Agno as the number of tools grow, and we all memory and knowledge stores.
 
 ### Memory usage
 
@@ -282,7 +283,7 @@ Dividing the average memory usage of a Langgraph Agent by the average memory usa
 
 ### Conclusion
 
-Agno agents are designed for performance, while we share some benchmarks against other frameworks, we should be mindful that these numbers are subjective, and accuracy and reliability are more important than speed.
+Agno agents are designed for high-performance and while we do share some benchmarks against other frameworks, we should be mindful that accuracy and reliability are more important than speed.
 
 We'll be publishing accuracy and reliability benchmarks running on Github actions in the coming weeks. Given that each framework is different and we won't be able to tune their performance like we do with Agno, for future benchmarks we'll only be comparing against ourselves.
 

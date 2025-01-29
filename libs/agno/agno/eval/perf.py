@@ -164,9 +164,9 @@ class PerfEval:
     eval_id: Optional[str] = None
 
     # Number of warm-up runs (not included in final stats)
-    warmup_runs: int = 3
+    warmup_runs: int = 10
     # Number of measured iterations
-    num_iterations: int = 10
+    num_iterations: int = 50
 
     # Result of the evaluation
     result: Optional[PerfResult] = None

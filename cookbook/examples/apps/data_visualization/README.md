@@ -15,7 +15,7 @@ source .venv/bin/activate
 ### 2. Install libraries
 
 ```shell
-pip install -r cookbook/use_cases/apps/data_visualization/requirements.txt
+pip install -r cookbook/examples/apps/data_visualization/requirements.txt
 ```
 
 ### 3. Run PgVector
@@ -27,7 +27,7 @@ Let's use Postgres for storing our data, but the SQL Agent should work with any 
 - Run using a helper script
 
 ```shell
-./cookbook/run_pgvector.sh
+./cookbook/scripts/run_pgvector.sh
 ```
 
 - OR run using the docker run command
@@ -58,7 +58,7 @@ export OPENAI_API_KEY=***
 ### 5. Run Data Visualization Agent
 
 ```shell
-streamlit run cookbook/use_cases/apps/data_visualization/app.py
+streamlit run cookbook/examples/apps/data_visualization/app.py
 ```
 
 - Open [localhost:8501](http://localhost:8501) to view the Data Visualization Agent.

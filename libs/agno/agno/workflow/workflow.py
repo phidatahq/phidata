@@ -90,7 +90,7 @@ class Workflow:
     ):
         self.name = name or self.__class__.__name__
         self.workflow_id = workflow_id
-        self.description = description
+        self.description = description or self.__class__.description
 
         self.user_id = user_id
 

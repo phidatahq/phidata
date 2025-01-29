@@ -235,7 +235,7 @@ class BlogPostGenerator(Workflow):
 
         # Scrape the search results
         scraped_articles: Dict[str, ScrapedArticle] = self.scrape_articles(
-            search_results, use_scrape_cache
+            topic, search_results, use_scrape_cache
         )
 
         # Prepare the input for the writer
@@ -336,7 +336,7 @@ class BlogPostGenerator(Workflow):
         return None
 
     def scrape_articles(
-        self, search_results: SearchResults, use_scrape_cache: bool
+        self, topic: str, search_results: SearchResults, use_scrape_cache: bool
     ) -> Dict[str, ScrapedArticle]:
         scraped_articles: Dict[str, ScrapedArticle] = {}
 

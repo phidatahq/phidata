@@ -2442,7 +2442,11 @@ class Agent:
                 from pathlib import Path
 
                 fn = self.save_response_to_file.format(
-                    name=self.name, session_id=self.session_id, user_id=self.user_id, message=message_str
+                    name=self.name,
+                    session_id=self.session_id,
+                    user_id=self.user_id,
+                    message=message_str,
+                    run_id=self.run_id,
                 )
                 fn_path = Path(fn)
                 if not fn_path.parent.exists():

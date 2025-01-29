@@ -4,7 +4,7 @@ import time
 import logging
 from main import ChessGame
 from chess_board import ChessBoard
-from agno.utils.log import logger  # Add logger
+from agno.utils.log import logger  
 from typing import Dict
 
 # Configure logging
@@ -93,14 +93,84 @@ CUSTOM_CSS = """
     color: #4CAF50;
     font-weight: bold;
 }
+.chess-board-wrapper {
+    font-family: 'Courier New', monospace;
+    background: #2b2b2b;
+    padding: 20px;
+    border-radius: 10px;
+    display: inline-block;
+    margin: 20px auto;
+    text-align: center;
+}
+.board-container {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+}
+.chess-files {
+    color: #888;
+    text-align: center;
+    padding: 5px 0;
+    margin-left: 30px;
+    display: flex;
+    justify-content: space-around;
+    width: calc(100% - 30px);
+    margin-bottom: 5px;
+}
+.chess-file-label {
+    width: 40px;
+    text-align: center;
+}
+.chess-grid {
+    border: 1px solid #666;
+    display: inline-block;
+}
+.chess-row {
+    display: flex;
+    align-items: center;
+}
+.chess-rank {
+    color: #888;
+    width: 25px;
+    text-align: center;
+    padding-right: 5px;
+}
+.chess-cell {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #666;
+    font-size: 24px;
+}
+.piece-white {
+    color: #fff;
+}
+.piece-black {
+    color: #aaa;
+}
+.piece-empty {
+    color: transparent;
+}
+.chess-row:nth-child(odd) .chess-cell:nth-child(even),
+.chess-row:nth-child(even) .chess-cell:nth-child(odd) {
+    background-color: #3c3c3c;
+}
+.chess-row:nth-child(even) .chess-cell:nth-child(even),
+.chess-row:nth-child(odd) .chess-cell:nth-child(odd) {
+    background-color: #262626;
+}
 </style>
 """
 
 st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 
-def display_board(board_state: str):
+def display_board(board: ChessBoard):
     """Display the chess board in a formatted way"""
-    st.markdown(f"<pre class='chess-board'>{board_state}</pre>", unsafe_allow_html=True)
+    st.markdown('<div class="board-container">', unsafe_allow_html=True)
+    st.markdown(board.get_board_state(), unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
 def add_move_to_history(move: str, player: str, piece_info: Dict[str, str] = None):
     """Add a move to the game history with piece information"""
@@ -299,7 +369,9 @@ def play_next_move(retry_count: int = 0, max_retries: int = 3):
         return False
 
     try:
-        current_board = st.session_state.game.board.get_board_state()
+        # Get the board object instead of just the state
+        current_board = st.session_state.game.board
+        board_state = current_board.get_board_state()
         
         # Determine whose turn it is
         is_white_turn = len(st.session_state.move_history) % 2 == 0
@@ -312,7 +384,7 @@ def play_next_move(retry_count: int = 0, max_retries: int = 3):
         try:
             with st.spinner("🎲 Calculating legal moves..."):
                 legal_prompt = f"""Current board state:
-{current_board}
+{board_state}
 
 List ALL legal moves for {current_color} pieces. Return as comma-separated list."""
                 
@@ -326,7 +398,7 @@ List ALL legal moves for {current_color} pieces. Return as comma-separated list.
                 
                 if not legal_moves:
                     # If no legal moves, check if it's checkmate or stalemate
-                    if check_game_ending_conditions(current_board, legal_moves, current_color):
+                    if check_game_ending_conditions(board_state, legal_moves, current_color):
                         st.session_state.game_paused = True  # Pause the game
                         return False
                     return False
@@ -341,7 +413,7 @@ List ALL legal moves for {current_color} pieces. Return as comma-separated list.
         try:
             with st.spinner(f"🤔 {agent_name} is thinking..."):
                 choice_prompt = f"""Current board state:
-{current_board}
+{board_state}
 
 Legal moves available: {legal_moves}
 
@@ -460,8 +532,8 @@ def main():
         col1, col2 = st.columns([2, 1])
         
         with col1:
-            # Display current board
-            display_board(st.session_state.game.board.get_board_state())
+            # Display current board - pass the board object instead of just the state
+            display_board(st.session_state.game.board)
             
             # Auto-play next move if game is not paused
             if not st.session_state.game_paused:

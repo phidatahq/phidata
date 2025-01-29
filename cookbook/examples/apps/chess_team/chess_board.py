@@ -25,29 +25,40 @@ class ChessBoard:
         ]
     
     def get_board_state(self) -> str:
-        """Returns a formatted string representation of the current board state"""
-        # Unicode characters for board edges and pieces
-        border = "  ┌───┬───┬───┬───┬───┬───┬───┬───┐"
-        middle = "  ├───┼───┼───┼───┼───┼───┼───┼───┤"
-        bottom = "  └───┴───┴───┴───┴───┴───┴───┴───┘"
-        files  = "    a   b   c   d   e   f   g   h  "
+        """Returns a formatted string representation of the current board state with HTML/CSS classes"""
+        # First create the HTML structure with CSS classes
+        html_output = [
+            '<div class="chess-board-wrapper">',
+            '<div class="chess-files">',
+        ]
         
-        board_str = []
-        board_str.append(files)
-        board_str.append(border)
+        # Add individual file labels
+        for file in 'abcdefgh':
+            html_output.append(f'<div class="chess-file-label">{file}</div>')
+        
+        html_output.extend([
+            '</div>',  # Close chess-files
+            '<div class="chess-grid">'
+        ])
         
         for i, row in enumerate(self.board):
-            # Add rank number and pieces
-            board_row = f"{8-i} │"
-            for piece in row:
-                # Convert piece to Unicode character
-                piece_char = self.piece_map[piece]
-                board_row += f" {piece_char} │"
+            # Add rank number and row
+            html_output.append(f'<div class="chess-row">')
+            html_output.append(f'<div class="chess-rank">{8-i}</div>')
             
-            board_str.append(board_row)
-            board_str.append(middle if i < 7 else bottom)
+            for piece in row:
+                piece_char = self.piece_map[piece]
+                piece_class = "piece-white" if piece.isupper() else "piece-black"
+                if piece == '.':
+                    piece_class = "piece-empty"
+                html_output.append(f'<div class="chess-cell {piece_class}">{piece_char}</div>')
+            
+            html_output.append('</div>')  # Close chess-row
         
-        return "\n".join(board_str)
+        html_output.append('</div>')  # Close chess-grid
+        html_output.append('</div>')  # Close chess-board-wrapper
+        
+        return '\n'.join(html_output)
     
     def update_position(self, from_pos: Tuple[int, int], to_pos: Tuple[int, int]) -> None:
         """Updates the board with a new move"""
@@ -105,7 +116,7 @@ class ChessBoard:
             'n': 'Knight',
             'p': 'Pawn'
         }
-        return piece_names.get(piece, 'Unknown')
+        return piece_names.get(piece)
 
     def get_piece_at_position(self, pos: Tuple[int, int]) -> str:
         """Returns the piece at the given position"""

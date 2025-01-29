@@ -1547,10 +1547,20 @@ class Agent:
             # Update the current extra_data with the extra_data from the database which is updated in place
             self.extra_data = session.extra_data
 
-        if session.memory is not None:
-            if self.memory is None:
-                self.memory = AgentMemory()
 
+
+
+        if self.memory is None:
+            self.memory = session.memory # type: ignore
+ 
+        if not isinstance(self.memory, AgentMemory):
+            if isinstance(self.memory, dict):
+                # Convert dict to AgentMemory
+                self.memory = AgentMemory(**self.memory)
+            else:
+                raise TypeError(f"Expected memory to be a dict or AgentMemory, but got {type(self.memory)}")
+
+        if session.memory is not None:
             try:
                 if "runs" in session.memory:
                     try:
@@ -1586,7 +1596,7 @@ class Agent:
             self.agent_session = self.storage.read(session_id=self.session_id)
             if self.agent_session is not None:
                 self.load_agent_session(session=self.agent_session)
-        self.load_user_memories()
+            self.load_user_memories()
         return self.agent_session
 
     def write_to_storage(self) -> Optional[AgentSession]:
@@ -2181,7 +2191,7 @@ class Agent:
         from dataclasses import fields
 
         # Do not copy agent_session and session_name to the new agent
-        excluded_fields = ["agent_session", "session_name"]
+        excluded_fields = ["agent_session", "session_name", "memory"]
         # Extract the fields to set for the new Agent
         fields_for_new_agent: Dict[str, Any] = {}
 
@@ -2575,9 +2585,7 @@ class Agent:
             return
         # -*- Delete session
         self.storage.delete_session(session_id=session_id)
-        # -*- Save to storage
-        self.write_to_storage()
-
+        
     ###########################################################################
     # Handle images, videos and audio
     ###########################################################################

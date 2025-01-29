@@ -531,9 +531,7 @@ class Workflow:
             return
         # -*- Delete session
         self.storage.delete_session(session_id=session_id)
-        # -*- Save to storage
-        self.write_to_storage()
-
+       
     def deep_copy(self, *, update: Optional[Dict[str, Any]] = None) -> Workflow:
         """Create and return a deep copy of this Workflow, optionally updating fields.
 

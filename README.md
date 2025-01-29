@@ -1,8 +1,9 @@
 <div align="center" id="top">
   <a href="https://docs.agno.com">
     <picture>
-      <source media="(prefers-color-scheme: dark)" srcset=".assets/logo.svg">
-      <img src=".assets/logo.svg" alt="Agno">
+      <source media="(prefers-color-scheme: dark)" srcset=".assets/logo-dark.svg">
+      <source media="(prefers-color-scheme: light)" srcset=".assets/logo-light.svg">
+      <img src=".assets/logo-light.svg" alt="Agno">
     </picture>
   </a>
 </div>
@@ -28,11 +29,11 @@ Agno is designed with three core principles:
 
 Here's why you should build Agents with Agno:
 
-- **Lightning Fast**: Agent creation is 6000x faster than LangGraph ([performance](#performance)).
+- **Lightning Fast**: Agent creation is 6000x faster than LangGraph (see [performance](#performance)).
 - **Model Agnostic**: Use any model, any provider, no lock-in.
-- **Multi Modal**: Input and output text, image, audio or video.
+- **Multi Modal**: Native support for text, image, audio and video.
 - **Multi Agent**: Delegate tasks across a team of specialized agents.
-- **Memory Management**: Store user sessions and context in a database.
+- **Memory Management**: Store user sessions and agent state in a database.
 - **Knowledge Stores**: Use vector databases for Agentic RAG or dynamic few-shot.
 - **Structured Outputs**: Make Agents respond with structured data.
 - **Monitoring**: Track agent sessions and performance in real-time on [agno.com](https://app.agno.com).
@@ -114,7 +115,7 @@ Now you should see a much more relevant result.
 
 ## Example - Agent with knowledge
 
-Agents can store knowledge in a vector database which can be used for RAG or dynamic few-shot learning.
+Agents can store knowledge in a vector database and use it for RAG or dynamic few-shot learning.
 
 **Agno agents use Agentic RAG** by default, which means they will search their knowledge base for the specific information they need to achieve their task.
 
@@ -219,24 +220,26 @@ python agent_team.py
 
 ## Performance
 
-Agno is built for speed and scale:
+Agno is specifically designed for high performance:
 
-- Instantiation: <10μs on average (6000x faster than LangGraph).
-- Memory footprint: <40Mib on average (2.6x less memory than LangGraph).
+- Agent instantiation: <10μs on average (5000x faster than LangGraph).
+- Memory footprint: <0.01Mib on average (50x less memory than LangGraph).
 
 > Tested on an Apple M4 Mackbook Pro.
 
-While an Agent's performance is bottlenecked by inference, we must do all we can to minimize execution time, reduce memory usage, and parallelize tool calls where possible.
+While an Agent's performance is bottlenecked by inference, we must do everything possible to minimize execution time, reduce memory usage, and parallelize tool calls. These numbers are may seem minimal, but they add up even at medium scale.
 
 ### Instantiation time
 
-Let's compare instantiating an Agent with 1 tool using Agno vs LangGraph, we'll run the evaluation 50 times and take the average. You should run the evaluation yourself on your own machine, please, do not take these results at face value.
+Let's measure the time it takes for an Agent with 1 tool to start up. We'll run the evaluation 1000 times to get a baseline measurement.
+
+You should run the evaluation yourself on your own machine, please, do not take these results at face value.
 
 ```shell
 # Setup virtual environment
 ./scripts/perf_setup.sh
 # OR Install dependencies manually
-# pip install openai memory_profiler agno langgraph langchain_openai
+# pip install openai agno langgraph langchain_openai
 
 # Agno
 python evals/performance/instantiation_with_tool.py
@@ -245,7 +248,7 @@ python evals/performance/instantiation_with_tool.py
 python evals/performance/other/langgraph_instantiation.py
 ```
 
-The following evaluation is run on an Apple M4 Mackbook Pro, but we'll soon be moving this to a Github actions runner for consistency. LangGraph is on the right, we start it first to minimize bias and Agno is on the left.
+The following evaluation is run on an Apple M4 Mackbook Pro, but we'll soon be moving this to a Github actions runner for consistency. LangGraph is on the right, **we start it first to minimize bias** and Agno is on the left.
 
 https://github.com/user-attachments/assets/712216a4-974a-415e-8849-f77043b7997f
 

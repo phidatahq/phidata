@@ -1,8 +1,6 @@
 from dataclasses import asdict
 from typing import Any, List, Optional, Type
 
-from pydantic import BaseModel
-
 
 def isinstanceany(obj: Any, class_list: List[Type]) -> bool:
     """Returns True if obj is an instance of the classes in class_list"""
@@ -52,6 +50,7 @@ def dataclass_to_dict(dataclass_object, exclude: Optional[set[str]] = None, excl
 
 
 def nested_model_dump(value):
+    from pydantic import BaseModel
     if isinstance(value, BaseModel):
         return value.model_dump()
     elif isinstance(value, dict):

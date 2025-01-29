@@ -163,15 +163,15 @@ def main():
                     # Download PDF to temporary file
                     response = requests.get(input_url, stream=True, verify=False)
                     response.raise_for_status()
-                    
+
                     with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as tmp_file:
                         for chunk in response.iter_content(chunk_size=8192):
                             tmp_file.write(chunk)
                         tmp_path = tmp_file.name
-                    
+
                     reader = PDFReader()
                     docs: List[Document] = reader.read(tmp_path)
-                    
+
                     # Clean up temporary file
                     os.unlink(tmp_path)
                 except Exception as e:
@@ -180,7 +180,7 @@ def main():
             else:
                 scraper = WebsiteReader(max_links=2, max_depth=1)
                 docs: List[Document] = scraper.read(input_url)
-            
+
             if docs:
                 agentic_rag_agent.knowledge.load_documents(docs, upsert=True)
                 st.session_state.loaded_urls.add(input_url)
@@ -221,7 +221,7 @@ def main():
 ###############################################################
     st.sidebar.markdown("#### ❓ Sample Questions")
     if st.sidebar.button("📝 Summarize"):
-        add_message("user", "Can you summarize (use search_knowledge_base tool)?")
+        add_message("user", "Can you summarize what is currently in the knowledge base (use `search_knowledge_base` tool)?")
 
 ###############################################################
     # Utility buttons

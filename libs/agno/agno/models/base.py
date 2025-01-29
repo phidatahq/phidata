@@ -422,17 +422,17 @@ class Model(ABC):
     ):
         from inspect import iscoroutinefunction
 
-        functions_list: List = []
+        async_functions_list: List = []
         for function_call in function_calls:
             if self._function_call_stack is None:
                 self._function_call_stack = []
             self._function_call_stack.append(function_call)
             if iscoroutinefunction(function_call.function.entrypoint):
                 # -*- If the function is async, append the aexecute() method to the functions list
-                functions_list.append(function_call.aexecute())
+                async_functions_list.append(function_call.aexecute())
             else:
                 # -*- Else, append the execute method to the functions list wrapped in a separate thread
-                functions_list.append(asyncio.to_thread(function_call.execute))
+                async_functions_list.append(asyncio.to_thread(function_call.execute))
 
         # -*- Check function call limit
         if self.tool_call_limit and len(self._function_call_stack) >= self.tool_call_limit:  # type: ignore
@@ -445,7 +445,7 @@ class Model(ABC):
         function_call_timer.start()
 
         # -*- Run all function calls
-        results = await asyncio.gather(*functions_list, return_exceptions=True)
+        results = await asyncio.gather(*async_functions_list, return_exceptions=True)
 
         # Additional messages from the function call that will be added to the function call results
         additional_messages_from_function_call = []

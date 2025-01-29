@@ -266,7 +266,7 @@ if __name__ == "__main__":
         session_id=f"validate-startup-idea-{url_safe_idea}",
         storage=SqliteWorkflowStorage(
             table_name="validate_startup_ideas_workflow",
-            db_file="tmp/workflows.db",
+            db_file="tmp/agno_workflows.db",
         ),
         debug_mode=True,
     )

@@ -412,7 +412,7 @@ if __name__ == "__main__":
         session_id=f"generate-blog-post-on-{url_safe_topic}",
         storage=SqliteWorkflowStorage(
             table_name="generate_blog_post_workflows",
-            db_file="tmp/workflows.db",
+            db_file="tmp/agno_workflows.db",
         ),
         debug_mode=True,
     )

@@ -19,13 +19,6 @@ def add_message(
     )
 
 
-def restart_agent():
-    """Reset the agent and clear chat history"""
-    logger.debug("---*--- Restarting agent ---*---")
-    st.session_state["agentic_rag_agent"] = None
-    st.session_state["agentic_rag_agent_session_id"] = None
-    st.session_state["messages"] = []
-    st.rerun()
 
 
 def export_chat_history():
@@ -87,33 +80,26 @@ def rename_session_widget(agent: Agent) -> None:
     """Rename the current session of the agent and save to storage"""
 
     container = st.sidebar.container()
-    session_row = container.columns([3, 1], vertical_alignment="center")
-
+    
     # Initialize session_edit_mode if needed
     if "session_edit_mode" not in st.session_state:
         st.session_state.session_edit_mode = False
 
-    with session_row[0]:
-        if st.session_state.session_edit_mode:
-            new_session_name = st.text_input(
-                "Session Name",
-                value=agent.session_name,
-                key="session_name_input",
-                label_visibility="collapsed",
-            )
-        else:
-            st.markdown(f"Session Name: **{agent.session_name}**")
+    if st.sidebar.button("✎ Rename Session"):
+        st.session_state.session_edit_mode = True
+        st.rerun()
 
-    with session_row[1]:
-        if st.session_state.session_edit_mode:
-            if st.button("✓", key="save_session_name", type="primary"):
-                if new_session_name:
-                    agent.rename_session(new_session_name)
-                    st.session_state.session_edit_mode = False
-                    container.success("Renamed!")
-        else:
-            if st.button("✎", key="edit_session_name"):
-                st.session_state.session_edit_mode = True
+    if st.session_state.session_edit_mode:
+        new_session_name = st.sidebar.text_input(
+            "Enter new name:",
+            value=agent.session_name,
+            key="session_name_input",
+        )
+        if st.sidebar.button("Save", type="primary"):
+            if new_session_name:
+                agent.rename_session(new_session_name)
+                st.session_state.session_edit_mode = False
+                st.rerun()
 
 
 def session_selector_widget(agent: Agent, model_id: str) -> None:
@@ -155,28 +141,7 @@ def session_selector_widget(agent: Agent, model_id: str) -> None:
             st.rerun()
 
 
-def sidebar_widget() -> None:
-    """Display a sidebar with sample user queries and utilities"""
-    with st.sidebar:
-        # Sample Questions
-        st.markdown("#### ❓ Sample Questions")
-        if st.button("📝 Summarize"):
-            add_message("user", "Can you summarize (use search_knowledge_base tool)?")
 
-        # Utility buttons
-        st.markdown("#### 🛠️ Utilities")
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("🔄 New Chat"):
-                restart_agent()
-        with col2:
-            if st.download_button(
-                "💾 Export Chat",
-                export_chat_history(),
-                file_name="rag_chat_history.md",
-                mime="text/markdown",
-            ):
-                st.success("Chat history exported!")
 
 
 def about_widget() -> None:

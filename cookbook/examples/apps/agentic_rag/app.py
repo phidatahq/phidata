@@ -17,8 +17,11 @@ from utils import (
     display_tool_calls,
     rename_session_widget,
     session_selector_widget,
-    sidebar_widget,
+    export_chat_history
 )
+import tempfile
+import requests
+import os
 
 nest_asyncio.apply()
 st.set_page_config(
@@ -32,15 +35,13 @@ st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 # Add custom CSS
 
 
+
 def restart_agent():
-    """Restart the agent and reset session state."""
-    logger.debug("---*--- Restarting Agent ---*---")
-    for key in ["agentic_rag_agent", "agentic_rag_agent_session_id", "messages"]:
-        st.session_state.pop(key, None)
-    st.session_state["url_scrape_key"] = st.session_state.get("url_scrape_key", 0) + 1
-    st.session_state["file_uploader_key"] = (
-        st.session_state.get("file_uploader_key", 100) + 1
-    )
+    """Reset the agent and clear chat history"""
+    logger.debug("---*--- Restarting agent ---*---")
+    st.session_state["agentic_rag_agent"] = None
+    st.session_state["agentic_rag_agent_session_id"] = None
+    st.session_state["messages"] = []
     st.rerun()
 
 
@@ -149,14 +150,37 @@ def main():
         st.session_state.loaded_urls = set()
     if "loaded_files" not in st.session_state:
         st.session_state.loaded_files = set()
+    if "knowledge_base_initialized" not in st.session_state:
+        st.session_state.knowledge_base_initialized = False
 
     st.sidebar.markdown("#### 📚 Document Management")
     input_url = st.sidebar.text_input("Add URL to Knowledge Base")
-    if input_url and not prompt:  # Check if the user has entered a URL
+    if input_url and not prompt and not st.session_state.knowledge_base_initialized:  # Only load if KB not initialized
         if input_url not in st.session_state.loaded_urls:
             alert = st.sidebar.info("Processing URLs...", icon="ℹ️")
-            scraper = WebsiteReader(max_links=2, max_depth=1)
-            docs: List[Document] = scraper.read(input_url)
+            if input_url.lower().endswith('.pdf'):
+                try:
+                    # Download PDF to temporary file
+                    response = requests.get(input_url, stream=True, verify=False)
+                    response.raise_for_status()
+                    
+                    with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as tmp_file:
+                        for chunk in response.iter_content(chunk_size=8192):
+                            tmp_file.write(chunk)
+                        tmp_path = tmp_file.name
+                    
+                    reader = PDFReader()
+                    docs: List[Document] = reader.read(tmp_path)
+                    
+                    # Clean up temporary file
+                    os.unlink(tmp_path)
+                except Exception as e:
+                    st.sidebar.error(f"Error processing PDF: {str(e)}")
+                    docs = []
+            else:
+                scraper = WebsiteReader(max_links=2, max_depth=1)
+                docs: List[Document] = scraper.read(input_url)
+            
             if docs:
                 agentic_rag_agent.knowledge.load_documents(docs, upsert=True)
                 st.session_state.loaded_urls.add(input_url)
@@ -170,7 +194,7 @@ def main():
     uploaded_file = st.sidebar.file_uploader(
         "Add a Document (.pdf, .csv, or .txt)", key="file_upload"
     )
-    if uploaded_file and not prompt:
+    if uploaded_file and not prompt and not st.session_state.knowledge_base_initialized:  # Only load if KB not initialized
         file_identifier = f"{uploaded_file.name}_{uploaded_file.size}"
         if file_identifier not in st.session_state.loaded_files:
             alert = st.sidebar.info("Processing document...", icon="ℹ️")
@@ -181,6 +205,7 @@ def main():
                 agentic_rag_agent.knowledge.load_documents(docs, upsert=True)
                 st.session_state.loaded_files.add(file_identifier)
                 st.sidebar.success(f"{uploaded_file.name} added to knowledge base")
+                st.session_state.knowledge_base_initialized = True
             alert.empty()
         else:
             st.sidebar.info(f"{uploaded_file.name} already loaded in knowledge base")
@@ -189,9 +214,29 @@ def main():
         agentic_rag_agent.knowledge.vector_db.delete()
         st.session_state.loaded_urls.clear()
         st.session_state.loaded_files.clear()
+        st.session_state.knowledge_base_initialized = False  # Reset initialization flag
         st.sidebar.success("Knowledge base cleared")
 
-    sidebar_widget()
+    # Sample Questions
+    st.sidebar.markdown("#### ❓ Sample Questions")
+    if st.sidebar.button("📝 Summarize"):
+        add_message("user", "Can you summarize (use search_knowledge_base tool)?")
+
+    # Utility buttons
+    st.sidebar.markdown("#### 🛠️ Utilities")
+    col1, col2 = st.sidebar.columns([1, 1])  # Equal width columns
+    with col1:
+        if st.sidebar.button("🔄 New Chat", use_container_width=True):  # Added use_container_width
+            restart_agent()
+    with col2:
+        if st.sidebar.download_button(
+            "💾 Export Chat",
+            export_chat_history(),
+            file_name="rag_chat_history.md",
+            mime="text/markdown",
+            use_container_width=True,  # Added use_container_width
+        ):
+            st.sidebar.success("Chat history exported!")
 
     ####################################################################
     # Display chat history

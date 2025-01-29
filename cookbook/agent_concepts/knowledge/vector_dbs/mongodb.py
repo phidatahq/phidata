@@ -2,9 +2,7 @@
 
 from agno.agent import Agent
 from agno.knowledge.pdf_url import PDFUrlKnowledgeBase
-
-# os.environ["OPENAI_API_KEY"] = ""
-from agno.vectordb.mongodb import MongoDBVector
+from agno.vectordb.mongodb import MongoDb
 
 # MongoDB Atlas connection string
 """
@@ -16,7 +14,7 @@ mdb_connection_string = "mongodb://ai:ai@localhost:27017/ai?authSource=admin"
 
 knowledge_base = PDFUrlKnowledgeBase(
     urls=["https://agno-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
-    vector_db=MongoDBVector(
+    vector_db=MongoDb(
         collection_name="recipes",
         db_url=mdb_connection_string,
         wait_until_index_ready=60,

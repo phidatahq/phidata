@@ -49,9 +49,9 @@ These scripts will perform code formatting with `ruff` and static type checks wi
    - Your Class will be in the `libs/agno/agno/vectordb/<your_db>/<your_db>.py` file.
    - The `VectorDb` interface is defined in `libs/agno/agno/vectordb/base
    - Import your `VectorDb` Class in `libs/agno/agno/vectordb/<your_db>/__init__.py`.
-   - Checkout the [`libs/agno/agno/vectordb/pgvector/pgvector`](https://github.com/phidatahq/agno/blob/main/libs/agno/agno/vectordb/pgvector/pgvector.py) file for an example.
+   - Checkout the [`libs/agno/agno/vectordb/pgvector/pgvector`](https://github.com/agno-agi/agno/blob/main/libs/agno/agno/vectordb/pgvector/pgvector.py) file for an example.
 4. Add a recipe for using your `VectorDb` under `cookbook/vectordb/<your_db>`.
-   - Checkout [`agno/cookbook/vectordb/pgvector`](https://github.com/phidatahq/agno/tree/main/cookbook/vectordb/pgvector) for an example.
+   - Checkout [`agno/cookbook/vectordb/pgvector`](https://github.com/agno-agi/agno/tree/main/cookbook/vectordb/pgvector) for an example.
 5. Important: Format and validate your code by running `./scripts/format.sh` and `./scripts/validate.sh`.
 6. Submit a pull request.
 
@@ -63,12 +63,12 @@ These scripts will perform code formatting with `ruff` and static type checks wi
    - Create a Class for your LLM provider that inherits the `OpenAILike` Class from `libs/agno/agno/models/openai/like.py`.
    - Your Class will be in the `libs/agno/agno/models/<your_model>/<your_model>.py` file.
    - Import your Class in the `libs/agno/agno/models/<your_model>/__init__.py` file.
-   - Checkout the [`agno/models/xai/xai.py`](https://github.com/phidatahq/agno/blob/main/libs/agno/agno/models/together/together.py) file for an example.
+   - Checkout the [`agno/models/xai/xai.py`](https://github.com/agno-agi/agno/blob/main/libs/agno/agno/models/together/together.py) file for an example.
 4. If the Model provider does not support the OpenAI API spec:
    - Reach out to us on [Discord](https://discord.gg/4MtYHHrgA8) or open an issue to discuss the best way to integrate your LLM provider.
-   - Checkout [`agno/models/anthropic/claude.py`](https://github.com/phidatahq/agno/blob/main/libs/agno/agno/models/anthropic/claude.py) or [`agno/models/cohere/chat.py`](https://github.com/phidatahq/agno/blob/main/libs/agno/agno/models/cohere/chat.py) for inspiration.
+   - Checkout [`agno/models/anthropic/claude.py`](https://github.com/agno-agi/agno/blob/main/libs/agno/agno/models/anthropic/claude.py) or [`agno/models/cohere/chat.py`](https://github.com/agno-agi/agno/blob/main/libs/agno/agno/models/cohere/chat.py) for inspiration.
 5. Add a recipe for using your Model provider under `cookbook/providers/<your_model>`.
-   - Checkout [`agno/cookbook/provider/claude`](https://github.com/phidatahq/agno/tree/main/cookbook/providers/claude) for an example.
+   - Checkout [`agno/cookbook/provider/claude`](https://github.com/agno-agi/agno/tree/main/cookbook/providers/claude) for an example.
 6. Important: Format and validate your code by running `./scripts/format.sh` and `./scripts/validate.sh`.
 7. Submit a pull request.
 
@@ -79,20 +79,20 @@ These scripts will perform code formatting with `ruff` and static type checks wi
 3. Create a Class for your Tool that inherits the `Toolkit` Class from `libs/agno/agno/tools/toolkit/.py`.
    - Your Class will be in `libs/agno/agno/tools/<your_tool>.py`.
    - Make sure to register all functions in your class via a flag.
-   - Checkout the [`agno/tools/youtube_tools.py`](https://github.com/phidatahq/agno/blob/main/libs/agno/agno/tools/youtube_tools.py) file for an example.
-   - If your tool requires an API key, checkout the [`agno/tools/serpapi_tools.py`](https://github.com/phidatahq/agno/blob/main/libs/agno/agno/tools/serpapi_tools.py) as well.
+   - Checkout the [`agno/tools/youtube_tools.py`](https://github.com/agno-agi/agno/blob/main/libs/agno/agno/tools/youtube_tools.py) file for an example.
+   - If your tool requires an API key, checkout the [`agno/tools/serpapi_tools.py`](https://github.com/agno-agi/agno/blob/main/libs/agno/agno/tools/serpapi_tools.py) as well.
 4. Add a recipe for using your Tool under `cookbook/tools/<your_tool>`.
-   - Checkout [`agno/cookbook/tools/youtube_tools`](https://github.com/phidatahq/agno/blob/main/cookbook/tools/youtube_tools.py) for an example.
+   - Checkout [`agno/cookbook/tools/youtube_tools`](https://github.com/agno-agi/agno/blob/main/cookbook/tools/youtube_tools.py) for an example.
 5. Important: Format and validate your code by running `./scripts/format.sh` and `./scripts/validate.sh`.
 6. Submit a pull request.
 
-Message us on [Discord](https://discord.gg/4MtYHHrgA8) or post on [Discourse](https://community.phidata.com/) if you have any questions or need help with credits.
+Message us on [Discord](https://discord.gg/4MtYHHrgA8) or post on [Discourse](https://community.agno.com/) if you have any questions or need help with credits.
 
 ## 📚 Resources
 
 - <a href="https://docs.agno.com/introduction" target="_blank" rel="noopener noreferrer">Documentation</a>
 - <a href="https://discord.gg/4MtYHHrgA8" target="_blank" rel="noopener noreferrer">Discord</a>
-- <a href="https://community.phidata.com/" target="_blank" rel="noopener noreferrer">Discourse</a>
+- <a href="https://community.agno.com/" target="_blank" rel="noopener noreferrer">Discourse</a>
 
 ## 📝 License
 

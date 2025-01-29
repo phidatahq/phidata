@@ -20,7 +20,7 @@ web_agent = Agent(
     name="Web Agent",
     role="Search the web for information",
     agent_id="web-agent",
-    model=Groq(id="llama3-groq-70b-8192-tool-use-preview"),
+    model=Groq(id="llama-3.3-70b-versatile"),
     tools=[DuckDuckGoTools()],
     instructions=[
         "Use the `duckduckgo_search` or `duckduckgo_news` tools to search the web for information.",
@@ -40,7 +40,7 @@ finance_agent = Agent(
     name="Finance Agent",
     role="Get financial data",
     agent_id="finance-agent",
-    model=Groq(id="llama3-groq-70b-8192-tool-use-preview"),
+    model=Groq(id="llama-3.3-70b-versatile"),
     tools=[
         YFinanceTools(
             stock_price=True,
@@ -65,7 +65,7 @@ youtube_agent = Agent(
     name="YouTube Agent",
     role="Understand YouTube videos and answer questions",
     agent_id="youtube-agent",
-    model=Groq(id="llama3-groq-70b-8192-tool-use-preview"),
+    model=Groq(id="llama-3.3-70b-versatile"),
     tools=[YouTubeTools()],
     description="You are a YouTube agent that has the special skill of understanding YouTube videos and answering questions about them.",
     instructions=[

@@ -524,7 +524,7 @@ class Gemini(Model):
         Args:
             assistant_message (Message): The assistant message.
             usage (ResultGenerateContentResponse): The usage metrics.
-            stream_usage (Optional[StreamUsageData]): The stream usage metrics.
+            metrics (Metrics): The metrics to update.
         """
         if usage:
             metrics.input_tokens = usage.prompt_token_count or 0
@@ -540,7 +540,7 @@ class Gemini(Model):
 
         Args:
             response (GenerateContentResponse): The model response.
-            response_timer (Timer): The response timer.
+            metrics (Metrics): The metrics to update.
 
         Returns:
             Message: The assistant message.

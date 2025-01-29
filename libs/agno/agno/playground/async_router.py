@@ -266,7 +266,7 @@ def get_async_playground_router(
             if session.session_id == session_id:
                 agent.session_id = session_id
                 agent.rename_session(body.name)
-                return JSONResponse(content={"message": f"successfully renamed agent {agent.name}"})
+                return JSONResponse(content={"message": f"successfully renamed session {session.session_id}"})
 
         return JSONResponse(status_code=404, content="Session not found.")
 
@@ -283,7 +283,7 @@ def get_async_playground_router(
         for session in all_agent_sessions:
             if session.session_id == session_id:
                 agent.delete_session(session_id)
-                return JSONResponse(content={"message": f"successfully deleted agent {agent.name}"})
+                return JSONResponse(content={"message": f"successfully deleted session {session_id}"})
 
         return JSONResponse(status_code=404, content="Session not found.")
 

@@ -47,3 +47,15 @@ def dataclass_to_dict(dataclass_object, exclude: Optional[set[str]] = None, excl
     if exclude_none:
         final_dict = {k: v for k, v in final_dict.items() if v is not None}
     return final_dict
+
+
+def nested_model_dump(value):
+    from pydantic import BaseModel
+
+    if isinstance(value, BaseModel):
+        return value.model_dump()
+    elif isinstance(value, dict):
+        return {k: nested_model_dump(v) for k, v in value.items()}
+    elif isinstance(value, list):
+        return [nested_model_dump(item) for item in value]
+    return value

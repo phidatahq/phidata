@@ -1,4 +1,4 @@
-from typing import Dict, Any
+from typing import Dict
 from agno.agent import Agent
 from agno.utils.log import logger
 from chess_board import ChessBoard

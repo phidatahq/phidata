@@ -1,6 +1,5 @@
 import streamlit as st
 import nest_asyncio
-import time
 import logging
 from main import ChessGame
 from chess_board import ChessBoard

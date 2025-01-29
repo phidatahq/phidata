@@ -1,4 +1,4 @@
-from typing import List, Tuple
+from typing import Tuple
 from dataclasses import dataclass
 
 @dataclass

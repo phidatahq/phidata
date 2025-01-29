@@ -11,7 +11,7 @@ except ImportError:
     raise ImportError("`tweepy` not installed. Please install using `pip install tweepy`.")
 
 
-class TwitterTools(Toolkit):
+class XTools(Toolkit):
     def __init__(
         self,
         bearer_token: Optional[str] = None,
@@ -21,7 +21,7 @@ class TwitterTools(Toolkit):
         access_token_secret: Optional[str] = None,
     ):
         """
-        Initialize the TwitterTools.
+        Initialize the XTools.
 
         Args:
             bearer_token Optional[str]: The bearer token for Twitter API.
@@ -30,13 +30,13 @@ class TwitterTools(Toolkit):
             access_token Optional[str]: The access token for Twitter API.
             access_token_secret Optional[str]: The access token secret for Twitter API.
         """
-        super().__init__(name="twitter")
+        super().__init__(name="x")
 
-        self.bearer_token = bearer_token or os.getenv("TWITTER_BEARER_TOKEN")
-        self.consumer_key = consumer_key or os.getenv("TWITTER_CONSUMER_KEY")
-        self.consumer_secret = consumer_secret or os.getenv("TWITTER_CONSUMER_SECRET")
-        self.access_token = access_token or os.getenv("TWITTER_ACCESS_TOKEN")
-        self.access_token_secret = access_token_secret or os.getenv("TWITTER_ACCESS_TOKEN_SECRET")
+        self.bearer_token = bearer_token or os.getenv("X_BEARER_TOKEN")
+        self.consumer_key = consumer_key or os.getenv("X_CONSUMER_KEY")
+        self.consumer_secret = consumer_secret or os.getenv("X_CONSUMER_SECRET")
+        self.access_token = access_token or os.getenv("X_ACCESS_TOKEN")
+        self.access_token_secret = access_token_secret or os.getenv("X_ACCESS_TOKEN_SECRET")
 
         self.client = tweepy.Client(
             bearer_token=self.bearer_token,
@@ -48,59 +48,60 @@ class TwitterTools(Toolkit):
         self.auth = tweepy.OAuth1UserHandler(
             self.consumer_key, self.consumer_secret, self.access_token, self.access_token_secret
         )
-        self.api = tweepy.API(self.auth)
-        self.register(self.create_tweet)
-        self.register(self.reply_to_tweet)
+        self.api = tweepy.Client()
+
+        self.register(self.create_post)
+        self.register(self.reply_to_post)
         self.register(self.send_dm)
         self.register(self.get_user_info)
         self.register(self.get_home_timeline)
 
-    def create_tweet(self, text: str) -> str:
+    def create_post(self, text: str) -> str:
         """
-        Create a new tweet.
+        Create a new X post.
 
         Args:
-            text (str): The content of the tweet to create.
+            text (str): The content of the post to create.
 
         Returns:
-            A JSON-formatted string containing the response from Twitter API with the created tweet details,
-            or an error message if the tweet creation fails.
+            A JSON-formatted string containing the response from X API (Twitter API) with the created post details,
+            or an error message if the post creation fails.
         """
-        logger.debug(f"Attempting to create tweet with text: {text}")
+        logger.debug(f"Attempting to create post with text: {text}")
         try:
             response = self.client.create_tweet(text=text)
-            tweet_id = response.data["id"]
+            post_id = response.data["id"]
             user = self.client.get_me().data
-            tweet_url = f"https://twitter.com/{user.username}/status/{tweet_id}"
+            post_url = f"https://x.com/{user.username}/status/{post_id}"
 
-            result = {"message": "Tweet successfully posted!", "url": tweet_url}
+            result = {"message": "Post successfully created!", "url": post_url}
             return json.dumps(result, indent=2)
         except tweepy.TweepyException as e:
-            logger.error(f"Error creating tweet: {e}")
+            logger.error(f"Error creating post: {e}")
             return json.dumps({"error": str(e)})
 
-    def reply_to_tweet(self, tweet_id: str, text: str) -> str:
+    def reply_to_post(self, post_id: str, text: str) -> str:
         """
-        Reply to an existing tweet.
+        Reply to an existing post.
 
         Args:
-            tweet_id (str): The ID of the tweet to reply to.
-            text (str): The content of the reply tweet.
+            post_id (str): The ID of the post to reply to.
+            text (str): The content of the reply post.
 
         Returns:
-            A JSON-formatted string containing the response from Twitter API with the reply tweet details,
+            A JSON-formatted string containing the response from Twitter API with the reply post details,
             or an error message if the reply fails.
         """
-        logger.debug(f"Attempting to reply to {tweet_id} with text {text}")
+        logger.debug(f"Attempting to reply to {post_id} with text {text}")
         try:
-            response = self.client.create_tweet(text=text, in_reply_to_tweet_id=tweet_id)
+            response = self.client.create_tweet(text=text, in_reply_to_tweet_id=post_id)
             reply_id = response.data["id"]
             user = self.client.get_me().data
             reply_url = f"https://twitter.com/{user.username}/status/{reply_id}"
             result = {"message": "Reply successfully posted!", "url": reply_url}
             return json.dumps(result, indent=2)
         except tweepy.TweepyException as e:
-            logger.error(f"Error replying to tweet: {e}")
+            logger.error(f"Error replying to post: {e}")
             return json.dumps({"error": str(e)})
 
     def send_dm(self, recipient: str, text: str) -> str:

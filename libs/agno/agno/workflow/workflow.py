@@ -16,6 +16,7 @@ from agno.memory.workflow import WorkflowMemory, WorkflowRun
 from agno.run.response import RunEvent, RunResponse  # noqa: F401
 from agno.storage.workflow.base import WorkflowStorage
 from agno.storage.workflow.session import WorkflowSession
+from agno.utils.common import nested_model_dump
 from agno.utils.log import logger, set_log_level_to_debug, set_log_level_to_info
 from agno.utils.merge_dict import merge_dictionaries
 
@@ -328,7 +329,7 @@ class Workflow:
         if self.session_name is not None:
             session_data["session_name"] = self.session_name
         if self.session_state and len(self.session_state) > 0:
-            session_data["session_state"] = self.session_state
+            session_data["session_state"] = nested_model_dump(self.session_state)
         if self.images is not None:
             session_data["images"] = [img.model_dump() for img in self.images]
         if self.videos is not None:

@@ -105,7 +105,7 @@ class BlogPostGenerator(Workflow):
            - Find supporting data and statistics\
         """),
         response_model=SearchResults,
-        structured_outputs=True
+        structured_outputs=True,
     )
 
     # Content Scraper: Extracts and processes article content
@@ -138,7 +138,7 @@ class BlogPostGenerator(Workflow):
            - Maintain readability\
         """),
         response_model=ScrapedArticle,
-        structured_outputs=True
+        structured_outputs=True,
     )
 
     # Content Writer Agent: Crafts engaging blog posts from research

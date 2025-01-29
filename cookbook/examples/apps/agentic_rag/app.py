@@ -1,6 +1,9 @@
+import os
+import tempfile
 from typing import List
 
 import nest_asyncio
+import requests
 import streamlit as st
 from agentic_rag import get_agentic_rag_agent
 from agno.agent import Agent
@@ -15,13 +18,10 @@ from utils import (
     about_widget,
     add_message,
     display_tool_calls,
+    export_chat_history,
     rename_session_widget,
     session_selector_widget,
-    export_chat_history
 )
-import tempfile
-import requests
-import os
 
 nest_asyncio.apply()
 st.set_page_config(
@@ -33,7 +33,6 @@ st.set_page_config(
 st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 
 # Add custom CSS
-
 
 
 def restart_agent():
@@ -155,16 +154,20 @@ def main():
 
     st.sidebar.markdown("#### 📚 Document Management")
     input_url = st.sidebar.text_input("Add URL to Knowledge Base")
-    if input_url and not prompt and not st.session_state.knowledge_base_initialized:  # Only load if KB not initialized
+    if (
+        input_url and not prompt and not st.session_state.knowledge_base_initialized
+    ):  # Only load if KB not initialized
         if input_url not in st.session_state.loaded_urls:
             alert = st.sidebar.info("Processing URLs...", icon="ℹ️")
-            if input_url.lower().endswith('.pdf'):
+            if input_url.lower().endswith(".pdf"):
                 try:
                     # Download PDF to temporary file
                     response = requests.get(input_url, stream=True, verify=False)
                     response.raise_for_status()
 
-                    with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as tmp_file:
+                    with tempfile.NamedTemporaryFile(
+                        suffix=".pdf", delete=False
+                    ) as tmp_file:
                         for chunk in response.iter_content(chunk_size=8192):
                             tmp_file.write(chunk)
                         tmp_path = tmp_file.name
@@ -194,7 +197,9 @@ def main():
     uploaded_file = st.sidebar.file_uploader(
         "Add a Document (.pdf, .csv, or .txt)", key="file_upload"
     )
-    if uploaded_file and not prompt and not st.session_state.knowledge_base_initialized:  # Only load if KB not initialized
+    if (
+        uploaded_file and not prompt and not st.session_state.knowledge_base_initialized
+    ):  # Only load if KB not initialized
         file_identifier = f"{uploaded_file.name}_{uploaded_file.size}"
         if file_identifier not in st.session_state.loaded_files:
             alert = st.sidebar.info("Processing document...", icon="ℹ️")
@@ -216,20 +221,25 @@ def main():
         st.session_state.loaded_files.clear()
         st.session_state.knowledge_base_initialized = False  # Reset initialization flag
         st.sidebar.success("Knowledge base cleared")
-###############################################################
+    ###############################################################
     # Sample Questions
-###############################################################
+    ###############################################################
     st.sidebar.markdown("#### ❓ Sample Questions")
     if st.sidebar.button("📝 Summarize"):
-        add_message("user", "Can you summarize what is currently in the knowledge base (use `search_knowledge_base` tool)?")
+        add_message(
+            "user",
+            "Can you summarize what is currently in the knowledge base (use `search_knowledge_base` tool)?",
+        )
 
-###############################################################
+    ###############################################################
     # Utility buttons
-###############################################################
+    ###############################################################
     st.sidebar.markdown("#### 🛠️ Utilities")
     col1, col2 = st.sidebar.columns([1, 1])  # Equal width columns
     with col1:
-        if st.sidebar.button("🔄 New Chat", use_container_width=True):  # Added use_container_width
+        if st.sidebar.button(
+            "🔄 New Chat", use_container_width=True
+        ):  # Added use_container_width
             restart_agent()
     with col2:
         if st.sidebar.download_button(

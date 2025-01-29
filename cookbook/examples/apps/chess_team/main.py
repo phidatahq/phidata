@@ -1,8 +1,11 @@
 from typing import Dict
+
 from agno.agent import Agent
+from agno.models.anthropic import Claude
 from agno.utils.log import logger
 from chess_board import ChessBoard
-from agno.models.anthropic import Claude
+
+
 class ChessGame:
     def __init__(self):
         self.board = ChessBoard()
@@ -11,7 +14,7 @@ class ChessGame:
         except Exception as e:
             logger.error(f"Failed to initialize agents: {str(e)}")
             raise
-        
+
     def _initialize_agents(self) -> Dict[str, Agent]:
         """Initialize all required agents with specific roles"""
         try:
@@ -63,7 +66,7 @@ class ChessGame:
                     "2. Get legal moves from legal_move_agent for current player",
                     "3. Pass legal moves to the current player's agent for selection",
                     "4. Update and maintain the board state after each valid move",
-                    "5. Check for game-ending conditions after each move"
+                    "5. Check for game-ending conditions after each move",
                 ],
                 model=Claude(id="claude-3-5-sonnet-20241022"),
                 markdown=True,
@@ -76,7 +79,7 @@ class ChessGame:
                 "white": white_piece_agent,
                 "black": black_piece_agent,
                 "legal": legal_move_agent,
-                "master": master_agent
+                "master": master_agent,
             }
         except Exception as e:
             logger.error(f"Error initializing agents: {str(e)}")
@@ -89,7 +92,7 @@ class ChessGame:
             response = self.agents["master"].print_response(
                 f"New chess game started. Current board state:\n{initial_state}\n"
                 "Please manage the game, starting with white's move.",
-                stream=True
+                stream=True,
             )
             return response
         except Exception as e:
@@ -100,32 +103,37 @@ class ChessGame:
         """Process a move and return the response with piece information"""
         try:
             if not self.board.is_valid_move(move):
-                return {"status": "Invalid move format. Please use algebraic notation (e.g., 'e2e4')"}
-            
+                return {
+                    "status": "Invalid move format. Please use algebraic notation (e.g., 'e2e4')"
+                }
+
             from_pos, to_pos = self.board.algebraic_to_index(move)
-            if not self.board.is_valid_position(from_pos) or not self.board.is_valid_position(to_pos):
+            if not self.board.is_valid_position(
+                from_pos
+            ) or not self.board.is_valid_position(to_pos):
                 return {"status": "Invalid move: Position out of bounds"}
-            
+
             # Get piece information before moving
             piece = self.board.get_piece_at_position(from_pos)
             piece_name = self.board.get_piece_name(piece)
-            
+
             # Only proceed if we have a valid piece (not empty or unknown)
-            if piece_name in ['Empty', 'Unknown']:
+            if piece_name in ["Empty", "Unknown"]:
                 return {"status": f"Invalid move: No piece at position {move[:2]}"}
-            
+
             # Make the move
             self.board.update_position(from_pos, to_pos)
-            
+
             return {
                 "status": "Move successful",
                 "piece": piece,
                 "piece_name": piece_name,
                 "from": move[:2],
-                "to": move[2:]
+                "to": move[2:],
             }
         except Exception as e:
             return {"status": f"Error making move: {str(e)}"}
+
 
 def main():
     try:
@@ -133,6 +141,7 @@ def main():
         game.start_game()
     except Exception as e:
         print(f"Fatal error: {str(e)}")
+
 
 if __name__ == "__main__":
     main()

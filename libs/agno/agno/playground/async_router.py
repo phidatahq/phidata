@@ -73,7 +73,7 @@ def get_async_playground_router(
 
             agent_list.append(
                 AgentGetResponse(
-                    agent_id=agent.agent_id if agent.agent_id else None,
+                    agent_id=agent.agent_id,
                     name=agent.name,
                     model=AgentModel(
                         name=name,

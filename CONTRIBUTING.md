@@ -49,7 +49,8 @@ These scripts will perform code formatting with `ruff` and static type checks wi
    - Your Class will be in the `libs/agno/agno/vectordb/<your_db>/<your_db>.py` file.
    - The `VectorDb` interface is defined in `libs/agno/agno/vectordb/base
    - Import your `VectorDb` Class in `libs/agno/agno/vectordb/<your_db>/__init__.py`.
-   - Checkout the [`libs/agno/agno/vectordb/pgvector/pgvector`](https://github.com/agno-agi/agno/blob/main/libs/agno/agno/vectordb/pgvector/pgvector.py) file for an example.4. Add a recipe for using your `VectorDb` under `agno/cookbook/agent_concepts/knowledge/vector_dbs//<your_db>`.
+   - Checkout the [`libs/agno/agno/vectordb/pgvector/pgvector`](https://github.com/agno-agi/agno/blob/main/libs/agno/agno/vectordb/pgvector/pgvector.py) file for an example.
+4. Add a recipe for using your `VectorDb` under `agno/cookbook/agent_concepts/knowledge/vector_dbs//<your_db>`.
    - Checkout [`agno/cookbook/vectordb/pgvector`](https://github.com/agno-agi/agno/tree/main/cookbook/vectordb/pgvector) for an example.
 5. Important: Format and validate your code by running `./scripts/format.sh` and `./scripts/validate.sh`.
 6. Submit a pull request.

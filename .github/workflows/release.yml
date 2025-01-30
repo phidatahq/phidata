@@ -28,7 +28,6 @@ jobs:
     - name: Copy README
       run: |
         cp README.md libs/agno/
-        cp LICENSE libs/agno/
 
     - name: Build package
       run: |

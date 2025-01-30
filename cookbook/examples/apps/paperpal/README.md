@@ -12,7 +12,7 @@ source ~/.venvs/aienv/bin/activate
 ### 2. Install requirements
 
 ```shell
-pip install -r cookbook/use_cases/apps/paperpal/requirements.txt
+pip install -r cookbook/examples/apps/paperpal/requirements.txt
 ```
 
 ### 3. Export `OPENAI_API_KEY` and `EXA_API_KEY`
@@ -25,5 +25,5 @@ export EXA_API_KEY=***
 ### 4. Run Streamlit App
 
 ```shell
-streamlit run cookbook/use_cases/apps/paperpal/app.py
+streamlit run cookbook/examples/apps/paperpal/app.py
 ```

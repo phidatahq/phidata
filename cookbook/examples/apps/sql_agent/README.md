@@ -57,7 +57,7 @@ The knowledge base contains table metadata, rules and sample queries, which are 
 
 We recommend adding the following as you go along:
   - Add `table_rules` and `column_rules` to the table metadata. The Agent is prompted to follow them. This is useful when you want to guide the Agent to always query date in a particular format, or avoid certain columns.
-  - Add sample SQL queries to the `cookbook/use_cases/apps/sql_agent/knowledge_base/sample_queries.sql` file. This will give the Assistant a head start on how to write complex queries.
+  - Add sample SQL queries to the `cookbook/examples/apps/sql_agent/knowledge_base/sample_queries.sql` file. This will give the Assistant a head start on how to write complex queries.
 
 ```shell
 python cookbook/examples/apps/sql_agent/load_knowledge.py

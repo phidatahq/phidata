@@ -1,21 +1,55 @@
-"""
+"""🎮 Game Generator Agent - Your AI Game Development Assistant!
+
+This advanced example demonstrates how to build an AI-powered game development system that
+creates playable HTML5 games based on user descriptions.
+
+The agent can:
+- Generate complete, self-contained HTML5 games from text descriptions
+- Create games with proper user controls and interactions
+- Implement game mechanics like collision detection and scoring
+- Add sound effects and visual elements
+- Include proper game lifecycle (start, play, end, restart)
+- Generate clear playing instructions
+
+Example prompts to try:
+- "Create a simple snake game"
+- "Make a space shooter game with asteroids"
+- "Generate a platform jumping game"
+- "Create a puzzle game with matching colors"
+- "Make a simple racing game"
+- "Generate a memory card matching game"
+
+The agent ensures:
+- Games are completely self-contained in a single HTML file
+- Full-screen mode is available
+- Games have proper start/restart functionality
+- User-friendly controls and interface
+- Modern design aesthetics
+- Mobile-responsive gameplay
+- Browser compatibility
+
+Key features:
+- Games run directly in the browser
+- No external dependencies required
+- Downloadable HTML files
+- Persistent session management
+- Clean, documented code
+
+Requirements:
 1. Install dependencies using: `pip install openai agno`
 2. Run the script using: `python cookbook/examples/streamlit/game_generator/game_generator.py`
 """
 
-import json
+from typing import Optional
+import streamlit as st
 from pathlib import Path
-from typing import Iterator
 
-from agno.agent import Agent, RunResponse
+from agno.agent import Agent
 from agno.models.openai import OpenAIChat
-from agno.run.response import RunEvent
-from agno.storage.workflow.sqlite import SqliteWorkflowStorage
+from agno.models.google import Gemini
+from agno.models.anthropic import Claude
+from agno.storage.agent.postgres import PostgresAgentStorage
 from agno.utils.log import logger
-from agno.utils.pprint import pprint_run_response
-from agno.utils.string import hash_string_sha256
-from agno.utils.web import open_html_file
-from agno.workflow import Workflow
 from pydantic import BaseModel, Field
 
 games_dir = Path(__file__).parent.joinpath("games")
@@ -23,125 +57,54 @@ games_dir.mkdir(parents=True, exist_ok=True)
 game_output_path = games_dir / "game_output_file.html"
 game_output_path.unlink(missing_ok=True)
 
+# Initialize the storage
+storage = PostgresAgentStorage(
+    db_url="postgresql+psycopg://ai:ai@localhost:5532/ai",
+    table_name="game_generator_sessions",
+    schema="ai",
+)
 
 class GameOutput(BaseModel):
-    reasoning: str = Field(..., description="Explain your reasoning")
     code: str = Field(..., description="The html5 code for the game")
     instructions: str = Field(..., description="Instructions how to play the game")
 
 
-class QAOutput(BaseModel):
-    reasoning: str = Field(..., description="Explain your reasoning")
-    correct: bool = Field(False, description="Does the game pass your criteria?")
+def get_game_generator_agent(session_id: Optional[str] = None, model_id: str = "openai:gpt-4o", debug_mode: bool = True) -> Agent:
+    """Returns an instance of the Game Generator Agent."""
+    provider, model_name = model_id.split(":")
 
+    if provider == "openai":
+        model = OpenAIChat(id=model_name)
+    elif provider == "google":
+        model = Gemini(id=model_name)
+    elif provider == "anthropic":
+        model = Claude(id=model_name)
+    else:
+        raise ValueError(f"Unsupported model provider: {provider}")
 
-class GameGenerator(Workflow):
-    # This description is only used in the workflow UI
-    description: str = "Generator for single-page HTML5 games"
-
-    game_developer: Agent = Agent(
+    return Agent(
         name="Game Developer Agent",
         description="You are a game developer that produces working HTML5 code.",
-        model=OpenAIChat(id="gpt-4o"),
+        model=model,
         instructions=[
             "Create a game based on the user's prompt. "
-            "The game should be HTML5, completely self-contained and must be runnable simply by opening on a browser",
-            "Ensure the game has a alert that pops up if the user dies and then allows the user to restart or exit the game.",
-            "add full screen mode to the game",
-            "Ensure instructions for the game are displayed on the HTML page."
-            "Use user-friendly colours and make the game canvas large enough for the game to be playable on a larger screen.",
+            "The game should be HTML5, completely self-contained and must be runnable simply by opening on a browser.",
+            "Require the user to click a button to start the game.",
+            "Ensure the game has an alert that pops up if the user dies and then allows the user to restart or exit the game.",
+            "Add full screen mode to the game. Always make the button in the top-left corner of the canvas.",
+            "Use user-friendly colors and make the game canvas large enough for the game to be playable on a larger screen.",
+            "Ensure the HTML is as stylistically pretty as possible, using modern design principles and aesthetics.",
+            "When the user is playing, the up and down arrows should not scroll the page.",
+            "Starting the game should not go to full screen mode.",
+            "Don't add any instructions inside the HTML code, just the game code.",
         ],
         response_model=GameOutput,
+        read_chat_history=True,
+        session_id=session_id,
+        storage=storage,
+        debug_mode=debug_mode,
     )
 
-    qa_agent: Agent = Agent(
-        name="QA Agent",
-        model=OpenAIChat(id="gpt-4o"),
-        description="You are a game QA and you evaluate html5 code for correctness.",
-        instructions=[
-            "You will be given some HTML5 code."
-            "Your task is to read the code and evaluate it for correctness, but also that it matches the original task description.",
-        ],
-        response_model=QAOutput,
-    )
-
-    def run(self, game_description: str) -> Iterator[RunResponse]:
-        logger.info(f"Game description: {game_description}")
-
-        game_output = self.game_developer.run(game_description)
-
-        if (
-            game_output
-            and game_output.content
-            and isinstance(game_output.content, GameOutput)
-        ):
-            game_code = game_output.content.code
-            logger.info(f"Game code: {game_code}")
-        else:
-            yield RunResponse(
-                run_id=self.run_id,
-                event=RunEvent.workflow_completed,
-                content="Sorry, could not generate a game.",
-            )
-            return
-
-        logger.info("QA'ing the game code")
-        qa_input = {
-            "game_description": game_description,
-            "game_code": game_code,
-        }
-        qa_output = self.qa_agent.run({"role": "user", "content": json.dumps(qa_input)})
-
-        if qa_output and qa_output.content and isinstance(qa_output.content, QAOutput):
-            logger.info(qa_output.content)
-            if not qa_output.content.correct:
-                raise Exception(f"QA failed for code: {game_code}")
-
-            # Store the resulting code
-            game_output_path.write_text(game_code)
-
-            yield RunResponse(
-                run_id=self.run_id,
-                event=RunEvent.workflow_completed,
-                content=game_output.content.instructions,
-            )
-        else:
-            yield RunResponse(
-                run_id=self.run_id,
-                event=RunEvent.workflow_completed,
-                content="Sorry, could not QA the game.",
-            )
-            return
-
-
-# Run the workflow if the script is executed directly
 if __name__ == "__main__":
-    from rich.prompt import Prompt
-
-    game_description = Prompt.ask(
-        "[bold]Describe the game you want to make (keep it simple)[/bold]\n✨",
-        # default="An asteroids game."
-        default="An asteroids game. Make sure the asteroids move randomly and are random sizes. They should continually spawn more and become more difficult over time. Keep score. Make my spaceship's movement realistic.",
-    )
-
-    hash_of_description = hash_string_sha256(game_description)
-
-    # Initialize the investment analyst workflow
-    game_generator = GameGenerator(
-        session_id=f"game-gen-{hash_of_description}",
-        storage=SqliteWorkflowStorage(
-            table_name="game_generator_workflows",
-            db_file="tmp/workflows.db",
-        ),
-    )
-
-    # Execute the workflow
-    result: Iterator[RunResponse] = game_generator.run(
-        game_description=game_description
-    )
-
-    # Print the report
-    pprint_run_response(result)
-
-    if game_output_path.exists():
-        open_html_file(game_output_path)
+    agent = get_game_generator_agent()
+    response = agent.run({"role": "user", "content": "Generate a simple snake game."})

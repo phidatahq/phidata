@@ -15,10 +15,12 @@ source ~/.venvs/aienv/bin/activate
 pip install -r cookbook/examples/apps/game_generator/requirements.txt
 ```
 
-### 3. Export `OPENAI_API_KEY` 
+### 3. Export API Keys
+
+We recommend using gemini for this task, but you can use any Model you like.
 
 ```shell
-export OPENAI_API_KEY=sk-***
+export GOOGLE_API_KEY=***
 ```
 
 ### 4. Run Streamlit App
@@ -26,3 +28,7 @@ export OPENAI_API_KEY=sk-***
 ```shell
 streamlit run cookbook/examples/apps/game_generator/app.py
 ```
+
+- Open [localhost:8501](http://localhost:8501) to view the Game Generator.
+
+### 7. Message us on [discord](https://agno.link/discord) if you have any questions

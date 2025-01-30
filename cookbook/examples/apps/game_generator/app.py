@@ -146,7 +146,6 @@ def main() -> None:
 
                     if game_output:
                         response_dict = game_output.to_dict().get("content")
-                        print(response_dict)
                         game_content = GameOutput(
                             code=response_dict["code"],
                             instructions=response_dict["instructions"]

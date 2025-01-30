@@ -1,0 +1,265 @@
+2025-01-30 13:50:59,424 - httpcore.connection - DEBUG - connect_tcp.started host='api.agno.com' port=443 local_address=None timeout=60 socket_options=None
+2025-01-30 13:50:59,676 - httpcore.connection - DEBUG - connect_tcp.complete return_value=<httpcore._backends.sync.SyncStream object at 0x1071b1d90>
+2025-01-30 13:50:59,677 - httpcore.connection - DEBUG - start_tls.started ssl_context=<ssl.SSLContext object at 0x11aeb2550> server_hostname='api.agno.com' timeout=60
+2025-01-30 13:51:00,153 - httpcore.connection - DEBUG - start_tls.complete return_value=<httpcore._backends.sync.SyncStream object at 0x11af4e4b0>
+2025-01-30 13:51:00,154 - httpcore.http11 - DEBUG - send_request_headers.started request=<Request [b'POST']>
+2025-01-30 13:51:00,154 - httpcore.http11 - DEBUG - send_request_headers.complete
+2025-01-30 13:51:00,154 - httpcore.http11 - DEBUG - send_request_body.started request=<Request [b'POST']>
+2025-01-30 13:51:00,154 - httpcore.http11 - DEBUG - send_request_body.complete
+2025-01-30 13:51:00,154 - httpcore.http11 - DEBUG - receive_response_headers.started request=<Request [b'POST']>
+2025-01-30 13:51:00,595 - httpcore.http11 - DEBUG - receive_response_headers.complete return_value=(b'HTTP/1.1', 500, b'Internal Server Error', [(b'Date', b'Thu, 30 Jan 2025 11:51:00 GMT'), (b'Content-Type', b'text/plain; charset=utf-8'), (b'Content-Length', b'21'), (b'Connection', b'keep-alive'), (b'server', b'uvicorn')])
+2025-01-30 13:51:00,596 - httpx - INFO - HTTP Request: POST https://api.agno.com/v1/telemetry/agent/session/create "HTTP/1.1 500 Internal Server Error"
+2025-01-30 13:51:00,596 - httpcore.http11 - DEBUG - receive_response_body.started request=<Request [b'POST']>
+2025-01-30 13:51:00,597 - httpcore.http11 - DEBUG - receive_response_body.complete
+2025-01-30 13:51:00,602 - httpcore.http11 - DEBUG - response_closed.started
+2025-01-30 13:51:00,603 - httpcore.http11 - DEBUG - response_closed.complete
+2025-01-30 13:51:00,606 - httpcore.connection - DEBUG - close.started
+2025-01-30 13:51:00,607 - httpcore.connection - DEBUG - close.complete
+2025-01-30 13:51:01,638 - asyncio - DEBUG - Using selector: KqueueSelector
+2025-01-30 13:51:22,994 - httpcore.connection - DEBUG - connect_tcp.started host='api.agno.com' port=443 local_address=None timeout=60 socket_options=None
+2025-01-30 13:51:23,229 - httpcore.connection - DEBUG - connect_tcp.complete return_value=<httpcore._backends.sync.SyncStream object at 0x11b20a030>
+2025-01-30 13:51:23,229 - httpcore.connection - DEBUG - start_tls.started ssl_context=<ssl.SSLContext object at 0x11b2a79d0> server_hostname='api.agno.com' timeout=60
+2025-01-30 13:51:23,698 - httpcore.connection - DEBUG - start_tls.complete return_value=<httpcore._backends.sync.SyncStream object at 0x11b4038f0>
+2025-01-30 13:51:23,698 - httpcore.http11 - DEBUG - send_request_headers.started request=<Request [b'POST']>
+2025-01-30 13:51:23,699 - httpcore.http11 - DEBUG - send_request_headers.complete
+2025-01-30 13:51:23,699 - httpcore.http11 - DEBUG - send_request_body.started request=<Request [b'POST']>
+2025-01-30 13:51:23,699 - httpcore.http11 - DEBUG - send_request_body.complete
+2025-01-30 13:51:23,699 - httpcore.http11 - DEBUG - receive_response_headers.started request=<Request [b'POST']>
+2025-01-30 13:51:23,939 - httpcore.http11 - DEBUG - receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Date', b'Thu, 30 Jan 2025 11:51:23 GMT'), (b'Content-Type', b'application/json'), (b'Content-Length', b'72'), (b'Connection', b'keep-alive'), (b'server', b'uvicorn')])
+2025-01-30 13:51:23,940 - httpx - INFO - HTTP Request: POST https://api.agno.com/v1/telemetry/agent/run/create "HTTP/1.1 200 OK"
+2025-01-30 13:51:23,940 - httpcore.http11 - DEBUG - receive_response_body.started request=<Request [b'POST']>
+2025-01-30 13:51:23,940 - httpcore.http11 - DEBUG - receive_response_body.complete
+2025-01-30 13:51:23,940 - httpcore.http11 - DEBUG - response_closed.started
+2025-01-30 13:51:23,941 - httpcore.http11 - DEBUG - response_closed.complete
+2025-01-30 13:51:23,941 - httpcore.connection - DEBUG - close.started
+2025-01-30 13:51:23,941 - httpcore.connection - DEBUG - close.complete
+2025-01-30 13:51:56,718 - asyncio - DEBUG - Using selector: KqueueSelector
+2025-01-30 13:51:56,760 - httpcore.connection - DEBUG - connect_tcp.started host='api.agno.com' port=443 local_address=None timeout=60 socket_options=None
+2025-01-30 13:51:56,994 - httpcore.connection - DEBUG - connect_tcp.complete return_value=<httpcore._backends.sync.SyncStream object at 0x11ac13050>
+2025-01-30 13:51:56,994 - httpcore.connection - DEBUG - start_tls.started ssl_context=<ssl.SSLContext object at 0x118ae3550> server_hostname='api.agno.com' timeout=60
+2025-01-30 13:51:57,483 - httpcore.connection - DEBUG - start_tls.complete return_value=<httpcore._backends.sync.SyncStream object at 0x11b0046b0>
+2025-01-30 13:51:57,484 - httpcore.http11 - DEBUG - send_request_headers.started request=<Request [b'POST']>
+2025-01-30 13:51:57,484 - httpcore.http11 - DEBUG - send_request_headers.complete
+2025-01-30 13:51:57,484 - httpcore.http11 - DEBUG - send_request_body.started request=<Request [b'POST']>
+2025-01-30 13:51:57,484 - httpcore.http11 - DEBUG - send_request_body.complete
+2025-01-30 13:51:57,484 - httpcore.http11 - DEBUG - receive_response_headers.started request=<Request [b'POST']>
+2025-01-30 13:51:57,876 - httpcore.http11 - DEBUG - receive_response_headers.complete return_value=(b'HTTP/1.1', 500, b'Internal Server Error', [(b'Date', b'Thu, 30 Jan 2025 11:51:57 GMT'), (b'Content-Type', b'text/plain; charset=utf-8'), (b'Content-Length', b'21'), (b'Connection', b'keep-alive'), (b'server', b'uvicorn')])
+2025-01-30 13:51:57,876 - httpx - INFO - HTTP Request: POST https://api.agno.com/v1/telemetry/agent/session/create "HTTP/1.1 500 Internal Server Error"
+2025-01-30 13:51:57,876 - httpcore.http11 - DEBUG - receive_response_body.started request=<Request [b'POST']>
+2025-01-30 13:51:57,876 - httpcore.http11 - DEBUG - receive_response_body.complete
+2025-01-30 13:51:57,876 - httpcore.http11 - DEBUG - response_closed.started
+2025-01-30 13:51:57,876 - httpcore.http11 - DEBUG - response_closed.complete
+2025-01-30 13:51:57,876 - httpcore.connection - DEBUG - close.started
+2025-01-30 13:51:57,876 - httpcore.connection - DEBUG - close.complete
+2025-01-30 13:51:59,691 - asyncio - DEBUG - Using selector: KqueueSelector
+2025-01-30 13:52:24,499 - httpcore.connection - DEBUG - connect_tcp.started host='api.agno.com' port=443 local_address=None timeout=60 socket_options=None
+2025-01-30 13:52:24,744 - httpcore.connection - DEBUG - connect_tcp.complete return_value=<httpcore._backends.sync.SyncStream object at 0x11b2b5dc0>
+2025-01-30 13:52:24,744 - httpcore.connection - DEBUG - start_tls.started ssl_context=<ssl.SSLContext object at 0x118ae3750> server_hostname='api.agno.com' timeout=60
+2025-01-30 13:52:25,215 - httpcore.connection - DEBUG - start_tls.complete return_value=<httpcore._backends.sync.SyncStream object at 0x118af65d0>
+2025-01-30 13:52:25,215 - httpcore.http11 - DEBUG - send_request_headers.started request=<Request [b'POST']>
+2025-01-30 13:52:25,215 - httpcore.http11 - DEBUG - send_request_headers.complete
+2025-01-30 13:52:25,216 - httpcore.http11 - DEBUG - send_request_body.started request=<Request [b'POST']>
+2025-01-30 13:52:25,216 - httpcore.http11 - DEBUG - send_request_body.complete
+2025-01-30 13:52:25,216 - httpcore.http11 - DEBUG - receive_response_headers.started request=<Request [b'POST']>
+2025-01-30 13:52:25,470 - httpcore.http11 - DEBUG - receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Date', b'Thu, 30 Jan 2025 11:52:25 GMT'), (b'Content-Type', b'application/json'), (b'Content-Length', b'72'), (b'Connection', b'keep-alive'), (b'server', b'uvicorn')])
+2025-01-30 13:52:25,470 - httpx - INFO - HTTP Request: POST https://api.agno.com/v1/telemetry/agent/run/create "HTTP/1.1 200 OK"
+2025-01-30 13:52:25,471 - httpcore.http11 - DEBUG - receive_response_body.started request=<Request [b'POST']>
+2025-01-30 13:52:25,471 - httpcore.http11 - DEBUG - receive_response_body.complete
+2025-01-30 13:52:25,471 - httpcore.http11 - DEBUG - response_closed.started
+2025-01-30 13:52:25,471 - httpcore.http11 - DEBUG - response_closed.complete
+2025-01-30 13:52:25,471 - httpcore.connection - DEBUG - close.started
+2025-01-30 13:52:25,472 - httpcore.connection - DEBUG - close.complete
+2025-01-30 13:52:53,649 - asyncio - DEBUG - Using selector: KqueueSelector
+2025-01-30 13:53:22,370 - httpcore.connection - DEBUG - connect_tcp.started host='api.agno.com' port=443 local_address=None timeout=60 socket_options=None
+2025-01-30 13:53:22,600 - httpcore.connection - DEBUG - connect_tcp.complete return_value=<httpcore._backends.sync.SyncStream object at 0x118af66c0>
+2025-01-30 13:53:22,600 - httpcore.connection - DEBUG - start_tls.started ssl_context=<ssl.SSLContext object at 0x118ae3050> server_hostname='api.agno.com' timeout=60
+2025-01-30 13:53:23,063 - httpcore.connection - DEBUG - start_tls.complete return_value=<httpcore._backends.sync.SyncStream object at 0x106ae6f90>
+2025-01-30 13:53:23,064 - httpcore.http11 - DEBUG - send_request_headers.started request=<Request [b'POST']>
+2025-01-30 13:53:23,064 - httpcore.http11 - DEBUG - send_request_headers.complete
+2025-01-30 13:53:23,064 - httpcore.http11 - DEBUG - send_request_body.started request=<Request [b'POST']>
+2025-01-30 13:53:23,064 - httpcore.http11 - DEBUG - send_request_body.complete
+2025-01-30 13:53:23,064 - httpcore.http11 - DEBUG - receive_response_headers.started request=<Request [b'POST']>
+2025-01-30 13:53:23,342 - httpcore.http11 - DEBUG - receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Date', b'Thu, 30 Jan 2025 11:53:23 GMT'), (b'Content-Type', b'application/json'), (b'Content-Length', b'72'), (b'Connection', b'keep-alive'), (b'server', b'uvicorn')])
+2025-01-30 13:53:23,343 - httpx - INFO - HTTP Request: POST https://api.agno.com/v1/telemetry/agent/run/create "HTTP/1.1 200 OK"
+2025-01-30 13:53:23,343 - httpcore.http11 - DEBUG - receive_response_body.started request=<Request [b'POST']>
+2025-01-30 13:53:23,343 - httpcore.http11 - DEBUG - receive_response_body.complete
+2025-01-30 13:53:23,343 - httpcore.http11 - DEBUG - response_closed.started
+2025-01-30 13:53:23,343 - httpcore.http11 - DEBUG - response_closed.complete
+2025-01-30 13:53:23,343 - httpcore.connection - DEBUG - close.started
+2025-01-30 13:53:23,343 - httpcore.connection - DEBUG - close.complete
+2025-01-30 13:55:01,304 - httpcore.connection - DEBUG - connect_tcp.started host='api.agno.com' port=443 local_address=None timeout=60 socket_options=None
+2025-01-30 13:55:01,547 - httpcore.connection - DEBUG - connect_tcp.complete return_value=<httpcore._backends.sync.SyncStream object at 0x10f8aec00>
+2025-01-30 13:55:01,547 - httpcore.connection - DEBUG - start_tls.started ssl_context=<ssl.SSLContext object at 0x10f8b2550> server_hostname='api.agno.com' timeout=60
+2025-01-30 13:55:02,016 - httpcore.connection - DEBUG - start_tls.complete return_value=<httpcore._backends.sync.SyncStream object at 0x10f4af230>
+2025-01-30 13:55:02,017 - httpcore.http11 - DEBUG - send_request_headers.started request=<Request [b'POST']>
+2025-01-30 13:55:02,017 - httpcore.http11 - DEBUG - send_request_headers.complete
+2025-01-30 13:55:02,017 - httpcore.http11 - DEBUG - send_request_body.started request=<Request [b'POST']>
+2025-01-30 13:55:02,017 - httpcore.http11 - DEBUG - send_request_body.complete
+2025-01-30 13:55:02,017 - httpcore.http11 - DEBUG - receive_response_headers.started request=<Request [b'POST']>
+2025-01-30 13:55:02,408 - httpcore.http11 - DEBUG - receive_response_headers.complete return_value=(b'HTTP/1.1', 500, b'Internal Server Error', [(b'Date', b'Thu, 30 Jan 2025 11:55:02 GMT'), (b'Content-Type', b'text/plain; charset=utf-8'), (b'Content-Length', b'21'), (b'Connection', b'keep-alive'), (b'server', b'uvicorn')])
+2025-01-30 13:55:02,409 - httpx - INFO - HTTP Request: POST https://api.agno.com/v1/telemetry/agent/session/create "HTTP/1.1 500 Internal Server Error"
+2025-01-30 13:55:02,410 - httpcore.http11 - DEBUG - receive_response_body.started request=<Request [b'POST']>
+2025-01-30 13:55:02,410 - httpcore.http11 - DEBUG - receive_response_body.complete
+2025-01-30 13:55:02,410 - httpcore.http11 - DEBUG - response_closed.started
+2025-01-30 13:55:02,410 - httpcore.http11 - DEBUG - response_closed.complete
+2025-01-30 13:55:02,411 - httpcore.connection - DEBUG - close.started
+2025-01-30 13:55:02,411 - httpcore.connection - DEBUG - close.complete
+2025-01-30 13:55:04,494 - asyncio - DEBUG - Using selector: KqueueSelector
+2025-01-30 13:55:27,497 - httpcore.connection - DEBUG - connect_tcp.started host='api.agno.com' port=443 local_address=None timeout=60 socket_options=None
+2025-01-30 13:55:27,737 - httpcore.connection - DEBUG - connect_tcp.complete return_value=<httpcore._backends.sync.SyncStream object at 0x10fc0db80>
+2025-01-30 13:55:27,737 - httpcore.connection - DEBUG - start_tls.started ssl_context=<ssl.SSLContext object at 0x10fc8ed50> server_hostname='api.agno.com' timeout=60
+2025-01-30 13:55:28,213 - httpcore.connection - DEBUG - start_tls.complete return_value=<httpcore._backends.sync.SyncStream object at 0x10fc0dd60>
+2025-01-30 13:55:28,214 - httpcore.http11 - DEBUG - send_request_headers.started request=<Request [b'POST']>
+2025-01-30 13:55:28,214 - httpcore.http11 - DEBUG - send_request_headers.complete
+2025-01-30 13:55:28,214 - httpcore.http11 - DEBUG - send_request_body.started request=<Request [b'POST']>
+2025-01-30 13:55:28,214 - httpcore.http11 - DEBUG - send_request_body.complete
+2025-01-30 13:55:28,214 - httpcore.http11 - DEBUG - receive_response_headers.started request=<Request [b'POST']>
+2025-01-30 13:55:28,459 - httpcore.http11 - DEBUG - receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Date', b'Thu, 30 Jan 2025 11:55:28 GMT'), (b'Content-Type', b'application/json'), (b'Content-Length', b'72'), (b'Connection', b'keep-alive'), (b'server', b'uvicorn')])
+2025-01-30 13:55:28,460 - httpx - INFO - HTTP Request: POST https://api.agno.com/v1/telemetry/agent/run/create "HTTP/1.1 200 OK"
+2025-01-30 13:55:28,460 - httpcore.http11 - DEBUG - receive_response_body.started request=<Request [b'POST']>
+2025-01-30 13:55:28,460 - httpcore.http11 - DEBUG - receive_response_body.complete
+2025-01-30 13:55:28,460 - httpcore.http11 - DEBUG - response_closed.started
+2025-01-30 13:55:28,460 - httpcore.http11 - DEBUG - response_closed.complete
+2025-01-30 13:55:28,460 - httpcore.connection - DEBUG - close.started
+2025-01-30 13:55:28,461 - httpcore.connection - DEBUG - close.complete
+2025-01-30 13:55:52,681 - asyncio - DEBUG - Using selector: KqueueSelector
+2025-01-30 13:55:53,106 - asyncio - DEBUG - Using selector: KqueueSelector
+2025-01-30 13:56:19,403 - httpcore.connection - DEBUG - connect_tcp.started host='api.agno.com' port=443 local_address=None timeout=60 socket_options=None
+2025-01-30 13:56:19,657 - httpcore.connection - DEBUG - connect_tcp.complete return_value=<httpcore._backends.sync.SyncStream object at 0x10f4f5610>
+2025-01-30 13:56:19,657 - httpcore.connection - DEBUG - start_tls.started ssl_context=<ssl.SSLContext object at 0x10fc37f50> server_hostname='api.agno.com' timeout=60
+2025-01-30 13:56:19,680 - httpcore.connection - DEBUG - connect_tcp.started host='api.agno.com' port=443 local_address=None timeout=60 socket_options=None
+2025-01-30 13:56:19,915 - httpcore.connection - DEBUG - connect_tcp.complete return_value=<httpcore._backends.sync.SyncStream object at 0x10fd09bb0>
+2025-01-30 13:56:19,915 - httpcore.connection - DEBUG - start_tls.started ssl_context=<ssl.SSLContext object at 0x10fc8ed50> server_hostname='api.agno.com' timeout=60
+2025-01-30 13:56:20,137 - httpcore.connection - DEBUG - start_tls.complete return_value=<httpcore._backends.sync.SyncStream object at 0x10fcaffe0>
+2025-01-30 13:56:20,137 - httpcore.http11 - DEBUG - send_request_headers.started request=<Request [b'POST']>
+2025-01-30 13:56:20,138 - httpcore.http11 - DEBUG - send_request_headers.complete
+2025-01-30 13:56:20,138 - httpcore.http11 - DEBUG - send_request_body.started request=<Request [b'POST']>
+2025-01-30 13:56:20,138 - httpcore.http11 - DEBUG - send_request_body.complete
+2025-01-30 13:56:20,138 - httpcore.http11 - DEBUG - receive_response_headers.started request=<Request [b'POST']>
+2025-01-30 13:56:20,384 - httpcore.connection - DEBUG - start_tls.complete return_value=<httpcore._backends.sync.SyncStream object at 0x10fcd6180>
+2025-01-30 13:56:20,384 - httpcore.http11 - DEBUG - send_request_headers.started request=<Request [b'POST']>
+2025-01-30 13:56:20,384 - httpcore.http11 - DEBUG - send_request_headers.complete
+2025-01-30 13:56:20,384 - httpcore.http11 - DEBUG - send_request_body.started request=<Request [b'POST']>
+2025-01-30 13:56:20,384 - httpcore.http11 - DEBUG - send_request_body.complete
+2025-01-30 13:56:20,384 - httpcore.http11 - DEBUG - receive_response_headers.started request=<Request [b'POST']>
+2025-01-30 13:56:20,385 - httpcore.http11 - DEBUG - receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Date', b'Thu, 30 Jan 2025 11:56:20 GMT'), (b'Content-Type', b'application/json'), (b'Content-Length', b'72'), (b'Connection', b'keep-alive'), (b'server', b'uvicorn')])
+2025-01-30 13:56:20,385 - httpx - INFO - HTTP Request: POST https://api.agno.com/v1/telemetry/agent/run/create "HTTP/1.1 200 OK"
+2025-01-30 13:56:20,385 - httpcore.http11 - DEBUG - receive_response_body.started request=<Request [b'POST']>
+2025-01-30 13:56:20,385 - httpcore.http11 - DEBUG - receive_response_body.complete
+2025-01-30 13:56:20,385 - httpcore.http11 - DEBUG - response_closed.started
+2025-01-30 13:56:20,385 - httpcore.http11 - DEBUG - response_closed.complete
+2025-01-30 13:56:20,385 - httpcore.connection - DEBUG - close.started
+2025-01-30 13:56:20,385 - httpcore.connection - DEBUG - close.complete
+2025-01-30 13:56:20,625 - httpcore.http11 - DEBUG - receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Date', b'Thu, 30 Jan 2025 11:56:20 GMT'), (b'Content-Type', b'application/json'), (b'Content-Length', b'72'), (b'Connection', b'keep-alive'), (b'server', b'uvicorn')])
+2025-01-30 13:56:20,625 - httpx - INFO - HTTP Request: POST https://api.agno.com/v1/telemetry/agent/run/create "HTTP/1.1 200 OK"
+2025-01-30 13:56:20,626 - httpcore.http11 - DEBUG - receive_response_body.started request=<Request [b'POST']>
+2025-01-30 13:56:20,626 - httpcore.http11 - DEBUG - receive_response_body.complete
+2025-01-30 13:56:20,627 - httpcore.http11 - DEBUG - response_closed.started
+2025-01-30 13:56:20,627 - httpcore.http11 - DEBUG - response_closed.complete
+2025-01-30 13:56:20,627 - httpcore.connection - DEBUG - close.started
+2025-01-30 13:56:20,627 - httpcore.connection - DEBUG - close.complete
+2025-01-30 13:57:03,596 - httpcore.connection - DEBUG - connect_tcp.started host='api.agno.com' port=443 local_address=None timeout=60 socket_options=None
+2025-01-30 13:57:03,826 - httpcore.connection - DEBUG - connect_tcp.complete return_value=<httpcore._backends.sync.SyncStream object at 0x10eb2b2f0>
+2025-01-30 13:57:03,826 - httpcore.connection - DEBUG - start_tls.started ssl_context=<ssl.SSLContext object at 0x10ebc7dd0> server_hostname='api.agno.com' timeout=60
+2025-01-30 13:57:04,286 - httpcore.connection - DEBUG - start_tls.complete return_value=<httpcore._backends.sync.SyncStream object at 0x10e227e60>
+2025-01-30 13:57:04,287 - httpcore.http11 - DEBUG - send_request_headers.started request=<Request [b'POST']>
+2025-01-30 13:57:04,287 - httpcore.http11 - DEBUG - send_request_headers.complete
+2025-01-30 13:57:04,287 - httpcore.http11 - DEBUG - send_request_body.started request=<Request [b'POST']>
+2025-01-30 13:57:04,287 - httpcore.http11 - DEBUG - send_request_body.complete
+2025-01-30 13:57:04,287 - httpcore.http11 - DEBUG - receive_response_headers.started request=<Request [b'POST']>
+2025-01-30 13:57:04,570 - httpcore.http11 - DEBUG - receive_response_headers.complete return_value=(b'HTTP/1.1', 500, b'Internal Server Error', [(b'Date', b'Thu, 30 Jan 2025 11:57:04 GMT'), (b'Content-Type', b'text/plain; charset=utf-8'), (b'Content-Length', b'21'), (b'Connection', b'keep-alive'), (b'server', b'uvicorn')])
+2025-01-30 13:57:04,571 - httpx - INFO - HTTP Request: POST https://api.agno.com/v1/telemetry/agent/session/create "HTTP/1.1 500 Internal Server Error"
+2025-01-30 13:57:04,571 - httpcore.http11 - DEBUG - receive_response_body.started request=<Request [b'POST']>
+2025-01-30 13:57:04,571 - httpcore.http11 - DEBUG - receive_response_body.complete
+2025-01-30 13:57:04,571 - httpcore.http11 - DEBUG - response_closed.started
+2025-01-30 13:57:04,572 - httpcore.http11 - DEBUG - response_closed.complete
+2025-01-30 13:57:04,572 - httpcore.connection - DEBUG - close.started
+2025-01-30 13:57:04,572 - httpcore.connection - DEBUG - close.complete
+2025-01-30 13:57:17,889 - asyncio - DEBUG - Using selector: KqueueSelector
+2025-01-30 13:57:35,906 - httpcore.connection - DEBUG - connect_tcp.started host='api.agno.com' port=443 local_address=None timeout=60 socket_options=None
+2025-01-30 13:57:36,136 - httpcore.connection - DEBUG - connect_tcp.complete return_value=<httpcore._backends.sync.SyncStream object at 0x10e4380b0>
+2025-01-30 13:57:36,136 - httpcore.connection - DEBUG - start_tls.started ssl_context=<ssl.SSLContext object at 0x10ea25a50> server_hostname='api.agno.com' timeout=60
+2025-01-30 13:57:36,598 - httpcore.connection - DEBUG - start_tls.complete return_value=<httpcore._backends.sync.SyncStream object at 0x10e91baa0>
+2025-01-30 13:57:36,599 - httpcore.http11 - DEBUG - send_request_headers.started request=<Request [b'POST']>
+2025-01-30 13:57:36,599 - httpcore.http11 - DEBUG - send_request_headers.complete
+2025-01-30 13:57:36,600 - httpcore.http11 - DEBUG - send_request_body.started request=<Request [b'POST']>
+2025-01-30 13:57:36,600 - httpcore.http11 - DEBUG - send_request_body.complete
+2025-01-30 13:57:36,600 - httpcore.http11 - DEBUG - receive_response_headers.started request=<Request [b'POST']>
+2025-01-30 13:57:36,846 - httpcore.http11 - DEBUG - receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Date', b'Thu, 30 Jan 2025 11:57:36 GMT'), (b'Content-Type', b'application/json'), (b'Content-Length', b'72'), (b'Connection', b'keep-alive'), (b'server', b'uvicorn')])
+2025-01-30 13:57:36,847 - httpx - INFO - HTTP Request: POST https://api.agno.com/v1/telemetry/agent/run/create "HTTP/1.1 200 OK"
+2025-01-30 13:57:36,847 - httpcore.http11 - DEBUG - receive_response_body.started request=<Request [b'POST']>
+2025-01-30 13:57:36,847 - httpcore.http11 - DEBUG - receive_response_body.complete
+2025-01-30 13:57:36,847 - httpcore.http11 - DEBUG - response_closed.started
+2025-01-30 13:57:36,847 - httpcore.http11 - DEBUG - response_closed.complete
+2025-01-30 13:57:36,848 - httpcore.connection - DEBUG - close.started
+2025-01-30 13:57:36,848 - httpcore.connection - DEBUG - close.complete
+2025-01-30 13:59:13,257 - httpcore.connection - DEBUG - connect_tcp.started host='api.agno.com' port=443 local_address=None timeout=60 socket_options=None
+2025-01-30 13:59:13,554 - httpcore.connection - DEBUG - connect_tcp.complete return_value=<httpcore._backends.sync.SyncStream object at 0x10f9d7500>
+2025-01-30 13:59:13,554 - httpcore.connection - DEBUG - start_tls.started ssl_context=<ssl.SSLContext object at 0x10f6c2e50> server_hostname='api.agno.com' timeout=60
+2025-01-30 13:59:14,036 - httpcore.connection - DEBUG - start_tls.complete return_value=<httpcore._backends.sync.SyncStream object at 0x10f6d4da0>
+2025-01-30 13:59:14,036 - httpcore.http11 - DEBUG - send_request_headers.started request=<Request [b'POST']>
+2025-01-30 13:59:14,036 - httpcore.http11 - DEBUG - send_request_headers.complete
+2025-01-30 13:59:14,036 - httpcore.http11 - DEBUG - send_request_body.started request=<Request [b'POST']>
+2025-01-30 13:59:14,037 - httpcore.http11 - DEBUG - send_request_body.complete
+2025-01-30 13:59:14,037 - httpcore.http11 - DEBUG - receive_response_headers.started request=<Request [b'POST']>
+2025-01-30 13:59:14,466 - httpcore.http11 - DEBUG - receive_response_headers.complete return_value=(b'HTTP/1.1', 500, b'Internal Server Error', [(b'Date', b'Thu, 30 Jan 2025 11:59:14 GMT'), (b'Content-Type', b'text/plain; charset=utf-8'), (b'Content-Length', b'21'), (b'Connection', b'keep-alive'), (b'server', b'uvicorn')])
+2025-01-30 13:59:14,467 - httpx - INFO - HTTP Request: POST https://api.agno.com/v1/telemetry/agent/session/create "HTTP/1.1 500 Internal Server Error"
+2025-01-30 13:59:14,467 - httpcore.http11 - DEBUG - receive_response_body.started request=<Request [b'POST']>
+2025-01-30 13:59:14,468 - httpcore.http11 - DEBUG - receive_response_body.complete
+2025-01-30 13:59:14,468 - httpcore.http11 - DEBUG - response_closed.started
+2025-01-30 13:59:14,468 - httpcore.http11 - DEBUG - response_closed.complete
+2025-01-30 13:59:14,468 - httpcore.connection - DEBUG - close.started
+2025-01-30 13:59:14,468 - httpcore.connection - DEBUG - close.complete
+2025-01-30 13:59:34,990 - asyncio - DEBUG - Using selector: KqueueSelector
+2025-01-30 13:59:59,747 - httpcore.connection - DEBUG - connect_tcp.started host='api.agno.com' port=443 local_address=None timeout=60 socket_options=None
+2025-01-30 13:59:59,983 - httpcore.connection - DEBUG - connect_tcp.complete return_value=<httpcore._backends.sync.SyncStream object at 0x10f90be90>
+2025-01-30 13:59:59,983 - httpcore.connection - DEBUG - start_tls.started ssl_context=<ssl.SSLContext object at 0x10f717450> server_hostname='api.agno.com' timeout=60
+2025-01-30 14:00:00,455 - httpcore.connection - DEBUG - start_tls.complete return_value=<httpcore._backends.sync.SyncStream object at 0x10f7c0d70>
+2025-01-30 14:00:00,456 - httpcore.http11 - DEBUG - send_request_headers.started request=<Request [b'POST']>
+2025-01-30 14:00:00,457 - httpcore.http11 - DEBUG - send_request_headers.complete
+2025-01-30 14:00:00,457 - httpcore.http11 - DEBUG - send_request_body.started request=<Request [b'POST']>
+2025-01-30 14:00:00,457 - httpcore.http11 - DEBUG - send_request_body.complete
+2025-01-30 14:00:00,457 - httpcore.http11 - DEBUG - receive_response_headers.started request=<Request [b'POST']>
+2025-01-30 14:00:00,698 - httpcore.http11 - DEBUG - receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Date', b'Thu, 30 Jan 2025 12:00:00 GMT'), (b'Content-Type', b'application/json'), (b'Content-Length', b'72'), (b'Connection', b'keep-alive'), (b'server', b'uvicorn')])
+2025-01-30 14:00:00,699 - httpx - INFO - HTTP Request: POST https://api.agno.com/v1/telemetry/agent/run/create "HTTP/1.1 200 OK"
+2025-01-30 14:00:00,699 - httpcore.http11 - DEBUG - receive_response_body.started request=<Request [b'POST']>
+2025-01-30 14:00:00,700 - httpcore.http11 - DEBUG - receive_response_body.complete
+2025-01-30 14:00:00,700 - httpcore.http11 - DEBUG - response_closed.started
+2025-01-30 14:00:00,700 - httpcore.http11 - DEBUG - response_closed.complete
+2025-01-30 14:00:00,700 - httpcore.connection - DEBUG - close.started
+2025-01-30 14:00:00,701 - httpcore.connection - DEBUG - close.complete
+2025-01-30 14:00:57,630 - httpcore.connection - DEBUG - connect_tcp.started host='api.agno.com' port=443 local_address=None timeout=60 socket_options=None
+2025-01-30 14:00:57,878 - httpcore.connection - DEBUG - connect_tcp.complete return_value=<httpcore._backends.sync.SyncStream object at 0x10d6002c0>
+2025-01-30 14:00:57,878 - httpcore.connection - DEBUG - start_tls.started ssl_context=<ssl.SSLContext object at 0x118dbf9d0> server_hostname='api.agno.com' timeout=60
+2025-01-30 14:00:58,358 - httpcore.connection - DEBUG - start_tls.complete return_value=<httpcore._backends.sync.SyncStream object at 0x10d600260>
+2025-01-30 14:00:58,359 - httpcore.http11 - DEBUG - send_request_headers.started request=<Request [b'POST']>
+2025-01-30 14:00:58,359 - httpcore.http11 - DEBUG - send_request_headers.complete
+2025-01-30 14:00:58,359 - httpcore.http11 - DEBUG - send_request_body.started request=<Request [b'POST']>
+2025-01-30 14:00:58,360 - httpcore.http11 - DEBUG - send_request_body.complete
+2025-01-30 14:00:58,360 - httpcore.http11 - DEBUG - receive_response_headers.started request=<Request [b'POST']>
+2025-01-30 14:00:58,650 - httpcore.http11 - DEBUG - receive_response_headers.complete return_value=(b'HTTP/1.1', 500, b'Internal Server Error', [(b'Date', b'Thu, 30 Jan 2025 12:00:58 GMT'), (b'Content-Type', b'text/plain; charset=utf-8'), (b'Content-Length', b'21'), (b'Connection', b'keep-alive'), (b'server', b'uvicorn')])
+2025-01-30 14:00:58,651 - httpx - INFO - HTTP Request: POST https://api.agno.com/v1/telemetry/agent/session/create "HTTP/1.1 500 Internal Server Error"
+2025-01-30 14:00:58,651 - httpcore.http11 - DEBUG - receive_response_body.started request=<Request [b'POST']>
+2025-01-30 14:00:58,651 - httpcore.http11 - DEBUG - receive_response_body.complete
+2025-01-30 14:00:58,651 - httpcore.http11 - DEBUG - response_closed.started
+2025-01-30 14:00:58,651 - httpcore.http11 - DEBUG - response_closed.complete
+2025-01-30 14:00:58,652 - httpcore.connection - DEBUG - close.started
+2025-01-30 14:00:58,652 - httpcore.connection - DEBUG - close.complete
+2025-01-30 14:01:01,797 - asyncio - DEBUG - Using selector: KqueueSelector
+2025-01-30 14:01:24,103 - httpcore.connection - DEBUG - connect_tcp.started host='api.agno.com' port=443 local_address=None timeout=60 socket_options=None
+2025-01-30 14:01:24,336 - httpcore.connection - DEBUG - connect_tcp.complete return_value=<httpcore._backends.sync.SyncStream object at 0x118a63fb0>
+2025-01-30 14:01:24,336 - httpcore.connection - DEBUG - start_tls.started ssl_context=<ssl.SSLContext object at 0x11907b7d0> server_hostname='api.agno.com' timeout=60
+2025-01-30 14:01:24,803 - httpcore.connection - DEBUG - start_tls.complete return_value=<httpcore._backends.sync.SyncStream object at 0x1190a8e60>
+2025-01-30 14:01:24,803 - httpcore.http11 - DEBUG - send_request_headers.started request=<Request [b'POST']>
+2025-01-30 14:01:24,803 - httpcore.http11 - DEBUG - send_request_headers.complete
+2025-01-30 14:01:24,803 - httpcore.http11 - DEBUG - send_request_body.started request=<Request [b'POST']>
+2025-01-30 14:01:24,803 - httpcore.http11 - DEBUG - send_request_body.complete
+2025-01-30 14:01:24,803 - httpcore.http11 - DEBUG - receive_response_headers.started request=<Request [b'POST']>
+2025-01-30 14:01:25,047 - httpcore.http11 - DEBUG - receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Date', b'Thu, 30 Jan 2025 12:01:25 GMT'), (b'Content-Type', b'application/json'), (b'Content-Length', b'72'), (b'Connection', b'keep-alive'), (b'server', b'uvicorn')])
+2025-01-30 14:01:25,048 - httpx - INFO - HTTP Request: POST https://api.agno.com/v1/telemetry/agent/run/create "HTTP/1.1 200 OK"
+2025-01-30 14:01:25,048 - httpcore.http11 - DEBUG - receive_response_body.started request=<Request [b'POST']>
+2025-01-30 14:01:25,048 - httpcore.http11 - DEBUG - receive_response_body.complete
+2025-01-30 14:01:25,048 - httpcore.http11 - DEBUG - response_closed.started
+2025-01-30 14:01:25,048 - httpcore.http11 - DEBUG - response_closed.complete
+2025-01-30 14:01:25,049 - httpcore.connection - DEBUG - close.started
+2025-01-30 14:01:25,049 - httpcore.connection - DEBUG - close.complete

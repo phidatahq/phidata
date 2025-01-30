@@ -1,4 +1,41 @@
-"""
+"""🎮 Game Generator Agent - Your AI Game Development Assistant!
+
+This advanced example demonstrates how to build an AI-powered game development system that
+creates playable HTML5 games based on user descriptions.
+
+The agent can:
+- Generate complete, self-contained HTML5 games from text descriptions
+- Create games with proper user controls and interactions
+- Implement game mechanics like collision detection and scoring
+- Add sound effects and visual elements
+- Include proper game lifecycle (start, play, end, restart)
+- Generate clear playing instructions
+
+Example prompts to try:
+- "Create a simple snake game"
+- "Make a space shooter game with asteroids"
+- "Generate a platform jumping game"
+- "Create a puzzle game with matching colors"
+- "Make a simple racing game"
+- "Generate a memory card matching game"
+
+The agent ensures:
+- Games are completely self-contained in a single HTML file
+- Full-screen mode is available
+- Games have proper start/restart functionality
+- User-friendly controls and interface
+- Modern design aesthetics
+- Mobile-responsive gameplay
+- Browser compatibility
+
+Key features:
+- Games run directly in the browser
+- No external dependencies required
+- Downloadable HTML files
+- Persistent session management
+- Clean, documented code
+
+Requirements:
 1. Install dependencies using: `pip install openai agno`
 2. Run the script using: `python cookbook/examples/streamlit/game_generator/game_generator.py`
 """

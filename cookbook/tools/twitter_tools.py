@@ -1,5 +1,5 @@
-from phi.agent import Agent
-from phi.tools.twitter import TwitterTools
+from agno.agent import Agent
+from agno.tools.twitter import TwitterTools
 
 # Export the following environment variables or provide them as arguments to the TwitterTools constructor
 # - TWITTER_CONSUMER_KEY
@@ -14,7 +14,7 @@ twitter_tools = TwitterTools()
 # Create an agent with the twitter toolkit
 agent = Agent(
     instructions=[
-        "Use your tools to interact with Twitter as the authorized user @phidatahq",
+        "Use your tools to interact with Twitter as the authorized user @AgnoAgi",
         "When asked to create a tweet, generate appropriate content based on the request",
         "Do not actually post tweets unless explicitly instructed to do so",
         "Provide informative responses about the user's timeline and tweets",
@@ -23,18 +23,21 @@ agent = Agent(
     tools=[twitter_tools],
     show_tool_calls=True,
 )
-agent.print_response("Can you retrieve information about this user https://x.com/phidatahq ", markdown=True)
+agent.print_response(
+    "Can you retrieve information about this user https://x.com/AgnoAgi ",
+    markdown=True,
+)
 
 # # Example usage: Reply To a Tweet
 # agent.print_response(
-#     "Can you reply to this post as a general message as to how great this project is:https://x.com/phidatahq/status/1836101177500479547",
+#     "Can you reply to this post as a general message as to how great this project is:https://x.com/AgnoAgi/status/1836101177500479547",
 #     markdown=True,
 # )
 # # Example usage: Get your details
 # agent.print_response("Can you return my twitter profile?", markdown=True)
 # # Example usage: Send a direct message
 # agent.print_response(
-#     "Can a send direct message to the user: https://x.com/phidatahq assking you want learn more about them and a link to their community?",
+#     "Can a send direct message to the user: https://x.com/AgnoAgi assking you want learn more about them and a link to their community?",
 #     markdown=True,
 # )
 # # Example usage: Create a new tweet

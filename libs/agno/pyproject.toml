@@ -3,8 +3,8 @@ name = "agno"
 version = "0.1.7"
 description = "Agno: a lightweight framework for building multi-modal Agents"
 requires-python = ">=3.7,<4"
-readme = "../../README.md"
-license = { file = "../../LICENSE" }
+readme = "README.md"
+license = { file = "LICENSE" }
 authors = [
   {name = "Ashpreet Bedi", email = "ashpreet@agno.com"}
 ]

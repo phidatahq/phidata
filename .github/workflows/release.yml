@@ -25,6 +25,11 @@ jobs:
       run: |
         python -m pip install --upgrade pip build
 
+    - name: Copy README
+      run: |
+        cp README.md libs/agno/
+        cp LICENSE libs/agno/
+
     - name: Build package
       run: |
         cd libs/agno

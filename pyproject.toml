@@ -165,7 +165,6 @@ module = [
   "textract.*",
   "timeout_decorator.*",
   "torch.*",
-  "upstash_vector.*",
   "uvicorn.*",
   "vertexai.*",
   "voyageai.*",

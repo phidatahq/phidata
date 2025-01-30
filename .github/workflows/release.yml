@@ -26,7 +26,9 @@ jobs:
         python -m pip install --upgrade pip build
 
     - name: Build package
-      run: python -m build
+      run: |
+        cd libs/agno
+        python -m build
 
     - name: Publish to TestPyPI
       uses: pypa/gh-action-pypi-publish@release/v1

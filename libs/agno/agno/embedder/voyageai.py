@@ -8,7 +8,7 @@ try:
     from voyageai import Client
     from voyageai.object import EmbeddingsObject
 except ImportError:
-    raise ImportError("`voyageai` not installed")
+    raise ImportError("`voyageai` not installed. Please install using `pip install voyageai`")
 
 
 @dataclass

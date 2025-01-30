@@ -1,4 +1,4 @@
-from phi.utils.string import extract_valid_json
+from agno.utils.string import extract_valid_json
 
 
 def test_extract_valid_json_with_valid_json():

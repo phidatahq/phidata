@@ -1,6 +1,0 @@
-phidata
-google-generativeai
-openai
-streamlit
-pillow
-duckduckgo-search

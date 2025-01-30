@@ -1,8 +1,15 @@
-from phi.agent import Agent
-from phi.tools.postgres import PostgresTools
+from agno.agent import Agent
+from agno.tools.postgres import PostgresTools
 
 # Initialize PostgresTools with connection details
-postgres_tools = PostgresTools(host="localhost", port=5532, db_name="ai", user="ai", password="ai", table_schema="ai")
+postgres_tools = PostgresTools(
+    host="localhost",
+    port=5532,
+    db_name="ai",
+    user="ai",
+    password="ai",
+    table_schema="ai",
+)
 
 # Create an agent with the PostgresTools
 agent = Agent(tools=[postgres_tools])

@@ -1,5 +1,5 @@
-from phi.agent import Agent
-from phi.tools.telegram import TelegramTools
+from agno.agent import Agent
+from agno.tools.telegram import TelegramTools
 
 # How to get the token and chat_id:
 # 1. Create a new bot with BotFather on Telegram. https://core.telegram.org/bots/features#creating-a-new-bot

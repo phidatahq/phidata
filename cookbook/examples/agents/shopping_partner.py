@@ -1,14 +1,6 @@
-<<<<<<< HEAD
-from agno.tools.exa import ExaTools
-
-from agno.agent import Agent
-from agno.models.openai import OpenAIChat
-=======
 from agno.agent import Agent
 from agno.models.openai import OpenAIChat
 from agno.tools.exa import ExaTools
->>>>>>> ab20177dfe7f6dafdf21638aadc67986b767d92e
-from agno.tools.firecrawl import FirecrawlTools
 
 agent = Agent(
     name="shopping partner",

@@ -16,7 +16,7 @@ st.set_page_config(
     page_icon=":orange_heart:",
 )
 st.title("LLM OS")
-st.markdown("##### :orange_heart: built using [Agno](https://github.com/AgnoAgi/agno)")
+st.markdown("##### :orange_heart: built using [Agno](https://github.com/agno-agi/agno)")
 
 
 def main() -> None:

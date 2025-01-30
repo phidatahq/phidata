@@ -12,7 +12,7 @@ st.set_page_config(
     page_icon="🌍",
 )
 st.title("GeoBuddy 🌍")
-st.markdown("##### :orange_heart: built by [agno](https://github.com/AgnoAgi/agno)")
+st.markdown("##### :orange_heart: built by [agno](https://github.com/agno-agi/agno)")
 st.markdown(
     """
     **Upload your image** and let model guess the location based on visual cues such as landmarks, architecture, and more.

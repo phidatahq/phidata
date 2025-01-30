@@ -10,7 +10,7 @@ st.set_page_config(
     page_icon="🏥",
     layout="wide",
 )
-st.markdown("##### 🏥 built using [Agno](https://github.com/AgnoAgi/agno)")
+st.markdown("##### 🏥 built using [Agno](https://github.com/agno-agi/agno)")
 
 
 def main():

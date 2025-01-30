@@ -22,5 +22,5 @@ readme_gen_agent = Agent(
 )
 
 readme_gen_agent.print_response(
-    "Get details of https://github.com/agno-agi/agno", markdown=True
+    "Get details of https://github.com/AgnoAgi/agno", markdown=True
 )

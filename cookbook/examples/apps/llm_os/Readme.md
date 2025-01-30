@@ -4,7 +4,7 @@ Lets build the LLM OS
 
 ## The LLM OS design:
 
-<img alt="LLM OS" src="https://github.com/agno-agi/agno/assets/22579644/5cab9655-55a9-4027-80ac-badfeefa4c14" width="600" />
+<img alt="LLM OS" src="https://github.com/AgnoAgi/agno/assets/22579644/5cab9655-55a9-4027-80ac-badfeefa4c14" width="600" />
 
 - LLMs are the kernel process of an emerging operating system.
 - This process (LLM) can solve problems by coordinating other resources (memory, computation tools).

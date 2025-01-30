@@ -81,7 +81,8 @@ class Ollama(Model):
         if self.client is not None:
             return self.client
 
-        return OllamaClient(**self.get_client_params())
+        self.client = OllamaClient(**self.get_client_params())
+        return self.client
 
     def get_async_client(self) -> AsyncOllamaClient:
         """

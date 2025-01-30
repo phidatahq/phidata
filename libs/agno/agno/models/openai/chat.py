@@ -131,7 +131,9 @@ class OpenAIChat(Model):
         client_params: Dict[str, Any] = self._get_client_params()
         if self.http_client is not None:
             client_params["http_client"] = self.http_client
-        return OpenAIClient(**client_params)
+
+        self.client = OpenAIClient(**client_params)
+        return self.client
 
     def get_async_client(self) -> AsyncOpenAIClient:
         """

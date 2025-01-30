@@ -404,7 +404,9 @@ class Gemini(Model):
         if self.client_params:
             client_params.update(self.client_params)
         genai.configure(**client_params)
-        return genai.GenerativeModel(model_name=self.id, **self.request_kwargs)
+
+        self.client = genai.GenerativeModel(model_name=self.id, **self.request_kwargs)
+        return self.client
 
     @property
     def request_kwargs(self) -> Dict[str, Any]:

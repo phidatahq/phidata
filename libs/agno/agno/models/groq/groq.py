@@ -136,7 +136,9 @@ class Groq(Model):
         client_params: Dict[str, Any] = self.get_client_params()
         if self.http_client is not None:
             client_params["http_client"] = self.http_client
-        return GroqClient(**client_params)
+
+        self.client = GroqClient(**client_params)
+        return self.client
 
     def get_async_client(self) -> AsyncGroqClient:
         """

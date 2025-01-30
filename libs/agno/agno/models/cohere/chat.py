@@ -68,7 +68,9 @@ class Cohere(Model):
 
         if self.api_key:
             _client_params["api_key"] = self.api_key
-        return CohereClient(**_client_params)
+
+        self.cohere_client = CohereClient(**_client_params)
+        return self.cohere_client
 
     @property
     def request_kwargs(self) -> Dict[str, Any]:

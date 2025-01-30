@@ -8,7 +8,7 @@ from agno.embedder.openai import OpenAIEmbedder
 try:
     from chonkie import SemanticChunker
 except ImportError:
-    raise ImportError("`chonkie` is required for semantic chunking, please install using `uv pip install chonkie`")
+    raise ImportError("`chonkie` is required for semantic chunking, please install using `pip install chonkie`")
 
 
 class SemanticChunking(ChunkingStrategy):
@@ -21,7 +21,7 @@ class SemanticChunking(ChunkingStrategy):
         self.chunk_size = chunk_size
         self.similarity_threshold = similarity_threshold
         self.chunker = SemanticChunker(
-            embedding_model=self.embedder.model,  # type: ignore
+            embedding_model=self.embedder.id,  # type: ignore
             chunk_size=self.chunk_size,
             threshold=self.similarity_threshold,
         )

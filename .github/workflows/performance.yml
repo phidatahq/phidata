@@ -1,0 +1,42 @@
+name: Performance Comparison
+
+on:
+  workflow_dispatch:
+
+jobs:
+  compare-performance:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install openai agno langgraph langchain_openai
+
+    - name: Run Performance Tests
+      # env:
+        # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      run: |
+        echo "Running LangGraph Performance Test..."
+        python evals/performance/other/langgraph_instantiation.py > langgraph_results.txt
+
+        echo "Running Agno Performance Test..."
+        python evals/performance/instantiation_with_tool.py > agno_results.txt
+
+    - name: Process and Compare Results
+      run: |
+        echo "Performance Test Results" > comparison.md
+        echo "========================" >> comparison.md
+        echo "" >> comparison.md
+        echo "## LangGraph Results" >> comparison.md
+        cat langgraph_results.txt >> comparison.md
+        echo "" >> comparison.md
+        echo "## Agno Results" >> comparison.md
+        cat agno_results.txt >> comparison.md

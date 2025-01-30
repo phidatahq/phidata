@@ -11,17 +11,17 @@ source ./agnoenv/bin/activate
 ### 2. Install requirements
 
 ```shell
-pip install -r cookbook/use_cases/apps/medical_imaging/requirements.txt
+pip install -r cookbook/examples/apps/medical_imaging/requirements.txt
 ```
 
-### 3. Export `OPENAI_API_KEY`
+### 3. Export `GOOGLE_API_KEY`
 
 ```shell
-export OPENAI_API_KEY=sk-***
+export GOOGLE_API_KEY=****
 ```
 
 ### 4. Run Streamlit App
 
 ```shell
-streamlit run cookbook/use_cases/apps/medical_imaging/app.py
+streamlit run cookbook/examples/apps/medical_imaging/app.py
 ```

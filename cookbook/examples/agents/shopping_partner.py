@@ -1,7 +1,13 @@
+<<<<<<< HEAD
 from agno.tools.exa import ExaTools
 
 from agno.agent import Agent
 from agno.models.openai import OpenAIChat
+=======
+from agno.agent import Agent
+from agno.models.openai import OpenAIChat
+from agno.tools.exa import ExaTools
+>>>>>>> ab20177dfe7f6dafdf21638aadc67986b767d92e
 from agno.tools.firecrawl import FirecrawlTools
 
 agent = Agent(
@@ -17,7 +23,11 @@ agent = Agent(
         "Format the recommendations neatly and ensure clarity for ease of user understanding.",
     ],
     tools=[ExaTools()],
+<<<<<<< HEAD
     show_tool_calls=True
+=======
+    show_tool_calls=True,
+>>>>>>> ab20177dfe7f6dafdf21638aadc67986b767d92e
 )
 agent.print_response(
     "I am looking for running shoes with the following preferences: Color: Black Purpose: Comfortable for long-distance running Budget: Under Rs. 10,000"

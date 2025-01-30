@@ -19,8 +19,6 @@ def add_message(
     )
 
 
-
-
 def export_chat_history():
     """Export chat history as markdown"""
     if "messages" in st.session_state:
@@ -80,7 +78,7 @@ def rename_session_widget(agent: Agent) -> None:
     """Rename the current session of the agent and save to storage"""
 
     container = st.sidebar.container()
-    
+
     # Initialize session_edit_mode if needed
     if "session_edit_mode" not in st.session_state:
         st.session_state.session_edit_mode = False
@@ -139,10 +137,6 @@ def session_selector_widget(agent: Agent, model_id: str) -> None:
                 session_id=selected_session_id,
             )
             st.rerun()
-
-
-
-
 
 def about_widget() -> None:
     """Display an about section in the sidebar"""

@@ -12,7 +12,7 @@ st.set_page_config(
 
 
 st.title("Game Generator")
-st.markdown("##### 🎮 built using [Agno](https://github.com/AgnoAgi/agno)")
+st.markdown("##### 🎮 built using [Agno](https://github.com/agno-agi/agno)")
 
 
 def main() -> None:

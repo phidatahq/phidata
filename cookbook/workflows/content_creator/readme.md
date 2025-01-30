@@ -17,7 +17,7 @@ The Content Creator Agent Workflow is a multi-agent workflow designed to streaml
 1. **Clone the Repository:**
 
    ```bash
-   git clone https://github.com/AgnoAgi/agno.git
+   git clone https://github.com/agno-agi/agno.git
    ```
 
 2. **Navigate to the Workflow Directory:**

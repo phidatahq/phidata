@@ -27,7 +27,8 @@ knowledge_base = PDFUrlKnowledgeBase(
     vector_db=vector_db,
 )
 
-knowledge_base.load(recreate=False, upsert=True)  # Comment out after first run
+# Load the knowledge base - after first run, comment out
+knowledge_base.load(recreate=False, upsert=True)
 
 # Create and use the agent
 agent = Agent(knowledge_base=knowledge_base, use_tools=True, show_tool_calls=True)

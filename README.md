@@ -10,7 +10,7 @@
 <div align="center">
   <a href="https://docs.agno.com">📚 Documentation</a> &nbsp;|&nbsp;
   <a href="https://docs.agno.com/examples/introduction">💡 Examples</a> &nbsp;|&nbsp;
-  <a href="https://github.com/agno-agi/agno/stargazers">🌟 Star Us</a>
+  <a href="https://github.com/AgnoAgi/agno/stargazers">🌟 Star Us</a>
 </div>
 
 ## Overview
@@ -301,14 +301,14 @@ Now, Cursor will have access to the Agno documentation.
 ## Documentation, Community & More examples
 
 - Docs: <a href="https://docs.agno.com" target="_blank" rel="noopener noreferrer">docs.agno.com</a>
-- Getting Started Examples: <a href="https://github.com/agno-agi/agno/tree/main/cookbook/getting_started" target="_blank" rel="noopener noreferrer">Getting Started Cookbook</a>
-- All Examples: <a href="https://github.com/agno-agi/agno/tree/main/cookbook" target="_blank" rel="noopener noreferrer">Cookbook</a>
+- Getting Started Examples: <a href="https://github.com/AgnoAgi/agno/tree/main/cookbook/getting_started" target="_blank" rel="noopener noreferrer">Getting Started Cookbook</a>
+- All Examples: <a href="https://github.com/AgnoAgi/agno/tree/main/cookbook" target="_blank" rel="noopener noreferrer">Cookbook</a>
 - Community forum: <a href="https://community.agno.com/" target="_blank" rel="noopener noreferrer">community.agno.com</a>
 - Chat: <a href="https://discord.gg/4MtYHHrgA8" target="_blank" rel="noopener noreferrer">discord</a>
 
 ## Contributions
 
-We welcome contributions, read our [contributing guide](https://github.com/agno-agi/agno/blob/main/CONTRIBUTING.md) to get started.
+We welcome contributions, read our [contributing guide](https://github.com/AgnoAgi/agno/blob/main/CONTRIBUTING.md) to get started.
 
 ## Telemetry
 

@@ -7,4 +7,4 @@ composio_tools = toolset.get_tools(
 )
 
 agent = Agent(tools=composio_tools, show_tool_calls=True)
-agent.print_response("Can you star agno-agi/agno repo?")
+agent.print_response("Can you star AgnoAgi/agno repo?")

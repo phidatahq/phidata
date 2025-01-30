@@ -16,7 +16,7 @@ from agno.vectordb.base import VectorDb
 from agno.vectordb.distance import Distance
 
 
-class ClickhouseDb(VectorDb):
+class Clickhouse(VectorDb):
     def __init__(
         self,
         table_name: str,

@@ -196,6 +196,7 @@ module = [
   "firecrawl.*",
   "github.*",
   "google.*",
+  "googlemaps.*",
   "googlesearch.*",
   "groq.*",
   "huggingface_hub.*",

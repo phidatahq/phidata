@@ -6,35 +6,41 @@ Prerequisites:
   You can obtain the API key from the Google Cloud Console:
   https://console.cloud.google.com/projectselector2/google/maps-apis/credentials
 
-- You also need to activate the Address Validation API for your . 
+- You also need to activate the Address Validation API for your .
   https://console.developers.google.com/apis/api/addressvalidation.googleapis.com
 
 """
-from os import getenv
-from typing import Dict, List, Union, Optional
+
 from datetime import datetime
+from os import getenv
+from typing import List, Optional
+
 from agno.tools import Toolkit
+
 try:
     import googlemaps
 except ImportError:
     print("Error importing googlemaps. Please install the package using `pip install googlemaps`.")
 
-_google_map_client = googlemaps.Client(key=getenv('GOOGLE_MAPS_API_KEY'))
+_google_map_client = googlemaps.Client(key=getenv("GOOGLE_MAPS_API_KEY"))
+
 
 class GoogleMapTools(Toolkit):
-    def __init__(self, 
-                 key: Optional[str] = None,
-                 search_places: bool = True,
-                 get_directions: bool = True,
-                 validate_address: bool = True,
-                 geocode_address: bool = True,
-                 reverse_geocode: bool = True,
-                 get_distance_matrix: bool = True,
-                 get_elevation: bool = True,
-                 get_timezone: bool = True):
+    def __init__(
+        self,
+        key: Optional[str] = None,
+        search_places: bool = True,
+        get_directions: bool = True,
+        validate_address: bool = True,
+        geocode_address: bool = True,
+        reverse_geocode: bool = True,
+        get_distance_matrix: bool = True,
+        get_elevation: bool = True,
+        get_timezone: bool = True,
+    ):
         super().__init__(name="google_maps")
 
-        api_key = key or getenv('GOOGLE_MAPS_API_KEY')
+        api_key = key or getenv("GOOGLE_MAPS_API_KEY")
         if not api_key:
             raise ValueError("GOOGLE_MAPS_API_KEY is not set in the environment variables.")
         self.client = googlemaps.Client(key=api_key)
@@ -60,56 +66,58 @@ class GoogleMapTools(Toolkit):
         """
         Search for places using Google Maps Places API.
         This tool takes a search query and returns detailed place information.
-        
+
         Args:
             query (str): The query string to search for using Google Maps Search API. (e.g., "dental clinics in Noida")
-            
+
         Returns:
             Stringified list of dictionaries containing business information like name, address, phone, website, rating, and reviews etc.
         """
         try:
             # Perform places search
             places_result = _google_map_client.places(query)
-            
-            if not places_result or 'results' not in places_result:
+
+            if not places_result or "results" not in places_result:
                 return []
-            
+
             places = []
-            for place in places_result['results']:
+            for place in places_result["results"]:
                 place = {
-                    'name': place.get('name', ''),
-                    'address': place.get('formatted_address', ''),
-                    'rating': place.get('rating', 0.0),
-                    'reviews': place.get('user_ratings_total', 0),
-                    'place_id': place.get('place_id', ''),
+                    "name": place.get("name", ""),
+                    "address": place.get("formatted_address", ""),
+                    "rating": place.get("rating", 0.0),
+                    "reviews": place.get("user_ratings_total", 0),
+                    "place_id": place.get("place_id", ""),
                 }
-                
+
                 # Get place details for additional information
-                if place.get('place_id'):
-                    details = self.client.place(place['place_id'])
-                    if details and 'result' in details:
-                        result = details['result']
-                        place.update({
-                            'phone': result.get('formatted_phone_number', ''),
-                            'website': result.get('website', ''),
-                            'hours': result.get('opening_hours', {}).get('weekday_text', [])
-                        })
-                
+                if place.get("place_id"):
+                    details = self.client.place(place["place_id"])
+                    if details and "result" in details:
+                        result = details["result"]
+                        place.update(
+                            {
+                                "phone": result.get("formatted_phone_number", ""),
+                                "website": result.get("website", ""),
+                                "hours": result.get("opening_hours", {}).get("weekday_text", []),
+                            }
+                        )
+
                 places.append(place)
-            
+
             return str(places)
-            
+
         except Exception as e:
             print(f"Error searching Google Maps: {str(e)}")
             return str([])
 
     def get_directions(
-        self, 
-        origin: str, 
-        destination: str, 
+        self,
+        origin: str,
+        destination: str,
         mode: str = "driving",
         departure_time: Optional[datetime] = None,
-        avoid: Optional[List[str]] = None
+        avoid: Optional[List[str]] = None,
     ) -> str:
         """
         Get directions between two locations using Google Maps Directions API.
@@ -125,24 +133,14 @@ class GoogleMapTools(Toolkit):
             str: Stringified dictionary containing route information including steps, distance, duration, etc.
         """
         try:
-            result = self.client.directions(
-                origin,
-                destination,
-                mode=mode,
-                departure_time=departure_time,
-                avoid=avoid
-            )
+            result = self.client.directions(origin, destination, mode=mode, departure_time=departure_time, avoid=avoid)
             return str(result)
         except Exception as e:
             print(f"Error getting directions: {str(e)}")
             return str([])
 
     def validate_address(
-        self, 
-        address: str,
-        region_code: str = "US",
-        locality: Optional[str] = None,
-        enable_usps_cass: bool = False
+        self, address: str, region_code: str = "US", locality: Optional[str] = None, enable_usps_cass: bool = False
     ) -> str:
         """
         Validate an address using Google Maps Address Validation API.
@@ -158,10 +156,7 @@ class GoogleMapTools(Toolkit):
         """
         try:
             result = self.client.addressvalidation(
-                [address],
-                regionCode=region_code,
-                locality=locality,
-                enableUspsCass=enable_usps_cass
+                [address], regionCode=region_code, locality=locality, enableUspsCass=enable_usps_cass
             )
             return str(result)
         except Exception as e:
@@ -180,21 +175,14 @@ class GoogleMapTools(Toolkit):
             str: Stringified list of dictionaries containing location information
         """
         try:
-            result = self.client.geocode(
-                address,
-                region=region
-            )
+            result = self.client.geocode(address, region=region)
             return str(result)
         except Exception as e:
             print(f"Error geocoding address: {str(e)}")
             return str([])
 
     def reverse_geocode(
-        self, 
-        lat: float, 
-        lng: float,
-        result_type: Optional[List[str]] = None,
-        location_type: Optional[List[str]] = None
+        self, lat: float, lng: float, result_type: Optional[List[str]] = None, location_type: Optional[List[str]] = None
     ) -> str:
         """
         Convert geographic coordinates into an address using Google Maps Reverse Geocoding API.
@@ -209,11 +197,7 @@ class GoogleMapTools(Toolkit):
             str: Stringified list of dictionaries containing address information
         """
         try:
-            result = self.client.reverse_geocode(
-                (lat, lng),
-                result_type=result_type,
-                location_type=location_type
-            )
+            result = self.client.reverse_geocode((lat, lng), result_type=result_type, location_type=location_type)
             return str(result)
         except Exception as e:
             print(f"Error reverse geocoding: {str(e)}")
@@ -225,7 +209,7 @@ class GoogleMapTools(Toolkit):
         destinations: List[str],
         mode: str = "driving",
         departure_time: Optional[datetime] = None,
-        avoid: Optional[List[str]] = None
+        avoid: Optional[List[str]] = None,
     ) -> str:
         """
         Calculate distance and time for a matrix of origins and destinations.
@@ -242,11 +226,7 @@ class GoogleMapTools(Toolkit):
         """
         try:
             result = self.client.distance_matrix(
-                origins,
-                destinations,
-                mode=mode,
-                departure_time=departure_time,
-                avoid=avoid
+                origins, destinations, mode=mode, departure_time=departure_time, avoid=avoid
             )
             return str(result)
         except Exception as e:
@@ -271,12 +251,7 @@ class GoogleMapTools(Toolkit):
             print(f"Error getting elevation: {str(e)}")
             return str([])
 
-    def get_timezone(
-        self,
-        lat: float,
-        lng: float,
-        timestamp: Optional[datetime] = None
-    ) -> str:
+    def get_timezone(self, lat: float, lng: float, timestamp: Optional[datetime] = None) -> str:
         """
         Get timezone information for a location using Google Maps Time Zone API.
 
@@ -291,14 +266,9 @@ class GoogleMapTools(Toolkit):
         try:
             if timestamp is None:
                 timestamp = datetime.now()
-            
-            result = self.client.timezone(
-                location=(lat, lng),
-                timestamp=timestamp
-            )
+
+            result = self.client.timezone(location=(lat, lng), timestamp=timestamp)
             return str(result)
         except Exception as e:
             print(f"Error getting timezone: {str(e)}")
             return str({})
-
-    

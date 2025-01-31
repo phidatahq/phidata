@@ -3,6 +3,7 @@ Business Contact Search Agent for finding and extracting business contact inform
 This example demonstrates various Google Maps API functionalities including business search,
 directions, geocoding, address validation, and more.
 """
+
 from agno.agent import Agent
 from agno.tools.crawl4ai import Crawl4aiTools
 from agno.tools.google_maps import GoogleMapTools
@@ -31,7 +32,7 @@ print("\n=== Business Search Example ===")
 agent.print_response(
     "Find me highly rated Indian restaurants in Phoenix, AZ with their contact details",
     markdown=True,
-    stream=True
+    stream=True,
 )
 
 # Example 2: Directions
@@ -40,7 +41,7 @@ agent.print_response(
     """Get driving directions from 'Phoenix Sky Harbor Airport' to 'Desert Botanical Garden', 
     avoiding highways if possible""",
     markdown=True,
-    stream=True
+    stream=True,
 )
 
 # Example 3: Address Validation and Geocoding
@@ -49,7 +50,7 @@ agent.print_response(
     """Please validate and geocode this address: 
     '1600 Amphitheatre Parkway, Mountain View, CA'""",
     markdown=True,
-    stream=True
+    stream=True,
 )
 
 # Example 4: Distance Matrix
@@ -59,7 +60,7 @@ agent.print_response(
     Origins: ['Phoenix Sky Harbor Airport', 'Downtown Phoenix']
     Destinations: ['Desert Botanical Garden', 'Phoenix Zoo']""",
     markdown=True,
-    stream=True
+    stream=True,
 )
 
 # Example 5: Nearby Places and Details
@@ -68,7 +69,7 @@ agent.print_response(
     """Find coffee shops near Arizona State University Tempe campus. 
     Include ratings and opening hours if available.""",
     markdown=True,
-    stream=True
+    stream=True,
 )
 
 # Example 6: Reverse Geocoding and Timezone
@@ -77,7 +78,7 @@ agent.print_response(
     """Get the address and timezone information for these coordinates:
     Latitude: 33.4484, Longitude: -112.0740 (Phoenix)""",
     markdown=True,
-    stream=True
+    stream=True,
 )
 
 # Example 7: Multi-step Route Planning
@@ -92,7 +93,7 @@ agent.print_response(
     End: Return to Airport
     Please include estimated travel times between each stop.""",
     markdown=True,
-    stream=True
+    stream=True,
 )
 
 # Example 8: Location Analysis
@@ -106,7 +107,7 @@ agent.print_response(
     3. Elevation data
     4. Local timezone""",
     markdown=True,
-    stream=True
+    stream=True,
 )
 
 # Example 9: Business Hours and Accessibility
@@ -118,7 +119,7 @@ agent.print_response(
     3. Within 5 miles of downtown
     Include their opening hours and contact information.""",
     markdown=True,
-    stream=True
+    stream=True,
 )
 
 # Example 10: Transit Options
@@ -130,5 +131,5 @@ agent.print_response(
     3. Transit (if available)
     Include estimated time and distance for each option.""",
     markdown=True,
-    stream=True
+    stream=True,
 )

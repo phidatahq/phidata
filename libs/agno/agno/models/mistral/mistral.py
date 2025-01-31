@@ -96,7 +96,8 @@ class MistralChat(Model):
             _client_params["timeout"] = self.timeout
         if self.client_params:
             _client_params.update(self.client_params)
-        return MistralClient(**_client_params)
+        self.mistral_client = MistralClient(**_client_params)
+        return self.mistral_client
 
     @property
     def api_kwargs(self) -> Dict[str, Any]:
@@ -181,10 +182,9 @@ class MistralChat(Model):
             ChatCompletionResponse: The response from the model.
         """
         mistral_messages = self._prepare_messages(messages)
-        logger.debug(f"Mistral messages: {mistral_messages}")
         response = self.client.chat.complete(
-            messages=mistral_messages,
             model=self.id,
+            messages=mistral_messages,
             **self.api_kwargs,
         )
         if response is None:
@@ -202,10 +202,9 @@ class MistralChat(Model):
             Iterator[Any]: The streamed response.
         """
         mistral_messages = self._prepare_messages(messages)
-        logger.debug(f"Mistral messages sending to stream endpoint: {mistral_messages}")
         response = self.client.chat.stream(
-            messages=mistral_messages,
             model=self.id,
+            messages=mistral_messages,
             **self.api_kwargs,
         )
         if response is None:
@@ -358,7 +357,7 @@ class MistralChat(Model):
         assistant_message.log()
 
         # -*- Parse and run tool calls
-        logger.debug(f"Functions: {self._functions}")
+        # logger.debug(f"Functions: {self._functions}")
 
         # -*- Handle tool calls
         if self._handle_tool_calls(assistant_message, messages, model_response):

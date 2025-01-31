@@ -2,7 +2,7 @@
 name: Feature request
 about: What’s missing? Suggest a feature to make Agno even better.
 title: "[Feature Request]"
-labels: ''
+labels: 'enhancement'
 assignees: ''
 
 ---

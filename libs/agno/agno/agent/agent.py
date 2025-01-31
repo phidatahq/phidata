@@ -43,7 +43,7 @@ from agno.utils.safe_formatter import SafeFormatter
 from agno.utils.timer import Timer
 
 
-@dataclass(init=False, slots=True)  # type: ignore
+@dataclass(init=False)  # type: ignore
 class Agent:
     # --- Agent settings ---
     # Model for this Agent

@@ -1,12 +1,12 @@
 import os
 import time
-from phi.utils.log import logger
-import requests
 from typing import Optional
 
-from phi.agent import Agent
-from phi.model.openai import OpenAIChat
-from phi.tools.zoom import ZoomTool
+import requests
+from agno.agent import Agent
+from agno.models.openai import OpenAIChat
+from agno.tools.zoom import ZoomTools
+from agno.utils.log import logger
 
 # Get environment variables
 ACCOUNT_ID = os.getenv("ZOOM_ACCOUNT_ID")
@@ -14,7 +14,7 @@ CLIENT_ID = os.getenv("ZOOM_CLIENT_ID")
 CLIENT_SECRET = os.getenv("ZOOM_CLIENT_SECRET")
 
 
-class CustomZoomTool(ZoomTool):
+class CustomZoomTools(ZoomTools):
     def __init__(
         self,
         account_id: Optional[str] = None,
@@ -22,7 +22,12 @@ class CustomZoomTool(ZoomTool):
         client_secret: Optional[str] = None,
         name: str = "zoom_tool",
     ):
-        super().__init__(account_id=account_id, client_id=client_id, client_secret=client_secret, name=name)
+        super().__init__(
+            account_id=account_id,
+            client_id=client_id,
+            client_secret=client_secret,
+            name=name,
+        )
         self.token_url = "https://zoom.us/oauth/token"
         self.access_token = None
         self.token_expires_at = 0
@@ -50,7 +55,7 @@ class CustomZoomTool(ZoomTool):
                 self.token_url,
                 headers=headers,
                 data=data,
-                auth=(self.client_id, self.client_secret),  # type: ignore
+                auth=(self.client_id, self.client_secret),
             )
             response.raise_for_status()
 
@@ -71,13 +76,15 @@ class CustomZoomTool(ZoomTool):
             self._ZoomTool__access_token = token
 
 
-zoom_tools = CustomZoomTool(account_id=ACCOUNT_ID, client_id=CLIENT_ID, client_secret=CLIENT_SECRET)
+zoom_tools = CustomZoomTools(
+    account_id=ACCOUNT_ID, client_id=CLIENT_ID, client_secret=CLIENT_SECRET
+)
 
 
 agent = Agent(
     name="Zoom Meeting Manager",
     agent_id="zoom-meeting-manager",
-    model=OpenAIChat(model="gpt-4"),
+    model=OpenAIChat(id="gpt-4"),
     tools=[zoom_tools],
     markdown=True,
     debug_mode=True,
@@ -109,7 +116,9 @@ agent = Agent(
 )
 
 
-agent.print_response("Schedule a meeting titled 'Team Sync' 10th december 2024 at 2 PM IST for 45 minutes")
+agent.print_response(
+    "Schedule a meeting titled 'Team Sync' 10th december 2024 at 2 PM IST for 45 minutes"
+)
 # agent.print_response("delete a meeting titled 'Team Sync' which scheduled tomorrow at 2 PM UTC for 45 minutes")
 # agent.print_response("What meetings do I have coming up?")
 # agent.print_response("List all my scheduled meetings")

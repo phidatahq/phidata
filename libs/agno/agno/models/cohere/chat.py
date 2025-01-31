@@ -54,11 +54,11 @@ class Cohere(Model):
     api_key: Optional[str] = None
     client_params: Optional[Dict[str, Any]] = None
     # -*- Provide the Cohere client manually
-    cohere_client: Optional[CohereClient] = None
+    client: Optional[CohereClient] = None
 
     def get_client(self) -> CohereClient:
-        if self.cohere_client:
-            return self.cohere_client
+        if self.client:
+            return self.client
 
         _client_params: Dict[str, Any] = {}
 
@@ -69,8 +69,8 @@ class Cohere(Model):
         if self.api_key:
             _client_params["api_key"] = self.api_key
 
-        self.cohere_client = CohereClient(**_client_params)
-        return self.cohere_client
+        self.client = CohereClient(**_client_params)
+        return self.client
 
     @property
     def request_kwargs(self) -> Dict[str, Any]:

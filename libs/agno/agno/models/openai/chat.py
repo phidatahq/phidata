@@ -49,6 +49,7 @@ class OpenAIChat(Model):
 
     # Request parameters
     store: Optional[bool] = None
+    reasoning_effort: Optional[bool] = None
     metadata: Optional[Dict[str, Any]] = None
     frequency_penalty: Optional[float] = None
     logit_bias: Optional[Any] = None
@@ -168,6 +169,7 @@ class OpenAIChat(Model):
         request_params.update(
             {
                 "store": self.store,
+                "reasoning_effort": self.reasoning_effort,
                 "frequency_penalty": self.frequency_penalty,
                 "logit_bias": self.logit_bias,
                 "logprobs": self.logprobs,

@@ -53,3 +53,6 @@ data.db
 audio_generations
 
 *.db
+
+# Google OAuth token
+token.json

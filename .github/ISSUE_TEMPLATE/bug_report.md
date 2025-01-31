@@ -1,3 +1,12 @@
+---
+name: Bug report
+about: Report an issue to help us fix bugs and improve your experience.
+title: "[Bug]"
+labels: bug
+assignees: ''
+
+---
+
 # Description
 Briefly describe the issue you’re experiencing or the bug you’ve found.
 

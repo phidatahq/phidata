@@ -3,7 +3,6 @@ from phi.model.openai import OpenAIChat
 from phi.playground import Playground, serve_playground_app
 from phi.storage.agent.sqlite import SqlAgentStorage
 
-
 audio_agent = Agent(
     name="Audio Chat Agent",
     model=OpenAIChat(

@@ -25,7 +25,7 @@ from pydantic import BaseModel
 
 from agno.exceptions import AgentRunException, StopAgentRun
 from agno.knowledge.agent import AgentKnowledge
-from agno.media import Audio, AudioArtifact, Image, ImageArtifact, Video, VideoArtifact, AudioOutput
+from agno.media import Audio, AudioArtifact, AudioOutput, Image, ImageArtifact, Video, VideoArtifact
 from agno.memory.agent import AgentMemory, AgentRun
 from agno.models.base import Model
 from agno.models.message import Message, MessageReferences
@@ -626,7 +626,6 @@ class Agent:
             # Update the run_response audio with the model response audio
             if model_response.audio is not None:
                 self.run_response.response_audio = model_response.audio
-
 
             # Update the run_response messages with the messages
             self.run_response.messages = run_messages.messages

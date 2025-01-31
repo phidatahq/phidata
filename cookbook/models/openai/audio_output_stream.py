@@ -1,8 +1,8 @@
 import base64
+import wave
 from pathlib import Path
 from typing import Iterator
 
-import wave
 from agno.agent import Agent, RunResponse  # noqa
 from agno.models.openai import OpenAIChat
 
@@ -16,10 +16,15 @@ agent = Agent(
     model=OpenAIChat(
         id="gpt-4o-audio-preview",
         modalities=["text", "audio"],
-        audio={"voice": "alloy", "format": "pcm16"},  # Only pcm16 is supported with streaming
+        audio={
+            "voice": "alloy",
+            "format": "pcm16",
+        },  # Only pcm16 is supported with streaming
     ),
 )
-output_stream: Iterator[RunResponse] = agent.run("Tell me a 10 second story", stream=True)
+output_stream: Iterator[RunResponse] = agent.run(
+    "Tell me a 10 second story", stream=True
+)
 
 filename = Path(__file__).parent.joinpath("tmp/response_stream.wav")
 filename.unlink(missing_ok=True)

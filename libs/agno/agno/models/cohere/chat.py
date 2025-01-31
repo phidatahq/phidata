@@ -380,7 +380,7 @@ class Cohere(Model):
             tool_results = self._handle_tool_calls(
                 assistant_message=assistant_message,
                 messages=messages,
-                response_tool_calls=response_tool_calls,  # type: ignore
+                response_tool_calls=response_tool_calls,
                 model_response=model_response,
             )
 

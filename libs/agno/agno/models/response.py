@@ -15,13 +15,6 @@ class ModelResponseEvent(str, Enum):
 
 
 @dataclass
-class ModelResponseAudio:
-    data: str
-    transcript: str
-    id: Optional[str] = None
-
-
-@dataclass
 class ModelResponse:
     """Response returned by Model.response()"""
 

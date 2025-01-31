@@ -155,6 +155,7 @@ class MistralChat(Model):
             _client_params["timeout"] = self.timeout
         if self.client_params:
             _client_params.update(self.client_params)
+
         self.mistral_client = MistralClient(**_client_params)
         return self.mistral_client
 

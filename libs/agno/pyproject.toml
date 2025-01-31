@@ -61,7 +61,7 @@ firecrawl = ["firecrawl-py"]
 
 # Dependencies for Storage
 sql = ["sqlalchemy"]
-postgres = ["psycopg"]
+postgres = ["psycopg-binary"]
 
 # Dependencies for Vector databases
 pgvector = ["pgvector"]

@@ -135,7 +135,8 @@ class HuggingFace(Model):
         _client_params: Dict[str, Any] = self.get_client_params()
         if self.http_client is not None:
             _client_params["http_client"] = self.http_client
-        return InferenceClient(**_client_params)
+        self.client = InferenceClient(**_client_params)
+        return self.client
 
     def get_async_client(self) -> AsyncInferenceClient:
         """

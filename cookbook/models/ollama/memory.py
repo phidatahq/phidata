@@ -2,19 +2,18 @@
 This recipe shows how to use personalized memories and summaries in an agent.
 Steps:
 1. Run: `./cookbook/scripts/run_pgvector.sh` to start a postgres container with pgvector
-2. Run: `pip install openai sqlalchemy 'psycopg[binary]' pgvector` to install the dependencies
-3. Run: `python cookbook/agents/personalized_memories_and_summaries.py` to run the agent
+2. Run: `pip install ollama sqlalchemy 'psycopg[binary]' pgvector` to install the dependencies
+3. Run: `python cookbook/models/ollama/memory.py` to run the agent
 """
 
 from agno.agent import Agent, AgentMemory
 from agno.memory.db.postgres import PgMemoryDb
-from agno.models.openai import OpenAIChat
+from agno.models.ollama.chat import Ollama
 from agno.storage.agent.postgres import PostgresAgentStorage
-from rich.pretty import pprint
 
 db_url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 agent = Agent(
-    model=OpenAIChat(id="gpt-4o"),
+    model=Ollama(id="qwen2.5:latest"),
     # Store the memories and summary in a database
     memory=AgentMemory(
         db=PgMemoryDb(table_name="agent_memory", db_url=db_url),
@@ -31,24 +30,12 @@ agent = Agent(
 
 # -*- Share personal information
 agent.print_response("My name is john billings?", stream=True)
-# -*- Print memories
-pprint(agent.memory.memories)
-# -*- Print summary
-pprint(agent.memory.summary)
 
 # -*- Share personal information
 agent.print_response("I live in nyc?", stream=True)
-# -*- Print memories
-pprint(agent.memory.memories)
-# -*- Print summary
-pprint(agent.memory.summary)
 
 # -*- Share personal information
 agent.print_response("I'm going to a concert tomorrow?", stream=True)
-# -*- Print memories
-pprint(agent.memory.memories)
-# -*- Print summary
-pprint(agent.memory.summary)
 
 # Ask about the conversation
 agent.print_response(

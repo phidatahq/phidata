@@ -1,16 +1,15 @@
 """
 Gmail Agent that can read, draft and send emails using the Gmail.
 """
+
 from agno.agent import Agent
-from agno.tools.gmail import GmailTools
 from agno.models.google import Gemini
+from agno.tools.gmail import GmailTools
 
 agent = Agent(
     name="Gmail Agent",
     model=Gemini(id="gemini-2.0-flash-exp"),
-    tools=[
-        GmailTools()
-    ],
+    tools=[GmailTools()],
     description="You are an expert Gmail Agent that can read, draft and send emails using the Gmail.",
     instructions=[
         "Based on user query, you can read, draft and send emails using the Gmail.",
@@ -25,5 +24,5 @@ agent = Agent(
 agent.print_response(
     "summarize my last 5 emails with dates and key details, regarding ai agents",
     markdown=True,
-    stream=True
+    stream=True,
 )

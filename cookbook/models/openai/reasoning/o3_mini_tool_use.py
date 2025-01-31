@@ -1,5 +1,4 @@
-from typing import Iterator  # noqa
-from agno.agent import Agent, RunResponse  # noqa
+from agno.agent import Agent
 from agno.models.openai import OpenAIChat
 from agno.tools.duckduckgo import DuckDuckGoTools
 
@@ -11,4 +10,4 @@ agent = Agent(
 )
 
 # Print the response in the terminal
-agent.print_response("Whats happening in France?", stream=True)
+agent.print_response("Write a report on the latest news on o3-mini?", stream=True)

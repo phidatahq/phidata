@@ -7,14 +7,26 @@ assignees: ''
 
 ---
 
-**Is your feature request related to a problem? Please describe.**
-A clear and concise description of what the problem is. Ex. I'm always frustrated when [...]
+## Problem Description
+Provide a clear and concise explanation of the issue you're facing.
+**Example:** *"I often find it frustrating when [...] because [...]”*
 
-**Describe the solution you'd like**
-A clear and concise description of what you want to happen.
+## Proposed Solution
+Explain your ideal solution. How should this feature work?
+Be as detailed as possible to help us understand your vision.
 
-**Describe alternatives you've considered**
-A clear and concise description of any alternative solutions or features you've considered.
+## Alternatives Considered
+Have you found any workarounds or alternative solutions?
+Share other approaches you've tried or thought about.
 
-**Additional context**
-Add any other context or screenshots about the feature request here.
+## Additional context
+Include any extra information that might be helpful, such as:
+- Screenshots
+- Examples of similar features elsewhere
+- Any relevant links or references
+
+## Would you like to work on this?
+We welcome contributions! Let us know if you’d like to help implement this feature.
+**[ ] Yes, I’d love to work on it!**
+**[ ] I’m open to collaborating but need guidance.**
+**[ ] No, I’m just sharing the idea.**

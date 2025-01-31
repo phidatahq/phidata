@@ -134,7 +134,9 @@ class Claude(Model):
             _client_params["api_key"] = self.api_key
         if self.client_params:
             _client_params.update(self.client_params)
-        return AnthropicClient(**_client_params)
+
+        self.client = AnthropicClient(**_client_params)
+        return self.client
 
     @property
     def request_kwargs(self) -> Dict[str, Any]:

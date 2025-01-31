@@ -35,9 +35,11 @@ dist
 
 # ignore virtualenvs
 .venv*
+.perfenv*
 venv*
-phienv*
+agnoenv*
 aienv*
+phienv*
 
 # ignore tmp dirs
 scratch

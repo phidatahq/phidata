@@ -78,6 +78,9 @@ performance = ["memory_profiler"]
 # Dependencies for Running cookbook
 cookbooks = ["inquirer", "email_validator"]
 
+# Dependencies for Infrastucture
+infra = ["agno-aws", "agno-docker"]
+
 # All models
 models = [
   "agno[anthropic]",

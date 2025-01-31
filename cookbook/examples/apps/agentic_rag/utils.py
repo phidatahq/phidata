@@ -138,7 +138,6 @@ def session_selector_widget(agent: Agent, model_id: str) -> None:
             )
             st.rerun()
 
-
 def about_widget() -> None:
     """Display an about section in the sidebar"""
     st.sidebar.markdown("---")

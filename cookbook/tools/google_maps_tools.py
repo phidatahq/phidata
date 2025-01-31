@@ -24,7 +24,6 @@ agent = Agent(
     ],
     markdown=True,
     show_tool_calls=True,
-    debug_mode=True,
 )
 
 # Example 1: Business Search

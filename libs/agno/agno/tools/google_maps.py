@@ -12,6 +12,7 @@ Prerequisites:
 """
 
 from datetime import datetime
+import json
 from os import getenv
 from typing import List, Optional
 
@@ -78,7 +79,7 @@ class GoogleMapTools(Toolkit):
             places_result = _google_map_client.places(query)
 
             if not places_result or "results" not in places_result:
-                return []
+                return str([])
 
             places = []
             for place in places_result["results"]:
@@ -105,7 +106,7 @@ class GoogleMapTools(Toolkit):
 
                 places.append(place)
 
-            return str(places)
+            return json.dumps(places)
 
         except Exception as e:
             print(f"Error searching Google Maps: {str(e)}")

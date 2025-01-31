@@ -13,7 +13,7 @@ from agno.utils.tools import get_function_call_for_tool_call
 
 try:
     from mistralai import Mistral as MistralClient
-    from mistralai.models import AssistantMessage, SystemMessage, ToolMessage, UserMessage, TextChunk, ImageURLChunk
+    from mistralai.models import AssistantMessage, ImageURLChunk, SystemMessage, TextChunk, ToolMessage, UserMessage
     from mistralai.models.chatcompletionresponse import ChatCompletionResponse
     from mistralai.models.deltamessage import DeltaMessage
     from mistralai.types.basemodel import Unset
@@ -21,6 +21,7 @@ except (ModuleNotFoundError, ImportError):
     raise ImportError("`mistralai` not installed. Please install using `pip install mistralai`")
 
 MistralMessage = Union[UserMessage, AssistantMessage, SystemMessage, ToolMessage]
+
 
 def _format_image_for_message(image: Image) -> Optional[ImageURLChunk]:
     # Case 1: Image is a URL
@@ -35,17 +36,19 @@ def _format_image_for_message(image: Image) -> Optional[ImageURLChunk]:
         if not path.exists() or not path.is_file():
             logger.error(f"Image file not found: {image}")
             raise FileNotFoundError(f"Image file not found: {image}")
-        
+
         with open(image.filepath, "rb") as image_file:
-            base64_image = base64.b64encode(image_file.read()).decode('utf-8')
+            base64_image = base64.b64encode(image_file.read()).decode("utf-8")
             return ImageURLChunk(image_url=f"data:image/jpeg;base64,{base64_image}")
 
     # Case 3: Image is a bytes object
     elif image.content is not None:
         import base64
-        base64_image = base64.b64encode(image.content).decode('utf-8')
+
+        base64_image = base64.b64encode(image.content).decode("utf-8")
         return ImageURLChunk(image_url=f"data:image/jpeg;base64,{base64_image}")
     return None
+
 
 def _format_messages(messages: List[Message]) -> List[MistralMessage]:
     mistral_messages: List[MistralMessage] = []
@@ -63,7 +66,9 @@ def _format_messages(messages: List[Message]) -> List[MistralMessage]:
                 mistral_message = UserMessage(role="user", content=message.content)
         elif message.role == "assistant":
             if message.tool_calls is not None:
-                mistral_message = AssistantMessage(role="assistant", content=message.content, tool_calls=message.tool_calls)
+                mistral_message = AssistantMessage(
+                    role="assistant", content=message.content, tool_calls=message.tool_calls
+                )
             else:
                 mistral_message = AssistantMessage(role=message.role, content=message.content)
         elif message.role == "system":

@@ -7,7 +7,9 @@ from agno.tools.duckduckgo import DuckDuckGoTools
 
 agent = Agent(
     model=MistralChat(id="pixtral-12b-2409"),
-    tools=[DuckDuckGoTools()],  # pixtral-12b-2409 is not so great at tool calls, but it might work.
+    tools=[
+        DuckDuckGoTools()
+    ],  # pixtral-12b-2409 is not so great at tool calls, but it might work.
     show_tool_calls=True,
     markdown=True,
 )

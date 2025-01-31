@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from collections import ChainMap, defaultdict, deque
-from dataclasses import dataclass
 from os import getenv
 from textwrap import dedent
 from typing import (
@@ -37,13 +36,14 @@ from agno.storage.agent.base import AgentStorage
 from agno.storage.agent.session import AgentSession
 from agno.tools.function import Function
 from agno.tools.toolkit import Toolkit
+from agno.utils.dataclass import dataclass_safe
 from agno.utils.log import logger, set_log_level_to_debug, set_log_level_to_info
 from agno.utils.message import get_text_from_message
 from agno.utils.safe_formatter import SafeFormatter
 from agno.utils.timer import Timer
 
 
-@dataclass(init=False, slots=True)  # type: ignore
+@dataclass_safe(init=False, slots=True)  # type: ignore
 class Agent:
     # --- Agent settings ---
     # Model for this Agent

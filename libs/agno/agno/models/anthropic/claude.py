@@ -439,7 +439,7 @@ class Claude(Model):
             model_response.content = str(response_content)
             model_response.content += "\n\n"
 
-            function_calls_to_run = self._get_function_calls_to_run(assistant_message, messages)
+            function_calls_to_run = self.get_function_calls_to_run(assistant_message, messages)
             function_call_results: List[Message] = []
 
             if self.show_tool_calls:
@@ -532,7 +532,7 @@ class Claude(Model):
         """
         if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
             yield ModelResponse(content="\n\n")
-            function_calls_to_run = self._get_function_calls_to_run(assistant_message, messages)
+            function_calls_to_run = self.get_function_calls_to_run(assistant_message, messages)
             function_call_results: List[Message] = []
 
             if self.show_tool_calls:

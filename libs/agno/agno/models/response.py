@@ -4,8 +4,6 @@ from time import time
 from typing import Any, Dict, List, Optional
 
 from agno.media import AudioOutput
-from agno.utils.log import logger
-from agno.utils.timer import Timer
 
 
 class ModelResponseEvent(str, Enum):

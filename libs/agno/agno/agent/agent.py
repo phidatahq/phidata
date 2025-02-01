@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from collections import ChainMap, OrderedDict, defaultdict, deque
-from dataclasses import dataclass
+from collections import ChainMap, defaultdict, deque
+from dataclasses import asdict, dataclass
 from os import getenv
 from textwrap import dedent
 from typing import (
@@ -28,7 +28,7 @@ from agno.knowledge.agent import AgentKnowledge
 from agno.media import Audio, AudioArtifact, Image, ImageArtifact, Video, VideoArtifact
 from agno.memory.agent import AgentMemory, AgentRun
 from agno.models.base import Model
-from agno.models.message import Message, MessageReferences
+from agno.models.message import Message, MessageMetrics, MessageReferences
 from agno.models.response import ModelResponse, ModelResponseEvent
 from agno.reasoning.step import NextAction, ReasoningStep, ReasoningSteps
 from agno.run.messages import RunMessages
@@ -64,8 +64,10 @@ class Agent:
     session_id: Optional[str] = None
     # Session name
     session_name: Optional[str] = None
-    # Session state stored in the database
+    # Session state (stored in the database to persist across runs)
     session_state: Optional[Dict[str, Any]] = None
+    # Session metrics (stored in the database to persist across runs)
+    session_metrics: Optional[Dict[str, Any]] = None
 
     # --- Agent Context ---
     # Context available for tools and prompt functions
@@ -308,6 +310,7 @@ class Agent:
         self.session_id = session_id
         self.session_name = session_name
         self.session_state = session_state
+        self.session_metrics: Optional[Dict[str, Any]] = None
 
         self.context = context
         self.add_context = add_context
@@ -395,8 +398,6 @@ class Agent:
         self.audio: Optional[List[AudioArtifact]] = None
         # Agent session
         self.agent_session: Optional[AgentSession] = None
-        # Agent metrics
-        self.metrics: Optional[Dict[str, Any]] = None
 
         self._formatter: Optional[SafeFormatter] = None
 
@@ -438,8 +439,6 @@ class Agent:
             self.memory = AgentMemory()
         if self._formatter is None:
             self._formatter = SafeFormatter()
-        if self.metrics is None:
-            self.metrics = OrderedDict()
 
     @property
     def is_streamable(self) -> bool:
@@ -468,13 +467,14 @@ class Agent:
         2. Update the Model and resolve context
         3. Read existing session from storage
         4. Prepare run messages
-        5. Prepare run steps
+        5. Reason about the task if reasoning is enabled
         6. Start the Run by yielding a RunStarted event
-        7. Run Agent Steps
+        7. Generate a response from the Model (includes running function calls)
         8. Update RunResponse
         9. Update Agent Memory
-        10. Save session to storage
-        11. Save output to file if save_response_to_file is set
+        10. Calculate session metrics
+        11. Save session to storage
+        12. Save output to file if save_response_to_file is set
         """
         # 1. Prepare the Agent for the run
         # 1.1 Initialize the Agent
@@ -504,7 +504,7 @@ class Agent:
         )
         self.run_messages = run_messages
 
-        # 4. Reason about the task if reasoning is enabled
+        # 5. Reason about the task if reasoning is enabled
         if self.reasoning or self.reasoning_model is not None:
             reasoning_generator = self.reason(run_messages=run_messages)
 
@@ -522,7 +522,7 @@ class Agent:
         if self.stream_intermediate_steps:
             yield self.create_run_response("Run started", event=RunEvent.run_started)
 
-        # 5. Generate a response from the Model (includes running function calls)
+        # 7. Generate a response from the Model (includes running function calls)
         model_response: ModelResponse
         self.model = cast(Model, self.model)
         if self.stream:
@@ -688,10 +688,13 @@ class Agent:
         if self.memory.create_session_summary and self.memory.update_session_summary_after_run:
             self.memory.update_summary()
 
-        # 10. Save session to storage
+        # 10. Calculate session metrics
+        self.session_metrics = self.calculate_session_metrics(self.memory.messages)
+
+        # 11. Save session to storage
         self.write_to_storage()
 
-        # 11. Save output to file if save_response_to_file is set
+        # 12. Save output to file if save_response_to_file is set
         self.save_run_response_to_file(message=message)
 
         # Set run_input
@@ -896,13 +899,14 @@ class Agent:
         2. Update the Model and resolve context
         3. Read existing session from storage
         4. Prepare run messages
-        5. Prepare run steps
+        5. Reason about the task if reasoning is enabled
         6. Start the Run by yielding a RunStarted event
-        7. Run Agent Steps
+        7. Generate a response from the Model (includes running function calls)
         8. Update RunResponse
         9. Update Agent Memory
-        10. Save session to storage
-        11. Save output to file if save_response_to_file is set
+        10. Calculate session metrics
+        11. Save session to storage
+        12. Save output to file if save_response_to_file is set
         """
 
         # 1. Prepare the Agent for the run
@@ -933,7 +937,7 @@ class Agent:
         )
         self.run_messages = run_messages
 
-        # 4. Reason about the task if reasoning is enabled
+        # 5. Reason about the task if reasoning is enabled
         if self.reasoning or self.reasoning_model is not None:
             areason_generator = self.areason(run_messages=run_messages)
             if self.stream:
@@ -952,7 +956,7 @@ class Agent:
         if self.stream_intermediate_steps:
             yield self.create_run_response("Run started", event=RunEvent.run_started)
 
-        # 5. Generate a response from the Model (includes running function calls)
+        # 7. Generate a response from the Model (includes running function calls)
         model_response: ModelResponse
         self.model = cast(Model, self.model)
         if stream and self.is_streamable:
@@ -1116,10 +1120,13 @@ class Agent:
         if self.memory.create_session_summary and self.memory.update_session_summary_after_run:
             await self.memory.aupdate_summary()
 
-        # 10. Save session to storage
+        # 10. Calculate session metrics
+        self.session_metrics = self.calculate_session_metrics(self.memory.messages)
+
+        # 11. Save session to storage
         self.write_to_storage()
 
-        # 11. Save output to file if save_response_to_file is set
+        # 12. Save output to file if save_response_to_file is set
         self.save_run_response_to_file(message=message)
 
         # Set run_input
@@ -1346,14 +1353,16 @@ class Agent:
                 exit(1)
             self.model = OpenAIChat(id="gpt-4o")
 
-        # Set response_format if it is not set on the Model
-        if self.response_model is not None and self.model.response_format is None:
+        # Update the response_format on the Model
+        if self.response_model is not None:
             if self.structured_outputs and self.model.supports_structured_outputs:
                 logger.debug("Setting Model.response_format to Agent.response_model")
                 self.model.response_format = self.response_model
                 self.model.structured_outputs = True
             else:
                 self.model.response_format = {"type": "json_object"}
+        else:
+            self.model.response_format = None
 
         # Add tools to the Model
         agent_tools = self.get_tools()
@@ -1368,21 +1377,17 @@ class Agent:
                 else:
                     self.model.add_tool(tool=tool, agent=self)
 
-        # Set show_tool_calls if it is not set on the Model
-        if self.model.show_tool_calls is None and self.show_tool_calls is not None:
+        # Set show_tool_calls on the Model
+        if self.show_tool_calls is not None:
             self.model.show_tool_calls = self.show_tool_calls
 
-        # Set tool_choice to auto if it is not set on the Model
-        if self.model.tool_choice is None and self.tool_choice is not None:
+        # Set tool_choice on the Model
+        if self.tool_choice is not None:
             self.model.tool_choice = self.tool_choice
 
-        # Set tool_call_limit if set on the agent
+        # Set tool_call_limit on the Model
         if self.tool_call_limit is not None:
             self.model.tool_call_limit = self.tool_call_limit
-
-        # Add session_id to the Model
-        if self.session_id is not None:
-            self.model.session_id = self.session_id
 
     def resolve_run_context(self) -> None:
         from inspect import signature
@@ -1433,6 +1438,8 @@ class Agent:
             session_data["session_name"] = self.session_name
         if self.session_state is not None and len(self.session_state) > 0:
             session_data["session_state"] = self.session_state
+        if self.session_metrics is not None:
+            session_data["session_metrics"] = self.session_metrics
         if self.team_data is not None:
             session_data["team_data"] = self.team_data
         if self.images is not None:
@@ -1478,25 +1485,13 @@ class Agent:
             if self.name is None and "name" in session.agent_data:
                 self.name = session.agent_data.get("name")
 
-            # Get model data from the database and update the model
-            if "model" in session.agent_data:
-                model_data = session.agent_data.get("model")
-                # Update model metrics from the database
-                if model_data is not None and isinstance(model_data, dict):
-                    model_metrics_from_db = model_data.get("metrics")
-                    if model_metrics_from_db is not None and isinstance(model_metrics_from_db, dict) and self.model:
-                        try:
-                            self.model.metrics = model_metrics_from_db
-                        except Exception as e:
-                            logger.warning(f"Failed to load model from AgentSession: {e}")
-
         # Read session_data from the database
         if session.session_data is not None:
             # Get the session_name from database and update the current session_name if not set
             if self.session_name is None and "session_name" in session.session_data:
                 self.session_name = session.session_data.get("session_name")
 
-            # Get the session_state from database and update the current session_state
+            # Get the session_state from the database and update the current session_state
             if "session_state" in session.session_data:
                 session_state_from_db = session.session_data.get("session_state")
                 if (
@@ -1510,6 +1505,12 @@ class Agent:
                         merge_dictionaries(session_state_from_db, self.session_state)
                     # Update the current session_state
                     self.session_state = session_state_from_db
+
+            # Get the session_metrics from the database
+            if "session_metrics" in session.session_data:
+                session_metrics_from_db = session.session_data.get("session_metrics")
+                if session_metrics_from_db is not None and isinstance(session_metrics_from_db, dict):
+                    self.session_metrics = session_metrics_from_db
 
             # Get images, videos, and audios from the database
             if "images" in session.session_data:
@@ -2483,13 +2484,21 @@ class Agent:
 
     def aggregate_metrics_from_messages(self, messages: List[Message]) -> Dict[str, Any]:
         aggregated_metrics: Dict[str, Any] = defaultdict(list)
-
-        # Use a defaultdict(list) to collect all values for each assisntant message
-        # for m in messages:
-        #     if m.role == "assistant" and m.metrics is not None:
-        #         for k, v in m.metrics.items():
-        #             aggregated_metrics[k].append(v)
+        # Use a defaultdict(list) to collect all values for each assistant message
+        for m in messages:
+            if m.role == self.model.assistant_message_role and m.metrics is not None:
+                for k, v in asdict(m.metrics).items():
+                    if k in ("timer"):
+                        continue
+                    aggregated_metrics[k].append(v)
         return aggregated_metrics
+
+    def calculate_session_metrics(self, messages: List[Message]) -> Dict[str, Any]:
+        session_metrics = MessageMetrics()
+        for m in messages:
+            if m.role == self.model.assistant_message_role and m.metrics is not None:
+                session_metrics += m.metrics
+        return asdict(session_metrics)
 
     def rename(self, name: str) -> None:
         """Rename the Agent and save to storage"""

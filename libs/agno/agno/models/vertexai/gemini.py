@@ -382,7 +382,7 @@ class Gemini(Model):
                 model_response.tool_calls = []
 
             model_response.content = assistant_message.get_content_string() or ""
-            function_calls_to_run = self._get_function_calls_to_run(
+            function_calls_to_run = self.get_function_calls_to_run(
                 assistant_message, messages, error_response_role="tool"
             )
 
@@ -473,7 +473,7 @@ class Gemini(Model):
             Iterator[ModelResponse]: Yields model responses during function execution.
         """
         if assistant_message.tool_calls:
-            function_calls_to_run = self._get_function_calls_to_run(
+            function_calls_to_run = self.get_function_calls_to_run(
                 assistant_message, messages, error_response_role="tool"
             )
 

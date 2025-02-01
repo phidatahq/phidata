@@ -8,59 +8,13 @@ from typing import Any, Callable, Dict, Iterator, List, Optional, Sequence, Tupl
 
 from agno.exceptions import AgentRunException
 from agno.media import Audio, Image
-from agno.models.message import Message
+from agno.models.message import Message, MessageMetrics
 from agno.models.response import ModelResponse, ModelResponseEvent
 from agno.tools import Toolkit
 from agno.tools.function import Function, FunctionCall
 from agno.utils.log import logger
 from agno.utils.timer import Timer
 from agno.utils.tools import get_function_call_for_tool_call
-
-
-@dataclass
-class Metrics:
-    input_tokens: int = 0
-    output_tokens: int = 0
-    total_tokens: int = 0
-
-    prompt_tokens: int = 0
-    completion_tokens: int = 0
-    prompt_tokens_details: Optional[dict] = None
-    completion_tokens_details: Optional[dict] = None
-
-    time_to_first_token: Optional[float] = None
-    response_timer: Timer = field(default_factory=Timer)
-
-    def start_response_timer(self):
-        self.response_timer.start()
-
-    def stop_response_timer(self):
-        self.response_timer.stop()
-
-    def _log(self, metric_lines: list[str]):
-        logger.debug("**************** METRICS START ****************")
-        for line in metric_lines:
-            logger.debug(line)
-        logger.debug("**************** METRICS END ******************")
-
-    def log(self):
-        metric_lines = []
-        if self.time_to_first_token is not None:
-            metric_lines.append(f"* Time to first token:         {self.time_to_first_token:.4f}s")
-        metric_lines.extend(
-            [
-                f"* Time to generate response:   {self.response_timer.elapsed:.4f}s",
-                f"* Tokens per second:           {self.output_tokens / self.response_timer.elapsed:.4f} tokens/s",
-                f"* Input tokens:                {self.input_tokens or self.prompt_tokens}",
-                f"* Output tokens:               {self.output_tokens or self.completion_tokens}",
-                f"* Total tokens:                {self.total_tokens}",
-            ]
-        )
-        if self.prompt_tokens_details is not None:
-            metric_lines.append(f"* Prompt tokens details:       {self.prompt_tokens_details}")
-        if self.completion_tokens_details is not None:
-            metric_lines.append(f"* Completion tokens details:   {self.completion_tokens_details}")
-        self._log(metric_lines=metric_lines)
 
 
 @dataclass
@@ -83,10 +37,17 @@ class Model(ABC):
     name: Optional[str] = None
     # Provider for this Model. This is not sent to the Model API.
     provider: Optional[str] = None
-    # Metrics collected for this Model. This is not sent to the Model API.
-    metrics: Dict[str, Any] = field(default_factory=dict)
-    # Used for structured_outputs
+
+    # -*- Do not set the following attributes directly -*-
+    # -*- Set them on the Agent instead -*-
+
+    # Used for structured_outputs, do not set this directly
+    # Set the response_model attribute on the Agent instead
     response_format: Optional[Any] = None
+    # Whether to use the structured outputs with this Model.
+    structured_outputs: bool = False
+    # True if the Model supports structured outputs natively (e.g. OpenAI)
+    supports_structured_outputs: bool = False
 
     # A list of tools provided to the Model.
     # Tools are functions the model may generate JSON inputs for.
@@ -102,12 +63,12 @@ class Model(ABC):
     # "none" is the default when no functions are present. "auto" is the default if functions are present.
     tool_choice: Optional[Union[str, Dict[str, Any]]] = None
 
-    # If True, shows function calls in the response.  Is not compatible with response_model
+    # If True, shows function calls in the response. Disabled when response_model is used.
     show_tool_calls: Optional[bool] = None
     # Maximum number of tool calls allowed.
     tool_call_limit: Optional[int] = None
 
-    # -*- Functions available to the Model to call -*-
+    # Functions available to the Model to call
     # Functions extracted from the tools.
     # Note: These are not sent to the Model API and are only used for execution + deduplication.
     _functions: Optional[Dict[str, Function]] = None
@@ -119,29 +80,22 @@ class Model(ABC):
     # Instructions from the model added to the Agent.
     instructions: Optional[List[str]] = None
 
-    # Session ID of the calling Agent or Workflow.
-    session_id: Optional[str] = None
-    # Whether to use the structured outputs with this Model.
-    structured_outputs: Optional[bool] = None
-    # Whether the Model supports native structured outputs.
-    supports_structured_outputs: bool = False
-    # Whether to override the system message role to the the system_message_role.
-    # This is used for OpenAI models to map the "system" role to "developer"
-    override_system_role: bool = False
-
-    # The role to map the system message to.
-    system_message_role: str = "system"
     # The role of the tool message.
     tool_message_role: str = "tool"
     # The role of the assistant message.
     assistant_message_role: str = "assistant"
+    # Whether to override the system message role to the the system_message_role.
+    # This is used for OpenAI models to map the "system" role to "developer"
+    override_system_role: bool = False
+    # The role to map the system message to.
+    system_message_role: str = "system"
 
     def __post_init__(self):
         if self.provider is None and self.name is not None:
             self.provider = f"{self.name} ({self.id})"
 
     def to_dict(self) -> Dict[str, Any]:
-        fields = {"name", "id", "provider", "metrics"}
+        fields = {"name", "id", "provider"}
         _dict = {field: getattr(self, field) for field in fields if getattr(self, field) is not None}
         # Add functions if they exist
         if self._functions:
@@ -191,33 +145,33 @@ class Model(ABC):
         for m in messages:
             m.log()
 
-    @staticmethod
-    def _update_assistant_message_metrics(assistant_message: Message, metrics_for_run: Metrics = Metrics()) -> None:
-        assistant_message.metrics["time"] = metrics_for_run.response_timer.elapsed
-        if metrics_for_run.input_tokens is not None:
-            assistant_message.metrics["input_tokens"] = metrics_for_run.input_tokens
-        if metrics_for_run.output_tokens is not None:
-            assistant_message.metrics["output_tokens"] = metrics_for_run.output_tokens
-        if metrics_for_run.total_tokens is not None:
-            assistant_message.metrics["total_tokens"] = metrics_for_run.total_tokens
-        if metrics_for_run.time_to_first_token is not None:
-            assistant_message.metrics["time_to_first_token"] = metrics_for_run.time_to_first_token
+    # @staticmethod
+    # def _update_assistant_message_metrics(assistant_message: Message, metrics_for_run: Metrics = Metrics()) -> None:
+    #     assistant_message.metrics["time"] = metrics_for_run.response_timer.elapsed
+    #     if metrics_for_run.input_tokens is not None:
+    #         assistant_message.metrics["input_tokens"] = metrics_for_run.input_tokens
+    #     if metrics_for_run.output_tokens is not None:
+    #         assistant_message.metrics["output_tokens"] = metrics_for_run.output_tokens
+    #     if metrics_for_run.total_tokens is not None:
+    #         assistant_message.metrics["total_tokens"] = metrics_for_run.total_tokens
+    #     if metrics_for_run.time_to_first_token is not None:
+    #         assistant_message.metrics["time_to_first_token"] = metrics_for_run.time_to_first_token
 
-    def _update_model_metrics(
-        self,
-        metrics_for_run: Metrics = Metrics(),
-    ) -> None:
-        self.metrics.setdefault("response_times", []).append(metrics_for_run.response_timer.elapsed)
-        if metrics_for_run.input_tokens is not None:
-            self.metrics["input_tokens"] = self.metrics.get("input_tokens", 0) + metrics_for_run.input_tokens
-        if metrics_for_run.output_tokens is not None:
-            self.metrics["output_tokens"] = self.metrics.get("output_tokens", 0) + metrics_for_run.output_tokens
-        if metrics_for_run.total_tokens is not None:
-            self.metrics["total_tokens"] = self.metrics.get("total_tokens", 0) + metrics_for_run.total_tokens
-        if metrics_for_run.time_to_first_token is not None:
-            self.metrics.setdefault("time_to_first_token", []).append(metrics_for_run.time_to_first_token)
+    # def _update_model_metrics(
+    #     self,
+    #     metrics_for_run: Metrics = Metrics(),
+    # ) -> None:
+    #     self.metrics.setdefault("response_times", []).append(metrics_for_run.response_timer.elapsed)
+    #     if metrics_for_run.input_tokens is not None:
+    #         self.metrics["input_tokens"] = self.metrics.get("input_tokens", 0) + metrics_for_run.input_tokens
+    #     if metrics_for_run.output_tokens is not None:
+    #         self.metrics["output_tokens"] = self.metrics.get("output_tokens", 0) + metrics_for_run.output_tokens
+    #     if metrics_for_run.total_tokens is not None:
+    #         self.metrics["total_tokens"] = self.metrics.get("total_tokens", 0) + metrics_for_run.total_tokens
+    #     if metrics_for_run.time_to_first_token is not None:
+    #         self.metrics.setdefault("time_to_first_token", []).append(metrics_for_run.time_to_first_token)
 
-    def _get_function_calls_to_run(
+    def get_function_calls_to_run(
         self, assistant_message: Message, messages: List[Message], error_response_role: str = "user"
     ) -> List[FunctionCall]:
         """
@@ -341,16 +295,8 @@ class Model(ABC):
             tool_args=fc.arguments,
             tool_call_error=not success,
             stop_after_tool_call=fc.function.stop_after_tool_call,
-            metrics={"time": timer.elapsed},
+            metrics=MessageMetrics(time=timer.elapsed),
         )
-
-    def _update_metrics(self, function_name: str, elapsed_time: float) -> None:
-        """Update metrics for function calls."""
-        if "tool_call_times" not in self.metrics:
-            self.metrics["tool_call_times"] = {}
-        if function_name not in self.metrics["tool_call_times"]:
-            self.metrics["tool_call_times"][function_name] = []
-        self.metrics["tool_call_times"][function_name].append(elapsed_time)
 
     def run_function_calls(
         self, function_calls: List[FunctionCall], function_call_results: List[Message], tool_role: str = "tool"
@@ -431,8 +377,7 @@ class Model(ABC):
                 event=ModelResponseEvent.tool_call_completed.value,
             )
 
-            # Update metrics and function call results
-            self._update_metrics(fc.function.name, function_call_timer.elapsed)
+            # Add function call to function call results
             function_call_results.append(function_call_result)
             self._function_call_stack.append(fc)
 
@@ -549,8 +494,7 @@ class Model(ABC):
                 event=ModelResponseEvent.tool_call_completed.value,
             )
 
-            # Update metrics and function call results
-            self._update_metrics(fc.function.name, function_call_timer.elapsed)
+            # Add function call result to function call results
             function_call_results.append(function_call_result)
             self._function_call_stack.append(fc)
 
@@ -1086,10 +1030,9 @@ class Model(ABC):
     def clear(self) -> None:
         """Clears the Model's state."""
 
-        self.metrics = {}
+        self.response_format = None
         self._functions = None
         self._function_call_stack = None
-        self.session_id = None
 
     def __deepcopy__(self, memo):
         """Create a deep copy of the Model instance.
@@ -1109,7 +1052,7 @@ class Model(ABC):
 
         # Deep copy all attributes
         for k, v in self.__dict__.items():
-            if k in {"metrics", "_functions", "_function_call_stack", "session_id"}:
+            if k in {"response_format", "_functions", "_function_call_stack"}:
                 continue
             setattr(new_model, k, deepcopy(v, memo))
 

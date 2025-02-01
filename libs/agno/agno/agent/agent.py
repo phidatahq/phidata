@@ -310,7 +310,6 @@ class Agent:
         self.session_id = session_id
         self.session_name = session_name
         self.session_state = session_state
-        self.session_metrics: Optional[Dict[str, Any]] = None
 
         self.context = context
         self.add_context = add_context
@@ -386,10 +385,13 @@ class Agent:
         self.telemetry = telemetry
 
         # --- Params not to be set by user ---
+        self.session_metrics: Optional[Dict[str, Any]] = None
+
         self.run_id: Optional[str] = None
         self.run_input: Optional[Union[str, List, Dict, Message]] = None
         self.run_messages: Optional[RunMessages] = None
         self.run_response: Optional[RunResponse] = None
+
         # Images generated during this session
         self.images: Optional[List[ImageArtifact]] = None
         # Videos generated during this session
@@ -398,6 +400,9 @@ class Agent:
         self.audio: Optional[List[AudioArtifact]] = None
         # Agent session
         self.agent_session: Optional[AgentSession] = None
+
+        self.tools_for_model: Optional[List[Dict]] = None
+        self.functions_for_model: Optional[Dict[str, Function]] = None
 
         self._formatter: Optional[SafeFormatter] = None
 
@@ -1310,34 +1315,100 @@ class Agent:
 
     def get_tools(self) -> Optional[List[Union[Toolkit, Callable, Dict, Function]]]:
         self.memory = cast(AgentMemory, self.memory)
-        tools: List[Union[Toolkit, Callable, Dict, Function]] = []
+        agent_tools: List[Union[Toolkit, Callable, Dict, Function]] = []
 
         # Add provided tools
         if self.tools is not None:
             for tool in self.tools:
-                tools.append(tool)
+                agent_tools.append(tool)
 
         # Add tools for accessing memory
         if self.read_chat_history:
-            tools.append(self.get_chat_history)
+            agent_tools.append(self.get_chat_history)
         if self.read_tool_call_history:
-            tools.append(self.get_tool_call_history)
+            agent_tools.append(self.get_tool_call_history)
         if self.memory and self.memory.create_user_memories:
-            tools.append(self.update_memory)
+            agent_tools.append(self.update_memory)
 
         # Add tools for accessing knowledge
         if self.knowledge is not None:
             if self.search_knowledge:
-                tools.append(self.search_knowledge_base)
+                agent_tools.append(self.search_knowledge_base)
             if self.update_knowledge:
-                tools.append(self.add_to_knowledge)
+                agent_tools.append(self.add_to_knowledge)
 
         # Add transfer tools
         if self.team is not None and len(self.team) > 0:
             for agent_index, agent in enumerate(self.team):
-                tools.append(self.get_transfer_function(agent, agent_index))
+                agent_tools.append(self.get_transfer_function(agent, agent_index))
 
-        return tools
+        return agent_tools
+
+    def add_tools_to_model(self, model: Model) -> None:
+        # Get Agent tools
+        agent_tools = self.get_tools()
+        if agent_tools is not None:
+            logger.debug("Processing tools for model")
+            # Check if we need strict mode for the model
+            strict = False
+            if self.response_model is not None and self.structured_outputs and model.supports_structured_outputs:
+                strict = True
+
+            if self.tools_for_model is None:
+                self.tools_for_model = []
+            if self.functions_for_model is None:
+                self.functions_for_model = {}
+
+            for tool in agent_tools:
+                # If the tool is a Dict, add it directly to the Model
+                if isinstance(tool, Dict):
+                    if tool not in self.tools_for_model:
+                        self.tools_for_model.append(tool)
+                        logger.debug(f"Included tool {tool}")
+
+                # If the tool is a Callable or Toolkit, process and add to the Model
+                elif callable(tool) or isinstance(tool, Toolkit) or isinstance(tool, Function):
+                    if isinstance(tool, Toolkit):
+                        # For each function in the toolkit, process entrypoint and add to self.tools_for_model
+                        for name, func in tool.functions.items():
+                            # If the function does not exist in self.functions, add to self.tools_for_model
+                            if name not in self.functions_for_model:
+                                func._agent = self
+                                func.process_entrypoint(strict=strict)
+                                if strict:
+                                    func.strict = True
+                                self.functions_for_model[name] = func
+                                self.tools_for_model.append({"type": "function", "function": func.to_dict()})
+                                logger.debug(f"Included function {name} from {tool.name}")
+
+                    elif isinstance(tool, Function):
+                        if tool.name not in self.functions_for_model:
+                            tool._agent = self
+                            tool.process_entrypoint(strict=strict)
+                            if strict:
+                                tool.strict = True
+                            self.functions_for_model[tool.name] = tool
+                            self.tools_for_model.append({"type": "function", "function": tool.to_dict()})
+                            logger.debug(f"Included function {tool.name}")
+
+                    elif callable(tool):
+                        try:
+                            function_name = tool.__name__
+                            if function_name not in self.functions_for_model:
+                                func = Function.from_callable(tool, strict=strict)
+                                func._agent = self
+                                if strict:
+                                    func.strict = True
+                                self.functions_for_model[func.name] = func
+                                self.tools_for_model.append({"type": "function", "function": func.to_dict()})
+                                logger.debug(f"Included function {func.name}")
+                        except Exception as e:
+                            logger.warning(f"Could not add function {tool}: {e}")
+
+            # Set tools on the model
+            model.set_tools(tools=self.tools_for_model)
+            # Set functions on the model
+            model.set_functions(functions=self.functions_for_model)
 
     def update_model(self) -> None:
         # Use the default Model (OpenAIChat) if no model is provided
@@ -1365,17 +1436,7 @@ class Agent:
             self.model.response_format = None
 
         # Add tools to the Model
-        agent_tools = self.get_tools()
-        if agent_tools is not None:
-            for tool in agent_tools:
-                if (
-                    self.response_model is not None
-                    and self.structured_outputs
-                    and self.model.supports_structured_outputs
-                ):
-                    self.model.add_tool(tool=tool, strict=True, agent=self)
-                else:
-                    self.model.add_tool(tool=tool, agent=self)
+        self.add_tools_to_model(model=self.model)
 
         # Set show_tool_calls on the Model
         if self.show_tool_calls is not None:
@@ -2484,9 +2545,10 @@ class Agent:
 
     def aggregate_metrics_from_messages(self, messages: List[Message]) -> Dict[str, Any]:
         aggregated_metrics: Dict[str, Any] = defaultdict(list)
+        assistant_message_role = self.model.assistant_message_role if self.model is not None else "assistant"
         # Use a defaultdict(list) to collect all values for each assistant message
         for m in messages:
-            if m.role == self.model.assistant_message_role and m.metrics is not None:
+            if m.role == assistant_message_role and m.metrics is not None:
                 for k, v in asdict(m.metrics).items():
                     if k in ("timer"):
                         continue
@@ -2495,8 +2557,9 @@ class Agent:
 
     def calculate_session_metrics(self, messages: List[Message]) -> Dict[str, Any]:
         session_metrics = MessageMetrics()
+        assistant_message_role = self.model.assistant_message_role if self.model is not None else "assistant"
         for m in messages:
-            if m.role == self.model.assistant_message_role and m.metrics is not None:
+            if m.role == assistant_message_role and m.metrics is not None:
                 session_metrics += m.metrics
         return asdict(session_metrics)
 

@@ -430,7 +430,10 @@ class OpenAIChat(Model):
                 logger.warning(f"Error processing audio: {e}")
 
         # -*- Add usage metrics to assistant message
-        self.add_usage_metrics_to_assistant_message(assistant_message=assistant_message, response_usage=response_usage)
+        if response_usage is not None:
+            self.add_usage_metrics_to_assistant_message(
+                assistant_message=assistant_message, response_usage=response_usage
+            )
         return assistant_message
 
     def response(self, messages: List[Message]) -> ModelResponse:

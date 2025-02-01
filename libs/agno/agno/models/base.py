@@ -4,13 +4,12 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import GeneratorType
-from typing import Any, Callable, Dict, Iterator, List, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, Iterator, List, Optional, Sequence, Tuple, Union
 
 from agno.exceptions import AgentRunException
 from agno.media import Audio, Image
 from agno.models.message import Message, MessageMetrics
 from agno.models.response import ModelResponse, ModelResponseEvent
-from agno.tools import Toolkit
 from agno.tools.function import Function, FunctionCall
 from agno.utils.log import logger
 from agno.utils.timer import Timer
@@ -49,7 +48,7 @@ class Model(ABC):
     # True if the Model supports structured outputs natively (e.g. OpenAI)
     supports_structured_outputs: bool = False
 
-    # A list of tools provided to the Model.
+    # A list of tools sent to the Model.
     # Tools are functions the model may generate JSON inputs for.
     # If you provide a dict, it is not called by the model.
     # Always add tools using the add_tool() method.
@@ -145,6 +144,12 @@ class Model(ABC):
         for m in messages:
             m.log()
 
+    def set_tools(self, tools: List[Dict]) -> None:
+        self.tools = tools
+
+    def set_functions(self, functions: Dict[str, Function]) -> None:
+        self._functions = functions
+
     # @staticmethod
     # def _update_assistant_message_metrics(assistant_message: Message, metrics_for_run: Metrics = Metrics()) -> None:
     #     assistant_message.metrics["time"] = metrics_for_run.response_timer.elapsed
@@ -196,60 +201,6 @@ class Model(ABC):
                     continue
                 function_calls_to_run.append(_function_call)
         return function_calls_to_run
-
-    def add_tool(
-        self, tool: Union[Toolkit, Callable, Dict, Function], strict: bool = False, agent: Optional[Any] = None
-    ) -> None:
-        if self.tools is None:
-            self.tools = []
-
-        # If the tool is a Dict, add it directly to the Model
-        if isinstance(tool, Dict):
-            if tool not in self.tools:
-                self.tools.append(tool)
-                logger.debug(f"Added tool {tool} to model.")
-
-        # If the tool is a Callable or Toolkit, process and add to the Model
-        elif callable(tool) or isinstance(tool, Toolkit) or isinstance(tool, Function):
-            if self._functions is None:
-                self._functions = {}
-
-            if isinstance(tool, Toolkit):
-                # For each function in the toolkit, process entrypoint and add to self.tools
-                for name, func in tool.functions.items():
-                    # If the function does not exist in self.functions, add to self.tools
-                    if name not in self._functions:
-                        func._agent = agent
-                        func.process_entrypoint(strict=strict)
-                        if strict and self.supports_structured_outputs:
-                            func.strict = True
-                        self._functions[name] = func
-                        self.tools.append({"type": "function", "function": func.to_dict()})
-                        logger.debug(f"Function {name} from {tool.name} added to model.")
-
-            elif isinstance(tool, Function):
-                if tool.name not in self._functions:
-                    tool._agent = agent
-                    tool.process_entrypoint(strict=strict)
-                    if strict and self.supports_structured_outputs:
-                        tool.strict = True
-                    self._functions[tool.name] = tool
-                    self.tools.append({"type": "function", "function": tool.to_dict()})
-                    logger.debug(f"Function {tool.name} added to model.")
-
-            elif callable(tool):
-                try:
-                    function_name = tool.__name__
-                    if function_name not in self._functions:
-                        func = Function.from_callable(tool, strict=strict)
-                        func._agent = agent
-                        if strict and self.supports_structured_outputs:
-                            func.strict = True
-                        self._functions[func.name] = func
-                        self.tools.append({"type": "function", "function": func.to_dict()})
-                        logger.debug(f"Function {func.name} added to model.")
-                except Exception as e:
-                    logger.warning(f"Could not add function {tool}: {e}")
 
     def _handle_agent_exception(self, a_exc: AgentRunException, additional_messages: List[Message]) -> None:
         """Handle AgentRunException and collect additional messages."""
@@ -1031,6 +982,7 @@ class Model(ABC):
         """Clears the Model's state."""
 
         self.response_format = None
+        self.tools = None
         self._functions = None
         self._function_call_stack = None
 
@@ -1052,7 +1004,7 @@ class Model(ABC):
 
         # Deep copy all attributes
         for k, v in self.__dict__.items():
-            if k in {"response_format", "_functions", "_function_call_stack"}:
+            if k in {"response_format", "tools", "_functions", "_function_call_stack"}:
                 continue
             setattr(new_model, k, deepcopy(v, memo))
 

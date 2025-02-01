@@ -104,7 +104,6 @@ class Model(ABC):
 
     # If True, shows function calls in the response.  Is not compatible with response_model
     show_tool_calls: Optional[bool] = None
-
     # Maximum number of tool calls allowed.
     tool_call_limit: Optional[int] = None
 
@@ -126,10 +125,16 @@ class Model(ABC):
     structured_outputs: Optional[bool] = None
     # Whether the Model supports native structured outputs.
     supports_structured_outputs: bool = False
-    # Whether to override the system role.
+    # Whether to override the system message role to the the system_message_role.
+    # This is used for OpenAI models to map the "system" role to "developer"
     override_system_role: bool = False
+
     # The role to map the system message to.
     system_message_role: str = "system"
+    # The role of the tool message.
+    tool_message_role: str = "tool"
+    # The role of the assistant message.
+    assistant_message_role: str = "assistant"
 
     def __post_init__(self):
         if self.provider is None and self.name is not None:
@@ -1033,7 +1038,7 @@ class Model(ABC):
         return message
 
     @staticmethod
-    def _build_tool_calls(tool_calls_data: List[Any]) -> List[Dict[str, Any]]:
+    def build_tool_calls(tool_calls_data: List[Any]) -> List[Dict[str, Any]]:
         """
         Build tool calls from tool call data.
 

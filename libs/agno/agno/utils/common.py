@@ -51,6 +51,7 @@ def dataclass_to_dict(dataclass_object, exclude: Optional[set[str]] = None, excl
 
 def nested_model_dump(value):
     from pydantic import BaseModel
+
     if isinstance(value, BaseModel):
         return value.model_dump()
     elif isinstance(value, dict):

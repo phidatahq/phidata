@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections import ChainMap, defaultdict, deque
+from collections import ChainMap, OrderedDict, defaultdict, deque
 from dataclasses import dataclass
 from os import getenv
 from textwrap import dedent
@@ -227,22 +227,6 @@ class Agent:
     # This helps us improve the Agent and provide better support
     telemetry: bool = True
 
-    # --- Run Info: DO NOT SET ---
-    run_id: Optional[str] = None
-    run_input: Optional[Union[str, List, Dict, Message]] = None
-    run_messages: Optional[RunMessages] = None
-    run_response: Optional[RunResponse] = None
-    # Images generated during this session
-    images: Optional[List[ImageArtifact]] = None
-    # Videos generated during this session
-    videos: Optional[List[VideoArtifact]] = None
-    # Audio generated during this session
-    audio: Optional[List[AudioArtifact]] = None
-    # Agent session
-    agent_session: Optional[AgentSession] = None
-
-    _formatter: Optional[SafeFormatter] = None
-
     def __init__(
         self,
         *,
@@ -398,16 +382,23 @@ class Agent:
         self.monitoring = monitoring
         self.telemetry = telemetry
 
-        self.run_id = None
-        self.run_input = None
-        self.run_messages = None
-        self.run_response = None
-        self.images = None
-        self.videos = None
-        self.audio = None
+        # --- Params not to be set by user ---
+        self.run_id: Optional[str] = None
+        self.run_input: Optional[Union[str, List, Dict, Message]] = None
+        self.run_messages: Optional[RunMessages] = None
+        self.run_response: Optional[RunResponse] = None
+        # Images generated during this session
+        self.images: Optional[List[ImageArtifact]] = None
+        # Videos generated during this session
+        self.videos: Optional[List[VideoArtifact]] = None
+        # Audio generated during this session
+        self.audio: Optional[List[AudioArtifact]] = None
+        # Agent session
+        self.agent_session: Optional[AgentSession] = None
+        # Agent metrics
+        self.metrics: Optional[Dict[str, Any]] = None
 
-        self.agent_session = None
-        self._formatter = None
+        self._formatter: Optional[SafeFormatter] = None
 
     def set_agent_id(self) -> str:
         if self.agent_id is None:
@@ -443,10 +434,12 @@ class Agent:
         self.set_debug()
         self.set_agent_id()
         self.set_session_id()
-        if self._formatter is None:
-            self._formatter = SafeFormatter()
         if self.memory is None:
             self.memory = AgentMemory()
+        if self._formatter is None:
+            self._formatter = SafeFormatter()
+        if self.metrics is None:
+            self.metrics = OrderedDict()
 
     @property
     def is_streamable(self) -> bool:
@@ -2492,10 +2485,10 @@ class Agent:
         aggregated_metrics: Dict[str, Any] = defaultdict(list)
 
         # Use a defaultdict(list) to collect all values for each assisntant message
-        for m in messages:
-            if m.role == "assistant" and m.metrics is not None:
-                for k, v in m.metrics.items():
-                    aggregated_metrics[k].append(v)
+        # for m in messages:
+        #     if m.role == "assistant" and m.metrics is not None:
+        #         for k, v in m.metrics.items():
+        #             aggregated_metrics[k].append(v)
         return aggregated_metrics
 
     def rename(self, name: str) -> None:

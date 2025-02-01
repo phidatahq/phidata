@@ -366,90 +366,65 @@ class OpenAIChat(Model):
         async for chunk in async_stream:  # type: ignore
             yield chunk
 
-    def update_usage_metrics(
-        self, assistant_message: Message, metrics: Metrics, response_usage: Optional[CompletionUsage]
-    ) -> None:
-        """
-        Update the usage metrics for the assistant message and the model.
+    def add_response_usage_to_message(self, response_usage: CompletionUsage, assistant_message: Message):
+        assistant_message.metrics.input_tokens = response_usage.prompt_tokens
+        assistant_message.metrics.output_tokens = response_usage.completion_tokens
+        assistant_message.metrics.total_tokens = response_usage.total_tokens
 
-        Args:
-            assistant_message (Message): The assistant message.
-            metrics (Metrics): The metrics.
-            response_usage (Optional[CompletionUsage]): The response usage.
-        """
-        # Update time taken to generate response
-        assistant_message.metrics["time"] = metrics.response_timer.elapsed
-        self.metrics.setdefault("response_times", []).append(metrics.response_timer.elapsed)
-        if response_usage:
-            prompt_tokens = response_usage.prompt_tokens
-            completion_tokens = response_usage.completion_tokens
-            total_tokens = response_usage.total_tokens
+        assistant_message.metrics.prompt_tokens = response_usage.prompt_tokens
+        assistant_message.metrics.completion_tokens = response_usage.completion_tokens
+        if response_usage.prompt_tokens_details is not None:
+            if isinstance(response_usage.prompt_tokens_details, dict):
+                assistant_message.metrics.prompt_tokens_details = response_usage.prompt_tokens_details
+            elif isinstance(response_usage.prompt_tokens_details, BaseModel):
+                assistant_message.metrics.prompt_tokens_details = response_usage.prompt_tokens_details.model_dump(
+                    exclude_none=True
+                )
+        if response_usage.completion_tokens_details is not None:
+            if isinstance(response_usage.completion_tokens_details, dict):
+                assistant_message.metrics.completion_tokens_details = response_usage.completion_tokens_details
+            elif isinstance(response_usage.completion_tokens_details, BaseModel):
+                assistant_message.metrics.completion_tokens_details = (
+                    response_usage.completion_tokens_details.model_dump(exclude_none=True)
+                )
 
-            if prompt_tokens is not None:
-                metrics.input_tokens = prompt_tokens
-                metrics.prompt_tokens = prompt_tokens
-                assistant_message.metrics["input_tokens"] = prompt_tokens
-                assistant_message.metrics["prompt_tokens"] = prompt_tokens
-                self.metrics["input_tokens"] = self.metrics.get("input_tokens", 0) + prompt_tokens
-                self.metrics["prompt_tokens"] = self.metrics.get("prompt_tokens", 0) + prompt_tokens
-            if completion_tokens is not None:
-                metrics.output_tokens = completion_tokens
-                metrics.completion_tokens = completion_tokens
-                assistant_message.metrics["output_tokens"] = completion_tokens
-                assistant_message.metrics["completion_tokens"] = completion_tokens
-                self.metrics["output_tokens"] = self.metrics.get("output_tokens", 0) + completion_tokens
-                self.metrics["completion_tokens"] = self.metrics.get("completion_tokens", 0) + completion_tokens
-            if total_tokens is not None:
-                metrics.total_tokens = total_tokens
-                assistant_message.metrics["total_tokens"] = total_tokens
-                self.metrics["total_tokens"] = self.metrics.get("total_tokens", 0) + total_tokens
-            if response_usage.prompt_tokens_details is not None:
-                if isinstance(response_usage.prompt_tokens_details, dict):
-                    metrics.prompt_tokens_details = response_usage.prompt_tokens_details
-                elif isinstance(response_usage.prompt_tokens_details, BaseModel):
-                    metrics.prompt_tokens_details = response_usage.prompt_tokens_details.model_dump(exclude_none=True)
-                assistant_message.metrics["prompt_tokens_details"] = metrics.prompt_tokens_details
-                if metrics.prompt_tokens_details is not None:
-                    for k, v in metrics.prompt_tokens_details.items():
-                        self.metrics.get("prompt_tokens_details", {}).get(k, 0) + v
-            if response_usage.completion_tokens_details is not None:
-                if isinstance(response_usage.completion_tokens_details, dict):
-                    metrics.completion_tokens_details = response_usage.completion_tokens_details
-                elif isinstance(response_usage.completion_tokens_details, BaseModel):
-                    metrics.completion_tokens_details = response_usage.completion_tokens_details.model_dump(
-                        exclude_none=True
-                    )
-                assistant_message.metrics["completion_tokens_details"] = metrics.completion_tokens_details
-                if metrics.completion_tokens_details is not None:
-                    for k, v in metrics.completion_tokens_details.items():
-                        self.metrics.get("completion_tokens_details", {}).get(k, 0) + v
-
-    def create_assistant_message(
+    def update_assistant_message(
         self,
+        assistant_message: Message,
         response_message: ChatCompletionMessage,
-        metrics: Metrics,
         response_usage: Optional[CompletionUsage],
     ) -> Message:
         """
-        Create an assistant message from the response.
+        Update an assistant message with the response message and usage.
 
         Args:
             response_message (ChatCompletionMessage): The response message.
-            metrics (Metrics): The metrics.
             response_usage (Optional[CompletionUsage]): The response usage.
 
         Returns:
             Message: The assistant message.
         """
-        assistant_message = Message(
-            role=response_message.role or "assistant",
-            content=response_message.content,
-        )
+        # -*- Update role
+        if response_message.role:
+            assistant_message.role = response_message.role
+
+        # -*- Add content to assistant message
+        if response_message.content is not None:
+            assistant_message.content = response_message.content
+
+        # -*- Add audio transcript to content if available
+        response_audio: Optional[ChatCompletionAudio] = response_message.audio
+        if response_audio and response_audio.transcript and not assistant_message.content:
+            assistant_message.content = response_audio.transcript
+
+        # -*- Add tool calls to assistant message
         if response_message.tool_calls is not None and len(response_message.tool_calls) > 0:
             try:
                 assistant_message.tool_calls = [t.model_dump() for t in response_message.tool_calls]
             except Exception as e:
                 logger.warning(f"Error processing tool calls: {e}")
+
+        # -*- Add audio to assistant message
         if hasattr(response_message, "audio") and response_message.audio is not None:
             try:
                 assistant_message.audio_output = AudioOutput(
@@ -461,8 +436,8 @@ class OpenAIChat(Model):
             except Exception as e:
                 logger.warning(f"Error processing audio: {e}")
 
-        # Update metrics
-        self.update_usage_metrics(assistant_message, metrics, response_usage)
+        # -*- Add usage metrics to assistant message
+        self.add_response_usage_to_message(response_usage=response_usage, assistant_message=assistant_message)
         return assistant_message
 
     def response(self, messages: List[Message]) -> ModelResponse:
@@ -478,23 +453,17 @@ class OpenAIChat(Model):
         logger.debug(f"---------- {self.get_provider()} Response Start ----------")
         self._log_messages(messages)
         model_response = ModelResponse()
-        metrics = Metrics()
+
+        # -*- Create assistant message
+        assistant_message = Message(role=self.assistant_message_role)
 
         # -*- Generate response
-        metrics.start_response_timer()
+        assistant_message.metrics.start_timer()
         response: Union[ChatCompletion, ParsedChatCompletion] = self.invoke(messages=messages)
-        metrics.stop_response_timer()
+        assistant_message.metrics.stop_timer()
 
-        # -*- Parse response
+        # -*- Parse response message
         response_message: ChatCompletionMessage = response.choices[0].message
-        response_usage: Optional[CompletionUsage] = response.usage
-        response_audio: Optional[ChatCompletionAudio] = response_message.audio
-
-        # -*- Parse transcript if available
-        if response_audio:
-            if response_audio.transcript and not response_message.content:
-                response_message.content = response_audio.transcript
-
         # -*- Parse structured outputs
         try:
             if (
@@ -508,9 +477,11 @@ class OpenAIChat(Model):
         except Exception as e:
             logger.warning(f"Error retrieving structured outputs: {e}")
 
-        # -*- Create assistant message
-        assistant_message = self.create_assistant_message(
-            response_message=response_message, metrics=metrics, response_usage=response_usage
+        # -*- Update assistant message with response message and usage
+        self.update_assistant_message(
+            assistant_message=assistant_message,
+            response_message=response_message,
+            response_usage=response.usage,
         )
 
         # -*- Add assistant message to messages
@@ -518,7 +489,6 @@ class OpenAIChat(Model):
 
         # -*- Log response and metrics
         assistant_message.log()
-        metrics.log()
 
         # -*- Update model response with assistant message content and audio
         if assistant_message.content is not None:
@@ -529,13 +499,12 @@ class OpenAIChat(Model):
             model_response.audio = assistant_message.audio_output
 
         # -*- Handle tool calls
-        tool_role = "tool"
         if (
             self.handle_tool_calls(
                 assistant_message=assistant_message,
                 messages=messages,
                 model_response=model_response,
-                tool_role=tool_role,
+                tool_role=self.tool_message_role,
             )
             is not None
         ):
@@ -556,23 +525,17 @@ class OpenAIChat(Model):
         logger.debug(f"---------- {self.get_provider()} Async Response Start ----------")
         self._log_messages(messages)
         model_response = ModelResponse()
-        metrics = Metrics()
+
+        # -*- Create assistant message
+        assistant_message = Message(role=self.assistant_message_role)
 
         # -*- Generate response
-        metrics.start_response_timer()
+        assistant_message.metrics.start_timer()
         response: Union[ChatCompletion, ParsedChatCompletion] = await self.ainvoke(messages=messages)
-        metrics.stop_response_timer()
+        assistant_message.metrics.stop_timer()
 
         # -*- Parse response
         response_message: ChatCompletionMessage = response.choices[0].message
-        response_usage: Optional[CompletionUsage] = response.usage
-        response_audio: Optional[ChatCompletionAudio] = response_message.audio
-
-        # -*- Parse transcript if available
-        if response_audio:
-            if response_audio.transcript and not response_message.content:
-                response_message.content = response_audio.transcript
-
         # -*- Parse structured outputs
         try:
             if (
@@ -586,9 +549,11 @@ class OpenAIChat(Model):
         except Exception as e:
             logger.warning(f"Error retrieving structured outputs: {e}")
 
-        # -*- Create assistant message
-        assistant_message = self.create_assistant_message(
-            response_message=response_message, metrics=metrics, response_usage=response_usage
+        # -*- Update assistant message with response message and usage
+        self.update_assistant_message(
+            assistant_message=assistant_message,
+            response_message=response_message,
+            response_usage=response.usage,
         )
 
         # -*- Add assistant message to messages
@@ -596,7 +561,6 @@ class OpenAIChat(Model):
 
         # -*- Log response and metrics
         assistant_message.log()
-        metrics.log()
 
         # -*- Update model response with assistant message content and audio
         if assistant_message.content is not None:
@@ -607,13 +571,12 @@ class OpenAIChat(Model):
             model_response.audio = assistant_message.audio_output
 
         # -*- Handle tool calls
-        tool_role = "tool"
         if (
             await self.ahandle_tool_calls(
                 assistant_message=assistant_message,
                 messages=messages,
                 model_response=model_response,
-                tool_role=tool_role,
+                tool_role=self.tool_message_role,
             )
             is not None
         ):
@@ -621,65 +584,6 @@ class OpenAIChat(Model):
 
         logger.debug(f"---------- {self.get_provider()} Async Response End ----------")
         return model_response
-
-    def update_stream_metrics(self, assistant_message: Message, metrics: Metrics):
-        """
-        Update the usage metrics for the assistant message and the model.
-
-        Args:
-            assistant_message (Message): The assistant message.
-            metrics (Metrics): The metrics.
-        """
-        # Update time taken to generate response
-        assistant_message.metrics["time"] = metrics.response_timer.elapsed
-        self.metrics.setdefault("response_times", []).append(metrics.response_timer.elapsed)
-
-        if metrics.time_to_first_token is not None:
-            assistant_message.metrics["time_to_first_token"] = metrics.time_to_first_token
-            self.metrics.setdefault("time_to_first_token", []).append(metrics.time_to_first_token)
-
-        if metrics.input_tokens is not None:
-            assistant_message.metrics["input_tokens"] = metrics.input_tokens
-            self.metrics["input_tokens"] = self.metrics.get("input_tokens", 0) + metrics.input_tokens
-        if metrics.output_tokens is not None:
-            assistant_message.metrics["output_tokens"] = metrics.output_tokens
-            self.metrics["output_tokens"] = self.metrics.get("output_tokens", 0) + metrics.output_tokens
-        if metrics.prompt_tokens is not None:
-            assistant_message.metrics["prompt_tokens"] = metrics.prompt_tokens
-            self.metrics["prompt_tokens"] = self.metrics.get("prompt_tokens", 0) + metrics.prompt_tokens
-        if metrics.completion_tokens is not None:
-            assistant_message.metrics["completion_tokens"] = metrics.completion_tokens
-            self.metrics["completion_tokens"] = self.metrics.get("completion_tokens", 0) + metrics.completion_tokens
-        if metrics.total_tokens is not None:
-            assistant_message.metrics["total_tokens"] = metrics.total_tokens
-            self.metrics["total_tokens"] = self.metrics.get("total_tokens", 0) + metrics.total_tokens
-        if metrics.prompt_tokens_details is not None:
-            assistant_message.metrics["prompt_tokens_details"] = metrics.prompt_tokens_details
-            for k, v in metrics.prompt_tokens_details.items():
-                self.metrics.get("prompt_tokens_details", {}).get(k, 0) + v
-        if metrics.completion_tokens_details is not None:
-            assistant_message.metrics["completion_tokens_details"] = metrics.completion_tokens_details
-            for k, v in metrics.completion_tokens_details.items():
-                self.metrics.get("completion_tokens_details", {}).get(k, 0) + v
-
-    def add_response_usage_to_metrics(self, metrics: Metrics, response_usage: CompletionUsage):
-        metrics.input_tokens = response_usage.prompt_tokens
-        metrics.prompt_tokens = response_usage.prompt_tokens
-        metrics.output_tokens = response_usage.completion_tokens
-        metrics.completion_tokens = response_usage.completion_tokens
-        metrics.total_tokens = response_usage.total_tokens
-        if response_usage.prompt_tokens_details is not None:
-            if isinstance(response_usage.prompt_tokens_details, dict):
-                metrics.prompt_tokens_details = response_usage.prompt_tokens_details
-            elif isinstance(response_usage.prompt_tokens_details, BaseModel):
-                metrics.prompt_tokens_details = response_usage.prompt_tokens_details.model_dump(exclude_none=True)
-        if response_usage.completion_tokens_details is not None:
-            if isinstance(response_usage.completion_tokens_details, dict):
-                metrics.completion_tokens_details = response_usage.completion_tokens_details
-            elif isinstance(response_usage.completion_tokens_details, BaseModel):
-                metrics.completion_tokens_details = response_usage.completion_tokens_details.model_dump(
-                    exclude_none=True
-                )
 
     def response_stream(self, messages: List[Message]) -> Iterator[ModelResponse]:
         """
@@ -694,15 +598,17 @@ class OpenAIChat(Model):
         logger.debug(f"---------- {self.get_provider()} Response Start ----------")
         self._log_messages(messages)
         stream_data: StreamData = StreamData()
-        metrics: Metrics = Metrics()
+
+        # -*- Create assistant message
+        assistant_message = Message(role="assistant")
 
         # -*- Generate response
-        metrics.start_response_timer()
+        assistant_message.metrics.start_timer()
         for response in self.invoke_stream(messages=messages):
             if len(response.choices) > 0:
-                metrics.completion_tokens += 1
-                if metrics.completion_tokens == 1:
-                    metrics.time_to_first_token = metrics.response_timer.elapsed
+                assistant_message.metrics.completion_tokens += 1
+                if assistant_message.metrics.completion_tokens == 1:
+                    assistant_message.metrics.set_time_to_first_token()
 
                 response_delta: ChoiceDelta = response.choices[0].delta
 
@@ -729,14 +635,12 @@ class OpenAIChat(Model):
                     stream_data.response_tool_calls.extend(response_delta.tool_calls)
 
             if response.usage is not None:
-                self.add_response_usage_to_metrics(metrics=metrics, response_usage=response.usage)
-        metrics.stop_response_timer()
+                self.add_response_usage_to_message(response_usage=response.usage, assistant_message=assistant_message)
+        assistant_message.metrics.stop_timer()
 
-        # -*- Create assistant message
-        assistant_message = Message(role="assistant")
+        # -*- Add response content and audio to assistant message
         if stream_data.response_content != "":
             assistant_message.content = stream_data.response_content
-
         if stream_data.response_audio is not None:
             assistant_message.audio_output = AudioOutput(
                 id=stream_data.response_audio.id,
@@ -745,26 +649,22 @@ class OpenAIChat(Model):
                 transcript=stream_data.response_audio.transcript,
             )
 
+        # -*- Add tool calls to assistant message
         if stream_data.response_tool_calls is not None:
             _tool_calls = self.build_tool_calls(stream_data.response_tool_calls)
             if len(_tool_calls) > 0:
                 assistant_message.tool_calls = _tool_calls
 
-        # -*- Update usage metrics
-        self.update_stream_metrics(assistant_message=assistant_message, metrics=metrics)
-
         # -*- Add assistant message to messages
         messages.append(assistant_message)
 
         # -*- Log response and metrics
-        assistant_message.log()
-        metrics.log()
+        assistant_message.log(metrics=True)
 
         # -*- Handle tool calls
         if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
-            tool_role = "tool"
             yield from self.handle_stream_tool_calls(
-                assistant_message=assistant_message, messages=messages, tool_role=tool_role
+                assistant_message=assistant_message, messages=messages, tool_role=self.tool_message_role
             )
             yield from self.handle_post_tool_call_messages_stream(messages=messages)
         logger.debug(f"---------- {self.get_provider()} Response End ----------")
@@ -782,15 +682,17 @@ class OpenAIChat(Model):
         logger.debug(f"---------- {self.get_provider()} Async Response Start ----------")
         self._log_messages(messages)
         stream_data: StreamData = StreamData()
-        metrics: Metrics = Metrics()
+
+        # -*- Create assistant message
+        assistant_message = Message(role="assistant")
 
         # -*- Generate response
-        metrics.start_response_timer()
+        assistant_message.metrics.start_response_timer()
         async for response in self.ainvoke_stream(messages=messages):
             if response.choices and len(response.choices) > 0:
-                metrics.completion_tokens += 1
-                if metrics.completion_tokens == 1:
-                    metrics.time_to_first_token = metrics.response_timer.elapsed
+                assistant_message.metrics.completion_tokens += 1
+                if assistant_message.metrics.completion_tokens == 1:
+                    assistant_message.metrics.set_time_to_first_token()
 
                 response_delta: ChoiceDelta = response.choices[0].delta
 
@@ -817,14 +719,13 @@ class OpenAIChat(Model):
                     stream_data.response_tool_calls.extend(response_delta.tool_calls)
 
             if response.usage is not None:
-                self.add_response_usage_to_metrics(metrics=metrics, response_usage=response.usage)
-        metrics.stop_response_timer()
+                self.add_response_usage_to_message(response_usage=response.usage, assistant_message=assistant_message)
+        assistant_message.metrics.stop_timer()
 
-        # -*- Create assistant message
+        # -*- Add response content and audio to assistant message
         assistant_message = Message(role="assistant")
         if stream_data.response_content != "":
             assistant_message.content = stream_data.response_content
-
         if stream_data.response_audio is not None:
             assistant_message.audio_output = AudioOutput(
                 id=stream_data.response_audio.id,
@@ -833,40 +734,24 @@ class OpenAIChat(Model):
                 transcript=stream_data.response_audio.transcript,
             )
 
+        # -*- Add tool calls to assistant message
         if stream_data.response_tool_calls is not None:
             _tool_calls = self.build_tool_calls(stream_data.response_tool_calls)
             if len(_tool_calls) > 0:
                 assistant_message.tool_calls = _tool_calls
 
-        self.update_stream_metrics(assistant_message=assistant_message, metrics=metrics)
-
         # -*- Add assistant message to messages
         messages.append(assistant_message)
 
         # -*- Log response and metrics
-        assistant_message.log()
-        metrics.log()
+        assistant_message.log(metrics=True)
 
         # -*- Handle tool calls
         if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
-            tool_role = "tool"
             async for tool_call_response in self.ahandle_stream_tool_calls(
-                assistant_message=assistant_message, messages=messages, tool_role=tool_role
+                assistant_message=assistant_message, messages=messages, tool_role=self.tool_message_role
             ):
                 yield tool_call_response
             async for post_tool_call_response in self.ahandle_post_tool_call_messages_stream(messages=messages):
                 yield post_tool_call_response
         logger.debug(f"---------- {self.get_provider()} Async Response End ----------")
-
-    def build_tool_calls(self, tool_calls_data: List[ChoiceDeltaToolCall]) -> List[Dict[str, Any]]:
-        """
-        Build tool calls from tool call data.
-
-        Args:
-            tool_calls_data (List[ChoiceDeltaToolCall]): The tool call data to build from.
-
-        Returns:
-            List[Dict[str, Any]]: The built tool calls.
-        """
-
-        return self._build_tool_calls(tool_calls_data)

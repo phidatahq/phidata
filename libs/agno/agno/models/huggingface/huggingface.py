@@ -697,7 +697,7 @@ class HuggingFace(Model):
             assistant_message.content = stream_data.response_content
 
         if stream_data.response_tool_calls is not None:
-            _tool_calls = self._build_tool_calls(stream_data.response_tool_calls)
+            _tool_calls = self.build_tool_calls(stream_data.response_tool_calls)
             if len(_tool_calls) > 0:
                 assistant_message.tool_calls = _tool_calls
 
@@ -753,7 +753,7 @@ class HuggingFace(Model):
             assistant_message.content = stream_data.response_content
 
         if stream_data.response_tool_calls is not None:
-            _tool_calls = self._build_tool_calls(stream_data.response_tool_calls)
+            _tool_calls = self.build_tool_calls(stream_data.response_tool_calls)
             if len(_tool_calls) > 0:
                 assistant_message.tool_calls = _tool_calls
 

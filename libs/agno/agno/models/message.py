@@ -1,4 +1,5 @@
 import json
+from dataclasses import dataclass
 from time import time
 from typing import Any, Dict, List, Optional, Sequence, Union
 
@@ -6,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from agno.media import Audio, AudioOutput, Image, Video
 from agno.utils.log import logger
+from agno.utils.timer import Timer
 
 
 class MessageReferences(BaseModel):
@@ -17,6 +19,37 @@ class MessageReferences(BaseModel):
     references: Optional[List[Dict[str, Any]]] = None
     # Time taken to retrieve the references.
     time: Optional[float] = None
+
+
+@dataclass
+class MessageMetrics:
+    input_tokens: int = 0
+    output_tokens: int = 0
+    total_tokens: int = 0
+
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    prompt_tokens_details: Optional[dict] = None
+    completion_tokens_details: Optional[dict] = None
+
+    time: Optional[float] = None
+    time_to_first_token: Optional[float] = None
+
+    timer: Optional[Timer] = None
+
+    def start_timer(self):
+        if self.timer is None:
+            self.timer = Timer()
+        self.timer.start()
+
+    def stop_timer(self, set_time: bool = True):
+        if self.timer is not None:
+            self.timer.stop()
+        if set_time:
+            self.time = self.timer.elapsed
+
+    def set_time_to_first_token(self):
+        self.time_to_first_token = self.timer.elapsed
 
 
 class Message(BaseModel):
@@ -57,13 +90,13 @@ class Message(BaseModel):
     # When True, the message will be added to the agent's memory.
     add_to_agent_memory: bool = True
     # Metrics for the message.
-    metrics: Dict[str, Any] = Field(default_factory=dict)
+    metrics: MessageMetrics = Field(default_factory=MessageMetrics)
     # The references added to the message for RAG
     references: Optional[MessageReferences] = None
     # The Unix timestamp the message was created.
     created_at: int = Field(default_factory=lambda: int(time()))
 
-    model_config = ConfigDict(extra="allow", populate_by_name=True)
+    model_config = ConfigDict(extra="allow", populate_by_name=True, arbitrary_types_allowed=True)
 
     def get_content_string(self) -> str:
         """Returns the content as a string."""
@@ -92,16 +125,16 @@ class Message(BaseModel):
 
         return _dict
 
-    def log(self, level: Optional[str] = None):
+    def log(self, metrics: bool = False, level: Optional[str] = None):
         """Log the message to the console
 
-        @param level: The level to log the message at. One of debug, info, warning, or error.
-            Defaults to debug.
+        Args:
+            metrics (bool): Whether to log the metrics.
+            level (str): The level to log the message at. One of debug, info, warning, or error.
+                Defaults to debug.
         """
         _logger = logger.debug
-        if level == "debug":
-            _logger = logger.debug
-        elif level == "info":
+        if level == "info":
             _logger = logger.info
         elif level == "warning":
             _logger = logger.warning
@@ -126,6 +159,20 @@ class Message(BaseModel):
             _logger(f"Videos added: {len(self.videos)}")
         if self.audio:
             _logger(f"Audio Files added: {len(self.audio)}")
+
+        if metrics:
+            _logger("**************** METRICS ****************")
+            if self.metrics.time is not None:
+                _logger(f"* Time:                        {self.metrics.time:.4f}s")
+            if self.metrics.time_to_first_token is not None:
+                _logger(f"* Time to first token:         {self.metrics.time_to_first_token:.4f}s")
+                _logger(f"* Tokens per second:           {self.metrics.output_tokens / self.metrics.time:.4f} tokens/s")
+                _logger(f"* Input tokens:                {self.metrics.input_tokens}")
+                _logger(f"* Output tokens:               {self.metrics.output_tokens}")
+                _logger(f"* Total tokens:                {self.metrics.total_tokens}")
+                _logger(f"* Prompt tokens details:       {self.metrics.prompt_tokens_details}")
+                _logger(f"* Completion tokens details:   {self.metrics.completion_tokens_details}")
+            _logger("**************** METRICS ******************")
 
     def content_is_valid(self) -> bool:
         """Check if the message content is valid."""

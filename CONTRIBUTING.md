@@ -15,14 +15,17 @@ Please follow the [fork and pull request](https://docs.github.com/en/get-started
 ## Development setup
 
 1. Clone the repository.
-2. Create a virtual environment:
+2. Check if you have `uv` installed by running `uv --version`.
+   - If you have `uv` installed, you can skip this step.
+   - If you don't have `uv` installed, you can install it by running `pip install uv`.
+3. Create a virtual environment:
    - For Unix, use `./scripts/dev_setup.sh`.
    - For Windows, use `.\scripts\dev_setup.bat`.
    - This setup will:
      - Create a `.venv` virtual environment in the current directory.
      - Install the required packages.
      - Install the `agno` package in editable mode.
-3. Activate the virtual environment:
+4. Activate the virtual environment:
    - On Unix: `source .venv/bin/activate`
    - On Windows: `.venv\Scripts\activate`
 

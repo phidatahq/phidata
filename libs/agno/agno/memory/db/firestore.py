@@ -17,7 +17,7 @@ from agno.memory.row import MemoryRow
 from agno.utils.log import logger
 
 
-class FirebaseMemoryDb(MemoryDb):
+class FirestoreMemoryDb(MemoryDb):
     def __init__(
         self,
         collection_name: str = "memory",

@@ -85,7 +85,7 @@ def display_tool_calls(tool_calls_container, tools):
 def sidebar_widget() -> None:
     """Display a sidebar with sample user queries for Sage."""
     with st.sidebar:
-        st.markdown("#### 📜 Sample Queries")
+        st.markdown("#### 📜 Try me!")
         if st.button("💡 US Tariffs"):
             add_message(
                 "user",
@@ -96,10 +96,10 @@ def sidebar_widget() -> None:
                 "user",
                 "Which is a better reasoning model: o3-mini or DeepSeek R1?",
             )
-        if st.button("🤖 AI Agents"):
+        if st.button("🤖 Tell me about Agno"):
             add_message(
                 "user",
-                "What are the expected advancements and roles of AI Agents in 2025 and how might they reshape industry operations?",
+                "Tell me about Agno: https://github.com/agno-agi/agno and https://docs.agno.com",
             )
         if st.button("⚖️ Impact of AI Regulations"):
             add_message(

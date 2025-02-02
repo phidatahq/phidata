@@ -1,6 +1,6 @@
 import nest_asyncio
 import streamlit as st
-from agents import get_sql_agent
+from agents import get_sage
 from agno.agent import Agent
 from agno.utils.log import logger
 from utils import (
@@ -17,8 +17,8 @@ nest_asyncio.apply()
 
 # Page configuration
 st.set_page_config(
-    page_title="F1 SQL Agent",
-    page_icon=":checkered_flag:",
+    page_title="Sage: The Answer Engine",
+    page_icon=":crystal_ball:",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -31,9 +31,9 @@ def main() -> None:
     ####################################################################
     # App header
     ####################################################################
-    st.markdown("<h1 class='main-title'>F1 SQL Agent</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 class='main-title'>Sage</h1>", unsafe_allow_html=True)
     st.markdown(
-        "<p class='subtitle'>Your intelligent F1 data analyst powered by Agno</p>",
+        "<p class='subtitle'>Your intelligent answer engine powered by Agno</p>",
         unsafe_allow_html=True,
     )
 
@@ -41,12 +41,14 @@ def main() -> None:
     # Model selector
     ####################################################################
     model_options = {
+        "o3-mini": "openai:o3-mini",
         "gpt-4o": "openai:gpt-4o",
         "gemini-2.0-flash-exp": "google:gemini-2.0-flash-exp",
         "claude-3-5-sonnet": "anthropic:claude-3-5-sonnet-20241022",
+        "llama-3.3-70b": "groq:llama-3.3-70b-versatile",
     }
     selected_model = st.sidebar.selectbox(
-        "Select a model",
+        "Choose a model",
         options=list(model_options.keys()),
         index=0,
         key="model_selector",
@@ -56,24 +58,24 @@ def main() -> None:
     ####################################################################
     # Initialize Agent
     ####################################################################
-    sql_agent: Agent
+    sage: Agent
     if (
-        "sql_agent" not in st.session_state
-        or st.session_state["sql_agent"] is None
+        "sage" not in st.session_state
+        or st.session_state["sage"] is None
         or st.session_state.get("current_model") != model_id
     ):
-        logger.info("---*--- Creating new SQL agent ---*---")
-        sql_agent = get_sql_agent(model_id=model_id)
-        st.session_state["sql_agent"] = sql_agent
+        logger.info("---*--- Creating new Sage agent ---*---")
+        sage = get_sage(model_id=model_id)
+        st.session_state["sage"] = sage
         st.session_state["current_model"] = model_id
     else:
-        sql_agent = st.session_state["sql_agent"]
+        sage = st.session_state["sage"]
 
     ####################################################################
     # Load Agent Session from the database
     ####################################################################
     try:
-        st.session_state["sql_agent_session_id"] = sql_agent.load_session()
+        st.session_state["sage_session_id"] = sage.load_session()
     except Exception:
         st.warning("Could not create Agent session, is the database running?")
         return
@@ -81,7 +83,7 @@ def main() -> None:
     ####################################################################
     # Load runs from memory
     ####################################################################
-    agent_runs = sql_agent.memory.runs
+    agent_runs = sage.memory.runs
     if len(agent_runs) > 0:
         logger.debug("Loading run history")
         st.session_state["messages"] = []
@@ -102,7 +104,7 @@ def main() -> None:
     ####################################################################
     # Get user input
     ####################################################################
-    if prompt := st.chat_input("👋 Ask me about F1 data from 1950 to 2020!"):
+    if prompt := st.chat_input(":sparkles: What would you like to know, bestie?"):
         add_message("user", prompt)
 
     ####################################################################
@@ -130,11 +132,11 @@ def main() -> None:
             # Create container for tool calls
             tool_calls_container = st.empty()
             resp_container = st.empty()
-            with st.spinner("🤔 Thinking..."):
+            with st.spinner(":crystal_ball: Sage is working its magic..."):
                 response = ""
                 try:
                     # Run the agent and stream the response
-                    run_response = sql_agent.run(question, stream=True)
+                    run_response = sage.run(question, stream=True)
                     for _resp_chunk in run_response:
                         # Display tool calls if available
                         if _resp_chunk.tools and len(_resp_chunk.tools) > 0:
@@ -145,7 +147,7 @@ def main() -> None:
                             response += _resp_chunk.content
                             resp_container.markdown(response)
 
-                    add_message("assistant", response, sql_agent.run_response.tools)
+                    add_message("assistant", response, sage.run_response.tools)
                 except Exception as e:
                     error_message = f"Sorry, I encountered an error: {str(e)}"
                     add_message("assistant", error_message)
@@ -154,8 +156,8 @@ def main() -> None:
     ####################################################################
     # Session selector
     ####################################################################
-    session_selector_widget(sql_agent, model_id)
-    rename_session_widget(sql_agent)
+    session_selector_widget(sage, model_id)
+    rename_session_widget(sage)
 
     ####################################################################
     # About section

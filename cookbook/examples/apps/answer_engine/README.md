@@ -1,91 +1,74 @@
-# Answer Engine
+# Sage: Advanced Answer Engine
 
-This advanced example shows how to build an answer engine that leverages Agentic RAG to:
-- Answer questions from your custom knowledge
-- Augment that data with External Tools like Exa, DuckDuckGo, etc.
+Sage is a powerful answer engine that combines:
+- Real-time web search capabilities (using DuckDuckGo)
+- Deep contextual analysis (using ExaTools)
+- Intelligent tool selection
+- Multiple LLM support
+- Session management (using Sqlite)
+- Chat history export
 
-> Note: Fork and clone the repository if needed
+## 🚀 Quick Start
 
-### 1. Create a virtual environment
+### 1. Environment Setup
 
-```shell
+Create and activate a virtual environment:
+```bash
 python3 -m venv .venv
-source .venv/bin/activate
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 ```
 
-### 2. Install libraries
+### 2. Install Dependencies
 
-```shell
+```bash
 pip install -r cookbook/examples/apps/answer_engine/requirements.txt
 ```
 
-### 3. Run PgVector
+### 3. Configure API Keys
 
-Let's use Postgres for storing our data, but the SQL Agent should work with any database.
-
-> Install [docker desktop](https://docs.docker.com/desktop/install/mac-install/) first.
-
-- Run using a helper script
-
-```shell
-./cookbook/run_pgvector.sh
+Required:
+```bash
+export OPENAI_API_KEY=your_openai_key_here
+export EXA_API_KEY=your_exa_key_here
 ```
 
-- OR run using the docker run command
-
-```shell
-docker run -d \
-  -e POSTGRES_DB=ai \
-  -e POSTGRES_USER=ai \
-  -e POSTGRES_PASSWORD=ai \
-  -e PGDATA=/var/lib/postgresql/data/pgdata \
-  -v pgvolume:/var/lib/postgresql/data \
-  -p 5532:5432 \
-  --name pgvector \
-  agnohq/pgvector:16
+Optional (for additional models):
+```bash
+export ANTHROPIC_API_KEY=your_anthropic_key_here
+export GOOGLE_API_KEY=your_google_key_here
+export GROQ_API_KEY=your_groq_key_here
 ```
 
-### 4. Load F1 data
+### 4. Launch the Application
 
-```shell
-python cookbook/examples/apps/answer_engine/load_f1_data.py
-```
-
-### 5. Load the knowledge base
-
-The knowledge base contains table metadata, rules and sample queries, which are used by the Agent to improve responses.
-
-We recommend adding the following as you go along:
-  - Add `table_rules` and `column_rules` to the table metadata. The Agent is prompted to follow them. This is useful when you want to guide the Agent to always query date in a particular format, or avoid certain columns.
-  - Add sample SQL queries to the `cookbook/use_cases/apps/answer_engine/knowledge_base/sample_queries.sql` file. This will give the Assistant a head start on how to write complex queries.
-
-```shell
-python cookbook/examples/apps/answer_engine/load_knowledge.py
-```
-
-### 6. Export API Keys
-
-We recommend using gpt-4o for this task, but you can use any Model you like.
-
-```shell
-export OPENAI_API_KEY=***
-```
-
-Other API keys are optional, but if you'd like to test:
-
-```shell
-export ANTHROPIC_API_KEY=***
-export GOOGLE_API_KEY=***
-export GROQ_API_KEY=***
-```
-
-### 7. Run SQL Agent
-
-```shell
+```bash
 streamlit run cookbook/examples/apps/answer_engine/app.py
 ```
 
-- Open [localhost:8501](http://localhost:8501) to view the SQL Agent.
+Visit [localhost:8501](http://localhost:8501) to use the answer engine.
 
-### 8. Message us on [discord](https://agno.link/discord) if you have any questions
+## 🔧 Customization
 
+### Model Selection
+
+The application supports multiple model providers:
+- OpenAI (o3-mini, gpt-4o)
+- Anthropic (claude-3-5-sonnet)
+- Google (gemini-2.0-flash-exp)
+- Groq (llama-3.3-70b-versatile)
+
+### Agent Configuration
+
+The agent configuration is in `agents.py` and the prompts are in `prompts.py`.
+- If you just want to modify the prompts, update the `prompts.py` file.
+- If you want to add new tools, models etc. update the `agents.py` file.
+
+## 📚 Documentation
+
+For more detailed information:
+- [Agno Documentation](https://docs.agno.com)
+- [Streamlit Documentation](https://docs.streamlit.io)
+
+## 🤝 Support
+
+Need help? Join our [Discord community](https://agno.link/discord)

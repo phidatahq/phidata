@@ -1,9 +1,8 @@
 agno
 openai
-pandas
-pgvector
-psycopg[binary]
-simplejson
 sqlalchemy
 streamlit
+exa_py
+duckduckgo_search
 nest_asyncio
+google-search-results

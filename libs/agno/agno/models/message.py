@@ -32,6 +32,8 @@ class MessageMetrics:
     prompt_tokens_details: Optional[dict] = None
     completion_tokens_details: Optional[dict] = None
 
+    additional_metrics: Optional[dict] = None
+
     time: Optional[float] = None
     time_to_first_token: Optional[float] = None
 
@@ -220,13 +222,17 @@ class Message(BaseModel):
             _logger(f"* Input tokens:                {self.metrics.input_tokens}")
             _logger(f"* Output tokens:               {self.metrics.output_tokens}")
             _logger(f"* Total tokens:                {self.metrics.total_tokens}")
-            _logger(f"* Prompt tokens details:       {self.metrics.prompt_tokens_details}")
-            _logger(f"* Completion tokens details:   {self.metrics.completion_tokens_details}")
+            if self.metrics.prompt_tokens_details:
+                _logger(f"* Prompt tokens details:       {self.metrics.prompt_tokens_details}")
+            if self.metrics.completion_tokens_details:
+                _logger(f"* Completion tokens details:   {self.metrics.completion_tokens_details}")
             if self.metrics.time is not None:
                 _logger(f"* Time:                        {self.metrics.time:.4f}s")
                 _logger(f"* Tokens per second:           {self.metrics.output_tokens / self.metrics.time:.4f} tokens/s")
             if self.metrics.time_to_first_token is not None:
                 _logger(f"* Time to first token:         {self.metrics.time_to_first_token:.4f}s")
+            if self.metrics.additional_metrics:
+                _logger(f"* Additional metrics:          {self.metrics.additional_metrics}")
             _logger("**************** METRICS ******************")
 
     def content_is_valid(self) -> bool:

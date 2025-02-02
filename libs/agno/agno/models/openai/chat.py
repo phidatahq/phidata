@@ -230,9 +230,7 @@ class OpenAIChat(Model):
         )
         if self.tools is not None:
             model_dict["tools"] = self.tools
-            if self.tool_choice is None:
-                model_dict["tool_choice"] = "auto"
-            else:
+            if self.tool_choice is not None:
                 model_dict["tool_choice"] = self.tool_choice
         cleaned_dict = {k: v for k, v in model_dict.items() if v is not None}
         return cleaned_dict
@@ -391,6 +389,7 @@ class OpenAIChat(Model):
         Populate an assistant message with the response message and usage.
 
         Args:
+            assistant_message (Message): The assistant message to populate.
             response_message (ChatCompletionMessage): The response message.
             response_usage (Optional[CompletionUsage]): The response usage.
 
@@ -607,10 +606,17 @@ class OpenAIChat(Model):
                     assistant_message.metrics.set_time_to_first_token()
 
                 response_delta: ChoiceDelta = response.choices[0].delta
+                response_content: Optional[str] = response_delta.content
+                response_tool_calls: Optional[List[ChoiceDeltaToolCall]] = response_delta.tool_calls
 
-                if response_delta.content is not None:
-                    stream_data.response_content += response_delta.content
-                    yield ModelResponse(content=response_delta.content)
+                if response_content is not None:
+                    stream_data.response_content += response_content
+                    yield ModelResponse(content=response_content)
+
+                if response_tool_calls is not None:
+                    if stream_data.response_tool_calls is None:
+                        stream_data.response_tool_calls = []
+                    stream_data.response_tool_calls.extend(response_tool_calls)
 
                 if hasattr(response_delta, "audio"):
                     response_audio = response_delta.audio
@@ -624,11 +630,6 @@ class OpenAIChat(Model):
                                 transcript=stream_data.response_audio.transcript,
                             )
                         )
-
-                if response_delta.tool_calls is not None:
-                    if stream_data.response_tool_calls is None:
-                        stream_data.response_tool_calls = []
-                    stream_data.response_tool_calls.extend(response_delta.tool_calls)
 
             if response.usage is not None:
                 self.add_usage_metrics_to_assistant_message(
@@ -693,10 +694,17 @@ class OpenAIChat(Model):
                     assistant_message.metrics.set_time_to_first_token()
 
                 response_delta: ChoiceDelta = response.choices[0].delta
+                response_content = response_delta.content
+                response_tool_calls = response_delta.tool_calls
 
-                if response_delta.content is not None:
-                    stream_data.response_content += response_delta.content
-                    yield ModelResponse(content=response_delta.content)
+                if response_content is not None:
+                    stream_data.response_content += response_content
+                    yield ModelResponse(content=response_content)
+
+                if response_tool_calls is not None:
+                    if stream_data.response_tool_calls is None:
+                        stream_data.response_tool_calls = []
+                    stream_data.response_tool_calls.extend(response_tool_calls)
 
                 if hasattr(response_delta, "audio"):
                     response_audio = response_delta.audio
@@ -710,11 +718,6 @@ class OpenAIChat(Model):
                                 transcript=stream_data.response_audio.transcript,
                             )
                         )
-
-                if response_delta.tool_calls is not None:
-                    if stream_data.response_tool_calls is None:
-                        stream_data.response_tool_calls = []
-                    stream_data.response_tool_calls.extend(response_delta.tool_calls)
 
             if response.usage is not None:
                 self.add_usage_metrics_to_assistant_message(

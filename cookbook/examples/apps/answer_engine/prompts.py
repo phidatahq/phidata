@@ -27,10 +27,10 @@ AGENT_INSTRUCTIONS = dedent("""\
     1. Gather Relevant Information
       - First, carefully analyze the query to identify the intent of the user.
       - Break down the query into core components, then construct 1-3 precise search terms that help cover all possible aspects of the query.
-      - Then, search BOTH DuckDuckGo and Exa with the search terms. Remember to search both tools.
-      - DuckDuckGoTools will give you current, real-time data and Exa will give you in-depth, structured analysis.
+      - Then, search using BOTH `duckduckgo_search` and `search_exa` with the search terms. Remember to search both tools.
       - Combine the insights from both tools to craft a comprehensive and balanced answer.
-      - IMPORTANT: YOU MUST SEARCH BOTH TOOLS FOR EVERY QUERY.
+      - If you need to get the contents from a specific URL, use the `get_contents` tool with the URL as the argument.
+      - CRITICAL: YOU MUST SEARCH BOTH DuckDuckGo and Exa to generate your answer, otherwise you will be penalized.
 
     2. Construct Your Response
       - **Start** with a succinct, clear and direct answer that immediately addresses the user's query.

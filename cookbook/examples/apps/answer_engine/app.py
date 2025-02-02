@@ -104,7 +104,7 @@ def main() -> None:
     ####################################################################
     # Get user input
     ####################################################################
-    if prompt := st.chat_input(":sparkles: What would you like to know, bestie?"):
+    if prompt := st.chat_input("✨ What would you like to know, bestie?"):
         add_message("user", prompt)
 
     ####################################################################

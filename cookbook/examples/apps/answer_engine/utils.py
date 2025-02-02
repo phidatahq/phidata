@@ -1,29 +1,15 @@
 from typing import Any, Dict, List, Optional
 
 import streamlit as st
-from agents import get_sql_agent
+from agents import get_sage
 from agno.agent.agent import Agent
 from agno.utils.log import logger
-
-
-def load_data_and_knowledge():
-    """Load F1 data and knowledge base if not already done"""
-    from load_f1_data import load_f1_data
-    from load_knowledge import load_knowledge
-
-    if "data_loaded" not in st.session_state:
-        with st.spinner("🔄 Loading data into database..."):
-            load_f1_data()
-        with st.spinner("📚 Loading knowledge base..."):
-            load_knowledge()
-        st.session_state["data_loaded"] = True
-        st.success("✅ Data and knowledge loaded successfully!")
 
 
 def add_message(
     role: str, content: str, tool_calls: Optional[List[Dict[str, Any]]] = None
 ) -> None:
-    """Safely add a message to the session state"""
+    """Safely add a message to the session state."""
     if "messages" not in st.session_state or not isinstance(
         st.session_state["messages"], list
     ):
@@ -34,21 +20,21 @@ def add_message(
 
 
 def restart_agent():
-    """Reset the agent and clear chat history"""
+    """Reset the agent and clear chat history."""
     logger.debug("---*--- Restarting agent ---*---")
-    st.session_state["sql_agent"] = None
-    st.session_state["sql_agent_session_id"] = None
+    st.session_state["sage"] = None
+    st.session_state["sage_session_id"] = None
     st.session_state["messages"] = []
     st.rerun()
 
 
 def export_chat_history():
-    """Export chat history as markdown"""
+    """Export chat history as markdown."""
     if "messages" in st.session_state:
-        chat_text = "# F1 SQL Agent - Chat History\n\n"
+        chat_text = "# Sage - Chat History\n\n"
         for msg in st.session_state["messages"]:
-            role = "🤖 Assistant" if msg["role"] == "agent" else "👤 User"
-            chat_text += f"### {role}\n{msg['content']}\n\n"
+            role_label = "🤖 Assistant" if msg["role"] == "assistant" else "👤 User"
+            chat_text += f"### {role_label}\n{msg['content']}\n\n"
         return chat_text
     return ""
 
@@ -60,95 +46,91 @@ def display_tool_calls(tool_calls_container, tools):
         tool_calls_container: Streamlit container to display the tool calls
         tools: List of tool call dictionaries containing name, args, content, and metrics
     """
-    with tool_calls_container.container():
-        for tool_call in tools:
-            _tool_name = tool_call.get("tool_name")
-            _tool_args = tool_call.get("tool_args")
-            _content = tool_call.get("content")
-            _metrics = tool_call.get("metrics")
+    try:
+        with tool_calls_container.container():
+            for tool_call in tools:
+                tool_name = tool_call.get("tool_name", "Unknown Tool")
+                tool_args = tool_call.get("tool_args", {})
+                content = tool_call.get("content")
+                metrics = tool_call.get("metrics", {})
 
-            with st.expander(
-                f"🛠️ {_tool_name.replace('_', ' ').title()}", expanded=False
-            ):
-                if isinstance(_tool_args, dict) and "query" in _tool_args:
-                    st.code(_tool_args["query"], language="sql")
+                # Add timing information
+                execution_time = metrics.get("time", "N/A")
 
-                if _tool_args and _tool_args != {"query": None}:
-                    st.markdown("**Arguments:**")
-                    st.json(_tool_args)
+                with st.expander(
+                    f"🛠️ {tool_name.replace('_', ' ').title()} ({execution_time:.2f}s)",
+                    expanded=False,
+                ):
+                    # Show query with syntax highlighting
+                    if isinstance(tool_args, dict) and "query" in tool_args:
+                        st.code(tool_args["query"], language="sql")
 
-                if _content:
-                    st.markdown("**Results:**")
-                    try:
-                        st.json(_content)
-                    except Exception as e:
-                        st.markdown(_content)
+                    # Display arguments in a more readable format
+                    if tool_args and tool_args != {"query": None}:
+                        st.markdown("**Arguments:**")
+                        st.json(tool_args)
 
-                if _metrics:
-                    st.markdown("**Metrics:**")
-                    st.json(_metrics)
+                    if content:
+                        st.markdown("**Results:**")
+                        try:
+                            st.json(content)
+                        except Exception as e:
+                            st.markdown(content)
+
+    except Exception as e:
+        logger.error(f"Error displaying tool calls: {str(e)}")
+        tool_calls_container.error("Failed to display tool results")
 
 
 def sidebar_widget() -> None:
-    """Display a sidebar with sample user queries"""
+    """Display a sidebar with sample user queries for Sage."""
     with st.sidebar:
-        # Basic Information
-        st.markdown("#### 🏎️ Basic Information")
-        if st.button("📋 Show Tables"):
-            add_message("user", "Which tables do you have access to?")
-        if st.button("ℹ️ Describe Tables"):
-            add_message("user", "Tell me more about these tables.")
-
-        # Statistics
-        st.markdown("#### 🏆 Statistics")
-        if st.button("🥇 Most Race Wins"):
-            add_message("user", "Which driver has the most race wins?")
-
-        if st.button("🏆 Constructor Champs"):
-            add_message("user", "Which team won the most Constructors Championships?")
-
-        if st.button("⏳ Longest Career"):
+        st.markdown("#### 📜 Sample Queries")
+        if st.button("💡 US Tariffs"):
             add_message(
                 "user",
-                "Tell me the name of the driver with the longest racing career? Also tell me when they started and when they retired.",
+                "Tell me about the tariffs the US is imposing in 2025",
             )
-
-        # Analysis
-        st.markdown("#### 📊 Analysis")
-        if st.button("📈 Races per Year"):
-            add_message("user", "Show me the number of races per year.")
-
-        if st.button("🔍 Team Performance"):
+        if st.button("🤔 Reasoning Models"):
             add_message(
                 "user",
-                "Write a query to identify the drivers that won the most races per year from 2010 onwards and the position of their team that year.",
+                "Which is a better reasoning model: o3-mini or DeepSeek R1?",
+            )
+        if st.button("🤖 AI Agents"):
+            add_message(
+                "user",
+                "What are the expected advancements and roles of AI Agents in 2025 and how might they reshape industry operations?",
+            )
+        if st.button("⚖️ Impact of AI Regulations"):
+            add_message(
+                "user",
+                "Evaluate how emerging AI regulations could influence innovation, privacy, and ethical AI deployment in the near future.",
             )
 
-        # Utility buttons
+        st.markdown("---")
         st.markdown("#### 🛠️ Utilities")
         col1, col2 = st.columns(2)
         with col1:
             if st.button("🔄 New Chat"):
                 restart_agent()
         with col2:
+            fn = "sage_chat_history.md"
+            if "sage_session_id" in st.session_state:
+                fn = f"sage_{st.session_state.sage_session_id}.md"
             if st.download_button(
                 "💾 Export Chat",
                 export_chat_history(),
-                file_name="f1_chat_history.md",
+                file_name=fn,
                 mime="text/markdown",
             ):
-                st.success("Chat history exported!")
-
-        if st.sidebar.button("🚀 Load Data & Knowledge"):
-            load_data_and_knowledge()
+                st.sidebar.success("Chat history exported!")
 
 
 def session_selector_widget(agent: Agent, model_id: str) -> None:
-    """Display a session selector in the sidebar"""
-
+    """Display a session selector in the sidebar."""
     if agent.storage:
         agent_sessions = agent.storage.get_all_sessions()
-        # Get session names if available, otherwise use IDs
+        # Get session names if available, otherwise use IDs.
         session_options = []
         for session in agent_sessions:
             session_id = session.session_id
@@ -160,22 +142,22 @@ def session_selector_widget(agent: Agent, model_id: str) -> None:
             display_name = session_name if session_name else session_id
             session_options.append({"id": session_id, "display": display_name})
 
-        # Display session selector
+        # Display session selector.
         selected_session = st.sidebar.selectbox(
             "Session",
             options=[s["display"] for s in session_options],
             key="session_selector",
         )
-        # Find the selected session ID
+        # Find the selected session ID.
         selected_session_id = next(
             s["id"] for s in session_options if s["display"] == selected_session
         )
 
-        if st.session_state["sql_agent_session_id"] != selected_session_id:
+        if st.session_state.get("sage_session_id") != selected_session_id:
             logger.info(
                 f"---*--- Loading {model_id} run: {selected_session_id} ---*---"
             )
-            st.session_state["sql_agent"] = get_sql_agent(
+            st.session_state["sage"] = get_sage(
                 model_id=model_id,
                 session_id=selected_session_id,
             )
@@ -183,12 +165,11 @@ def session_selector_widget(agent: Agent, model_id: str) -> None:
 
 
 def rename_session_widget(agent: Agent) -> None:
-    """Rename the current session of the agent and save to storage"""
-
+    """Rename the current session of the agent and save to storage."""
     container = st.sidebar.container()
     session_row = container.columns([3, 1], vertical_alignment="center")
 
-    # Initialize session_edit_mode if needed
+    # Initialize session_edit_mode if needed.
     if "session_edit_mode" not in st.session_state:
         st.session_state.session_edit_mode = False
 
@@ -216,16 +197,18 @@ def rename_session_widget(agent: Agent) -> None:
 
 
 def about_widget() -> None:
-    """Display an about section in the sidebar"""
+    """Display an about section in the sidebar."""
     st.sidebar.markdown("---")
     st.sidebar.markdown("### ℹ️ About")
-    st.sidebar.markdown("""
-    This SQL Assistant helps you analyze Formula 1 data from 1950 to 2020 using natural language queries.
+    st.sidebar.markdown(
+        """
+        Sage is a cutting-edge answer engine that delivers real-time insights and in-depth analysis on a wide range of topics.
 
-    Built with:
-    - 🚀 Agno
-    - 💫 Streamlit
-    """)
+        Built with:
+        - 🚀 Agno
+        - 💫 Streamlit
+        """
+    )
 
 
 CUSTOM_CSS = """

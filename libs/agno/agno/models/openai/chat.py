@@ -49,7 +49,7 @@ class OpenAIChat(Model):
 
     # Request parameters
     store: Optional[bool] = None
-    reasoning_effort: Optional[bool] = None
+    reasoning_effort: Optional[str] = None
     metadata: Optional[Dict[str, Any]] = None
     frequency_penalty: Optional[float] = None
     logit_bias: Optional[Any] = None

@@ -145,10 +145,12 @@ class Model(ABC):
             m.log()
 
     def set_tools(self, tools: List[Dict]) -> None:
-        self.tools = tools
+        if len(tools) > 0:
+            self.tools = tools
 
     def set_functions(self, functions: Dict[str, Function]) -> None:
-        self._functions = functions
+        if len(functions) > 0:
+            self._functions = functions
 
     # @staticmethod
     # def _update_assistant_message_metrics(assistant_message: Message, metrics_for_run: Metrics = Metrics()) -> None:

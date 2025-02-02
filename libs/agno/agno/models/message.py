@@ -84,6 +84,14 @@ class MessageMetrics:
                 for key, value in other.completion_tokens_details.items():
                     result.completion_tokens_details[key] = result.completion_tokens_details.get(key, 0) + value
 
+        # Handle additional metrics
+        if self.additional_metrics or other.additional_metrics:
+            result.additional_metrics = {}
+            if self.additional_metrics:
+                result.additional_metrics.update(self.additional_metrics)
+            if other.additional_metrics:
+                result.additional_metrics.update(other.additional_metrics)
+
         # Sum times if both exist
         if self.time is not None and other.time is not None:
             result.time = self.time + other.time
@@ -96,6 +104,11 @@ class MessageMetrics:
         result.time_to_first_token = self.time_to_first_token or other.time_to_first_token
 
         return result
+
+    def __radd__(self, other: "MessageMetrics") -> "MessageMetrics":
+        if other == 0:  # Handle sum() starting value
+            return self
+        return self + other
 
 
 class Message(BaseModel):
@@ -178,8 +191,8 @@ class Message(BaseModel):
 
         return _dict
 
-    @model_serializer()
-    def _serialize(self):
+    @model_serializer
+    def serialize_model(self):
         return self.to_dict()
 
     def log(self, metrics: bool = False, level: Optional[str] = None):

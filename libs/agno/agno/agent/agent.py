@@ -23,12 +23,13 @@ from uuid import uuid4
 
 from pydantic import BaseModel
 
+from agno.agent.metrics import SessionMetrics
 from agno.exceptions import AgentRunException, StopAgentRun
 from agno.knowledge.agent import AgentKnowledge
 from agno.media import Audio, AudioArtifact, Image, ImageArtifact, Video, VideoArtifact
 from agno.memory.agent import AgentMemory, AgentRun
 from agno.models.base import Model
-from agno.models.message import Message, MessageMetrics, MessageReferences
+from agno.models.message import Message, MessageReferences
 from agno.models.response import ModelResponse, ModelResponseEvent
 from agno.reasoning.step import NextAction, ReasoningStep, ReasoningSteps
 from agno.run.messages import RunMessages
@@ -66,8 +67,6 @@ class Agent:
     session_name: Optional[str] = None
     # Session state (stored in the database to persist across runs)
     session_state: Optional[Dict[str, Any]] = None
-    # Session metrics (stored in the database to persist across runs)
-    session_metrics: Optional[Dict[str, Any]] = None
 
     # --- Agent Context ---
     # Context available for tools and prompt functions
@@ -385,7 +384,7 @@ class Agent:
         self.telemetry = telemetry
 
         # --- Params not to be set by user ---
-        self.session_metrics: Optional[Dict[str, Any]] = None
+        self.session_metrics: Optional[SessionMetrics] = None
 
         self.run_id: Optional[str] = None
         self.run_input: Optional[Union[str, List, Dict, Message]] = None
@@ -2552,16 +2551,17 @@ class Agent:
                 for k, v in asdict(m.metrics).items():
                     if k in ("timer"):
                         continue
-                    aggregated_metrics[k].append(v)
+                    if v is not None:
+                        aggregated_metrics[k].append(v)
         return aggregated_metrics
 
-    def calculate_session_metrics(self, messages: List[Message]) -> Dict[str, Any]:
-        session_metrics = MessageMetrics()
+    def calculate_session_metrics(self, messages: List[Message]) -> SessionMetrics:
+        session_metrics = SessionMetrics()
         assistant_message_role = self.model.assistant_message_role if self.model is not None else "assistant"
         for m in messages:
             if m.role == assistant_message_role and m.metrics is not None:
                 session_metrics += m.metrics
-        return asdict(session_metrics)
+        return session_metrics
 
     def rename(self, name: str) -> None:
         """Rename the Agent and save to storage"""

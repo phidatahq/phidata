@@ -33,7 +33,7 @@ class MessageData:
     tool_ids: List[str] = field(default_factory=list)
 
 
-def format_image_for_message(image: Image) -> Optional[Dict[str, Any]]:
+def _format_image_for_message(image: Image) -> Optional[Dict[str, Any]]:
     """
     Add an image to a message by converting it to base64 encoded format.
     """
@@ -51,7 +51,7 @@ def format_image_for_message(image: Image) -> Optional[Dict[str, Any]]:
         elif image.filepath is not None:
             from pathlib import Path
 
-            path = Path(image.filepath)
+            path = Path(image.filepath) if isinstance(image.filepath, str) else image.filepath
             if path.exists() and path.is_file():
                 with open(image.filepath, "rb") as f:
                     content_bytes = f.read()
@@ -89,6 +89,57 @@ def format_image_for_message(image: Image) -> Optional[Dict[str, Any]]:
     except Exception as e:
         logger.error(f"Error processing image: {e}")
         return None
+
+
+def _format_messages(messages: List[Message]) -> Tuple[List[Dict[str, str]], str]:
+    """
+    Process the list of messages and separate them into API messages and system messages.
+
+    Args:
+        messages (List[Message]): The list of messages to process.
+
+    Returns:
+        Tuple[List[Dict[str, str]], str]: A tuple containing the list of API messages and the concatenated system messages.
+    """
+    chat_messages: List[Dict[str, str]] = []
+    system_messages: List[str] = []
+
+    for idx, message in enumerate(messages):
+        content = message.content or ""
+        if message.role == "system" or (message.role != "user" and idx in [0, 1]):
+            if content is not None:
+                system_messages.append(content)  # type: ignore
+            continue
+        elif message.role == "user":
+            if isinstance(content, str):
+                content = [{"type": "text", "text": content}]
+
+            if message.images is not None:
+                for image in message.images:
+                    image_content = _format_image_for_message(image)
+                    if image_content:
+                        content.append(image_content)
+
+        # Handle tool calls from history
+        elif message.role == "assistant" and isinstance(message.content, str) and message.tool_calls:
+            if message.content:
+                content = [TextBlock(text=message.content, type="text")]
+            else:
+                content = []
+            for tool_call in message.tool_calls:
+                content.append(
+                    ToolUseBlock(
+                        id=tool_call["id"],
+                        input=json.loads(tool_call["function"]["arguments"])
+                        if "arguments" in tool_call["function"]
+                        else {},
+                        name=tool_call["function"]["name"],
+                        type="tool_use",
+                    )
+                )
+
+        chat_messages.append({"role": message.role, "content": content})  # type: ignore
+    return chat_messages, " ".join(system_messages)
 
 
 @dataclass
@@ -177,56 +228,6 @@ class Claude(Model):
             _request_params.update(self.request_params)
         return _request_params
 
-    def format_messages(self, messages: List[Message]) -> Tuple[List[Dict[str, str]], str]:
-        """
-        Process the list of messages and separate them into API messages and system messages.
-
-        Args:
-            messages (List[Message]): The list of messages to process.
-
-        Returns:
-            Tuple[List[Dict[str, str]], str]: A tuple containing the list of API messages and the concatenated system messages.
-        """
-        chat_messages: List[Dict[str, str]] = []
-        system_messages: List[str] = []
-
-        for idx, message in enumerate(messages):
-            content = message.content or ""
-            if message.role == "system" or (message.role != "user" and idx in [0, 1]):
-                if content is not None:
-                    system_messages.append(content)  # type: ignore
-                continue
-            elif message.role == "user":
-                if isinstance(content, str):
-                    content = [{"type": "text", "text": content}]
-
-                if message.images is not None:
-                    for image in message.images:
-                        image_content = format_image_for_message(image)
-                        if image_content:
-                            content.append(image_content)
-
-            # Handle tool calls from history
-            elif message.role == "assistant" and isinstance(message.content, str) and message.tool_calls:
-                if message.content:
-                    content = [TextBlock(text=message.content, type="text")]
-                else:
-                    content = []
-                for tool_call in message.tool_calls:
-                    content.append(
-                        ToolUseBlock(
-                            id=tool_call["id"],
-                            input=json.loads(tool_call["function"]["arguments"])
-                            if "arguments" in tool_call["function"]
-                            else {},
-                            name=tool_call["function"]["name"],
-                            type="tool_use",
-                        )
-                    )
-
-            chat_messages.append({"role": message.role, "content": content})  # type: ignore
-        return chat_messages, " ".join(system_messages)
-
     def prepare_request_kwargs(self, system_message: str) -> Dict[str, Any]:
         """
         Prepare the request keyword arguments for the API call.
@@ -297,7 +298,7 @@ class Claude(Model):
         Returns:
             AnthropicMessage: The response from the model.
         """
-        chat_messages, system_message = self.format_messages(messages)
+        chat_messages, system_message = _format_messages(messages)
         request_kwargs = self.prepare_request_kwargs(system_message)
 
         return self.get_client().messages.create(
@@ -316,7 +317,7 @@ class Claude(Model):
         Returns:
             Any: The streamed response from the model.
         """
-        chat_messages, system_message = self.format_messages(messages)
+        chat_messages, system_message = _format_messages(messages)
         request_kwargs = self.prepare_request_kwargs(system_message)
 
         return self.get_client().messages.stream(
@@ -673,7 +674,7 @@ class Claude(Model):
         Returns:
             AnthropicMessage: The response from the model.
         """
-        chat_messages, system_message = self.format_messages(messages)
+        chat_messages, system_message = _format_messages(messages)
         request_kwargs = self.prepare_request_kwargs(system_message)
 
         return await self.get_async_client().messages.create(
@@ -692,7 +693,7 @@ class Claude(Model):
         Returns:
             Any: The streamed response from the model.
         """
-        chat_messages, system_message = self.format_messages(messages)
+        chat_messages, system_message = _format_messages(messages)
         request_kwargs = self.prepare_request_kwargs(system_message)
 
         return self.get_async_client().messages.stream(

@@ -56,7 +56,7 @@ def _format_messages(messages: List[Message]) -> List[MistralMessage]:
         mistral_message: MistralMessage
         if message.role == "user":
             if message.images is not None:
-                content = [TextChunk(type="text", text=message.content)]
+                content: List[Any] = [TextChunk(type="text", text=message.content)]
                 for image in message.images:
                     image_content = _format_image_for_message(image)
                     if image_content:

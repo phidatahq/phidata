@@ -197,7 +197,9 @@ class Claude(Model):
                     content.append(
                         ToolUseBlock(
                             id=tool_call["id"],
-                            input=json.loads(tool_call["function"]["arguments"]),
+                            input=json.loads(tool_call["function"]["arguments"])
+                            if "arguments" in tool_call["function"]
+                            else {},
                             name=tool_call["function"]["name"],
                             type="tool_use",
                         )

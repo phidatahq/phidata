@@ -23,8 +23,6 @@ try:
 except ImportError:
     print("Error importing googlemaps. Please install the package using `pip install googlemaps`.")
 
-_google_map_client = googlemaps.Client(key=getenv("GOOGLE_MAPS_API_KEY"))
-
 
 class GoogleMapTools(Toolkit):
     def __init__(
@@ -76,14 +74,14 @@ class GoogleMapTools(Toolkit):
         """
         try:
             # Perform places search
-            places_result = _google_map_client.places(query)
+            places_result = self.client.places(query)
 
             if not places_result or "results" not in places_result:
                 return str([])
 
             places = []
             for place in places_result["results"]:
-                place = {
+                place_info = {
                     "name": place.get("name", ""),
                     "address": place.get("formatted_address", ""),
                     "rating": place.get("rating", 0.0),
@@ -92,19 +90,23 @@ class GoogleMapTools(Toolkit):
                 }
 
                 # Get place details for additional information
-                if place.get("place_id"):
-                    details = self.client.place(place["place_id"])
-                    if details and "result" in details:
-                        result = details["result"]
-                        place.update(
-                            {
-                                "phone": result.get("formatted_phone_number", ""),
-                                "website": result.get("website", ""),
-                                "hours": result.get("opening_hours", {}).get("weekday_text", []),
-                            }
-                        )
+                if place_info.get("place_id"):
+                    try:
+                        details = self.client.place(place_info["place_id"])
+                        if details and "result" in details:
+                            result = details["result"]
+                            place_info.update(
+                                {
+                                    "phone": result.get("formatted_phone_number", ""),
+                                    "website": result.get("website", ""),
+                                    "hours": result.get("opening_hours", {}).get("weekday_text", []),
+                                }
+                            )
+                    except Exception as e:
+                        print(f"Error getting place details: {str(e)}")
+                        # Continue with basic place info if details fetch fails
 
-                places.append(place)
+                places.append(place_info)
 
             return json.dumps(places)
 

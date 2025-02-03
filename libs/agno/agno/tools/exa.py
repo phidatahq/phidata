@@ -83,7 +83,6 @@ class ExaTools(Toolkit):
         self.include_domains: Optional[List[str]] = include_domains
         self.exclude_domains: Optional[List[str]] = exclude_domains
 
-
         if search:
             self.register(self.search_exa)
         if get_contents:

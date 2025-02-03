@@ -2,9 +2,10 @@
 
 import json
 from datetime import datetime
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
+
 from agno.tools.google_maps import GoogleMapTools
 
 # Mock responses
@@ -95,9 +96,9 @@ def test_search_places(google_maps_tools):
         with patch.object(google_maps_tools.client, "place") as mock_place:
             mock_places.return_value = MOCK_PLACES_RESPONSE
             mock_place.return_value = MOCK_PLACE_DETAILS
-            
+
             result = json.loads(google_maps_tools.search_places("test query"))
-            
+
             assert len(result) == 1
             assert result[0]["name"] == "Test Business"
             assert result[0]["phone"] == "123-456-7890"
@@ -108,12 +109,9 @@ def test_get_directions(google_maps_tools):
     """Test the get_directions method."""
     with patch.object(google_maps_tools.client, "directions") as mock_directions:
         mock_directions.return_value = MOCK_DIRECTIONS_RESPONSE
-        
-        result = eval(google_maps_tools.get_directions(
-            origin="Test Origin",
-            destination="Test Destination"
-        ))
-        
+
+        result = eval(google_maps_tools.get_directions(origin="Test Origin", destination="Test Destination"))
+
         assert isinstance(result, list)
         assert "legs" in result[0]
         assert result[0]["legs"][0]["distance"]["value"] == 5000
@@ -123,9 +121,9 @@ def test_validate_address(google_maps_tools):
     """Test the validate_address method."""
     with patch.object(google_maps_tools.client, "addressvalidation") as mock_validate:
         mock_validate.return_value = MOCK_ADDRESS_VALIDATION_RESPONSE
-        
+
         result = eval(google_maps_tools.validate_address("123 Test St"))
-        
+
         assert isinstance(result, dict)
         assert "result" in result
         assert "verdict" in result["result"]
@@ -135,9 +133,9 @@ def test_geocode_address(google_maps_tools):
     """Test the geocode_address method."""
     with patch.object(google_maps_tools.client, "geocode") as mock_geocode:
         mock_geocode.return_value = MOCK_GEOCODE_RESPONSE
-        
+
         result = eval(google_maps_tools.geocode_address("123 Test St"))
-        
+
         assert isinstance(result, list)
         assert result[0]["formatted_address"] == "123 Test St, Test City, ST 12345"
 
@@ -146,9 +144,9 @@ def test_reverse_geocode(google_maps_tools):
     """Test the reverse_geocode method."""
     with patch.object(google_maps_tools.client, "reverse_geocode") as mock_reverse:
         mock_reverse.return_value = MOCK_GEOCODE_RESPONSE
-        
+
         result = eval(google_maps_tools.reverse_geocode(40.7128, -74.0060))
-        
+
         assert isinstance(result, list)
         assert result[0]["formatted_address"] == "123 Test St, Test City, ST 12345"
 
@@ -157,12 +155,9 @@ def test_get_distance_matrix(google_maps_tools):
     """Test the get_distance_matrix method."""
     with patch.object(google_maps_tools.client, "distance_matrix") as mock_matrix:
         mock_matrix.return_value = MOCK_DISTANCE_MATRIX_RESPONSE
-        
-        result = eval(google_maps_tools.get_distance_matrix(
-            origins=["Origin"],
-            destinations=["Destination"]
-        ))
-        
+
+        result = eval(google_maps_tools.get_distance_matrix(origins=["Origin"], destinations=["Destination"]))
+
         assert isinstance(result, dict)
         assert "rows" in result
         assert result["rows"][0]["elements"][0]["distance"]["value"] == 5000
@@ -172,9 +167,9 @@ def test_get_elevation(google_maps_tools):
     """Test the get_elevation method."""
     with patch.object(google_maps_tools.client, "elevation") as mock_elevation:
         mock_elevation.return_value = MOCK_ELEVATION_RESPONSE
-        
+
         result = eval(google_maps_tools.get_elevation(40.7128, -74.0060))
-        
+
         assert isinstance(result, list)
         assert result[0]["elevation"] == 100.0
 
@@ -184,9 +179,9 @@ def test_get_timezone(google_maps_tools):
     with patch.object(google_maps_tools.client, "timezone") as mock_timezone:
         mock_timezone.return_value = MOCK_TIMEZONE_RESPONSE
         test_time = datetime(2024, 1, 1, 12, 0)
-        
+
         result = eval(google_maps_tools.get_timezone(40.7128, -74.0060, test_time))
-        
+
         assert isinstance(result, dict)
         assert result["timeZoneId"] == "America/New_York"
 
@@ -195,13 +190,13 @@ def test_error_handling(google_maps_tools):
     """Test error handling in various methods."""
     with patch.object(google_maps_tools.client, "places") as mock_places:
         mock_places.side_effect = Exception("API Error")
-        
+
         result = google_maps_tools.search_places("test query")
         assert result == "[]"
 
     with patch.object(google_maps_tools.client, "directions") as mock_directions:
         mock_directions.side_effect = Exception("API Error")
-        
+
         result = google_maps_tools.get_directions("origin", "destination")
         assert result == "[]"
 
@@ -224,9 +219,9 @@ def test_initialization_with_selective_tools():
             reverse_geocode=False,
             get_distance_matrix=False,
             get_elevation=False,
-            get_timezone=False
+            get_timezone=False,
         )
-        
+
         assert "search_places" in [func.name for func in tools.functions.values()]
         assert "get_directions" not in [func.name for func in tools.functions.values()]
         assert "geocode_address" in [func.name for func in tools.functions.values()]
@@ -238,9 +233,9 @@ def test_search_places_success(google_maps_tools):
         with patch.object(google_maps_tools.client, "place") as mock_place:
             mock_places.return_value = MOCK_PLACES_RESPONSE
             mock_place.return_value = MOCK_PLACE_DETAILS
-            
+
             result = json.loads(google_maps_tools.search_places("test query"))
-            
+
             assert len(result) == 1
             assert result[0]["name"] == "Test Business"
             assert result[0]["phone"] == "123-456-7890"
@@ -298,9 +293,9 @@ def test_search_places_invalid_details(google_maps_tools):
         with patch.object(google_maps_tools.client, "place") as mock_place:
             mock_places.return_value = MOCK_PLACES_RESPONSE
             mock_place.return_value = {"status": "NOT_FOUND"}  # Missing 'result' key
-            
+
             result = json.loads(google_maps_tools.search_places("test query"))
-            
+
             assert len(result) == 1
             assert result[0]["name"] == "Test Business"
             assert "phone" not in result[0]
@@ -313,10 +308,10 @@ def test_search_places_details_error(google_maps_tools):
         with patch.object(google_maps_tools.client, "place") as mock_place:
             mock_places.return_value = MOCK_PLACES_RESPONSE
             mock_place.side_effect = Exception("API Error")
-            
+
             result = json.loads(google_maps_tools.search_places("test query"))
-            
+
             assert len(result) == 1
             assert result[0]["name"] == "Test Business"
             assert "phone" not in result[0]
-            assert "website" not in result[0] 
+            assert "website" not in result[0]

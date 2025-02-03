@@ -11,8 +11,8 @@ Prerequisites:
 
 """
 
-from datetime import datetime
 import json
+from datetime import datetime
 from os import getenv
 from typing import List, Optional
 

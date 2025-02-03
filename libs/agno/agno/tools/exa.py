@@ -14,11 +14,14 @@ except ImportError:
 class ExaTools(Toolkit):
     def __init__(
         self,
+        search: bool = True,
+        get_contents: bool = True,
         text: bool = True,
         text_length_limit: int = 1000,
         highlights: bool = True,
         api_key: Optional[str] = None,
         num_results: Optional[int] = None,
+        livecrawl: str = "always",
         start_crawl_date: Optional[str] = None,
         end_crawl_date: Optional[str] = None,
         start_published_date: Optional[str] = None,
@@ -35,12 +38,14 @@ class ExaTools(Toolkit):
         if not self.api_key:
             logger.error("EXA_API_KEY not set. Please set the EXA_API_KEY environment variable.")
 
+        self.exa = Exa(self.api_key)
         self.show_results = show_results
 
         self.text: bool = text
         self.text_length_limit: int = text_length_limit
         self.highlights: bool = highlights
         self.num_results: Optional[int] = num_results
+        self.livecrawl: str = livecrawl
         self.start_crawl_date: Optional[str] = start_crawl_date
         self.end_crawl_date: Optional[str] = end_crawl_date
         self.start_published_date: Optional[str] = start_published_date
@@ -50,7 +55,10 @@ class ExaTools(Toolkit):
         self.include_domains: Optional[List[str]] = include_domains
         self.category: Optional[str] = category
 
-        self.register(self.search_exa)
+        if search:
+            self.register(self.search_exa)
+        if get_contents:
+            self.register(self.get_contents)
 
     def search_exa(self, query: str, num_results: int = 5) -> str:
         """Use this function to search Exa (a web search engine) for a query.
@@ -66,7 +74,6 @@ class ExaTools(Toolkit):
             return "Please set the EXA_API_KEY"
 
         try:
-            exa = Exa(self.api_key)
             logger.info(f"Searching exa for: {query}")
             search_kwargs: Dict[str, Any] = {
                 "text": self.text,
@@ -83,7 +90,7 @@ class ExaTools(Toolkit):
             }
             # Clean up the kwargs
             search_kwargs = {k: v for k, v in search_kwargs.items() if v is not None}
-            exa_results = exa.search_and_contents(query, **search_kwargs)
+            exa_results = self.exa.search_and_contents(query, **search_kwargs)
             exa_results_parsed = []
             for result in exa_results.results:
                 result_dict = {"url": result.url}
@@ -111,4 +118,54 @@ class ExaTools(Toolkit):
             return parsed_results
         except Exception as e:
             logger.error(f"Failed to search exa {e}")
+            return f"Error: {e}"
+
+    def get_contents(self, urls: List[str]) -> str:
+        """Use this function to fetch content for specific URLs using Exa.
+
+        Args:
+            urls (List[str]): List of URLs to fetch content from.
+
+        Returns:
+            str: The content results in JSON format.
+        """
+        if not self.api_key:
+            return "Please set the EXA_API_KEY"
+
+        try:
+            logger.info(f"Fetching content from URLs: {urls}")
+            content_kwargs: Dict[str, Any] = {
+                "text": self.text,
+                "livecrawl": self.livecrawl,
+            }
+
+            exa_results = self.exa.get_contents(urls, **content_kwargs)
+            content_results_parsed = []
+
+            for result in exa_results.results:
+                result_dict = {"id": result.url, "url": result.url}
+                if result.title:
+                    result_dict["title"] = result.title
+                if result.author:
+                    result_dict["author"] = result.author
+                if result.published_date:
+                    result_dict["publishedDate"] = result.published_date
+                if result.text:
+                    _text = result.text
+                    if self.text_length_limit:
+                        _text = _text[: self.text_length_limit]
+                    result_dict["text"] = _text
+                if result.image:
+                    result_dict["image"] = result.image
+                if result.favicon:
+                    result_dict["favicon"] = result.favicon
+                content_results_parsed.append(result_dict)
+
+            parsed_results = json.dumps(content_results_parsed, indent=4)
+            if self.show_results:
+                logger.info(parsed_results)
+            return parsed_results
+
+        except Exception as e:
+            logger.error(f"Failed to get contents from Exa {e}")
             return f"Error: {e}"

@@ -32,7 +32,7 @@ class MessageData:
     tool_ids: List[str] = field(default_factory=list)
 
 
-def format_image_for_message(image: Image) -> Optional[Dict[str, Any]]:
+def _format_image_for_message(image: Image) -> Optional[Dict[str, Any]]:
     """
     Add an image to a message by converting it to base64 encoded format.
     """
@@ -115,7 +115,7 @@ def _format_messages(messages: List[Message]) -> Tuple[List[Dict[str, str]], str
 
             if message.images is not None:
                 for image in message.images:
-                    image_content = format_image_for_message(image)
+                    image_content = _format_image_for_message(image)
                     if image_content:
                         content.append(image_content)
 
@@ -129,7 +129,9 @@ def _format_messages(messages: List[Message]) -> Tuple[List[Dict[str, str]], str
                 content.append(
                     ToolUseBlock(
                         id=tool_call["id"],
-                        input=json.loads(tool_call["function"]["arguments"]),
+                        input=json.loads(tool_call["function"]["arguments"])
+                        if "arguments" in tool_call["function"]
+                        else {},
                         name=tool_call["function"]["name"],
                         type="tool_use",
                     )

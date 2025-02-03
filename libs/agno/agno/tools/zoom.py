@@ -49,8 +49,8 @@ class ZoomTools(Toolkit):
 
     def get_access_token(self) -> str:
         """
-        Get a valid access token, refreshing if necessary.
-
+        Get a valid access token, refreshing if necessary using Zoom's Server-to-Server OAuth.
+        
         Returns:
             str: The current access token or empty string if token generation fails.
         """
@@ -60,13 +60,13 @@ class ZoomTools(Toolkit):
 
         # Generate new token
         try:
+            headers = {
+                "Content-Type": "application/x-www-form-urlencoded",
+            }
+            
             # Create base64 encoded auth string
             auth_string = b64encode(f"{self.client_id}:{self.client_secret}".encode()).decode()
-            
-            headers = {
-                "Authorization": f"Basic {auth_string}",
-                "Content-Type": "application/json",
-            }
+            headers["Authorization"] = f"Basic {auth_string}"
             
             data = {
                 "grant_type": "account_credentials",
@@ -76,7 +76,7 @@ class ZoomTools(Toolkit):
             response = requests.post(
                 "https://zoom.us/oauth/token",
                 headers=headers,
-                json=data
+                data=data 
             )
             response.raise_for_status()
             

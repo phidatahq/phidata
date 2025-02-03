@@ -52,7 +52,9 @@ agent = Agent(
 )
 
 # Example usage: Get your details
-agent.print_response("Can you return my x profile with my home timeline?", markdown=True)
+agent.print_response(
+    "Can you return my x profile with my home timeline?", markdown=True
+)
 
 # # Example usage: Get information about a user
 # agent.print_response(
@@ -74,5 +76,3 @@ agent.print_response("Can you return my x profile with my home timeline?", markd
 
 # # Example usage: Create a new post
 # agent.print_response("Create & post content about how 2025 is the year of the AI agent", markdown=True)
-
-

@@ -37,12 +37,16 @@ class ExaTools(Toolkit):
 
     def __init__(
         self,
+        search: bool = True,
+        get_contents: bool = True,
+        find_similar: bool = True,
         text: bool = True,
         text_length_limit: int = 1000,
         highlights: bool = True,
         summary: bool = False,
         api_key: Optional[str] = None,
         num_results: Optional[int] = None,
+        livecrawl: str = "always",
         start_crawl_date: Optional[str] = None,
         end_crawl_date: Optional[str] = None,
         start_published_date: Optional[str] = None,
@@ -60,6 +64,7 @@ class ExaTools(Toolkit):
         if not self.api_key:
             logger.error("EXA_API_KEY not set. Please set the EXA_API_KEY environment variable.")
 
+        self.exa = Exa(self.api_key)
         self.show_results = show_results
 
         self.text: bool = text
@@ -67,6 +72,7 @@ class ExaTools(Toolkit):
         self.highlights: bool = highlights
         self.summary: bool = summary
         self.num_results: Optional[int] = num_results
+        self.livecrawl: str = livecrawl
         self.start_crawl_date: Optional[str] = start_crawl_date
         self.end_crawl_date: Optional[str] = end_crawl_date
         self.start_published_date: Optional[str] = start_published_date
@@ -77,9 +83,13 @@ class ExaTools(Toolkit):
         self.include_domains: Optional[List[str]] = include_domains
         self.exclude_domains: Optional[List[str]] = exclude_domains
 
-        self.register(self.search_exa)
-        self.register(self.get_contents)
-        self.register(self.find_similar)
+
+        if search:
+            self.register(self.search_exa)
+        if get_contents:
+            self.register(self.get_contents)
+        if find_similar:
+            self.register(self.find_similar)
 
     def _parse_results(self, exa_results: SearchResponse) -> str:
         exa_results_parsed = []
@@ -119,11 +129,7 @@ class ExaTools(Toolkit):
         Returns:
             str: The search results in JSON format.
         """
-        if not self.api_key:
-            return "Please set the EXA_API_KEY"
-
         try:
-            exa = Exa(self.api_key)
             logger.info(f"Searching exa for: {query}")
             search_kwargs: Dict[str, Any] = {
                 "text": self.text,
@@ -142,7 +148,7 @@ class ExaTools(Toolkit):
             }
             # Clean up the kwargs
             search_kwargs = {k: v for k, v in search_kwargs.items() if v is not None}
-            exa_results = exa.search_and_contents(query, **search_kwargs)
+            exa_results = self.exa.search_and_contents(query, **search_kwargs)
 
             parsed_results = self._parse_results(exa_results)
             # Extract search results
@@ -163,8 +169,6 @@ class ExaTools(Toolkit):
         Returns:
             str: The search results in JSON format.
         """
-        if not self.api_key:
-            return "Please set the EXA_API_KEY"
 
         query_kwargs: Dict[str, Any] = {
             "text": self.text,
@@ -173,10 +177,9 @@ class ExaTools(Toolkit):
         }
 
         try:
-            exa = Exa(self.api_key)
             logger.info(f"Fetching contents for URLs: {urls}")
 
-            exa_results = exa.get_contents(urls=urls, **query_kwargs)
+            exa_results = self.exa.get_contents(urls=urls, **query_kwargs)
 
             parsed_results = self._parse_results(exa_results)
             if self.show_results:
@@ -198,8 +201,6 @@ class ExaTools(Toolkit):
         Returns:
             str: The search results in JSON format.
         """
-        if not self.api_key:
-            return "Please set the EXA_API_KEY"
 
         query_kwargs: Dict[str, Any] = {
             "text": self.text,
@@ -215,10 +216,9 @@ class ExaTools(Toolkit):
         }
 
         try:
-            exa = Exa(self.api_key)
             logger.info(f"Finding similar links to: {url}")
 
-            exa_results = exa.find_similar_and_contents(url=url, **query_kwargs)
+            exa_results = self.exa.find_similar_and_contents(url=url, **query_kwargs)
 
             parsed_results = self._parse_results(exa_results)
             if self.show_results:

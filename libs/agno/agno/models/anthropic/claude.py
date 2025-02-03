@@ -466,7 +466,7 @@ class Claude(Model):
                     function_call_response.event == ModelResponseEvent.tool_call_completed.value
                     and function_call_response.tool_calls is not None
                 ):
-                    model_response.tool_calls.extend(function_call_response.tool_calls)
+                    model_response.tool_calls.extend(function_call_response.tool_calls)  # type: ignore  # model_response.tool_calls are initialized before calling this method
 
             self.format_function_call_results(function_call_results, tool_ids, messages)
 

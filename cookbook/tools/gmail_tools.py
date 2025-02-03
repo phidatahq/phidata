@@ -12,7 +12,7 @@ agent = Agent(
     tools=[GmailTools()],
     description="You are an expert Gmail Agent that can read, draft and send emails using the Gmail.",
     instructions=[
-        "Based on user query, you can read, draft and send emails using the Gmail.",
+        "Based on user query, you can read, draft and send emails using Gmail.",
         "While showing email contents, you can summarize the email contents, extract key details and dates.",
         "Show the email contents in a structured markdown format.",
     ],

@@ -11,11 +11,11 @@ Prerequisites:
 -------------
 1. Create a Server-to-Server OAuth app in Zoom Marketplace:
    - Visit https://marketplace.zoom.us/
-   - Create new app -> Server-to-Server OAuth
+   - Create a new app. Go to Develop -> Build App -> Server-to-Server OAuth.
    - Add required scopes:
-     * /meeting:write:meeting:admin
-     * /meeting:read:meeting:admin
-     * /recording:read:admin
+     * meeting:write:admin
+     * meeting:read:admin
+     * cloud_recording:read:admin
    - Copy Account ID, Client ID, and Client Secret
 
 2. Set environment variables:

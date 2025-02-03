@@ -531,7 +531,7 @@ class Claude(Model):
         metrics_for_run.log()
 
         # -*- Handle tool calls
-        if (self.handle_tool_calls(assistant_message, messages, model_response, tool_ids) is not None):
+        if self.handle_tool_calls(assistant_message, messages, model_response, tool_ids) is not None:
             response_after_tool_calls = self.response(messages=messages)
             if response_after_tool_calls.content is not None:
                 if model_response.content is None:
@@ -731,7 +731,7 @@ class Claude(Model):
         metrics_for_run.log()
 
         # -*- Handle tool calls
-        if (await self.ahandle_tool_calls(assistant_message, messages, model_response, tool_ids) is not None):
+        if await self.ahandle_tool_calls(assistant_message, messages, model_response, tool_ids) is not None:
             response_after_tool_calls = await self.aresponse(messages=messages)
             if response_after_tool_calls.content is not None:
                 if model_response.content is None:
@@ -820,9 +820,7 @@ class Claude(Model):
 
         if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
             async for tool_call_response in self.ahandle_stream_tool_calls(
-                assistant_message=assistant_message,
-                messages=messages,
-                tool_ids=message_data.tool_ids
+                assistant_message=assistant_message, messages=messages, tool_ids=message_data.tool_ids
             ):
                 yield tool_call_response
             async for post_tool_call_response in self.aresponse_stream(messages=messages):
@@ -861,8 +859,7 @@ class Claude(Model):
                     yield ModelResponse(content="\n\n")
 
             async for intermediate_model_response in self.arun_function_calls(
-                function_calls=function_calls_to_run,
-                function_call_results=function_call_results
+                function_calls=function_calls_to_run, function_call_results=function_call_results
             ):
                 yield intermediate_model_response
 

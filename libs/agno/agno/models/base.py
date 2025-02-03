@@ -234,9 +234,9 @@ class Model(ABC):
                     messages.append(Message(role=error_response_role, content="Could not find function to call."))
                     continue
                 if _function_call.error is not None:
-                    messages.append(Message(role=error_response_role, 
-                        tool_call_id=_tool_call_id,
-                        content=_function_call.error))
+                    messages.append(
+                        Message(role=error_response_role, tool_call_id=_tool_call_id, content=_function_call.error)
+                    )
                     continue
                 function_calls_to_run.append(_function_call)
         return function_calls_to_run

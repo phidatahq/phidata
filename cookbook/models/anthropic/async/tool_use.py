@@ -3,6 +3,7 @@ Async example using Claude with tool calls.
 """
 
 import asyncio
+
 from agno.agent.agent import Agent
 from agno.models.anthropic import Claude
 from agno.tools.duckduckgo import DuckDuckGoTools
@@ -14,4 +15,4 @@ agent = Agent(
     markdown=True,
 )
 
-asyncio.run(agent.aprint_response("Whats happening in France?", stream=True)) 
+asyncio.run(agent.aprint_response("Whats happening in France?", stream=True))

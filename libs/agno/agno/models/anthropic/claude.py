@@ -51,7 +51,7 @@ def _format_image_for_message(image: Image) -> Optional[Dict[str, Any]]:
         elif image.filepath is not None:
             from pathlib import Path
 
-            path = Path(image.filepath)
+            path = Path(image.filepath) if isinstance(image.filepath, str) else image.filepath
             if path.exists() and path.is_file():
                 with open(image.filepath, "rb") as f:
                     content_bytes = f.read()

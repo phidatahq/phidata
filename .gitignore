@@ -15,6 +15,7 @@
 # Machine specific
 .idea
 .vscode
+*.code-workspace
 
 # Ignore .env files
 .env
@@ -35,9 +36,11 @@ dist
 
 # ignore virtualenvs
 .venv*
+.perfenv*
 venv*
-phienv*
+agnoenv*
 aienv*
+phienv*
 
 # ignore tmp dirs
 scratch
@@ -51,3 +54,6 @@ data.db
 audio_generations
 
 *.db
+
+# Google OAuth token
+token.json

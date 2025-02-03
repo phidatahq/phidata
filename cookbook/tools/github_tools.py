@@ -1,9 +1,9 @@
-from phi.agent import Agent
-from phi.tools.github import GithubTools
+from agno.agent import Agent
+from agno.tools.github import GithubTools
 
 agent = Agent(
     instructions=[
-        "Use your tools to answer questions about the repo: phidatahq/phidata",
+        "Use your tools to answer questions about the repo: agno-agi/agno",
         "Do not create any issues or pull requests unless explicitly asked to do so",
     ],
     tools=[GithubTools()],
@@ -20,8 +20,4 @@ agent.print_response("List open pull requests", markdown=True)
 # # Example usage: Create an issue
 # agent.print_response("Explain the comments for the most recent issue", markdown=True)
 # # Example usage: Create a Repo
-# agent.print_response("Create a repo called phi-test and add description hello and set it to private", markdown=True)
-# # Example usage: List Branches
-# agent.print_response("List branches of phidatahq/phidata", markdown=True)
-# # Example usage: Delete a repo
-# agent.print_response("Delete the repo called owner/repo-name", markdown=True)
+# agent.print_response("Create a repo called agno-test and add description hello", markdown=True)

@@ -270,7 +270,7 @@ class ZoomTools(Toolkit):
 
             result = {
                 "message": "Meeting recordings retrieved successfully",
-                "meeting_id": recordings.get("id", ""),
+                "meeting_id": str(recordings.get("id", "")),
                 "uuid": recordings.get("uuid", ""),
                 "host_id": recordings.get("host_id", ""),
                 "topic": recordings.get("topic", ""),
@@ -353,7 +353,7 @@ class ZoomTools(Toolkit):
 
             result = {
                 "message": "Meeting details retrieved successfully",
-                "meeting_id": meeting_info.get("id", ""),
+                "meeting_id": str(meeting_info.get("id", "")),
                 "topic": meeting_info.get("topic", ""),
                 "type": meeting_info.get("type", ""),
                 "start_time": meeting_info.get("start_time", ""),

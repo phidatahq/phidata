@@ -2,6 +2,15 @@
 Business Contact Search Agent for finding and extracting business contact information.
 This example demonstrates various Google Maps API functionalities including business search,
 directions, geocoding, address validation, and more.
+
+Prerequisites:
+- Set the environment variable `GOOGLE_MAPS_API_KEY` with your Google Maps API key.
+  You can obtain the API key from the Google Cloud Console:
+  https://console.cloud.google.com/projectselector2/google/maps-apis/credentials
+
+- You also need to activate the Address Validation API for your .
+  https://console.developers.google.com/apis/api/addressvalidation.googleapis.com
+  
 """
 
 from agno.agent import Agent

@@ -3,3 +3,4 @@ openai>=0.27.0
 pydantic>=2.10.6
 typing-extensions>=4.12.2
 python-dotenv>=1.0.0 
+exa_py>=0.1.1

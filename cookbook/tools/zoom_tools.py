@@ -13,7 +13,7 @@ Prerequisites:
    - Visit https://marketplace.zoom.us/
    - Create new app -> Server-to-Server OAuth
    - Add required scopes:
-     * /meeting:write:admin
+     * /meeting:write:meeting:admin
      * /meeting:read:admin
      * /recording:read:admin
    - Copy Account ID, Client ID, and Client Secret

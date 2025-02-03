@@ -81,10 +81,10 @@ class ZoomTools(Toolkit):
             token_data = response.json()
             self.__access_token = token_data["access_token"]
             # Set expiry time slightly before actual expiry to ensure token validity
-            self.__token_expiry = datetime.now() + timedelta(seconds=token_data["expires_in"] - 60)
+            self.__token_expiry = datetime.now() + timedelta(seconds=token_data["expires_in"] - 60)  # type: ignore
 
             logger.debug("Successfully generated new Zoom access token")
-            return self.__access_token
+            return self.__access_token  # type: ignore
 
         except requests.RequestException as e:
             logger.error(f"Failed to generate Zoom access token: {e}")

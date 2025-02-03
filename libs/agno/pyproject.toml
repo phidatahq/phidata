@@ -203,6 +203,8 @@ module = [
   "github.*",
   "google.*",
   "googlemaps.*",
+  "google_auth_oauthlib.*",
+  "googleapiclient.*",
   "googlesearch.*",
   "groq.*",
   "huggingface_hub.*",

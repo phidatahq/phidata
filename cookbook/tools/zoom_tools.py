@@ -51,9 +51,7 @@ CLIENT_SECRET = os.getenv("ZOOM_CLIENT_SECRET")
 
 # Initialize Zoom tools with credentials
 zoom_tools = ZoomTools(
-    account_id=ACCOUNT_ID,
-    client_id=CLIENT_ID,
-    client_secret=CLIENT_SECRET
+    account_id=ACCOUNT_ID, client_id=CLIENT_ID, client_secret=CLIENT_SECRET
 )
 
 # Create an agent with Zoom capabilities

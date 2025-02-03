@@ -1,8 +1,8 @@
 import json
-from typing import Optional
-from os import getenv
 from base64 import b64encode
 from datetime import datetime, timedelta
+from os import getenv
+from typing import Optional
 
 import requests
 
@@ -28,16 +28,18 @@ class ZoomTools(Toolkit):
             name (str): The name of the tool. Defaults to "zoom_tool".
         """
         super().__init__(name)
-        
+
         # Get credentials from env vars if not provided
         self.account_id = account_id or getenv("ZOOM_ACCOUNT_ID")
-        self.client_id = client_id or getenv("ZOOM_CLIENT_ID") 
+        self.client_id = client_id or getenv("ZOOM_CLIENT_ID")
         self.client_secret = client_secret or getenv("ZOOM_CLIENT_SECRET")
         self.__access_token = None  # Made private
         self.__token_expiry = None  # Track token expiration
 
         if not self.account_id or not self.client_id or not self.client_secret:
-            logger.error("ZOOM_ACCOUNT_ID, ZOOM_CLIENT_ID, and ZOOM_CLIENT_SECRET must be set either through parameters or environment variables.")
+            logger.error(
+                "ZOOM_ACCOUNT_ID, ZOOM_CLIENT_ID, and ZOOM_CLIENT_SECRET must be set either through parameters or environment variables."
+            )
 
         # Register functions
         self.register(self.schedule_meeting)
@@ -50,7 +52,7 @@ class ZoomTools(Toolkit):
     def get_access_token(self) -> str:
         """
         Get a valid access token, refreshing if necessary using Zoom's Server-to-Server OAuth.
-        
+
         Returns:
             str: The current access token or empty string if token generation fails.
         """
@@ -63,31 +65,27 @@ class ZoomTools(Toolkit):
             headers = {
                 "Content-Type": "application/x-www-form-urlencoded",
             }
-            
+
             # Create base64 encoded auth string
             auth_string = b64encode(f"{self.client_id}:{self.client_secret}".encode()).decode()
             headers["Authorization"] = f"Basic {auth_string}"
-            
+
             data = {
                 "grant_type": "account_credentials",
                 "account_id": self.account_id,
             }
-            
-            response = requests.post(
-                "https://zoom.us/oauth/token",
-                headers=headers,
-                data=data 
-            )
+
+            response = requests.post("https://zoom.us/oauth/token", headers=headers, data=data)
             response.raise_for_status()
-            
+
             token_data = response.json()
             self.__access_token = token_data["access_token"]
             # Set expiry time slightly before actual expiry to ensure token validity
             self.__token_expiry = datetime.now() + timedelta(seconds=token_data["expires_in"] - 60)
-            
+
             logger.debug("Successfully generated new Zoom access token")
             return self.__access_token
-            
+
         except requests.RequestException as e:
             logger.error(f"Failed to generate Zoom access token: {e}")
             self.__access_token = None

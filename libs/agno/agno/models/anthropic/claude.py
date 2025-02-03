@@ -674,7 +674,7 @@ class Claude(Model):
         Returns:
             AnthropicMessage: The response from the model.
         """
-        chat_messages, system_message = self.format_messages(messages)
+        chat_messages, system_message = _format_messages(messages)
         request_kwargs = self.prepare_request_kwargs(system_message)
 
         return await self.get_async_client().messages.create(
@@ -693,7 +693,7 @@ class Claude(Model):
         Returns:
             Any: The streamed response from the model.
         """
-        chat_messages, system_message = self.format_messages(messages)
+        chat_messages, system_message = _format_messages(messages)
         request_kwargs = self.prepare_request_kwargs(system_message)
 
         return self.get_async_client().messages.stream(

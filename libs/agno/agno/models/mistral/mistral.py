@@ -280,15 +280,14 @@ class MistralChat(Model):
             ChatCompletionResponse: The response from the model.
         """
         mistral_messages = _format_messages(messages)
-        async with self.get_client() as client:
-            response = await client.chat.complete_async(
+        response = await self.get_client().chat.complete_async(
                 model=self.id,
                 messages=mistral_messages,
                 **self.request_kwargs,
             )
-            if response is None:
-                raise ValueError("Chat completion returned None")
-            return response
+        if response is None:
+            raise ValueError("Chat completion returned None")
+        return response
 
     async def ainvoke_stream(self, messages: List[Message]) -> Any:
         """
@@ -301,8 +300,7 @@ class MistralChat(Model):
             Any: The streamed response.
         """
         mistral_messages = _format_messages(messages)
-        async with self.get_client() as client:
-            stream = await client.chat.stream_async(
+        stream = await self.get_client().chat.stream_async(
             model=self.id,
             messages=mistral_messages,
             **self.request_kwargs,
@@ -374,7 +372,17 @@ class MistralChat(Model):
         )
 
         if isinstance(response_message.tool_calls, list) and len(response_message.tool_calls) > 0:
-            assistant_message.tool_calls = [t.model_dump() for t in response_message.tool_calls]
+            for tool_call in response_message.tool_calls:
+                if not assistant_message.tool_calls:
+                    assistant_message.tool_calls = []
+                assistant_message.tool_calls.append({
+                    "id": tool_call.id,
+                    "type": "function",
+                    "function": {
+                        "name": tool_call.function.name,
+                        "arguments": tool_call.function.arguments,
+                    },
+                })
 
         # -*- Update usage metrics
         self._update_usage_metrics(assistant_message, response.usage, metrics)
@@ -432,9 +440,6 @@ class MistralChat(Model):
         # -*- Add assistant message to messages
         messages.append(assistant_message)
         assistant_message.log()
-
-        # -*- Parse and run tool calls
-        # logger.debug(f"Functions: {self._functions}")
 
         # -*- Handle tool calls
         if self._handle_tool_calls(assistant_message, messages, model_response):
@@ -514,8 +519,20 @@ class MistralChat(Model):
             assistant_message.content = message_data.response_content
 
         # -*- Add tool calls to assistant message
+
         if message_data.response_tool_calls is not None:
-            assistant_message.tool_calls = [t.model_dump() for t in message_data.response_tool_calls]
+            for tool_call in message_data.response_tool_calls:
+                if not assistant_message.tool_calls:
+                    assistant_message.tool_calls = []
+                assistant_message.tool_calls.append({
+                    "id": tool_call.id,
+                    "type": "function",
+                    "function": {
+                        "name": tool_call.function.name,
+                        "arguments": tool_call.function.arguments,
+                    },
+                })
+
 
         # -*- Update usage metrics
         self._update_usage_metrics(assistant_message, message_data.response_usage, metrics_for_run)
@@ -529,47 +546,69 @@ class MistralChat(Model):
 
         # -*- Parse and run tool calls
         if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
-            tool_role: str = "tool"
-            function_calls_to_run: List[FunctionCall] = []
-            function_call_results: List[Message] = []
+            yield from self.handle_stream_tool_calls(assistant_message, messages)
+            yield from self.response_stream(messages=messages)
+        logger.debug("---------- Mistral Response End ----------")
 
-            for tool_call in assistant_message.tool_calls:
-                _tool_call_id = tool_call.get("id")
-                tool_call["type"] = "function"
-                _function_call = get_function_call_for_tool_call(tool_call, self._functions)
-                if _function_call is None:
-                    messages.append(
-                        Message(role="tool", tool_call_id=_tool_call_id, content="Could not find function to call.")
-                    )
-                    continue
-                if _function_call.error is not None:
-                    messages.append(
-                        Message(
-                            role="tool", tool_call_id=_tool_call_id, tool_call_error=True, content=_function_call.error
-                        )
-                    )
-                    continue
-                function_calls_to_run.append(_function_call)
+    def handle_stream_tool_calls(self, assistant_message: Message, messages: List[Message]) -> Iterator[ModelResponse]:
+        """
+        Handle tool calls in the assistant message.
+
+        Args:
+            assistant_message (Message): The assistant message.
+            messages (List[Message]): The messages to send to the model.
+        """
+        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
+            yield ModelResponse(content="\n\n")
+            function_calls_to_run = self._get_function_calls_to_run(assistant_message, messages)
+            function_call_results: List[Message] = []
 
             if self.show_tool_calls:
                 if len(function_calls_to_run) == 1:
-                    yield ModelResponse(content=f"\n - Running: {function_calls_to_run[0].get_call_str()}\n\n")
+                    yield ModelResponse(content=f" - Running: {function_calls_to_run[0].get_call_str()}\n\n")
                 elif len(function_calls_to_run) > 1:
-                    yield ModelResponse(content="\nRunning:")
+                    yield ModelResponse(content="Running:")
                     for _f in function_calls_to_run:
                         yield ModelResponse(content=f"\n - {_f.get_call_str()}")
                     yield ModelResponse(content="\n\n")
 
             for intermediate_model_response in self.run_function_calls(
-                function_calls=function_calls_to_run, function_call_results=function_call_results, tool_role=tool_role
+                function_calls=function_calls_to_run, function_call_results=function_call_results
             ):
                 yield intermediate_model_response
-
+            
             if len(function_call_results) > 0:
                 messages.extend(function_call_results)
+    
+    async def ahandle_stream_tool_calls(self, assistant_message: Message, messages: List[Message]) -> Iterator[ModelResponse]:
+        """
+        Handle tool calls in the assistant message asynchronously.
 
-            yield from self.response_stream(messages=messages)
-        logger.debug("---------- Mistral Response End ----------")
+        Args:
+            assistant_message (Message): The assistant message.
+            messages (List[Message]): The messages to send to the model.
+        """
+        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
+            yield ModelResponse(content="\n\n")
+            function_calls_to_run = self._get_function_calls_to_run(assistant_message, messages)
+            function_call_results: List[Message] = []
+
+            if self.show_tool_calls:
+                if len(function_calls_to_run) == 1:
+                    yield ModelResponse(content=f" - Running: {function_calls_to_run[0].get_call_str()}\n\n")
+                elif len(function_calls_to_run) > 1:
+                    yield ModelResponse(content="Running:")
+                    for _f in function_calls_to_run:
+                        yield ModelResponse(content=f"\n - {_f.get_call_str()}")
+                    yield ModelResponse(content="\n\n")
+
+            async for intermediate_model_response in self.arun_function_calls(
+                function_calls=function_calls_to_run, function_call_results=function_call_results
+            ):
+                yield intermediate_model_response
+            
+            if len(function_call_results) > 0:
+                messages.extend(function_call_results)
 
     async def aresponse(self, messages: List[Message]) -> ModelResponse:
         """
@@ -722,7 +761,17 @@ class MistralChat(Model):
 
         # -*- Add tool calls to assistant message
         if message_data.response_tool_calls is not None:
-            assistant_message.tool_calls = [t.model_dump() for t in message_data.response_tool_calls]
+            for tool_call in message_data.response_tool_calls:
+                if not assistant_message.tool_calls:
+                    assistant_message.tool_calls = []
+                assistant_message.tool_calls.append({
+                    "id": tool_call.id,
+                    "type": "function",
+                    "function": {
+                        "name": tool_call.function.name,
+                        "arguments": tool_call.function.arguments,
+                    },
+                })
 
         # -*- Update usage metrics
         self._update_usage_metrics(assistant_message, message_data.response_usage, metrics)
@@ -736,45 +785,12 @@ class MistralChat(Model):
 
         # -*- Parse and run tool calls
         if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
-            tool_role: str = "tool"
-            function_calls_to_run: List[FunctionCall] = []
-            function_call_results: List[Message] = []
-
-            for tool_call in assistant_message.tool_calls:
-                _tool_call_id = tool_call.get("id")
-                tool_call["type"] = "function"
-                _function_call = get_function_call_for_tool_call(tool_call, self._functions)
-                if _function_call is None:
-                    messages.append(
-                        Message(role="tool", tool_call_id=_tool_call_id, content="Could not find function to call.")
-                    )
-                    continue
-                if _function_call.error is not None:
-                    messages.append(
-                        Message(
-                            role="tool", tool_call_id=_tool_call_id, tool_call_error=True, content=_function_call.error
-                        )
-                    )
-                    continue
-                function_calls_to_run.append(_function_call)
-
-            if self.show_tool_calls:
-                if len(function_calls_to_run) == 1:
-                    yield ModelResponse(content=f"\n - Running: {function_calls_to_run[0].get_call_str()}\n\n")
-                elif len(function_calls_to_run) > 1:
-                    yield ModelResponse(content="\nRunning:")
-                    for _f in function_calls_to_run:
-                        yield ModelResponse(content=f"\n - {_f.get_call_str()}")
-                    yield ModelResponse(content="\n\n")
-
-            async for intermediate_model_response in self.arun_function_calls(
-                function_calls=function_calls_to_run, function_call_results=function_call_results, tool_role=tool_role
+            async for tool_call_response in self.ahandle_stream_tool_calls(
+                assistant_message=assistant_message, messages=messages
             ):
-                yield intermediate_model_response
-
-            if len(function_call_results) > 0:
-                messages.extend(function_call_results)
-
+                yield tool_call_response
+                
             async for response in self.aresponse_stream(messages=messages):
                 yield response
+        
         logger.debug("---------- Mistral Async Response End ----------")

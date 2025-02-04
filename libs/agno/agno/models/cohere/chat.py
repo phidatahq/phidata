@@ -1,7 +1,7 @@
 import json
 from dataclasses import dataclass
 from os import getenv
-from typing import Any, Dict, Iterator, List, Optional, Tuple
+from typing import Any, AsyncIterator, Dict, Iterator, List, Optional, Tuple
 
 from agno.models.base import Model, StreamData
 from agno.models.message import Message
@@ -12,7 +12,7 @@ from agno.utils.timer import Timer
 from agno.utils.tools import get_function_call_for_tool_call
 
 try:
-    from cohere import Client as CohereClient
+    from cohere import Client as CohereClient, AsyncClient as CohereAsyncClient
     from cohere.types.api_meta import ApiMeta
     from cohere.types.api_meta_tokens import ApiMetaTokens
     from cohere.types.non_streamed_chat_response import NonStreamedChatResponse
@@ -55,6 +55,7 @@ class Cohere(Model):
     client_params: Optional[Dict[str, Any]] = None
     # -*- Provide the Cohere client manually
     client: Optional[CohereClient] = None
+    async_client: Optional[CohereAsyncClient] = None
 
     def get_client(self) -> CohereClient:
         if self.client:
@@ -64,13 +65,28 @@ class Cohere(Model):
 
         self.api_key = self.api_key or getenv("CO_API_KEY")
         if not self.api_key:
-            logger.error("CO_API_KEY not set. Please set the CO_API_KEY environment variable.")
+            raise ValueError("CO_API_KEY not set. Please set the CO_API_KEY environment variable.")
 
-        if self.api_key:
-            _client_params["api_key"] = self.api_key
+        _client_params["api_key"] = self.api_key
 
         self.client = CohereClient(**_client_params)
         return self.client
+    
+    def get_async_client(self) -> CohereAsyncClient:
+        if self.async_client:
+            return self.async_client
+
+        _client_params: Dict[str, Any] = {}
+        
+        self.api_key = self.api_key or getenv("CO_API_KEY")
+        
+        if not self.api_key:
+            raise ValueError("CO_API_KEY not set. Please set the CO_API_KEY environment variable.")
+
+        _client_params["api_key"] = self.api_key
+
+        self.async_client = CohereAsyncClient(**_client_params)
+        return self.async_client
 
     @property
     def request_kwargs(self) -> Dict[str, Any]:
@@ -598,14 +614,174 @@ class Cohere(Model):
             yield from self.response_stream(messages=messages, tool_results=tool_results)
         logger.debug("---------- Cohere Response End ----------")
 
-    async def ainvoke(self, *args, **kwargs) -> Any:
-        raise NotImplementedError(f"Async not supported on {self.name}.")
+    async def ainvoke(
+        self, messages: List[Message], tool_results: Optional[List[ToolResult]] = None
+    ) -> NonStreamedChatResponse:
+        """
+        Asynchronously invoke a non-streamed chat response from the Cohere API.
 
-    async def ainvoke_stream(self, *args, **kwargs) -> Any:
-        raise NotImplementedError(f"Async not supported on {self.name}.")
+        Args:
+            messages (List[Message]): The list of messages.
+            tool_results (Optional[List[ToolResult]]): The list of tool results.
 
-    async def aresponse(self, messages: List[Message]) -> ModelResponse:
-        raise NotImplementedError(f"Async not supported on {self.name}.")
+        Returns:
+            NonStreamedChatResponse: The non-streamed chat response.
+        """
+        chat_message, api_kwargs = self._prepare_for_invoke(messages, tool_results)
+        return await self.get_async_client().chat(model=self.id, message=chat_message, **api_kwargs)
 
-    async def aresponse_stream(self, messages: List[Message]) -> ModelResponse:
-        raise NotImplementedError(f"Async not supported on {self.name}.")
+    async def ainvoke_stream(
+        self, messages: List[Message], tool_results: Optional[List[ToolResult]] = None
+    ) -> AsyncIterator[StreamedChatResponse]:
+        """
+        Asynchronously invoke a streamed chat response from the Cohere API.
+
+        Args:
+            messages (List[Message]): The list of messages.
+            tool_results (Optional[List[ToolResult]]): The list of tool results.
+
+        Returns:
+            AsyncIterator[StreamedChatResponse]: An async iterator of streamed chat responses.
+        """
+        chat_message, api_kwargs = self._prepare_for_invoke(messages, tool_results)
+        async for response in self.get_async_client().chat_stream(model=self.id, message=chat_message, **api_kwargs):
+            yield response
+
+    async def aresponse(self, messages: List[Message], tool_results: Optional[List[ToolResult]] = None) -> ModelResponse:
+        """
+        Asynchronously send a chat completion request to the Cohere API.
+
+        Args:
+            messages (List[Message]): A list of message objects representing the conversation.
+
+        Returns:
+            ModelResponse: The model response from the API.
+        """
+        logger.debug("---------- Cohere Response Start ----------")
+        self._log_messages(messages)
+        model_response = ModelResponse()
+
+        response_timer = Timer()
+        response_timer.start()
+        logger.debug(f"Tool Results: {tool_results}")
+        
+        try:
+            response = await self.ainvoke(messages=messages, tool_results=tool_results)
+        finally:
+            response_timer.stop()
+            logger.debug(f"Time to generate response: {response_timer.elapsed:.4f}s")
+
+        assistant_message = self._create_assistant_message(response)
+
+        response_tool_calls = response.tool_calls
+        if response_tool_calls:
+            tool_calls = [
+                {
+                    "type": "function",
+                    "function": {
+                        "name": tools.name,
+                        "arguments": json.dumps(tools.parameters),
+                    },
+                }
+                for tools in response_tool_calls
+            ]
+            assistant_message.tool_calls = tool_calls
+
+        if assistant_message.tool_calls:
+            tool_results = self._handle_tool_calls(
+                assistant_message=assistant_message,
+                messages=messages,
+                response_tool_calls=response_tool_calls,
+                model_response=model_response,
+            )
+
+            if tool_results:
+                messages.append(Message(role="user", content=""))
+
+            response_after_tool_calls = await self.aresponse(messages=messages, tool_results=tool_results)
+            if response_after_tool_calls.content:
+                if model_response.content is None:
+                    model_response.content = ""
+                model_response.content += response_after_tool_calls.content
+            return model_response
+
+        if assistant_message.content:
+            model_response.content = assistant_message.get_content_string()
+
+        logger.debug("---------- Cohere Response End ----------")
+        return model_response
+
+    async def aresponse_stream(
+        self, messages: List[Message], tool_results: Optional[List[ToolResult]] = None
+    ) -> AsyncIterator[ModelResponse]:
+        """
+        Asynchronously stream chat completion responses from the Cohere API.
+
+        Args:
+            messages (List[Message]): A list of message objects representing the conversation.
+            tool_results (Optional[List[ToolResult]]): The list of tool results.
+
+        Yields:
+            ModelResponse: Streamed model responses.
+        """
+        logger.debug("---------- Cohere Response Start ----------")
+        self._log_messages(messages)
+
+        stream_data = StreamData()
+        stream_data.response_timer.start()
+
+        stream_data.response_content = ""
+        tool_calls: List[Dict[str, Any]] = []
+        stream_data.response_tool_calls = []
+        last_delta: Optional[NonStreamedChatResponse] = None
+
+        try:
+            async for response in self.ainvoke_stream(messages=messages, tool_results=tool_results):
+                if isinstance(response, StreamStartStreamedChatResponse):
+                    continue
+
+                elif isinstance(response, TextGenerationStreamedChatResponse):
+                    if response.text is not None:
+                        stream_data.response_content += response.text
+                        # Only yield the new text chunk, not the accumulated content
+                        yield ModelResponse(content=response.text)
+
+                elif isinstance(response, ToolCallsChunkStreamedChatResponse):
+                    if response.tool_calls:
+                        stream_data.response_tool_calls.extend(response.tool_calls)
+                        tool_calls.extend([
+                            {
+                                "type": "function",
+                                "function": {
+                                    "name": tool.name,
+                                    "arguments": json.dumps(tool.parameters),
+                                },
+                            }
+                            for tool in response.tool_calls
+                        ])
+                        yield ModelResponse(tool_calls=tool_calls)
+
+                elif isinstance(response, StreamEndStreamedChatResponse):
+                    last_delta = response.response  # Get the full response object
+
+        finally:
+            stream_data.response_timer.stop()
+            logger.debug(f"Time to generate response: {stream_data.response_timer.elapsed:.4f}s")
+
+        # Check tool_calls from the final response if available
+        if last_delta and hasattr(last_delta, 'tool_calls') and last_delta.tool_calls:
+            assistant_message = Message(role="assistant", tool_calls=tool_calls)
+            tool_results = self._handle_tool_calls(
+                assistant_message=assistant_message,
+                messages=messages,
+                response_tool_calls=last_delta.tool_calls,
+                model_response=ModelResponse(),
+            )
+
+            if tool_results:
+                messages.append(Message(role="user", content=""))
+                async for response in self.aresponse_stream(messages=messages, tool_results=tool_results):
+                    if response.content:
+                        yield response
+
+        logger.debug("---------- Cohere Response End ----------")

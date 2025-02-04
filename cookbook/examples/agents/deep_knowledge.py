@@ -41,7 +41,7 @@ def initialize_knowledge_base():
         ),
     )
     # Load the knowledge base (comment out after first run)
-    agent_knowledge.load()
+    # agent_knowledge.load()
     return agent_knowledge
 
 
@@ -120,6 +120,7 @@ def get_example_topics() -> List[str]:
     return [
         "What are AI agents and how do they work in Agno?",
         "What chunking strategies does Agno support for text processing?",
+        "How can I implement custom tools in Agno?",
         "How does knowledge retrieval work in Agno?",
         "What types of embeddings does Agno support?",
     ]

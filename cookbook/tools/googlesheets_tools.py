@@ -11,9 +11,6 @@ google_sheets_tools = GoogleSheetsTools(
     scopes=SCOPES,
 )
 
-# Authenticate the Google Sheets API
-google_sheets_tools.auth()
-
 agent = Agent(
     tools=[google_sheets_tools],
     instructions=[

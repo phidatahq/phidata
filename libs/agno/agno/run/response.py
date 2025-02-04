@@ -72,7 +72,9 @@ class RunResponse:
     created_at: int = field(default_factory=lambda: int(time()))
 
     def to_dict(self) -> Dict[str, Any]:
-        self.metrics = dict(self.metrics)
+        if self.metrics is not None:
+            self.metrics = dict(self.metrics)
+
         _dict = {k: v for k, v in asdict(self).items() if v is not None and k != "messages"}
         if self.messages is not None:
             _dict["messages"] = [m.to_dict() for m in self.messages]

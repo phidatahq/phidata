@@ -135,13 +135,25 @@ def get_sync_playground_router(
         else:
             new_agent_instance.monitoring = False
 
-        base64_image: Optional[Image] = None
+        base64_images: List[Image] = []
         if image:
-            base64_image = process_image(image)
+            try:
+                base64_image = process_image(image)
+                base64_images.append(base64_image)
+            except Exception as e:
+                logger.error(f"Error processing image: {e}")
+                raise HTTPException(status_code=400, detail="Error processing image")
 
         if files:
             for file in files:
-                if file.content_type == "application/pdf":
+                if file.content_type in ["image/png", "image/jpeg", "image/jpg", "image/webp"]:
+                    try:
+                        base64_image = process_image(file)
+                        base64_images.append(base64_image)
+                    except Exception as e:
+                        logger.error(f"Error processing image {file.filename}: {e}")
+                        continue
+                elif file.content_type == "application/pdf":
                     from agno.document.reader.pdf_reader import PDFReader
 
                     contents = file.file.read()
@@ -176,13 +188,13 @@ def get_sync_playground_router(
                     text_file.name = file.filename
                     file_content = TextReader().read(text_file)
                     if agent.knowledge is not None:
-                        agent.knowledge.load_documents(file_content)
+                        agent.knowledge.load_documents(file_content)  
                 else:
                     raise HTTPException(status_code=400, detail="Unsupported file type")
 
         if stream:
             return StreamingResponse(
-                chat_response_streamer(new_agent_instance, message, images=[base64_image] if base64_image else None),
+                chat_response_streamer(new_agent_instance, message, images=base64_images if base64_images else None),
                 media_type="text/event-stream",
             )
         else:
@@ -190,7 +202,7 @@ def get_sync_playground_router(
                 RunResponse,
                 new_agent_instance.run(
                     message,
-                    images=[base64_image] if base64_image else None,
+                    images=base64_images if base64_images else None,
                     stream=False,
                 ),
             )

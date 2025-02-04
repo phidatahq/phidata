@@ -1,7 +1,7 @@
 """Unit tests for GitHub tools."""
 
-from datetime import datetime
 import json
+from datetime import datetime
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -17,15 +17,15 @@ from agno.tools.github import GithubTools
 @pytest.fixture
 def mock_github():
     """Create a mock GitHub client."""
-    with patch("agno.tools.github.Github") as mock_github, \
-         patch.dict('os.environ', {'GITHUB_ACCESS_TOKEN': 'dummy_token'}):
-        
+    with patch("agno.tools.github.Github") as mock_github, patch.dict(
+        "os.environ", {"GITHUB_ACCESS_TOKEN": "dummy_token"}
+    ):
         mock_client = MagicMock(spec=Github)
         mock_github.return_value = mock_client
         mock_repo = MagicMock(spec=Repository)
         mock_repo.full_name = "test-org/test-repo"
         mock_client.get_repo.return_value = mock_repo
-        
+
         yield mock_client, mock_repo
 
 
@@ -39,7 +39,7 @@ def mock_search_repos():
     mock_repo1.stargazers_count = 1000
     mock_repo1.forks_count = 100
     mock_repo1.language = "Python"
-    
+
     mock_repo2 = MagicMock(spec=Repository)
     mock_repo2.full_name = "test-org/another-project"
     mock_repo2.description = "Another cool project"
@@ -88,7 +88,7 @@ def test_list_pull_requests(mock_github):
     # Test listing all PRs
     result = github_tools.list_pull_requests("test-org/test-repo")
     result_data = json.loads(result)
-    
+
     assert len(result_data) == 2
     assert result_data[0]["number"] == 1
     assert result_data[0]["state"] == "open"
@@ -99,7 +99,7 @@ def test_list_pull_requests(mock_github):
     mock_repo.get_pulls.return_value = [mock_pr1]
     result = github_tools.list_pull_requests("test-org/test-repo", state="open")
     result_data = json.loads(result)
-    
+
     assert len(result_data) == 1
     assert result_data[0]["state"] == "open"
 
@@ -133,7 +133,7 @@ def test_list_issues(mock_github):
     # Test listing all issues
     result = github_tools.list_issues("test-org/test-repo")
     result_data = json.loads(result)
-    
+
     assert len(result_data) == 2
     assert result_data[0]["number"] == 1
     assert result_data[0]["state"] == "open"
@@ -144,7 +144,7 @@ def test_list_issues(mock_github):
     mock_repo.get_issues.return_value = [mock_issue1]
     result = github_tools.list_issues("test-org/test-repo", state="open")
     result_data = json.loads(result)
-    
+
     assert len(result_data) == 1
     assert result_data[0]["state"] == "open"
 
@@ -166,17 +166,10 @@ def test_create_issue(mock_github):
 
     mock_repo.create_issue.return_value = mock_issue
 
-    result = github_tools.create_issue(
-        "test-org/test-repo",
-        title="New Issue",
-        body="Issue description"
-    )
+    result = github_tools.create_issue("test-org/test-repo", title="New Issue", body="Issue description")
     result_data = json.loads(result)
 
-    mock_repo.create_issue.assert_called_once_with(
-        title="New Issue",
-        body="Issue description"
-    )
+    mock_repo.create_issue.assert_called_once_with(title="New Issue", body="Issue description")
     assert result_data["id"] == 123
     assert result_data["number"] == 1
     assert result_data["title"] == "New Issue"
@@ -219,10 +212,7 @@ def test_error_handling(mock_github):
     github_tools = GithubTools()
 
     # Test repository not found
-    mock_client.get_repo.side_effect = GithubException(
-        status=404,
-        data={"message": "Repository not found"}
-    )
+    mock_client.get_repo.side_effect = GithubException(status=404, data={"message": "Repository not found"})
     result = github_tools.get_repository("invalid/repo")
     result_data = json.loads(result)
     assert "error" in result_data
@@ -232,10 +222,7 @@ def test_error_handling(mock_github):
     mock_client.get_repo.side_effect = None
 
     # Test permission error for creating issues
-    mock_repo.create_issue.side_effect = GithubException(
-        status=403,
-        data={"message": "Permission denied"}
-    )
+    mock_repo.create_issue.side_effect = GithubException(status=403, data={"message": "Permission denied"})
     result = github_tools.create_issue("test-org/test-repo", title="Test")
     result_data = json.loads(result)
     assert "error" in result_data
@@ -251,12 +238,8 @@ def test_search_repositories_basic(mock_github, mock_paginated_list):
 
     result = github_tools.search_repositories("awesome python")
     result_data = json.loads(result)
-    
-    mock_client.search_repositories.assert_called_once_with(
-        query="awesome python",
-        sort="stars",
-        order="desc"
-    )
+
+    mock_client.search_repositories.assert_called_once_with(query="awesome python", sort="stars", order="desc")
     assert len(result_data) == 2
     assert "full_name" in result_data[0]
     assert "description" in result_data[0]
@@ -289,18 +272,10 @@ def test_search_repositories_with_sorting(mock_github, mock_paginated_list):
 
     mock_client.search_repositories.return_value = mock_paginated_list
 
-    result = github_tools.search_repositories(
-        "python",
-        sort="stars",
-        order="desc"
-    )
+    result = github_tools.search_repositories("python", sort="stars", order="desc")
     result_data = json.loads(result)
-    
-    mock_client.search_repositories.assert_called_with(
-        query="python",
-        sort="stars",
-        order="desc"
-    )
+
+    mock_client.search_repositories.assert_called_with(query="python", sort="stars", order="desc")
     assert len(result_data) == 2
     assert result_data[0]["stars"] == 1000
     assert result_data[1]["stars"] == 500
@@ -315,12 +290,8 @@ def test_search_repositories_with_language_filter(mock_github, mock_paginated_li
 
     result = github_tools.search_repositories("project language:python")
     result_data = json.loads(result)
-    
-    mock_client.search_repositories.assert_called_with(
-        query="project language:python",
-        sort="stars",
-        order="desc"
-    )
+
+    mock_client.search_repositories.assert_called_with(query="project language:python", sort="stars", order="desc")
     assert len(result_data) == 2
 
 
@@ -330,10 +301,9 @@ def test_search_repositories_rate_limit_error(mock_github):
     github_tools = GithubTools()
 
     mock_client.search_repositories.side_effect = GithubException(
-        status=403,
-        data={"message": "API rate limit exceeded"}
+        status=403, data={"message": "API rate limit exceeded"}
     )
-    
+
     result = github_tools.search_repositories("python")
     result_data = json.loads(result)
     assert "error" in result_data
@@ -353,7 +323,7 @@ def test_search_repositories_pagination(mock_github):
             html_url="https://github.com/test-org/repo1",
             stargazers_count=1000,
             forks_count=100,
-            language="Python"
+            language="Python",
         ),
         MagicMock(
             full_name="test-org/repo2",
@@ -361,8 +331,8 @@ def test_search_repositories_pagination(mock_github):
             html_url="https://github.com/test-org/repo2",
             stargazers_count=900,
             forks_count=90,
-            language="Python"
-        )
+            language="Python",
+        ),
     ]
 
     mock_repos_page2 = [
@@ -372,7 +342,7 @@ def test_search_repositories_pagination(mock_github):
             html_url="https://github.com/test-org/repo3",
             stargazers_count=800,
             forks_count=80,
-            language="Python"
+            language="Python",
         )
     ]
 
@@ -386,7 +356,7 @@ def test_search_repositories_pagination(mock_github):
 
     result = github_tools.search_repositories("python", page=1, per_page=2)
     result_data = json.loads(result)
-    
+
     mock_paginated.get_page.assert_called_with(0)  # GitHub API uses 0-based indexing
     assert len(result_data) == 2
     assert result_data[0]["full_name"] == "test-org/repo1"
@@ -398,7 +368,7 @@ def test_search_repositories_pagination(mock_github):
 
     result = github_tools.search_repositories("python", page=2, per_page=2)
     result_data = json.loads(result)
-    
+
     mock_paginated.get_page.assert_called_with(1)  # GitHub API uses 0-based indexing
     assert len(result_data) == 1
     assert result_data[0]["full_name"] == "test-org/repo3"
@@ -407,17 +377,13 @@ def test_search_repositories_pagination(mock_github):
     mock_paginated.get_page.return_value = mock_repos_page1[:1]
     result = github_tools.search_repositories("python", page=1, per_page=1)
     result_data = json.loads(result)
-    
+
     assert len(result_data) == 1
     assert result_data[0]["full_name"] == "test-org/repo1"
 
     # Test with per_page exceeding GitHub's max (100)
     result = github_tools.search_repositories("python", per_page=150)
     result_data = json.loads(result)
-    
+
     # Should be limited to 100
-    mock_client.search_repositories.assert_called_with(
-        query="python",
-        sort="stars",
-        order="desc"
-    )
+    mock_client.search_repositories.assert_called_with(query="python", sort="stars", order="desc")

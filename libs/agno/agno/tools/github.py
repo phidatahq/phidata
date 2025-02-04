@@ -68,12 +68,7 @@ class GithubTools(Toolkit):
             return Github(auth=auth)
 
     def search_repositories(
-        self, 
-        query: str, 
-        sort: str = "stars", 
-        order: str = "desc",
-        page: int = 1,
-        per_page: int = 30
+        self, query: str, sort: str = "stars", order: str = "desc", page: int = 1, per_page: int = 30
     ) -> str:
         """Search for repositories on GitHub.
 
@@ -92,13 +87,9 @@ class GithubTools(Toolkit):
         try:
             # Ensure per_page doesn't exceed GitHub's max of 100
             per_page = min(per_page, 100)
-            
-            repositories = self.g.search_repositories(
-                query=query, 
-                sort=sort, 
-                order=order
-            )
-            
+
+            repositories = self.g.search_repositories(query=query, sort=sort, order=order)
+
             # Get the specified page of results
             repo_list = []
             for repo in repositories.get_page(page - 1):
@@ -111,12 +102,12 @@ class GithubTools(Toolkit):
                     "language": repo.language,
                 }
                 repo_list.append(repo_info)
-                
+
                 if len(repo_list) >= per_page:
                     break
-                
+
             return json.dumps(repo_list, indent=2)
-            
+
         except GithubException as e:
             logger.error(f"Error searching repositories: {e}")
             return json.dumps({"error": str(e)})

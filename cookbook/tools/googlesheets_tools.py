@@ -26,7 +26,7 @@ google_sheets_tools = GoogleSheetsTools(
 agent = Agent(
     tools=[google_sheets_tools],
     instructions=[
-        "You help users interact with Google Sheets through the API",
+        "You help users interact with Google Sheets using tools that use the Google Sheets API",
         "Before asking for spreadsheet details, first attempt the operation as the user may have already configured the ID and range in the constructor",
     ],
 )

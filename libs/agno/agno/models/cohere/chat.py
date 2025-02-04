@@ -12,7 +12,8 @@ from agno.utils.timer import Timer
 from agno.utils.tools import get_function_call_for_tool_call
 
 try:
-    from cohere import Client as CohereClient, AsyncClient as CohereAsyncClient
+    from cohere import AsyncClient as CohereAsyncClient
+    from cohere import Client as CohereClient
     from cohere.types.api_meta import ApiMeta
     from cohere.types.api_meta_tokens import ApiMetaTokens
     from cohere.types.non_streamed_chat_response import NonStreamedChatResponse
@@ -71,15 +72,15 @@ class Cohere(Model):
 
         self.client = CohereClient(**_client_params)
         return self.client
-    
+
     def get_async_client(self) -> CohereAsyncClient:
         if self.async_client:
             return self.async_client
 
         _client_params: Dict[str, Any] = {}
-        
+
         self.api_key = self.api_key or getenv("CO_API_KEY")
-        
+
         if not self.api_key:
             raise ValueError("CO_API_KEY not set. Please set the CO_API_KEY environment variable.")
 
@@ -647,7 +648,9 @@ class Cohere(Model):
         async for response in self.get_async_client().chat_stream(model=self.id, message=chat_message, **api_kwargs):
             yield response
 
-    async def aresponse(self, messages: List[Message], tool_results: Optional[List[ToolResult]] = None) -> ModelResponse:
+    async def aresponse(
+        self, messages: List[Message], tool_results: Optional[List[ToolResult]] = None
+    ) -> ModelResponse:
         """
         Asynchronously send a chat completion request to the Cohere API.
 
@@ -664,7 +667,7 @@ class Cohere(Model):
         response_timer = Timer()
         response_timer.start()
         logger.debug(f"Tool Results: {tool_results}")
-        
+
         try:
             response = await self.ainvoke(messages=messages, tool_results=tool_results)
         finally:
@@ -747,18 +750,18 @@ class Cohere(Model):
                         yield ModelResponse(content=response.text)
 
                 elif isinstance(response, ToolCallsChunkStreamedChatResponse):
-                    if response.tool_calls:
-                        stream_data.response_tool_calls.extend(response.tool_calls)
-                        tool_calls.extend([
+                    # Handle tool call chunks without accessing tool_calls directly
+                    if response.tool_call_delta is not None:
+                        stream_data.response_tool_calls.append(response.tool_call_delta)
+                        tool_calls.append(
                             {
                                 "type": "function",
                                 "function": {
-                                    "name": tool.name,
-                                    "arguments": json.dumps(tool.parameters),
+                                    "name": response.tool_call_delta.name,
+                                    "arguments": json.dumps(response.tool_call_delta.parameters),
                                 },
                             }
-                            for tool in response.tool_calls
-                        ])
+                        )
                         yield ModelResponse(tool_calls=tool_calls)
 
                 elif isinstance(response, StreamEndStreamedChatResponse):
@@ -769,7 +772,7 @@ class Cohere(Model):
             logger.debug(f"Time to generate response: {stream_data.response_timer.elapsed:.4f}s")
 
         # Check tool_calls from the final response if available
-        if last_delta and hasattr(last_delta, 'tool_calls') and last_delta.tool_calls:
+        if last_delta and hasattr(last_delta, "tool_calls") and last_delta.tool_calls:
             assistant_message = Message(role="assistant", tool_calls=tool_calls)
             tool_results = self._handle_tool_calls(
                 assistant_message=assistant_message,
@@ -781,7 +784,6 @@ class Cohere(Model):
             if tool_results:
                 messages.append(Message(role="user", content=""))
                 async for response in self.aresponse_stream(messages=messages, tool_results=tool_results):
-                    if response.content:
-                        yield response
+                    yield response
 
         logger.debug("---------- Cohere Response End ----------")

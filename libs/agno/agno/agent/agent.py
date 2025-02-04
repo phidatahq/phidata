@@ -400,8 +400,7 @@ class Agent:
         # Agent session
         self.agent_session: Optional[AgentSession] = None
 
-        self.tools_for_model: Optional[List[Dict]] = None
-        self.functions_for_model: Optional[Dict[str, Function]] = None
+        self._functions_for_model: Optional[Dict[str, Function]] = None
 
         self._formatter: Optional[SafeFormatter] = None
 
@@ -1312,9 +1311,9 @@ class Agent:
             rr.created_at = created_at
         return rr
 
-    def get_tools(self) -> Optional[List[Union[Toolkit, Callable, Dict, Function]]]:
+    def get_tools(self) -> Optional[List[Union[Toolkit, Callable, Function]]]:
         self.memory = cast(AgentMemory, self.memory)
-        agent_tools: List[Union[Toolkit, Callable, Dict, Function]] = []
+        agent_tools: List[Union[Toolkit, Callable, Function]] = []
 
         # Add provided tools
         if self.tools is not None:
@@ -1344,70 +1343,58 @@ class Agent:
         return agent_tools
 
     def add_tools_to_model(self, model: Model) -> None:
-        # Get Agent tools
-        agent_tools = self.get_tools()
-        if agent_tools is not None:
-            logger.debug("Processing tools for model")
-            # Check if we need strict mode for the model
-            strict = False
-            if self.response_model is not None and self.structured_outputs and model.supports_structured_outputs:
-                strict = True
 
-            if self.tools_for_model is None:
-                self.tools_for_model = []
-            if self.functions_for_model is None:
-                self.functions_for_model = {}
+        # Skip if functions_for_model is not None
+        if self._functions_for_model is None:
 
-            for tool in agent_tools:
-                # If the tool is a Dict, add it directly to the Model
-                if isinstance(tool, Dict):
-                    if tool not in self.tools_for_model:
-                        self.tools_for_model.append(tool)
-                        logger.debug(f"Included tool {tool}")
+            # Get Agent tools
+            agent_tools = self.get_tools()
+            if agent_tools is not None:
+                logger.debug("Processing tools for model")
+                # Check if we need strict mode for the model
+                strict = False
+                if self.response_model is not None and self.structured_outputs and model.supports_structured_outputs:
+                    strict = True
 
-                # If the tool is a Callable or Toolkit, process and add to the Model
-                elif callable(tool) or isinstance(tool, Toolkit) or isinstance(tool, Function):
+                self._functions_for_model = {}
+
+                for tool in agent_tools:
                     if isinstance(tool, Toolkit):
-                        # For each function in the toolkit, process entrypoint and add to self.tools_for_model
+                        # For each function in the toolkit and process entrypoint
                         for name, func in tool.functions.items():
-                            # If the function does not exist in self.functions, add to self.tools_for_model
-                            if name not in self.functions_for_model:
+                            # If the function does not exist in self.functions
+                            if name not in self._functions_for_model:
                                 func._agent = self
                                 func.process_entrypoint(strict=strict)
                                 if strict:
                                     func.strict = True
-                                self.functions_for_model[name] = func
-                                self.tools_for_model.append({"type": "function", "function": func.to_dict()})
+                                self._functions_for_model[name] = func
                                 logger.debug(f"Included function {name} from {tool.name}")
 
                     elif isinstance(tool, Function):
-                        if tool.name not in self.functions_for_model:
+                        if tool.name not in self._functions_for_model:
                             tool._agent = self
                             tool.process_entrypoint(strict=strict)
                             if strict:
                                 tool.strict = True
-                            self.functions_for_model[tool.name] = tool
-                            self.tools_for_model.append({"type": "function", "function": tool.to_dict()})
+                            self._functions_for_model[tool.name] = tool
                             logger.debug(f"Included function {tool.name}")
 
                     elif callable(tool):
                         try:
                             function_name = tool.__name__
-                            if function_name not in self.functions_for_model:
+                            if function_name not in self._functions_for_model:
                                 func = Function.from_callable(tool, strict=strict)
                                 func._agent = self
                                 if strict:
                                     func.strict = True
-                                self.functions_for_model[func.name] = func
-                                self.tools_for_model.append({"type": "function", "function": func.to_dict()})
+                                self._functions_for_model[func.name] = func
                                 logger.debug(f"Included function {func.name}")
                         except Exception as e:
                             logger.warning(f"Could not add function {tool}: {e}")
 
-            # Set tools on the model
-            model.set_tools(tools=self.tools_for_model)
-            # Set functions on the model
-            model.set_functions(functions=self.functions_for_model)
+                # Set functions on the model
+                model.set_functions(functions=self._functions_for_model)
 
     def update_model(self) -> None:
         # Use the default Model (OpenAIChat) if no model is provided

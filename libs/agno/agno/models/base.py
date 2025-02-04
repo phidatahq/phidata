@@ -48,12 +48,6 @@ class Model(ABC):
     # True if the Model supports structured outputs natively (e.g. OpenAI)
     supports_structured_outputs: bool = False
 
-    # A list of tools sent to the Model.
-    # Tools are functions the model may generate JSON inputs for.
-    # If you provide a dict, it is not called by the model.
-    # Always add tools using the add_tool() method.
-    tools: Optional[List[Dict]] = None
-
     # Controls which (if any) function is called by the model.
     # "none" means the model will not call a function and instead generates a message.
     # "auto" means the model can pick between generating a message or calling a function.
@@ -143,10 +137,6 @@ class Model(ABC):
         """
         for m in messages:
             m.log()
-
-    def set_tools(self, tools: List[Dict]) -> None:
-        if len(tools) > 0:
-            self.tools = tools
 
     def set_functions(self, functions: Dict[str, Function]) -> None:
         if len(functions) > 0:
@@ -984,7 +974,6 @@ class Model(ABC):
         """Clears the Model's state."""
 
         self.response_format = None
-        self.tools = None
         self._functions = None
         self._function_call_stack = None
 
@@ -1006,7 +995,7 @@ class Model(ABC):
 
         # Deep copy all attributes
         for k, v in self.__dict__.items():
-            if k in {"response_format", "tools", "_functions", "_function_call_stack"}:
+            if k in {"response_format", "_functions", "_function_call_stack"}:
                 continue
             setattr(new_model, k, deepcopy(v, memo))
 

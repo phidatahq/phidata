@@ -2,8 +2,8 @@
 
 import os
 
-from phi.agent import Agent
-from phi.tools.webex import WebexTools
+from agno.agent import Agent
+from agno.tools.webex import WebexTools
 
 webex_token = os.getenv("WEBEX_TEAMS_ACCESS_TOKEN")
 webex_tool = WebexTools(token=webex_token)

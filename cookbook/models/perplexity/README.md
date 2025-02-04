@@ -42,3 +42,10 @@ python cookbook/models/cohere/basic.py
 ```shell
 python cookbook/models/cohere/tool_use.py
 ```
+
+### 6. Run Agent with Knowledge
+
+```shell
+python cookbook/models/perplexity/knowledge.py
+```
+

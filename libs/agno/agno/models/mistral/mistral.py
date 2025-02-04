@@ -26,7 +26,7 @@ except (ModuleNotFoundError, ImportError):
 class MessageData:
     response_content: str = ""
     response_usage: Optional[UsageInfo] = None
-    response_tool_calls: List[Any] = None
+    response_tool_calls: Optional[List[Any]] = None
 
 
 def _format_image_for_message(image: Image) -> Optional[ImageURLChunk]:
@@ -393,7 +393,7 @@ class MistralChat(Model):
     def _update_usage_metrics(
         self,
         assistant_message: Message,
-        usage: UsageInfo,
+        usage: Optional[UsageInfo],
         metrics: Metrics,
     ) -> None:
         """
@@ -582,9 +582,7 @@ class MistralChat(Model):
             if len(function_call_results) > 0:
                 messages.extend(function_call_results)
 
-    async def ahandle_stream_tool_calls(
-        self, assistant_message: Message, messages: List[Message]
-    ) -> Iterator[ModelResponse]:
+    async def ahandle_stream_tool_calls(self, assistant_message: Message, messages: List[Message]) -> Any:
         """
         Handle tool calls in the assistant message asynchronously.
 

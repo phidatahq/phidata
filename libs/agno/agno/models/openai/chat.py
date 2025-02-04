@@ -595,7 +595,7 @@ class OpenAIChat(Model):
         stream_data: StreamData = StreamData()
 
         # -*- Create assistant message
-        assistant_message = Message(role="assistant")
+        assistant_message = Message(role=self.assistant_message_role)
 
         # -*- Generate response
         assistant_message.metrics.start_timer()
@@ -683,7 +683,7 @@ class OpenAIChat(Model):
         stream_data: StreamData = StreamData()
 
         # -*- Create assistant message
-        assistant_message = Message(role="assistant")
+        assistant_message = Message(role=self.assistant_message_role)
 
         # -*- Generate response
         assistant_message.metrics.start_timer()

@@ -41,7 +41,7 @@ def initialize_knowledge_base():
         ),
     )
     # Load the knowledge base (comment out after first run)
-    # agent_knowledge.load()
+    agent_knowledge.load()
     return agent_knowledge
 
 

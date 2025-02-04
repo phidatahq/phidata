@@ -173,7 +173,7 @@ def study_agent(
         print(f"[bold blue]Continuing Previous Session: {session_id}[/bold blue]\n")
 
     # Runs the agent as a command line application
-    agent.cli_app(markdown=True)
+    agent.cli_app(markdown=True, stream=True)
 
 
 if __name__ == "__main__":

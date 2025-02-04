@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from os import getenv
 from typing import Any, Dict, Iterator, List, Optional, Union
 
@@ -6,19 +6,16 @@ from agno.media import Image
 from agno.models.base import Metrics, Model
 from agno.models.message import Message
 from agno.models.response import ModelResponse, ModelResponseEvent
-from agno.tools.function import FunctionCall
 from agno.utils.log import logger
-from agno.utils.timer import Timer
-from agno.utils.tools import get_function_call_for_tool_call
 
 try:
     from mistralai import Mistral as MistralClient
+    from mistralai import UsageInfo
     from mistralai.models import AssistantMessage, ImageURLChunk, SystemMessage, TextChunk, ToolMessage, UserMessage
     from mistralai.models.chatcompletionresponse import ChatCompletionResponse
     from mistralai.models.deltamessage import DeltaMessage
     from mistralai.types.basemodel import Unset
-    from mistralai import UsageInfo
-    
+
     MistralMessage = Union[UserMessage, AssistantMessage, SystemMessage, ToolMessage]
 
 except (ModuleNotFoundError, ImportError):
@@ -30,6 +27,7 @@ class MessageData:
     response_content: str = ""
     response_usage: Optional[UsageInfo] = None
     response_tool_calls: List[Any] = None
+
 
 def _format_image_for_message(image: Image) -> Optional[ImageURLChunk]:
     # Case 1: Image is a URL
@@ -163,12 +161,14 @@ class MistralChat(Model):
         if not self.api_key:
             logger.error("MISTRAL_API_KEY not set. Please set the MISTRAL_API_KEY environment variable.")
 
-        client_params.update({
-            "api_key": self.api_key,
-            "endpoint": self.endpoint,
-            "max_retries": self.max_retries,
-            "timeout": self.timeout,
-        })
+        client_params.update(
+            {
+                "api_key": self.api_key,
+                "endpoint": self.endpoint,
+                "max_retries": self.max_retries,
+                "timeout": self.timeout,
+            }
+        )
 
         if self.client_params is not None:
             client_params.update(self.client_params)
@@ -267,7 +267,6 @@ class MistralChat(Model):
         if stream is None:
             raise ValueError("Chat stream returned None")
         return stream
-    
 
     async def ainvoke(self, messages: List[Message]) -> ChatCompletionResponse:
         """
@@ -281,10 +280,10 @@ class MistralChat(Model):
         """
         mistral_messages = _format_messages(messages)
         response = await self.get_client().chat.complete_async(
-                model=self.id,
-                messages=mistral_messages,
-                **self.request_kwargs,
-            )
+            model=self.id,
+            messages=mistral_messages,
+            **self.request_kwargs,
+        )
         if response is None:
             raise ValueError("Chat completion returned None")
         return response
@@ -328,7 +327,7 @@ class MistralChat(Model):
                 model_response.tool_calls = []
             model_response.content = ""
             tool_role: str = "tool"
-            
+
             function_calls_to_run, function_call_results = self._prepare_function_calls(
                 assistant_message=assistant_message,
                 messages=messages,
@@ -375,14 +374,16 @@ class MistralChat(Model):
             for tool_call in response_message.tool_calls:
                 if not assistant_message.tool_calls:
                     assistant_message.tool_calls = []
-                assistant_message.tool_calls.append({
-                    "id": tool_call.id,
-                    "type": "function",
-                    "function": {
-                        "name": tool_call.function.name,
-                        "arguments": tool_call.function.arguments,
-                    },
-                })
+                assistant_message.tool_calls.append(
+                    {
+                        "id": tool_call.id,
+                        "type": "function",
+                        "function": {
+                            "name": tool_call.function.name,
+                            "arguments": tool_call.function.arguments,
+                        },
+                    }
+                )
 
         # -*- Update usage metrics
         self._update_usage_metrics(assistant_message, response.usage, metrics)
@@ -390,7 +391,10 @@ class MistralChat(Model):
         return assistant_message
 
     def _update_usage_metrics(
-        self, assistant_message: Message, usage: UsageInfo, metrics: Metrics,
+        self,
+        assistant_message: Message,
+        usage: UsageInfo,
+        metrics: Metrics,
     ) -> None:
         """
         Update the usage metrics for the response.
@@ -407,7 +411,6 @@ class MistralChat(Model):
 
         self._update_model_metrics(metrics_for_run=metrics)
         self._update_assistant_message_metrics(assistant_message=assistant_message, metrics_for_run=metrics)
-
 
     def response(self, messages: List[Message]) -> ModelResponse:
         """
@@ -476,40 +479,38 @@ class MistralChat(Model):
         metrics_for_run.start_response_timer()
 
         assistant_message_role = None
-        with self.invoke_stream(messages=messages) as stream:
-            for response in self.invoke_stream(messages=messages):
-                # -*- Parse response
-                response_delta: DeltaMessage = response.data.choices[0].delta
-                if assistant_message_role is None and response_delta.role is not None:
-                    assistant_message_role = response_delta.role
+        for response in self.invoke_stream(messages=messages):
+            # -*- Parse response
+            response_delta: DeltaMessage = response.data.choices[0].delta
+            if assistant_message_role is None and response_delta.role is not None:
+                assistant_message_role = response_delta.role
 
-                response_content: Optional[str] = None
-                if (
-                    response_delta.content is not None
-                    and not isinstance(response_delta.content, Unset)
-                    and isinstance(response_delta.content, str)
-                ):
-                    response_content = response_delta.content
-                response_tool_calls = response_delta.tool_calls
+            response_content: Optional[str] = None
+            if (
+                response_delta.content is not None
+                and not isinstance(response_delta.content, Unset)
+                and isinstance(response_delta.content, str)
+            ):
+                response_content = response_delta.content
+            response_tool_calls = response_delta.tool_calls
 
-                # -*- Return content if present, otherwise get tool call
-                if response_content is not None:
-                    message_data.response_content += response_content
-                    if response.data.usage is not None:
-                        metrics_for_run.input_tokens += response.data.usage.prompt_tokens
-                        metrics_for_run.output_tokens += response.data.usage.completion_tokens
-                        metrics_for_run.total_tokens += response.data.usage.total_tokens
-                        if metrics_for_run.time_to_first_token is None:
-                            metrics_for_run.time_to_first_token = metrics_for_run.response_timer.elapsed
-                            logger.debug(f"Time to first token: {metrics_for_run.time_to_first_token:.4f}s")
-                    yield ModelResponse(content=response_content)
+            # -*- Return content if present, otherwise get tool call
+            if response_content is not None:
+                message_data.response_content += response_content
+                if response.data.usage is not None:
+                    metrics_for_run.input_tokens += response.data.usage.prompt_tokens
+                    metrics_for_run.output_tokens += response.data.usage.completion_tokens
+                    metrics_for_run.total_tokens += response.data.usage.total_tokens
+                    if metrics_for_run.time_to_first_token is None:
+                        metrics_for_run.time_to_first_token = metrics_for_run.response_timer.elapsed
+                        logger.debug(f"Time to first token: {metrics_for_run.time_to_first_token:.4f}s")
+                yield ModelResponse(content=response_content)
 
-                # -*- Parse tool calls
-                if response_tool_calls is not None:
-                    if message_data.response_tool_calls is None:
-                        message_data.response_tool_calls = []
-                    message_data.response_tool_calls.extend(response_tool_calls)
-
+            # -*- Parse tool calls
+            if response_tool_calls is not None:
+                if message_data.response_tool_calls is None:
+                    message_data.response_tool_calls = []
+                message_data.response_tool_calls.extend(response_tool_calls)
 
         metrics_for_run.stop_response_timer()
 
@@ -524,15 +525,16 @@ class MistralChat(Model):
             for tool_call in message_data.response_tool_calls:
                 if not assistant_message.tool_calls:
                     assistant_message.tool_calls = []
-                assistant_message.tool_calls.append({
-                    "id": tool_call.id,
-                    "type": "function",
-                    "function": {
-                        "name": tool_call.function.name,
-                        "arguments": tool_call.function.arguments,
-                    },
-                })
-
+                assistant_message.tool_calls.append(
+                    {
+                        "id": tool_call.id,
+                        "type": "function",
+                        "function": {
+                            "name": tool_call.function.name,
+                            "arguments": tool_call.function.arguments,
+                        },
+                    }
+                )
 
         # -*- Update usage metrics
         self._update_usage_metrics(assistant_message, message_data.response_usage, metrics_for_run)
@@ -576,11 +578,13 @@ class MistralChat(Model):
                 function_calls=function_calls_to_run, function_call_results=function_call_results
             ):
                 yield intermediate_model_response
-            
+
             if len(function_call_results) > 0:
                 messages.extend(function_call_results)
-    
-    async def ahandle_stream_tool_calls(self, assistant_message: Message, messages: List[Message]) -> Iterator[ModelResponse]:
+
+    async def ahandle_stream_tool_calls(
+        self, assistant_message: Message, messages: List[Message]
+    ) -> Iterator[ModelResponse]:
         """
         Handle tool calls in the assistant message asynchronously.
 
@@ -606,7 +610,7 @@ class MistralChat(Model):
                 function_calls=function_calls_to_run, function_call_results=function_call_results
             ):
                 yield intermediate_model_response
-            
+
             if len(function_call_results) > 0:
                 messages.extend(function_call_results)
 
@@ -764,14 +768,16 @@ class MistralChat(Model):
             for tool_call in message_data.response_tool_calls:
                 if not assistant_message.tool_calls:
                     assistant_message.tool_calls = []
-                assistant_message.tool_calls.append({
-                    "id": tool_call.id,
-                    "type": "function",
-                    "function": {
-                        "name": tool_call.function.name,
-                        "arguments": tool_call.function.arguments,
-                    },
-                })
+                assistant_message.tool_calls.append(
+                    {
+                        "id": tool_call.id,
+                        "type": "function",
+                        "function": {
+                            "name": tool_call.function.name,
+                            "arguments": tool_call.function.arguments,
+                        },
+                    }
+                )
 
         # -*- Update usage metrics
         self._update_usage_metrics(assistant_message, message_data.response_usage, metrics)
@@ -789,8 +795,8 @@ class MistralChat(Model):
                 assistant_message=assistant_message, messages=messages
             ):
                 yield tool_call_response
-                
+
             async for response in self.aresponse_stream(messages=messages):
                 yield response
-        
+
         logger.debug("---------- Mistral Async Response End ----------")

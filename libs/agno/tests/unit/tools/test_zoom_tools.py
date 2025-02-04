@@ -40,11 +40,14 @@ def test_init_with_credentials():
     assert tool.client_secret == "test_client_secret"
 
 
-@patch.dict("os.environ", {
-    "ZOOM_ACCOUNT_ID": "env_account_id",
-    "ZOOM_CLIENT_ID": "env_client_id",
-    "ZOOM_CLIENT_SECRET": "env_client_secret",
-})
+@patch.dict(
+    "os.environ",
+    {
+        "ZOOM_ACCOUNT_ID": "env_account_id",
+        "ZOOM_CLIENT_ID": "env_client_id",
+        "ZOOM_CLIENT_SECRET": "env_client_secret",
+    },
+)
 def test_init_with_env_vars():
     """Test initialization with environment variables"""
     tool = ZoomTools()
@@ -60,10 +63,10 @@ def test_get_access_token_success(zoom_tools, mock_token_response):
         mock_post.return_value.raise_for_status = MagicMock()
 
         token = zoom_tools.get_access_token()
-        
+
         assert token == "test_access_token"
         mock_post.assert_called_once()
-        
+
         # Verify request format
         args, kwargs = mock_post.call_args
         assert args[0] == "https://zoom.us/oauth/token"
@@ -112,26 +115,27 @@ def test_get_access_token_failure(zoom_tools):
     """Test handling of token generation failure"""
     with patch("requests.post") as mock_post:
         mock_post.side_effect = requests.RequestException("API Error")
-        
+
         token = zoom_tools.get_access_token()
         assert token == ""
         assert zoom_tools._ZoomTools__access_token is None
         assert zoom_tools._ZoomTools__token_expiry is None
 
 
-@pytest.mark.parametrize("method_name,expected_args", [
-    ("schedule_meeting", {
-        "topic": "Test Meeting",
-        "start_time": "2024-02-01T10:00:00Z",
-        "duration": 60,
-        "timezone": "UTC"
-    }),
-    ("get_upcoming_meetings", {"user_id": "me"}),
-    ("list_meetings", {"user_id": "me", "type": "scheduled"}),
-    ("get_meeting_recordings", {"meeting_id": "123456789"}),
-    ("delete_meeting", {"meeting_id": "123456789"}),
-    ("get_meeting", {"meeting_id": "123456789"}),
-])
+@pytest.mark.parametrize(
+    "method_name,expected_args",
+    [
+        (
+            "schedule_meeting",
+            {"topic": "Test Meeting", "start_time": "2024-02-01T10:00:00Z", "duration": 60, "timezone": "UTC"},
+        ),
+        ("get_upcoming_meetings", {"user_id": "me"}),
+        ("list_meetings", {"user_id": "me", "type": "scheduled"}),
+        ("get_meeting_recordings", {"meeting_id": "123456789"}),
+        ("delete_meeting", {"meeting_id": "123456789"}),
+        ("get_meeting", {"meeting_id": "123456789"}),
+    ],
+)
 def test_api_methods_auth_failure(zoom_tools, method_name, expected_args):
     """Test API methods handle authentication failure gracefully"""
     with patch.object(ZoomTools, "get_access_token", return_value=""):
@@ -151,18 +155,13 @@ def test_schedule_meeting_success(zoom_tools):
         "duration": 60,
         "join_url": "https://zoom.us/j/123456789",
     }
-    
-    with patch.object(ZoomTools, "get_access_token", return_value="test_token"), \
-         patch("requests.post") as mock_post:
+
+    with patch.object(ZoomTools, "get_access_token", return_value="test_token"), patch("requests.post") as mock_post:
         mock_post.return_value.json.return_value = mock_response
         mock_post.return_value.raise_for_status = MagicMock()
 
-        result = zoom_tools.schedule_meeting(
-            topic="Test Meeting",
-            start_time="2024-02-01T10:00:00Z",
-            duration=60
-        )
-        
+        result = zoom_tools.schedule_meeting(topic="Test Meeting", start_time="2024-02-01T10:00:00Z", duration=60)
+
         result_data = json.loads(result)
         assert result_data["meeting_id"] == 123456789
         assert result_data["topic"] == "Test Meeting"
@@ -182,14 +181,13 @@ def test_get_meeting_success(zoom_tools):
         "join_url": "https://zoom.us/j/123456789",
         "settings": {"host_video": True},
     }
-    
-    with patch.object(ZoomTools, "get_access_token", return_value="test_token"), \
-         patch("requests.get") as mock_get:
+
+    with patch.object(ZoomTools, "get_access_token", return_value="test_token"), patch("requests.get") as mock_get:
         mock_get.return_value.json.return_value = mock_response
         mock_get.return_value.raise_for_status = MagicMock()
 
         result = zoom_tools.get_meeting("123456789")
-        
+
         result_data = json.loads(result)
         assert result_data["meeting_id"] == "123456789"
         assert result_data["topic"] == "Test Meeting"
@@ -213,18 +211,17 @@ def test_get_upcoming_meetings_success(zoom_tools):
                 "id": 987654321,
                 "topic": "Meeting 2",
                 "start_time": "2024-02-02T15:00:00Z",
-            }
-        ]
+            },
+        ],
     }
-    
-    with patch.object(ZoomTools, "get_access_token", return_value="test_token"), \
-         patch("requests.get") as mock_get:
+
+    with patch.object(ZoomTools, "get_access_token", return_value="test_token"), patch("requests.get") as mock_get:
         mock_get.return_value.json.return_value = mock_response
         mock_get.return_value.raise_for_status = MagicMock()
 
         result = zoom_tools.get_upcoming_meetings()
         result_data = json.loads(result)
-        
+
         assert result_data["message"] == "Upcoming meetings retrieved successfully"
         assert len(result_data["meetings"]) == 2
         assert result_data["meetings"][0]["id"] == 123456789
@@ -250,18 +247,17 @@ def test_list_meetings_success(zoom_tools):
                 "topic": "Scheduled Meeting 2",
                 "type": 2,
                 "start_time": "2024-02-02T15:00:00Z",
-            }
-        ]
+            },
+        ],
     }
-    
-    with patch.object(ZoomTools, "get_access_token", return_value="test_token"), \
-         patch("requests.get") as mock_get:
+
+    with patch.object(ZoomTools, "get_access_token", return_value="test_token"), patch("requests.get") as mock_get:
         mock_get.return_value.json.return_value = mock_response
         mock_get.return_value.raise_for_status = MagicMock()
 
         result = zoom_tools.list_meetings(type="scheduled")
         result_data = json.loads(result)
-        
+
         assert result_data["message"] == "Meetings retrieved successfully"
         assert result_data["total_records"] == 2
         assert len(result_data["meetings"]) == 2
@@ -294,18 +290,17 @@ def test_get_meeting_recordings_success(zoom_tools):
                 "recording_type": "audio_only",
                 "file_type": "M4A",
                 "file_size": 500000,
-            }
-        ]
+            },
+        ],
     }
-    
-    with patch.object(ZoomTools, "get_access_token", return_value="test_token"), \
-         patch("requests.get") as mock_get:
+
+    with patch.object(ZoomTools, "get_access_token", return_value="test_token"), patch("requests.get") as mock_get:
         mock_get.return_value.json.return_value = mock_response
         mock_get.return_value.raise_for_status = MagicMock()
 
         result = zoom_tools.get_meeting_recordings("123456789")
         result_data = json.loads(result)
-        
+
         assert result_data["message"] == "Meeting recordings retrieved successfully"
         assert result_data["meeting_id"] == "123456789"
         assert result_data["recording_count"] == 2
@@ -316,17 +311,18 @@ def test_get_meeting_recordings_success(zoom_tools):
 
 def test_delete_meeting_success(zoom_tools):
     """Test successful meeting deletion"""
-    with patch.object(ZoomTools, "get_access_token", return_value="test_token"), \
-         patch("requests.delete") as mock_delete:
+    with patch.object(ZoomTools, "get_access_token", return_value="test_token"), patch(
+        "requests.delete"
+    ) as mock_delete:
         mock_delete.return_value.status_code = 204
         mock_delete.return_value.raise_for_status = MagicMock()
 
         result = zoom_tools.delete_meeting("123456789")
         result_data = json.loads(result)
-        
+
         assert result_data["message"] == "Meeting deleted successfully!"
         assert result_data["meeting_id"] == "123456789"
-        
+
         # Verify the delete request
         mock_delete.assert_called_once()
         args, kwargs = mock_delete.call_args
@@ -334,25 +330,27 @@ def test_delete_meeting_success(zoom_tools):
         assert kwargs["headers"]["Authorization"] == "Bearer test_token"
 
 
-@pytest.mark.parametrize("method_name,mock_func,error_message", [
-    ("get_meeting", "requests.get", "Meeting not found"),
-    ("get_upcoming_meetings", "requests.get", "Failed to fetch upcoming meetings"),
-    ("list_meetings", "requests.get", "Failed to list meetings"),
-    ("get_meeting_recordings", "requests.get", "No recordings found"),
-    ("delete_meeting", "requests.delete", "Meeting deletion failed"),
-])
+@pytest.mark.parametrize(
+    "method_name,mock_func,error_message",
+    [
+        ("get_meeting", "requests.get", "Meeting not found"),
+        ("get_upcoming_meetings", "requests.get", "Failed to fetch upcoming meetings"),
+        ("list_meetings", "requests.get", "Failed to list meetings"),
+        ("get_meeting_recordings", "requests.get", "No recordings found"),
+        ("delete_meeting", "requests.delete", "Meeting deletion failed"),
+    ],
+)
 def test_api_methods_request_failure(zoom_tools, method_name, mock_func, error_message):
     """Test API methods handle request failures gracefully"""
-    with patch.object(ZoomTools, "get_access_token", return_value="test_token"), \
-         patch(mock_func) as mock_request:
+    with patch.object(ZoomTools, "get_access_token", return_value="test_token"), patch(mock_func) as mock_request:
         mock_request.side_effect = requests.RequestException(error_message)
-        
+
         method = getattr(zoom_tools, method_name)
         if method_name == "delete_meeting":
             result = method("123456789", schedule_for_reminder=True)
         else:
             result = method("123456789" if "meeting" in method_name else "me")
-            
+
         error_response = json.loads(result)
         assert "error" in error_response
-        assert error_message in str(error_response["error"]) 
+        assert error_message in str(error_response["error"])

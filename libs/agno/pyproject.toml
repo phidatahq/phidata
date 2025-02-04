@@ -262,6 +262,7 @@ module = [
   "vertexai.*",
   "voyageai.*",
   "wikipedia.*",
+  "weaviate-client.*",
   "yfinance.*",
   "youtube_transcript_api.*",
 ]

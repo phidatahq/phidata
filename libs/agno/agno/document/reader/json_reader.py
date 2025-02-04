@@ -1,6 +1,7 @@
 import json
+from io import BytesIO
 from pathlib import Path
-from typing import List
+from typing import List, Union
 
 from agno.document.base import Document
 from agno.document.reader.base import Reader
@@ -12,14 +13,23 @@ class JSONReader(Reader):
 
     chunk: bool = False
 
-    def read(self, path: Path) -> List[Document]:
-        if not path.exists():
-            raise FileNotFoundError(f"Could not find file: {path}")
-
+    def read(self, file: Union[Path, BytesIO]) -> List[Document]:
         try:
-            logger.info(f"Reading: {path}")
-            json_name = path.name.split(".")[0]
-            json_contents = json.loads(path.read_text("utf-8"))
+            if isinstance(file, Path):
+                if not file.exists():
+                    raise FileNotFoundError(f"Could not find file: {file}")
+                logger.info(f"Reading: {file}")
+                json_name = file.name.split(".")[0]
+                json_contents = json.loads(file.read_text("utf-8"))
+
+            elif isinstance(file, BytesIO):
+                logger.info("Reading file from BytesIO stream")
+                json_name = file.name.split(".")[0]
+                file.seek(0)
+                json_contents = json.load(file)
+
+            else:
+                raise ValueError("Unsupported file type. Must be Path or BytesIO.")
 
             if isinstance(json_contents, dict):
                 json_contents = [json_contents]

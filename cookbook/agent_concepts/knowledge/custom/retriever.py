@@ -44,23 +44,19 @@ def retriever(
 
 def main():
     """Main function to demonstrate agent usage."""
-    try:
-        # Initialize agent with custom retriever
-        # Remember to set search_knowledge=True to use the retriever
-        # search_knowledge=True is default when you add a knowledge base but is needed here
-        agent = Agent(
-            retriever=retriever,
-            search_knowledge=True,
-            instructions="Search the knowledge base for information",
-            show_tool_calls=True,
-        )
+    # Initialize agent with custom retriever
+    # Remember to set search_knowledge=True to use the retriever
+    # search_knowledge=True is default when you add a knowledge base but is needed here
+    agent = Agent(
+        retriever=retriever,
+        search_knowledge=True,
+        instructions="Search the knowledge base for information",
+        show_tool_calls=True,
+    )
 
-        # Example query
-        query = "List down the ingredients to make Massaman Gai"
-        agent.print_response(query, markdown=True)
-
-    except Exception as e:
-        print(f"Error initializing or running agent: {str(e)}")
+    # Example query
+    query = "List down the ingredients to make Massaman Gai"
+    agent.print_response(query, markdown=True)
 
 
 if __name__ == "__main__":

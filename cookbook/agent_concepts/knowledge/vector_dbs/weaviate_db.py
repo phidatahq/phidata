@@ -1,16 +1,32 @@
 """
-Install weaviate using: `pip install weaviate-client`
+This example demonstrates using Weaviate as a vector database for semantic search.
 
-To use Weaviate Cloud:
-1. Sign up for an account at https://console.weaviate.cloud/
-2. Create a new cluster and export the following environment variables:
-export WCD_URL=***
-export WCD_API_KEY=***
+Installation:
+    pip install weaviate-client
 
-To use a local Weaviate instance:
-1. Make sure you have docker installed.
-2. Run the following command:
-docker run -p 8080:8080 -p 50051:50051 cr.weaviate.io/semitechnologies/weaviate:1.28.4
+Weaviate Cloud Setup:
+1. Create account at https://console.weaviate.cloud/
+2. Create a cluster and copy the "REST endpoint" and "Admin" API Key. Then set environment variables:
+    export WCD_URL="your-cluster-url" 
+    export WCD_API_KEY="your-api-key"
+
+Local Development Setup:
+1. Install Docker from https://docs.docker.com/get-docker/
+2. Run Weaviate locally:
+    docker run -d \
+        -p 8080:8080 \
+        -p 50051:50051 \
+        --name weaviate \
+        cr.weaviate.io/semitechnologies/weaviate:1.28.4
+   or use the script `cookbook/scripts/run_weviate.sh` to start a local instance.
+3. Remember to set `local=True` on the Weaviate instantiation.
+        
+Key Features:
+- Hybrid search combining vector and keyword search
+- HNSW vector indexing for fast similarity search
+- Cosine distance metric for measuring vector similarity
+- Support for filters and metadata
+- Real-time indexing and search
 """
 
 from agno.agent import Agent
@@ -23,6 +39,7 @@ vector_db = Weaviate(
     search_type=SearchType.hybrid,
     vector_index=VectorIndex.HNSW,
     distance=Distance.COSINE,
+    local=False, # Set to False if using Weaviate Cloud and True if using local instance
 )
 # Create knowledge base
 knowledge_base = PDFUrlKnowledgeBase(

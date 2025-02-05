@@ -10,10 +10,6 @@ import pytest
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.testclient import TestClient
 
-from agno.agent.agent import Agent
-from agno.media import Image
-from agno.playground.async_router import get_async_playground_router
-
 
 # Define an EmptyFile class that simulates an empty file without raising on read.
 class EmptyFile:

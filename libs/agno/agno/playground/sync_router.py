@@ -188,7 +188,7 @@ def get_sync_playground_router(
                     text_file.name = file.filename
                     file_content = TextReader().read(text_file)
                     if agent.knowledge is not None:
-                        agent.knowledge.load_documents(file_content)  
+                        agent.knowledge.load_documents(file_content)
                 else:
                     raise HTTPException(status_code=400, detail="Unsupported file type")
 

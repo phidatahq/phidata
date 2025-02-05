@@ -426,19 +426,19 @@ class MistralChat(Model):
         # -*- Log messages for debugging
         self._log_messages(messages)
         model_response = ModelResponse()
-        metrics_for_run = Metrics()
+        metrics = Metrics()
 
-        metrics_for_run.start_response_timer()
+        metrics.start_response_timer()
         response: ChatCompletionResponse = self.invoke(messages=messages)
-        metrics_for_run.stop_response_timer()
-        logger.debug(f"Time to generate response: {metrics_for_run.response_timer.elapsed:.4f}s")
+        metrics.stop_response_timer()
+        logger.debug(f"Time to generate response: {metrics.response_timer.elapsed:.4f}s")
 
         # -*- Ensure response.choices is not None
         if response.choices is None or len(response.choices) == 0:
             raise ValueError("Chat completion response has no choices")
 
         # -*- Create assistant message
-        assistant_message = self._create_assistant_message(response=response, metrics=metrics_for_run)
+        assistant_message = self._create_assistant_message(response=response, metrics=metrics)
 
         # -*- Add assistant message to messages
         messages.append(assistant_message)
@@ -473,10 +473,10 @@ class MistralChat(Model):
         logger.debug("---------- Mistral Response Start ----------")
         # -*- Log messages for debugging
         self._log_messages(messages)
-        metrics_for_run = Metrics()
+        metrics = Metrics()
         message_data = MessageData()
 
-        metrics_for_run.start_response_timer()
+        metrics.start_response_timer()
 
         assistant_message_role = None
         for response in self.invoke_stream(messages=messages):
@@ -498,12 +498,12 @@ class MistralChat(Model):
             if response_content is not None:
                 message_data.response_content += response_content
                 if response.data.usage is not None:
-                    metrics_for_run.input_tokens += response.data.usage.prompt_tokens
-                    metrics_for_run.output_tokens += response.data.usage.completion_tokens
-                    metrics_for_run.total_tokens += response.data.usage.total_tokens
-                    if metrics_for_run.time_to_first_token is None:
-                        metrics_for_run.time_to_first_token = metrics_for_run.response_timer.elapsed
-                        logger.debug(f"Time to first token: {metrics_for_run.time_to_first_token:.4f}s")
+                    metrics.input_tokens += response.data.usage.prompt_tokens
+                    metrics.output_tokens += response.data.usage.completion_tokens
+                    metrics.total_tokens += response.data.usage.total_tokens
+                    if metrics.time_to_first_token is None:
+                        metrics.time_to_first_token = metrics.response_timer.elapsed
+                        logger.debug(f"Time to first token: {metrics.time_to_first_token:.4f}s")
                 yield ModelResponse(content=response_content)
 
             # -*- Parse tool calls
@@ -512,7 +512,7 @@ class MistralChat(Model):
                     message_data.response_tool_calls = []
                 message_data.response_tool_calls.extend(response_tool_calls)
 
-        metrics_for_run.stop_response_timer()
+        metrics.stop_response_timer()
 
         # -*- Create assistant message
         assistant_message = Message(role=(assistant_message_role or "assistant"))
@@ -537,14 +537,14 @@ class MistralChat(Model):
                 )
 
         # -*- Update usage metrics
-        self._update_usage_metrics(assistant_message, message_data.response_usage, metrics_for_run)
+        self._update_usage_metrics(assistant_message, message_data.response_usage, metrics)
 
         # -*- Add assistant message to messages
         messages.append(assistant_message)
 
         # -*- Log assistant message
         assistant_message.log()
-        metrics_for_run.log()
+        metrics.log()
 
         # -*- Parse and run tool calls
         if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
@@ -626,19 +626,19 @@ class MistralChat(Model):
         # -*- Log messages for debugging
         self._log_messages(messages)
         model_response = ModelResponse()
-        metrics_for_run = Metrics()
+        metrics = Metrics()
 
-        metrics_for_run.start_response_timer()
+        metrics.start_response_timer()
         response: ChatCompletionResponse = await self.ainvoke(messages=messages)
-        metrics_for_run.stop_response_timer()
-        logger.debug(f"Time to generate response: {metrics_for_run.response_timer.elapsed:.4f}s")
+        metrics.stop_response_timer()
+        logger.debug(f"Time to generate response: {metrics.response_timer.elapsed:.4f}s")
 
         # -*- Ensure response.choices is not None
         if response.choices is None or len(response.choices) == 0:
             raise ValueError("Chat completion response has no choices")
 
         # -*- Create assistant message
-        assistant_message = self._create_assistant_message(response=response, metrics=metrics_for_run)
+        assistant_message = self._create_assistant_message(response=response, metrics=metrics)
 
         # -*- Add assistant message to messages
         messages.append(assistant_message)

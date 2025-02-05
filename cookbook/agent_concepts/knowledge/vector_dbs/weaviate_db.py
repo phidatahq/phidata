@@ -34,7 +34,7 @@ vector_db = Weaviate(
     search_type=SearchType.hybrid,
     vector_index=VectorIndex.HNSW,
     distance=Distance.COSINE,
-    local=True, # Set to False if using Weaviate Cloud and True if using local instance
+    local=True,  # Set to False if using Weaviate Cloud and True if using local instance
 )
 # Create knowledge base
 knowledge_base = PDFUrlKnowledgeBase(

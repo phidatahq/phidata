@@ -6,15 +6,14 @@ import httpx
 
 from agno.models.base import Model
 from agno.models.message import Message
-from agno.models.response import ModelResponse
+from agno.models.response import ModelProviderResponse
 from agno.utils.log import logger
 
 try:
     from groq import AsyncGroq as AsyncGroqClient
     from groq import Groq as GroqClient
-    from groq.types.chat import ChatCompletion, ChatCompletionMessage
+    from groq.types.chat import ChatCompletion
     from groq.types.chat.chat_completion_chunk import ChatCompletionChunk, ChoiceDelta, ChoiceDeltaToolCall
-    from groq.types.completion_usage import CompletionUsage
 except (ModuleNotFoundError, ImportError):
     raise ImportError("`groq` not installed. Please install using `pip install groq`")
 
@@ -156,8 +155,8 @@ class Groq(Model):
         # Filter out None values
         request_params = {k: v for k, v in base_params.items() if v is not None}
         # Add tools
-        if self.tools is not None:
-            request_params["tools"] = self.tools
+        if self._tools is not None:
+            request_params["tools"] = self._tools
             if self.tool_choice is not None:
                 request_params["tool_choice"] = self.tool_choice
         # Add additional request params if provided
@@ -189,16 +188,14 @@ class Groq(Model):
                 "user": self.user,
                 "extra_headers": self.extra_headers,
                 "extra_query": self.extra_query,
-                "tools": self.tools,
-                "tool_choice": self.tool_choice
-                if (self.tools is not None and self.tool_choice is not None)
-                else "auto",
             }
         )
-        if self.tools is not None:
-            model_dict["tools"] = self.tools
+        if self._tools is not None:
+            model_dict["tools"] = self._tools
             if self.tool_choice is not None:
                 model_dict["tool_choice"] = self.tool_choice
+            else:
+                model_dict["tool_choice"] = "auto"
         cleaned_dict = {k: v for k, v in model_dict.items() if v is not None}
         return cleaned_dict
 
@@ -286,307 +283,74 @@ class Groq(Model):
         async for chunk in async_stream:  # type: ignore
             yield chunk
 
-    def add_usage_metrics_to_assistant_message(self, assistant_message: Message, response_usage: CompletionUsage):
-        assistant_message.metrics.input_tokens = response_usage.prompt_tokens
-        assistant_message.metrics.output_tokens = response_usage.completion_tokens
-        assistant_message.metrics.total_tokens = response_usage.total_tokens
-
-        assistant_message.metrics.prompt_tokens = response_usage.prompt_tokens
-        assistant_message.metrics.completion_tokens = response_usage.completion_tokens
-
-        if assistant_message.metrics.additional_metrics is None:
-            assistant_message.metrics.additional_metrics = {}
-        if response_usage.prompt_time is not None:
-            assistant_message.metrics.additional_metrics["prompt_time"] = response_usage.prompt_time
-        if response_usage.completion_time is not None:
-            assistant_message.metrics.additional_metrics["completion_time"] = response_usage.completion_time
-        if response_usage.queue_time is not None:
-            assistant_message.metrics.additional_metrics["queue_time"] = response_usage.queue_time
-        if response_usage.total_time is not None:
-            assistant_message.metrics.additional_metrics["total_time"] = response_usage.total_time
-
-    def populate_assistant_message(
-        self,
-        assistant_message: Message,
-        response_message: ChatCompletionMessage,
-        response_usage: Optional[CompletionUsage],
-    ) -> Message:
+    def parse_model_provider_response(
+        self, response: ChatCompletion
+    ) -> ModelProviderResponse:
         """
-        Populate an assistant message with the response message and usage.
+        Parse the Groq response into a ModelProviderResponse.
 
         Args:
-            assistant_message (Message): The assistant message to populate.
-            response_message (ChatCompletionMessage): The response message.
-            response_usage (Optional[CompletionUsage]): The response usage.
+            response: Raw response from Groq
 
         Returns:
-            Message: The assistant message.
+            ModelProviderResponse: Parsed response data
         """
-        # -*- Update role
-        if response_message.role:
-            assistant_message.role = response_message.role
+        provider_response = ModelProviderResponse()
 
-        # -*- Add content to assistant message
+        # Get response message
+        response_message = response.choices[0].message
+
+        # Add role
+        if response_message.role is not None:
+            provider_response.role = response_message.role
+
+        # Add content
         if response_message.content is not None:
-            assistant_message.content = response_message.content
+            provider_response.content = response_message.content
 
-        # -*- Add tool calls to assistant message
+        # Add tool calls
         if response_message.tool_calls is not None and len(response_message.tool_calls) > 0:
             try:
-                assistant_message.tool_calls = [t.model_dump() for t in response_message.tool_calls]
+                provider_response.tool_calls = [t.model_dump() for t in response_message.tool_calls]
             except Exception as e:
                 logger.warning(f"Error processing tool calls: {e}")
 
-        # -*- Add usage metrics to assistant message
-        if response_usage is not None:
-            self.add_usage_metrics_to_assistant_message(
-                assistant_message=assistant_message, response_usage=response_usage
-            )
-        return assistant_message
+        # Add usage metrics if present
+        if response.usage is not None:
+            provider_response.response_usage = response.usage
 
-    def response(self, messages: List[Message]) -> ModelResponse:
+        return provider_response
+
+    def parse_model_provider_response_stream(
+        self, response: ChatCompletionChunk
+    ) -> Iterator[ModelProviderResponse]:
         """
-        Generate a response from Groq.
+        Parse the Groq streaming response into ModelProviderResponse objects.
 
         Args:
-            messages (List[Message]): A list of messages.
+            response: Raw response chunk from Groq
 
         Returns:
-            ModelResponse: The model response.
+            Iterator[ModelProviderResponse]: Iterator of parsed response data
         """
-        logger.debug("---------- Groq Response Start ----------")
-        self._log_messages(messages)
-        model_response = ModelResponse()
+        if len(response.choices) > 0:
+            provider_response = ModelProviderResponse()
+            delta: ChoiceDelta = response.choices[0].delta
+            has_content = False
 
-        # -*- Create assistant message
-        assistant_message = Message(role=self.assistant_message_role)
+            # Add content
+            if delta.content is not None:
+                provider_response.content = delta.content
+                has_content = True
 
-        # -*- Generate response
-        assistant_message.metrics.start_timer()
-        response: ChatCompletion = self.invoke(messages=messages)
-        assistant_message.metrics.stop_timer()
+            # Add tool calls
+            if delta.tool_calls is not None:
+                provider_response.tool_calls = delta.tool_calls
+                has_content = True
 
-        # -*- Populate the assistant message with response message and usage
-        self.populate_assistant_message(
-            assistant_message=assistant_message,
-            response_message=response.choices[0].message,
-            response_usage=response.usage,
-        )
-
-        # -*- Add assistant message to messages
-        messages.append(assistant_message)
-
-        # -*- Log response and metrics
-        assistant_message.log()
-
-        # -*- Update model response with assistant message content
-        if assistant_message.content is not None:
-            # add the content to the model response
-            model_response.content = assistant_message.get_content_string()
-
-        # -*- Handle tool calls
-        if (
-            self.handle_tool_calls(
-                assistant_message=assistant_message,
-                messages=messages,
-                model_response=model_response,
-                tool_role=self.tool_message_role,
-            )
-            is not None
-        ):
-            return self.handle_post_tool_call_messages(messages=messages, model_response=model_response)
-        logger.debug("---------- Groq Response End ----------")
-        return model_response
-
-    async def aresponse(self, messages: List[Message]) -> ModelResponse:
-        """
-        Generate an asynchronous response from Groq.
-
-        Args:
-            messages (List[Message]): A list of messages.
-
-        Returns:
-            ModelResponse: The model response from the API.
-        """
-        logger.debug("---------- Groq Async Response Start ----------")
-        self._log_messages(messages)
-        model_response = ModelResponse()
-
-        # -*- Create assistant message
-        assistant_message = Message(role=self.assistant_message_role)
-
-        # -*- Generate response
-        assistant_message.metrics.start_timer()
-        response: ChatCompletion = await self.ainvoke(messages=messages)
-        assistant_message.metrics.stop_timer()
-
-        # -*- Populate the assistant message with response message and usage
-        self.populate_assistant_message(
-            assistant_message=assistant_message,
-            response_message=response.choices[0].message,
-            response_usage=response.usage,
-        )
-
-        # -*- Add assistant message to messages
-        messages.append(assistant_message)
-
-        # -*- Log response and metrics
-        assistant_message.log()
-
-        # -*- Update model response with assistant message content and audio
-        if assistant_message.content is not None:
-            # add the content to the model response
-            model_response.content = assistant_message.get_content_string()
-
-        # -*- Handle tool calls
-        if (
-            await self.ahandle_tool_calls(
-                assistant_message=assistant_message,
-                messages=messages,
-                model_response=model_response,
-                tool_role=self.tool_message_role,
-            )
-            is not None
-        ):
-            return await self.ahandle_post_tool_call_messages(messages=messages, model_response=model_response)
-
-        logger.debug("---------- Groq Async Response End ----------")
-        return model_response
-
-    def response_stream(self, messages: List[Message]) -> Iterator[ModelResponse]:
-        """
-        Generate a streaming response from Groq.
-
-        Args:
-            messages (List[Message]): A list of messages.
-
-        Returns:
-            Iterator[ModelResponse]: An iterator of model responses.
-        """
-        logger.debug("---------- Groq Response Start ----------")
-        self._log_messages(messages)
-        stream_data: StreamData = StreamData()
-
-        # -*- Create assistant message
-        assistant_message = Message(role="assistant")
-
-        # -*- Generate response
-        assistant_message.metrics.start_timer()
-        for response in self.invoke_stream(messages=messages):
-            if len(response.choices) > 0:
-                assistant_message.metrics.completion_tokens += 1
-                if assistant_message.metrics.completion_tokens == 1:
-                    assistant_message.metrics.set_time_to_first_token()
-
-                response_delta: ChoiceDelta = response.choices[0].delta
-                response_content: Optional[str] = response_delta.content
-                response_tool_calls: Optional[List[ChoiceDeltaToolCall]] = response_delta.tool_calls
-
-                if response_content is not None:
-                    stream_data.response_content += response_content
-                    yield ModelResponse(content=response_content)
-
-                if response_tool_calls is not None:
-                    if stream_data.response_tool_calls is None:
-                        stream_data.response_tool_calls = []
-                    stream_data.response_tool_calls.extend(response_tool_calls)
-
+            # Add usage metrics if present
             if response.usage is not None:
-                self.add_usage_metrics_to_assistant_message(
-                    assistant_message=assistant_message, response_usage=response.usage
-                )
-        assistant_message.metrics.stop_timer()
+                provider_response.response_usage = response.usage
 
-        # -*- Add response content to assistant message
-        if stream_data.response_content != "":
-            assistant_message.content = stream_data.response_content
-
-        # -*- Add tool calls to assistant message
-        if stream_data.response_tool_calls is not None:
-            _tool_calls = self.build_tool_calls(stream_data.response_tool_calls)
-            if len(_tool_calls) > 0:
-                assistant_message.tool_calls = _tool_calls
-
-        # -*- Add assistant message to messages
-        messages.append(assistant_message)
-
-        # -*- Log response and metrics
-        assistant_message.log(metrics=True)
-
-        # -*- Handle tool calls
-        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
-            yield from self.handle_stream_tool_calls(
-                assistant_message=assistant_message, messages=messages, tool_role=self.tool_message_role
-            )
-            yield from self.handle_post_tool_call_messages_stream(messages=messages)
-        logger.debug("---------- Groq Response End ----------")
-
-    async def aresponse_stream(self, messages: List[Message]) -> Any:
-        """
-        Generate an asynchronous streaming response from Groq.
-
-        Args:
-            messages (List[Message]): A list of messages.
-
-        Returns:
-            Any: An asynchronous iterator of model responses.
-        """
-        logger.debug("---------- Groq Async Response Start ----------")
-        self._log_messages(messages)
-        stream_data: StreamData = StreamData()
-
-        # -*- Create assistant message
-        assistant_message = Message(role="assistant")
-
-        # -*- Generate response
-        assistant_message.metrics.start_timer()
-        async for response in self.ainvoke_stream(messages=messages):
-            if response.choices and len(response.choices) > 0:
-                assistant_message.metrics.completion_tokens += 1
-                if assistant_message.metrics.completion_tokens == 1:
-                    assistant_message.metrics.set_time_to_first_token()
-
-                response_delta: ChoiceDelta = response.choices[0].delta
-                response_content = response_delta.content
-                response_tool_calls = response_delta.tool_calls
-
-                if response_content is not None:
-                    stream_data.response_content += response_content
-                    yield ModelResponse(content=response_content)
-
-                if response_tool_calls is not None:
-                    if stream_data.response_tool_calls is None:
-                        stream_data.response_tool_calls = []
-                    stream_data.response_tool_calls.extend(response_tool_calls)
-
-            if response.usage is not None:
-                self.add_usage_metrics_to_assistant_message(
-                    assistant_message=assistant_message, response_usage=response.usage
-                )
-        assistant_message.metrics.stop_timer()
-
-        # -*- Add response content to assistant message
-        if stream_data.response_content != "":
-            assistant_message.content = stream_data.response_content
-
-        # -*- Add tool calls to assistant message
-        if stream_data.response_tool_calls is not None:
-            _tool_calls = self.build_tool_calls(stream_data.response_tool_calls)
-            if len(_tool_calls) > 0:
-                assistant_message.tool_calls = _tool_calls
-
-        # -*- Add assistant message to messages
-        messages.append(assistant_message)
-
-        # -*- Log response and metrics
-        assistant_message.log(metrics=True)
-
-        # -*- Handle tool calls
-        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
-            async for tool_call_response in self.ahandle_stream_tool_calls(
-                assistant_message=assistant_message, messages=messages, tool_role=self.tool_message_role
-            ):
-                yield tool_call_response
-            async for post_tool_call_response in self.ahandle_post_tool_call_messages_stream(messages=messages):
-                yield post_tool_call_response
-        logger.debug("---------- Groq Async Response End ----------")
+            if has_content:
+                yield provider_response

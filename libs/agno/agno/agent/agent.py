@@ -400,6 +400,7 @@ class Agent:
         # Agent session
         self.agent_session: Optional[AgentSession] = None
 
+        self._tools_for_model: Optional[List[Dict]] = None
         self._functions_for_model: Optional[Dict[str, Function]] = None
 
         self._formatter: Optional[SafeFormatter] = None
@@ -1345,7 +1346,7 @@ class Agent:
     def add_tools_to_model(self, model: Model) -> None:
 
         # Skip if functions_for_model is not None
-        if self._functions_for_model is None:
+        if self._functions_for_model is None or self._tools_for_model is None:
 
             # Get Agent tools
             agent_tools = self.get_tools()
@@ -1356,6 +1357,7 @@ class Agent:
                 if self.response_model is not None and self.structured_outputs and model.supports_structured_outputs:
                     strict = True
 
+                self._tools_for_model = []
                 self._functions_for_model = {}
 
                 for tool in agent_tools:
@@ -1369,6 +1371,7 @@ class Agent:
                                 if strict:
                                     func.strict = True
                                 self._functions_for_model[name] = func
+                                self._tools_for_model.append({"type": "function", "function": func.to_dict()})
                                 logger.debug(f"Included function {name} from {tool.name}")
 
                     elif isinstance(tool, Function):
@@ -1378,6 +1381,7 @@ class Agent:
                             if strict:
                                 tool.strict = True
                             self._functions_for_model[tool.name] = tool
+                            self._tools_for_model.append({"type": "function", "function": tool.to_dict()})
                             logger.debug(f"Included function {tool.name}")
 
                     elif callable(tool):
@@ -1389,10 +1393,13 @@ class Agent:
                                 if strict:
                                     func.strict = True
                                 self._functions_for_model[func.name] = func
+                                self._tools_for_model.append({"type": "function", "function": func.to_dict()})
                                 logger.debug(f"Included function {func.name}")
                         except Exception as e:
                             logger.warning(f"Could not add function {tool}: {e}")
 
+                # Set tools on the model
+                model.set_tools(tools=self._tools_for_model)
                 # Set functions on the model
                 model.set_functions(functions=self._functions_for_model)
 

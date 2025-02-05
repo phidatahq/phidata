@@ -44,7 +44,9 @@ class AzureOpenAI(OpenAILike):
     azure_deployment: Optional[str] = getenv("AZURE_DEPLOYMENT")
     azure_ad_token: Optional[str] = None
     azure_ad_token_provider: Optional[Any] = None
-    openai_client: Optional[AzureOpenAIClient] = None
+
+    client: Optional[AzureOpenAIClient] = None
+    async_client: Optional[AsyncAzureOpenAIClient] = None
 
     def get_client(self) -> AzureOpenAIClient:
         """
@@ -54,12 +56,14 @@ class AzureOpenAI(OpenAILike):
             AzureOpenAIClient: The OpenAI client.
 
         """
-        if self.openai_client:
-            return self.openai_client
+        if self.client is not None:
+            return self.client
 
         _client_params: Dict[str, Any] = self._get_client_params()
 
-        return AzureOpenAIClient(**_client_params)
+        # -*- Create client
+        self.client = AzureOpenAIClient(**_client_params)
+        return self.client
 
     def get_async_client(self) -> AsyncAzureOpenAIClient:
         """
@@ -68,6 +72,8 @@ class AzureOpenAI(OpenAILike):
         Returns:
             AsyncAzureOpenAIClient: An instance of the asynchronous OpenAI client.
         """
+        if self.async_client:
+            return self.async_client
 
         _client_params: Dict[str, Any] = self._get_client_params()
 
@@ -78,7 +84,9 @@ class AzureOpenAI(OpenAILike):
             _client_params["http_client"] = httpx.AsyncClient(
                 limits=httpx.Limits(max_connections=1000, max_keepalive_connections=100)
             )
-        return AsyncAzureOpenAIClient(**_client_params)
+
+        self.async_client = AsyncAzureOpenAIClient(**_client_params)
+        return self.async_client
 
     def _get_client_params(self) -> Dict[str, Any]:
         _client_params: Dict[str, Any] = {}

@@ -4,12 +4,12 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import GeneratorType
-from typing import Any, Dict, Iterator, List, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, Iterator, List, Mapping, Optional, Sequence, Tuple, Union, AsyncIterator
 
 from agno.exceptions import AgentRunException
-from agno.media import Audio, Image
+from agno.media import Audio, AudioOutput, Image
 from agno.models.message import Message, MessageMetrics
-from agno.models.response import ModelResponse, ModelResponseEvent
+from agno.models.response import ModelProviderResponse, ModelResponse, ModelResponseEvent
 from agno.tools.function import Function, FunctionCall
 from agno.utils.log import logger
 from agno.utils.timer import Timer
@@ -17,16 +17,11 @@ from agno.utils.tools import get_function_call_for_tool_call
 
 
 @dataclass
-class StreamData:
-    response_content: str = ""
-    response_tool_calls: Optional[List[Any]] = None
-    completion_tokens: int = 0
-    response_prompt_tokens: int = 0
-    response_completion_tokens: int = 0
-    response_total_tokens: int = 0
-    time_to_first_token: Optional[float] = None
-    response_timer: Timer = field(default_factory=Timer)
-
+class MessageData:
+    response_role: Optional[str] = None
+    response_content: Any = ""
+    response_tool_calls: List[Dict[str, Any]] = field(default_factory=list)
+    response_audio: Optional[AudioOutput] = None
 
 @dataclass
 class Model(ABC):
@@ -60,6 +55,10 @@ class Model(ABC):
     show_tool_calls: Optional[bool] = None
     # Maximum number of tool calls allowed.
     tool_call_limit: Optional[int] = None
+
+    # A list of tools provided to the Model.
+    # Tools are functions the model may generate JSON inputs for.
+    _tools: Optional[List[Dict]] = None
 
     # Functions available to the Model to call
     # Functions extracted from the tools.
@@ -116,20 +115,35 @@ class Model(ABC):
         pass
 
     @abstractmethod
-    def response(self, messages: List[Message]) -> ModelResponse:
+    def parse_model_provider_response(
+        self, response: Any
+    ) -> ModelProviderResponse:
+        """
+        Parse the raw response from the model provider into a ModelProviderResponse.
+
+        Args:
+            response: Raw response from the model provider
+
+        Returns:
+            ModelProviderResponse: Parsed response data
+        """
         pass
 
     @abstractmethod
-    async def aresponse(self, messages: List[Message]) -> ModelResponse:
+    def parse_model_provider_response_stream(
+        self, response: Any
+    ) -> Iterator[ModelProviderResponse]:
+        """
+        Parse the streaming response from the model provider into ModelProviderResponse objects.
+
+        Args:
+            response: Raw response chunk from the model provider
+
+        Returns:
+            Iterator[ModelProviderResponse]: Iterator of parsed response data
+        """
         pass
 
-    @abstractmethod
-    def response_stream(self, messages: List[Message]) -> Iterator[ModelResponse]:
-        pass
-
-    @abstractmethod
-    async def aresponse_stream(self, messages: List[Message]) -> Any:
-        pass
 
     def _log_messages(self, messages: List[Message]) -> None:
         """
@@ -137,6 +151,9 @@ class Model(ABC):
         """
         for m in messages:
             m.log()
+
+    def set_tools(self, tools: List[Dict]) -> None:
+        self._tools = tools
 
     def set_functions(self, functions: Dict[str, Function]) -> None:
         if len(functions) > 0:
@@ -477,7 +494,7 @@ class Model(ABC):
             model_response.tool_calls = []
 
         function_call_results: List[Message] = []
-        function_calls_to_run: List[FunctionCall] = self._get_function_calls_to_run(assistant_message, messages)
+        function_calls_to_run: List[FunctionCall] = self.get_function_calls_to_run(assistant_message, messages)
 
         if self.show_tool_calls:
             if len(function_calls_to_run) == 1:
@@ -660,7 +677,7 @@ class Model(ABC):
         assistant_message: Message,
         messages: List[Message],
         tool_role: str = "tool",
-    ):
+    ) -> AsyncIterator[ModelResponse]:
         """
         Handle tool calls for response stream.
 
@@ -978,10 +995,388 @@ class Model(ABC):
 
         # Deep copy all attributes
         for k, v in self.__dict__.items():
-            if k in {"response_format", "_functions", "_function_call_stack"}:
+            if k in {"response_format", "tools", "_functions", "_function_call_stack"}:
                 continue
             setattr(new_model, k, deepcopy(v, memo))
 
         # Clear the new model to remove any references to the old model
         new_model.clear()
         return new_model
+
+    def add_usage_metrics_to_assistant_message(
+        self, assistant_message: Message, response_usage: Any
+    ) -> None:
+        """
+        Add usage metrics from the model provider to the assistant message.
+
+        Args:
+            assistant_message: Message to update with metrics
+            response_usage: Usage data from model provider
+        """
+        # Standard token metrics
+        if hasattr(response_usage, "prompt_tokens"):
+            assistant_message.metrics.input_tokens = response_usage.prompt_tokens
+            assistant_message.metrics.prompt_tokens = response_usage.prompt_tokens
+        if hasattr(response_usage, "completion_tokens"):
+            assistant_message.metrics.output_tokens = response_usage.completion_tokens
+            assistant_message.metrics.completion_tokens = response_usage.completion_tokens
+        if hasattr(response_usage, "total_tokens"):
+            assistant_message.metrics.total_tokens = response_usage.total_tokens
+
+        # Additional timing metrics (e.g., from Groq)
+        if assistant_message.metrics.additional_metrics is None:
+            assistant_message.metrics.additional_metrics = {}
+
+        additional_metrics = [
+            "prompt_time",
+            "completion_time",
+            "queue_time",
+            "total_time",
+        ]
+
+        for metric in additional_metrics:
+            if hasattr(response_usage, metric) and getattr(response_usage, metric) is not None:
+                assistant_message.metrics.additional_metrics[metric] = getattr(response_usage, metric)
+
+        # Token details (e.g., from OpenAI)
+        if hasattr(response_usage, "prompt_tokens_details"):
+            if isinstance(response_usage.prompt_tokens_details, dict):
+                assistant_message.metrics.prompt_tokens_details = response_usage.prompt_tokens_details
+            elif hasattr(response_usage.prompt_tokens_details, "model_dump"):
+                assistant_message.metrics.prompt_tokens_details = response_usage.prompt_tokens_details.model_dump(
+                    exclude_none=True
+                )
+
+        if hasattr(response_usage, "completion_tokens_details"):
+            if isinstance(response_usage.completion_tokens_details, dict):
+                assistant_message.metrics.completion_tokens_details = response_usage.completion_tokens_details
+            elif hasattr(response_usage.completion_tokens_details, "model_dump"):
+                assistant_message.metrics.completion_tokens_details = response_usage.completion_tokens_details.model_dump(
+                    exclude_none=True
+                )
+
+    def populate_assistant_message(
+        self,
+        assistant_message: Message,
+        provider_response: ModelProviderResponse,
+    ) -> Message:
+        """
+        Populate an assistant message with the provider response data.
+
+        Args:
+            assistant_message: The assistant message to populate
+            provider_response: Parsed response from the model provider
+
+        Returns:
+            Message: The populated assistant message
+        """
+        # Add role to assistant message
+        if provider_response.role is not None:
+            assistant_message.role = provider_response.role
+
+        # Add content to assistant message
+        if provider_response.content is not None:
+            assistant_message.content = provider_response.content
+
+        # Add tool calls to assistant message
+        if provider_response.tool_calls is not None and len(provider_response.tool_calls) > 0:
+            assistant_message.tool_calls = provider_response.tool_calls
+
+        # Add audio to assistant message
+        if provider_response.audio is not None:
+            assistant_message.audio_output = provider_response.audio
+
+        # Add usage metrics if provided
+        if provider_response.response_usage is not None:
+            self.add_usage_metrics_to_assistant_message(
+                assistant_message=assistant_message,
+                response_usage=provider_response.response_usage
+            )
+
+        return assistant_message
+
+    def response(self, messages: List[Message]) -> ModelResponse:
+        """
+        Generate a response from the model.
+
+        Args:
+            messages: List of messages in the conversation
+
+        Returns:
+            ModelResponse: The model's response
+        """
+        logger.debug(f"---------- {self.get_provider()} Response Start ----------")
+        self._log_messages(messages)
+        model_response = ModelResponse()
+
+        # Create assistant message
+        assistant_message = Message(role=self.assistant_message_role)
+
+        # Generate response
+        assistant_message.metrics.start_timer()
+        response = self.invoke(messages=messages)
+        assistant_message.metrics.stop_timer()
+
+        # Parse provider response
+        provider_response = self.parse_model_provider_response(response)
+
+        # Add parsed data to assistant message
+        if provider_response.parsed is not None:
+            model_response.parsed = provider_response.parsed
+
+        # Populate the assistant message
+        self.populate_assistant_message(
+            assistant_message=assistant_message,
+            provider_response=provider_response
+        )
+
+        # Add assistant message to messages
+        messages.append(assistant_message)
+
+        # Log response and metrics
+        assistant_message.log()
+
+        # Update model response with assistant message content and audio
+        if assistant_message.content is not None:
+            model_response.content = assistant_message.get_content_string()
+        if assistant_message.audio_output is not None:
+            model_response.audio = assistant_message.audio_output
+
+        # Handle tool calls
+        if (
+            self.handle_tool_calls(
+                assistant_message=assistant_message,
+                messages=messages,
+                model_response=model_response,
+                tool_role=self.tool_message_role,
+            )
+            is not None
+        ):
+            return self.handle_post_tool_call_messages(messages=messages, model_response=model_response)
+
+        logger.debug(f"---------- {self.get_provider()} Response End ----------")
+        return model_response
+
+    async def aresponse(self, messages: List[Message]) -> ModelResponse:
+        """
+        Generate an asynchronous response from the model.
+
+        Args:
+            messages: List of messages in the conversation
+        """
+        logger.debug(f"---------- {self.get_provider()} Async Response Start ----------")
+        self._log_messages(messages)
+        model_response = ModelResponse()
+
+        # Create assistant message
+        assistant_message = Message(role=self.assistant_message_role)
+
+        # Generate response
+        assistant_message.metrics.start_timer()
+        response = await self.ainvoke(messages=messages)
+        assistant_message.metrics.stop_timer()
+
+        # Parse provider response
+        provider_response = self.parse_model_provider_response(response)
+
+        # Add parsed data to assistant message
+        if provider_response.parsed is not None:
+            model_response.parsed = provider_response.parsed
+
+        # Populate the assistant message
+        self.populate_assistant_message(
+            assistant_message=assistant_message,
+            provider_response=provider_response
+        )
+
+        # Add assistant message to messages
+        messages.append(assistant_message)
+
+        # Log response and metrics
+        assistant_message.log()
+
+        # Update model response with assistant message content and audio
+        if assistant_message.content is not None:
+            model_response.content = assistant_message.get_content_string()
+        if assistant_message.audio_output is not None:
+            model_response.audio = assistant_message.audio_output
+
+        # -*- Handle tool calls
+        if (
+            await self.ahandle_tool_calls(
+                assistant_message=assistant_message,
+                messages=messages,
+                model_response=model_response,
+                tool_role=self.tool_message_role,
+            )
+            is not None
+        ):
+            return await self.ahandle_post_tool_call_messages(messages=messages, model_response=model_response)
+
+        logger.debug(f"---------- {self.get_provider()} Async Response End ----------")
+        return model_response
+
+    def response_stream(self, messages: List[Message]) -> Iterator[ModelResponse]:
+        """
+        Generate a streaming response from the model.
+
+        Args:
+            messages: List of messages in the conversation
+
+        Returns:
+            Iterator[ModelResponse]: Iterator of model responses
+        """
+        logger.debug(f"---------- {self.get_provider()} Response Stream Start ----------")
+        self._log_messages(messages)
+        stream_data: MessageData = MessageData()
+
+        # Create assistant message
+        assistant_message = Message(role=self.assistant_message_role)
+
+        # Generate response
+        assistant_message.metrics.start_timer()
+        for response in self.invoke_stream(messages=messages):
+            # Parse provider response
+            for provider_response in self.parse_model_provider_response_stream(response):
+                # Update metrics
+                assistant_message.metrics.completion_tokens += 1
+                if not assistant_message.metrics.time_to_first_token:
+                    assistant_message.metrics.set_time_to_first_token()
+
+                if provider_response.content is not None:
+                    # Update stream data
+                    stream_data.response_content += provider_response.content
+                    yield ModelResponse(content=provider_response.content)
+
+                if provider_response.tool_calls is not None:
+                    # Update stream data
+                    if stream_data.response_tool_calls is None:
+                        stream_data.response_tool_calls = []
+                    stream_data.response_tool_calls.extend(provider_response.tool_calls)
+
+                if provider_response.audio is not None:
+                    # Update stream data
+                    stream_data.response_audio = provider_response.audio
+                    yield ModelResponse(audio=provider_response.audio)
+
+                if provider_response.response_usage is not None:
+                    # Update metrics
+                    self.add_usage_metrics_to_assistant_message(
+                        assistant_message=assistant_message,
+                        response_usage=provider_response.response_usage
+                    )
+
+        assistant_message.metrics.stop_timer()
+
+        # Add response content and audio to assistant message
+        if stream_data.response_content != "":
+            assistant_message.content = stream_data.response_content
+
+        if stream_data.response_audio is not None:
+            assistant_message.audio_output = stream_data.response_audio
+
+        # Add tool calls to assistant message
+        if stream_data.response_tool_calls is not None and len(stream_data.response_tool_calls) > 0:
+            _tool_calls = self.build_tool_calls(stream_data.response_tool_calls)
+            assistant_message.tool_calls = _tool_calls
+
+        # Add assistant message to messages
+        messages.append(assistant_message)
+
+        # Log response and metrics
+        assistant_message.log(metrics=True)
+
+        # Handle tool calls
+        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
+            yield from self.handle_stream_tool_calls(
+                assistant_message=assistant_message,
+                messages=messages,
+                tool_role=self.tool_message_role
+            )
+            yield from self.handle_post_tool_call_messages_stream(messages=messages)
+
+        logger.debug(f"---------- {self.get_provider()} Response Stream End ----------")
+
+    async def aresponse_stream(self, messages: List[Message]) -> Any:
+        """
+        Generate an asynchronous streaming response from the model.
+
+        Args:
+            messages: List of messages in the conversation
+
+        Returns:
+            Any: Async iterator of model responses
+        """
+        logger.debug(f"---------- {self.get_provider()} Async Response Stream Start ----------")
+        self._log_messages(messages)
+        stream_data = MessageData()
+
+        # Create assistant message
+        assistant_message = Message(role=self.assistant_message_role)
+
+        # Generate response
+        assistant_message.metrics.start_timer()
+        async for response in self.ainvoke_stream(messages=messages):
+            # Parse provider response
+            for provider_response in self.parse_model_provider_response_stream(response):
+                # Update metrics
+                assistant_message.metrics.completion_tokens += 1
+                if not assistant_message.metrics.time_to_first_token:
+                    assistant_message.metrics.set_time_to_first_token()
+
+                if provider_response.content is not None:
+                    # Update stream data
+                    stream_data.response_content += provider_response.content
+                    yield ModelResponse(content=provider_response.content)
+
+                if provider_response.tool_calls is not None:
+                    # Update stream data
+                    if stream_data.response_tool_calls is None:
+                        stream_data.response_tool_calls = []
+                    stream_data.response_tool_calls.extend(provider_response.tool_calls)
+
+                if provider_response.audio is not None:
+                    # Update stream data
+                    stream_data.response_audio = provider_response.audio
+                    yield ModelResponse(audio=provider_response.audio)
+
+                if provider_response.response_usage is not None:
+                    # Update metrics
+                    self.add_usage_metrics_to_assistant_message(
+                        assistant_message=assistant_message,
+                        response_usage=provider_response.response_usage
+                    )
+
+        assistant_message.metrics.stop_timer()
+
+        # Add response content and audio to assistant message
+        if stream_data.response_content != "":
+            assistant_message.content = stream_data.response_content
+
+        if stream_data.response_audio is not None:
+            assistant_message.audio_output = stream_data.response_audio
+
+        # Add tool calls to assistant message
+        if stream_data.response_tool_calls is not None and len(stream_data.response_tool_calls) > 0:
+            _tool_calls = self.build_tool_calls(stream_data.response_tool_calls)
+            if len(_tool_calls) > 0:
+                assistant_message.tool_calls = _tool_calls
+
+        # Add assistant message to messages
+        messages.append(assistant_message)
+
+        # Log response and metrics
+        assistant_message.log(metrics=True)
+
+        # Handle tool calls
+        if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
+            async for tool_call_response in self.ahandle_stream_tool_calls(
+                assistant_message=assistant_message,
+                messages=messages,
+                tool_role=self.tool_message_role
+            ):
+                yield tool_call_response
+            async for post_tool_call_response in self.ahandle_post_tool_call_messages_stream(messages=messages):
+                yield post_tool_call_response
+
+        logger.debug(f"---------- {self.get_provider()} Async Response Stream End ----------")

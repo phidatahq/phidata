@@ -237,7 +237,7 @@ class GmailTools(Toolkit):
             str: Formatted string containing email details
         """
         try:
-            results = self.service.users().messages().list(userId="me", maxResults=count).execute()
+            results = self.service.users().messages().list(userId="me", maxResults=count).execute()  # type: ignore
             emails = self._get_message_details(results.get("messages", []))
             return self._format_emails(emails)
         except HttpError as error:
@@ -259,7 +259,7 @@ class GmailTools(Toolkit):
         """
         try:
             query = f"from:{user}" if "@" in user else f"from:{user}*"
-            results = self.service.users().messages().list(userId="me", q=query, maxResults=count).execute()
+            results = self.service.users().messages().list(userId="me", q=query, maxResults=count).execute()  # type: ignore
             emails = self._get_message_details(results.get("messages", []))
             return self._format_emails(emails)
         except HttpError as error:
@@ -279,7 +279,7 @@ class GmailTools(Toolkit):
             str: Formatted string containing email details
         """
         try:
-            results = self.service.users().messages().list(userId="me", q="is:unread", maxResults=count).execute()
+            results = self.service.users().messages().list(userId="me", q="is:unread", maxResults=count).execute()  # type: ignore
             emails = self._get_message_details(results.get("messages", []))
             return self._format_emails(emails)
         except HttpError as error:
@@ -299,7 +299,7 @@ class GmailTools(Toolkit):
             str: Formatted string containing email details
         """
         try:
-            results = self.service.users().messages().list(userId="me", q="is:starred", maxResults=count).execute()
+            results = self.service.users().messages().list(userId="me", q="is:starred", maxResults=count).execute()  # type: ignore
             emails = self._get_message_details(results.get("messages", []))
             return self._format_emails(emails)
         except HttpError as error:
@@ -320,7 +320,7 @@ class GmailTools(Toolkit):
             str: Formatted string containing email details
         """
         try:
-            results = self.service.users().messages().list(userId="me", q=context, maxResults=count).execute()
+            results = self.service.users().messages().list(userId="me", q=context, maxResults=count).execute()  # type: ignore
             emails = self._get_message_details(results.get("messages", []))
             return self._format_emails(emails)
         except HttpError as error:
@@ -351,7 +351,7 @@ class GmailTools(Toolkit):
             else:
                 query = f"after:{start_date_dt.strftime('%Y/%m/%d')}"
 
-            results = self.service.users().messages().list(userId="me", q=query, maxResults=num_emails).execute()
+            results = self.service.users().messages().list(userId="me", q=query, maxResults=num_emails).execute()  # type: ignore
             emails = self._get_message_details(results.get("messages", []))
             return self._format_emails(emails)
         except HttpError as error:
@@ -375,7 +375,7 @@ class GmailTools(Toolkit):
         self._validate_email_params(to, subject, body)
         message = self._create_message(to.split(","), subject, body, cc.split(",") if cc else None)
         draft = {"message": message}
-        draft = self.service.users().drafts().create(userId="me", body=draft).execute()
+        draft = self.service.users().drafts().create(userId="me", body=draft).execute()  # type: ignore
         return str(draft)
 
     @authenticate
@@ -394,7 +394,7 @@ class GmailTools(Toolkit):
         self._validate_email_params(to, subject, body)
         body = body.replace("\n", "<br>")
         message = self._create_message(to.split(","), subject, body, cc.split(",") if cc else None)
-        message = self.service.users().messages().send(userId="me", body=message).execute()
+        message = self.service.users().messages().send(userId="me", body=message).execute()  # type: ignore
         return str(message)
 
     @authenticate
@@ -411,7 +411,7 @@ class GmailTools(Toolkit):
             str: Formatted string containing email details
         """
         try:
-            results = self.service.users().messages().list(userId="me", q=query, maxResults=count).execute()
+            results = self.service.users().messages().list(userId="me", q=query, maxResults=count).execute()  # type: ignore
             emails = self._get_message_details(results.get("messages", []))
             return self._format_emails(emails)
         except HttpError as error:
@@ -450,7 +450,7 @@ class GmailTools(Toolkit):
         """Get details for list of messages"""
         details = []
         for msg in messages:
-            msg_data = self.service.users().messages().get(userId="me", id=msg["id"], format="full").execute()
+            msg_data = self.service.users().messages().get(userId="me", id=msg["id"], format="full").execute()  # type: ignore
             details.append(
                 {
                     "id": msg_data["id"],

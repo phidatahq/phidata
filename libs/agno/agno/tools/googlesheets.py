@@ -209,7 +209,7 @@ class GoogleSheetsTools(Toolkit):
             return "Spreadsheet ID and range must be provided either in constructor or method call"
 
         try:
-            result = self.service.spreadsheets().values().get(spreadsheetId=sheet_id, range=sheet_range).execute()
+            result = self.service.spreadsheets().values().get(spreadsheetId=sheet_id, range=sheet_range).execute()  # type: ignore
             return json.dumps(result.get("values", []))
 
         except Exception as e:
@@ -232,7 +232,7 @@ class GoogleSheetsTools(Toolkit):
         try:
             spreadsheet = {"properties": {"title": title}}
 
-            spreadsheet = self.service.spreadsheets().create(body=spreadsheet, fields="spreadsheetId").execute()
+            spreadsheet = self.service.spreadsheets().create(body=spreadsheet, fields="spreadsheetId").execute()  # type: ignore
             spreadsheet_id = spreadsheet.get("spreadsheetId")
 
             return f"Spreadsheet created: https://docs.google.com/spreadsheets/d/{spreadsheet_id}"
@@ -265,7 +265,7 @@ class GoogleSheetsTools(Toolkit):
             body = {"values": data}
 
             # Update the sheet
-            self.service.spreadsheets().values().update(
+            self.service.spreadsheets().values().update(  # type: ignore
                 spreadsheetId=spreadsheet_id,
                 range=range_name,
                 valueInputOption="RAW",
@@ -294,7 +294,7 @@ class GoogleSheetsTools(Toolkit):
 
         try:
             # Get the source spreadsheet to copy its properties
-            source = self.service.spreadsheets().get(spreadsheetId=source_id).execute()
+            source = self.service.spreadsheets().get(spreadsheetId=source_id).execute()  # type: ignore
 
             if not new_title:
                 new_title = f"{source['properties']['title']}"
@@ -302,7 +302,7 @@ class GoogleSheetsTools(Toolkit):
             body = {"properties": {"title": new_title}, "sheets": source["sheets"]}
 
             # Create new spreadsheet with copied properties
-            spreadsheet = self.service.spreadsheets().create(body=body, fields="spreadsheetId").execute()
+            spreadsheet = self.service.spreadsheets().create(body=body, fields="spreadsheetId").execute()  # type: ignore
 
             spreadsheet_id = spreadsheet.get("spreadsheetId")
 
@@ -311,12 +311,12 @@ class GoogleSheetsTools(Toolkit):
                 range_name = sheet["properties"]["title"]
 
                 # Get data from source
-                result = self.service.spreadsheets().values().get(spreadsheetId=source_id, range=range_name).execute()
+                result = self.service.spreadsheets().values().get(spreadsheetId=source_id, range=range_name).execute()  # type: ignore
                 values = result.get("values", [])
 
                 if values:
                     # Copy to new spreadsheet
-                    self.service.spreadsheets().values().update(
+                    self.service.spreadsheets().values().update(  # type: ignore
                         spreadsheetId=spreadsheet_id, range=range_name, valueInputOption="RAW", body={"values": values}
                     ).execute()
 

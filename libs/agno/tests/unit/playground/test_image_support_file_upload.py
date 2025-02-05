@@ -63,18 +63,26 @@ def test_app(mock_agent):
         monitor: bool = Form(False),
         user_id: str = Form(...),
         files: List[UploadFile] = File(None),
-        image: UploadFile = File(None),
     ):
-        # If an image is provided validate its content type and content.
-        if image:
-            if image.content_type not in ["image/jpeg", "image/png", "image/jpg", "image/webp"]:
-                raise HTTPException(status_code=400, detail="Unsupported file type")
-            try:
-                content = await image.read()
-                if not content:
-                    raise ValueError("Empty file")
-            except Exception:
-                raise HTTPException(status_code=400, detail="Invalid image file")
+        # Validate any provided files.
+        if files:
+            for file in files:
+                if file.content_type in ["image/jpeg", "image/png", "image/jpg", "image/webp"]:
+                    try:
+                        content = await file.read()
+                        if not content:
+                            raise ValueError("Empty file")
+                    except Exception:
+                        raise HTTPException(status_code=400, detail="Invalid image file")
+                elif file.content_type == "application/pdf":
+                    try:
+                        content = await file.read()
+                        if not content:
+                            raise ValueError("Empty PDF file")
+                    except Exception:
+                        raise HTTPException(status_code=400, detail="Invalid pdf file")
+                else:
+                    raise HTTPException(status_code=400, detail="Unsupported file type")
         # For simplicity, assume everything else is OK.
         return {"status": "ok", "agent_id": agent_id}
 
@@ -114,8 +122,8 @@ def test_single_image_upload(test_app, mock_agent, mock_image_file):
         "monitor": "false",
         "user_id": "test_user",
     }
-    # Passing a single image via the "image" field.
-    files = {"image": ("test.jpg", mock_image_file.file, "image/jpeg")}
+    # Passing a single image file via the "files" field.
+    files = {"files": ("test.jpg", mock_image_file.file, "image/jpeg")}
     response = test_app.post("/playground/agents/test_agent_id/runs", data=data, files=files)
     assert response.status_code == 200
     assert response.json().get("status") == "ok"

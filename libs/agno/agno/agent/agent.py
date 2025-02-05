@@ -2382,7 +2382,7 @@ class Agent:
 
             try:
                 sig = signature(self.retriever)
-                retriever_kwargs = {}
+                retriever_kwargs: Dict[str, Any] = {}
                 if "agent" in sig.parameters:
                     retriever_kwargs = {"agent": self}
                 retriever_kwargs.update({"query": query, "num_documents": num_documents, **kwargs})

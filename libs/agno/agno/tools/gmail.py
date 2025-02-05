@@ -1,12 +1,12 @@
 """
-Gmail Toolset for interacting with Gmail API
+Gmail Toolkit for interacting with Gmail API
 
 Required Environment Variables:
 -----------------------------
-- GOOGLE_CLIENT_ID: Google OAuth client ID
-- GOOGLE_CLIENT_SECRET: Google OAuth client secret
-- GOOGLE_PROJECT_ID: Google Cloud project ID
-- GOOGLE_REDIRECT_URI: Google OAuth redirect URI (default: http://localhost)
+- GMAIL_CLIENT_ID: Google OAuth client ID
+- GMAIL_CLIENT_SECRET: Google OAuth client secret
+- GMAIL_PROJECT_ID: Google Cloud project ID
+- GMAIL_REDIRECT_URI: Google OAuth redirect URI (default: http://localhost)
 
 How to Get These Credentials:
 ---------------------------
@@ -24,16 +24,16 @@ How to Get These Credentials:
    - Give it a name and click "Create"
    - You'll receive:
      * Client ID (GMAIL_CLIENT_ID)
-     * Client Secret (GOOGLE_CLIENT_SECRET)
-   - The Project ID (GOOGLE_PROJECT_ID) is visible in the project dropdown at the top of the page
+     * Client Secret (GMAIL_CLIENT_SECRET)
+   - The Project ID (GMAIL_PROJECT_ID) is visible in the project dropdown at the top of the page
 
 5. Set up environment variables:
    Create a .envrc file in your project root with:
    ```
-   export GOOGLE_CLIENT_ID=your_client_id_here
-   export GOOGLE_CLIENT_SECRET=your_client_secret_here
-   export GOOGLE_PROJECT_ID=your_project_id_here
-   export GOOGLE_REDIRECT_URI=http://localhost  # Default value
+   export GMAIL_CLIENT_ID=your_client_id_here
+   export GMAIL_CLIENT_SECRET=your_client_secret_here
+   export GMAIL_PROJECT_ID=your_project_id_here
+   export GMAIL_REDIRECT_URI=http://localhost  # Default value
    ```
 
 Note: The first time you run the application, it will open a browser window for OAuth authentication.
@@ -41,8 +41,9 @@ A token.json file will be created to store the authentication credentials for fu
 """
 
 import base64
-import os
 from datetime import datetime, timedelta
+from os import getenv
+from pathlib import Path
 from typing import List, Optional
 
 from agno.tools import Toolkit
@@ -73,11 +74,16 @@ class GmailTools(Toolkit):
         create_draft_email: bool = True,
         send_email: bool = True,
         search_emails: bool = True,
+        creds: Optional[Credentials] = None,
+        credentials_path: Optional[str] = None,
+        token_path: Optional[str] = None,
     ):
         """Initialize GmailTools and authenticate with Gmail API"""
         super().__init__()
-        self.creds = self._authenticate()
+        self.creds = self._authenticate() if not creds else creds
         self.service = build("gmail", "v1", credentials=self.creds)
+        self.credentials_path = credentials_path
+        self.token_path = token_path
         if get_latest_emails:
             self.register(self.get_latest_emails)
         if get_emails_from_user:
@@ -107,28 +113,34 @@ class GmailTools(Toolkit):
             "https://www.googleapis.com/auth/gmail.compose",
         ]
 
+        token_file = Path(self.token_path or "token.json")
+        creds_file = Path(self.credentials_path or "credentials.json")
+
         creds = None
-        if os.path.exists("token.json"):
+        if token_file.exists():
             creds = Credentials.from_authorized_user_file("token.json", SCOPES)
+
         if not creds or not creds.valid:
             if creds and creds.expired and creds.refresh_token:
                 creds.refresh(Request())
             else:
                 client_config = {
                     "installed": {
-                        "client_id": os.getenv("GOOGLE_CLIENT_ID"),
-                        "client_secret": os.getenv("GOOGLE_CLIENT_SECRET"),
-                        "project_id": os.getenv("GOOGLE_PROJECT_ID"),
+                        "client_id": getenv("GMAIL_CLIENT_ID"),
+                        "client_secret": getenv("GMAIL_CLIENT_SECRET"),
+                        "project_id": getenv("GMAIL_PROJECT_ID"),
                         "auth_uri": "https://accounts.google.com/o/oauth2/auth",
                         "token_uri": "https://oauth2.googleapis.com/token",
                         "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-                        "redirect_uris": [os.getenv("GOOGLE_REDIRECT_URI", "http://localhost")],
+                        "redirect_uris": [getenv("GMAIL_REDIRECT_URI", "http://localhost")],
                     }
                 }
-                flow = InstalledAppFlow.from_client_config(client_config, SCOPES)
+                if creds_file.exists():
+                    flow = InstalledAppFlow.from_client_secrets_file(str(creds_file), SCOPES)
+                else:
+                    flow = InstalledAppFlow.from_client_config(client_config, SCOPES)
                 creds = flow.run_local_server(port=0)
-            with open("token.json", "w") as token:
-                token.write(creds.to_json())
+            token_file.write_text(creds.to_json()) if creds else None
         return creds
 
     def _format_emails(self, emails: List[dict]) -> str:

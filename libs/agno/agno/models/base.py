@@ -184,12 +184,15 @@ class Model(ABC):
         function_calls_to_run: List[FunctionCall] = []
         if assistant_message.tool_calls is not None:
             for tool_call in assistant_message.tool_calls:
+                _tool_call_id = tool_call.get("id")
                 _function_call = get_function_call_for_tool_call(tool_call, self._functions)
                 if _function_call is None:
                     messages.append(Message(role=error_response_role, content="Could not find function to call."))
                     continue
                 if _function_call.error is not None:
-                    messages.append(Message(role=error_response_role, content=_function_call.error))
+                    messages.append(
+                        Message(role=error_response_role, tool_call_id=_tool_call_id, content=_function_call.error)
+                    )
                     continue
                 function_calls_to_run.append(_function_call)
         return function_calls_to_run
@@ -474,36 +477,16 @@ class Model(ABC):
             model_response.tool_calls = []
 
         function_call_results: List[Message] = []
-        function_calls_to_run: List[FunctionCall] = []
-
-        for tool_call in assistant_message.tool_calls:  # type: ignore  # assistant_message.tool_calls are checked before calling this method
-            _tool_call_id = tool_call.get("id")
-            _function_call = get_function_call_for_tool_call(tool_call, self._functions)
-            if _function_call is None:
-                messages.append(
-                    Message(
-                        role=tool_role,
-                        tool_call_id=_tool_call_id,
-                        content="Could not find function to call.",
-                    )
-                )
-                continue
-            if _function_call.error is not None:
-                messages.append(
-                    Message(
-                        role=tool_role,
-                        tool_call_id=_tool_call_id,
-                        content=_function_call.error,
-                    )
-                )
-                continue
-            function_calls_to_run.append(_function_call)
+        function_calls_to_run: List[FunctionCall] = self._get_function_calls_to_run(assistant_message, messages)
 
         if self.show_tool_calls:
-            model_response.content += "\nRunning:"
-            for _f in function_calls_to_run:
-                model_response.content += f"\n - {_f.get_call_str()}"
-            model_response.content += "\n\n"
+            if len(function_calls_to_run) == 1:
+                model_response.content += f" - Running: {function_calls_to_run[0].get_call_str()}\n\n"
+            elif len(function_calls_to_run) > 1:
+                model_response.content += "Running:"
+                for _f in function_calls_to_run:
+                    model_response.content += f"\n - {_f.get_call_str()}"
+                model_response.content += "\n\n"
 
         return function_calls_to_run, function_call_results
 

@@ -3,16 +3,16 @@ Google Sheets Toolset for interacting with Sheets API
 
 Required Environment Variables:
 -----------------------------
-- GOOGLE_SHEETS_CLIENT_ID: Google OAuth client ID
-- GOOGLE_SHEETS_CLIENT_SECRET: Google OAuth client secret
-- GOOGLE_SHEETS_PROJECT_ID: Google Cloud project ID
-- GOOGLE_SHEETS_REDIRECT_URI: Google OAuth redirect URI (default: http://localhost)
+- GOOGLE_CLIENT_ID: Google OAuth client ID
+- GOOGLE_CLIENT_SECRET: Google OAuth client secret
+- GOOGLE_PROJECT_ID: Google Cloud project ID
+- GOOGLE_REDIRECT_URI: Google OAuth redirect URI (default: http://localhost)
 
 How to Get These Credentials:
 ---------------------------
 1. Go to Google Cloud Console (https://console.cloud.google.com)
 2. Create a new project or select an existing one
-3. Enable the Gmail API:
+3. Enable the Google Sheets API:
    - Go to "APIs & Services" > "Enable APIs and Services"
    - Search for "Google Sheets API"
    - Click "Enable"
@@ -23,17 +23,17 @@ How to Get These Credentials:
    - Go through the OAuth consent screen setup
    - Give it a name and click "Create"
    - You'll receive:
-     * Client ID (GOOGLE_SHEETS_CLIENT_ID)
-     * Client Secret (GOOGLE_SHEETS_CLIENT_SECRET)
-   - The Project ID (GOOGLE_SHEETS_PROJECT_ID) is visible in the project dropdown at the top of the page
+     * Client ID (GOOGLE_CLIENT_ID)
+     * Client Secret (GOOGLE_CLIENT_SECRET)
+   - The Project ID (GOOGLE_PROJECT_ID) is visible in the project dropdown at the top of the page
 
 5. Set up environment variables:
    Create a .envrc file in your project root with:
    ```
-   export GOOGLE_SHEETS_CLIENT_ID=your_client_id_here
-   export GOOGLE_SHEETS_CLIENT_SECRET=your_client_secret_here
-   export GOOGLE_SHEETS_PROJECT_ID=your_project_id_here
-   export GOOGLE_SHEETS_REDIRECT_URI=http://localhost  # Default value
+   export GOOGLE_CLIENT_ID=your_client_id_here
+   export GOOGLE_CLIENT_SECRET=your_client_secret_here
+   export GOOGLE_PROJECT_ID=your_project_id_here
+   export GOOGLE_REDIRECT_URI=http://localhost  # Default value
    ```
 
 Alternatively, follow the instructions in the Google Sheets API Quickstart guide:
@@ -69,14 +69,17 @@ def authenticate(func):
     @wraps(func)
     def wrapper(self, *args, **kwargs):
         if not self.creds or not self.creds.valid:
-            self.auth()
+            self._auth()
+        if not self.service:
+            self.service = build("sheets", "v4", credentials=self.creds)    
         return func(self, *args, **kwargs)
 
     return wrapper
 
 
 class GoogleSheetsTools(Toolkit):
-    SCOPES = {
+    # Default scopes for Google Sheets API access
+    DEFAULT_SCOPES = {
         "read": "https://www.googleapis.com/auth/spreadsheets.readonly",
         "write": "https://www.googleapis.com/auth/spreadsheets",
     }
@@ -94,23 +97,44 @@ class GoogleSheetsTools(Toolkit):
         update: bool = False,
         duplicate: bool = False,
     ):
+        """Initialize GoogleSheetsTools with the specified configuration.
+
+        Args:
+            scopes (Optional[List[str]]): Custom OAuth scopes. If None, determined by operations.
+            spreadsheet_id (Optional[str]): ID of the target spreadsheet.
+            spreadsheet_range (Optional[str]): Range within the spreadsheet.
+            creds (Optional[Credentials]): Pre-existing credentials.
+            creds_path (Optional[str]): Path to credentials file.
+            token_path (Optional[str]): Path to token file.
+            read (bool): Enable read operations. Defaults to True.
+            create (bool): Enable create operations. Defaults to False.
+            update (bool): Enable update operations. Defaults to False.
+            duplicate (bool): Enable duplicate operations. Defaults to False.
+        """
         super().__init__(name="google_tools")
         self.spreadsheet_id = spreadsheet_id
         self.spreadsheet_range = spreadsheet_range
         self.creds = creds
         self.credentials_path = creds_path
         self.token_path = token_path
+        self.service = None
 
+        # Determine required scopes based on operations if no custom scopes provided
         if scopes is None:
-            if create or update:
-                self.scopes = [self.SCOPES["write"]]
-            else:
-                self.scopes = [self.SCOPES["read"]]
+            self.scopes = []
+            if read:
+                self.scopes.append(self.DEFAULT_SCOPES["read"])
+            if create or update or duplicate:
+                self.scopes.append(self.DEFAULT_SCOPES["write"])
+            # Remove duplicates while preserving order
+            self.scopes = list(dict.fromkeys(self.scopes))
         else:
             self.scopes = scopes
-
-        if (create or update) and self.SCOPES["write"] not in self.scopes:
-            raise ValueError("Write operations require the spreadsheets scope")
+            # Validate that required scopes are present for requested operations
+            if (create or update or duplicate) and self.DEFAULT_SCOPES["write"] not in self.scopes:
+                raise ValueError(f"The scope {self.DEFAULT_SCOPES['write']} is required for write operations")
+            if read and self.DEFAULT_SCOPES["read"] not in self.scopes and self.DEFAULT_SCOPES["write"] not in self.scopes:
+                raise ValueError(f"Either {self.DEFAULT_SCOPES['read']} or {self.DEFAULT_SCOPES['write']} is required for read operations")
 
         if read:
             self.register(self.read_sheet)
@@ -121,7 +145,7 @@ class GoogleSheetsTools(Toolkit):
         if duplicate:
             self.register(self.create_duplicate_sheet)
 
-    def auth(self) -> None:
+    def _auth(self) -> None:
         """
         Authenticate with Google Sheets API
         """
@@ -140,13 +164,13 @@ class GoogleSheetsTools(Toolkit):
             else:
                 client_config = {
                     "installed": {
-                        "client_id": getenv("GOOGLE_SHEETS_CLIENT_ID"),
-                        "client_secret": getenv("GOOGLE_SHEETS_CLIENT_SECRET"),
-                        "project_id": getenv("GOOGLE_SHEETS_PROJECT_ID"),
+                        "client_id": getenv("GOOGLE_CLIENT_ID"),
+                        "client_secret": getenv("GOOGLE_CLIENT_SECRET"),
+                        "project_id": getenv("GOOGLE_PROJECT_ID"),
                         "auth_uri": "https://accounts.google.com/o/oauth2/auth",
                         "token_uri": "https://oauth2.googleapis.com/token",
                         "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-                        "redirect_uris": [getenv("GOOGLE_SHEETS_REDIRECT_URI", "http://localhost")],
+                        "redirect_uris": [getenv("GOOGLE_REDIRECT_URI", "http://localhost")],
                     }
                 }
                 if creds_file.exists():
@@ -179,10 +203,7 @@ class GoogleSheetsTools(Toolkit):
             return "Spreadsheet ID and range must be provided either in constructor or method call"
 
         try:
-            service = build("sheets", "v4", credentials=self.creds)
-            sheet = service.spreadsheets()
-
-            result = sheet.values().get(spreadsheetId=sheet_id, range=sheet_range).execute()
+            result = self.service.spreadsheets().values().get(spreadsheetId=sheet_id, range=sheet_range).execute()
             return json.dumps(result.get("values", []))
 
         except Exception as e:
@@ -203,10 +224,9 @@ class GoogleSheetsTools(Toolkit):
             return "Not authenticated. Call auth() first."
 
         try:
-            service = build("sheets", "v4", credentials=self.creds)
             spreadsheet = {"properties": {"title": title}}
 
-            spreadsheet = service.spreadsheets().create(body=spreadsheet, fields="spreadsheetId").execute()
+            spreadsheet = self.service.spreadsheets().create(body=spreadsheet, fields="spreadsheetId").execute()
             spreadsheet_id = spreadsheet.get("spreadsheetId")
 
             return f"Spreadsheet created: https://docs.google.com/spreadsheets/d/{spreadsheet_id}"
@@ -235,13 +255,11 @@ class GoogleSheetsTools(Toolkit):
             return "Not authenticated. Call auth() first."
 
         try:
-            service = build("sheets", "v4", credentials=self.creds)
-
             # Define the request body
             body = {"values": data}
 
             # Update the sheet
-            service.spreadsheets().values().update(
+            self.service.spreadsheets().values().update(
                 spreadsheetId=spreadsheet_id,
                 range=range_name,
                 valueInputOption="RAW",
@@ -269,10 +287,8 @@ class GoogleSheetsTools(Toolkit):
             return "Not authenticated. Call auth() first."
 
         try:
-            service = build("sheets", "v4", credentials=self.creds)
-
             # Get the source spreadsheet to copy its properties
-            source = service.spreadsheets().get(spreadsheetId=source_id).execute()
+            source = self.service.spreadsheets().get(spreadsheetId=source_id).execute()
 
             if not new_title:
                 new_title = f"{source['properties']['title']}"
@@ -280,7 +296,7 @@ class GoogleSheetsTools(Toolkit):
             body = {"properties": {"title": new_title}, "sheets": source["sheets"]}
 
             # Create new spreadsheet with copied properties
-            spreadsheet = service.spreadsheets().create(body=body, fields="spreadsheetId").execute()
+            spreadsheet = self.service.spreadsheets().create(body=body, fields="spreadsheetId").execute()
 
             spreadsheet_id = spreadsheet.get("spreadsheetId")
 
@@ -289,12 +305,12 @@ class GoogleSheetsTools(Toolkit):
                 range_name = sheet["properties"]["title"]
 
                 # Get data from source
-                result = service.spreadsheets().values().get(spreadsheetId=source_id, range=range_name).execute()
+                result = self.service.spreadsheets().values().get(spreadsheetId=source_id, range=range_name).execute()
                 values = result.get("values", [])
 
                 if values:
                     # Copy to new spreadsheet
-                    service.spreadsheets().values().update(
+                    self.service.spreadsheets().values().update(
                         spreadsheetId=spreadsheet_id, range=range_name, valueInputOption="RAW", body={"values": values}
                     ).execute()
 

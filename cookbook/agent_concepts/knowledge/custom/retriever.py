@@ -5,7 +5,7 @@ from agno.knowledge.pdf_url import PDFUrlKnowledgeBase
 from agno.vectordb.qdrant import Qdrant
 from qdrant_client import QdrantClient
 
-###### This section is only to load the knowledge base
+###### This section is only to load the knowledge base. Skip if your knowledge base was populated elsewhere.
 # Initialize vector database connection
 vector_db = Qdrant(collection="thai-recipes", path="tmp/qdrant")
 # Load the knowledge base

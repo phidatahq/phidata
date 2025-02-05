@@ -43,16 +43,15 @@ A token.json file will be created to store the authentication credentials for fu
 import base64
 import re
 from datetime import datetime, timedelta
+from functools import wraps
 from os import getenv
 from pathlib import Path
 from typing import List, Optional
-from functools import wraps
 
 from agno.tools import Toolkit
 
 try:
     from email.mime.text import MIMEText
-    from email.utils import parseaddr
 
     from google.auth.transport.requests import Request
     from google.oauth2.credentials import Credentials
@@ -82,7 +81,7 @@ def authenticate(func):
 def validate_email(email: str) -> bool:
     """Validate email format."""
     email = email.strip()
-    pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
     return bool(re.match(pattern, email))
 
 
@@ -136,11 +135,20 @@ class GmailTools(Toolkit):
 
         # Validate that required scopes are present for requested operations
         if (create_draft_email or send_email) and "https://www.googleapis.com/auth/gmail.compose" not in self.scopes:
-            raise ValueError("The scope https://www.googleapis.com/auth/gmail.compose is required for email composition operations")
-        
-        read_operations = [get_latest_emails, get_emails_from_user, get_unread_emails, 
-                          get_starred_emails, get_emails_by_context, get_emails_by_date, search_emails]
-        
+            raise ValueError(
+                "The scope https://www.googleapis.com/auth/gmail.compose is required for email composition operations"
+            )
+
+        read_operations = [
+            get_latest_emails,
+            get_emails_from_user,
+            get_unread_emails,
+            get_starred_emails,
+            get_emails_by_context,
+            get_emails_by_date,
+            search_emails,
+        ]
+
         if any(read_operations):
             read_scope = "https://www.googleapis.com/auth/gmail.readonly"
             write_scope = "https://www.googleapis.com/auth/gmail.modify"
@@ -194,7 +202,7 @@ class GmailTools(Toolkit):
                 else:
                     flow = InstalledAppFlow.from_client_config(client_config, self.scopes)
                 self.creds = flow.run_local_server(port=0)
-            
+
             # Save the credentials for future use
             if self.creds and self.creds.valid:
                 token_file.write_text(self.creds.to_json())
@@ -415,15 +423,15 @@ class GmailTools(Toolkit):
         """Validate email parameters."""
         if not to:
             raise ValueError("Recipient email cannot be empty")
-        
+
         # Validate each email in the comma-separated list
-        for email in to.split(','):
+        for email in to.split(","):
             if not validate_email(email.strip()):
                 raise ValueError(f"Invalid recipient email format: {email}")
-        
+
         if not subject or not subject.strip():
             raise ValueError("Subject cannot be empty")
-        
+
         if body is None:
             raise ValueError("Email body cannot be None")
 

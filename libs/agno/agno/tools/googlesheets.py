@@ -71,7 +71,7 @@ def authenticate(func):
         if not self.creds or not self.creds.valid:
             self._auth()
         if not self.service:
-            self.service = build("sheets", "v4", credentials=self.creds)    
+            self.service = build("sheets", "v4", credentials=self.creds)
         return func(self, *args, **kwargs)
 
     return wrapper
@@ -133,8 +133,14 @@ class GoogleSheetsTools(Toolkit):
             # Validate that required scopes are present for requested operations
             if (create or update or duplicate) and self.DEFAULT_SCOPES["write"] not in self.scopes:
                 raise ValueError(f"The scope {self.DEFAULT_SCOPES['write']} is required for write operations")
-            if read and self.DEFAULT_SCOPES["read"] not in self.scopes and self.DEFAULT_SCOPES["write"] not in self.scopes:
-                raise ValueError(f"Either {self.DEFAULT_SCOPES['read']} or {self.DEFAULT_SCOPES['write']} is required for read operations")
+            if (
+                read
+                and self.DEFAULT_SCOPES["read"] not in self.scopes
+                and self.DEFAULT_SCOPES["write"] not in self.scopes
+            ):
+                raise ValueError(
+                    f"Either {self.DEFAULT_SCOPES['read']} or {self.DEFAULT_SCOPES['write']} is required for read operations"
+                )
 
         if read:
             self.register(self.read_sheet)

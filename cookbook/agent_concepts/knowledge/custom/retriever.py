@@ -6,7 +6,7 @@ from agno.knowledge.pdf_url import PDFUrlKnowledgeBase
 from agno.vectordb.qdrant import Qdrant
 from qdrant_client import QdrantClient
 
-# -------------------------------------------------------------------------------------------------
+# ---------------------------------------------------------
 # This section loads the knowledge base. Skip if your knowledge base was populated elsewhere.
 # Define the embedder
 embedder = OpenAIEmbedder(id="text-embedding-3-small")
@@ -21,11 +21,11 @@ knowledge_base = PDFUrlKnowledgeBase(
 # Load the knowledge base
 # knowledge_base.load(recreate=True)  # Comment out after first run
 # Knowledge base is now loaded
-# -------------------------------------------------------------------------------------------------
+# ---------------------------------------------------------
 
 
-# -------------------------------------------------------------------------------------------------
 # Define the custom retriever
+# This is the function that the agent will use to retrieve documents
 def retriever(
     query: str, agent: Optional[Agent] = None, num_documents: int = 5, **kwargs
 ) -> Optional[list[dict]]:
@@ -33,8 +33,8 @@ def retriever(
     Custom retriever function to search the vector database for relevant documents.
 
     Args:
-        agent (Agent): The agent instance making the query
         query (str): The search query string
+        agent (Agent): The agent instance making the query
         num_documents (int): Number of documents to retrieve (default: 5)
         **kwargs: Additional keyword arguments
 

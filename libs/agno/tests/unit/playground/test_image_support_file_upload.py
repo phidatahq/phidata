@@ -4,7 +4,7 @@ Unit tests for async_router file upload functionality.
 
 import io
 from typing import List
-from unittest.mock import Mock, AsyncMock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
@@ -34,6 +34,7 @@ class EmptyFile:
 
 # --- Fixtures ---
 
+
 @pytest.fixture
 def mock_agent():
     """Creates a mock agent with minimal attributes required by the router."""
@@ -53,11 +54,11 @@ def mock_agent():
 def test_app(mock_agent):
     """
     Creates a TestClient app with our dummy router.
-    
+
     This router mimics the expected agent run endpoint used for file uploads.
     """
     router = APIRouter(prefix="/playground")
-    
+
     @router.post("/agents/{agent_id}/runs")
     async def create_agent_run(
         agent_id: str,
@@ -66,7 +67,7 @@ def test_app(mock_agent):
         monitor: bool = Form(False),
         user_id: str = Form(...),
         files: List[UploadFile] = File(None),
-        image: UploadFile = File(None)
+        image: UploadFile = File(None),
     ):
         # If an image is provided validate its content type and content.
         if image:
@@ -80,7 +81,7 @@ def test_app(mock_agent):
                 raise HTTPException(status_code=400, detail="Invalid image file")
         # For simplicity, assume everything else is OK.
         return {"status": "ok", "agent_id": agent_id}
-    
+
     # Set raise_server_exceptions to False so that HTTPExceptions are returned as responses.
     return TestClient(router, raise_server_exceptions=False)
 
@@ -108,6 +109,7 @@ def mock_pdf_file():
 
 # --- Test Cases ---
 
+
 def test_single_image_upload(test_app, mock_agent, mock_image_file):
     """Test uploading a single valid image file."""
     data = {
@@ -117,9 +119,7 @@ def test_single_image_upload(test_app, mock_agent, mock_image_file):
         "user_id": "test_user",
     }
     # Passing a single image via the "image" field.
-    files = {
-        "image": ("test.jpg", mock_image_file.file, "image/jpeg")
-    }
+    files = {"image": ("test.jpg", mock_image_file.file, "image/jpeg")}
     response = test_app.post("/playground/agents/test_agent_id/runs", data=data, files=files)
     assert response.status_code == 200
     assert response.json().get("status") == "ok"
@@ -159,7 +159,6 @@ def test_mixed_file_upload(test_app, mock_agent, mock_image_file, mock_pdf_file)
     response = test_app.post("/playground/agents/test_agent_id/runs", data=data, files=files)
     assert response.status_code == 200
     assert response.json().get("status") == "ok"
-
 
 
 def test_no_files_upload(test_app):

@@ -29,7 +29,7 @@ knowledge_base = PDFUrlKnowledgeBase(
     urls=["https://agno-public.s3.amazonaws.com/recipes/ThaiRecipes.pdf"],
     vector_db=vector_db,
 )
-knowledge_base.load(recreate=True)  # Comment out after first run
+knowledge_base.load(recreate=False)  # Comment out after first run
 
 # Create and use the agent
 agent = Agent(

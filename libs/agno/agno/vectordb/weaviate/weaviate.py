@@ -313,12 +313,6 @@ class Weaviate(VectorDb):
         """Check if the collection exists in Weaviate."""
         return self.get_client().collections.exists(self.collection)
 
-    # def get_count(self) -> int:
-    #     """Get the number of documents in the Weaviate collection."""
-    #     collection = self.get_client().collections.get(self.collection)
-    #     count = collection.aggregate.over_all(total_count=True).total_count
-    #     return count if count is not None else 0
-
     def drop(self) -> None:
         """Delete the Weaviate collection."""
         if self.exists():

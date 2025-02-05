@@ -12,13 +12,16 @@ from agno.utils.log import logger
 try:
     from anthropic import Anthropic as AnthropicClient
     from anthropic import AsyncAnthropic as AsyncAnthropicClient
-    from anthropic.lib.streaming._types import (
-        ContentBlockStopEvent,
+    from anthropic.types import (
+        ContentBlockDeltaEvent,
         MessageStopEvent,
-        RawContentBlockDeltaEvent,
+        MessageDeltaEvent,
+        TextBlock,
+        TextDelta,
+        ToolUseBlock,
+        ContentBlockStopEvent,
     )
     from anthropic.types import Message as AnthropicMessage
-    from anthropic.types import TextBlock, TextDelta, ToolUseBlock
 except (ModuleNotFoundError, ImportError):
     raise ImportError("`anthropic` not installed. Please install using `pip install anthropic`")
 
@@ -310,12 +313,11 @@ class Claude(Model):
         chat_messages, system_message = _format_messages(messages)
         request_kwargs = self._prepare_request_kwargs(system_message)
 
-        return self.get_client().messages.create(
+        return self.get_client().messages.stream(
             model=self.id,
             messages=chat_messages,  # type: ignore
-            stream=True,
             **request_kwargs,
-        )
+        ).__enter__()
 
     async def ainvoke(self, messages: List[Message]) -> AnthropicMessage:
         """
@@ -440,7 +442,7 @@ class Claude(Model):
         return provider_response
 
     def parse_model_provider_response_stream(
-        self, response: Union[RawContentBlockDeltaEvent, ContentBlockStopEvent, MessageStopEvent]
+        self, response: Union[ContentBlockDeltaEvent, ContentBlockStopEvent, MessageDeltaEvent]
     ) -> Iterator[ModelProviderResponse]:
         """
         Parse the Claude streaming response into ModelProviderResponse objects.
@@ -454,14 +456,14 @@ class Claude(Model):
         provider_response = ModelProviderResponse()
         has_content = False
 
-        # Handle text content
-        if isinstance(response, RawContentBlockDeltaEvent):
+        if isinstance(response, ContentBlockDeltaEvent):
+            # Handle text content
             if isinstance(response.delta, TextDelta):
                 provider_response.content = response.delta.text
                 has_content = True
 
-        # Handle tool calls
         elif isinstance(response, ContentBlockStopEvent):
+            # Handle tool calls
             if isinstance(response.content_block, ToolUseBlock):
                 tool_use = response.content_block
                 tool_name = tool_use.name
@@ -472,6 +474,7 @@ class Claude(Model):
                     function_def["arguments"] = json.dumps(tool_input)
 
                 provider_response.extra.setdefault("tool_ids", []).append(tool_use.id)
+
                 provider_response.tool_calls = [
                     {
                         "id": tool_use.id,

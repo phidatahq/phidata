@@ -187,6 +187,12 @@ class Model(ABC):
     #     if metrics_for_run.time_to_first_token is not None:
     #         self.metrics.setdefault("time_to_first_token", []).append(metrics_for_run.time_to_first_token)
 
+    def parse_tool_calls(self, tool_calls_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Parse the tool calls from the model provider into a list of tool calls.
+        """
+        return tool_calls_data
+
     def get_function_calls_to_run(
         self, assistant_message: Message, messages: List[Message], error_response_role: str = "user"
     ) -> List[FunctionCall]:
@@ -656,6 +662,9 @@ class Model(ABC):
             Iterator[ModelResponse]: An iterator of the model response.
         """
         if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
+            
+            yield ModelResponse(content="\n\n")
+
             function_calls_to_run, function_call_results = self._prepare_stream_tool_calls(
                 assistant_message=assistant_message,
                 messages=messages,
@@ -695,6 +704,8 @@ class Model(ABC):
             Iterator[ModelResponse]: An iterator of the model response.
         """
         if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
+            yield ModelResponse(content="\n\n")
+
             function_calls_to_run, function_call_results = self._prepare_stream_tool_calls(
                 assistant_message=assistant_message,
                 messages=messages,
@@ -930,46 +941,6 @@ class Model(ABC):
         message.audio = None  # The message should not have an audio component after this
 
         return message
-
-    @staticmethod
-    def build_tool_calls(tool_calls_data: List[Any]) -> List[Dict[str, Any]]:
-        """
-        Build tool calls from tool call data.
-
-        Args:
-            tool_calls_data (List[ChoiceDeltaToolCall]): The tool call data to build from.
-
-        Returns:
-            List[Dict[str, Any]]: The built tool calls.
-        """
-        tool_calls: List[Dict[str, Any]] = []
-        for _tool_call in tool_calls_data:
-            _index = _tool_call.index
-            _tool_call_id = _tool_call.id
-            _tool_call_type = _tool_call.type
-            _function_name = _tool_call.function.name if _tool_call.function else None
-            _function_arguments = _tool_call.function.arguments if _tool_call.function else None
-
-            if len(tool_calls) <= _index:
-                tool_calls.extend([{}] * (_index - len(tool_calls) + 1))
-            tool_call_entry = tool_calls[_index]
-            if not tool_call_entry:
-                tool_call_entry["id"] = _tool_call_id
-                tool_call_entry["type"] = _tool_call_type
-                tool_call_entry["function"] = {
-                    "name": _function_name or "",
-                    "arguments": _function_arguments or "",
-                }
-            else:
-                if _function_name:
-                    tool_call_entry["function"]["name"] += _function_name
-                if _function_arguments:
-                    tool_call_entry["function"]["arguments"] += _function_arguments
-                if _tool_call_id:
-                    tool_call_entry["id"] = _tool_call_id
-                if _tool_call_type:
-                    tool_call_entry["type"] = _tool_call_type
-        return tool_calls
 
     def get_system_message_for_model(self) -> Optional[str]:
         return self.system_prompt
@@ -1294,8 +1265,9 @@ class Model(ABC):
 
         # Add tool calls to assistant message
         if stream_data.response_tool_calls is not None and len(stream_data.response_tool_calls) > 0:
-            _tool_calls = self.build_tool_calls(stream_data.response_tool_calls)
-            assistant_message.tool_calls = _tool_calls
+            parsed_tool_calls = self.parse_tool_calls(stream_data.response_tool_calls)
+            if len(parsed_tool_calls) > 0:
+                assistant_message.tool_calls = parsed_tool_calls
 
         # Add assistant message to messages
         messages.append(assistant_message)

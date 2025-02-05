@@ -262,6 +262,7 @@ module = [
   "uvicorn.*",
   "vertexai.*",
   "voyageai.*",
+  "weaviate.*",
   "wikipedia.*",
   "yfinance.*",
   "youtube_transcript_api.*",

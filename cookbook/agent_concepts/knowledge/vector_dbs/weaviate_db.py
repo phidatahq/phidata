@@ -4,6 +4,8 @@ This example demonstrates using Weaviate as a vector database for semantic searc
 Installation:
     pip install weaviate-client
 
+You can use either Weaviate Cloud or a local instance.
+
 Weaviate Cloud Setup:
 1. Create account at https://console.weaviate.cloud/
 2. Create a cluster and copy the "REST endpoint" and "Admin" API Key. Then set environment variables:
@@ -20,13 +22,6 @@ Local Development Setup:
         cr.weaviate.io/semitechnologies/weaviate:1.28.4
    or use the script `cookbook/scripts/run_weviate.sh` to start a local instance.
 3. Remember to set `local=True` on the Weaviate instantiation.
-        
-Key Features:
-- Hybrid search combining vector and keyword search
-- HNSW vector indexing for fast similarity search
-- Cosine distance metric for measuring vector similarity
-- Support for filters and metadata
-- Real-time indexing and search
 """
 
 from agno.agent import Agent
@@ -39,7 +34,7 @@ vector_db = Weaviate(
     search_type=SearchType.hybrid,
     vector_index=VectorIndex.HNSW,
     distance=Distance.COSINE,
-    local=False, # Set to False if using Weaviate Cloud and True if using local instance
+    local=True, # Set to False if using Weaviate Cloud and True if using local instance
 )
 # Create knowledge base
 knowledge_base = PDFUrlKnowledgeBase(

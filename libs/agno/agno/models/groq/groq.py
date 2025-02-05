@@ -19,12 +19,6 @@ except (ModuleNotFoundError, ImportError):
 
 
 @dataclass
-class StreamData:
-    response_content: str = ""
-    response_tool_calls: Optional[List[ChoiceDeltaToolCall]] = None
-
-
-@dataclass
 class Groq(Model):
     """
     A class for interacting with Groq models.
@@ -280,6 +274,7 @@ class Groq(Model):
             stream=True,
             **self.request_kwargs,
         )
+
 
     # Override base method
     @staticmethod

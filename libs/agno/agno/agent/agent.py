@@ -1326,7 +1326,7 @@ class Agent:
             tools.append(self.update_memory)
 
         # Add tools for accessing knowledge
-        if self.knowledge is not None:
+        if self.knowledge is not None or self.retriever is not None:
             if self.search_knowledge:
                 tools.append(self.search_knowledge_base)
             if self.update_knowledge:

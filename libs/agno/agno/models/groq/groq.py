@@ -257,7 +257,7 @@ class Groq(Model):
         Returns:
             Iterator[ChatCompletionChunk]: An iterator of chat completion chunks.
         """
-        yield from self.get_client().chat.completions.create(
+        return self.get_client().chat.completions.create(
             model=self.id,
             messages=[self.format_message(m) for m in messages],  # type: ignore
             stream=True,
@@ -274,14 +274,12 @@ class Groq(Model):
         Returns:
             Any: An asynchronous iterator of chat completion chunks.
         """
-        async_stream = await self.get_async_client().chat.completions.create(
+        return await self.get_async_client().chat.completions.create(
             model=self.id,
             messages=[self.format_message(m) for m in messages],  # type: ignore
             stream=True,
             **self.request_kwargs,
         )
-        async for chunk in async_stream:  # type: ignore
-            yield chunk
 
     def parse_model_provider_response(
         self, response: ChatCompletion
@@ -351,6 +349,7 @@ class Groq(Model):
             # Add usage metrics if present
             if response.usage is not None:
                 provider_response.response_usage = response.usage
+                has_content = True
 
             if has_content:
                 yield provider_response

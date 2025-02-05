@@ -36,6 +36,8 @@ class ModelProviderResponse:
     tool_calls: Optional[List[Dict[str, Any]]] = field(default_factory=list)
     response_usage: Optional[Any] = None
 
+    extra: Optional[Dict[str, Any]] = field(default_factory=dict)
+
 class FileType(str, Enum):
     MP4 = "mp4"
     GIF = "gif"

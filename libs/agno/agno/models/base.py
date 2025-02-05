@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import GeneratorType
-from typing import Any, Dict, Iterator, List, Mapping, Optional, Sequence, Tuple, Union, AsyncIterator
+from typing import Any, Dict, Iterator, List, Optional, Sequence, Tuple, Union, AsyncIterator
 
 from agno.exceptions import AgentRunException
 from agno.media import Audio, AudioOutput, Image
@@ -22,6 +22,8 @@ class MessageData:
     response_content: Any = ""
     response_tool_calls: List[Dict[str, Any]] = field(default_factory=list)
     response_audio: Optional[AudioOutput] = None
+
+    extra: Optional[Dict[str, Any]] = field(default_factory=dict)
 
 @dataclass
 class Model(ABC):
@@ -247,11 +249,11 @@ class Model(ABC):
                 m.stop_after_tool_call = True
 
     def _create_function_call_result(
-        self, fc: FunctionCall, success: bool, output: Optional[Union[List[Any], str]], timer: Timer, tool_role: str
+        self, fc: FunctionCall, success: bool, output: Optional[Union[List[Any], str]], timer: Timer
     ) -> Message:
         """Create a function call result message."""
         return Message(
-            role=tool_role,
+            role=self.tool_message_role,
             content=output if success else fc.error,
             tool_call_id=fc.call_id,
             tool_name=fc.function.name,
@@ -262,7 +264,7 @@ class Model(ABC):
         )
 
     def run_function_calls(
-        self, function_calls: List[FunctionCall], function_call_results: List[Message], tool_role: str = "tool"
+        self, function_calls: List[FunctionCall], function_call_results: List[Message]
     ) -> Iterator[ModelResponse]:
         if self._function_call_stack is None:
             self._function_call_stack = []
@@ -279,7 +281,7 @@ class Model(ABC):
                 content=fc.get_call_str(),
                 tool_calls=[
                     {
-                        "role": tool_role,
+                        "role": self.tool_message_role,
                         "tool_call_id": fc.call_id,
                         "tool_name": fc.function.name,
                         "tool_args": fc.arguments,
@@ -320,7 +322,7 @@ class Model(ABC):
 
             # Create and yield function call result
             function_call_result = self._create_function_call_result(
-                fc, function_call_success, function_call_output, function_call_timer, tool_role
+                fc, function_call_success, function_call_output, function_call_timer
             )
             yield ModelResponse(
                 content=f"{fc.get_call_str()} completed in {function_call_timer.elapsed:.4f}s.",
@@ -379,7 +381,7 @@ class Model(ABC):
         return success, function_call_timer, function_call
 
     async def arun_function_calls(
-        self, function_calls: List[FunctionCall], function_call_results: List[Message], tool_role: str = "tool"
+        self, function_calls: List[FunctionCall], function_call_results: List[Message]
     ):
         if self._function_call_stack is None:
             self._function_call_stack = []
@@ -393,7 +395,7 @@ class Model(ABC):
                 content=fc.get_call_str(),
                 tool_calls=[
                     {
-                        "role": tool_role,
+                        "role": self.tool_message_role,
                         "tool_call_id": fc.call_id,
                         "tool_name": fc.function.name,
                         "tool_args": fc.arguments,
@@ -437,7 +439,7 @@ class Model(ABC):
 
             # Create and yield function call result
             function_call_result = self._create_function_call_result(
-                fc, function_call_success, function_call_output, function_call_timer, tool_role
+                fc, function_call_success, function_call_output, function_call_timer
             )
             yield ModelResponse(
                 content=f"{fc.get_call_str()} completed in {function_call_timer.elapsed:.4f}s.",
@@ -475,7 +477,6 @@ class Model(ABC):
         assistant_message: Message,
         messages: List[Message],
         model_response: ModelResponse,
-        tool_role: str = "tool",
     ) -> Tuple[List[FunctionCall], List[Message]]:
         """
         Prepare function calls from tool calls in the assistant message.
@@ -484,7 +485,6 @@ class Model(ABC):
             assistant_message (Message): The assistant message containing tool calls
             messages (List[Message]): The list of messages to append tool responses to
             model_response (ModelResponse): The model response to update
-            tool_role (str): The role of the tool call. Defaults to "tool".
         Returns:
             Tuple[List[FunctionCall], List[Message]]: Tuple of function calls to run and function call results
         """
@@ -507,12 +507,19 @@ class Model(ABC):
 
         return function_calls_to_run, function_call_results
 
+    def format_function_call_results(self, messages: List[Message], function_call_results: List[Message], **kwargs) -> None:
+        """
+        Format function call results.
+        """
+        if len(function_call_results) > 0:
+            messages.extend(function_call_results)
+
     def handle_tool_calls(
         self,
         assistant_message: Message,
         messages: List[Message],
         model_response: ModelResponse,
-        tool_role: str = "tool",
+        **kwargs,
     ) -> Optional[ModelResponse]:
         """
         Handle tool calls in the assistant message.
@@ -531,11 +538,10 @@ class Model(ABC):
                 assistant_message=assistant_message,
                 messages=messages,
                 model_response=model_response,
-                tool_role=tool_role,
             )
 
             for function_call_response in self.run_function_calls(
-                function_calls=function_calls_to_run, function_call_results=function_call_results, tool_role=tool_role
+                function_calls=function_calls_to_run, function_call_results=function_call_results
             ):
                 if (
                     function_call_response.event == ModelResponseEvent.tool_call_completed.value
@@ -543,8 +549,7 @@ class Model(ABC):
                 ):
                     model_response.tool_calls.extend(function_call_response.tool_calls)  # type: ignore  # model_response.tool_calls are initialized before calling this method
 
-            if len(function_call_results) > 0:
-                messages.extend(function_call_results)
+            self.format_function_call_results(messages=messages, function_call_results=function_call_results, **kwargs)
 
             return model_response
         return None
@@ -554,7 +559,7 @@ class Model(ABC):
         assistant_message: Message,
         messages: List[Message],
         model_response: ModelResponse,
-        tool_role: str = "tool",
+        **kwargs,
     ) -> Optional[ModelResponse]:
         """
         Handle tool calls in the assistant message.
@@ -575,13 +580,15 @@ class Model(ABC):
             )
 
             async for function_call_response in self.arun_function_calls(
-                function_calls=function_calls_to_run, function_call_results=function_call_results, tool_role=tool_role
+                function_calls=function_calls_to_run, function_call_results=function_call_results
             ):
                 if (
                     function_call_response.event == ModelResponseEvent.tool_call_completed.value
                     and function_call_response.tool_calls is not None
                 ):
                     model_response.tool_calls.extend(function_call_response.tool_calls)  # type: ignore  # model_response.tool_calls are initialized before calling this method
+
+            self.format_function_call_results(messages=messages, function_call_results=function_call_results, **kwargs)
 
             if len(function_call_results) > 0:
                 messages.extend(function_call_results)
@@ -593,7 +600,6 @@ class Model(ABC):
         self,
         assistant_message: Message,
         messages: List[Message],
-        tool_role: str = "tool",
     ) -> Tuple[List[FunctionCall], List[Message]]:
         """
         Prepare function calls from tool calls in the assistant message for streaming.
@@ -601,7 +607,6 @@ class Model(ABC):
         Args:
             assistant_message (Message): The assistant message containing tool calls
             messages (List[Message]): The list of messages to append tool responses to
-            tool_role (str): The role to use for tool messages
 
         Returns:
             Tuple[List[FunctionCall], List[Message]]: Tuple of function calls to run and function call results
@@ -615,7 +620,7 @@ class Model(ABC):
             if _function_call is None:
                 messages.append(
                     Message(
-                        role=tool_role,
+                        role=self.tool_message_role,
                         tool_call_id=_tool_call_id,
                         content="Could not find function to call.",
                     )
@@ -624,7 +629,7 @@ class Model(ABC):
             if _function_call.error is not None:
                 messages.append(
                     Message(
-                        role=tool_role,
+                        role=self.tool_message_role,
                         tool_call_id=_tool_call_id,
                         content=_function_call.error,
                     )
@@ -638,7 +643,7 @@ class Model(ABC):
         self,
         assistant_message: Message,
         messages: List[Message],
-        tool_role: str = "tool",
+        **kwargs,
     ) -> Iterator[ModelResponse]:
         """
         Handle tool calls for response stream.
@@ -646,7 +651,6 @@ class Model(ABC):
         Args:
             assistant_message (Message): The assistant message.
             messages (List[Message]): The list of messages.
-            tool_role (str): The role of the tool call. Defaults to "tool".
 
         Returns:
             Iterator[ModelResponse]: An iterator of the model response.
@@ -655,28 +659,29 @@ class Model(ABC):
             function_calls_to_run, function_call_results = self._prepare_stream_tool_calls(
                 assistant_message=assistant_message,
                 messages=messages,
-                tool_role=tool_role,
             )
 
             if self.show_tool_calls:
-                yield ModelResponse(content="\nRunning:")
-                for _f in function_calls_to_run:
-                    yield ModelResponse(content=f"\n - {_f.get_call_str()}")
-                yield ModelResponse(content="\n\n")
+                if len(function_calls_to_run) == 1:
+                    yield ModelResponse(content=f" - Running: {function_calls_to_run[0].get_call_str()}\n\n")
+                else:
+                    yield ModelResponse(content="\nRunning:")
+                    for _f in function_calls_to_run:
+                        yield ModelResponse(content=f"\n - {_f.get_call_str()}")
+                    yield ModelResponse(content="\n\n")
 
             for function_call_response in self.run_function_calls(
-                function_calls=function_calls_to_run, function_call_results=function_call_results, tool_role=tool_role
+                function_calls=function_calls_to_run, function_call_results=function_call_results
             ):
                 yield function_call_response
 
-            if len(function_call_results) > 0:
-                messages.extend(function_call_results)
+            self.format_function_call_results(messages=messages, function_call_results=function_call_results, **kwargs)
 
     async def ahandle_stream_tool_calls(
         self,
         assistant_message: Message,
         messages: List[Message],
-        tool_role: str = "tool",
+        **kwargs,
     ) -> AsyncIterator[ModelResponse]:
         """
         Handle tool calls for response stream.
@@ -693,22 +698,24 @@ class Model(ABC):
             function_calls_to_run, function_call_results = self._prepare_stream_tool_calls(
                 assistant_message=assistant_message,
                 messages=messages,
-                tool_role=tool_role,
             )
 
             if self.show_tool_calls:
-                yield ModelResponse(content="\nRunning:")
-                for _f in function_calls_to_run:
-                    yield ModelResponse(content=f"\n - {_f.get_call_str()}")
-                yield ModelResponse(content="\n\n")
+                if len(function_calls_to_run) == 1:
+                    yield ModelResponse(content=f" - Running: {function_calls_to_run[0].get_call_str()}\n\n")
+                else:
+                    yield ModelResponse(content="\nRunning:")
+                    for _f in function_calls_to_run:
+                        yield ModelResponse(content=f"\n - {_f.get_call_str()}")
+                    yield ModelResponse(content="\n\n")
 
             async for function_call_response in self.arun_function_calls(
-                function_calls=function_calls_to_run, function_call_results=function_call_results, tool_role=tool_role
+                function_calls=function_calls_to_run, function_call_results=function_call_results
             ):
                 yield function_call_response
 
-            if len(function_call_results) > 0:
-                messages.extend(function_call_results)
+            self.format_function_call_results(messages=messages, function_call_results=function_call_results, **kwargs)
+
 
     def _handle_response_after_tool_calls(
         self, response_after_tool_calls: ModelResponse, model_response: ModelResponse
@@ -1014,6 +1021,10 @@ class Model(ABC):
             response_usage: Usage data from model provider
         """
         # Standard token metrics
+        if hasattr(response_usage, "input_tokens"):
+            assistant_message.metrics.input_tokens = response_usage.input_tokens
+        if hasattr(response_usage, "output_tokens"):
+            assistant_message.metrics.output_tokens = response_usage.output_tokens
         if hasattr(response_usage, "prompt_tokens"):
             assistant_message.metrics.input_tokens = response_usage.prompt_tokens
             assistant_message.metrics.prompt_tokens = response_usage.prompt_tokens
@@ -1022,6 +1033,8 @@ class Model(ABC):
             assistant_message.metrics.completion_tokens = response_usage.completion_tokens
         if hasattr(response_usage, "total_tokens"):
             assistant_message.metrics.total_tokens = response_usage.total_tokens
+        else:
+            assistant_message.metrics.total_tokens = assistant_message.metrics.input_tokens + assistant_message.metrics.output_tokens
 
         # Additional timing metrics (e.g., from Groq)
         if assistant_message.metrics.additional_metrics is None:
@@ -1148,7 +1161,7 @@ class Model(ABC):
                 assistant_message=assistant_message,
                 messages=messages,
                 model_response=model_response,
-                tool_role=self.tool_message_role,
+                **provider_response.extra,  # Any other values set on the provider response is passed here
             )
             is not None
         ):
@@ -1207,7 +1220,7 @@ class Model(ABC):
                 assistant_message=assistant_message,
                 messages=messages,
                 model_response=model_response,
-                tool_role=self.tool_message_role,
+                **provider_response.extra,  # Any other values set on the provider response is passed here
             )
             is not None
         ):
@@ -1259,6 +1272,10 @@ class Model(ABC):
                     stream_data.response_audio = provider_response.audio
                     yield ModelResponse(audio=provider_response.audio)
 
+                if provider_response.extra is not None:
+                    # Update stream data
+                    stream_data.extra.update(provider_response.extra)
+
                 if provider_response.response_usage is not None:
                     # Update metrics
                     self.add_usage_metrics_to_assistant_message(
@@ -1291,7 +1308,7 @@ class Model(ABC):
             yield from self.handle_stream_tool_calls(
                 assistant_message=assistant_message,
                 messages=messages,
-                tool_role=self.tool_message_role
+                **stream_data.extra,  # Any other values set on the provider response is passed here
             )
             yield from self.handle_post_tool_call_messages_stream(messages=messages)
 
@@ -1316,7 +1333,7 @@ class Model(ABC):
 
         # Generate response
         assistant_message.metrics.start_timer()
-        async for response in self.ainvoke_stream(messages=messages):
+        async for response in await self.ainvoke_stream(messages=messages):
             # Parse provider response
             for provider_response in self.parse_model_provider_response_stream(response):
                 # Update metrics
@@ -1339,6 +1356,10 @@ class Model(ABC):
                     # Update stream data
                     stream_data.response_audio = provider_response.audio
                     yield ModelResponse(audio=provider_response.audio)
+
+                if provider_response.extra is not None:
+                    # Update stream data
+                    stream_data.extra.update(provider_response.extra)
 
                 if provider_response.response_usage is not None:
                     # Update metrics
@@ -1373,7 +1394,7 @@ class Model(ABC):
             async for tool_call_response in self.ahandle_stream_tool_calls(
                 assistant_message=assistant_message,
                 messages=messages,
-                tool_role=self.tool_message_role
+                **stream_data.extra
             ):
                 yield tool_call_response
             async for post_tool_call_response in self.ahandle_post_tool_call_messages_stream(messages=messages):

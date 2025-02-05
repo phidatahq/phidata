@@ -456,6 +456,7 @@ class OpenAIChat(Model):
             # Add usage metrics if present
             if response.usage is not None:
                 provider_response.response_usage = response.usage
+                has_content = True
 
             if has_content:
                 yield provider_response

@@ -15,7 +15,6 @@
 # Machine specific
 .idea
 .vscode
-*.code-workspace
 
 # Ignore .env files
 .env
@@ -54,3 +53,6 @@ data.db
 audio_generations
 
 *.db
+
+# Google OAuth token
+token.json

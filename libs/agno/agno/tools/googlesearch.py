@@ -1,4 +1,5 @@
 import json
+import warnings
 from typing import Any, Dict, List, Optional
 
 from agno.tools import Toolkit
@@ -15,9 +16,9 @@ except ImportError:
     raise ImportError("`pycountry` not installed. Please install using `pip install pycountry`")
 
 
-class GoogleSearch(Toolkit):
+class GoogleSearchTools(Toolkit):
     """
-    GoogleSearch is a Python library for searching Google easily.
+    GoogleSearchTools is a tool for searching Google easily.
     It uses requests and BeautifulSoup4 to scrape Google.
 
     Args:
@@ -86,3 +87,32 @@ class GoogleSearch(Toolkit):
             )
 
         return json.dumps(res, indent=2)
+
+
+class GoogleSearch(GoogleSearchTools):
+    """
+    Deprecated: Use `GoogleSearchTools` instead.
+
+    This class is maintained for backward compatibility and will be removed in a future version.
+    """
+
+    def __init__(
+        self,
+        fixed_max_results: Optional[int] = None,
+        fixed_language: Optional[str] = None,
+        headers: Optional[Any] = None,
+        proxy: Optional[str] = None,
+        timeout: Optional[int] = 10,
+    ):
+        warnings.warn(
+            "GoogleSearch class is deprecated. Please use `GoogleSearchTools` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        super().__init__(
+            fixed_max_results=fixed_max_results,
+            fixed_language=fixed_language,
+            headers=headers,
+            proxy=proxy,
+            timeout=timeout,
+        )

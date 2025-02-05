@@ -125,7 +125,6 @@ def get_async_playground_router(
         session_id: Optional[str] = Form(None),
         user_id: Optional[str] = Form(None),
         files: Optional[List[UploadFile]] = File(None),
-        image: Optional[UploadFile] = File(None),
     ):
         logger.debug(f"AgentRunRequest: {message} {session_id} {user_id} {agent_id}")
         agent = get_agent_by_id(agent_id, agents)
@@ -152,13 +151,6 @@ def get_async_playground_router(
             new_agent_instance.monitoring = False
 
         base64_images: List[Image] = []
-        if image:
-            try:
-                base64_image = await process_image(image)
-                base64_images.append(base64_image)
-            except Exception as e:
-                logger.error(f"Error processing image: {e}")
-                raise HTTPException(status_code=400, detail="Error processing image")
 
         if files:
             for file in files:

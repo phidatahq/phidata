@@ -61,9 +61,14 @@ class TodoistTools(Toolkit):
         if get_projects:
             self.register(self.get_projects)
 
-    def create_task(self, content: str, project_id: Optional[str] = None,
-                    due_string: Optional[str] = None, priority: Optional[int] = None,
-                    labels: Optional[List[str]] = None) -> str:
+    def create_task(
+        self,
+        content: str,
+        project_id: Optional[str] = None,
+        due_string: Optional[str] = None,
+        priority: Optional[int] = None,
+        labels: Optional[List[str]] = None,
+    ) -> str:
         """
         Create a new task in Todoist.
 
@@ -79,34 +84,30 @@ class TodoistTools(Toolkit):
         """
         try:
             task = self.api.add_task(
-                content=content,
-                project_id=project_id,
-                due_string=due_string,
-                priority=priority,
-                labels=labels or []
+                content=content, project_id=project_id, due_string=due_string, priority=priority, labels=labels or []
             )
             # Convert task to a dictionary and handle the Due object
             task_dict = {
-                'id': task.id,
-                'content': task.content,
-                'description': task.description,
-                'project_id': task.project_id,
-                'section_id': task.section_id,
-                'parent_id': task.parent_id,
-                'order': task.order,
-                'priority': task.priority,
-                'url': task.url,
-                'comment_count': task.comment_count,
-                'creator_id': task.creator_id,
-                'created_at': task.created_at,
-                'labels': task.labels,
+                "id": task.id,
+                "content": task.content,
+                "description": task.description,
+                "project_id": task.project_id,
+                "section_id": task.section_id,
+                "parent_id": task.parent_id,
+                "order": task.order,
+                "priority": task.priority,
+                "url": task.url,
+                "comment_count": task.comment_count,
+                "creator_id": task.creator_id,
+                "created_at": task.created_at,
+                "labels": task.labels,
             }
             if task.due:
-                task_dict['due'] = {
-                    'date': task.due.date,
-                    'string': task.due.string,
-                    'datetime': task.due.datetime,
-                    'timezone': task.due.timezone,
+                task_dict["due"] = {
+                    "date": task.due.date,
+                    "string": task.due.string,
+                    "datetime": task.due.datetime,
+                    "timezone": task.due.timezone,
                 }
             return json.dumps(task_dict)
         except Exception as e:
@@ -118,26 +119,26 @@ class TodoistTools(Toolkit):
         try:
             task = self.api.get_task(task_id)
             task_dict = {
-                'id': task.id,
-                'content': task.content,
-                'description': task.description,
-                'project_id': task.project_id,
-                'section_id': task.section_id,
-                'parent_id': task.parent_id,
-                'order': task.order,
-                'priority': task.priority,
-                'url': task.url,
-                'comment_count': task.comment_count,
-                'creator_id': task.creator_id,
-                'created_at': task.created_at,
-                'labels': task.labels,
+                "id": task.id,
+                "content": task.content,
+                "description": task.description,
+                "project_id": task.project_id,
+                "section_id": task.section_id,
+                "parent_id": task.parent_id,
+                "order": task.order,
+                "priority": task.priority,
+                "url": task.url,
+                "comment_count": task.comment_count,
+                "creator_id": task.creator_id,
+                "created_at": task.created_at,
+                "labels": task.labels,
             }
             if task.due:
-                task_dict['due'] = {
-                    'date': task.due.date,
-                    'string': task.due.string,
-                    'datetime': task.due.datetime,
-                    'timezone': task.due.timezone,
+                task_dict["due"] = {
+                    "date": task.due.date,
+                    "string": task.due.string,
+                    "datetime": task.due.datetime,
+                    "timezone": task.due.timezone,
                 }
             return json.dumps(task_dict)
         except Exception as e:
@@ -158,26 +159,26 @@ class TodoistTools(Toolkit):
         try:
             task = self.api.update_task(task_id=task_id, **kwargs)
             task_dict = {
-                'id': task.id,
-                'content': task.content,
-                'description': task.description,
-                'project_id': task.project_id,
-                'section_id': task.section_id,
-                'parent_id': task.parent_id,
-                'order': task.order,
-                'priority': task.priority,
-                'url': task.url,
-                'comment_count': task.comment_count,
-                'creator_id': task.creator_id,
-                'created_at': task.created_at,
-                'labels': task.labels,
+                "id": task.id,
+                "content": task.content,
+                "description": task.description,
+                "project_id": task.project_id,
+                "section_id": task.section_id,
+                "parent_id": task.parent_id,
+                "order": task.order,
+                "priority": task.priority,
+                "url": task.url,
+                "comment_count": task.comment_count,
+                "creator_id": task.creator_id,
+                "created_at": task.created_at,
+                "labels": task.labels,
             }
             if task.due:
-                task_dict['due'] = {
-                    'date': task.due.date,
-                    'string': task.due.string,
-                    'datetime': task.due.datetime,
-                    'timezone': task.due.timezone,
+                task_dict["due"] = {
+                    "date": task.due.date,
+                    "string": task.due.string,
+                    "datetime": task.due.datetime,
+                    "timezone": task.due.timezone,
                 }
             return json.dumps(task_dict)
         except Exception as e:
@@ -209,26 +210,26 @@ class TodoistTools(Toolkit):
             tasks_list = []
             for task in tasks:
                 task_dict = {
-                    'id': task.id,
-                    'content': task.content,
-                    'description': task.description,
-                    'project_id': task.project_id,
-                    'section_id': task.section_id,
-                    'parent_id': task.parent_id,
-                    'order': task.order,
-                    'priority': task.priority,
-                    'url': task.url,
-                    'comment_count': task.comment_count,
-                    'creator_id': task.creator_id,
-                    'created_at': task.created_at,
-                    'labels': task.labels,
+                    "id": task.id,
+                    "content": task.content,
+                    "description": task.description,
+                    "project_id": task.project_id,
+                    "section_id": task.section_id,
+                    "parent_id": task.parent_id,
+                    "order": task.order,
+                    "priority": task.priority,
+                    "url": task.url,
+                    "comment_count": task.comment_count,
+                    "creator_id": task.creator_id,
+                    "created_at": task.created_at,
+                    "labels": task.labels,
                 }
                 if task.due:
-                    task_dict['due'] = {
-                        'date': task.due.date,
-                        'string': task.due.string,
-                        'datetime': task.due.datetime,
-                        'timezone': task.due.timezone,
+                    task_dict["due"] = {
+                        "date": task.due.date,
+                        "string": task.due.string,
+                        "datetime": task.due.datetime,
+                        "timezone": task.due.timezone,
                     }
                 tasks_list.append(task_dict)
             return json.dumps(tasks_list)

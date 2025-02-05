@@ -66,7 +66,7 @@ class Cohere(Model):
 
         self.api_key = self.api_key or getenv("CO_API_KEY")
         if not self.api_key:
-            raise ValueError("CO_API_KEY not set. Please set the CO_API_KEY environment variable.")
+            logger.error("CO_API_KEY not set. Please set the CO_API_KEY environment variable.")
 
         _client_params["api_key"] = self.api_key
 
@@ -82,7 +82,7 @@ class Cohere(Model):
         self.api_key = self.api_key or getenv("CO_API_KEY")
 
         if not self.api_key:
-            raise ValueError("CO_API_KEY not set. Please set the CO_API_KEY environment variable.")
+            logger.error("CO_API_KEY not set. Please set the CO_API_KEY environment variable.")
 
         _client_params["api_key"] = self.api_key
 
@@ -660,7 +660,7 @@ class Cohere(Model):
         Returns:
             ModelResponse: The model response from the API.
         """
-        logger.debug("---------- Cohere Response Start ----------")
+        logger.debug("---------- Cohere Async Response Start ----------")
         self._log_messages(messages)
         model_response = ModelResponse()
 
@@ -714,13 +714,13 @@ class Cohere(Model):
         if assistant_message.content:
             model_response.content = assistant_message.get_content_string()
 
-        logger.debug("---------- Cohere Response End ----------")
+        logger.debug("---------- Cohere Async Response End ----------")
         return model_response
 
     async def aresponse_stream(
         self, messages: List[Message], tool_results: Optional[List[ToolResult]] = None
     ) -> AsyncIterator[ModelResponse]:
-        logger.debug("---------- Cohere Response Start ----------")
+        logger.debug("---------- Cohere Async Response Start ----------")
         # -*- Log messages for debugging
         self._log_messages(messages)
 
@@ -868,4 +868,4 @@ class Cohere(Model):
             # -*- Yield new response using results of tool calls
             async for response in self.aresponse_stream(messages=messages, tool_results=tool_results):
                 yield response
-        logger.debug("---------- Cohere Response End ----------")
+        logger.debug("---------- Cohere Async Response End ----------")

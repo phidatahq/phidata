@@ -2377,9 +2377,19 @@ class Agent:
         """Return a list of references from the knowledge base"""
         from agno.document import Document
 
-        if self.retriever is not None:
-            retriever_kwargs = {"agent": self, "query": query, "num_documents": num_documents, **kwargs}
-            return self.retriever(**retriever_kwargs)
+        if self.retriever is not None and callable(self.retriever):
+            from inspect import signature
+
+            try:
+                sig = signature(self.retriever)
+                retriever_kwargs = {}
+                if "agent" in sig.parameters:
+                    retriever_kwargs = {"agent": self}
+                retriever_kwargs.update({"query": query, "num_documents": num_documents, **kwargs})
+                return self.retriever(**retriever_kwargs)
+            except Exception as e:
+                logger.warning(f"Retriever failed: {e}")
+                return None
 
         if self.knowledge is None:
             return None

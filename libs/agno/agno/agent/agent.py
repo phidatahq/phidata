@@ -2511,7 +2511,7 @@ class Agent:
     def aggregate_metrics_from_messages(self, messages: List[Message]) -> Dict[str, Any]:
         aggregated_metrics: Dict[str, Any] = defaultdict(list)
 
-        # Use a defaultdict(list) to collect all values for each assisntant message
+        # Use a defaultdict(list) to collect all values for each assistant message
         for m in messages:
             if m.role == "assistant" and m.metrics is not None:
                 for k, v in m.metrics.items():

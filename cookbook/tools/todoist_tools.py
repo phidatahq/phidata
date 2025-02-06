@@ -29,6 +29,7 @@ todoist_agent = Agent(
     tools=[TodoistTools()],
     markdown=True,
     debug_mode=True,
+    show_tool_calls=True,
 )
 
 

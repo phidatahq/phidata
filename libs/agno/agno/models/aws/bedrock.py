@@ -5,7 +5,7 @@ from typing import Any, Dict, Iterator, List, Optional
 from agno.aws.api_client import AwsApiClient  # type: ignore
 from agno.models.base import Model
 from agno.models.message import Message
-from agno.models.response import ModelProviderResponse
+from agno.models.response import ProviderResponse
 from agno.utils.log import logger
 
 try:
@@ -116,7 +116,7 @@ class AwsBedrock(Model, ABC):
         raise NotImplementedError("Please use a subclass of AwsBedrock")
 
     @abstractmethod
-    def parse_model_provider_response(self, response: Dict[str, Any]) -> ModelProviderResponse:
+    def parse_model_provider_response(self, response: Dict[str, Any]) -> ProviderResponse:
         raise NotImplementedError("Please use a subclass of AwsBedrock")
 
     async def ainvoke(self, *args, **kwargs) -> Any:
@@ -127,5 +127,5 @@ class AwsBedrock(Model, ABC):
 
     def parse_model_provider_response_stream(
         self, response: Any
-    ) -> Iterator[ModelProviderResponse]:
+    ) -> Iterator[ProviderResponse]:
         pass

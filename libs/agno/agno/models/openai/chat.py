@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from agno.media import AudioOutput
 from agno.models.base import Model
 from agno.models.message import Message
-from agno.models.response import ModelProviderResponse
+from agno.models.response import ProviderResponse
 from agno.utils.log import logger
 from agno.utils.openai import add_images_to_message, add_audio_to_message
 
@@ -395,7 +395,7 @@ class OpenAIChat(Model):
 
     def parse_model_provider_response(
         self, response: Union[ChatCompletion, ParsedChatCompletion]
-    ) -> ModelProviderResponse:
+    ) -> ProviderResponse:
         """
         Parse the OpenAI response into a ModelProviderResponse.
 
@@ -403,9 +403,9 @@ class OpenAIChat(Model):
             response: Raw response from OpenAI
 
         Returns:
-            ModelProviderResponse: Parsed response data
+            ProviderResponse: Parsed response data
         """
-        provider_response = ModelProviderResponse()
+        provider_response = ProviderResponse()
 
         # Get response message
         response_message = response.choices[0].message
@@ -459,7 +459,7 @@ class OpenAIChat(Model):
 
     def parse_model_provider_response_stream(
         self, response: ChatCompletionChunk
-    ) -> Iterator[ModelProviderResponse]:
+    ) -> Iterator[ProviderResponse]:
         """
         Parse the OpenAI streaming response into ModelProviderResponse objects.
 
@@ -467,10 +467,10 @@ class OpenAIChat(Model):
             response: Raw response chunk from OpenAI
 
         Returns:
-            Iterator[ModelProviderResponse]: Iterator of parsed response data
+            Iterator[ProviderResponse]: Iterator of parsed response data
         """
         if response.choices and len(response.choices) > 0:
-            provider_response = ModelProviderResponse()
+            provider_response = ProviderResponse()
             delta: ChoiceDelta = response.choices[0].delta
             has_content = False
 

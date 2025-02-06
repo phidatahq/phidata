@@ -9,7 +9,7 @@ from typing import Any, Dict, Iterator, List, Optional, Sequence, Tuple, Union, 
 from agno.exceptions import AgentRunException
 from agno.media import Audio, AudioOutput, Image
 from agno.models.message import Message, MessageMetrics
-from agno.models.response import ModelProviderResponse, ModelResponse, ModelResponseEvent
+from agno.models.response import ProviderResponse, ModelResponse, ModelResponseEvent
 from agno.tools.function import Function, FunctionCall
 from agno.utils.log import logger
 from agno.utils.timer import Timer
@@ -119,7 +119,7 @@ class Model(ABC):
     @abstractmethod
     def parse_model_provider_response(
         self, response: Any
-    ) -> ModelProviderResponse:
+    ) -> ProviderResponse:
         """
         Parse the raw response from the model provider into a ModelProviderResponse.
 
@@ -127,14 +127,14 @@ class Model(ABC):
             response: Raw response from the model provider
 
         Returns:
-            ModelProviderResponse: Parsed response data
+            ProviderResponse: Parsed response data
         """
         pass
 
     @abstractmethod
     def parse_model_provider_response_stream(
         self, response: Any
-    ) -> Iterator[ModelProviderResponse]:
+    ) -> Iterator[ProviderResponse]:
         """
         Parse the streaming response from the model provider into ModelProviderResponse objects.
 
@@ -142,7 +142,7 @@ class Model(ABC):
             response: Raw response chunk from the model provider
 
         Returns:
-            Iterator[ModelProviderResponse]: Iterator of parsed response data
+            Iterator[ProviderResponse]: Iterator of parsed response data
         """
         pass
 
@@ -534,7 +534,6 @@ class Model(ABC):
             assistant_message (Message): The assistant message.
             messages (List[Message]): The list of messages.
             model_response (ModelResponse): The model response.
-            tool_role (str): The role of the tool call. Defaults to "tool".
 
         Returns:
             Optional[ModelResponse]: The model response after handling tool calls.
@@ -659,7 +658,7 @@ class Model(ABC):
             Iterator[ModelResponse]: An iterator of the model response.
         """
         if assistant_message.tool_calls is not None and len(assistant_message.tool_calls) > 0:
-            
+
             yield ModelResponse(content="\n\n")
 
             function_calls_to_run, function_call_results = self._prepare_stream_tool_calls(
@@ -900,7 +899,7 @@ class Model(ABC):
     def populate_assistant_message(
         self,
         assistant_message: Message,
-        provider_response: ModelProviderResponse,
+        provider_response: ProviderResponse,
     ) -> Message:
         """
         Populate an assistant message with the provider response data.

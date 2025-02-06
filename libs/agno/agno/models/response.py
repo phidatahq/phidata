@@ -26,7 +26,7 @@ class ModelResponse:
     created_at: int = int(time())
 
 @dataclass
-class ModelProviderResponse:
+class ProviderResponse:
     """Response parsed from the response that the model provider returns"""
 
     role: Optional[str] = None

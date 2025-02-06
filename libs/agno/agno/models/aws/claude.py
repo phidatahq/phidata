@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional, Iterator
 from agno.models.aws.bedrock import AwsBedrock
 from agno.models.base import MessageData
 from agno.models.message import Message
-from agno.models.response import ModelProviderResponse, ModelResponse
+from agno.models.response import ProviderResponse, ModelResponse
 from agno.utils.log import logger
 
 @dataclass
@@ -157,7 +157,7 @@ class Claude(AwsBedrock):
 
         return request_body
 
-    def parse_model_provider_response(self, response: Dict[str, Any]) -> ModelProviderResponse:
+    def parse_model_provider_response(self, response: Dict[str, Any]) -> ProviderResponse:
         """
         Parse the response from the Bedrock API.
 
@@ -165,9 +165,9 @@ class Claude(AwsBedrock):
             response (Dict[str, Any]): The response from the Bedrock API.
 
         Returns:
-            ModelProviderResponse: The parsed response.
+            ProviderResponse: The parsed response.
         """
-        provider_response = ModelProviderResponse()
+        provider_response = ProviderResponse()
 
         # Extract message from output
         if "output" in response and "message" in response["output"]:

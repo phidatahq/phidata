@@ -6,7 +6,7 @@ from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 from agno.media import Image
 from agno.models.base import Model
 from agno.models.message import Message
-from agno.models.response import ModelProviderResponse
+from agno.models.response import ProviderResponse
 from agno.utils.log import logger
 
 try:
@@ -301,7 +301,7 @@ class Claude(Model):
         try:
             chat_messages, system_message = _format_messages(messages)
             request_kwargs = self._prepare_request_kwargs(system_message)
-            
+
             return self.get_client().messages.create(
                 model=self.id,
                 messages=chat_messages,  # type: ignore
@@ -370,7 +370,7 @@ class Claude(Model):
         try:
             chat_messages, system_message = _format_messages(messages)
             request_kwargs = self._prepare_request_kwargs(system_message)
-            
+
             return await self.get_async_client().messages.create(
                 model=self.id,
                 messages=chat_messages,  # type: ignore
@@ -452,7 +452,7 @@ class Claude(Model):
             return tool_call_prompt
         return None
 
-    def parse_model_provider_response(self, response: AnthropicMessage) -> ModelProviderResponse:
+    def parse_model_provider_response(self, response: AnthropicMessage) -> ProviderResponse:
         """
         Parse the Claude response into a ModelProviderResponse.
 
@@ -460,9 +460,9 @@ class Claude(Model):
             response: Raw response from Anthropic
 
         Returns:
-            ModelProviderResponse: Parsed response data
+            ProviderResponse: Parsed response data
         """
-        provider_response = ModelProviderResponse()
+        provider_response = ProviderResponse()
 
         # Add role (Claude always uses 'assistant')
         provider_response.role = response.role or "assistant"
@@ -506,7 +506,7 @@ class Claude(Model):
 
     def parse_model_provider_response_stream(
         self, response: Union[ContentBlockDeltaEvent, ContentBlockStopEvent, MessageDeltaEvent]
-    ) -> Iterator[ModelProviderResponse]:
+    ) -> Iterator[ProviderResponse]:
         """
         Parse the Claude streaming response into ModelProviderResponse objects.
 
@@ -514,9 +514,9 @@ class Claude(Model):
             response: Raw response chunk from Anthropic
 
         Returns:
-            Iterator[ModelProviderResponse]: Iterator of parsed response data
+            Iterator[ProviderResponse]: Iterator of parsed response data
         """
-        provider_response = ModelProviderResponse()
+        provider_response = ProviderResponse()
         has_content = False
 
         if isinstance(response, ContentBlockDeltaEvent):

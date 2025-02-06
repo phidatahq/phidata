@@ -182,6 +182,15 @@ def get_sync_playground_router(
                         file_content = TextReader().read(text_file)
                         if agent.knowledge is not None:
                             agent.knowledge.load_documents(file_content)
+                    elif file.content_type == "application/json":
+                        from agno.document.reader.json_reader import JSONReader
+
+                        contents = file.file.read()
+                        json_file = BytesIO(contents)
+                        json_file.name = file.filename
+                        file_content = JSONReader().read(json_file)
+                        if agent.knowledge is not None:
+                            agent.knowledge.load_documents(file_content)
                     else:
                         raise HTTPException(status_code=400, detail="Unsupported file type")
 

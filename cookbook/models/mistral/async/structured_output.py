@@ -1,4 +1,4 @@
-import os
+import asyncio
 from typing import List
 
 from agno.agent import Agent, RunResponse  # noqa
@@ -27,7 +27,7 @@ class MovieScript(BaseModel):
     )
 
 
-json_mode_agent = Agent(
+agent = Agent(
     model=MistralChat(
         id="mistral-large-latest",
     ),
@@ -39,7 +39,7 @@ json_mode_agent = Agent(
 )
 
 # Get the response in a variable
-# json_mode_response: RunResponse = json_mode_agent.run("New York")
+# json_mode_response: RunResponse = await json_mode_agent.arun("New York")
 # pprint(json_mode_response.content)
 
-json_mode_agent.print_response("Find a cool movie idea about London and write it.")
+asyncio.run(agent.aprint_response("Find a cool movie idea about London and write it."))

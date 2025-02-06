@@ -2506,6 +2506,8 @@ class Agent:
             if m.role == "assistant" and m.metrics is not None:
                 for k, v in m.metrics.items():
                     aggregated_metrics[k].append(v)
+        if aggregated_metrics is not None:
+            aggregated_metrics = dict(aggregated_metrics)
         return aggregated_metrics
 
     def rename(self, name: str) -> None:

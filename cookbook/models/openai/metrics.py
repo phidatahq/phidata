@@ -31,7 +31,7 @@ if agent.run_response.messages:
             print("---" * 20)
 
 # Print the metrics
-print("---" * 5, "Aggregated Metrics", "---" * 5)
+print("---" * 5, "Collected Metrics", "---" * 5)
 pprint(agent.run_response.metrics)
 # Print the session metrics
 print("---" * 5, "Session Metrics", "---" * 5)

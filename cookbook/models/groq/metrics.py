@@ -1,13 +1,13 @@
 from typing import Iterator
 
 from agno.agent import Agent, RunResponse
-from agno.models.openai import OpenAIChat
+from agno.models.groq import Groq
 from agno.tools.yfinance import YFinanceTools
 from agno.utils.pprint import pprint_run_response
 from rich.pretty import pprint
 
 agent = Agent(
-    model=OpenAIChat(id="gpt-4o"),
+    model=Groq(id="llama-3.3-70b-versatile"),
     tools=[YFinanceTools(stock_price=True)],
     markdown=True,
     show_tool_calls=True,
@@ -31,7 +31,7 @@ if agent.run_response.messages:
             print("---" * 20)
 
 # Print the metrics
-print("---" * 5, "Aggregated Metrics", "---" * 5)
+print("---" * 5, "Collected Metrics", "---" * 5)
 pprint(agent.run_response.metrics)
 # Print the session metrics
 print("---" * 5, "Session Metrics", "---" * 5)

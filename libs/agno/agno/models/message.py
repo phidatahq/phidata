@@ -1,11 +1,13 @@
 import json
+from dataclasses import dataclass
 from time import time
 from typing import Any, Dict, List, Optional, Sequence, Union
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_serializer
 
 from agno.media import Audio, AudioOutput, Image, Video
 from agno.utils.log import logger
+from agno.utils.timer import Timer
 
 
 class MessageReferences(BaseModel):
@@ -17,6 +19,96 @@ class MessageReferences(BaseModel):
     references: Optional[List[Dict[str, Any]]] = None
     # Time taken to retrieve the references.
     time: Optional[float] = None
+
+
+@dataclass
+class MessageMetrics:
+    input_tokens: int = 0
+    output_tokens: int = 0
+    total_tokens: int = 0
+
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    prompt_tokens_details: Optional[dict] = None
+    completion_tokens_details: Optional[dict] = None
+
+    additional_metrics: Optional[dict] = None
+
+    time: Optional[float] = None
+    time_to_first_token: Optional[float] = None
+
+    timer: Optional[Timer] = None
+
+    def start_timer(self):
+        if self.timer is None:
+            self.timer = Timer()
+        self.timer.start()
+
+    def stop_timer(self, set_time: bool = True):
+        if self.timer is not None:
+            self.timer.stop()
+            if set_time:
+                self.time = self.timer.elapsed
+
+    def set_time_to_first_token(self):
+        if self.timer is not None:
+            self.time_to_first_token = self.timer.elapsed
+
+    def __add__(self, other: "MessageMetrics") -> "MessageMetrics":
+        # Create new instance with summed basic metrics
+        result = MessageMetrics(
+            input_tokens=self.input_tokens + other.input_tokens,
+            output_tokens=self.output_tokens + other.output_tokens,
+            total_tokens=self.total_tokens + other.total_tokens,
+            prompt_tokens=self.prompt_tokens + other.prompt_tokens,
+            completion_tokens=self.completion_tokens + other.completion_tokens,
+        )
+
+        # Handle prompt_tokens_details
+        if self.prompt_tokens_details or other.prompt_tokens_details:
+            result.prompt_tokens_details = {}
+            # Merge from self
+            if self.prompt_tokens_details:
+                result.prompt_tokens_details.update(self.prompt_tokens_details)
+            # Add values from other
+            if other.prompt_tokens_details:
+                for key, value in other.prompt_tokens_details.items():
+                    result.prompt_tokens_details[key] = result.prompt_tokens_details.get(key, 0) + value
+
+        # Handle completion_tokens_details similarly
+        if self.completion_tokens_details or other.completion_tokens_details:
+            result.completion_tokens_details = {}
+            if self.completion_tokens_details:
+                result.completion_tokens_details.update(self.completion_tokens_details)
+            if other.completion_tokens_details:
+                for key, value in other.completion_tokens_details.items():
+                    result.completion_tokens_details[key] = result.completion_tokens_details.get(key, 0) + value
+
+        # Handle additional metrics
+        if self.additional_metrics or other.additional_metrics:
+            result.additional_metrics = {}
+            if self.additional_metrics:
+                result.additional_metrics.update(self.additional_metrics)
+            if other.additional_metrics:
+                result.additional_metrics.update(other.additional_metrics)
+
+        # Sum times if both exist
+        if self.time is not None and other.time is not None:
+            result.time = self.time + other.time
+        elif self.time is not None:
+            result.time = self.time
+        elif other.time is not None:
+            result.time = other.time
+
+        # Handle time_to_first_token (take the first non-None value)
+        result.time_to_first_token = self.time_to_first_token or other.time_to_first_token
+
+        return result
+
+    def __radd__(self, other: "MessageMetrics") -> "MessageMetrics":
+        if other == 0:  # Handle sum() starting value
+            return self
+        return self + other
 
 
 class Message(BaseModel):
@@ -57,13 +149,13 @@ class Message(BaseModel):
     # When True, the message will be added to the agent's memory.
     add_to_agent_memory: bool = True
     # Metrics for the message.
-    metrics: Dict[str, Any] = Field(default_factory=dict)
+    metrics: MessageMetrics = Field(default_factory=MessageMetrics)
     # The references added to the message for RAG
     references: Optional[MessageReferences] = None
     # The Unix timestamp the message was created.
     created_at: int = Field(default_factory=lambda: int(time()))
 
-    model_config = ConfigDict(extra="allow", populate_by_name=True)
+    model_config = ConfigDict(extra="allow", populate_by_name=True, arbitrary_types_allowed=True)
 
     def get_content_string(self) -> str:
         """Returns the content as a string."""
@@ -76,12 +168,19 @@ class Message(BaseModel):
         return ""
 
     def to_dict(self) -> Dict[str, Any]:
-        _dict = self.model_dump(
-            exclude_none=True,
-            include={"role", "content", "audio", "name", "tool_call_id", "tool_calls"},
-        )
+        _dict: Dict[str, Any] = {
+            "role": self.role,
+            "content": self.content,
+            "name": self.name,
+            "tool_call_id": self.tool_call_id,
+            "tool_calls": self.tool_calls,
+            "audio": self.audio,
+        }
 
-        # Add a message's output as now input (for multi-turn audio)
+        # Remove None values
+        _dict = {k: v for k, v in _dict.items() if v is not None}
+
+        # Add the message's output as then input (for multi-turn audio)
         if self.audio_output is not None:
             _dict["content"] = None
             _dict["audio"] = {"id": self.audio_output.id}
@@ -92,16 +191,20 @@ class Message(BaseModel):
 
         return _dict
 
-    def log(self, level: Optional[str] = None):
+    @model_serializer
+    def serialize_model(self):
+        return self.to_dict()
+
+    def log(self, metrics: bool = False, level: Optional[str] = None):
         """Log the message to the console
 
-        @param level: The level to log the message at. One of debug, info, warning, or error.
-            Defaults to debug.
+        Args:
+            metrics (bool): Whether to log the metrics.
+            level (str): The level to log the message at. One of debug, info, warning, or error.
+                Defaults to debug.
         """
         _logger = logger.debug
-        if level == "debug":
-            _logger = logger.debug
-        elif level == "info":
+        if level == "info":
             _logger = logger.info
         elif level == "warning":
             _logger = logger.warning
@@ -126,6 +229,24 @@ class Message(BaseModel):
             _logger(f"Videos added: {len(self.videos)}")
         if self.audio:
             _logger(f"Audio Files added: {len(self.audio)}")
+
+        if metrics and self.metrics is not None:
+            _logger("**************** METRICS ****************")
+            _logger(f"* Input tokens:                {self.metrics.input_tokens}")
+            _logger(f"* Output tokens:               {self.metrics.output_tokens}")
+            _logger(f"* Total tokens:                {self.metrics.total_tokens}")
+            if self.metrics.prompt_tokens_details:
+                _logger(f"* Prompt tokens details:       {self.metrics.prompt_tokens_details}")
+            if self.metrics.completion_tokens_details:
+                _logger(f"* Completion tokens details:   {self.metrics.completion_tokens_details}")
+            if self.metrics.time is not None:
+                _logger(f"* Time:                        {self.metrics.time:.4f}s")
+                _logger(f"* Tokens per second:           {self.metrics.output_tokens / self.metrics.time:.4f} tokens/s")
+            if self.metrics.time_to_first_token is not None:
+                _logger(f"* Time to first token:         {self.metrics.time_to_first_token:.4f}s")
+            if self.metrics.additional_metrics:
+                _logger(f"* Additional metrics:          {self.metrics.additional_metrics}")
+            _logger("**************** METRICS ******************")
 
     def content_is_valid(self) -> bool:
         """Check if the message content is valid."""

@@ -1,14 +1,8 @@
-import os
-
+from typing import Iterator  # noqa
 from agno.agent import Agent, RunResponse  # noqa
-from agno.models.mistral import MistralChat
+from agno.models.perplexity import Perplexity
 
-agent = Agent(
-    model=MistralChat(
-        id="mistral-large-latest",
-    ),
-    markdown=True,
-)
+agent = Agent(model=Perplexity(id="sonar"), markdown=True)
 
 # Get the response in a variable
 # run_response: Iterator[RunResponse] = agent.run("Share a 2 sentence horror story", stream=True)

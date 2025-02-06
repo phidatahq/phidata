@@ -113,10 +113,6 @@ def get_sync_playground_router(
         if agent is None:
             raise HTTPException(status_code=404, detail="Agent not found")
 
-        if files:
-            if agent.knowledge is None:
-                raise HTTPException(status_code=404, detail="KnowledgeBase not found")
-
         if session_id is not None:
             logger.debug(f"Continuing session: {session_id}")
         else:
@@ -145,44 +141,49 @@ def get_sync_playground_router(
                     except Exception as e:
                         logger.error(f"Error processing image {file.filename}: {e}")
                         continue
-                elif file.content_type == "application/pdf":
-                    from agno.document.reader.pdf_reader import PDFReader
-
-                    contents = file.file.read()
-                    pdf_file = BytesIO(contents)
-                    pdf_file.name = file.filename
-                    file_content = PDFReader().read(pdf_file)
-                    if agent.knowledge is not None:
-                        agent.knowledge.load_documents(file_content)
-                elif file.content_type == "text/csv":
-                    from agno.document.reader.csv_reader import CSVReader
-
-                    contents = file.file.read()
-                    csv_file = BytesIO(contents)
-                    csv_file.name = file.filename
-                    file_content = CSVReader().read(csv_file)
-                    if agent.knowledge is not None:
-                        agent.knowledge.load_documents(file_content)
-                elif file.content_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
-                    from agno.document.reader.docx_reader import DocxReader
-
-                    contents = file.file.read()
-                    docx_file = BytesIO(contents)
-                    docx_file.name = file.filename
-                    file_content = DocxReader().read(docx_file)
-                    if agent.knowledge is not None:
-                        agent.knowledge.load_documents(file_content)
-                elif file.content_type == "text/plain":
-                    from agno.document.reader.text_reader import TextReader
-
-                    contents = file.file.read()
-                    text_file = BytesIO(contents)
-                    text_file.name = file.filename
-                    file_content = TextReader().read(text_file)
-                    if agent.knowledge is not None:
-                        agent.knowledge.load_documents(file_content)
                 else:
-                    raise HTTPException(status_code=400, detail="Unsupported file type")
+                    # Check for knowledge base before processing documents
+                    if agent.knowledge is None:
+                        raise HTTPException(status_code=404, detail="KnowledgeBase not found")
+
+                    if file.content_type == "application/pdf":
+                        from agno.document.reader.pdf_reader import PDFReader
+
+                        contents = file.file.read()
+                        pdf_file = BytesIO(contents)
+                        pdf_file.name = file.filename
+                        file_content = PDFReader().read(pdf_file)
+                        if agent.knowledge is not None:
+                            agent.knowledge.load_documents(file_content)
+                    elif file.content_type == "text/csv":
+                        from agno.document.reader.csv_reader import CSVReader
+
+                        contents = file.file.read()
+                        csv_file = BytesIO(contents)
+                        csv_file.name = file.filename
+                        file_content = CSVReader().read(csv_file)
+                        if agent.knowledge is not None:
+                            agent.knowledge.load_documents(file_content)
+                    elif file.content_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+                        from agno.document.reader.docx_reader import DocxReader
+
+                        contents = file.file.read()
+                        docx_file = BytesIO(contents)
+                        docx_file.name = file.filename
+                        file_content = DocxReader().read(docx_file)
+                        if agent.knowledge is not None:
+                            agent.knowledge.load_documents(file_content)
+                    elif file.content_type == "text/plain":
+                        from agno.document.reader.text_reader import TextReader
+
+                        contents = file.file.read()
+                        text_file = BytesIO(contents)
+                        text_file.name = file.filename
+                        file_content = TextReader().read(text_file)
+                        if agent.knowledge is not None:
+                            agent.knowledge.load_documents(file_content)
+                    else:
+                        raise HTTPException(status_code=400, detail="Unsupported file type")
 
         if stream:
             return StreamingResponse(

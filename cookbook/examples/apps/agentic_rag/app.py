@@ -30,9 +30,11 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
-st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 
 # Add custom CSS
+
+st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
+
 
 
 def restart_agent():
@@ -225,7 +227,7 @@ def main():
         st.session_state.knowledge_base_initialized = False  # Reset initialization flag
         st.sidebar.success("Knowledge base cleared")
     ###############################################################
-    # Sample Questions
+    # Sample Question
     ###############################################################
     st.sidebar.markdown("#### ❓ Sample Questions")
     if st.sidebar.button("📝 Summarize"):
@@ -301,6 +303,8 @@ def main():
                     error_message = f"Sorry, I encountered an error: {str(e)}"
                     add_message("assistant", error_message)
                     st.error(error_message)
+
+
 
     ####################################################################
     # Session selector

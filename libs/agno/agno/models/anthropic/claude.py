@@ -12,6 +12,8 @@ from agno.utils.log import logger
 try:
     from anthropic import Anthropic as AnthropicClient
     from anthropic import AsyncAnthropic as AsyncAnthropicClient
+    from anthropic import APIConnectionError, RateLimitError, APIStatusError
+
     from anthropic.types import (
         ContentBlockDeltaEvent,
         MessageStopEvent,
@@ -290,15 +292,33 @@ class Claude(Model):
 
         Returns:
             AnthropicMessage: The response from the model.
-        """
-        chat_messages, system_message = _format_messages(messages)
-        request_kwargs = self._prepare_request_kwargs(system_message)
 
-        return self.get_client().messages.create(
-            model=self.id,
-            messages=chat_messages,  # type: ignore
-            **request_kwargs,
-        )
+        Raises:
+            APIConnectionError: If there are network connectivity issues
+            RateLimitError: If the API rate limit is exceeded
+            APIStatusError: For other API-related errors
+        """
+        try:
+            chat_messages, system_message = _format_messages(messages)
+            request_kwargs = self._prepare_request_kwargs(system_message)
+            
+            return self.get_client().messages.create(
+                model=self.id,
+                messages=chat_messages,  # type: ignore
+                **request_kwargs,
+            )
+        except APIConnectionError as e:
+            logger.error(f"Connection error while calling Claude API: {str(e)}")
+            raise
+        except RateLimitError as e:
+            logger.warning(f"Rate limit exceeded: {str(e)}")
+            raise
+        except APIStatusError as e:
+            logger.error(f"Claude API error (status {e.status_code}): {str(e)}")
+            raise
+        except Exception as e:
+            logger.error(f"Unexpected error calling Claude API: {str(e)}")
+            raise
 
     def invoke_stream(self, messages: List[Message]) -> Any:
         """
@@ -313,11 +333,24 @@ class Claude(Model):
         chat_messages, system_message = _format_messages(messages)
         request_kwargs = self._prepare_request_kwargs(system_message)
 
-        return self.get_client().messages.stream(
-            model=self.id,
-            messages=chat_messages,  # type: ignore
-            **request_kwargs,
-        ).__enter__()
+        try:
+            return self.get_client().messages.stream(
+                model=self.id,
+                messages=chat_messages,  # type: ignore
+                **request_kwargs,
+            ).__enter__()
+        except APIConnectionError as e:
+            logger.error(f"Connection error while calling Claude API: {str(e)}")
+            raise
+        except RateLimitError as e:
+            logger.warning(f"Rate limit exceeded: {str(e)}")
+            raise
+        except APIStatusError as e:
+            logger.error(f"Claude API error (status {e.status_code}): {str(e)}")
+            raise
+        except Exception as e:
+            logger.error(f"Unexpected error calling Claude API: {str(e)}")
+            raise
 
     async def ainvoke(self, messages: List[Message]) -> AnthropicMessage:
         """
@@ -328,15 +361,33 @@ class Claude(Model):
 
         Returns:
             AnthropicMessage: The response from the model.
-        """
-        chat_messages, system_message = _format_messages(messages)
-        request_kwargs = self._prepare_request_kwargs(system_message)
 
-        return await self.get_async_client().messages.create(
-            model=self.id,
-            messages=chat_messages,  # type: ignore
-            **request_kwargs,
-        )
+        Raises:
+            APIConnectionError: If there are network connectivity issues
+            RateLimitError: If the API rate limit is exceeded
+            APIStatusError: For other API-related errors
+        """
+        try:
+            chat_messages, system_message = _format_messages(messages)
+            request_kwargs = self._prepare_request_kwargs(system_message)
+            
+            return await self.get_async_client().messages.create(
+                model=self.id,
+                messages=chat_messages,  # type: ignore
+                **request_kwargs,
+            )
+        except APIConnectionError as e:
+            logger.error(f"Connection error while calling Claude API: {str(e)}")
+            raise
+        except RateLimitError as e:
+            logger.warning(f"Rate limit exceeded: {str(e)}")
+            raise
+        except APIStatusError as e:
+            logger.error(f"Claude API error (status {e.status_code}): {str(e)}")
+            raise
+        except Exception as e:
+            logger.error(f"Unexpected error calling Claude API: {str(e)}")
+            raise
 
     async def ainvoke_stream(self, messages: List[Message]) -> Any:
         """
@@ -348,15 +399,27 @@ class Claude(Model):
         Returns:
             Any: The streamed response from the model.
         """
-        chat_messages, system_message = _format_messages(messages)
-        request_kwargs = self._prepare_request_kwargs(system_message)
+        try:
+            chat_messages, system_message = _format_messages(messages)
+            request_kwargs = self._prepare_request_kwargs(system_message)
 
-        return await self.get_async_client().messages.create(
-            model=self.id,
-            messages=chat_messages,  # type: ignore
-            stream=True,
-            **request_kwargs,
-        )
+            return await self.get_async_client().messages.stream(
+                model=self.id,
+                messages=chat_messages,  # type: ignore
+                **request_kwargs,
+            ).__aenter__()
+        except APIConnectionError as e:
+            logger.error(f"Connection error while calling Claude API: {str(e)}")
+            raise
+        except RateLimitError as e:
+            logger.warning(f"Rate limit exceeded: {str(e)}")
+            raise
+        except APIStatusError as e:
+            logger.error(f"Claude API error (status {e.status_code}): {str(e)}")
+            raise
+        except Exception as e:
+            logger.error(f"Unexpected error calling Claude API: {str(e)}")
+            raise
 
     # Overwrite the default from the base model
     def format_function_call_results(

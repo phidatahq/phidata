@@ -8,6 +8,7 @@ from agno.models.base import Model
 from agno.models.message import Message
 from agno.models.response import ModelProviderResponse
 from agno.utils.log import logger
+from agno.utils.openai import add_images_to_message
 
 try:
     from groq import AsyncGroq as AsyncGroqClient
@@ -16,6 +17,23 @@ try:
     from groq.types.chat.chat_completion_chunk import ChatCompletionChunk, ChoiceDelta, ChoiceDeltaToolCall
 except (ModuleNotFoundError, ImportError):
     raise ImportError("`groq` not installed. Please install using `pip install groq`")
+
+
+def format_message(message: Message) -> Dict[str, Any]:
+    """
+    Format a message into the format expected by Groq.
+
+    Args:
+        message (Message): The message to format.
+
+    Returns:
+        Dict[str, Any]: The formatted message.
+    """
+    if message.role == "user":
+        if message.images is not None:
+            message = add_images_to_message(message=message, images=message.images)
+
+    return message.to_dict()
 
 
 @dataclass
@@ -193,22 +211,6 @@ class Groq(Model):
         cleaned_dict = {k: v for k, v in model_dict.items() if v is not None}
         return cleaned_dict
 
-    def format_message(self, message: Message) -> Dict[str, Any]:
-        """
-        Format a message into the format expected by Groq.
-
-        Args:
-            message (Message): The message to format.
-
-        Returns:
-            Dict[str, Any]: The formatted message.
-        """
-        if message.role == "user":
-            if message.images is not None:
-                message = self.add_images_to_message(message=message, images=message.images)
-
-        return message.to_dict()
-
     def invoke(self, messages: List[Message]) -> ChatCompletion:
         """
         Send a chat completion request to the Groq API.
@@ -221,7 +223,7 @@ class Groq(Model):
         """
         return self.get_client().chat.completions.create(
             model=self.id,
-            messages=[self.format_message(m) for m in messages],  # type: ignore
+            messages=[format_message(m) for m in messages],  # type: ignore
             **self.request_kwargs,
         )
 
@@ -237,7 +239,7 @@ class Groq(Model):
         """
         return await self.get_async_client().chat.completions.create(
             model=self.id,
-            messages=[self.format_message(m) for m in messages],  # type: ignore
+            messages=[format_message(m) for m in messages],  # type: ignore
             **self.request_kwargs,
         )
 
@@ -253,7 +255,7 @@ class Groq(Model):
         """
         return self.get_client().chat.completions.create(
             model=self.id,
-            messages=[self.format_message(m) for m in messages],  # type: ignore
+            messages=[format_message(m) for m in messages],  # type: ignore
             stream=True,
             **self.request_kwargs,
         )
@@ -270,7 +272,7 @@ class Groq(Model):
         """
         return await self.get_async_client().chat.completions.create(
             model=self.id,
-            messages=[self.format_message(m) for m in messages],  # type: ignore
+            messages=[format_message(m) for m in messages],  # type: ignore
             stream=True,
             **self.request_kwargs,
         )
@@ -316,7 +318,7 @@ class Groq(Model):
                 if _tool_call_type:
                     tool_call_entry["type"] = _tool_call_type
         return tool_calls
-    
+
     def parse_model_provider_response(
         self, response: ChatCompletion
     ) -> ModelProviderResponse:

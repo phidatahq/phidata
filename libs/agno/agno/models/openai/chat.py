@@ -10,6 +10,7 @@ from agno.models.base import Model
 from agno.models.message import Message
 from agno.models.response import ModelProviderResponse
 from agno.utils.log import logger
+from agno.utils.openai import add_images_to_message, add_audio_to_message
 
 try:
     from openai import AsyncOpenAI as AsyncOpenAIClient
@@ -228,6 +229,7 @@ class OpenAIChat(Model):
         cleaned_dict = {k: v for k, v in model_dict.items() if v is not None}
         return cleaned_dict
 
+
     def format_message(self, message: Message) -> Dict[str, Any]:
         """
         Format a message into the format expected by OpenAI.
@@ -240,10 +242,10 @@ class OpenAIChat(Model):
         """
         if message.role == "user":
             if message.images is not None:
-                message = self.add_images_to_message(message=message, images=message.images)
+                message = add_images_to_message(message=message, images=message.images)
 
             if message.audio is not None:
-                message = self.add_audio_to_message(message=message, audio=message.audio)
+                message = add_audio_to_message(message=message, audio=message.audio)
 
             if message.videos is not None:
                 logger.warning("Video input is currently unsupported.")

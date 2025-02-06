@@ -867,7 +867,7 @@ class Agent:
                             **kwargs,
                         )
                         return next(resp)
-            except AgentRunException as e:
+            except Exception as e:
                 logger.warning(f"Attempt {attempt + 1}/{num_attempts} failed: {str(e)}")
                 if isinstance(e, StopAgentRun):
                     raise e
@@ -1267,7 +1267,7 @@ class Agent:
                             **kwargs,
                         )
                         return await resp.__anext__()
-            except AgentRunException as e:
+            except Exception as e:
                 logger.warning(f"Attempt {attempt + 1}/{num_attempts} failed: {str(e)}")
                 if isinstance(e, StopAgentRun):
                     raise e

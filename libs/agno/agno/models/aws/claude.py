@@ -1,9 +1,18 @@
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+import json
+from typing import Any, Dict, List, Optional, Iterator
 
 from agno.models.aws.bedrock import AwsBedrock
+from agno.models.base import MessageData
 from agno.models.message import Message
+from agno.models.response import ModelProviderResponse, ModelResponse
+from agno.utils.log import logger
 
+@dataclass
+class BedrockResponseUsage:
+    input_tokens: int = 0
+    output_tokens: int = 0
+    total_tokens: int = 0
 
 @dataclass
 class Claude(AwsBedrock):
@@ -67,13 +76,10 @@ class Claude(AwsBedrock):
             _request_params.update(self.request_params)
         return _request_params
 
-    def get_tools(self) -> Optional[Dict[str, Any]]:
+    def _format_tools(self) -> Optional[Dict[str, Any]]:
         """
         Refactors the tools in a format accepted by the Bedrock API.
         """
-        if not self._functions:
-            return None
-
         tools = []
         for f_name, function in self._functions.items():
             properties = {}
@@ -106,9 +112,9 @@ class Claude(AwsBedrock):
 
         return {"tools": tools}
 
-    def get_request_body(self, messages: List[Message]) -> Dict[str, Any]:
+    def format_messages(self, messages: List[Message]) -> Dict[str, Any]:
         """
-        Get the request body for the Bedrock API.
+        Create the request body for the Bedrock API.
 
         Args:
             messages (List[Message]): The messages to include in the request.
@@ -145,13 +151,13 @@ class Claude(AwsBedrock):
         if inference_config:
             request_body["inferenceConfig"] = inference_config  # type: ignore
 
-        if self.tools:
-            tools = self.get_tools()
+        if self._functions:
+            tools = self._format_tools()
             request_body["toolConfig"] = tools  # type: ignore
 
         return request_body
 
-    def parse_response_message(self, response: Dict[str, Any]) -> Dict[str, Any]:
+    def parse_model_provider_response(self, response: Dict[str, Any]) -> ModelProviderResponse:
         """
         Parse the response from the Bedrock API.
 
@@ -159,70 +165,168 @@ class Claude(AwsBedrock):
             response (Dict[str, Any]): The response from the Bedrock API.
 
         Returns:
-            Dict[str, Any]: The parsed response.
+            ModelProviderResponse: The parsed response.
         """
-        res = {}
+        provider_response = ModelProviderResponse()
+
+        # Extract message from output
         if "output" in response and "message" in response["output"]:
             message = response["output"]["message"]
-            role = message.get("role")
-            content = message.get("content", [])
 
-            # Extract text content if it's a list of dictionaries
-            if isinstance(content, list) and content and isinstance(content[0], dict):
-                content = [item.get("text", "") for item in content if "text" in item]
-                content = "\n".join(content)  # Join multiple text items if present
+            # Add role
+            if "role" in message:
+                provider_response.role = message["role"]
 
-            res = {
-                "content": content,
-                "usage": {
-                    "inputTokens": response.get("usage", {}).get("inputTokens"),
-                    "outputTokens": response.get("usage", {}).get("outputTokens"),
-                    "totalTokens": response.get("usage", {}).get("totalTokens"),
-                },
-                "metrics": {"latencyMs": response.get("metrics", {}).get("latencyMs")},
-                "role": role,
-            }
+            # Extract and join text content from content list
+            if "content" in message:
+                content = message["content"]
+                if isinstance(content, list) and content:
+                    text_content = [item.get("text", "") for item in content if "text" in item]
+                    provider_response.content = "\n".join(text_content)
 
+        # Add usage metrics
+        if "usage" in response:
+            # This ensures that the usage can be parsed upstream
+            provider_response.response_usage = BedrockResponseUsage(
+                input_tokens=response.get("usage", {}).get("inputTokens", 0),
+                output_tokens=response.get("usage", {}).get("outputTokens", 0),
+                total_tokens=response.get("usage", {}).get("totalTokens", 0),
+            )
+
+        # If we have a stop reason, it works a bit differently
         stop_reason = None
         if "stopReason" in response:
             stop_reason = response["stopReason"]
 
-        res["stop_reason"] = stop_reason if stop_reason else None
-        res["tool_requests"] = None
-
-        if stop_reason == "tool_use":
+        if stop_reason and stop_reason == "tool_use":
             tool_requests = response["output"]["message"]["content"]
-            res["tool_requests"] = tool_requests
 
-        return res
+            tool_ids = []
+            tool_calls = []
+            if tool_requests:
+                for tool in tool_requests:
+                    if "toolUse" in tool:
+                        tool_use = tool["toolUse"]
+                        tool_id = tool_use["toolUseId"]
+                        tool_name = tool_use["name"]
+                        tool_args = tool_use["input"]
 
-    def create_assistant_message(self, parsed_response: Dict[str, Any]) -> Message:
+                        tool_ids.append(tool_id)
+                        tool_calls.append(
+                            {
+                                "type": "function",
+                                "function": {
+                                    "name": tool_name,
+                                    "arguments": json.dumps(tool_args),
+                                },
+                            }
+                        )
+            if tool_calls:
+                provider_response.tool_calls = tool_calls
+            if tool_requests:
+                provider_response.content = tool_requests[0]["text"]
+                provider_response.extra["tool_ids"] = tool_ids
+
+        return provider_response
+
+    # Override the base class method
+    def format_function_call_results(self, messages: List[Message], function_call_results: List[Message], tool_ids: List[str]) -> None:
         """
-        Create an assistant message from the parsed response.
+        Format function call results.
+        """
+        if len(function_call_results) > 0:
+            fc_responses: List = []
 
-        Args:
-            parsed_response (Dict[str, Any]): The parsed response from the Bedrock API.
+            for _fc_message_index, _fc_message in enumerate(function_call_results):
+                tool_result = {
+                    "toolUseId": tool_ids[_fc_message_index],
+                    "content": [{"json": json.dumps(_fc_message.content)}],
+                }
+                tool_result_message = {"role": "user", "content": json.dumps([{"toolResult": tool_result}])}
+                fc_responses.append(tool_result_message)
 
-        Returns:
-            Message: The assistant message.
+            logger.debug(f"Tool call responses: {fc_responses}")
+            messages.append(Message(role="user", content=json.dumps(fc_responses)))
+
+
+    # Override the base class method
+    def process_response_stream(self, messages: List[Message], assistant_message: Message, stream_data: MessageData) -> Iterator[ModelResponse]:
+        """
+        Process the streaming response from the Bedrock API.
         """
 
-        return Message(
-            role=parsed_response["role"],
-            content=parsed_response["content"],
-            metrics=parsed_response["metrics"],
-        )
+        tool_use: Dict[str, Any] = {}
+        tool_ids: List[str] = []
+        tool_calls: List[Dict[str, Any]] = []
+        content: List[Dict[str, Any]] = []
 
-    def parse_response_delta(self, response: Dict[str, Any]) -> Optional[str]:
-        """
-        Parse the response delta from the Bedrock API.
+        # Process the streaming response
+        for chunk in self.invoke_stream(messages=messages):
+            if "contentBlockStart" in chunk:
+                tool = chunk["contentBlockStart"]["start"].get("toolUse")
+                if tool:
+                    tool_use["toolUseId"] = tool["toolUseId"]
+                    tool_use["name"] = tool["name"]
 
-        Args:
-            response (Dict[str, Any]): The response from the Bedrock API.
+            elif "contentBlockDelta" in chunk:
+                delta = chunk["contentBlockDelta"]["delta"]
+                if "toolUse" in delta:
+                    if "input" not in tool_use:
+                        tool_use["input"] = ""
+                    tool_use["input"] += delta["toolUse"]["input"]
+                elif "text" in delta:
+                    # Update metrics
+                    assistant_message.metrics.completion_tokens += 1
+                    if not assistant_message.metrics.time_to_first_token:
+                        assistant_message.metrics.set_time_to_first_token()
 
-        Returns:
-            Optional[str]: The response delta.
-        """
-        if "delta" in response:
-            return response.get("delta", {}).get("text")
-        return response.get("completion")
+                    # Update provider response content
+                    stream_data.response_content += delta["text"]
+                    yield ModelResponse(content=delta["text"])  # Yield text content as it's received
+
+            elif "contentBlockStop" in chunk:
+                if "input" in tool_use:
+                    # Finish collecting tool use input
+                    try:
+                        tool_use["input"] = json.loads(tool_use["input"])
+                    except json.JSONDecodeError as e:
+                        logger.error(f"Failed to parse tool input as JSON: {e}")
+                        tool_use["input"] = {}
+                    content.append({"toolUse": tool_use})
+                    tool_ids.append(tool_use["toolUseId"])
+                    # Prepare the tool call
+                    tool_call = {
+                        "id": tool_use["toolUseId"],
+                        "type": "function",
+                        "function": {
+                            "name": tool_use["name"],
+                            "arguments": json.dumps(tool_use["input"]),
+                        },
+                    }
+                    tool_calls.append(tool_call)
+                    # Reset tool use
+                    tool_use = {}
+                else:
+                    # Finish collecting text content
+                    content.append({"text": stream_data.response_content})
+
+            elif "metadata" in chunk:
+                metadata = chunk["metadata"]
+                if "usage" in metadata:
+                    response_usage = BedrockResponseUsage(
+                        input_tokens=metadata["usage"]["inputTokens"],
+                        output_tokens=metadata["usage"]["outputTokens"],
+                        total_tokens=metadata["usage"]["totalTokens"],
+                    )
+
+                    # Update metrics
+                    self.add_usage_metrics_to_assistant_message(
+                        assistant_message=assistant_message,
+                        response_usage=response_usage
+                    )
+
+        if tool_ids:
+            stream_data.extra["tool_ids"] = tool_ids
+
+        if tool_calls:
+            stream_data.response_tool_calls = tool_calls

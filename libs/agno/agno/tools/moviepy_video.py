@@ -245,7 +245,7 @@ class MoviePyVideoTools(Toolkit):
             str: Path to the created SRT file, or error message if failed
         """
         try:
-            logger.info(f"Creating SRT file at {output_path}")
+            logger.debug(f"Creating SRT file at {output_path}")
             # Since we're getting SRT format from Whisper API now,
             # we can just write it directly to file
             with open(output_path, "w", encoding="utf-8") as f:

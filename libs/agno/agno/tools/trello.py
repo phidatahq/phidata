@@ -106,7 +106,7 @@ class TrelloTools(Toolkit):
             if not self.client:
                 return "Trello client not initialized"
 
-            logger.info(f"Getting lists for board {board_id}")
+            logger.debug(f"Getting lists for board {board_id}")
 
             board = self.client.get_board(board_id)
             lists = board.list_lists()
@@ -133,7 +133,7 @@ class TrelloTools(Toolkit):
             if not self.client:
                 return "Trello client not initialized"
 
-            logger.info(f"Moving card {card_id} to list {list_id}")
+            logger.debug(f"Moving card {card_id} to list {list_id}")
 
             card = self.client.get_card(card_id)
             card.change_list(list_id)
@@ -157,7 +157,7 @@ class TrelloTools(Toolkit):
             if not self.client:
                 return "Trello client not initialized"
 
-            logger.info(f"Getting cards for list {list_id}")
+            logger.debug(f"Getting cards for list {list_id}")
 
             trello_list = self.client.get_list(list_id)
             cards = trello_list.list_cards()
@@ -256,7 +256,7 @@ class TrelloTools(Toolkit):
             if not self.client:
                 return "Trello client not initialized"
 
-            logger.info(f"Listing boards with filter: {board_filter}")
+            logger.debug(f"Listing boards with filter: {board_filter}")
 
             boards = self.client.list_boards(board_filter=board_filter)
 

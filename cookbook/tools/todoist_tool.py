@@ -1,7 +1,3 @@
-from agno.agent import Agent
-from agno.models.openai import OpenAIChat
-from agno.tools.todoist import TodoistTools
-
 """
 Example showing how to use the Todoist Tools with Agno
 
@@ -15,6 +11,10 @@ Usage:
 
 - Or provide them when creating the TodoistTools instance
 """
+
+from agno.agent import Agent
+from agno.models.openai import OpenAIChat
+from agno.tools.todoist import TodoistTools
 
 
 todoist_agent = Agent(

@@ -2124,19 +2124,29 @@ class Agent:
 
         # 3. Add history to run_messages
         if self.add_history_to_messages:
+            from copy import deepcopy
+
             history: List[Message] = self.memory.get_messages_from_last_n_runs(
                 last_n=self.num_history_responses, skip_role=self.get_system_message_role()
             )
             if len(history) > 0:
-                logger.debug(f"Adding {len(history)} messages from history")
+                # Create a deep copy of the history messages to avoid modifying the original messages
+                history_copy = [deepcopy(msg) for msg in history]
+
+                # Tag each message as coming from history
+                for _msg in history_copy:
+                    _msg.from_history = True
+
+                logger.debug(f"Adding {len(history_copy)} messages from history")
+
                 if self.run_response.extra_data is None:
-                    self.run_response.extra_data = RunResponseExtraData(history=history)
+                    self.run_response.extra_data = RunResponseExtraData(history=history_copy)
                 else:
                     if self.run_response.extra_data.history is None:
-                        self.run_response.extra_data.history = history
+                        self.run_response.extra_data.history = history_copy
                     else:
-                        self.run_response.extra_data.history.extend(history)
-                run_messages.messages += history
+                        self.run_response.extra_data.history.extend(history_copy)
+                run_messages.messages += history_copy
 
         # 4.Add user message to run_messages
         user_message: Optional[Message] = None

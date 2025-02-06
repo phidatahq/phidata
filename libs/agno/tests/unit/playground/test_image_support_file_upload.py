@@ -1,218 +1,287 @@
 """
-Unit tests for async_router file upload functionality.
+Unit tests for playground file upload functionality.
 """
 
 import io
-from typing import List
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import Mock, patch
 
 import pytest
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.testclient import TestClient
 
-
-# Define an EmptyFile class that simulates an empty file without raising on read.
-class EmptyFile:
-    def __init__(self, content: bytes):
-        self.content = content
-        self._read_called = False
-
-    def read(self, n=-1):
-        # Always return empty bytes. The endpoint will then raise a ValueError.
-        if not self._read_called:
-            self._read_called = True
-            return b""
-        return b""
-
-    def seek(self, offset, whence=0):
-        pass
-
+from agno.agent import Agent
+from agno.media import Image
+from agno.models.openai import OpenAIChat
+from agno.playground import Playground
 
 # --- Fixtures ---
 
+@pytest.fixture
+def mock_pdf_reader():
+    """Mock the PDFReader to avoid actual PDF parsing."""
+    with patch('agno.document.reader.pdf_reader.PDFReader') as mock:
+        # Configure the mock to return some dummy text content
+        mock.return_value.read.return_value = ["This is mock PDF content"]
+        yield mock
 
 @pytest.fixture
 def mock_agent():
-    """Creates a mock agent with minimal attributes required by the router."""
-    mock = Mock()
-    mock.agent_id = "test_agent_id"
-    mock.name = "Test Agent"
-    # Assume deep_copy returns self.
-    mock.deep_copy = lambda update=None: mock
-    # Dummy asynchronous run method.
-    mock.arun = AsyncMock(return_value=iter([{"dummy": "response"}]))
-    # Set knowledge to None by default
-    mock.knowledge = None
-    return mock
+    """Creates a mock agent with knowledge base disabled."""
+    agent = Agent(
+        name="Test Agent",
+        agent_id="test-agent",
+        model=OpenAIChat(id="gpt-4"),
+    )
+    # Create mock run method
+    mock_run = Mock(return_value={"status": "ok", "response": "Mocked response"})
+    agent.run = mock_run
 
+    # Create a copy of the agent that will be returned by deep_copy
+    copied_agent = Agent(
+        name="Test Agent",
+        agent_id="test-agent",
+        model=OpenAIChat(id="gpt-4"),
+    )
+    copied_agent.run = mock_run  # Use the same mock for the copy
 
-@pytest.fixture
-def test_app(mock_agent):
-    """
-    Creates a TestClient app with our dummy router.
-
-    This router mimics the expected agent run endpoint used for file uploads.
-    """
-    router = APIRouter(prefix="/playground")
-
-    @router.post("/agents/{agent_id}/runs")
-    async def create_agent_run(
-        agent_id: str,
-        message: str = Form(...),
-        stream: bool = Form(True),
-        monitor: bool = Form(False),
-        user_id: str = Form(...),
-        files: List[UploadFile] = File(None),
-    ):
-        # Validate any provided files.
-        if files:
-            for file in files:
-                if file.content_type in ["image/jpeg", "image/png", "image/jpg", "image/webp"]:
-                    try:
-                        content = await file.read()
-                        if not content:
-                            raise ValueError("Empty file")
-                    except Exception:
-                        raise HTTPException(status_code=400, detail="Invalid image file")
-                else:
-                    # Check for knowledge base before processing documents
-                    if mock_agent.knowledge is None:
-                        raise HTTPException(status_code=404, detail="KnowledgeBase not found")
-                    
-                    if file.content_type == "application/pdf":
-                        try:
-                            content = await file.read()
-                            if not content:
-                                raise ValueError("Empty PDF file")
-                        except Exception:
-                            raise HTTPException(status_code=400, detail="Invalid pdf file")
-                    else:
-                        raise HTTPException(status_code=400, detail="Unsupported file type")
-        # For simplicity, assume everything else is OK.
-        return {"status": "ok", "agent_id": agent_id}
-
-    # Set raise_server_exceptions to False so that HTTPExceptions are returned as responses.
-    return TestClient(router, raise_server_exceptions=False)
-
-
-@pytest.fixture
-def mock_image_file():
-    """Creates a mock image file (non-empty)."""
-    content = b"fake image content"
-    file_obj = io.BytesIO(content)
-    upload_file = UploadFile(filename="test.jpg", file=file_obj)
-    # Set the underlying mutable _headers attribute.
-    upload_file._headers = {"content-type": "image/jpeg"}
-    return upload_file
-
-
-@pytest.fixture
-def mock_pdf_file():
-    """Creates a mock pdf file."""
-    content = b"fake pdf content"
-    file_obj = io.BytesIO(content)
-    upload_file = UploadFile(filename="test.pdf", file=file_obj)
-    upload_file._headers = {"content-type": "application/pdf"}
-    return upload_file
-
+    # Mock deep_copy to return our prepared copy
+    agent.deep_copy = Mock(return_value=copied_agent)
+    
+    return agent
 
 @pytest.fixture
 def mock_agent_with_knowledge(mock_agent):
     """Creates a mock agent with knowledge base enabled."""
     mock_agent.knowledge = Mock()
+    mock_agent.knowledge.load_documents = Mock()
+    
+    # Ensure the deep_copied agent also has knowledge
+    copied_agent = mock_agent.deep_copy()
+    copied_agent.knowledge = Mock()
+    copied_agent.knowledge.load_documents = Mock()
+    mock_agent.deep_copy.return_value = copied_agent
+    
     return mock_agent
+
+@pytest.fixture
+def test_app(mock_agent):
+    """Creates a TestClient with our playground router."""
+    app = Playground(agents=[mock_agent]).get_app(use_async=False)
+    return TestClient(app)
+
+@pytest.fixture
+def mock_image_file():
+    """Creates a mock image file."""
+    content = b"fake image content"
+    file_obj = io.BytesIO(content)
+    return ("files", ("test.jpg", file_obj, "image/jpeg"))
+
+@pytest.fixture
+def mock_pdf_file():
+    """Creates a mock PDF file."""
+    content = b"fake pdf content"
+    file_obj = io.BytesIO(content)
+    return ("files", ("test.pdf", file_obj, "application/pdf"))
+
+@pytest.fixture
+def mock_csv_file():
+    """Creates a mock CSV file."""
+    content = b"col1,col2\nval1,val2"
+    file_obj = io.BytesIO(content)
+    return ("files", ("test.csv", file_obj, "text/csv"))
+
+@pytest.fixture
+def mock_docx_file():
+    """Creates a mock DOCX file."""
+    content = b"fake docx content"
+    file_obj = io.BytesIO(content)
+    return ("files", ("test.docx", file_obj, "application/vnd.openxmlformats-officedocument.wordprocessingml.document"))
+
+@pytest.fixture
+def mock_text_file():
+    """Creates a mock text file."""
+    content = b"Sample text content"
+    file_obj = io.BytesIO(content)
+    return ("files", ("test.txt", file_obj, "text/plain"))
+
+@pytest.fixture
+def mock_json_file():
+    """Creates a mock JSON file."""
+    content = b'{"key": "value"}'
+    file_obj = io.BytesIO(content)
+    return ("files", ("test.json", file_obj, "application/json"))
 
 
 # --- Test Cases ---
 
+def test_no_file_upload(test_app, mock_agent):
+    """Test basic message without file upload."""
+    data = {
+        "message": "Hello",
+        "stream": "false",
+        "monitor": "false",
+        "user_id": "test_user",
+    }
+    response = test_app.post("/v1/playground/agents/test-agent/runs", data=data)
+    assert response.status_code == 200
+    
+    # Get the copied agent that was actually used
+    copied_agent = mock_agent.deep_copy()
+    # Verify agent.run was called with correct parameters
+    copied_agent.run.assert_called_once_with(
+        message="Hello",
+        stream=False,
+        images=None
+    )
 
 def test_single_image_upload(test_app, mock_agent, mock_image_file):
-    """Test uploading a single valid image file."""
+    """Test uploading a single image file."""
     data = {
-        "message": "What is this image?",
-        "stream": "true",
+        "message": "Analyze this image",
+        "stream": "false",
         "monitor": "false",
         "user_id": "test_user",
     }
-    # Passing a single image file via the "files" field.
-    files = {"files": ("test.jpg", mock_image_file.file, "image/jpeg")}
-    response = test_app.post("/playground/agents/test_agent_id/runs", data=data, files=files)
+    files = [mock_image_file]
+    response = test_app.post("/v1/playground/agents/test-agent/runs", data=data, files=files)
     assert response.status_code == 200
-    assert response.json().get("status") == "ok"
+    
+    # Get the copied agent that was actually used
+    copied_agent = mock_agent.deep_copy()
+    # Verify agent.run was called with an image
+    copied_agent.run.assert_called_once()
+    call_args = copied_agent.run.call_args[1]
+    assert call_args["message"] == "Analyze this image"
+    assert call_args["stream"] is False
+    assert isinstance(call_args["images"], list)
+    assert len(call_args["images"]) == 1
+    assert isinstance(call_args["images"][0], Image)
 
-
-def test_multiple_image_upload(test_app, mock_agent):
-    """Test uploading multiple image files using the 'files' field."""
+def test_multiple_image_upload(test_app, mock_agent, mock_image_file):
+    """Test uploading multiple image files."""
     data = {
-        "message": "What are these images?",
-        "stream": "true",
+        "message": "Analyze these images",
+        "stream": "false",
         "monitor": "false",
         "user_id": "test_user",
     }
-    # Pass multiple files under the same field "files"
-    files = [
-        ("files", ("test0.jpg", io.BytesIO(b"fake image content"), "image/jpeg")),
-        ("files", ("test1.jpg", io.BytesIO(b"fake image content"), "image/jpeg")),
-        ("files", ("test2.jpg", io.BytesIO(b"fake image content"), "image/jpeg")),
-    ]
-    response = test_app.post("/playground/agents/test_agent_id/runs", data=data, files=files)
+    files = [mock_image_file] * 3  # Upload 3 images
+    response = test_app.post("/v1/playground/agents/test-agent/runs", data=data, files=files)
     assert response.status_code == 200
-    assert response.json().get("status") == "ok"
+    
+    # Get the copied agent that was actually used
+    copied_agent = mock_agent.deep_copy()
+    # Verify agent.run was called with multiple images
+    copied_agent.run.assert_called_once()
+    call_args = copied_agent.run.call_args[1]
+    assert len(call_args["images"]) == 3
+    assert all(isinstance(img, Image) for img in call_args["images"])
 
-
-def test_mixed_file_upload(test_app, mock_agent_with_knowledge, mock_image_file, mock_pdf_file):
-    """Test uploading both an image and a PDF file via the 'files' field."""
+def test_pdf_upload_with_knowledge(test_app, mock_agent_with_knowledge, mock_pdf_file, mock_pdf_reader):
+    """Test uploading a PDF file with knowledge base enabled."""
     data = {
-        "message": "Process these files",
-        "stream": "true",
+        "message": "Analyze this PDF",
+        "stream": "false",
         "monitor": "false",
         "user_id": "test_user",
     }
-    files = [
-        ("files", ("test.jpg", mock_image_file.file, "image/jpeg")),
-        ("files", ("test.pdf", mock_pdf_file.file, "application/pdf")),
-    ]
-    response = test_app.post("/playground/agents/test_agent_id/runs", data=data, files=files)
+    files = [mock_pdf_file]
+    response = test_app.post("/v1/playground/agents/test-agent/runs", data=data, files=files)
     assert response.status_code == 200
-    assert response.json().get("status") == "ok"
+    
+    # Get the copied agent that was actually used
+    copied_agent = mock_agent_with_knowledge.deep_copy()
+    # Verify knowledge.load_documents was called
+    copied_agent.knowledge.load_documents.assert_called_once_with(["This is mock PDF content"])
+    # Verify agent.run was called without images
+    copied_agent.run.assert_called_once_with(
+        message="Analyze this PDF",
+        stream=False,
+        images=None
+    )
 
-
-def test_no_files_upload(test_app):
-    """Test a request with no file uploads."""
+def test_pdf_upload_without_knowledge(test_app, mock_pdf_file):
+    """Test uploading a PDF file without knowledge base."""
     data = {
-        "message": "Simple message",
-        "stream": "true",
+        "message": "Analyze this PDF",
+        "stream": "false",
         "monitor": "false",
         "user_id": "test_user",
     }
-    response = test_app.post("/playground/agents/test_agent_id/runs", data=data)
-    assert response.status_code == 200
-    assert response.json().get("status") == "ok"
-
-
-def test_image_upload_without_knowledge(test_app, mock_agent, mock_image_file):
-    """Test uploading an image file when knowledge base is not available."""
-    data = {
-        "message": "What is this image?",
-        "stream": "true",
-        "monitor": "false",
-        "user_id": "test_user",
-    }
-    files = {"files": ("test.jpg", mock_image_file.file, "image/jpeg")}
-    response = test_app.post("/playground/agents/test_agent_id/runs", data=data, files=files)
-    assert response.status_code == 200
-    assert response.json().get("status") == "ok"
-
-
-def test_pdf_upload_without_knowledge(test_app, mock_agent, mock_pdf_file):
-    """Test uploading a PDF file when knowledge base is not available."""
-    data = {
-        "message": "Process this PDF",
-        "stream": "true",
-        "monitor": "false",
-        "user_id": "test_user",
-    }
-    files = {"files": ("test.pdf", mock_pdf_file.file, "application/pdf")}
-    response = test_app.post("/playground/agents/test_agent_id/runs", data=data, files=files)
+    files = [mock_pdf_file]
+    response = test_app.post("/v1/playground/agents/test-agent/runs", data=data, files=files)
     assert response.status_code == 404
-    assert "KnowledgeBase not found" in response.json().get("detail")
+    assert "KnowledgeBase not found" in response.json()["detail"]
+
+def test_mixed_file_upload(test_app, mock_agent_with_knowledge, mock_image_file, mock_pdf_file, mock_pdf_reader):
+    """Test uploading both image and PDF files."""
+    data = {
+        "message": "Analyze these files",
+        "stream": "false",
+        "monitor": "false",
+        "user_id": "test_user",
+    }
+    files = [mock_image_file, mock_pdf_file]
+    response = test_app.post("/v1/playground/agents/test-agent/runs", data=data, files=files)
+    assert response.status_code == 200
+    
+    # Get the copied agent that was actually used
+    copied_agent = mock_agent_with_knowledge.deep_copy()
+    # Verify knowledge.load_documents was called for PDF
+    copied_agent.knowledge.load_documents.assert_called_once_with(["This is mock PDF content"])
+    # Verify agent.run was called with image
+    copied_agent.run.assert_called_once()
+    call_args = copied_agent.run.call_args[1]
+    assert len(call_args["images"]) == 1
+    assert isinstance(call_args["images"][0], Image)
+
+def test_unsupported_file_type(test_app, mock_agent_with_knowledge):
+    """Test uploading an unsupported file type."""
+    data = {
+        "message": "Analyze this file",
+        "stream": "false",
+        "monitor": "false",
+        "user_id": "test_user",
+    }
+    files = [("files", ("test.xyz", io.BytesIO(b"content"), "application/xyz"))]
+    response = test_app.post("/v1/playground/agents/test-agent/runs", data=data, files=files)
+    assert response.status_code == 400
+    assert "Unsupported file type" in response.json()["detail"]
+
+def test_empty_file_upload(test_app):
+    """Test uploading an empty file."""
+    data = {
+        "message": "Analyze this file",
+        "stream": "false",
+        "monitor": "false",
+        "user_id": "test_user",
+    }
+    empty_file = ("files", ("empty.jpg", io.BytesIO(b""), "image/jpeg"))
+    files = [empty_file]
+    response = test_app.post("/v1/playground/agents/test-agent/runs", data=data, files=files)
+    assert response.status_code == 200
+
+def test_document_upload_with_knowledge(test_app, mock_agent_with_knowledge):
+    """Test uploading various document types with knowledge base enabled."""
+    data = {
+        "message": "Analyze these documents",
+        "stream": "false",
+        "monitor": "false",
+        "user_id": "test_user",
+    }
+    
+    # Get the copied agent that was actually used
+    copied_agent = mock_agent_with_knowledge.deep_copy()
+    
+    # Test each document type
+    document_files = [
+        ("files", ("test.csv", io.BytesIO(b"col1,col2\nval1,val2"), "text/csv")),
+        ("files", ("test.txt", io.BytesIO(b"text content"), "text/plain")),
+        ("files", ("test.json", io.BytesIO(b'{"key":"value"}'), "application/json")),
+        ("files", ("test.docx", io.BytesIO(b"docx content"), 
+                  "application/vnd.openxmlformats-officedocument.wordprocessingml.document"))
+    ]
+    
+    for doc_file in document_files:
+        files = [doc_file]
+        response = test_app.post("/v1/playground/agents/test-agent/runs", data=data, files=files)
+        assert response.status_code == 200

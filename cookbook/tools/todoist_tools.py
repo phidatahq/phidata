@@ -16,7 +16,6 @@ from agno.agent import Agent
 from agno.models.openai import OpenAIChat
 from agno.tools.todoist import TodoistTools
 
-
 todoist_agent = Agent(
     name="Todoist Agent",
     role="Manage your todoist tasks",
@@ -42,7 +41,9 @@ todoist_agent.print_response("Create a todoist task to buy groceries tomorrow at
 
 # Example 2: Delete a task
 print("\n=== Delete a task ===")
-todoist_agent.print_response("Delete the todoist task to buy groceries tomorrow at 10am")
+todoist_agent.print_response(
+    "Delete the todoist task to buy groceries tomorrow at 10am"
+)
 
 
 # Example 3: Get all tasks

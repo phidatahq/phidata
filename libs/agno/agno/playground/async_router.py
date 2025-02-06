@@ -138,6 +138,7 @@ def get_async_playground_router(
 
         # Create a new instance of this agent
         new_agent_instance = agent.deep_copy(update={"session_id": session_id})
+        new_agent_instance.session_name = None
         if user_id is not None:
             new_agent_instance.user_id = user_id
 
@@ -159,7 +160,7 @@ def get_async_playground_router(
                         continue
                 else:
                     # Check for knowledge base before processing documents
-                    if agent.knowledge is None:
+                    if new_agent_instance.knowledge is None:
                         raise HTTPException(status_code=404, detail="KnowledgeBase not found")
 
                     if file.content_type == "application/pdf":
@@ -169,8 +170,8 @@ def get_async_playground_router(
                         pdf_file = BytesIO(contents)
                         pdf_file.name = file.filename
                         file_content = PDFReader().read(pdf_file)
-                        if agent.knowledge is not None:
-                            agent.knowledge.load_documents(file_content)
+                        if new_agent_instance.knowledge is not None:
+                            new_agent_instance.knowledge.load_documents(file_content)
                     elif file.content_type == "text/csv":
                         from agno.document.reader.csv_reader import CSVReader
 
@@ -178,8 +179,8 @@ def get_async_playground_router(
                         csv_file = BytesIO(contents)
                         csv_file.name = file.filename
                         file_content = CSVReader().read(csv_file)
-                        if agent.knowledge is not None:
-                            agent.knowledge.load_documents(file_content)
+                        if new_agent_instance.knowledge is not None:
+                            new_agent_instance.knowledge.load_documents(file_content)
                     elif file.content_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
                         from agno.document.reader.docx_reader import DocxReader
 
@@ -187,8 +188,8 @@ def get_async_playground_router(
                         docx_file = BytesIO(contents)
                         docx_file.name = file.filename
                         file_content = DocxReader().read(docx_file)
-                        if agent.knowledge is not None:
-                            agent.knowledge.load_documents(file_content)
+                        if new_agent_instance.knowledge is not None:
+                            new_agent_instance.knowledge.load_documents(file_content)
                     elif file.content_type == "text/plain":
                         from agno.document.reader.text_reader import TextReader
 
@@ -196,8 +197,8 @@ def get_async_playground_router(
                         text_file = BytesIO(contents)
                         text_file.name = file.filename
                         file_content = TextReader().read(text_file)
-                        if agent.knowledge is not None:
-                            agent.knowledge.load_documents(file_content)
+                        if new_agent_instance.knowledge is not None:
+                            new_agent_instance.knowledge.load_documents(file_content)
 
                     elif file.content_type == "application/json":
                         from agno.document.reader.json_reader import JSONReader
@@ -206,8 +207,8 @@ def get_async_playground_router(
                         json_file = BytesIO(contents)
                         json_file.name = file.filename
                         file_content = JSONReader().read(json_file)
-                        if agent.knowledge is not None:
-                            agent.knowledge.load_documents(file_content)
+                        if new_agent_instance.knowledge is not None:
+                            new_agent_instance.knowledge.load_documents(file_content)
                     else:
                         raise HTTPException(status_code=400, detail="Unsupported file type")
 
@@ -220,7 +221,7 @@ def get_async_playground_router(
             run_response = cast(
                 RunResponse,
                 await new_agent_instance.arun(
-                    message,
+                    message=message,
                     images=base64_images if base64_images else None,
                     stream=False,
                 ),

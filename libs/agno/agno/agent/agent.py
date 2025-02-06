@@ -2499,12 +2499,15 @@ class Agent:
             extra_data.reasoning_messages.extend(reasoning_agent_messages)
 
     def aggregate_metrics_from_messages(self, messages: List[Message]) -> Dict[str, Any]:
-        aggregated_metrics: Dict[str, Any] = defaultdict(list)
+        aggregated_metrics: Dict[str, Any] = {}
 
         # Use a defaultdict(list) to collect all values for each assisntant message
         for m in messages:
             if m.role == "assistant" and m.metrics is not None:
                 for k, v in m.metrics.items():
+                    if k not in aggregated_metrics:
+                        aggregated_metrics[k] = []
+
                     aggregated_metrics[k].append(v)
         return aggregated_metrics
 

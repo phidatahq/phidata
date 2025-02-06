@@ -41,8 +41,8 @@ def mock_agent():
     mock.deep_copy = lambda update=None: mock
     # Dummy asynchronous run method.
     mock.arun = AsyncMock(return_value=iter([{"dummy": "response"}]))
-    # For our purposes, set a dummy attribute so that file uploads pass any check.
-    mock.knowledge = True
+    # Set knowledge to None by default
+    mock.knowledge = None
     return mock
 
 
@@ -74,15 +74,20 @@ def test_app(mock_agent):
                             raise ValueError("Empty file")
                     except Exception:
                         raise HTTPException(status_code=400, detail="Invalid image file")
-                elif file.content_type == "application/pdf":
-                    try:
-                        content = await file.read()
-                        if not content:
-                            raise ValueError("Empty PDF file")
-                    except Exception:
-                        raise HTTPException(status_code=400, detail="Invalid pdf file")
                 else:
-                    raise HTTPException(status_code=400, detail="Unsupported file type")
+                    # Check for knowledge base before processing documents
+                    if mock_agent.knowledge is None:
+                        raise HTTPException(status_code=404, detail="KnowledgeBase not found")
+                    
+                    if file.content_type == "application/pdf":
+                        try:
+                            content = await file.read()
+                            if not content:
+                                raise ValueError("Empty PDF file")
+                        except Exception:
+                            raise HTTPException(status_code=400, detail="Invalid pdf file")
+                    else:
+                        raise HTTPException(status_code=400, detail="Unsupported file type")
         # For simplicity, assume everything else is OK.
         return {"status": "ok", "agent_id": agent_id}
 
@@ -109,6 +114,13 @@ def mock_pdf_file():
     upload_file = UploadFile(filename="test.pdf", file=file_obj)
     upload_file._headers = {"content-type": "application/pdf"}
     return upload_file
+
+
+@pytest.fixture
+def mock_agent_with_knowledge(mock_agent):
+    """Creates a mock agent with knowledge base enabled."""
+    mock_agent.knowledge = Mock()
+    return mock_agent
 
 
 # --- Test Cases ---
@@ -148,7 +160,7 @@ def test_multiple_image_upload(test_app, mock_agent):
     assert response.json().get("status") == "ok"
 
 
-def test_mixed_file_upload(test_app, mock_agent, mock_image_file, mock_pdf_file):
+def test_mixed_file_upload(test_app, mock_agent_with_knowledge, mock_image_file, mock_pdf_file):
     """Test uploading both an image and a PDF file via the 'files' field."""
     data = {
         "message": "Process these files",
@@ -176,3 +188,31 @@ def test_no_files_upload(test_app):
     response = test_app.post("/playground/agents/test_agent_id/runs", data=data)
     assert response.status_code == 200
     assert response.json().get("status") == "ok"
+
+
+def test_image_upload_without_knowledge(test_app, mock_agent, mock_image_file):
+    """Test uploading an image file when knowledge base is not available."""
+    data = {
+        "message": "What is this image?",
+        "stream": "true",
+        "monitor": "false",
+        "user_id": "test_user",
+    }
+    files = {"files": ("test.jpg", mock_image_file.file, "image/jpeg")}
+    response = test_app.post("/playground/agents/test_agent_id/runs", data=data, files=files)
+    assert response.status_code == 200
+    assert response.json().get("status") == "ok"
+
+
+def test_pdf_upload_without_knowledge(test_app, mock_agent, mock_pdf_file):
+    """Test uploading a PDF file when knowledge base is not available."""
+    data = {
+        "message": "Process this PDF",
+        "stream": "true",
+        "monitor": "false",
+        "user_id": "test_user",
+    }
+    files = {"files": ("test.pdf", mock_pdf_file.file, "application/pdf")}
+    response = test_app.post("/playground/agents/test_agent_id/runs", data=data, files=files)
+    assert response.status_code == 404
+    assert "KnowledgeBase not found" in response.json().get("detail")

@@ -53,7 +53,7 @@ class LocalFileSystemTools(Toolkit):
                 filename, file_ext = os.path.splitext(filename)
                 extension = extension or file_ext.lstrip(".")
 
-            logger.info(f"Writing file to local system: {filename}")
+            logger.debug(f"Writing file to local system: {filename}")
 
             extension = (extension or self.default_extension).lstrip(".")
 

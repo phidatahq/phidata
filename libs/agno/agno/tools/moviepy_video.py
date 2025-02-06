@@ -227,7 +227,7 @@ class MoviePyVideoTools(Toolkit):
             str: Path to the extracted audio file
         """
         try:
-            logger.info(f"Extracting audio from {video_path}")
+            logger.debug(f"Extracting audio from {video_path}")
             video = VideoFileClip(video_path)
             video.audio.write_audiofile(output_path)
             logger.info(f"Audio extracted to {output_path}")

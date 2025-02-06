@@ -71,7 +71,7 @@ class YouTubeTools(Toolkit):
         if not url:
             return "No URL provided"
 
-        logger.info(f"Getting video data for youtube video: {url}")
+        logger.debug(f"Getting video data for youtube video: {url}")
 
         try:
             video_id = self.get_youtube_video_id(url)
@@ -115,7 +115,7 @@ class YouTubeTools(Toolkit):
         if not url:
             return "No URL provided"
 
-        logger.info(f"Getting captions for youtube video: {url}")
+        logger.debug(f"Getting captions for youtube video: {url}")
 
         try:
             video_id = self.get_youtube_video_id(url)
@@ -149,7 +149,7 @@ class YouTubeTools(Toolkit):
         if not url:
             return "No URL provided"
 
-        logger.info(f"Getting timestamps for youtube video: {url}")
+        logger.debug(f"Getting timestamps for youtube video: {url}")
 
         try:
             video_id = self.get_youtube_video_id(url)

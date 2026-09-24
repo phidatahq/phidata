@@ -13,11 +13,13 @@ String and number criteria are covered as controls: they must be byte-identical
 before and after the fix.
 """
 
+import json
 import uuid
 from unittest.mock import MagicMock
 
 import pytest
 from sqlalchemy.dialects import postgresql
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.engine import URL, Engine
 
 from agno.filters import AND, EQ, IN, NOT, OR
@@ -86,7 +88,20 @@ def test_number_criterion_is_unchanged(pgvector):
     assert "= '1000'" in sql, f"number handling regressed: {sql}"
 
 
-def test_missing_key_is_unchanged(pgvector):
-    """Control: a None value keeps the plain text comparison it had."""
+def test_none_criterion_is_unchanged(pgvector):
+    """Control: None keeps the pre-existing rendering (out of scope for this fix)."""
     sql = compile_sql(pgvector, EQ("section", None))
-    assert "IS NULL" in sql or "= " in sql, f"unexpected form: {sql}"
+    assert "= 'None'" in sql, f"None handling changed unexpectedly: {sql}"
+
+
+def test_stored_jsonb_writes_booleans_in_lowercase():
+    """Why the comparison must be lowercase: the bytes sent for the metadata
+    column carry `true`, and `->>` hands back that same text.
+    """
+    # A driver-installed dialect carries a json serializer; the bare postgresql
+    # dialect has none, and JSONB.bind_processor() then returns None.
+    dialect = postgresql.dialect(json_serializer=json.dumps, json_deserializer=json.loads)
+    payload = JSONB().bind_processor(dialect)({"urgent": True, "archived": False})
+    text = payload if isinstance(payload, str) else payload.decode("utf-8")
+    assert '"urgent": true' in text, f"expected jsonb text with lowercase true, got: {text}"
+    assert '"archived": false' in text, f"expected jsonb text with lowercase false, got: {text}"

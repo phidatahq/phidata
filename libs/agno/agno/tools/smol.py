@@ -114,7 +114,10 @@ class SmolTools(Toolkit):
         if self._machine is None:
             if self.machine_id is not None:
                 machine = Machine.connect(self.machine_id, self._connection())
-                if machine.state() == "stopped":
+                state = machine.state()
+                if state == "paused":
+                    machine.resume()
+                elif state == "stopped":
                     machine.start()
                 machine.wait_until_ready()
                 self._owns_machine = False

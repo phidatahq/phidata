@@ -51,6 +51,10 @@ Toolkits create a VM on the first tool call; call `sandbox.close()` when the age
 one-hour default expiry if the host exits unexpectedly. Use `SmolTools(network=False)`
 when your image and workload do not need network access. Pass `machine_id` to
 connect to an existing VM; closing that toolkit leaves the machine running.
+Connecting to a paused Cloud VM resumes it before the first tool call. Paused
+local VM attachment requires a Smol SDK release with the local reconnect fix
+(smol-machines/smol#263); toolkit-created VMs and running local VM attachment
+work with the current SDK.
 
 ## Workspace speech
 

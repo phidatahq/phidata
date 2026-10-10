@@ -68,6 +68,22 @@ def test_attached_vm_is_never_deleted_and_stopped_vm_is_started(machines):
     assert not created and not attached
 
 
+@pytest.mark.parametrize("target", ["local", "cloud"])
+def test_paused_attached_vm_is_resumed_before_any_tool_runs(machines, target):
+    _, _, vm = machines
+    machine = vm("paused-external")
+    machine.state.return_value = "paused"
+    with patch("agno.tools.smol.Machine.connect", return_value=machine):
+        tools = SmolTools(target=target, machine_id="paused-external")
+        assert tools.run_shell_command("true") == "hello\n"
+        machine.resume.assert_called_once_with()
+        machine.start.assert_not_called()
+        machine.wait_until_ready.assert_called_once_with()
+        assert [call[0] for call in machine.method_calls] == ["state", "resume", "wait_until_ready", "exec"]
+        tools.close()
+        machine.delete.assert_not_called()
+
+
 def test_commands_and_file_paths_stay_inside_vm(machines):
     _, _, _ = machines
     tools = SmolTools(workdir="/workspace/my-project", max_output_chars=6)

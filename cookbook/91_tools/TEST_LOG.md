@@ -141,4 +141,4 @@ those require service and model credentials.
 
 **Description:** A live Agno agent used the Smol tools to calculate 6 * 7 inside a local microVM, write `answer.txt`, read it back, and answer 42. Separately ran the same toolkit's Python, shell, and file tools against a real Smol Cloud VM.
 
-**Result:** Local agent tool calls and cloud VM file round-trip passed; both VMs were deleted by `close()`.
+**Result:** Local agent tool calls and cloud VM file round-trip passed; both VMs were deleted by `close()`. Revalidated after rebasing on October 10, 2026: all five focused unit tests passed, and live local and Cloud VMs ran shell and Python code and completed a persistent file round-trip with `network=False`; both were deleted by `close()`.

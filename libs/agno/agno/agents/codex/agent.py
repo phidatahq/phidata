@@ -638,7 +638,7 @@ class CodexAgent(BaseExternalAgent):
                 created_root = not uploads_root(workspace, run_id).exists()
                 kwargs["staged_media"] = stage_media(workspace, run_id, media)
             if kwargs["staged_media"]:
-                remember_uploads_root(kwargs.get("session"), workspace)
+                remember_uploads_root(kwargs.get("session"), workspace, run_id)
             restaged, kwargs["moved_note"] = stage_prior_media(workspace, kwargs.get("session"), exclude_run_id=run_id)
             prepared = True
             return await self._arun_adapter_sdk(input, history=history, **kwargs)
@@ -664,7 +664,7 @@ class CodexAgent(BaseExternalAgent):
                 created_root = not uploads_root(workspace, run_id).exists()
                 kwargs["staged_media"] = stage_media(workspace, run_id, media)
             if kwargs["staged_media"]:
-                remember_uploads_root(kwargs.get("session"), workspace)
+                remember_uploads_root(kwargs.get("session"), workspace, run_id)
             restaged, kwargs["moved_note"] = stage_prior_media(workspace, kwargs.get("session"), exclude_run_id=run_id)
             prepared = True
             async for event in self._arun_adapter_stream_sdk(input, history=history, **kwargs):

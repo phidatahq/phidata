@@ -412,7 +412,7 @@ class ClaudeAgent(BaseExternalAgent):
                 created_root = not uploads_root(workspace, run_id).exists()
                 staged = stage_media(workspace, run_id, media)
             if staged:
-                remember_uploads_root(kwargs.get("session"), workspace)
+                remember_uploads_root(kwargs.get("session"), workspace, run_id)
             if staged and input is not None:
                 input = f"{input}{media_prompt_block(staged)}"
             # Restore earlier inputs in this workspace and describe any relocated paths.

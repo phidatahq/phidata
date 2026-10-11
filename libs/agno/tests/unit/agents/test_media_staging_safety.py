@@ -237,3 +237,107 @@ def test_staging_errors_are_input_errors_and_never_retried(tmp_path):
     assert run.metadata["error_type"] == "input_check_error"
     assert issubclass(MediaStagingError, InputCheckError) and issubclass(MediaStagingError, ValueError)
     assert list(outside.iterdir()) == []
+
+
+def test_relocation_tracks_files_introduced_on_b_then_restored_on_a(tmp_path, monkeypatch):
+    a, b = tmp_path / "a", tmp_path / "b"
+    session = SimpleNamespace(session_data={})
+    _media.remember_uploads_root(session, a, "first")
+    _media.remember_uploads_root(session, b, "second")
+    monkeypatch.setattr(
+        _media,
+        "prior_attachments",
+        lambda *args: {"first": {"files": [attachment("a.txt")]}, "second": {"files": [attachment("b.txt")]}},
+    )
+    folders, note = _media.stage_prior_media(a, session)
+    assert str(a / ".agno/uploads/second/b.txt") in note
+    assert str(b / ".agno/uploads/second/b.txt") in note
+    assert "a.txt" not in note, "the first attachment was only seen on a"
+    assert (a / ".agno/uploads/second/b.txt").read_bytes() == b"payload"
+    assert not b.exists(), "recorded roots never grant write authority"
+    for folder in folders:
+        _media.remove_upload_folder(folder)
+
+    # Visit b, then return to a. Both files' intervening b paths need correcting.
+    folders, note = _media.stage_prior_media(b, session)
+    assert "a.txt" in note and "b.txt" in note
+    for folder in folders:
+        _media.remove_upload_folder(folder)
+    _, note = _media.stage_prior_media(a, session)
+    assert str(a / ".agno/uploads/first/a.txt") in note
+    assert str(b / ".agno/uploads/first/a.txt") in note
+    assert str(a / ".agno/uploads/second/b.txt") in note
+    assert str(b / ".agno/uploads/second/b.txt") in note
+    assert all(len(roots) == 2 for roots in session.session_data[_media.UPLOADS_ROOTS_BY_RUN_KEY].values())
+
+
+def test_legacy_origin_is_kept_across_round_trip(tmp_path, monkeypatch):
+    a, b = tmp_path / "a", tmp_path / "b"
+    session = SimpleNamespace(session_data={_media.UPLOADS_ROOT_KEY: str(a / _media.UPLOADS_DIR)})
+    monkeypatch.setattr(_media, "prior_attachments", lambda *args: {"old": {"files": [attachment("x")]}})
+    folders, note = _media.stage_prior_media(b, session)
+    assert str(a / _media.UPLOADS_DIR / "old/x") in note
+    for folder in folders:
+        _media.remove_upload_folder(folder)
+    _, note = _media.stage_prior_media(a, session)
+    assert str(b / _media.UPLOADS_DIR / "old/x") in note
+
+
+def test_failed_restore_does_not_record_an_unstaged_location(tmp_path, monkeypatch):
+    from copy import deepcopy
+
+    session = SimpleNamespace(session_data={})
+    _media.remember_uploads_root(session, tmp_path / "a", "old")
+    before = deepcopy(session.session_data)
+    monkeypatch.setattr(
+        _media,
+        "prior_attachments",
+        lambda *args: {"old": {"files": [attachment("first.txt"), attachment("second.txt")]}},
+    )
+    fail_open(monkeypatch)
+    with pytest.raises(OSError, match="injected"):
+        _media.stage_prior_media(tmp_path / "b", session)
+    assert session.session_data == before
+    assert not (tmp_path / "b/.agno").exists()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("provider", ["claude", "codex", "codex_stream"])
+async def test_adapter_records_new_upload_origin_on_each_replica(tmp_path, monkeypatch, provider):
+    from agno.agents.claude import ClaudeAgent
+    from agno.agents.codex import CodexAgent
+
+    session = SimpleNamespace(session_data={}, runs=[])
+    if provider == "claude":
+        agent = ClaudeAgent(id="test", cwd=str(tmp_path))
+
+        async def sdk(*args, **kwargs):
+            yield "response"
+
+        monkeypatch.setattr(agent, "_aquery_sdk", sdk)
+    else:
+        agent = CodexAgent(id="test", cwd=str(tmp_path))
+
+        async def sdk(*args, **kwargs):
+            return "response"
+
+        async def stream_sdk(*args, **kwargs):
+            yield "response"
+
+        monkeypatch.setattr(agent, "_arun_adapter_sdk", sdk)
+        monkeypatch.setattr(agent, "_arun_adapter_stream_sdk", stream_sdk)
+
+    for run_id in ("first", "second"):
+        agent.cwd = str(tmp_path / run_id)
+        kwargs = dict(session=session, run_id=run_id, media={"files": [attachment("x")]})
+        if provider == "claude":
+            async for _ in agent._aquery("input", None, streaming=False, **kwargs):
+                pass
+        elif provider == "codex_stream":
+            async for _ in agent._arun_adapter_stream("input", **kwargs):
+                pass
+        else:
+            await agent._arun_adapter("input", **kwargs)
+    roots = session.session_data[_media.UPLOADS_ROOTS_BY_RUN_KEY]
+    assert roots["first"] == [str(tmp_path / "first" / _media.UPLOADS_DIR)]
+    assert roots["second"] == [str(tmp_path / "second" / _media.UPLOADS_DIR)]

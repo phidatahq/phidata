@@ -377,3 +377,102 @@ async def test_compute_cannot_replace_service_input_or_metadata(store):
     assert committed["input"] == {"input_content": "original"}
     assert committed["metadata"]["tenant"] == "trusted"
     assert committed["metadata"]["sandbox"]["native_metadata"]["tenant"] == "forged"
+
+
+async def test_pending_prepare_after_claim_keeps_attempt_and_binding(store):
+    from agno.run.agent import RunInput, RunOutput
+    from agno.run.base import RunStatus
+
+    pending = RunOutput(
+        run_id="run",
+        session_id="session",
+        agent_id="agent",
+        user_id="user",
+        input=RunInput(input_content="input"),
+        status=RunStatus.pending,
+    ).to_dict()
+    await store.aprepare(pending)
+    await store._transaction(
+        lambda c: c.execute(
+            update(store.runs).values(run_data={**pending, "status": "RUNNING", "queue_attempt": 2}, status="RUNNING")
+        )
+    )
+    state = await claim(store, queue_attempt=2)
+    await store.aprepare(pending)
+    assert (await store.aget(state.lease)).record["phase"] == "executing"
+    assert (await rows(store))[0]["run_data"]["queue_attempt"] == 2
+
+
+async def test_never_started_cancel_allows_next_turn(store):
+    from agno.run.agent import RunInput, RunOutput
+    from agno.run.base import RunStatus
+    from agno.run.status_persist import RunPersistOutcome
+
+    pending = RunOutput(
+        run_id="run",
+        session_id="session",
+        agent_id="agent",
+        user_id="user",
+        input=RunInput(input_content="input"),
+        status=RunStatus.pending,
+    ).to_dict()
+    await store.aprepare(pending)
+    outcome = await store._aclaim_stop(
+        agent_id="agent",
+        session_id="session",
+        user_id="user",
+        run_id="run",
+        queue_attempt=0,
+        status="CANCELLED",
+        reason="cancelled",
+    )
+    assert outcome == RunPersistOutcome.UPDATED
+    await seed(store, run_id="next")
+    assert (await claim(store, run_id="next")).record["phase"] == "executing"
+
+
+async def test_stale_event_writer_cannot_rewrite_new_attempt(store):
+    from copy import deepcopy
+
+    lease = await staged(store)
+    await store.astage_checkpoint(lease, REF)
+    await store.aconfirm_stopped(lease, "ref")
+    run = await store.acommit(lease)
+    events = [{"event": "RunCompleted", "event_index": 3, "run_id": "run"}]
+    await store._apublish_events(run, events)
+    stale = deepcopy(run)
+    stale["metadata"]["sandbox"]["epoch"] -= 1
+    with pytest.raises(SandboxLeaseLost):
+        await store._apublish_events(stale, [{"event": "RunCompleted", "event_index": 4}])
+    assert (await rows(store))[0]["run_data"]["events"] == events
+
+
+async def test_queue_termination_fences_owner_and_rejects_stale_attempt(store):
+    from agno.run.status_persist import RunPersistOutcome
+
+    await seed(store, attempt=2)
+    old = await claim(store, queue_attempt=2)
+    stale = await store._aclaim_stop(
+        agent_id="agent",
+        session_id="session",
+        user_id="user",
+        run_id="run",
+        queue_attempt=1,
+        status="ERROR",
+        reason="stale",
+    )
+    assert stale == RunPersistOutcome.STALE_ATTEMPT
+    assert (await store.aget(old.lease)).record["phase"] == "executing"
+    stopping = await store._aclaim_stop(
+        agent_id="agent",
+        session_id="session",
+        user_id="user",
+        run_id="run",
+        queue_attempt=2,
+        status="CANCELLED",
+        reason="cancelled",
+    )
+    assert stopping.record["phase"] == "stopping"
+    with pytest.raises(SandboxLeaseLost):
+        await store.aget(old.lease)
+    assert (await store.afinish_stop(stopping.lease))["status"] == "CANCELLED"

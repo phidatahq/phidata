@@ -8,7 +8,7 @@ import json
 from contextlib import suppress
 from copy import deepcopy
 from dataclasses import asdict, replace
-from typing import Any, AsyncIterator, Dict, Optional
+from typing import Any, AsyncGenerator, Dict, Optional
 from uuid import uuid4
 
 from agno.run.agent import (
@@ -116,6 +116,46 @@ class SandboxCoordinator:
             await self.store.aconfirm_stopped(lease, handle.provider_ref)
         return await self.store.afinish_stop(lease)
 
+    async def _aterminate(
+        self,
+        template: SandboxSpec,
+        *,
+        run_id: str,
+        user_id: Optional[str],
+        queue_attempt: Optional[int],
+        status: str,
+        reason: str,
+    ) -> Any:
+        from agno.run.status_persist import RunPersistOutcome
+
+        state = await self.store._aclaim_stop(
+            agent_id=template.agent_id,
+            session_id=template.session_id,
+            user_id=user_id,
+            run_id=run_id,
+            queue_attempt=queue_attempt,
+            status=status,
+            reason=reason,
+        )
+        if not hasattr(state, "lease"):
+            return state
+        spec = replace(template, generation=state.record["generation"])
+
+        async def find_orphan(record: Dict[str, Any]) -> Dict[str, Any]:
+            if record.get("computer") is None and not record.get("stopped_ref"):
+                orphan = await self.provider.afind(spec)
+                if orphan is not None:
+                    record.update(computer=asdict(orphan), computer_stopped=False)
+            return record
+
+        try:
+            await self.store._aoperation(state.lease, find_orphan)
+            await self._stop(state.lease, status=status, reason=reason)
+            return RunPersistOutcome.UPDATED
+        finally:
+            with suppress(SandboxLeaseLost):
+                await self.store.arelinquish(state.lease)
+
     async def _astream(
         self,
         template: SandboxSpec,
@@ -127,7 +167,7 @@ class SandboxCoordinator:
         config: Optional[Dict[str, Any]] = None,
         queue_attempt: Optional[int] = None,
         execution_timeout: float = 900,
-    ) -> AsyncIterator[Any]:
+    ) -> AsyncGenerator[Any, None]:
         if not isinstance(input, str) or sdk not in ("claude", "codex", "fixture"):
             raise ValueError("Sandbox runtime requires text input and a supported SDK")
         # Validate before any allocation, including JSON serializability and limits.
@@ -348,6 +388,23 @@ class SandboxCoordinator:
                     committed = await self._finalize(lease)
             yield self._terminal(committed)
             yield RunOutput.from_dict(committed)
+        except asyncio.CancelledError:
+            from agno.run.cancel import ais_cancelled
+            from agno.run.concurrency import get_worker_ownership
+
+            owner = get_worker_ownership(run_id)
+            cause = owner.cancellation_cause if owner is not None else None
+            if cause in ("user_cancel", "timeout") or await ais_cancelled(run_id):
+                with suppress(SandboxLeaseLost):
+                    await self._stop(
+                        lease,
+                        status="ERROR" if cause == "timeout" else "CANCELLED",
+                        reason="Run timed out" if cause == "timeout" else "Run cancelled",
+                        retryable=cause == "timeout",
+                    )
+            # Shutdown/disconnect alone detaches; the queue's next attempt uses
+            # this generation's execution journal instead of rerunning tools.
+            raise
         finally:
             heart.cancel()
             with suppress(asyncio.CancelledError):

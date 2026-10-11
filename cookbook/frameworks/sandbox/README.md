@@ -105,3 +105,31 @@ The runtime forces `require_native_resume=True` and `strict_persistence=True` on
 Provider mutation operations hold the session ownership rows until their bounded transport calls drain. Takeover waits for an in-flight restore/capture instead of racing it. This costs a database connection and can delay cancellation until a transfer finishes. The initial implementation uses cold replacement after every completed turn; no warm-computer reuse is claimed.
 
 Use deployment storage accessible to every coordinator replica for checkpoint bytes. The local directory store in these examples is temporary and does not certify host-loss recovery. Workspace and native files restore; live processes restart, and remote MCP/tool effects are not rolled back. Direct stream reconnection may repeat provisional events; durable event transport remains an AgentOS integration responsibility.
+
+## AgentOS API execution
+
+`agentos.py` registers `SandboxAgent` with a durable Postgres queue and shared Redis cancellation/event transport. Foreground, streaming and background API requests all submit to the queue; losing the HTTP connection does not cancel the worker. Independent sessions run concurrently; overlapping turns in one session wait without consuming attempts. Direct Python `run`/`arun` use the coordinator's Postgres fence. Python background submission requires the active AgentOS queue.
+
+Build the runtime image with `build_image.py`, install `psycopg[binary]`, `redis`, `docker` CLI, `fastapi` and `uvicorn` in the service environment, and configure:
+
+```bash
+export SANDBOX_DATABASE_URL=postgresql+psycopg://ai:ai@localhost:5573/ai
+export SANDBOX_REDIS_URL=redis://localhost:6407/0
+export SANDBOX_CHECKPOINT_DIRECTORY=/absolute/path/to/durable/shared/checkpoints
+export SANDBOX_RUNTIME_IMAGE=agno-sandbox:local
+export SANDBOX_HARNESS=fixture
+.venv/bin/python cookbook/frameworks/sandbox/agentos.py
+```
+
+The fixture harness makes no model calls. For a real harness select `claude` or `codex` and configure its model API key. The example enables Docker bridge networking for those harnesses; customer network policy must control its egress. Every replica must reach the same Docker daemon, checkpoint storage, Postgres and Redis and use identical runtime configuration. Multiple independent Docker daemons are not interchangeable for an active computer. Local checkpoint directories do not provide host-loss durability unless backed by shared durable storage.
+
+```bash
+curl -X POST http://localhost:7777/agents/coder/runs \
+  -H 'Idempotency-Key: first-turn' \
+  -F session_id=example -F message='Create a small application and test it' \
+  -F stream=false -F background=true
+```
+
+Keep the returned run ID. Reconnect with `POST /agents/coder/runs/{run_id}/resume` using form fields `session_id` and optionally `last_event_index`; cancel with `POST /agents/coder/runs/{run_id}/cancel?session_id=example`. Reusing an idempotency key requires the same session ID, input and options. Conflicting submissions return 409. Streaming terminal success follows the durable checkpoint commit. Retained indexed events support replay after the live Redis view expires; content deltas follow the agent's `events_to_skip` policy.
+
+This slice accepts text and JSON runtime configuration, including structured-output schemas. File/image inputs, step replay/fork, version-pinned instances and arbitrary per-turn SDK options are explicitly rejected pending checkpoint-aware integrations. Do not use the ordinary session deletion API to retire sandbox resources; coordinated lifecycle/retention is a separate follow-up. A failed checkpoint upload retries finalization without repeating the model. If the configured queue attempts are exhausted, compute is removed and the turn fails visibly while retaining the previous checkpoint. External effects can still repeat after execution crashes and need application idempotency.

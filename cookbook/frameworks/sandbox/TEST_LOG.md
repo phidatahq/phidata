@@ -91,3 +91,15 @@
 ---
 
 Coordinator review follow-up: native transcript-mirror warnings and lost pre-checkpoint compute cannot publish success or trigger model execution retries. Tool audit history is retained on failure. Runtime output cannot replace the original submitted input or trusted service metadata. Added 2 real mirror-warning cases and 2 metadata/input boundary cases; final store suite: 32 passed. Focused finalization/mirror cases: 4 passed. Required scripts passed again.
+
+### agentos.py and durable API integration
+
+**Status:** PASS
+
+**Description:** Real AgentOS HTTP requests with dedicated Postgres, Redis and Docker fixture execution. Foreground, background, streaming, idempotency/conflicts, same-session admission, retained indexed replay after Redis cleanup, finalization-only retries, active/retry cancellation, retry exhaustion cleanup, SDK background submission, missing-queue rejection, and detached SDK cancellation are covered. The actual cookbook server was also started and exercised over HTTP, then stopped; its temporary database was removed.
+
+**Result:** 704 combined external-agent/sandbox/queue unit cases passed. The integrated suite passed 88 cases; its 9 Docker/transfer cases required a separate image environment variable and all 9 subsequently passed. 40 real Postgres cases cover both database adapters. Review found and fixed terminal ticket publication before sandbox cancellation cleanup, retained events missing transport indices, and pending preparation racing an already-claimed queue attempt. Required formatting/validation passed in the established environment. No live model or hosted-provider calls; local shared-storage deployment is not host-loss certification.
+
+---
+
+Python 3.9 follow-up: 76 sandbox unit tests, 40 real Postgres cases and 12 AgentOS HTTP cases passed. The first HTTP collection lacked the optional Redis dependency; installed Redis 6.4.0 in the dedicated environment and reran successfully.

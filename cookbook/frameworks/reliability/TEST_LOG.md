@@ -284,3 +284,21 @@ invalid-media reconstruction case passed. No model calls. This does not establis
 fail-closed validation of generated structured answers; that is a separate fix.
 
 ---
+
+### Fail-closed harness structured output (2026-10-11)
+
+**Status:** PASS
+
+**Description:** Claude/Codex adapters with deterministic output exercise sync,
+async, streaming and non-streaming paths with Pydantic and JSON Schema contracts.
+Missing answers, missing fields and violated numeric constraints become ERROR;
+valid answers still complete. Stored raw answers, tool receipts and nonretryable
+failure metadata survive. Streaming emits RunError without RunCompleted.
+HTTP cases verify constraints survive default Pydantic conversion and raw-schema mode.
+
+**Result:** Combined adapter and HTTP suite: 757 passed. After strengthening local
+reference checks, the focused output suite passed 73 cases, including literal
+`$ref` properties inside enums and unresolved references rejected before execution.
+No live provider calls. This is separate from upstream/native SDK transport retries.
+
+---

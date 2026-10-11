@@ -1010,7 +1010,11 @@ class BaseExternalAgent:
             return
         if not self._supports_output_schema:
             raise ValueError(f"{type(self).__name__} does not support output_schema")
-        schema = output_schema if isinstance(output_schema, dict) else output_schema.model_json_schema()
+        schema = (
+            output_schema
+            if isinstance(output_schema, dict)
+            else getattr(output_schema, "__agno_output_schema__", None) or output_schema.model_json_schema()
+        )
         root_type = schema.get("type")
         if root_type != "object" and not (root_type is None and "properties" in schema):
             raise ValueError(
@@ -1018,10 +1022,10 @@ class BaseExternalAgent:
                 "wrap a list or scalar in a model field"
             )
 
-        if isinstance(output_schema, dict):
+        if isinstance(output_schema, dict) or getattr(output_schema, "__agno_output_schema__", None) is not None:
             from agno.utils.output_schema import output_validator
 
-            output_validator(output_schema)
+            output_validator(schema)
 
     def _resolve_output_schema(self, kwargs: Dict[str, Any]) -> Optional[Union[Type[BaseModel], Dict[str, Any]]]:
         """The run's output_schema, the call's over the agent's, left in kwargs for the adapter."""
@@ -1038,6 +1042,9 @@ class BaseExternalAgent:
         """JSON Schema for the framework: a dict is passed as given, a model is normalized for the provider."""
         if isinstance(output_schema, dict):
             return output_schema
+        original_schema = getattr(output_schema, "__agno_output_schema__", None)
+        if original_schema is not None:
+            return original_schema
         from agno.utils.models.schema_utils import get_response_schema_for_provider
 
         return get_response_schema_for_provider(output_schema, provider)
@@ -1056,6 +1063,19 @@ class BaseExternalAgent:
         # A decoded value (the framework already parsed the JSON) is validated as it is; only text
         # goes through the JSON parsers, which also strip fences and surrounding prose.
         diagnostic = None
+        original_schema = getattr(output_schema, "__agno_output_schema__", None)
+        if original_schema is not None:
+            from jsonschema.exceptions import ValidationError as OriginalSchemaError  # type: ignore[import-untyped]
+            from referencing.exceptions import Unresolvable as OriginalReferenceError
+
+            from agno.utils.output_schema import output_validator
+
+            try:
+                output_validator(original_schema).validate(
+                    parse_response_dict_str(answer) if isinstance(answer, str) else answer
+                )
+            except (OriginalSchemaError, OriginalReferenceError):
+                diagnostic = "The final answer does not match the requested JSON Schema"
         if isinstance(output_schema, dict):
             from jsonschema.exceptions import ValidationError as SchemaValidationError  # type: ignore[import-untyped]
             from referencing.exceptions import Unresolvable

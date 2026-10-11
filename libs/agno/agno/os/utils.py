@@ -266,12 +266,21 @@ async def get_request_kwargs(request: Request, endpoint_func: Callable) -> Dict[
             raise HTTPException(status_code=422, detail="Invalid output_schema: expected a JSON object schema") from exc
         if not isinstance(schema_dict, dict) or schema_dict.get("type", "object") != "object":
             raise HTTPException(status_code=422, detail="Invalid output_schema: expected a JSON object schema")
+        from jsonschema.exceptions import SchemaError  # type: ignore[import-untyped]
+
+        from agno.utils.output_schema import output_validator
+
         try:
+            output_validator(schema_dict)
             if use_json_schema:
                 kwargs["output_schema"] = schema_dict
             else:
-                kwargs["output_schema"] = json_schema_to_pydantic_model(schema_dict)
-        except (TypeError, ValueError, AttributeError) as exc:
+                model = json_schema_to_pydantic_model(schema_dict)
+                # Harnesses must enforce the original contract, including constraints
+                # that the dynamic Pydantic conversion does not represent.
+                setattr(model, "__agno_output_schema__", schema_dict)
+                kwargs["output_schema"] = model
+        except (SchemaError, TypeError, ValueError, AttributeError) as exc:
             raise HTTPException(
                 status_code=422, detail="Invalid output_schema: could not construct output model"
             ) from exc

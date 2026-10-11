@@ -95,3 +95,65 @@ def test_bad_media_item_does_not_silently_disappear(parser_client):
     response = parser_client.post("/parse", data={"images": '[{"url":123}]'})
     assert response.status_code == 422
     assert "reconstruct" in response.json()["detail"]
+
+
+@pytest.mark.parametrize("raw_schema", ["true", "false"])
+@pytest.mark.parametrize(
+    "schema",
+    [
+        {"type": "object", "properties": {"answer": {"type": "not-a-type"}}},
+        {"type": "object", "required": 5},
+        {"type": "object", "properties": {"answer": {"$ref": "https://example.com/schema"}}},
+    ],
+)
+def test_semantically_invalid_schema_rejected_before_dispatch(harness_client, raw_schema, schema):
+    client, run = harness_client
+    response = client.post(
+        "/agents/test-inputs/runs",
+        data={
+            "message": "hi",
+            "stream": "false",
+            "output_schema": json.dumps(schema),
+            "use_json_schema": raw_schema,
+        },
+    )
+    assert response.status_code == 422, response.text
+    run.assert_not_called()
+
+
+@pytest.mark.parametrize("provider", [ClaudeAgent, CodexAgent])
+@pytest.mark.parametrize("stream", ["false", "true"])
+@pytest.mark.parametrize("raw_schema", ["false", "true"])
+def test_http_schema_constraints_survive_dynamic_model_conversion(provider, stream, raw_schema, monkeypatch):
+    from agno.agents.base import ExternalRunResult, ExternalRunStructuredOutputEvent
+    from agno.run.agent import RunContentEvent
+
+    agent = provider(id="schema-agent")
+
+    async def run(input, **kwargs):
+        return ExternalRunResult(content='{"answer":0}', structured_output={"answer": 0})
+
+    async def events(input, **kwargs):
+        yield RunContentEvent(content='{"answer":0}', run_id=kwargs["run_id"])
+        yield ExternalRunStructuredOutputEvent(structured_output={"answer": 0})
+
+    monkeypatch.setattr(agent, "_arun_adapter", run)
+    monkeypatch.setattr(agent, "_arun_adapter_stream", events)
+    client = TestClient(AgentOS(agents=[agent]).get_app())
+    schema = {"type": "object", "properties": {"answer": {"type": "integer", "minimum": 1}}, "required": ["answer"]}
+    response = client.post(
+        "/agents/schema-agent/runs",
+        data={
+            "message": "hi",
+            "stream": stream,
+            "output_schema": json.dumps(schema),
+            "use_json_schema": raw_schema,
+        },
+    )
+    assert response.status_code == 200
+    if stream == "true":
+        assert "RunError" in response.text and "output_validation_error" in response.text
+        assert "RunCompleted" not in response.text
+    else:
+        assert response.json()["status"] == "ERROR"
+        assert response.json()["metadata"]["retryable"] is False

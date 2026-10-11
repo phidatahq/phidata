@@ -147,3 +147,14 @@ Run the deterministic HTTP regressions without provider credentials:
 ```bash
 python -m pytest libs/agno/tests/unit/os/test_run_input_validation.py -q -o addopts=''
 ```
+
+When a Claude or Codex run has an `output_schema`, a missing or invalid final
+structured answer ends in `ERROR`, with `metadata.error_type=output_validation_error`
+and `metadata.retryable=false`. SSE emits `RunError`, not `RunCompleted`. The stored
+run retains the raw answer and completed tool results for diagnosis. The full turn
+is not retried to repair its output, since that could repeat tool side effects.
+
+JSON Schema contracts retain their constraints through the HTTP API's default
+Pydantic conversion as well as `use_json_schema=true`. Schemas are validated before
+dispatch and must be self-contained: local references are supported; external
+references are rejected without fetching them.

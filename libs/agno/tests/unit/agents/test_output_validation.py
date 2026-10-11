@@ -86,25 +86,53 @@ async def test_validation_is_terminal_and_preserves_tools(agent, mode, schema, a
 
 def test_local_references_and_constraints_are_validated(agent, monkeypatch):
     schema = {
-        "type": "object", "properties": {"count": {"$ref": "#/$defs/count"}},
-        "required": ["count"], "$defs": {"count": {"type": "integer", "minimum": 1}},
+        "type": "object",
+        "properties": {"count": {"$ref": "#/$defs/count"}},
+        "required": ["count"],
+        "$defs": {"count": {"type": "integer", "minimum": 1}},
     }
+
     async def run(input, **kwargs):
         return ExternalRunResult(content='{"count":0}')
+
     monkeypatch.setattr(agent, "_arun_adapter", run)
     result = agent.run("answer", output_schema=schema)
     assert result.status == RunStatus.error
 
 
-@pytest.mark.parametrize("schema", [
-    {"type": "object", "properties": {"count": {"type": "nonexistent"}}},
-    {"type": "object", "properties": {"count": {"$ref": "https://example.com/schema.json"}}},
-])
+@pytest.mark.parametrize(
+    "schema",
+    [
+        {"type": "object", "properties": {"count": {"type": "nonexistent"}}},
+        {"type": "object", "properties": {"count": {"$ref": "https://example.com/schema.json"}}},
+    ],
+)
 def test_invalid_or_external_schema_rejected_before_execution(agent, monkeypatch, schema):
-    from jsonschema.exceptions import SchemaError
     from unittest.mock import AsyncMock
+
+    from jsonschema.exceptions import SchemaError
+
     run = AsyncMock()
     monkeypatch.setattr(agent, "_arun_adapter", run)
     with pytest.raises((ValueError, SchemaError)):
+        agent.run("answer", output_schema=schema)
+    run.assert_not_called()
+
+
+def test_reference_named_property_in_enum_is_literal_data():
+    from agno.utils.output_schema import output_validator
+
+    value = {"$ref": "https://example.com/literal"}
+    validator = output_validator({"type": "object", "enum": [value]})
+    validator.validate(value)
+
+
+def test_unresolved_local_reference_is_rejected_before_execution(agent, monkeypatch):
+    from unittest.mock import AsyncMock
+
+    run = AsyncMock()
+    monkeypatch.setattr(agent, "_arun_adapter", run)
+    schema = {"type": "object", "properties": {"count": {"$ref": "#/$defs/missing"}}}
+    with pytest.raises(ValueError, match="unresolved local reference"):
         agent.run("answer", output_schema=schema)
     run.assert_not_called()

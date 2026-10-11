@@ -13,6 +13,7 @@ from types import ModuleType, SimpleNamespace
 from typing import Any, Dict, List, Optional
 
 import pytest
+from pydantic import BaseModel
 
 from agno.agents.codex import CodexAgent
 from agno.agents.codex import agent as codex_module
@@ -30,6 +31,12 @@ from agno.run.base import RunStatus
 # ---------------------------------------------------------------------------
 # Fake openai_codex SDK
 # ---------------------------------------------------------------------------
+
+
+class Movie(BaseModel):
+    title: str
+    year: int
+    tagline: Optional[str] = None
 
 
 class Sandbox(str, Enum):
@@ -243,11 +250,19 @@ def test_sandbox_aliases_and_validation(fake_sdk):
 
 def test_turn_kwargs_include_effort_and_schema(fake_sdk):
     schema = {"type": "object", "properties": {"a": {"type": "string"}}}
-    agent = CodexAgent(name="Codex", reasoning_effort="high", output_schema=schema, turn_kwargs={"source": "test"})
-    turn = agent._turn_kwargs(codex_module._sdk())
+    agent = CodexAgent(name="Codex", reasoning_effort="high", turn_kwargs={"source": "test"})
+    turn = agent._turn_kwargs(codex_module._sdk(), schema)
     assert turn["effort"] is ReasoningEffort.high
     assert turn["output_schema"] == schema
     assert turn["source"] == "test"
+    assert "output_schema" not in agent._turn_kwargs(codex_module._sdk())
+
+
+def test_turn_kwargs_make_a_pydantic_schema_strict(fake_sdk):
+    turn = CodexAgent(name="Codex")._turn_kwargs(codex_module._sdk(), Movie)
+    schema = turn["output_schema"]
+    assert schema["additionalProperties"] is False
+    assert schema["required"] == ["title", "year", "tagline"]
 
 
 def test_codex_config_passes_bin_and_env(fake_sdk):
@@ -1199,3 +1214,85 @@ def test_active_writer_rejection_is_a_session_busy_error(fake_sdk, tmp_db, monke
     out = agent.run("third", session_id="s1")
     assert out.status == RunStatus.completed and out.metadata["attempts"] == 2
     assert isinstance(SessionBusyError("x"), Exception)
+
+
+# ---------------------------------------------------------------------------
+# Structured output
+# ---------------------------------------------------------------------------
+
+_MOVIE_JSON = '{"title": "Red Dust", "year": 2031, "tagline": null}'
+
+
+def test_non_stream_output_schema_parses_the_final_answer(fake_sdk, tmp_db):
+    fake_sdk.notifications = [
+        _agent_message("m0", "Drafting a pitch.", phase="commentary"),
+        _agent_message("m1", _MOVIE_JSON, phase="final_answer"),
+        _turn_completed(),
+    ]
+    agent = CodexAgent(name="Codex", id="codex", db=tmp_db, output_schema=Movie)
+
+    run = agent.run("Invent a movie", session_id="s")
+
+    assert run.content == Movie(title="Red Dust", year=2031)
+    assert run.content_type == "Movie"
+    turn = next(c for c in fake_sdk.calls if c["op"] == "turn")
+    assert turn["kwargs"]["output_schema"]["additionalProperties"] is False
+    assert agent.get_session("s").runs[-1].content == {"title": "Red Dust", "year": 2031}
+
+
+def test_stream_output_schema_parses_the_final_answer_not_the_commentary(fake_sdk):
+    fake_sdk.notifications = [
+        _started(_item(type="agentMessage", id="m0", text="")),
+        _delta("m0", "Drafting a pitch."),
+        _agent_message("m0", "Drafting a pitch.", phase="commentary"),
+        _started(_item(type="agentMessage", id="m1", text="")),
+        _delta("m1", _MOVIE_JSON),
+        _agent_message("m1", _MOVIE_JSON, phase="final_answer"),
+        _turn_completed(),
+    ]
+    agent = CodexAgent(name="Codex", id="codex", output_schema=Movie)
+
+    events = _collect(agent, "Invent a movie", session_id="s")
+
+    content = "".join(e.content for e in events if isinstance(e, RunContentEvent) and e.content)
+    assert content == "Drafting a pitch.\n\n" + _MOVIE_JSON
+    assert not [e for e in events if type(e).__name__ == "ExternalRunStructuredOutputEvent"]
+    completed = events[-1]
+    assert isinstance(completed, RunCompletedEvent)
+    assert completed.content == Movie(title="Red Dust", year=2031)
+    assert completed.content_type == "Movie"
+
+
+@pytest.mark.parametrize("stream", [True, False])
+def test_json_schema_dict_returns_a_dict(fake_sdk, stream):
+    schema = {"type": "object", "properties": {"title": {"type": "string"}}, "required": ["title"]}
+    fake_sdk.notifications = [_agent_message("m1", '{"title": "Red Dust"}'), _turn_completed()]
+    agent = CodexAgent(name="Codex", id="codex")
+
+    if stream:
+        completed = _collect(agent, "Invent a movie", session_id="s", output_schema=schema)[-1]
+        content, content_type = completed.content, completed.content_type
+    else:
+        run = agent.run("Invent a movie", output_schema=schema)
+        content, content_type = run.content, run.content_type
+
+    assert content == {"title": "Red Dust"} and content_type == "dict"
+    turn = next(c for c in fake_sdk.calls if c["op"] == "turn")
+    assert turn["kwargs"]["output_schema"] == schema
+
+
+def test_non_object_output_schema_is_rejected_before_the_turn(fake_sdk):
+    """Codex's response format requires an object root; an array schema is a 400 from the API."""
+    with pytest.raises(ValueError, match="must describe a JSON object"):
+        CodexAgent(name="Codex", id="codex", output_schema={"type": "array", "items": {"type": "string"}})
+    agent = CodexAgent(name="Codex", id="codex")
+    with pytest.raises(ValueError, match="must describe a JSON object"):
+        agent.run("List colours", output_schema={"type": "string"})
+    assert not [c for c in fake_sdk.calls if c["op"] == "turn"]
+
+
+def test_failed_turn_with_output_schema_keeps_the_error_text(fake_sdk):
+    fake_sdk.notifications = [_turn_completed("failed", error="boom")]
+    run = CodexAgent(name="Codex", id="codex", output_schema=Movie).run("Invent a movie")
+    assert run.status == RunStatus.error
+    assert "boom" in run.content and run.content_type == "str"

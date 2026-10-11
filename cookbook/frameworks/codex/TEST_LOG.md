@@ -42,6 +42,16 @@ Tested 2026-10-08 with openai-codex 0.161.0 (bundled Codex CLI 0.161.0), model g
 
 ---
 
+### codex_structured_output.py (Pydantic output_schema, 2026-10-10)
+
+**Status:** PASS
+
+**Description:** Reran with openai-codex 0.161.0 after `output_schema` moved to the base class. `output_schema=Movie` (Pydantic, sent as a strict schema): a non-streaming run, a streaming run, then a per-run JSON Schema dict. Also reran `codex_basic.py` to check a run without a schema is unchanged.
+
+**Result:** Non-streaming content was a `Movie` with `content_type` "Movie". The streaming `RunCompleted` event carried a `Movie`. The per-run schema returned `{'title': 'The Hive Within'}` with `content_type` "dict". Codex accepted the strict schema built from the Pydantic model. `codex_basic.py` streamed a normal answer.
+
+---
+
 ### codex_structured_output.py
 
 **Status:** PASS
@@ -167,5 +177,15 @@ Tested 2026-10-08 with openai-codex 0.161.0 (bundled Codex CLI 0.161.0), model g
 **Description:** Soak finding: a second turn on a session whose first turn was still running was accepted and failed on the app-server's thread lock. Reproduced with two concurrent `arun` calls on one session, the first running a 6s shell command. Fixed with a one-turn-per-session check in the base class (in-process turns and pending or running run rows), plus the app-server's "already has an active writer" rejection mapped to the same error.
 
 **Result:** Before: the second turn ended as an ERROR run in the session with `JSON-RPC error -32600: thread ... already has an active writer` after 0.1s. After: the second turn raises `SessionBusyError` in under a millisecond naming the run in flight, no run row is written for it, the first turn completes, and a turn sent afterwards runs normally.
+
+---
+
+### codex_structured_output.py (review follow-ups, 2026-10-11)
+
+**Status:** PASS (openai-codex 0.161.0, gpt-5.6-luna)
+
+**Description:** Review of the output_schema change. Live: a model with an `Optional` field (strict schema, nullable), non-streamed; a streamed turn on the resumed thread and its stored run; a `RootModel[List[str]]` and an array JSON Schema; the cookbook rerun after the fixes.
+
+**Result:** Optional field came back `null` and parsed to `None`; the resumed streamed turn parsed and stored the model with `content_type` Movie. An array-rooted schema failed the turn with Codex's `invalid_json_schema: schema must be a JSON Schema of 'type: "object"'`; it is now refused with `ValueError` before the turn. Cookbook reran unchanged.
 
 ---

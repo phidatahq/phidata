@@ -457,6 +457,7 @@ class _SandboxStore:
                     stopped_ref=None,
                     stop_status=None,
                     stop_reason=None,
+                    stop_retryable=False,
                     execution_id=uuid4().hex,
                     result=None,
                     staged_checkpoint=None,
@@ -674,10 +675,16 @@ class _SandboxStore:
             run = dict(previous_run["run_data"])
             run.update({key: value for key, value in result["run"].items() if key in _RUNTIME_RUN_FIELDS})
             run["queue_attempt"] = lease.queue_attempt
+            native_metadata = result["run"].get("metadata") or {}
             run["metadata"] = {
                 **(previous_run["run_data"].get("metadata") or {}),
+                **{
+                    key: native_metadata[key]
+                    for key in ("warnings", "attempts", "retryable", "error_type")
+                    if key in native_metadata
+                },
                 "sandbox": {
-                    "native_metadata": result["run"].get("metadata") or {},
+                    "native_metadata": native_metadata,
                     "epoch": lease.epoch,
                     "generation": record["generation"],
                     "checkpoint": record["staged_checkpoint"],
@@ -725,7 +732,9 @@ class _SandboxStore:
     def commit(self, lease: SandboxLease) -> Dict[str, Any]:
         return self._sync(self.acommit, lease)
 
-    async def abegin_stop(self, lease: SandboxLease, *, status: str, reason: str) -> SandboxState:
+    async def abegin_stop(
+        self, lease: SandboxLease, *, status: str, reason: str, retryable: bool = False
+    ) -> SandboxState:
         """Fence cancellation/failure before destroying compute; takeover only reconciles it."""
         if status not in ("ERROR", "CANCELLED") or not isinstance(reason, str) or len(reason) > 8192:
             raise ValueError("Shutdown requires a bounded error or cancellation reason")
@@ -737,15 +746,15 @@ class _SandboxStore:
                 return self._state(row)
             if record["phase"] not in ("executing", "finalizing"):
                 raise SandboxError("Only an active execution can be stopped")
-            record.update(phase="stopping", stop_status=status, stop_reason=reason)
+            record.update(phase="stopping", stop_status=status, stop_reason=reason, stop_retryable=retryable)
             if record.get("computer") is None:
                 record["computer_stopped"] = True
             return self._write_record(connection, lease, record)
 
         return await self._transaction(begin)
 
-    def begin_stop(self, lease: SandboxLease, *, status: str, reason: str) -> SandboxState:
-        return self._sync(self.abegin_stop, lease, status=status, reason=reason)
+    def begin_stop(self, lease: SandboxLease, *, status: str, reason: str, retryable: bool = False) -> SandboxState:
+        return self._sync(self.abegin_stop, lease, status=status, reason=reason, retryable=retryable)
 
     async def afinish_stop(self, lease: SandboxLease) -> Dict[str, Any]:
         """Release the session after confirmed cleanup, keeping the previous recovery boundary.
@@ -771,6 +780,7 @@ class _SandboxStore:
                 if not run.get("content"):
                     run["content"] = record["stop_reason"]
                 sandbox = {
+                    "native_metadata": staged.get("metadata") or {},
                     "recovery_run_id": record.get("last_run_id"),
                     "workspace_rolled_back": True,
                     "execution_id": record["execution_id"],
@@ -778,7 +788,11 @@ class _SandboxStore:
                 }
                 if staged.get("content") is not None:
                     sandbox["runtime_content"] = staged["content"]
-                run["metadata"] = {**(run.get("metadata") or {}), "sandbox": sandbox}
+                run["metadata"] = {
+                    **(run.get("metadata") or {}),
+                    "retryable": record.get("stop_retryable", False),
+                    "sandbox": sandbox,
+                }
                 connection.execute(
                     update(self.runs)
                     .where(self.runs.c.run_id == lease.run_id)

@@ -104,8 +104,8 @@ class SandboxCoordinator:
             execution_timeout=execution_timeout,
         )
 
-    async def _stop(self, lease: SandboxLease, *, status: str, reason: str) -> Dict[str, Any]:
-        state = await self.store.abegin_stop(lease, status=status, reason=reason)
+    async def _stop(self, lease: SandboxLease, *, status: str, reason: str, retryable: bool = False) -> Dict[str, Any]:
+        state = await self.store.abegin_stop(lease, status=status, reason=reason, retryable=retryable)
         if state.record.get("computer") is not None:
             handle = SandboxHandle(**state.record["computer"])
             # The persisted stopping phase forbids every subsequent owner from
@@ -275,6 +275,7 @@ class SandboxCoordinator:
                             lease,
                             status="ERROR",
                             reason="Sandbox execution computer was lost; recover from the previous completed turn",
+                            retryable=True,
                         )
                         yield self._terminal(committed)
                         yield RunOutput.from_dict(committed)
@@ -316,6 +317,7 @@ class SandboxCoordinator:
                                     lease,
                                     status="ERROR",
                                     reason=str(page.result.get("error", "Runtime outcome is unknown"))[:8192],
+                                    retryable=True,
                                 )
                                 yield self._terminal(committed)
                                 yield RunOutput.from_dict(committed)
@@ -323,10 +325,24 @@ class SandboxCoordinator:
                             state = await self.store.astage_result(lease, page.result)
                             break
                         await asyncio.sleep(self.poll_interval)
-                if state.record["result"]["run"]["status"] != "COMPLETED":
+                result = state.record["result"]["run"]
+                native_failed = any(
+                    isinstance(warning, dict) and warning.get("type") == "transcript_persistence_failed"
+                    for warning in (result.get("metadata") or {}).get("warnings", [])
+                )
+                if native_failed:
+                    committed = await self._stop(
+                        lease,
+                        status="ERROR",
+                        reason="Native transcript persistence failed; cannot publish recoverable completion",
+                    )
+                elif state.record["result"]["run"]["status"] != "COMPLETED":
                     result = state.record["result"]["run"]
                     committed = await self._stop(
-                        lease, status=result["status"], reason=str(result.get("content", "Execution failed"))[:8192]
+                        lease,
+                        status=result["status"],
+                        reason=str(result.get("content", "Execution failed"))[:8192],
+                        retryable=(result.get("metadata") or {}).get("retryable") is not False,
                     )
                 else:
                     committed = await self._finalize(lease)

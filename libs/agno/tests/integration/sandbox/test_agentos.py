@@ -153,6 +153,7 @@ async def test_background_acceptance_poll_and_idempotency(service):
     assert second.status_code == 202 and second.json()["run_id"] == first.json()["run_id"]
     job = await settled(app, first.json()["run_id"])
     assert job["status"] == "completed", job
+    assert job["payload"]["session_seq"] >= 1
     result = await agent.aget_run_output(job["id"], "session")
     assert result.content == "background" and result.metadata["sandbox"]["checkpoint"]
     conflict = await client.post(

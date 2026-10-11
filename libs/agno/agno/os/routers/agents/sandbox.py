@@ -59,7 +59,10 @@ async def enqueue_sandbox_run(
             existing.get(key) != job.get(key) for key in ("component_type", "component_id", "user_id", "session_id")
         ):
             raise HTTPException(status_code=409, detail="Idempotency-Key belongs to a different submission scope")
-        if existing.get("payload") != payload:
+        stored_payload = dict(existing.get("payload") or {})
+        # Assigned by the queue at acceptance, never part of the user's request.
+        stored_payload.pop("session_seq", None)
+        if stored_payload != payload:
             raise HTTPException(status_code=409, detail="Idempotency-Key already has different input or options")
         return existing
     await aprepare_accepted_or_abort(worker, agent, "agent", job["id"], session_id, user_id, input, run_kwargs=options)

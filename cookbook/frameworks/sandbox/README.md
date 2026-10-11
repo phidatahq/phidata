@@ -1,6 +1,6 @@
-# Sandbox execution primitives
+# Durable sandbox execution
 
-Run commands in a customer-operated Docker environment for trusted teams. This is the compute foundation for session sandboxes. It does not yet connect Claude/Codex agents to AgentOS or provide durable session recovery.
+Run coding harnesses in customer-operated Docker computers for trusted teams. Start with `agentos.py` for the integrated durable queue, native/workspace recovery and HTTP API. The smaller examples below exercise each foundation independently. Live model/provider acceptance remains separate from the credential-free fixture tests.
 
 Install the repository development environment and Docker, then run:
 
@@ -21,7 +21,7 @@ The provider offers `create/get/exec/stop/destroy` and their asynchronous `acrea
 - UID/GID 1000, read-only image filesystem, dropped capabilities, no privilege escalation, explicit CPU/memory/process limits, no host bind mounts or Docker socket mounts.
 - Networking defaults to `none`. Set an operator-managed network or `bridge` explicitly when required. Host and other-container network sharing are rejected. Egress policy and DNS filtering belong to deployment infrastructure.
 - Only explicitly configured environment values are added to the image environment. Do not put AgentOS database/Redis credentials in the image or sandbox environment. Image-baked credentials are also visible to repository code.
-- `/workspace` and `/runtime` (`HOME`) use Docker-managed bounded tmpfs volumes, allowing daemon checkpoint transfer while the computer is paused. `/tmp` is a container tmpfs. Stopping or removing compute loses these files. A later checkpoint layer must establish durability before completed-turn recovery can be promised.
+- `/workspace` and `/runtime` (`HOME`) use Docker-managed bounded tmpfs volumes, allowing daemon checkpoint transfer while the computer is paused. `/tmp` is a container tmpfs. Stopping or removing compute loses these files. The integrated coordinator checkpoints these roots before publishing completed-turn success; the provider alone does not provide durability.
 - Command output is bounded by raw bytes, then decoded with UTF-8 replacement. Timeouts, excessive output, cancellation and uncertain command transport stop the whole computer to terminate remote child processes. A stop failure is an infrastructure error requiring reconciliation; do not start a replacement writer until shutdown is confirmed. Completed commands can intentionally leave background applications running.
 - Caller cancellation during creation may leave an allocated computer. Reconcile by calling `create` again with the same identity/configuration; do not invent another generation until the previous allocation is accounted for.
 - No pause/resume, preview, nested Docker, artifact API, shared admission, checkpoint or terminal-success semantics are implied by this provider.
@@ -133,3 +133,17 @@ curl -X POST http://localhost:7777/agents/coder/runs \
 Keep the returned run ID. Reconnect with `POST /agents/coder/runs/{run_id}/resume` using form fields `session_id` and optionally `last_event_index`; cancel with `POST /agents/coder/runs/{run_id}/cancel?session_id=example`. Reusing an idempotency key requires the same session ID, input and options. Conflicting submissions return 409. Streaming terminal success follows the durable checkpoint commit. Retained indexed events support replay after the live Redis view expires; content deltas follow the agent's `events_to_skip` policy.
 
 This slice accepts text and JSON runtime configuration, including structured-output schemas. File/image inputs, step replay/fork, version-pinned instances and arbitrary per-turn SDK options are explicitly rejected pending checkpoint-aware integrations. Do not use the ordinary session deletion API to retire sandbox resources; coordinated lifecycle/retention is a separate follow-up. A failed checkpoint upload retries finalization without repeating the model. If the configured queue attempts are exhausted, compute is removed and the turn fails visibly while retaining the previous checkpoint. External effects can still repeat after execution crashes and need application idempotency.
+
+
+## Status and artifacts after compute removal
+
+`GET /agents/{agent_id}/sessions/{session_id}/sandbox` reports the persisted phase, generation, active run, last completed run and whether compute/checkpoint references exist. It is a database view, not a provider health probe. `GET .../sandbox/artifacts?offset=0&limit=100` lists regular workspace files. `GET .../sandbox/artifact?path=relative/path` downloads a file from the last completed checkpoint, including while a newer turn runs. Responses identify the checkpoint and run; no compute is provisioned.
+
+```bash
+.venv/bin/python cookbook/frameworks/sandbox/download_artifact.py \
+  --session example --path fixture-effects.txt --output /tmp/completed-effects.txt
+```
+
+Run a fixture turn in `agentos.py` first. `SANDBOX_API_URL` overrides the server URL and `SANDBOX_BEARER_TOKEN` supplies authentication when configured. Existing output files are never overwritten. HTTP routes use AgentOS agent-run permission and configured user isolation; service code can use the exact-owner `SandboxArtifacts.status/list/read` and async variants. Downloads are bounded to 8 MiB by default, served as attachments, and reject symlinks, traversal and native runtime state. Archive checksum and session-incarnation identity are verified before reading. Missing storage fails visibly. Listing pagination bounds the response; archive validation still scans the bounded checkpoint.
+
+These are read operations. Compute lifecycle, durable data deletion and automatic retention are separate operations and are not implied by downloading an artifact.

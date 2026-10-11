@@ -103,3 +103,13 @@ Coordinator review follow-up: native transcript-mirror warnings and lost pre-che
 ---
 
 Python 3.9 follow-up: 76 sandbox unit tests, 40 real Postgres cases and 12 AgentOS HTTP cases passed. The first HTTP collection lacked the optional Redis dependency; installed Redis 6.4.0 in the dedicated environment and reran successfully.
+
+### download_artifact.py and completed checkpoint inspection
+
+**Status:** PASS
+
+**Description:** Real HTTP server and cookbook download with byte comparison after compute removal. Exact owner/agent scope, configured HTTP user isolation, traversal/native-path rejection, file-size limits, replacement-session isolation, corrupted bytes, mismatched manifest, binary content, symlink rejection, paginated listing and last-completed reads during a new turn are covered.
+
+**Result:** 81 sandbox unit tests plus 7 real artifact API cases passed on both Python 3.12 and Python 3.9. The real-server cookbook passed; its process and temporary database were removed. Required scripts passed. A pytest duplicate module basename and an imported-fixture lint collision were corrected before the final runs. HTTP identity isolation uses preverified request state; JWT signature verification is covered by the existing auth tests, not this fixture. No model or hosted-provider calls.
+
+---

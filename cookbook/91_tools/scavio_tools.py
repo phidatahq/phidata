@@ -7,9 +7,10 @@ YouTube, Amazon, Walmart, Reddit, TikTok, TikTok Shop, Instagram, X, LinkedIn,
 Threads, Kuaishou, eBay, Target, Home Depot, Zillow, Redfin, Booking.com, Airbnb,
 TripAdvisor, Yelp, Indeed, Glassdoor, the App Store, Google Play, SEC EDGAR,
 Companies House, G2, Capterra, Google Ads Transparency and the Meta Ad Library -
-plus an extract endpoint that reads any URL as HTML, Markdown or plain text.
+plus an extract endpoint that reads any URL as HTML, Markdown or plain text, and
+website map, crawl and batch extract for whole sites.
 
-ScavioTools exposes 189 tools, one per live Scavio endpoint. That is far more
+ScavioTools exposes 194 tools, one per live Scavio endpoint. That is far more
 than any one agent should be shown, so every provider is gated by an enable_*
 flag. The ten providers the toolkit shipped with are on by default; everything
 else is opt-in. Enable only what the agent needs.
@@ -159,7 +160,28 @@ research_agent = Agent(
     ]
 )
 
-# Example 8: enable every tool explicitly - all 189 of them
+# Example 8: whole sites - map a site's URLs, crawl it, or extract a list of
+# pages in one job. crawl_website waits up to wait_seconds (default 45) and returns
+# the results so far plus a job id that get_crawl_status reads later, for free.
+site_agent = Agent(
+    tools=[
+        ScavioTools(
+            enable_google=False,
+            enable_youtube=False,
+            enable_amazon=False,
+            enable_walmart=False,
+            enable_reddit=False,
+            enable_tiktok=False,
+            enable_tiktok_shop=False,
+            enable_instagram=False,
+            enable_x=False,
+            enable_linkedin=False,
+            enable_crawl=True,
+        )
+    ]
+)
+
+# Example 9: enable every tool explicitly - all 194 of them
 all_agent = Agent(tools=[ScavioTools(all=True)])
 
 # ---------------------------------------------------------------------------
@@ -214,6 +236,12 @@ if __name__ == "__main__":
     research_agent.print_response(
         "Look up Notion on G2 and Capterra, summarise what reviewers dislike, then show me "
         "which ads they are currently running on Google",
+        markdown=True,
+        stream=True,
+    )
+
+    site_agent.print_response(
+        "Crawl up to 10 pages of https://hono.dev/docs and summarise how routing and middleware work",
         markdown=True,
         stream=True,
     )

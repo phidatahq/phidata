@@ -56,7 +56,7 @@ def test_init_with_param():
 
 
 def test_all_flag_registers_every_tool():
-    """all=True should register all 189 provider tools.
+    """all=True should register all 194 provider tools.
 
     Toolkit keeps `tools` exactly as passed, so the count is the number of
     registrations in __init__: 14 google + 4 amazon + 7 walmart + 15 youtube +
@@ -64,13 +64,14 @@ def test_all_flag_registers_every_tool():
     6 threads + 14 kuaishou + 3 ebay + 4 target + 3 home_depot + 3 zillow +
     3 booking + 4 tripadvisor + 4 indeed + 3 airbnb + 4 glassdoor + 3 yelp +
     3 app_store + 3 google_play + 6 sec + 3 redfin + 4 companies_house + 3 g2 +
-    3 capterra + 3 google_ads + 3 meta_ads + 1 extract = 189, one tool for every
-    live billable Scavio endpoint except /youtube/metadata, which is a deprecated
-    alias of /youtube/video and is reached through youtube_video.
+    3 capterra + 3 google_ads + 3 meta_ads + 1 extract + 5 crawl = 194, one tool
+    for every live billable Scavio endpoint except /youtube/metadata, which is a
+    deprecated alias of /youtube/video and is reached through youtube_video, plus
+    the two free crawl and batch status reads.
     """
     with patch("agno.tools.scavio.ScavioClient"):
         tools = ScavioTools(all=True)
-        assert len(tools.tools) == 189
+        assert len(tools.tools) == 194
 
 
 def test_default_registers_the_ten_original_providers():
@@ -126,6 +127,9 @@ def test_default_leaves_the_added_providers_opt_in():
             "google_ads_advertisers",
             "meta_ads_search",
             "extract_url",
+            "map_website",
+            "crawl_website",
+            "batch_extract_urls",
         ):
             assert absent not in names
 
@@ -871,6 +875,17 @@ def test_extract_is_registered_on_its_own_flag():
     assert _only(enable_extract=True) == ["extract_url"]
 
 
+def test_crawl_flag_registers_the_five_website_tools():
+    """Map, crawl and batch are opt-in on their own flag, separate from extract."""
+    assert _only(enable_crawl=True) == [
+        "map_website",
+        "crawl_website",
+        "get_crawl_status",
+        "batch_extract_urls",
+        "get_batch_status",
+    ]
+
+
 def test_lookup_first_providers_expose_their_resolver():
     """The four lookup-first providers register the id resolver every other call needs."""
     assert "tripadvisor_locations" in _only(enable_tripadvisor=True)
@@ -1123,3 +1138,112 @@ def test_every_tool_resolves_a_real_sdk_method():
                 break
 
     assert unresolved == []
+
+
+# ============================================================================
+# MAP, CRAWL AND BATCH
+# ============================================================================
+
+
+@pytest.fixture
+def fast_polling(monkeypatch):
+    """Crawl and batch poll every few seconds; make the poll instant in tests."""
+    monkeypatch.setattr("agno.tools.scavio.SCAVIO_JOB_POLL_INTERVAL_SECONDS", 0.0)
+
+
+def _job(status, job_id="crawl_1"):
+    return {"data": {"id": job_id, "status": status, "results": [], "next_cursor": None}}
+
+
+def test_map_website_forwards_filters(scavio_tools, mock_scavio_client):
+    """map_website reaches extract.map with only the arguments the agent set."""
+    mock_scavio_client.extract.map.return_value = {"data": {"links": [], "total_found": 0}}
+
+    result = scavio_tools.map_website("https://docs.example.com", limit=50, include_paths=["/docs/**"])
+
+    assert json.loads(result)["data"]["total_found"] == 0
+    call = mock_scavio_client.extract.map.call_args
+    assert call.args[0] == "https://docs.example.com"
+    assert call.kwargs["limit"] == 50
+    assert call.kwargs["include_paths"] == ["/docs/**"]
+
+
+def test_crawl_website_waits_until_completed(scavio_tools, mock_scavio_client, fast_polling):
+    """crawl_website starts the job, polls content-free, then reads the results page."""
+    mock_scavio_client.extract.crawl.return_value = {"data": {"id": "crawl_1", "status": "queued"}}
+    mock_scavio_client.extract.crawl_status.side_effect = [
+        _job("running"),
+        _job("completed"),
+        _job("completed"),
+    ]
+
+    result = json.loads(scavio_tools.crawl_website("https://hono.dev/docs", max_pages=3, limit=5))
+
+    assert result["data"]["status"] == "completed"
+    start = mock_scavio_client.extract.crawl.call_args
+    assert start.args[0] == "https://hono.dev/docs"
+    assert start.kwargs == {"max_pages": 3}
+    reads = mock_scavio_client.extract.crawl_status.call_args_list
+    assert reads[0].kwargs == {"limit": 1, "include_content": False}
+    assert reads[-1].args[0] == "crawl_1"
+    assert reads[-1].kwargs == {"limit": 5}
+
+
+def test_crawl_website_returns_the_job_when_the_wait_runs_out(scavio_tools, mock_scavio_client, monkeypatch):
+    """A crawl still running at the deadline comes back with its id, not an error."""
+    ticks = iter(range(0, 10_000, 10))
+    monkeypatch.setattr("agno.tools.scavio.time.monotonic", lambda: float(next(ticks)))
+    monkeypatch.setattr("agno.tools.scavio.time.sleep", lambda _s: None)
+    mock_scavio_client.extract.crawl.return_value = {"data": {"id": "crawl_1", "status": "queued"}}
+    mock_scavio_client.extract.crawl_status.return_value = _job("running")
+
+    result = json.loads(scavio_tools.crawl_website("https://hono.dev/docs", wait_seconds=15))
+
+    assert result["data"] == {"id": "crawl_1", "status": "running", "results": [], "next_cursor": None}
+
+
+def test_crawl_website_with_no_wait_returns_the_queued_job(scavio_tools, mock_scavio_client):
+    """wait_seconds=0 returns the 202 payload and never polls."""
+    mock_scavio_client.extract.crawl.return_value = {"data": {"id": "crawl_1", "status": "queued"}, "credits_used": 0}
+
+    result = json.loads(scavio_tools.crawl_website("https://hono.dev/docs", wait_seconds=0))
+
+    assert result["data"]["id"] == "crawl_1"
+    mock_scavio_client.extract.crawl_status.assert_not_called()
+
+
+def test_get_crawl_status_forwards_paging(scavio_tools, mock_scavio_client):
+    mock_scavio_client.extract.crawl_status.return_value = _job("completed")
+
+    scavio_tools.get_crawl_status("crawl_1", cursor="25", include_content=False)
+
+    call = mock_scavio_client.extract.crawl_status.call_args
+    assert call.args[0] == "crawl_1"
+    assert call.kwargs["cursor"] == "25"
+    assert call.kwargs["limit"] == 10
+    assert call.kwargs["include_content"] is False
+
+
+def test_batch_extract_urls_runs_a_batch_job(scavio_tools, mock_scavio_client, fast_polling):
+    mock_scavio_client.extract.batch.return_value = {"data": {"id": "batch_1", "status": "queued"}}
+    mock_scavio_client.extract.batch_status.return_value = _job("completed", "batch_1")
+
+    result = json.loads(scavio_tools.batch_extract_urls(["https://example.com/"], mode="normal"))
+
+    assert result["data"]["id"] == "batch_1"
+    start = mock_scavio_client.extract.batch.call_args
+    assert start.args[0] == ["https://example.com/"]
+    assert start.kwargs == {"mode": "normal"}
+    assert mock_scavio_client.extract.batch_status.call_args.args[0] == "batch_1"
+
+
+def test_get_batch_status_reads_the_batch_job(scavio_tools, mock_scavio_client):
+    mock_scavio_client.extract.batch_status.return_value = _job("running", "batch_1")
+
+    assert json.loads(scavio_tools.get_batch_status("batch_1"))["data"]["status"] == "running"
+
+
+def test_crawl_errors_are_returned_as_json(scavio_tools, mock_scavio_client):
+    mock_scavio_client.extract.crawl.side_effect = Exception("Active job limit reached")
+
+    assert json.loads(scavio_tools.crawl_website("https://hono.dev/docs")) == {"error": "Active job limit reached"}

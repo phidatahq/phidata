@@ -21,14 +21,13 @@ from agno.sandbox.postgres import PostgresSandboxStore
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--provider", choices=("e2b",), required=True)
+    parser.add_argument("--provider", choices=("e2b", "daytona"), required=True)
     parser.add_argument(
         "--image",
         required=True,
         help="Prepared provider template/snapshot/image identifier",
     )
     args = parser.parse_args()
-    from agno.sandbox.e2b import E2BSandboxProvider
 
     namespace = "acceptance-" + uuid4().hex[:12]
     db = PostgresDb(
@@ -44,7 +43,18 @@ def main() -> None:
         store, table_name=namespace.replace("-", "_") + "_allocations"
     )
     journal.setup()
-    provider = E2BSandboxProvider(namespace, journal, max_allocations=2, lifetime=600)
+    if args.provider == "e2b":
+        from agno.sandbox.e2b import E2BSandboxProvider
+
+        provider = E2BSandboxProvider(
+            namespace, journal, max_allocations=2, lifetime=600
+        )
+    else:
+        from agno.sandbox.daytona import DaytonaSandboxProvider
+
+        provider = DaytonaSandboxProvider(
+            namespace, journal, max_allocations=2, lifetime=600
+        )
     spec = SandboxSpec(
         "coder", "acceptance", 1, args.image, pids_limit=None, workspace_mb=None
     )

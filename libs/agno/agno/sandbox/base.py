@@ -102,6 +102,27 @@ class Sandbox(ABC):
     ) -> SandboxHandle:
         return _sync(self.acreate(session_id, agent_id=agent_id, generation=generation, env=env))
 
+    async def afind(
+        self,
+        session_id: str,
+        *,
+        agent_id: Optional[str] = None,
+        generation: int = 1,
+        env: Optional[Mapping[str, str]] = None,
+    ) -> Optional[SandboxHandle]:
+        """Reconcile allocation by immutable session generation, including lost create acknowledgements."""
+        raise NotImplementedError("This provider does not support generation reconciliation")
+
+    def find(
+        self,
+        session_id: str,
+        *,
+        agent_id: Optional[str] = None,
+        generation: int = 1,
+        env: Optional[Mapping[str, str]] = None,
+    ) -> Optional[SandboxHandle]:
+        return _sync(self.afind(session_id, agent_id=agent_id, generation=generation, env=env))
+
     @abstractmethod
     async def aget(self, provider_ref: str) -> Optional[SandboxHandle]: ...
 

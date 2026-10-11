@@ -7,6 +7,7 @@ prompt. Images and documents are supported; audio and video have no consumer in 
 
 import re
 import shutil
+from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
@@ -55,7 +56,27 @@ def accept_media(media: Dict[str, Any], supported: Sequence[str] = SUPPORTED_MED
 
 
 def uploads_root(workspace: Optional[Any], run_id: str) -> Path:
-    return Path(workspace or Path.cwd()).resolve() / UPLOADS_DIR / run_id
+    """Resolve an upload directory without allowing IDs or symlinks to escape it."""
+    if not run_id or run_id in (".", "..") or "/" in run_id or "\\" in run_id or "\x00" in run_id or ":" in run_id:
+        raise ValueError("Attachment run_id must be a single nonempty path component")
+    workspace_root = Path(workspace or Path.cwd()).resolve()
+    root = workspace_root / UPLOADS_DIR / run_id
+    for directory in (root.parent.parent, root.parent, root):
+        if directory.is_symlink():
+            raise ValueError("Attachment directories must not be symlinks")
+    return root
+
+
+def _rollback_files(paths: Sequence[Path]) -> None:
+    """Remove only files created by this staging operation, retaining preexisting files."""
+    for path in reversed(paths):
+        with suppress(OSError):
+            path.unlink()
+        for directory in (path.parent, path.parent.parent, path.parent.parent.parent):
+            try:
+                directory.rmdir()
+            except OSError:
+                break
 
 
 def _safe_name(name: str) -> str:
@@ -96,8 +117,8 @@ RESTORED_RUNS_LIMIT = 10
 def remember_uploads_root(session: Any, workspace: Optional[Any]) -> None:
     """Record, once per session, the uploads folder the harness's transcript will name.
 
-    Later turns restore earlier attachments there, so the paths already in the transcript
-    resolve again on any replica that can write that location.
+    This is a historical locator for relocation notes, never permission to write outside
+    the active workspace. Later turns restore into their own workspace.
     """
     if session is None:
         return
@@ -114,6 +135,7 @@ def stage_media(
     media: Dict[str, Any],
     root: Optional[Path] = None,
     reuse_existing: bool = False,
+    _created: Optional[List[Path]] = None,
 ) -> List[StagedMedia]:
     """Write each attachment under <workspace>/.agno/uploads/<run_id>/ and describe it.
 
@@ -121,39 +143,71 @@ def stage_media(
     bytes is not downloaded; it is passed to the harness as a reference instead. With
     reuse_existing, a file already at its target path is left as is instead of written again.
     """
-    root = root if root is not None else uploads_root(workspace, run_id)
+    expected_root = uploads_root(workspace, run_id)
+    if root is not None and root.absolute() != expected_root:
+        raise ValueError("Attachments must be staged under the active workspace uploads directory")
+    root = expected_root
     staged: List[StagedMedia] = []
+    created: List[Path] = []
+    root_existed = root.exists()
     claimed: Set[str] = set()
-    for kind, key in (("image", "images"), ("file", "files")):
-        for index, item in enumerate(media.get(key) or [], start=1):
-            name = _name_for(item, kind, index)
-            data: Optional[bytes] = None
-            getter = getattr(item, "get_content_bytes", None)
-            if callable(getter):
+    try:
+        for kind, key in (("image", "images"), ("file", "files")):
+            for index, item in enumerate(media.get(key) or [], start=1):
+                name = _safe_name(_name_for(item, kind, index))
+                data: Optional[bytes] = None
+                getter = getattr(item, "get_content_bytes", None)
+                if callable(getter):
+                    try:
+                        data = getter()
+                    except Exception:
+                        data = None
+                if data is None and isinstance(getattr(item, "content", None), bytes):
+                    data = item.content
+                url = getattr(item, "url", None)
+                if data is None:
+                    if url:
+                        staged.append(StagedMedia(kind, name, None, _mime_for(item), 0, str(url)))
+                    continue
+                root.mkdir(parents=True, exist_ok=True)
+                uploads_root(workspace, run_id)
+                target = root / name
+                counter = 1
+                while True:
+                    if target.is_symlink():
+                        raise ValueError("Attachment files must not be symlinks")
+                    if target.name not in claimed:
+                        if reuse_existing and target.is_file():
+                            break
+                        try:
+                            # Exclusive creation cannot overwrite an existing file or follow a leaf symlink.
+                            with target.open("xb") as output:
+                                created.append(target)
+                                output.write(data)
+                            break
+                        except FileExistsError:
+                            pass
+                    counter += 1
+                    target = root / f"{target.stem}-{counter}{target.suffix}"
+                claimed.add(target.name)
+                staged.append(StagedMedia(kind, target.name, str(target), _mime_for(item), len(data)))
+    except BaseException:
+        _rollback_files(created)
+        if not root_existed:
+            for directory in (root, root.parent, root.parent.parent):
                 try:
-                    data = getter()
-                except Exception:
-                    data = None
-            if data is None and isinstance(getattr(item, "content", None), bytes):
-                data = item.content
-            url = getattr(item, "url", None)
-            if data is None:
-                if url:
-                    staged.append(StagedMedia(kind, name, None, _mime_for(item), 0, str(url)))
-                continue
-            root.mkdir(parents=True, exist_ok=True)
-            target = root / name
-            counter = 1
-            # Names are deduplicated within the call, so restaging a run reproduces its original paths.
-            while target.name in claimed or (not reuse_existing and target.exists()):
-                counter += 1
-                target = root / f"{target.stem}-{counter}{target.suffix}"
-            claimed.add(target.name)
-            # A kept file may have been edited by the harness since; never overwrite it.
-            if not (reuse_existing and target.exists()):
-                target.write_bytes(data)
-            staged.append(StagedMedia(kind, target.name, str(target), _mime_for(item), len(data)))
+                    directory.rmdir()
+                except OSError:
+                    break
+        raise
+    if _created is not None:
+        _created.extend(created)
     return staged
+
+
+def cleanup_staged_media(staged: Sequence[StagedMedia]) -> None:
+    """Remove staged input files without removing preexisting files in the run directory."""
+    _rollback_files([Path(item.path) for item in staged if item.path])
 
 
 def media_prompt_block(staged: Sequence[StagedMedia]) -> str:
@@ -249,46 +303,39 @@ def stage_prior_media(
     limit: Optional[int] = RESTORED_RUNS_LIMIT,
     until_run_id: Optional[str] = None,
 ) -> Tuple[List[Path], str]:
-    """Put earlier runs' attachments back where the harness's transcript expects them.
+    """Restore recent attachments inside the active workspace and describe relocated paths.
 
-    The session remembers the uploads folder used when the first attachment was staged. Each
-    earlier run's files are restored under that folder, so the paths the harness already knows
-    resolve again, on the same machine or on a replica with the same layout. When that folder
-    cannot be written, the files go under this workspace instead and the returned note tells
-    the harness where they are now. Only the last `limit` earlier runs are restored, ending at
-    until_run_id when given, and files still on disk are not written again. Returns the folders created, for cleanup, and the note.
+    Stored absolute paths are historical metadata, not write authority. Existing regular
+    files are retained, and a partial restore rolls back only files created by this call.
     """
     attachments = prior_attachments(session, exclude_run_id, limit, until_run_id)
     if not attachments:
         return [], ""
     recorded = (getattr(session, "session_data", None) or {}).get(UPLOADS_ROOT_KEY)
     current = Path(workspace or Path.cwd()).resolve() / UPLOADS_DIR
-    target_root = current
-    if recorded and Path(recorded) != current:
-        try:
-            Path(recorded).mkdir(parents=True, exist_ok=True)
-            target_root = Path(recorded)
-        except OSError:
-            target_root = current
     folders: List[Path] = []
+    created: List[Path] = []
     moved: List[str] = []
-    for run_id, media in attachments.items():
-        folder = target_root / run_id
-        existed = folder.exists()
-        staged = stage_media(workspace, run_id, media, root=folder, reuse_existing=True)
-        if not staged:
-            continue
-        # A folder that was already there (keep_uploads) belongs to its run, not to this turn.
-        if not existed:
-            folders.append(folder)
-        if recorded and target_root != Path(recorded):
-            for item in staged:
-                if item.path:
-                    moved.append(f"- {item.path} (was {Path(recorded) / run_id / item.name})")
+    try:
+        for run_id, media in attachments.items():
+            folder = uploads_root(workspace, run_id)
+            existed = folder.exists()
+            staged = stage_media(workspace, run_id, media, reuse_existing=True, _created=created)
+            if not staged:
+                continue
+            if not existed:
+                folders.append(folder)
+            if recorded and current != Path(recorded):
+                for item in staged:
+                    if item.path:
+                        moved.append(f"- {item.path} (was {Path(recorded) / run_id / item.name})")
+    except BaseException:
+        _rollback_files(created)
+        raise
     note = ""
     if moved:
         note = (
-            "\n\nThe files attached earlier in this conversation have moved. Their old paths no longer exist; "
-            "use these paths instead:\n" + "\n".join(moved)
+            "\n\nThe files attached earlier in this conversation have moved. "
+            "Use these paths in the current workspace instead:\n" + "\n".join(moved)
         )
     return folders, note

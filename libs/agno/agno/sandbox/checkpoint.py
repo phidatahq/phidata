@@ -4,6 +4,8 @@ Callers must drain the harness and quiesce workspace writers before capture.
 Filesystem checkpoints do not capture processes or undo external side effects.
 """
 
+from __future__ import annotations
+
 import asyncio
 import hashlib
 import io

@@ -249,3 +249,13 @@ No model calls in the load run. Requests and daemon calls per turn are what scal
 **Result:** Unit: agent and sandbox suites 795 passed, including the expectation matrix (match runs, null runs, missing or different native id refused without a model call), the worker's reason field, and request validation. Live on the branch image with real Claude: continuity with the expectation set; a wrong expectation refused in 0.4 s; the database deleted then refused in 0.4 s with the committed id; a fresh turn without an expectation allowed; a read-only database refused before the model. Real Codex: thread files deleted with the database kept ends the run with status ERROR and the stored thread id intact; the database deleted with the committed id is refused with `native_state_missing`. `native_recovery.py` walks five generations of one session: checkpoint and destroy, a restore that lands and recalls the word, a skipped restore answering NONE as COMPLETED without an expectation, the same skipped restore refused with `native_state_missing` when the committed id is passed, and the retry that restores the same checkpoint into a fresh generation and recalls the word again. 21 s end to end with real Claude.
 
 ---
+
+### durable_completion.py
+
+**Status:** PASS
+
+**Description:** Real local Postgres, unique fixture tables and immutable local archive; staged output remains RUNNING until checkpoint staging and cleanup acknowledgement permit atomic publication. No model calls or real compute in this cookbook.
+
+**Result:** Passed. Companion integration suite: 24 passed across PostgresDb and AsyncPostgresDb, including independent owners, lease expiry, queue attempt fencing, transaction rollback, lost acknowledgement, immutable staged output, deleted/recreated session isolation, external cancellation, and sync entry points. Review found and fixed native metadata overwriting service fields and old-session recovery reuse. Provider shutdown and archive verification remain coordinator responsibilities.
+
+---

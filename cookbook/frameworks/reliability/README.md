@@ -130,3 +130,28 @@ docker compose -f cookbook/frameworks/reliability/compose.yaml down
 
 See [TEST_LOG.md](TEST_LOG.md) for recorded results. Do not interpret an unexecuted
 scenario or a green process exit without evidence as a pass.
+
+## Finality across queue retries
+
+For durable queued agent runs, poll `GET /agents/{agent_id}/runs/{run_id}` with
+`session_id`. While the ticket exists, the response's `status` follows it:
+`PENDING` while awaiting a claim, `RUNNING` during execution, and `ERROR` only after
+the ticket settles as failed. `metadata.queue` includes `status` (queue vocabulary),
+`attempt`, `max_attempts`, and `final`. The last persisted component attempt's
+status is `metadata.queue.run_status`; its output and tool history remain present.
+
+Treat `metadata.queue.final=true` as the settled queue outcome. `false` means it
+has not settled; `PAUSED` requires input rather than polling indefinitely. `null`
+means finality is unknown, including an expired ticket or a poll replica without
+a queue store for a run carrying a queue-attempt stamp. A queue-store read failure
+returns 503; retry the poll. Keep tickets long enough for clients to observe their
+outcome, and configure the polling replicas with the shared queue store.
+
+A streamed `RunError` from a queue attempt includes
+`additional_data.queue={attempt, max_attempts, final:null}`. The worker has not yet
+committed its retry/settlement decision when it publishes this event. Keep the
+stream open and consult the run poll; do not interpret the error event or
+`metadata.retryable` as a settled outcome. Agent retry warnings are separate from
+queue attempts. Partial output can be followed by another attempt's output; it
+must not be concatenated as though it were one uninterrupted answer. Side effects
+still require application-owned idempotency keys.

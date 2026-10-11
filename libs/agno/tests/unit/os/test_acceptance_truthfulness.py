@@ -100,7 +100,12 @@ class TestTicketPollFallback:
         resp = harness.client.get("/agents/qa-agent/runs/r-poll-1", params={"session_id": "s-tkt"})
         assert resp.status_code == 200, "an accepted run must never poll as nonexistent"
         body = resp.json()
-        assert body == {"run_id": "r-poll-1", "session_id": "s-tkt", "status": "PENDING"}
+        assert body == {
+            "run_id": "r-poll-1",
+            "session_id": "s-tkt",
+            "status": "PENDING",
+            "metadata": {"queue": {"status": "queued", "attempt": 0, "max_attempts": 1, "final": False}},
+        }
 
     def test_failed_ticket_reports_error_with_reason(self, harness):
         seed_ticket(harness.store, "r-poll-2", status="failed", error="worker lost")

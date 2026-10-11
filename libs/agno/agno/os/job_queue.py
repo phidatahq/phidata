@@ -1017,6 +1017,18 @@ class QueueWorker:
                 if hasattr(event, "status") and hasattr(event, "run_id") and not hasattr(event, "event"):
                     final_output = event  # the terminal RunOutput
                     continue
+                if getattr(event, "event", None) == "RunError" and hasattr(event, "additional_data"):
+                    # This event ends a component attempt. Ticket settlement happens after
+                    # the iterator returns, so neither retryability nor remaining budget can
+                    # establish queue finality here. Poll the durable ticket for that decision.
+                    event.additional_data = {
+                        **(event.additional_data or {}),
+                        "queue": {
+                            "attempt": job.get("attempt", 1),
+                            "max_attempts": job.get("max_attempts", 1),
+                            "final": None,
+                        },
+                    }
                 with contextlib.suppress(Exception):
                     await event_stream.add_event(job_id, event, generation=stream_generation)
             if final_output is None and is_workflow:
@@ -2469,8 +2481,15 @@ async def aticket_poll_fallback(
     user_id: Optional[str],
     *,
     user_scoped: bool,
+    include_queue_state: bool = False,
+    raise_on_error: bool = False,
 ) -> Optional[Dict[str, Any]]:
-    """Tenant-authorized ticket view for run polls that found no run row.
+    """Tenant-authorized ticket view for run polling, including before the run row exists.
+
+    ``include_queue_state`` adds the committed ticket's attempt and finality fields so a
+    caller with a run row can overlay queue status without discarding attempt evidence.
+    ``raise_on_error`` returns HTTP 503 when that authority cannot be read, instead of
+    pretending the ticket is absent. Defaults preserve existing fallback callers.
 
     The acceptance is the committed ticket, but the run row lands a beat
     later (accepting request's prepare, or the worker's claim-time ensure) -
@@ -2497,8 +2516,15 @@ async def aticket_poll_fallback(
     if queue_worker is None:
         return None
     job = None
-    with contextlib.suppress(Exception):
+    try:
         job = await queue_worker.store.get_job(run_id)
+    except Exception as exc:
+        if raise_on_error:
+            from fastapi import HTTPException
+
+            raise HTTPException(
+                status_code=503, detail="Queue state is unavailable; run finality cannot be determined."
+            ) from exc
     if job is None or job.get("job_type", "run") != "run":
         return None
     if job.get("component_type") != component_type:
@@ -2516,6 +2542,15 @@ async def aticket_poll_fallback(
     if status is None:
         return None
     body: Dict[str, Any] = {"run_id": run_id, "session_id": session_id, "status": status}
+    if include_queue_state:
+        body["metadata"] = {
+            "queue": {
+                "status": job["status"],
+                "attempt": job.get("attempt", 0),
+                "max_attempts": job.get("max_attempts", 1),
+                "final": job["status"] in ("completed", "failed", "cancelled"),
+            }
+        }
     if status == "ERROR" and job.get("error"):
         body["content"] = job["error"]
     if status == "CANCELLED" and not job.get("attempt"):

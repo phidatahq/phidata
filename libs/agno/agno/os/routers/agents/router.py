@@ -2179,11 +2179,17 @@ def get_agent_router(
         summary="Get Agent Run",
         description=(
             "Retrieve the status and output of an agent run. Use this to poll for background run completion.\n\n"
-            "Requires the `session_id` that was returned when the run was created."
+            "Requires the `session_id` that was returned when the run was created. "
+            "For durable queued runs, status follows the queue ticket and metadata.queue.final "
+            "is true only after completion, failure or cancellation settles. The last component "
+            "attempt's status is metadata.queue.run_status; its content/tools are preserved. "
+            "A paused ticket requires input and is not final. Null finality means the ticket is "
+            "unavailable or expired; do not infer retry exhaustion from metadata.retryable."
         ),
         responses={
             200: {"description": "Run output retrieved successfully"},
             404: {"description": "Agent or run not found", "model": NotFoundResponse},
+            503: {"description": "Durable queue state unavailable; retry the poll"},
         },
         dependencies=[Depends(require_resource_access("agents", "run", "agent_id"))],
     )
@@ -2246,6 +2252,8 @@ def get_agent_router(
                     agent_id,
                     user_id,
                     user_scoped=user_id is not None,
+                    include_queue_state=True,
+                    raise_on_error=True,
                 )
                 if ticket_view is not None:
                     return ticket_view
@@ -2262,6 +2270,8 @@ def get_agent_router(
                 agent_id,
                 user_id,
                 user_scoped=user_id is not None,
+                include_queue_state=True,
+                raise_on_error=True,
             )
             if ticket_view is not None:
                 return ticket_view
@@ -2274,7 +2284,33 @@ def get_agent_router(
         if not run_matches_component(run_output, "agents", agent_id):
             raise HTTPException(status_code=404, detail="Run not found")
 
-        return run_output.to_dict()
+        body = run_output.to_dict()
+        ticket_view = await aticket_poll_fallback(
+            getattr(request.app.state, "queue_worker", None),
+            run_id,
+            session_id,
+            "agent",
+            agent_id,
+            user_id,
+            user_scoped=user_id is not None,
+            include_queue_state=True,
+            raise_on_error=True,
+        )
+        if ticket_view is not None:
+            queue = ticket_view["metadata"]["queue"]
+            queue["run_status"] = body.get("status")
+            body["metadata"] = {**(body.get("metadata") or {}), "queue": queue}
+            # A component attempt can have persisted ERROR while its durable ticket is
+            # awaiting another claim. Publish ticket status without discarding its evidence.
+            body["status"] = ticket_view["status"]
+        elif getattr(run_output, "queue_attempt", None) is not None:
+            # Retention or a replica without the queue store: never infer a terminal queue
+            # decision from an old attempt's ERROR row.
+            body["metadata"] = {
+                **(body.get("metadata") or {}),
+                "queue": {"status": "unknown", "attempt": run_output.queue_attempt, "final": None},
+            }
+        return body
 
     @router.get(
         "/agents/{agent_id}/runs/{run_id}/checkpoints",

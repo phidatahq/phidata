@@ -8,13 +8,32 @@ import tarfile
 import tempfile
 from contextlib import suppress
 from pathlib import Path
-from typing import Any, Mapping, Optional, Sequence
+from typing import Any, Mapping, Optional, Protocol, Sequence
 
 from agno.sandbox.base import SandboxError, SandboxHandle, _sync
 from agno.sandbox.checkpoint import CheckpointArchive, CheckpointRef, FileCheckpointStore, _name, _preflight
 from agno.sandbox.docker import DockerSandboxProvider
 
 DEFAULT_NATIVE_EXCLUSIONS = ("native/codex/auth.json", "native/.claude/.credentials.json")
+
+
+class CheckpointTransfer(Protocol):
+    """Provider transport preserving the same verified portable archive contract."""
+
+    store: FileCheckpointStore
+    archive: CheckpointArchive
+
+    async def acapture(
+        self, handle: SandboxHandle, *, state: Mapping[str, Any], exclude: Sequence[str] = DEFAULT_NATIVE_EXCLUSIONS
+    ) -> CheckpointRef: ...
+
+    def capture(
+        self, handle: SandboxHandle, *, state: Mapping[str, Any], exclude: Sequence[str] = DEFAULT_NATIVE_EXCLUSIONS
+    ) -> CheckpointRef: ...
+
+    async def arestore(self, handle: SandboxHandle, reference: CheckpointRef) -> Mapping[str, Any]: ...
+
+    def restore(self, handle: SandboxHandle, reference: CheckpointRef) -> Mapping[str, Any]: ...
 
 
 class DockerCheckpointTransfer:

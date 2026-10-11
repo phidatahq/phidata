@@ -261,3 +261,12 @@ async def test_runtime_rpc_rejects_arbitrary_commands():
     handle = await provider.acreate(spec())
     with pytest.raises(ValueError, match="start/poll"):
         await provider.arpc(handle, "shell", b"{}")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("limits", [{"pids_limit": None}, {"workspace_mb": None}])
+async def test_docker_requires_explicit_limits_before_allocation(limits):
+    provider = FakeDocker()
+    with pytest.raises(ValueError):
+        await provider.acreate(spec(**limits))
+    assert not provider.calls

@@ -35,8 +35,8 @@ class SandboxAgent(BaseExternalAgent):
     network: str = "none"
     cpus: float = 2
     memory_mb: int = 2048
-    workspace_mb: int = 512
-    pids_limit: int = 256
+    workspace_mb: Optional[int] = 512
+    pids_limit: Optional[int] = 256
     execution_timeout: float = 900
 
     _sdk_name: ClassVar[str] = "sandbox"

@@ -20,8 +20,8 @@ class SandboxSpec:
     env: Mapping[str, str] = field(default_factory=dict, repr=False)
     cpus: float = 2.0
     memory_mb: int = 2048
-    pids_limit: int = 256
-    workspace_mb: int = 512
+    pids_limit: Optional[int] = 256
+    workspace_mb: Optional[int] = 512
     network: str = "none"
 
     def __post_init__(self) -> None:
@@ -32,8 +32,13 @@ class SandboxSpec:
             raise ValueError("Option-like images and shared host/container networking are not supported")
         if type(self.generation) is not int or self.generation < 1 or not math.isfinite(self.cpus) or self.cpus <= 0:
             raise ValueError("Sandbox generation and CPU limit must be positive")
-        if any(type(value) is not int or value < 1 for value in (self.memory_mb, self.pids_limit, self.workspace_mb)):
-            raise ValueError("Sandbox memory, process and workspace limits must be positive")
+        if type(self.memory_mb) is not int or self.memory_mb < 1:
+            raise ValueError("Sandbox memory limit must be positive")
+        if any(
+            value is not None and (type(value) is not int or value < 1)
+            for value in (self.pids_limit, self.workspace_mb)
+        ):
+            raise ValueError("Sandbox process and workspace limits must be positive or explicitly unset")
         values = dict(self.env)
         for key, value in values.items():
             if (

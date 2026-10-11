@@ -250,3 +250,12 @@ No model calls in the load run. Requests and daemon calls per turn are what scal
 
 ---
 
+### session_computer.py
+
+**Status:** PASS
+
+**Description:** Two credential-free runtime turns on real Docker and Postgres, using the synchronous coordinator API. The second turn restores the previous files into different compute. Both computers are retired after durable publication.
+
+**Result:** Cookbook passed. Integrated failure cases cover lost start/cleanup/commit acknowledgements, checkpoint outages, compute loss before checkpointing, identity mismatch on restore, unchanged configuration on reattach, cancellation, same-session contention, and terminal-event ordering. Real Postgres regressions additionally cover atomic rejection with no phantom run, explicit migration for older non-sandbox history, and cancellation drainage while a provider operation holds ownership rows. Self-review caught destructive RunOutput parsing during terminal event construction and fixed it by copying the input dictionary. No live models or hosted providers were used. Final counts are recorded in the PR validation notes.
+
+---

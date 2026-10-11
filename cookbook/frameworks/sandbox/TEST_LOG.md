@@ -163,3 +163,13 @@ Python 3.9 follow-up: 76 sandbox unit tests, 40 real Postgres cases and 12 Agent
 **Result:** 10 real Postgres tests and 96 sandbox unit tests passed. Required format and validation scripts passed. No hosted provider calls were made; this is allocation contract evidence, not hosted acceptance.
 
 ---
+
+### Hosted runtime and portable transfer
+
+**Status:** PASS
+
+**Description:** Local Docker bridge with real Postgres verifies UID/GID 1000, `no_new_privs`, inaccessible root control files, runtime events, background-writer freeze, native/workspace/symlink restoration, and rejection/teardown of imports into used computers. Provider-contract tests inject ambiguous creates, duplicate inventory, stale ownership, lost RPC/command replies, cancellation and resource mismatches.
+
+**Result:** 6 real Linux/Postgres cases passed across sync/async database adapters; hosted contract tests passed within the sandbox unit suite. No hosted platform or native-model calls were made.
+
+---

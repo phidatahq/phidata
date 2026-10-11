@@ -17,7 +17,13 @@ from pydantic import BaseModel
 from agno.agents.claude import ClaudeAgent
 from agno.agents.claude import agent as claude_module
 from agno.db.sqlite import SqliteDb
-from agno.run.agent import RunCompletedEvent, RunContentEvent, RunErrorEvent
+from agno.run.agent import (
+    RunCompletedEvent,
+    RunContentEvent,
+    RunErrorEvent,
+    ToolCallCompletedEvent,
+    ToolCallStartedEvent,
+)
 from agno.run.base import RunStatus
 
 # ---------------------------------------------------------------------------
@@ -1402,9 +1408,114 @@ def test_without_output_schema_no_output_format_is_sent(fake_sdk):
     assert "output_format" not in fake_sdk.options[-1]
 
 
+@pytest.mark.parametrize("stream", [True, False])
+def test_structured_output_tool_call_is_not_recorded_as_a_tool(fake_sdk, tmp_db, monkeypatch, stream):
+    """Claude Code delivers the object through a StructuredOutput tool call; the object comes from the
+    result message, so the call is not a tool call the agent made."""
+    read = ToolUseBlock()
+    read.id, read.name, read.input = "call-read", "Read", {"path": "notes.md"}
+    read_result = ToolResultBlock()
+    read_result.tool_use_id, read_result.content = "call-read", "Paris is the capital"
+    deliver = ToolUseBlock()
+    deliver.id, deliver.name, deliver.input = "call-so", "StructuredOutput", {"city": "Paris", "country": "France"}
+    ack = ToolResultBlock()
+    ack.tool_use_id, ack.content = "call-so", "Structured output provided successfully"
+    results = UserMessage()
+    results.content = [read_result, ack]
+
+    async def query(prompt, options):
+        yield SystemMessage(subtype="init", data={"session_id": "sdk-1"})
+        yield AssistantMessage([read, deliver])
+        yield results
+        yield AssistantMessage([TextBlock(text="The capital of France is Paris.")])
+        yield ResultMessage(
+            "sdk-1", "The capital of France is Paris.", structured_output={"city": "Paris", "country": "France"}
+        )
+
+    monkeypatch.setattr(claude_module._sdk(), "query", query)
+    agent = ClaudeAgent(name="Claude", id="claude", db=tmp_db, output_schema=Capital)
+    if stream:
+        events = _collect(agent, "Capital of France?", session_id="s")
+        started = [e.tool.tool_name for e in events if isinstance(e, ToolCallStartedEvent)]
+        completed = [e.tool.tool_name for e in events if isinstance(e, ToolCallCompletedEvent)]
+        assert started == ["Read"] and completed == ["Read"]
+        run = agent.get_session("s").runs[-1]
+    else:
+        run = agent.run("Capital of France?", session_id="s")
+    assert run.content == Capital(city="Paris", country="France") or run.content == {
+        "city": "Paris",
+        "country": "France",
+    }
+    assert [t.tool_name for t in run.tools or []] == ["Read"]
+    assert [m.content for m in run.messages or [] if m.role == "tool"] == ["Paris is the capital"]
+
+
+def test_non_object_output_schema_is_rejected_before_the_run(fake_sdk):
+    """Claude Code's structured output tool takes an object; the API answers 400 for an array root."""
+    from typing import List
+
+    from pydantic import RootModel
+
+    class Names(RootModel[List[str]]):
+        pass
+
+    with pytest.raises(ValueError, match="must describe a JSON object"):
+        ClaudeAgent(name="Claude", id="claude", output_schema=Names)
+    agent = ClaudeAgent(name="Claude", id="claude")
+    with pytest.raises(ValueError, match="must describe a JSON object"):
+        agent.run("List colours", output_schema={"type": "array", "items": {"type": "string"}})
+    assert fake_sdk.calls == []
+
+
 def test_answer_that_does_not_match_the_schema_stays_text(fake_sdk):
     fake_sdk.reply = "I could not find it."
     agent = ClaudeAgent(name="Claude", id="claude", output_schema=Capital)
     run = agent.run("Capital of Atlantis?")
     assert run.status == RunStatus.completed
     assert run.content == "I could not find it." and run.content_type == "str"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("mode", ["sync", "async", "sync-stream", "async-stream"])
+async def test_subagent_tool_lineage_survives_events_and_storage(scripted, tmp_db, mode):
+    from agno.models.response import ToolExecution
+    from agno.run.agent import RunOutput, ToolCallCompletedEvent, ToolCallStartedEvent
+
+    turns, _, _ = scripted
+    parent = _tool_turn("go")
+    parent[2].content[0].id = "parent-call"
+    parent[2].content[0].name = "Agent"
+    parent[3].content[0].tool_use_id = "parent-call"
+    child = _tool_turn("child")
+    child[2].parent_tool_use_id = "parent-call"
+    # A completion can omit lineage; it must retain the start message's parent.
+    child[3].content[0].is_error = True
+    turns.append([parent[0], parent[1], parent[2], child[2], child[3], *parent[3:]])
+    agent = ClaudeAgent(id="lineage", db=tmp_db)
+    if mode.endswith("stream"):
+        kwargs = dict(stream=True, session_id="s", yield_run_output=True)
+        if mode == "sync-stream":
+            events = list(agent.run("go", **kwargs))
+        else:
+            events = [event async for event in agent.arun("go", **kwargs)]
+        for event in events:
+            if isinstance(event, (ToolCallStartedEvent, ToolCallCompletedEvent)):
+                expected_parent = "parent-call" if event.tool.tool_call_id == "call-1" else None
+                assert event.tool.parent_tool_call_id == expected_parent
+                restored = type(event).from_dict(event.to_dict())
+                assert restored.tool.parent_tool_call_id == expected_parent
+        run = events[-1]
+        assert isinstance(run, RunOutput)
+    elif mode == "sync":
+        run = agent.run("go", session_id="s")
+    else:
+        run = await agent.arun("go", session_id="s")
+    stored = await agent.aget_run_output(run.run_id, "s")
+    for output in (run, stored):
+        tools = {tool.tool_call_id: tool for tool in output.tools}
+        assert tools["parent-call"].parent_tool_call_id is None
+        assert tools["call-1"].parent_tool_call_id == "parent-call"
+        assert tools["call-1"].tool_call_error is True
+        restored = ToolExecution.from_dict(tools["call-1"].to_dict())
+        assert restored.parent_tool_call_id == "parent-call"
+    assert ToolExecution.from_dict({"tool_call_id": "old-record"}).parent_tool_call_id is None

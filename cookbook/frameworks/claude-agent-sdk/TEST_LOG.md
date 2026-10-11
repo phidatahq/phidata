@@ -2,6 +2,26 @@
 
 ## 2026-10-10
 
+### structured_output_tools.py (2026-10-11)
+
+**Status:** PASS (claude-sonnet-4-6)
+
+**Description:** `output_schema=DiskUsage` with a Bash call (`du -sh .`), non-streamed and streamed, then a `RootModel[List[str]]` schema.
+
+**Result:** Both runs returned a `DiskUsage` with `content_type` DiskUsage. `run.tools` held only `Bash`, the stored history held only the `du` result, and the streamed tool events were `['Bash']`: the `StructuredOutput` delivery call is not recorded. The list-rooted schema was refused with `ValueError` before the run.
+
+---
+
+### structured_output.py (review follow-ups, 2026-10-11)
+
+**Status:** PASS (claude-sonnet-4-6)
+
+**Description:** Review of the output_schema change. Live: a model schema with a Bash call, non-streamed and streamed; a stored run read back; a `RootModel[List[str]]` and an array JSON Schema; AgentOS `output_schema` form field non-streamed, streamed, with `use_json_schema`, the run view, and a background run; then the cookbook rerun after the fixes.
+
+**Result:** Found and fixed: (1) Claude Code's `StructuredOutput` delivery call was recorded as a tool call (`run.tools` held Bash plus StructuredOutput with the acknowledgement as its result, the stream emitted a `ToolCallStarted` for it, and the stored history carried `tool result: Structured output provided successfully`); it is now dropped on both paths and the object still comes from the result message. (2) An array-rooted schema made the whole run fail with the API's `400 tools.N.custom.input_schema.type: Input should be 'object'`; it is now refused with `ValueError` before the run on both harnesses. AgentOS: `content_type` DynamicModel with the parsed dict on every path, `dict` with `use_json_schema`. Cookbook reran unchanged after the fixes.
+
+---
+
 ### structured_output.py
 
 **Status:** PASS

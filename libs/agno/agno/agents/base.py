@@ -747,8 +747,22 @@ class BaseExternalAgent:
     # ---------------------------------------------------------------------------
 
     def _check_output_schema(self, output_schema: Any) -> None:
-        if output_schema is not None and not self._supports_output_schema:
+        """Reject an output_schema the adapter cannot send: unsupported adapters, and schemas whose
+        root is not a JSON object. Claude Code delivers the object through a tool whose input must
+        be an object, and Codex's response format requires an object root, so a list or scalar at
+        the top level (a RootModel[List[...]], {"type": "array"}) fails the run on the provider
+        side. Wrap such a value in a model field instead."""
+        if output_schema is None:
+            return
+        if not self._supports_output_schema:
             raise ValueError(f"{type(self).__name__} does not support output_schema")
+        schema = output_schema if isinstance(output_schema, dict) else output_schema.model_json_schema()
+        root_type = schema.get("type")
+        if root_type != "object" and not (root_type is None and "properties" in schema):
+            raise ValueError(
+                f"{type(self).__name__} output_schema must describe a JSON object (got type {root_type!r}); "
+                "wrap a list or scalar in a model field"
+            )
 
     def _resolve_output_schema(self, kwargs: Dict[str, Any]) -> Optional[Union[Type[BaseModel], Dict[str, Any]]]:
         """The run's output_schema, the call's over the agent's, left in kwargs for the adapter."""
@@ -780,16 +794,18 @@ class BaseExternalAgent:
             return
         answer = structured_output if structured_output is not None else run.content
         parsed: Any = None
+        # A decoded value (the framework already parsed the JSON) is validated as it is; only text
+        # goes through the JSON parsers, which also strip fences and surrounding prose.
         if isinstance(output_schema, dict):
-            parsed = answer if isinstance(answer, dict) else parse_response_dict_str(str(answer or ""))
+            parsed = parse_response_dict_str(answer) if isinstance(answer, str) else answer
             content_type = "dict"
         else:
             content_type = output_schema.__name__
             try:
-                if isinstance(answer, dict):
-                    parsed = output_schema.model_validate(answer)
+                if isinstance(answer, str):
+                    parsed = parse_response_model_str(answer, output_schema)
                 else:
-                    parsed = parse_response_model_str(str(answer or ""), output_schema)
+                    parsed = output_schema.model_validate(answer)
             except ValidationError as error:
                 log_warning(f"{self.framework} answer does not match {content_type}: {error}")
         if parsed is None:

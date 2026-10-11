@@ -72,11 +72,14 @@ Every run reports the tokens, cache usage and cost Claude Code returned for the 
 
 ## Structured output
 
-`output_schema` takes a Pydantic model or a JSON Schema dict, on the agent or per run (`agent.run(..., output_schema=...)`), the same as an Agno `Agent`. The run content is the parsed model, or a dict for a JSON Schema, and `content_type` names it. Claude Code returns the object through a `StructuredOutput` tool call and then replies in prose: the streamed text is that reply, and the `RunCompleted` event and the stored run carry the parsed object. An answer that cannot be parsed stays text and a warning is logged. AgentOS's per-request `output_schema` form field reaches the agent the same way.
+`output_schema` takes a Pydantic model or a JSON Schema dict, on the agent or per run (`agent.run(..., output_schema=...)`), the same as an Agno `Agent`. The run content is the parsed model, or a dict for a JSON Schema, and `content_type` names it. Claude Code returns the object through a `StructuredOutput` tool call and then replies in prose: the streamed text is that reply, and the `RunCompleted` event and the stored run carry the parsed object. An answer that cannot be parsed stays text and a warning is logged. AgentOS's per-request `output_schema` form field reaches the agent the same way. The schema must describe a JSON object: Claude Code's structured output tool takes an object, and the API rejects an array or scalar root, so a `RootModel[List[...]]` or `{"type": "array"}` is refused with `ValueError` before the run; wrap the value in a model field. The `StructuredOutput` call Claude Code makes to deliver the object is not recorded as a tool call.
 
 ```bash
 .venvs/demo/bin/python cookbook/frameworks/claude-agent-sdk/structured_output.py
+.venvs/demo/bin/python cookbook/frameworks/claude-agent-sdk/structured_output_tools.py
 ```
+
+`structured_output_tools.py` pairs a schema with a Bash call and shows that only Bash is recorded as a tool, on both paths, and that a list-rooted schema is refused before the run.
 
 ## Background runs and cancellation
 

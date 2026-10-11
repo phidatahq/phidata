@@ -132,7 +132,7 @@ curl -X POST http://localhost:7777/agents/coder/runs \
 
 Keep the returned run ID. Reconnect with `POST /agents/coder/runs/{run_id}/resume` using form fields `session_id` and optionally `last_event_index`; cancel with `POST /agents/coder/runs/{run_id}/cancel?session_id=example`. Reusing an idempotency key requires the same session ID, input and options. Conflicting submissions return 409. Streaming terminal success follows the durable checkpoint commit. Retained indexed events support replay after the live Redis view expires; content deltas follow the agent's `events_to_skip` policy.
 
-This slice accepts text and JSON runtime configuration, including structured-output schemas. File/image inputs, step replay/fork, version-pinned instances and arbitrary per-turn SDK options are explicitly rejected pending checkpoint-aware integrations. Do not use the ordinary session deletion API to retire sandbox resources; coordinated lifecycle/retention is a separate follow-up. A failed checkpoint upload retries finalization without repeating the model. If the configured queue attempts are exhausted, compute is removed and the turn fails visibly while retaining the previous checkpoint. External effects can still repeat after execution crashes and need application idempotency.
+This slice accepts text and JSON runtime configuration, including structured-output schemas. File/image inputs, step replay/fork, version-pinned instances and arbitrary per-turn SDK options are explicitly rejected pending checkpoint-aware integrations. The ordinary session deletion API refuses sessions with retained sandbox recovery; purge their recovery data first using the lifecycle API below. A failed checkpoint upload retries finalization without repeating the model. If the configured queue attempts are exhausted, compute is removed and the turn fails visibly while retaining the previous checkpoint. External effects can still repeat after execution crashes and need application idempotency.
 
 
 ## Status and artifacts after compute removal
@@ -146,4 +146,21 @@ This slice accepts text and JSON runtime configuration, including structured-out
 
 Run a fixture turn in `agentos.py` first. `SANDBOX_API_URL` overrides the server URL and `SANDBOX_BEARER_TOKEN` supplies authentication when configured. Existing output files are never overwritten. HTTP routes use AgentOS agent-run permission and configured user isolation; service code can use the exact-owner `SandboxArtifacts.status/list/read` and async variants. Downloads are bounded to 8 MiB by default, served as attachments, and reject symlinks, traversal and native runtime state. Archive checksum and session-incarnation identity are verified before reading. Missing storage fails visibly. Listing pagination bounds the response; archive validation still scans the bounded checkpoint.
 
-These are read operations. Compute lifecycle, durable data deletion and automatic retention are separate operations and are not implied by downloading an artifact.
+These are read operations. Compute retirement and recovery deletion are explicit operations below; downloading an artifact never deletes data.
+
+
+## Retire compute and delete recovery data
+
+`POST .../sandbox/retire` cancels the active run and reconciles compute removal, retaining the last completed checkpoint. It is idempotent for idle sessions. A later turn can allocate replacement compute from that checkpoint. The response describes the retired run; it does not pause admission of future turns.
+
+`DELETE .../sandbox/recovery` permanently retires the session identity and deletes its published workspace/native checkpoint objects. It requires an idle session; retire an active run first. A database tombstone blocks new execution before storage deletion starts. If storage cleanup fails, retry the same operation; the session stays retired and ordinary conversation deletion stays blocked until cleanup completes. Each object is checked against the exact session incarnation before removal. A new session needs a new ID.
+
+Recovery deletion retains conversation/tool audit history. After it succeeds, the ordinary `DELETE /sessions/{session_id}` endpoint can delete that history. Both Postgres adapters protect this ordering inside their deletion transactions, including bulk deletion. Unreferenced uploads, provider logs, storage backups and external tool effects are outside this published-checkpoint deletion operation; their retention is a separate operator policy. Automatic idle/retention scheduling, fleet quotas and warm reuse are not enabled by these APIs.
+
+With the `agentos.py` fixture server running, this example creates and deletes only its own fresh session:
+
+```bash
+.venv/bin/python cookbook/frameworks/sandbox/retire_recovery.py
+```
+
+Library code can use `SandboxLifecycle.retire/delete_recovery` or `aretire/adelete_recovery`. Ownership is exact, including `user_id=None`; synchronous entry points require `PostgresDb`.

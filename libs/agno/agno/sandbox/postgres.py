@@ -121,6 +121,18 @@ class PostgresSandboxStore:
     def setup(self) -> None:
         self._sync(self.asetup)
 
+    async def _acheck_acceptance(self, agent_id: str, session_id: str, user_id: Optional[str]) -> None:
+        def check(connection: Connection) -> None:
+            row = connection.execute(select(self.bindings).where(self._key(session_id))).mappings().first()
+            if row is None:
+                return
+            if row["agent_id"] != agent_id or row["user_id"] != user_id:
+                raise ValueError("Sandbox session is not available in this ownership scope")
+            if row["record"]["phase"] in ("deleting", "deleted"):
+                raise ValueError("Sandbox session identity is retired; use a new session ID")
+
+        await self._transaction(check)
+
     async def _transaction(self, operation: Callable[[Connection], _T]) -> _T:
         if self.sessions is None or self.runs is None:
             raise SandboxError("Call sandbox store setup before accepting runs")
@@ -253,6 +265,10 @@ class PostgresSandboxStore:
             )
             if row["agent_id"] != agent_id or row["user_id"] != user_id:
                 raise SandboxLeaseLost("Sandbox session ownership is immutable")
+            if row["record"]["phase"] in ("deleting", "deleted"):
+                from agno.sandbox.lifecycle import SandboxRecoveryDeleted
+
+                raise SandboxRecoveryDeleted("Sandbox recovery is being deleted or was deleted; use a new session ID")
             if prepared_run is not None:
                 value = self._json(prepared_run)
                 if (

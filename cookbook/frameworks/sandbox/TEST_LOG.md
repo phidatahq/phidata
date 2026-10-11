@@ -113,3 +113,13 @@ Python 3.9 follow-up: 76 sandbox unit tests, 40 real Postgres cases and 12 Agent
 **Result:** 81 sandbox unit tests plus 7 real artifact API cases passed on both Python 3.12 and Python 3.9. The real-server cookbook passed; its process and temporary database were removed. Required scripts passed. A pytest duplicate module basename and an imported-fixture lint collision were corrected before the final runs. HTTP identity isolation uses preverified request state; JWT signature verification is covered by the existing auth tests, not this fixture. No model or hosted-provider calls.
 
 ---
+
+### retire_recovery.py and explicit lifecycle operations
+
+**Status:** PASS
+
+**Description:** Real-server cookbook retires its fresh fixture session, downloads its retained artifact, purges published recovery checkpoints, then deletes conversation history. Postgres tests exercise both adapters, exact-owner scope, active-session refusal, partial storage cleanup retry, foreign-reference refusal, lost commit acknowledgement, bulk-delete atomicity and the permanent session tombstone. HTTP tests cover retirement/cancellation reconciliation and a submission racing deletion.
+
+**Result:** 197 focused database/sandbox/queue unit cases passed. Twenty lifecycle/database cases passed across both Postgres adapters; four lifecycle HTTP cases and twelve AgentOS regression cases passed after classifying retired-session input as a permanent queue failure. Required scripts passed in the established environment. Review fixed an early acknowledgement race with the queue cancellation worker. A test's ordinary-session fixture initially omitted its required creation timestamp and was corrected. No live model or hosted-provider calls. Unreferenced upload retention, warm reuse and fleet quotas are outside this published-checkpoint deletion slice.
+
+---

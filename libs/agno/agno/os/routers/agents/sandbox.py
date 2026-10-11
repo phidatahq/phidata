@@ -35,6 +35,7 @@ async def enqueue_sandbox_run(
     if worker.resolve_component("agent", agent.get_id()) is not agent:
         raise ValueError("Sandbox submissions must use the registered agent instance")
     options = agent._submission(input, kwargs)
+    await agent.coordinator.store._acheck_acceptance(agent.get_id(), session_id, user_id)
     payload = {"input": input, "kwargs": options, "stream": True, "serialize_session": True}
     if len(json.dumps(payload, allow_nan=False).encode()) > 1024 * 1024:
         raise ValueError("Sandbox submission exceeds 1 MiB")

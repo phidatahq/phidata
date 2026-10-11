@@ -15,6 +15,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from agno.exceptions import ComponentRehydrationError
 from agno.models.base import Function
 from agno.run.base import RunContext
 from agno.run.team import TeamRunOutput
@@ -188,7 +189,7 @@ def test_to_dict_stores_skill_names_not_content(tmp_path):
     """A saved team carries only skill names; the content stays in the skills table."""
     db = _make_db(tmp_path)
     _create_skill_row(db)
-    team = Team(name="test-team", members=[], db=db, skills=Skills(loaders=[DbSkills(db)]))
+    team = Team(name="test-team", members=[], db=db, skills=Skills(loaders=[DbSkills(db, names=["release-notes"])]))
 
     config = team.to_dict()
 
@@ -220,7 +221,9 @@ def test_from_dict_without_db_drops_skills_with_warning(tmp_path, monkeypatch):
     """With no db to resolve against, the reference is dropped with a warning, never an error."""
     db = _make_db(tmp_path)
     _create_skill_row(db)
-    config = Team(name="test-team", members=[], skills=Skills(loaders=[DbSkills(db)])).to_dict()
+    config = Team(
+        name="test-team", members=[], skills=Skills(loaders=[DbSkills(db, names=["release-notes"])])
+    ).to_dict()
 
     warnings: List[str] = []
     monkeypatch.setattr("agno.team._storage.log_warning", warnings.append)
@@ -236,7 +239,9 @@ def test_strict_load_raises_when_a_saved_skill_row_is_gone(tmp_path, monkeypatch
 
     db = _make_db(tmp_path)
     _create_skill_row(db)
-    config = Team(name="test-team", members=[], db=db, skills=Skills(loaders=[DbSkills(db)])).to_dict()
+    config = Team(
+        name="test-team", members=[], db=db, skills=Skills(loaders=[DbSkills(db, names=["release-notes"])])
+    ).to_dict()
 
     assert Team.from_dict(config, db=db, strict=True).skills.get_skill_names() == ["release-notes"]
 
@@ -325,7 +330,9 @@ def test_strict_load_raises_when_no_db_can_resolve_the_saved_skills(tmp_path):
 
     db = _make_db(tmp_path)
     _create_skill_row(db)
-    config = Team(name="test-team", members=[], skills=Skills(loaders=[DbSkills(db)])).to_dict()
+    config = Team(
+        name="test-team", members=[], skills=Skills(loaders=[DbSkills(db, names=["release-notes"])])
+    ).to_dict()
     assert "db" not in config
 
     for _ in range(2):
@@ -348,12 +355,8 @@ def test_strict_load_accepts_a_saved_skill_owned_by_another_user(tmp_path):
         assert "alice-notes" in team.skills.get_system_prompt_snippet(user_id="alice")
 
 
-def test_resave_during_outage_preserves_skill_names(tmp_path, monkeypatch):
-    """Data-loss regression, team twin: healthy save, load during an outage, resave, recover.
-
-    The failed load leaves the mapping empty, but the loader still carries its
-    configured names, so the resave must write them back instead of deleting them.
-    """
+def test_resave_during_outage_keeps_the_all_marker(tmp_path, monkeypatch):
+    """Data-loss regression: healthy save, load during an outage, resave, recover."""
     from agno.db.sqlite import SqliteDb
 
     db = _make_db(tmp_path)
@@ -373,14 +376,14 @@ def test_resave_during_outage_preserves_skill_names(tmp_path, monkeypatch):
         assert loaded.skills.get_skill_names() == []
         loaded.save()
 
-    assert db.get_config(component_id=team.id)["config"]["skills"] == {"names": ["release-notes"]}
+    assert db.get_config(component_id=team.id)["config"]["skills"] == {"all": True}
     recovered = get_team_by_id(db, team.id)
     assert recovered is not None and recovered.skills is not None
     assert "release-notes" in recovered.skills.get_system_prompt_snippet()
 
 
-def test_resave_of_fresh_instance_during_outage_preserves_names(tmp_path):
-    """Data-loss regression, team twin: a redeploy during an outage must not erase saved names."""
+def test_resave_of_fresh_instance_during_outage_keeps_the_all_marker(tmp_path):
+    """Data-loss regression: a redeploy during an outage must not erase the saved skills."""
     db = _make_db(tmp_path)
     _create_skill_row(db)
     Team(id="boot-team", name="boot-team", members=[], db=db, skills=Skills(loaders=[DbSkills(db)])).save()
@@ -394,17 +397,14 @@ def test_resave_of_fresh_instance_during_outage_preserves_names(tmp_path):
     fresh.save()
     db.get_skills_with_content = original
 
-    assert db.get_config(component_id="boot-team")["config"]["skills"] == {"names": ["release-notes"]}
+    assert db.get_config(component_id="boot-team")["config"]["skills"] == {"all": True}
     recovered = get_team_by_id(db, "boot-team")
     assert recovered is not None and recovered.skills is not None
     assert "release-notes" in recovered.skills.get_system_prompt_snippet()
 
 
-def test_resave_during_partial_outage_merges_prior_names(tmp_path):
-    """Partial-outage regression, team twin: one loader up, one down — the resave must
-    union the surviving loader's names with the stored ones instead of dropping the
-    down loader's.
-    """
+def test_resave_during_partial_outage_keeps_the_all_marker(tmp_path):
+    """A names=None loader saves the marker whichever loaders are down."""
     from agno.db.sqlite import SqliteDb
 
     db = _make_db(tmp_path)
@@ -415,7 +415,7 @@ def test_resave_during_partial_outage_merges_prior_names(tmp_path):
 
     loaders = [DbSkills(db, names=["skill-a"]), DbSkills(db2)]
     Team(id="partial-team", name="partial-team", members=[], db=db, skills=Skills(loaders=loaders)).save()
-    assert db.get_config(component_id="partial-team")["config"]["skills"] == {"names": ["skill-a", "skill-b"]}
+    assert db.get_config(component_id="partial-team")["config"]["skills"] == {"all": True}
 
     def boom(*args, **kwargs):
         raise RuntimeError("database down")
@@ -432,7 +432,7 @@ def test_resave_during_partial_outage_merges_prior_names(tmp_path):
     fresh.save()
     db2.get_skills_with_content = original
 
-    assert db.get_config(component_id="partial-team")["config"]["skills"] == {"names": ["skill-a", "skill-b"]}
+    assert db.get_config(component_id="partial-team")["config"]["skills"] == {"all": True}
     recovered = get_team_by_id(db, "partial-team")
     assert recovered is not None and recovered.skills is not None
     snippet = recovered.skills.get_system_prompt_snippet()
@@ -440,24 +440,25 @@ def test_resave_during_partial_outage_merges_prior_names(tmp_path):
 
 
 def test_deleted_skill_not_resurrected_when_loader_succeeded(tmp_path):
-    """Team twin: a succeeded loader's reduced result is authoritative — a name deleted
-    from the table is dropped on resave, not carried back from the prior config.
-    """
+    """A name deleted from the table is not carried in the saved config or resolved on load."""
     db = _make_db(tmp_path)
     _create_skill_row(db, "skill-a")
     _create_skill_row(db, "skill-b")
     Team(id="del-team", name="del-team", members=[], db=db, skills=Skills(loaders=[DbSkills(db)])).save()
-    assert db.get_config(component_id="del-team")["config"]["skills"] == {"names": ["skill-a", "skill-b"]}
+    assert db.get_config(component_id="del-team")["config"]["skills"] == {"all": True}
 
     db.delete_skill("skill-b")
     fresh = Team(id="del-team", name="del-team", members=[], db=db, skills=Skills(loaders=[DbSkills(db)]))
     fresh.save()
 
-    assert db.get_config(component_id="del-team")["config"]["skills"] == {"names": ["skill-a"]}
+    assert db.get_config(component_id="del-team")["config"]["skills"] == {"all": True}
+    loaded = Team.load("del-team", db=db)
+    assert loaded is not None and loaded.skills is not None
+    assert loaded.skills.get_skill_names() == ["skill-a"]
 
 
-def test_first_save_during_outage_omits_skills(tmp_path):
-    """Team twin: with no prior config there is nothing to preserve; the first save omits the key."""
+def test_first_save_during_outage_keeps_the_all_marker(tmp_path):
+    """With no prior config and the table unreachable, the first save still records the marker."""
     db = _make_db(tmp_path)
     _create_skill_row(db)
 
@@ -470,13 +471,11 @@ def test_first_save_during_outage_omits_skills(tmp_path):
     team.save()
     db.get_skills_with_content = original
 
-    assert "skills" not in db.get_config(component_id="first-team")["config"]
+    assert db.get_config(component_id="first-team")["config"]["skills"] == {"all": True}
 
 
-def test_resave_after_successful_empty_load_omits_skills(tmp_path):
-    """Team twin: a load that succeeded with zero rows is genuinely empty; the resave
-    omits the key rather than resurrecting stale names.
-    """
+def test_resave_after_successful_empty_load_keeps_the_all_marker(tmp_path):
+    """An empty table still saves the marker, so rows created later resolve on load."""
     db = _make_db(tmp_path)
     _create_skill_row(db)
     Team(id="empty-team", name="empty-team", members=[], db=db, skills=Skills(loaders=[DbSkills(db)])).save()
@@ -485,7 +484,11 @@ def test_resave_after_successful_empty_load_omits_skills(tmp_path):
     fresh = Team(id="empty-team", name="empty-team", members=[], db=db, skills=Skills(loaders=[DbSkills(db)]))
     fresh.save()
 
-    assert "skills" not in db.get_config(component_id="empty-team")["config"]
+    assert db.get_config(component_id="empty-team")["config"]["skills"] == {"all": True}
+    _create_skill_row(db, "added-later")
+    loaded = Team.load("empty-team", db=db)
+    assert loaded is not None and loaded.skills is not None
+    assert loaded.skills.get_skill_names() == ["added-later"]
 
 
 def test_graph_hydrated_member_agent_resolves_skills(tmp_path):
@@ -694,3 +697,45 @@ def test_team_load_of_a_default_executor_team_is_unchanged(tmp_path):
 
     assert loaded is not None
     assert type(loaded.skills.executor) is LocalSkillExecutor
+
+
+# ============================================================================
+# SAVES WHILE A LOADER HAS NOT LOADED (ASYNC SKILLS DATABASE)
+# ============================================================================
+
+
+def _async_skills_dbs(tmp_path):
+    """A sync and an async handle on one file: the async one never loads eagerly."""
+    from agno.db.sqlite import SqliteDb
+    from agno.db.sqlite.async_sqlite import AsyncSqliteDb
+
+    path = str(tmp_path / "async-skills.db")
+    sync_db = SqliteDb(db_file=path)
+    sync_db.create_skill({"name": "greeter", "description": "d", "instructions": "i"})
+    return sync_db, AsyncSqliteDb(db_file=path)
+
+
+def test_resave_keeps_the_executor_marker_while_a_loader_has_not_loaded(tmp_path):
+    """A second save must not drop requires_executor, or the load falls back to the host executor."""
+    sync_db, async_db = _async_skills_dbs(tmp_path)
+    skills = Skills(loaders=[DbSkills(async_db, names=["greeter"])], executor=_TeamSandboxExecutor())
+    component = Team(name="s", id="sandboxed", members=[], db=sync_db, skills=skills)
+
+    for _ in range(2):
+        component.save()
+        saved = sync_db.get_config(component_id="sandboxed")["config"]["skills"]
+        assert saved == {"names": ["greeter"], "requires_executor": True}
+        with pytest.raises(ComponentRehydrationError, match="executor"):
+            Team.load("sandboxed", db=sync_db)
+
+
+def test_first_save_with_an_unloaded_all_rows_loader_round_trips(tmp_path):
+    """names=None on an async database has loaded nothing at save time; the marker still resolves every row."""
+    sync_db, async_db = _async_skills_dbs(tmp_path)
+    Team(name="s", id="all-rows", members=[], db=sync_db, skills=Skills(loaders=[DbSkills(async_db)])).save()
+
+    assert sync_db.get_config(component_id="all-rows")["config"]["skills"] == {"all": True}
+    for _ in range(2):
+        loaded = Team.load("all-rows", db=sync_db)
+        assert loaded is not None and loaded.skills is not None
+        assert loaded.skills.get_skill_names() == ["greeter"]

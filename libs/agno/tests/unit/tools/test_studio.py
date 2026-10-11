@@ -3851,9 +3851,12 @@ class TestEditPreservation:
 
         db = SqliteDb(db_file=str(tmp_path / "preserve_skills.db"))
         db.create_skill({"name": "release-notes", "description": "Draft release notes", "instructions": "i"})
-        Agent(id="skills-agent", name="S", model=OpenAIResponses(id="gpt-5.5"), skills=Skills([DbSkills(db)])).save(
-            db=db
-        )
+        Agent(
+            id="skills-agent",
+            name="S",
+            model=OpenAIResponses(id="gpt-5.5"),
+            skills=Skills([DbSkills(db, names=["release-notes"])]),
+        ).save(db=db)
 
         studio = StudioTools(registry=Registry(), db=db)
         for round_number in (1, 2):
@@ -3871,9 +3874,12 @@ class TestEditPreservation:
 
         db = SqliteDb(db_file=str(tmp_path / "preserve_skills_step.db"))
         db.create_skill({"name": "release-notes", "description": "Draft release notes", "instructions": "i"})
-        Agent(id="skills-agent", name="S", model=OpenAIResponses(id="gpt-5.5"), skills=Skills([DbSkills(db)])).save(
-            db=db
-        )
+        Agent(
+            id="skills-agent",
+            name="S",
+            model=OpenAIResponses(id="gpt-5.5"),
+            skills=Skills([DbSkills(db, names=["release-notes"])]),
+        ).save(db=db)
 
         studio = StudioTools(registry=Registry(), db=db)
         config: Dict[str, Any] = {"id": "skills-agent", "name": "S"}

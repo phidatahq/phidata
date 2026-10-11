@@ -141,3 +141,31 @@ print('SDK construction passed without model calls')
     result = await provider.aexec(computer, ["python", "-c", script])
     assert result.exit_code == 0, result.stderr
     assert "SDK construction passed" in result.stdout
+
+
+async def test_lost_poll_response_keeps_execution_available_for_another_client(runtime_computer, monkeypatch):
+    import json
+
+    provider, computer, first = runtime_computer
+    execution = await first.astart(
+        computer, execution_id="e", run_id="r", sdk="fixture", input="survives", config={"delay": 1}
+    )
+    original = provider._docker
+    lost = []
+
+    async def lose_response(*args, **kwargs):
+        response = await original(*args, **kwargs)
+        if args[:2] == ("container", "exec") and kwargs.get("input_data"):
+            command = json.loads(kwargs["input_data"])
+            if command["argv"][-1] == "poll" and not lost:
+                lost.append(True)
+                raise TimeoutError("injected lost poll response")
+        return response
+
+    monkeypatch.setattr(provider, "_docker", lose_response)
+    with pytest.raises(TimeoutError, match="lost poll"):
+        await first.apoll(execution)
+    assert (await provider.aget(computer.provider_ref)).state == "running"
+    second = SandboxRuntimeClient(DockerSandboxProvider(provider.namespace))
+    assert (await second.await_result(execution, timeout=20))["run"]["content"] == "survives"
+    assert (await provider.aexec(computer, ["cat", "fixture-effects.txt"])).stdout == "r\n"

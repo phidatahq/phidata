@@ -115,6 +115,18 @@ class SandboxProvider(ABC):
     ) -> ExecResult:
         return _sync(self.aexec(handle, argv, timeout=timeout, max_output_bytes=max_output_bytes, stdin=stdin))
 
+    async def arpc(self, handle: SandboxHandle, operation: str, payload: bytes) -> ExecResult:
+        """Send a bounded runtime start/poll request without terminating session compute.
+
+        A lost response is an uncertain control request, not a cancellation of the
+        model turn. Providers supporting session runtimes implement this separately
+        from arbitrary shell execution and must not replay a different execution.
+        """
+        raise NotImplementedError("This provider does not implement the runtime control protocol")
+
+    def rpc(self, handle: SandboxHandle, operation: str, payload: bytes) -> ExecResult:
+        return _sync(self.arpc(handle, operation, payload))
+
     @abstractmethod
     async def astop(self, handle: SandboxHandle) -> None: ...
 

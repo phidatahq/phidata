@@ -236,3 +236,28 @@ async def test_foreign_orphan_volume_is_not_removed():
     with pytest.raises(SandboxError, match="different sandbox identity"):
         await provider.adestroy(handle)
     assert len(provider.volumes) == 2
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure", [TimeoutError("lost control response"), SandboxError("lost control transport")])
+async def test_runtime_control_failure_never_stops_session_compute(failure):
+    class LostControl(FakeDocker):
+        async def _docker(self, *args, **kwargs):
+            if args[:2] == ("container", "exec"):
+                raise failure
+            return await super()._docker(*args, **kwargs)
+
+    provider = LostControl()
+    handle = await provider.acreate(spec())
+    with pytest.raises(type(failure)):
+        await provider.arpc(handle, "poll", b"{}")
+    assert (await provider.aget(handle.provider_ref)).state == "running"
+    assert not any(call[0][:2] == ("container", "stop") for call in provider.calls)
+
+
+@pytest.mark.asyncio
+async def test_runtime_rpc_rejects_arbitrary_commands():
+    provider = FakeDocker()
+    handle = await provider.acreate(spec())
+    with pytest.raises(ValueError, match="start/poll"):
+        await provider.arpc(handle, "shell", b"{}")

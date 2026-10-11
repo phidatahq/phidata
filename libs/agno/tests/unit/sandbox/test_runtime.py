@@ -132,8 +132,8 @@ class Provider:
         self.release = None
         self.entered = threading.Event()
 
-    async def aexec(self, computer, argv, **kwargs):
-        self.requests.append(json.loads(kwargs["stdin"]))
+    async def arpc(self, computer, operation, payload):
+        self.requests.append(json.loads(payload))
         self.entered.set()
         if self.release is not None:
             await self.release.wait()

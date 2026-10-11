@@ -175,3 +175,14 @@ async def test_resource_validation_failure_reclaims_bound_allocation():
         await provider.acreate(spec())
     assert len(provider.deletes) == 1
     assert next(iter(provider.journal.rows.values()))["state"] == "retired"
+
+
+@pytest.mark.asyncio
+async def test_ready_allocation_cannot_be_relabelled_to_another_session():
+    provider = Provider()
+    handle = await provider.acreate(spec())
+    computer = provider.computers[handle.provider_ref]
+    provider.computers[handle.provider_ref] = replace(computer, metadata={**computer.metadata, "session": "other"})
+    with pytest.raises(SandboxAllocationUnknown, match="metadata"):
+        await provider.afind(spec())
+    assert not provider.deletes

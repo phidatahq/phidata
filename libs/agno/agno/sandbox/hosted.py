@@ -130,6 +130,8 @@ class HostedSandboxProvider(SandboxProvider):
             if computer is None:
                 await self.journal._retire(self.namespace, row["name"], row["token"], row["provider_ref"])
                 return None
+        if dict(computer.metadata) != self._metadata(spec, row["token"]):
+            raise SandboxAllocationUnknown("Reconciled allocation metadata differs from the requested generation")
         return await self._verify(computer)
 
     async def acreate(self, spec: SandboxSpec) -> SandboxHandle:
@@ -188,7 +190,10 @@ class HostedSandboxProvider(SandboxProvider):
         if len(body) > 1024 * 1024:
             raise ValueError("Hosted control request exceeds 1 MiB")
         argv = ["python", "-I", "-m", "agno.sandbox.hosted_runtime", operation]
-        if operation != "init":
+        if operation == "init":
+            identity = json.dumps([handle.provider_ref, handle.name, handle.config_digest]).encode()
+            argv.append(hashlib.sha256(identity).hexdigest())
+        else:
             name = uuid4().hex + ".json"
             await _drain(self._write(handle.provider_ref, "/var/lib/agno-control/" + name, body))
             argv.append(name)

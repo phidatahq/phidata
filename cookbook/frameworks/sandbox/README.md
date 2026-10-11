@@ -127,3 +127,32 @@ limits cannot be requested. These values do not promise unlimited or durable dis
 Docker continues to require both limits. Portable checkpoint limits apply separately
 from the live filesystem size. Provider-specific setup and live acceptance are
 required before claiming hosted execution support.
+
+### Prepared hosted runtime
+
+The hosted transport requires a prepared Linux image containing this package and
+its chosen native SDK, installed into root-owned directories. Provider control
+commands run as root. Agent commands run as UID/GID 1000 with Linux
+`no_new_privs`; `/workspace` and `/runtime` must initially be empty. Provider
+daemons must run under other users and must not write the managed roots.
+
+`HostedCheckpointTransfer(provider, checkpoint_store)` implements the same portable
+archive format as Docker. Its initial transfer limit is 64 MiB per checkpoint;
+the service buffers those bytes during upload/download. Configure a smaller
+`CheckpointArchive(CheckpointLimits(...))` when needed. This limit is independent
+of the provider's live disk allocation. Large repositories and dependencies can
+exceed it and must fail completion rather than silently discard files.
+
+Capture freezes all UID 1000 processes and leaves them frozen until teardown.
+Only managed workspace and native files are restored; applications must restart.
+Quiesce database/application writers first if logical consistency is required.
+A captured computer cannot run another command. Lost capture responses can be
+recaptured during finalization without repeating model work. Imports require an
+unused computer; failures stop it. Known native credential files are excluded,
+but that exclusion is not a general secret scanner.
+
+The runtime helper is trusted control code. The initial deployment remains for
+customer-operated trusted teams; it is not a hostile multitenant security claim.
+The provider adapter must never auto-resume a stopped execution during inspection.
+Local acceptance exercises the helper with real Linux processes through a Docker
+test bridge; each hosted provider still requires live acceptance.

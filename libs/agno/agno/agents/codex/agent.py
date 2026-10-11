@@ -2,20 +2,26 @@ import asyncio
 import json
 from dataclasses import dataclass, field
 from importlib import import_module
-from typing import Any, AsyncIterator, Dict, Iterator, List, Optional, Set, Tuple
+from typing import Any, AsyncIterator, ClassVar, Dict, Iterator, List, Optional, Set, Tuple
 from uuid import uuid4
 
-from agno.agents.base import BaseExternalAgent, ExternalRunMetricsEvent, ExternalRunResult, run_coroutine_sync
+from agno.agents.base import (
+    BaseExternalAgent,
+    ExternalRunMetricsEvent,
+    ExternalRunResult,
+    ExternalRunStructuredOutputEvent,
+    run_coroutine_sync,
+)
 from agno.exceptions import RunCancelledException
 from agno.metrics import ModelMetrics, RunMetrics
 from agno.models.response import ToolExecution
-from agno.run.base import RunStatus
 from agno.run.agent import (
     RunContentEvent,
     RunOutputEvent,
     ToolCallCompletedEvent,
     ToolCallStartedEvent,
 )
+from agno.run.base import RunStatus
 from agno.utils.log import log_debug, log_warning
 
 
@@ -116,6 +122,9 @@ class _StreamState:
     error_info: Optional[str] = None
     usage_first: Any = None
     usage_last: Any = None
+    # The turn's answer by the SDK's final_response rule, for output_schema parsing.
+    final_answer: Optional[str] = None
+    final_answer_phased: bool = False
 
 
 @dataclass
@@ -153,7 +162,8 @@ class CodexAgent(BaseExternalAgent):
         reasoning_effort: "minimal", "low", "medium", "high" or "xhigh".
         cwd: Working directory for the agent.
         ephemeral: Do not persist Codex thread files. Ephemeral threads cannot be resumed.
-        output_schema: JSON Schema constraining the final answer. Content is the JSON string.
+        output_schema: Pydantic model or JSON Schema for the final answer. The run content is the parsed
+            model (a dict for a JSON Schema). A model is made strict (no extra keys, every field required).
         config: Codex config overrides applied to every thread (e.g. {"mcp_servers": {...}}).
         codex_bin: Path to a specific Codex executable. Defaults to the bundled one.
         env: Environment variables for the Codex process.
@@ -189,13 +199,14 @@ class CodexAgent(BaseExternalAgent):
     reasoning_effort: Optional[str] = None
     cwd: Optional[str] = None
     ephemeral: Optional[bool] = None
-    output_schema: Optional[Dict[str, Any]] = None
     config: Optional[Dict[str, Any]] = None
     codex_bin: Optional[str] = None
     env: Optional[Dict[str, str]] = None
     thread_kwargs: Dict[str, Any] = field(default_factory=dict)
     turn_kwargs: Dict[str, Any] = field(default_factory=dict)
     framework: str = "codex"
+
+    _supports_output_schema: ClassVar[bool] = True
 
     # Key under which the Codex thread id is stored in the Agno session's session_data.
     _THREAD_KEY = "codex_thread_id"
@@ -390,12 +401,12 @@ class CodexAgent(BaseExternalAgent):
             kwargs[key] = value
         return kwargs
 
-    def _turn_kwargs(self, sdk: Any) -> Dict[str, Any]:
+    def _turn_kwargs(self, sdk: Any, output_schema: Optional[Any] = None) -> Dict[str, Any]:
         kwargs: Dict[str, Any] = {}
         if self.reasoning_effort:
             kwargs["effort"] = self._to_reasoning_effort(sdk, self.reasoning_effort)
-        if self.output_schema:
-            kwargs["output_schema"] = self.output_schema
+        if output_schema is not None:
+            kwargs["output_schema"] = self._output_json_schema(output_schema, "openai")
         kwargs.update(self.turn_kwargs)
         return kwargs
 
@@ -485,7 +496,7 @@ class CodexAgent(BaseExternalAgent):
             thread, resumed = await self._open_thread(codex, sdk, session, session_id)
             prompt = self._build_prompt(input, history, resumed)
             run_id = kwargs.get("run_id") or str(uuid4())
-            handle = await thread.turn(prompt, **self._turn_kwargs(sdk))
+            handle = await thread.turn(prompt, **self._turn_kwargs(sdk, kwargs.get("output_schema")))
             self._set_run_handle(run_id, handle)
             try:
                 result = await self._acollect_turn(handle, kwargs.get("run_state"))
@@ -602,7 +613,7 @@ class CodexAgent(BaseExternalAgent):
         async with self._new_client() as codex:
             thread, resumed = await self._open_thread(codex, sdk, session, session_id)
             prompt = self._build_prompt(input, history, resumed)
-            handle = await thread.turn(prompt, **self._turn_kwargs(sdk))
+            handle = await thread.turn(prompt, **self._turn_kwargs(sdk, kwargs.get("output_schema")))
             self._set_run_handle(run_id, handle)
             try:
                 async for notification in handle.stream():
@@ -613,10 +624,14 @@ class CodexAgent(BaseExternalAgent):
 
         if state.error:
             raise CodexTurnError(f"Codex turn failed: {state.error}", state.error_info)
-            raise RuntimeError(f"Codex turn failed: {state.error}")
         metrics = self._metrics_from_usage(state.usage_first, state.usage_last)
         if metrics is not None:
             yield ExternalRunMetricsEvent(run_id=run_id, agent_id=self.get_id(), metrics=metrics)
+        if kwargs.get("output_schema") is not None and state.final_answer is not None:
+            # The streamed text joins commentary and the final answer; only the answer is the JSON.
+            yield ExternalRunStructuredOutputEvent(
+                run_id=run_id, agent_id=self.get_id(), structured_output=state.final_answer
+            )
 
     # Codex usage field -> Agno metrics field
     _USAGE_FIELDS = (
@@ -727,6 +742,12 @@ class CodexAgent(BaseExternalAgent):
             if getattr(item, "type", None) == "agentMessage":
                 item_id = getattr(item, "id", "") or ""
                 text = getattr(item, "text", "") or ""
+                phase = getattr(item, "phase", None)
+                phase = getattr(phase, "value", phase)
+                if phase == "final_answer":
+                    state.final_answer, state.final_answer_phased = text, True
+                elif phase is None and not state.final_answer_phased:
+                    state.final_answer = text
                 # Only emit the full text when no deltas were streamed for this item
                 if text and item_id not in state.text_item_ids:
                     if state.emitted_text:

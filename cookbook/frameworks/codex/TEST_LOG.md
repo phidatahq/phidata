@@ -42,6 +42,16 @@ Tested 2026-10-08 with openai-codex 0.161.0 (bundled Codex CLI 0.161.0), model g
 
 ---
 
+### codex_structured_output.py (Pydantic output_schema, 2026-10-10)
+
+**Status:** PASS
+
+**Description:** Reran with openai-codex 0.161.0 after `output_schema` moved to the base class. `output_schema=Movie` (Pydantic, sent as a strict schema): a non-streaming run, a streaming run, then a per-run JSON Schema dict. Also reran `codex_basic.py` to check a run without a schema is unchanged.
+
+**Result:** Non-streaming content was a `Movie` with `content_type` "Movie". The streaming `RunCompleted` event carried a `Movie`. The per-run schema returned `{'title': 'The Hive Within'}` with `content_type` "dict". Codex accepted the strict schema built from the Pydantic model. `codex_basic.py` streamed a normal answer.
+
+---
+
 ### codex_structured_output.py
 
 **Status:** PASS
@@ -147,5 +157,15 @@ Tested 2026-10-08 with openai-codex 0.161.0 (bundled Codex CLI 0.161.0), model g
 **Description:** Review finding: `usage.last` is one model request, not the turn, and `TurnResult.usage` is only the latest report, so a turn with tool calls under-counted on both paths. Replicated with a prompt that makes two shell calls, tapping every `thread/tokenUsage/updated` as (last, total). Fixed by computing the turn as the final thread total minus the thread total before the turn (first report's total minus its own request); the non-streaming path now consumes the notification stream itself instead of `handle.run()`. Reran `codex_metrics.py`, `codex_metrics_agentos.py --verify`, `codex_structured_output.py` and `codex_tools.py` to check the non-streaming path is unchanged.
 
 **Result:** Before: streamed turn recorded 14972 of 44739 actual, non-streamed 14502 of 43341. After: streamed 44725 of 44725, non-streamed 43289 of 43289 (three requests each). Other cookbooks unchanged.
+
+---
+
+### codex_structured_output.py (review follow-ups, 2026-10-11)
+
+**Status:** PASS (openai-codex 0.161.0, gpt-5.6-luna)
+
+**Description:** Review of the output_schema change. Live: a model with an `Optional` field (strict schema, nullable), non-streamed; a streamed turn on the resumed thread and its stored run; a `RootModel[List[str]]` and an array JSON Schema; the cookbook rerun after the fixes.
+
+**Result:** Optional field came back `null` and parsed to `None`; the resumed streamed turn parsed and stored the model with `content_type` Movie. An array-rooted schema failed the turn with Codex's `invalid_json_schema: schema must be a JSON Schema of 'type: "object"'`; it is now refused with `ValueError` before the turn. Cookbook reran unchanged.
 
 ---

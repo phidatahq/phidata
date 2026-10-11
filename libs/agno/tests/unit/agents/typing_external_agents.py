@@ -2,6 +2,7 @@
 
 from typing import TYPE_CHECKING, Any, AsyncIterator, Coroutine, Iterator, Union
 
+from pydantic import BaseModel
 from typing_extensions import assert_type
 
 from agno.agent.protocol import AgentProtocol
@@ -10,6 +11,12 @@ from agno.agents.codex import CodexAgent, ThreadOptions, TurnOptions
 from agno.run.agent import RunOutput, RunOutputEvent
 
 if TYPE_CHECKING:
+
+    class Answer(BaseModel):
+        answer: str
+
+    structured_claude = ClaudeAgent(output_schema=Answer)
+    structured_codex = CodexAgent(output_schema=Answer)
     agent = ClaudeAgent(model="example", tools=[])
     assert_type(agent.run("hello"), RunOutput)
     assert_type(agent.run("hello", stream=True), Iterator[RunOutputEvent])

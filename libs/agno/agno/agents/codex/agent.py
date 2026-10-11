@@ -17,7 +17,13 @@ from agno.agents._media import (
     stage_media,
     stage_prior_media,
 )
-from agno.agents.base import BaseExternalAgent, ExternalRunMetricsEvent, ExternalRunResult, run_coroutine_sync
+from agno.agents.base import (
+    BaseExternalAgent,
+    ExternalRunMetricsEvent,
+    ExternalRunResult,
+    ExternalRunStructuredOutputEvent,
+    run_coroutine_sync,
+)
 from agno.agents.codex.options import ThreadOptions, TurnOptions
 from agno.exceptions import RunCancelledException
 from agno.metrics import ModelMetrics, RunMetrics
@@ -132,6 +138,9 @@ class _StreamState:
     error_info: Optional[str] = None
     usage_first: Any = None
     usage_last: Any = None
+    # The turn's answer by the SDK's final_response rule, for output_schema parsing.
+    final_answer: Optional[str] = None
+    final_answer_phased: bool = False
 
 
 @dataclass
@@ -170,7 +179,8 @@ class CodexAgent(BaseExternalAgent):
         cwd: Working directory for the agent.
         keep_uploads: Keep files attached to a run under cwd/.agno/uploads/<run_id>/ after the run.
         ephemeral: Do not persist Codex thread files. Ephemeral threads cannot be resumed.
-        output_schema: JSON Schema constraining the final answer. Content is the JSON string.
+        output_schema: Pydantic model or JSON Schema for the final answer. The run content is the parsed
+            model (a dict for a JSON Schema). A model is made strict (no extra keys, every field required).
         model_provider: Native Codex model provider name.
         service_tier: Service tier used for threads and turns.
         mcp_servers: Native MCP server configuration, replacing config["mcp_servers"].
@@ -214,7 +224,6 @@ class CodexAgent(BaseExternalAgent):
     model_provider: Optional[str] = None
     reasoning_effort: Optional[str] = None
     service_tier: Optional[str] = None
-    output_schema: Optional[Dict[str, Any]] = None
     # Native tools
     mcp_servers: Optional[Dict[str, Any]] = None
     # Workspace and settings
@@ -234,6 +243,7 @@ class CodexAgent(BaseExternalAgent):
     thread_kwargs: Dict[str, Any] = field(default_factory=dict)
     turn_kwargs: Dict[str, Any] = field(default_factory=dict)
 
+    _supports_output_schema: ClassVar[bool] = True
     _sdk_name: ClassVar[str] = "codex"
     # Key under which the Codex thread id is stored in the Agno session.
     _THREAD_KEY = "codex_thread_id"
@@ -472,7 +482,7 @@ class CodexAgent(BaseExternalAgent):
         if "approval_mode" in options:
             options["approval_mode"] = self._to_approval_mode(sdk, options["approval_mode"])
 
-    def _turn_kwargs(self, sdk: Any) -> Dict[str, Any]:
+    def _turn_kwargs(self, sdk: Any, output_schema: Optional[Any] = None) -> Dict[str, Any]:
         self._validate_options()
         options = dict(self.turn_options if self.turn_options is not None else self.turn_kwargs)
         for key, value in {
@@ -482,7 +492,7 @@ class CodexAgent(BaseExternalAgent):
             "approval_mode": self.approval_mode,
             "service_tier": self.service_tier,
             "effort": self.reasoning_effort,
-            "output_schema": self.output_schema,
+            "output_schema": output_schema if output_schema is not None else self.output_schema,
         }.items():
             if value is not None:
                 options[key] = value
@@ -491,7 +501,7 @@ class CodexAgent(BaseExternalAgent):
         if "effort" in options:
             options["effort"] = self._to_reasoning_effort(sdk, options["effort"])
         if "output_schema" in options:
-            options["output_schema"] = deepcopy(options["output_schema"])
+            options["output_schema"] = deepcopy(self._output_json_schema(options["output_schema"], "openai"))
         return options
 
     # ---------------------------------------------------------------------------
@@ -636,7 +646,7 @@ class CodexAgent(BaseExternalAgent):
         self._validate_input(input)
         sdk = _sdk()
         self._thread_kwargs(sdk, resume=False)
-        turn_options = self._turn_kwargs(sdk)
+        turn_options = self._turn_kwargs(sdk, kwargs.get("output_schema"))
         session = kwargs.get("session")
         session_id = kwargs.get("session_id")
 
@@ -757,7 +767,7 @@ class CodexAgent(BaseExternalAgent):
         self._validate_input(input)
         sdk = _sdk()
         self._thread_kwargs(sdk, resume=False)
-        turn_options = self._turn_kwargs(sdk)
+        turn_options = self._turn_kwargs(sdk, kwargs.get("output_schema"))
         run_id = kwargs.get("run_id", str(uuid4()))
         session = kwargs.get("session")
         session_id = kwargs.get("session_id")
@@ -779,10 +789,14 @@ class CodexAgent(BaseExternalAgent):
 
         if state.error:
             raise CodexTurnError(f"Codex turn failed: {state.error}", state.error_info)
-            raise RuntimeError(f"Codex turn failed: {state.error}")
         metrics = self._metrics_from_usage(state.usage_first, state.usage_last)
         if metrics is not None:
             yield ExternalRunMetricsEvent(run_id=run_id, agent_id=self.get_id(), metrics=metrics)
+        if kwargs.get("output_schema") is not None and state.final_answer is not None:
+            # The streamed text joins commentary and the final answer; only the answer is the JSON.
+            yield ExternalRunStructuredOutputEvent(
+                run_id=run_id, agent_id=self.get_id(), structured_output=state.final_answer
+            )
 
     # Codex usage field -> Agno metrics field
     _USAGE_FIELDS = (
@@ -893,6 +907,12 @@ class CodexAgent(BaseExternalAgent):
             if getattr(item, "type", None) == "agentMessage":
                 item_id = getattr(item, "id", "") or ""
                 text = getattr(item, "text", "") or ""
+                phase = getattr(item, "phase", None)
+                phase = getattr(phase, "value", phase)
+                if phase == "final_answer":
+                    state.final_answer, state.final_answer_phased = text, True
+                elif phase is None and not state.final_answer_phased:
+                    state.final_answer = text
                 # Only emit the full text when no deltas were streamed for this item
                 if text and item_id not in state.text_item_ids:
                     if state.emitted_text:

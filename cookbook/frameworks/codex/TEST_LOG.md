@@ -49,6 +49,16 @@ Tested 2026-10-08 with openai-codex 0.161.0 (bundled Codex CLI 0.161.0), model g
 
 ---
 
+### codex_structured_output.py (Pydantic output_schema, 2026-10-10)
+
+**Status:** PASS
+
+**Description:** Reran with openai-codex 0.161.0 after `output_schema` moved to the base class. `output_schema=Movie` (Pydantic, sent as a strict schema): a non-streaming run, a streaming run, then a per-run JSON Schema dict. Also reran `codex_basic.py` to check a run without a schema is unchanged.
+
+**Result:** Non-streaming content was a `Movie` with `content_type` "Movie". The streaming `RunCompleted` event carried a `Movie`. The per-run schema returned `{'title': 'The Hive Within'}` with `content_type` "dict". Codex accepted the strict schema built from the Pydantic model. `codex_basic.py` streamed a normal answer.
+
+---
+
 ### codex_structured_output.py
 
 **Status:** PASS
@@ -378,5 +388,13 @@ multi-replica execution, retries or deployment readiness.
 **Description:** Attaches a solid blue PNG and a CSV to one run via `images=` and `files=`. The image is sent as a native local-image input, the CSV is staged in the workspace and named in the prompt. Checks the answer names the colour and the column total, that the run's `input` records the attachments, and that `cwd/.agno/uploads` is gone afterwards.
 
 **Result:** "Blue; total amount: 200." Attachments recorded on the run, staging folder removed.
+
+### codex_structured_output.py (review follow-ups, 2026-10-11)
+
+**Status:** PASS (openai-codex 0.161.0, gpt-5.6-luna)
+
+**Description:** Review of the output_schema change. Live: a model with an `Optional` field (strict schema, nullable), non-streamed; a streamed turn on the resumed thread and its stored run; a `RootModel[List[str]]` and an array JSON Schema; the cookbook rerun after the fixes.
+
+**Result:** Optional field came back `null` and parsed to `None`; the resumed streamed turn parsed and stored the model with `content_type` Movie. An array-rooted schema failed the turn with Codex's `invalid_json_schema: schema must be a JSON Schema of 'type: "object"'`; it is now refused with `ValueError` before the turn. Cookbook reran unchanged.
 
 ---

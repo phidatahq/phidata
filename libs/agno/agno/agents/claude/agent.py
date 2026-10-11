@@ -34,6 +34,7 @@ from agno.agents.base import (
     ExternalContinuation,
     ExternalRunMetricsEvent,
     ExternalRunResult,
+    ExternalRunStructuredOutputEvent,
     ExternalRunWarningEvent,
 )
 from agno.db.base import AsyncBaseDb, BaseDb
@@ -136,6 +137,8 @@ class ClaudeAgent(BaseExternalAgent):
         cwd: Working directory for the agent.
         keep_uploads: Keep files attached to a run under cwd/.agno/uploads/<run_id>/ after the run.
         mcp_servers: MCP server configurations for custom tools.
+        output_schema: Pydantic model or JSON Schema for the final answer. The run content is the
+            parsed model (a dict for a JSON Schema); the streamed text is Claude's reply around it.
         setting_sources: Filesystem settings to load; [] disables user/project/local settings.
         strict_mcp_config: Use only explicitly configured MCP servers when True.
         skills: Available skill names, or "all". Include "Skill" when explicitly selecting tools.
@@ -202,6 +205,8 @@ class ClaudeAgent(BaseExternalAgent):
     _store_warning_logged: bool = field(default=False, init=False, repr=False)
     _warn_unstable_project_key: bool = field(default=False, init=False, repr=False)
     _store_skipped_logged: bool = field(default=False, init=False, repr=False)
+    _supports_output_schema: ClassVar[bool] = True
+    _STRUCTURED_OUTPUT_TOOL = "StructuredOutput"
     # Message.provider_data key holding the SDK session id and transcript uuid behind a message.
     _MESSAGE_REF_KEY = "claude_sdk"
     _CONTINUE_PROMPT = "Continue from where you left off."
@@ -297,6 +302,7 @@ class ClaudeAgent(BaseExternalAgent):
         resume: Optional[str] = None,
         agno_session_id: Optional[str] = None,
         session_store: Optional[Any] = None,
+        output_schema: Optional[Any] = None,
     ) -> Any:
         """Build ClaudeAgentOptions from agent config.
 
@@ -326,6 +332,11 @@ class ClaudeAgent(BaseExternalAgent):
             value = getattr(self, name)
             if value is not None:
                 opts[name] = value
+        if output_schema is not None:
+            opts["output_format"] = {
+                "type": "json_schema",
+                "schema": self._output_json_schema(output_schema, "anthropic"),
+            }
 
         # Keep the old dictionary's precedence during migration, without allowing it to
         # override the native session selected by Agno or disable requested streaming.
@@ -435,7 +446,9 @@ class ClaudeAgent(BaseExternalAgent):
         while True:
             if run_state is not None:
                 run_state.clear()
-            options = self._build_options(streaming=streaming, resume=resume, session_store=store)
+            options = self._build_options(
+                streaming=streaming, resume=resume, session_store=store, output_schema=kwargs.get("output_schema")
+            )
             prompt = self._build_prompt(input, history, resumed=resume is not None)
             received = False
             assistant_error: Optional[str] = None
@@ -1007,6 +1020,8 @@ class ClaudeAgent(BaseExternalAgent):
         final_result = ""
         tools: Dict[str, ToolExecution] = {}
         metrics: Optional[RunMetrics] = None
+        structured_output: Any = None
+        hidden_tool_ids: set = set()
 
         async for message in self._aquery(input, history, streaming=False, **kwargs):
             # Share the live accumulator so the base class can persist work
@@ -1022,14 +1037,28 @@ class ClaudeAgent(BaseExternalAgent):
                     if isinstance(block, sdk.TextBlock):
                         assistant_text += block.text
                     elif isinstance(block, sdk.ToolUseBlock):
+                        if block.name == self._STRUCTURED_OUTPUT_TOOL:
+                            hidden_tool_ids.add(block.id)
+                            continue
                         tools[block.id] = ToolExecution(
-                            tool_call_id=block.id, tool_name=block.name, tool_args=block.input
+                            tool_call_id=block.id,
+                            tool_name=block.name,
+                            tool_args=block.input,
+                            parent_tool_call_id=getattr(message, "parent_tool_use_id", None),
                         )
 
             elif isinstance(message, sdk.UserMessage) and isinstance(message.content, list):
                 for block in message.content:
                     if isinstance(block, sdk.ToolResultBlock):
-                        tool = tools.setdefault(block.tool_use_id, ToolExecution(tool_call_id=block.tool_use_id))
+                        if block.tool_use_id in hidden_tool_ids:
+                            continue
+                        tool = tools.setdefault(
+                            block.tool_use_id,
+                            ToolExecution(
+                                tool_call_id=block.tool_use_id,
+                                parent_tool_call_id=getattr(message, "parent_tool_use_id", None),
+                            ),
+                        )
                         result = block.content
                         tool.result = (
                             " ".join(getattr(item, "text", str(item)) for item in result)
@@ -1042,10 +1071,15 @@ class ClaudeAgent(BaseExternalAgent):
                 if hasattr(message, "result") and message.result:
                     final_result = str(message.result)
                 metrics = self._metrics_from_result(message)
+                structured_output = getattr(message, "structured_output", None)
 
         # Prefer ResultMessage.result, fall back to accumulated assistant text
         return ExternalRunResult(
-            final_result or assistant_text, list(tools.values()) or None, warnings or None, metrics=metrics
+            final_result or assistant_text,
+            list(tools.values()) or None,
+            warnings or None,
+            metrics=metrics,
+            structured_output=structured_output,
         )
 
     async def _arun_adapter_stream(
@@ -1067,7 +1101,7 @@ class ClaudeAgent(BaseExternalAgent):
         got_stream_events = False
         # Track tool call IDs already emitted via AssistantMessage to avoid duplicates
         emitted_tool_ids: set = set()
-        # Map tool_use_id -> (tool_name, tool_args) for carrying forward to ToolCallCompleted
+        # Carry tool identity and delegation lineage forward to ToolCallCompleted.
         tool_info_map: Dict[str, Dict[str, Any]] = {}
 
         async for message in self._aquery(input, history, streaming=True, **kwargs):
@@ -1098,6 +1132,11 @@ class ClaudeAgent(BaseExternalAgent):
                 metrics = self._metrics_from_result(message)
                 if metrics is not None:
                     yield ExternalRunMetricsEvent(run_id=run_id, agent_id=self.get_id(), metrics=metrics)
+                structured_output = getattr(message, "structured_output", None)
+                if structured_output is not None:
+                    yield ExternalRunStructuredOutputEvent(
+                        run_id=run_id, agent_id=self.get_id(), structured_output=structured_output
+                    )
 
             elif isinstance(message, sdk.AssistantMessage):
                 # Always extract tool calls from complete AssistantMessage
@@ -1115,10 +1154,18 @@ class ClaudeAgent(BaseExternalAgent):
                         tool_name = getattr(block, "name", "unknown")
                         tool_input = getattr(block, "input", {})
                         tool_id = getattr(block, "id", str(uuid4()))
+                        if tool_name == self._STRUCTURED_OUTPUT_TOOL:
+                            emitted_tool_ids.add(tool_id)
+                            continue
                         if tool_id not in emitted_tool_ids:
                             emitted_tool_ids.add(tool_id)
                             tool_args = tool_input if isinstance(tool_input, dict) else {"input": tool_input}
-                            tool_info_map[tool_id] = {"name": tool_name, "args": tool_args}
+                            parent_tool_call_id = getattr(message, "parent_tool_use_id", None)
+                            tool_info_map[tool_id] = {
+                                "name": tool_name,
+                                "args": tool_args,
+                                "parent_tool_call_id": parent_tool_call_id,
+                            }
                             yield ToolCallStartedEvent(
                                 run_id=run_id,
                                 agent_id=self.get_id(),
@@ -1127,6 +1174,7 @@ class ClaudeAgent(BaseExternalAgent):
                                     tool_call_id=tool_id,
                                     tool_name=tool_name,
                                     tool_args=tool_args,
+                                    parent_tool_call_id=parent_tool_call_id,
                                 ),
                             )
 
@@ -1137,6 +1185,8 @@ class ClaudeAgent(BaseExternalAgent):
                     for block in content:
                         if isinstance(block, sdk.ToolResultBlock):
                             tool_use_id = getattr(block, "tool_use_id", str(uuid4()))
+                            if tool_use_id in emitted_tool_ids and tool_use_id not in tool_info_map:
+                                continue  # the structured output tool's acknowledgement
                             result_content = getattr(block, "content", "")
                             if isinstance(result_content, list):
                                 result_str = " ".join(getattr(item, "text", str(item)) for item in result_content)
@@ -1153,5 +1203,9 @@ class ClaudeAgent(BaseExternalAgent):
                                     tool_name=info.get("name", ""),
                                     tool_args=info.get("args"),
                                     result=result_str,
+                                    tool_call_error=bool(getattr(block, "is_error", False)),
+                                    parent_tool_call_id=info.get(
+                                        "parent_tool_call_id", getattr(message, "parent_tool_use_id", None)
+                                    ),
                                 ),
                             )

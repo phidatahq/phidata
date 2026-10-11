@@ -167,7 +167,7 @@ Use [TEST_PROMPT.md](../TEST_PROMPT.md) for reproducible live tests and
 - [codex_session.py](codex_session.py): multi-turn conversations.
 - [codex_session_agentos.py](codex_session_agentos.py): sessions through AgentOS.
 - [codex_mcp_tools.py](codex_mcp_tools.py): connect native MCP tools.
-- [codex_structured_output.py](codex_structured_output.py): JSON Schema output.
+- [codex_structured_output.py](codex_structured_output.py): parsed Pydantic models or JSON Schema objects, configured on the agent or per run. Schemas require an object root. Streaming text may include commentary; the completed run carries the parsed answer.
 - [codex_metrics.py](codex_metrics.py): per-run token usage and session totals.
 - [codex_metrics_agentos.py](codex_metrics_agentos.py): metrics through the AgentOS API.
 - [codex_retries.py](codex_retries.py): transient failures, retry limits and permanent errors.

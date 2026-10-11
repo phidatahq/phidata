@@ -378,3 +378,20 @@ The general `.venv` full validation instead reports 26 typing errors across five
 unrelated model integration files with its installed dependencies; these were
 not changed. No live SDK calls, new soak, provider-authentication claim, or
 final release certification is included in this result.
+
+## Structured-output integration refresh — 2026-10-11
+
+**Status:** PASS (deterministic regression checks; no live calls)
+
+**Source:** DX head `49534cb6572490bdb59ae80c7606348ed179be7c` combined
+with main `107f535248e73332061ee705c6b00d1c1d3f3e4f` (including #10959,
+#10965 and #10968). Nine conflicts reconciled without dropping media or native
+option copying/precedence. Codex's structured-output cookbook retains the
+streaming response printer and now inspects the parsed final model/dict.
+
+**Result:** 474 adapter, schema and background-stream tests pass. New combined
+cases verify attachments plus parsed structured output on both providers in
+streaming and nonstreaming modes. Constructor typing also covers model schemas.
+Full format/validation passes in `.venvs/claude-dx-validation`. These checks do
+not include the unmerged session-busy, A2A or DB-skills stacks, and do not replace
+final live release acceptance.

@@ -15,6 +15,7 @@ from typing import (
 if TYPE_CHECKING:
     from agno.agent.agent import Agent
 
+from agno.agent.followup import drop_derived_followup_fields
 from agno.filters import FilterExpr
 from agno.utils.log import log_debug, log_error, log_warning
 
@@ -64,7 +65,7 @@ def convert_documents_to_string(agent: Agent, docs: List[Union[Dict[str, Any], s
     if agent.references_format == "yaml":
         import yaml
 
-        return yaml.dump(docs)
+        return yaml.dump(docs, allow_unicode=True)
 
     return json.dumps(docs, indent=2, ensure_ascii=False)
 
@@ -83,7 +84,7 @@ def convert_dependencies_to_string(agent: Agent, context: Dict[str, Any]) -> str
         return ""
 
     try:
-        return json.dumps(context, indent=2, default=str)
+        return json.dumps(context, indent=2, default=str, ensure_ascii=False)
     except (TypeError, ValueError, OverflowError) as e:
         log_warning(f"Failed to convert context to JSON: {str(e)}")
         # Attempt a fallback conversion for non-serializable objects
@@ -98,7 +99,7 @@ def convert_dependencies_to_string(agent: Agent, context: Dict[str, Any]) -> str
                 sanitized_context[key] = str(value)
 
         try:
-            return json.dumps(sanitized_context, indent=2)
+            return json.dumps(sanitized_context, indent=2, ensure_ascii=False)
         except Exception as e:
             log_error(f"Failed to convert sanitized context to JSON: {str(e)}")
             return str(context)
@@ -107,6 +108,26 @@ def convert_dependencies_to_string(agent: Agent, context: Dict[str, Any]) -> str
 # ---------------------------------------------------------------------------
 # Deep copy
 # ---------------------------------------------------------------------------
+
+# Fields deep_copy shares by reference: they maintain connections/pools (db, models,
+# knowledge) or bind them (managers, learning), so duplicating them per copy would be
+# wrong or expensive. Consumers that need per-copy isolation (agno.environments'
+# isolated rollout attempts) derive their override set from this tuple; a field added
+# here without a mapped isolation action fails that module's drift test.
+SHARED_BY_REFERENCE_FIELDS = (
+    "db",
+    "model",
+    "reasoning_model",
+    "knowledge",
+    "memory_manager",
+    "parser_model",
+    "output_model",
+    "session_summary_manager",
+    "compression_manager",
+    "learning",
+    "filesystem",
+    "skills",
+)
 
 
 def deep_copy(agent: Agent, *, update: Optional[Dict[str, Any]] = None) -> Agent:
@@ -144,6 +165,7 @@ def deep_copy(agent: Agent, *, update: Optional[Dict[str, Any]] = None) -> Agent
     # Update fields if provided
     if update:
         fields_for_new_agent.update(update)
+    drop_derived_followup_fields(fields_for_new_agent, update)
 
     # Create a new Agent
     try:
@@ -181,7 +203,7 @@ def deep_copy_field(agent: Agent, field_name: str, field_value: Any) -> Any:
                 try:
                     # Share MCP tools (they maintain server connections)
                     is_mcp_tool = hasattr(type(tool), "__mro__") and any(
-                        c.__name__ in ["MCPTools", "MultiMCPTools"] for c in type(tool).__mro__
+                        c.__name__ == "MCPTools" for c in type(tool).__mro__
                     )
                     if is_mcp_tool:
                         copied_tools.append(tool)
@@ -200,21 +222,12 @@ def deep_copy_field(agent: Agent, field_name: str, field_value: Any) -> Any:
             log_warning(f"Failed to process tools for deep copy: {str(e)}")
             return field_value
 
+    if field_name == "filesystem" and isinstance(field_value, list):
+        # Keep durable stores shared, but let the copy change its own attachment list.
+        return list(field_value)
+
     # Share heavy resources - these maintain connections/pools that shouldn't be duplicated
-    if field_name in (
-        "db",
-        "model",
-        "reasoning_model",
-        "knowledge",
-        "memory_manager",
-        "parser_model",
-        "output_model",
-        "session_summary_manager",
-        "culture_manager",
-        "compression_manager",
-        "learning",
-        "skills",
-    ):
+    if field_name in SHARED_BY_REFERENCE_FIELDS:
         return field_value
 
     # For compound types, attempt a deep copy

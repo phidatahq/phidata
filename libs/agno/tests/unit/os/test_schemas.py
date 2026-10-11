@@ -8,6 +8,7 @@ from agno.agent import Agent
 from agno.knowledge import Knowledge
 from agno.os.routers.agents.schema import AgentResponse
 from agno.os.routers.memory.schemas import UserMemorySchema
+from agno.os.schema import FileSystemAgent
 
 
 def test_user_memory_schema():
@@ -109,3 +110,118 @@ async def test_knowledge_table_none_when_no_knowledge():
 
     if resp.knowledge is not None:
         assert resp.knowledge.get("knowledge_table") is None
+
+
+# ---------------------------------------------------------------------------
+# Lineage fields on RunSchema / TeamRunSchema — surfaced through GET /runs so
+# the FE can render fork / regenerate / branch-session relationships.
+# ---------------------------------------------------------------------------
+
+
+def test_run_schema_round_trips_lineage_fields():
+    """All five lineage fields on RunOutput must survive serialization through
+    RunSchema.from_dict — otherwise GET /runs silently drops them."""
+    from agno.os.schema import RunSchema
+
+    run_dict = {
+        "run_id": "child",
+        "agent_id": "a1",
+        "status": "COMPLETED",
+        "content": "hi",
+        "forked_from_run_id": "parent-run",
+        "forked_from_message_index": 5,
+        "forked_from_session_id": "parent-session",
+        "regenerated_from": "regen-parent",
+        "last_checkpoint_at_message_index": 4,
+    }
+
+    schema = RunSchema.from_dict(run_dict)
+
+    assert schema.forked_from_run_id == "parent-run"
+    assert schema.forked_from_message_index == 5
+    assert schema.forked_from_session_id == "parent-session"
+    assert schema.regenerated_from == "regen-parent"
+    assert schema.last_checkpoint_at_message_index == 4
+
+
+def test_run_schema_lineage_defaults_to_none_when_absent():
+    """Plain non-forked runs shouldn't have spurious lineage values set."""
+    from agno.os.schema import RunSchema
+
+    schema = RunSchema.from_dict({"run_id": "solo", "agent_id": "a1", "status": "COMPLETED"})
+
+    assert schema.forked_from_run_id is None
+    assert schema.forked_from_message_index is None
+    assert schema.forked_from_session_id is None
+    assert schema.regenerated_from is None
+    assert schema.last_checkpoint_at_message_index is None
+
+
+def test_team_run_schema_round_trips_lineage_fields():
+    from agno.os.schema import TeamRunSchema
+
+    run_dict = {
+        "run_id": "child-team",
+        "team_id": "t1",
+        "status": "COMPLETED",
+        "content": "hi",
+        "forked_from_run_id": "parent-team",
+        "forked_from_message_index": 3,
+        "forked_from_session_id": "parent-team-session",
+        "regenerated_from": "regen-parent-team",
+        "last_checkpoint_at_message_index": 2,
+    }
+
+    schema = TeamRunSchema.from_dict(run_dict)
+
+    assert schema.forked_from_run_id == "parent-team"
+    assert schema.forked_from_message_index == 3
+    assert schema.forked_from_session_id == "parent-team-session"
+    assert schema.regenerated_from == "regen-parent-team"
+    assert schema.last_checkpoint_at_message_index == 2
+
+
+def test_team_run_schema_lineage_defaults_to_none_when_absent():
+    from agno.os.schema import TeamRunSchema
+
+    schema = TeamRunSchema.from_dict({"run_id": "solo-team", "team_id": "t1", "status": "COMPLETED"})
+
+    assert schema.forked_from_run_id is None
+    assert schema.forked_from_message_index is None
+    assert schema.forked_from_session_id is None
+    assert schema.regenerated_from is None
+    assert schema.last_checkpoint_at_message_index is None
+
+
+def test_filesystem_agent_access_defaults_to_full():
+    agent = FileSystemAgent(id="analyst")
+
+    assert agent.access == "full"
+    assert agent.model_dump() == {"id": "analyst"}
+    assert FileSystemAgent(id="analyst", access="full").model_dump() == {"id": "analyst"}
+    assert FileSystemAgent(id="analyst", access="read_only").model_dump() == {
+        "id": "analyst",
+        "access": "read_only",
+    }
+    schema = FileSystemAgent.model_json_schema(mode="serialization")
+    assert schema["properties"]["access"]["default"] == "full"
+    assert schema["properties"]["access"]["enum"] == ["full", "read_only"]
+    assert schema["required"] == ["id"]
+
+
+@pytest.mark.parametrize(
+    "schema_name, id_field",
+    [("RunSchema", "agent_id"), ("TeamRunSchema", "team_id"), ("WorkflowRunSchema", "workflow_id")],
+)
+def test_run_schemas_expose_the_cancellation_stage(schema_name, id_field):
+    """The stage is what a UI reads to hide never-started cancelled runs; it
+    must survive every run schema, and default to None when absent."""
+    import agno.os.schema as schema_module
+
+    schema_cls = getattr(schema_module, schema_name)
+    with_stage = schema_cls.from_dict(
+        {"run_id": "r1", id_field: "x", "status": "CANCELLED", "cancellation_stage": "PENDING"}
+    )
+    assert with_stage.cancellation_stage == "PENDING"
+    without = schema_cls.from_dict({"run_id": "r2", id_field: "x", "status": "CANCELLED"})
+    assert without.cancellation_stage is None

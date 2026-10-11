@@ -1,10 +1,11 @@
 import json
-from dataclasses import dataclass
 from os import getenv
-from typing import Any, AsyncIterator, Dict, List, Optional
+from typing import Any, AsyncIterator, ClassVar, Dict, List, Optional
 from uuid import uuid4
 
+from agno.agents._config import agent_dataclass
 from agno.agents.base import BaseExternalAgent
+from agno.exceptions import PathSecurityError
 from agno.models.response import ToolExecution
 from agno.run.agent import (
     RunContentEvent,
@@ -13,12 +14,13 @@ from agno.run.agent import (
     ToolCallStartedEvent,
 )
 from agno.utils.log import log_debug, log_warning
+from agno.utils.path_safety import safe_join_relative_path
 
 DEFAULT_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
 INLINE_SOURCE_MAX_BYTES = 75 * 1024  # API limit for inline source content per file
 
 
-@dataclass
+@agent_dataclass
 class AntigravityAgent(BaseExternalAgent):
     """Adapter for Google's Gemini Agents API (Antigravity).
 
@@ -56,7 +58,6 @@ class AntigravityAgent(BaseExternalAgent):
     agent: str = "antigravity-preview-05-2026"
     sources: Optional[List[Dict[str, Any]]] = None
     timeout: int = 600
-    framework: str = "antigravity"
 
     # Custom-agent definition (Agents API). When `custom_agent_name` is set, the
     # adapter sends `agent: <name>` on /interactions. Call `ensure_custom_agent()`
@@ -65,6 +66,7 @@ class AntigravityAgent(BaseExternalAgent):
     custom_agent_instructions: Optional[str] = None
     custom_agent_description: Optional[str] = None
 
+    _sdk_name: ClassVar[str] = "antigravity"
     # Per-session env/interaction state lives in the persisted session's
     # session_data, not on this instance (thread-safe, survives restarts).
     _ENV_KEY = "antigravity_env_id"
@@ -196,10 +198,13 @@ class AntigravityAgent(BaseExternalAgent):
         if not path.is_dir():
             raise FileNotFoundError(f"agent directory not found: {directory}")
 
-        config_path = path / "agent.yaml"
+        try:
+            config_path = safe_join_relative_path(path, "agent.yaml")
+        except PathSecurityError as e:
+            raise FileNotFoundError(f"agent.yaml not found in {directory}") from e
         if not config_path.is_file():
             raise FileNotFoundError(f"agent.yaml not found in {directory}")
-        config = yaml.safe_load(config_path.read_text()) or {}
+        config = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
 
         agent_id = config.get("id")
         base_agent = config.get("base_agent")
@@ -208,9 +213,12 @@ class AntigravityAgent(BaseExternalAgent):
 
         # AGENTS.md takes precedence over system_instruction in the yaml
         instructions: Optional[str] = config.get("system_instruction")
-        agents_md = path / "AGENTS.md"
-        if agents_md.is_file():
-            instructions = agents_md.read_text()
+        try:
+            agents_md = safe_join_relative_path(path, "AGENTS.md")
+            if agents_md.is_file():
+                instructions = agents_md.read_text(encoding="utf-8")
+        except PathSecurityError:
+            pass
 
         sources = cls._build_sources_from_directory(path)
 
@@ -257,23 +265,28 @@ class AntigravityAgent(BaseExternalAgent):
                 )
                 return
             try:
-                content = file_path.read_text()
+                content = file_path.read_text(encoding="utf-8")
             except UnicodeDecodeError:
                 log_warning(f"from_agent_directory: {file_path} is not UTF-8 text; skipping (binary not supported)")
                 return
             sources.append({"type": "inline", "content": content, "target": target})
 
-        workspace = path / "workspace"
-        if workspace.is_dir():
-            for f in workspace.rglob("*"):
-                if f.is_file():
-                    add(f, "/" + str(f.relative_to(workspace)))
-
-        skills = path / "skills"
-        if skills.is_dir():
-            for f in skills.rglob("*"):
-                if f.is_file():
-                    add(f, "/.agents/skills/" + str(f.relative_to(skills)))
+        for source_name, target_prefix in (("workspace", "/"), ("skills", "/.agents/skills/")):
+            try:
+                source_dir = safe_join_relative_path(path, source_name)
+            except PathSecurityError:
+                continue
+            if not source_dir.is_dir():
+                continue
+            for f in source_dir.rglob("*"):
+                if not f.is_file():
+                    continue
+                rel = f.relative_to(source_dir).as_posix()
+                try:
+                    safe_join_relative_path(source_dir, rel)
+                except PathSecurityError:
+                    continue
+                add(f, target_prefix + rel)
 
         return sources
 

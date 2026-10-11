@@ -1,16 +1,17 @@
+from copy import copy
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 from time import time
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Union, get_args
 
 from pydantic import BaseModel, Field
 
 from agno.media import Audio, File, Image, Video
+from agno.metrics import RunMetrics
 from agno.models.message import Citations, Message
-from agno.models.metrics import RunMetrics
 from agno.models.response import ToolExecution
 from agno.reasoning.step import ReasoningStep
-from agno.run.base import BaseRunOutputEvent, MessageReferences, RunStatus
+from agno.run.base import BaseRunOutputEvent, CancellationStage, MessageReferences, RunStatus
 from agno.run.requirement import RunRequirement
 from agno.utils.log import log_error
 from agno.utils.media import (
@@ -22,6 +23,7 @@ from agno.utils.media import (
 )
 
 if TYPE_CHECKING:
+    from agno.compaction.types import CompactionRecord
     from agno.session.summary import SessionSummary
 
 
@@ -63,10 +65,10 @@ class RunInput:
         elif isinstance(self.input_content, BaseModel):
             return self.input_content.model_dump_json(exclude_none=True)
         elif isinstance(self.input_content, Message):
-            return json.dumps(self.input_content.to_dict())
+            return json.dumps(self.input_content.to_dict(), ensure_ascii=False)
         elif isinstance(self.input_content, list):
             try:
-                return json.dumps(self.to_dict().get("input_content"))
+                return json.dumps(self.to_dict().get("input_content"), ensure_ascii=False)
             except Exception:
                 return str(self.input_content)
         else:
@@ -186,6 +188,9 @@ class RunEvent(str, Enum):
 
     compression_started = "CompressionStarted"
     compression_completed = "CompressionCompleted"
+
+    compaction_started = "CompactionStarted"
+    compaction_completed = "CompactionCompleted"
 
     followups_started = "FollowupsStarted"
     followups_completed = "FollowupsCompleted"
@@ -499,6 +504,24 @@ class CompressionCompletedEvent(BaseAgentRunEvent):
 
 
 @dataclass
+class CompactionStartedEvent(BaseAgentRunEvent):
+    """Event sent when conversation compaction is about to start"""
+
+    event: str = RunEvent.compaction_started.value
+
+
+@dataclass
+class CompactionCompletedEvent(BaseAgentRunEvent):
+    """Event sent when conversation compaction has completed"""
+
+    event: str = RunEvent.compaction_completed.value
+    messages_compacted: Optional[int] = None
+    tokens_before: Optional[int] = None
+    tokens_after: Optional[int] = None
+    archived: Optional[bool] = None
+
+
+@dataclass
 class FollowupsStartedEvent(BaseAgentRunEvent):
     event: str = RunEvent.followups_started.value
 
@@ -554,10 +577,17 @@ RunOutputEvent = Union[
     ModelRequestCompletedEvent,
     CompressionStartedEvent,
     CompressionCompletedEvent,
+    CompactionStartedEvent,
+    CompactionCompletedEvent,
     FollowupsStartedEvent,
     FollowupsCompletedEvent,
     CustomEvent,
 ]
+
+# Cached union members for isinstance checks: rebuilding
+# tuple(get_args(RunOutputEvent)) per streamed chunk is measurable on the hot
+# event-dispatch path.
+RUN_OUTPUT_EVENT_TYPES = get_args(RunOutputEvent)
 
 
 # Map event string to dataclass
@@ -594,6 +624,8 @@ RUN_EVENT_TYPE_REGISTRY = {
     RunEvent.model_request_completed.value: ModelRequestCompletedEvent,
     RunEvent.compression_started.value: CompressionStartedEvent,
     RunEvent.compression_completed.value: CompressionCompletedEvent,
+    RunEvent.compaction_started.value: CompactionStartedEvent,
+    RunEvent.compaction_completed.value: CompactionCompletedEvent,
     RunEvent.followups_started.value: FollowupsStartedEvent,
     RunEvent.followups_completed.value: FollowupsCompletedEvent,
     RunEvent.custom_event.value: CustomEvent,
@@ -636,6 +668,8 @@ class RunOutput:
     model_provider: Optional[str] = None
     messages: Optional[List[Message]] = None
     metrics: Optional[RunMetrics] = None
+    # What compaction did to this run's context, when it ran.
+    compaction: Optional["CompactionRecord"] = None
     additional_input: Optional[List[Message]] = None
 
     tools: Optional[List[ToolExecution]] = None
@@ -659,9 +693,35 @@ class RunOutput:
     events: Optional[List[RunOutputEvent]] = None
 
     status: RunStatus = RunStatus.running
+    # Queue-attempt generation stamp: set by the queue worker when attempt N
+    # claims this run. Terminal writes carry their attempt and are fenced
+    # against a NEWER stored value, so a presumed-dead attempt's late write
+    # cannot clobber its successor. None outside durable-queue execution.
+    queue_attempt: Optional[int] = None
+    # For a CANCELLED run, where it was when cancelled (see CancellationStage).
+    # None on runs written before the field existed and on shutdown
+    # interrupts: consumers treat None as unknown.
+    cancellation_stage: Optional[CancellationStage] = None
 
     # User control flow (HITL) requirements to continue a run when paused, in order of arrival
     requirements: Optional[list[RunRequirement]] = None
+
+    # Checkpoint coordinate: index into messages at the most recent checkpoint write.
+    # Set when checkpoint="tool-batch" (or any future non-default level) persists mid-run state.
+    last_checkpoint_at_message_index: Optional[int] = None
+
+    # Fork lineage. Distinct from parent_run_id (which carries team-member / workflow-step
+    # parentage).
+    forked_from_run_id: Optional[str] = None
+    forked_from_message_index: Optional[int] = None
+
+    # Branching lineage: the source session_id this run was originally created in
+    # (set when a session is forked; preserved across nested forks).
+    forked_from_session_id: Optional[str] = None
+
+    # Regeneration lineage: the run_id of the immediate predecessor this run was
+    # regenerated from. Walk the chain via repeated lookups if you need full history.
+    regenerated_from: Optional[str] = None
 
     # === FOREIGN KEY RELATIONSHIPS ===
     # These fields establish relationships to parent workflow/step structures
@@ -694,42 +754,57 @@ class RunOutput:
     def tools_awaiting_external_execution(self):
         return [t for t in self.tools if t.external_execution_required] if self.tools else []
 
+    # Fields hand-serialized in to_dict below; nulled on a shallow copy before
+    # asdict so their (deep, expensive) recursive serialization never runs.
+    _HAND_SERIALIZED_FIELDS = (
+        "messages",
+        "metrics",
+        "compaction",
+        "tools",
+        "metadata",
+        "images",
+        "videos",
+        "audio",
+        "files",
+        "response_audio",
+        "input",
+        "citations",
+        "events",
+        "additional_input",
+        "reasoning_steps",
+        "reasoning_messages",
+        "references",
+        "requirements",
+        "followups",
+    )
+
     def to_dict(self) -> Dict[str, Any]:
-        _dict = {
-            k: v
-            for k, v in asdict(self).items()
-            if v is not None
-            and k
-            not in [
-                "messages",
-                "metrics",
-                "tools",
-                "metadata",
-                "images",
-                "videos",
-                "audio",
-                "files",
-                "response_audio",
-                "input",
-                "citations",
-                "events",
-                "additional_input",
-                "reasoning_steps",
-                "reasoning_messages",
-                "references",
-                "requirements",
-                "followups",
-            ]
-        }
+        # Serialize a shallow copy with the hand-serialized fields nulled:
+        # asdict would otherwise deep-serialize them (messages, events, media)
+        # only for the dict comprehension to throw that work away.
+        light_copy = copy(self)
+        for field_name in self._HAND_SERIALIZED_FIELDS:
+            setattr(light_copy, field_name, None)
+        if light_copy.content and isinstance(light_copy.content, BaseModel):
+            # Re-serialized below via model_dump under the same truthiness
+            # condition; asdict would deep-copy it here for nothing
+            light_copy.content = None
+        _dict = {k: v for k, v in asdict(light_copy).items() if v is not None}
 
         if self.metrics is not None:
             _dict["metrics"] = self.metrics.to_dict() if isinstance(self.metrics, RunMetrics) else self.metrics
+
+        if self.compaction is not None:
+            _dict["compaction"] = self.compaction.to_dict() if hasattr(self.compaction, "to_dict") else self.compaction
 
         if self.events is not None:
             _dict["events"] = [e.to_dict() for e in self.events]
 
         if self.status is not None:
             _dict["status"] = self.status.value if isinstance(self.status, RunStatus) else self.status
+
+        if self.cancellation_stage is not None:
+            _dict["cancellation_stage"] = getattr(self.cancellation_stage, "value", self.cancellation_stage)
 
         if self.messages is not None:
             _dict["messages"] = [m.to_dict() for m in self.messages]
@@ -883,6 +958,12 @@ class RunOutput:
         if metrics:
             metrics = RunMetrics.from_dict(metrics)
 
+        compaction = data.pop("compaction", None)
+        if compaction:
+            from agno.compaction.types import CompactionRecord
+
+            compaction = CompactionRecord.from_dict(compaction)
+
         additional_input = data.pop("additional_input", None)
 
         if additional_input is not None:
@@ -903,12 +984,16 @@ class RunOutput:
         # Filter data to only include fields that are actually defined in the RunOutput dataclass
         from dataclasses import fields
 
+        if "cancellation_stage" in data:
+            data["cancellation_stage"] = CancellationStage.coerce(data["cancellation_stage"])
+
         supported_fields = {f.name for f in fields(cls)}
         filtered_data = {k: v for k, v in data.items() if k in supported_fields}
 
         return cls(
             messages=messages,
             metrics=metrics,
+            compaction=compaction,
             citations=citations,
             tools=tools,
             images=images,
@@ -936,4 +1021,5 @@ class RunOutput:
         elif isinstance(self.content, BaseModel):
             return self.content.model_dump_json(exclude_none=True, **kwargs)
         else:
+            kwargs.setdefault("ensure_ascii", False)
             return json.dumps(self.content, **kwargs)

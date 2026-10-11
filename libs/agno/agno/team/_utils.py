@@ -17,6 +17,7 @@ from typing import (
 if TYPE_CHECKING:
     from agno.team.team import Team
 
+from agno.agent.followup import drop_derived_followup_fields
 from agno.filters import FilterExpr
 from agno.utils.log import log_debug, log_error, log_warning
 
@@ -62,9 +63,9 @@ def _convert_documents_to_string(team: Team, docs: List[Union[Dict[str, Any], st
     if team.references_format == "yaml":
         import yaml
 
-        return yaml.dump(docs)
+        return yaml.dump(docs, allow_unicode=True)
 
-    return json.dumps(docs, indent=2)
+    return json.dumps(docs, indent=2, ensure_ascii=False)
 
 
 def _convert_dependencies_to_string(team: Team, context: Dict[str, Any]) -> str:
@@ -81,7 +82,7 @@ def _convert_dependencies_to_string(team: Team, context: Dict[str, Any]) -> str:
         return ""
 
     try:
-        return json.dumps(context, indent=2, default=str)
+        return json.dumps(context, indent=2, default=str, ensure_ascii=False)
     except (TypeError, ValueError, OverflowError) as e:
         log_warning(f"Failed to convert context to JSON: {str(e)}")
         # Attempt a fallback conversion for non-serializable objects
@@ -97,7 +98,7 @@ def _convert_dependencies_to_string(team: Team, context: Dict[str, Any]) -> str:
                 sanitized_context[key] = str(value)
 
         try:
-            return json.dumps(sanitized_context, indent=2)
+            return json.dumps(sanitized_context, indent=2, ensure_ascii=False)
         except Exception as e:
             log_error(f"Failed to convert sanitized context to JSON: {str(e)}")
             return str(context)
@@ -146,6 +147,7 @@ def deep_copy(team: Team, *, update: Optional[Dict[str, Any]] = None) -> Team:
     # Update fields if provided
     if update:
         fields_for_new_team.update(update)
+    drop_derived_followup_fields(fields_for_new_team, update)
 
     # Create a new Team
     try:
@@ -192,7 +194,7 @@ def _deep_copy_field(team: Team, field_name: str, field_value: Any) -> Any:
                 try:
                     # Share MCP tools (they maintain server connections)
                     is_mcp_tool = hasattr(type(tool), "__mro__") and any(
-                        c.__name__ in ["MCPTools", "MultiMCPTools"] for c in type(tool).__mro__
+                        c.__name__ == "MCPTools" for c in type(tool).__mro__
                     )
                     if is_mcp_tool:
                         copied_tools.append(tool)

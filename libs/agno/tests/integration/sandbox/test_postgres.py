@@ -359,3 +359,21 @@ async def test_cancelled_provider_operation_drains_before_releasing_ownership_ro
     with pytest.raises(SandboxSessionBusy):
         await contender
     assert (await store.aget(state.lease)).record["drained"] is True
+
+
+async def test_compute_cannot_replace_service_input_or_metadata(store):
+    await seed(store)
+    initial = await store._transaction(lambda c: dict(c.execute(select(store.runs.c.run_data)).scalar_one()))
+    initial.update(input={"input_content": "original"}, metadata={"tenant": "trusted"})
+    await store._transaction(lambda c: c.execute(update(store.runs).values(run_data=initial)))
+    state = await claim(store)
+    await store.aset_computer(state.lease, computer(state))
+    output = result(state.lease)
+    output["run"].update(input={"input_content": "forged"}, metadata={"tenant": "forged", "warnings": []})
+    await store.astage_result(state.lease, output)
+    await store.astage_checkpoint(state.lease, REF)
+    await store.aconfirm_stopped(state.lease, "ref")
+    committed = await store.acommit(state.lease)
+    assert committed["input"] == {"input_content": "original"}
+    assert committed["metadata"]["tenant"] == "trusted"
+    assert committed["metadata"]["sandbox"]["native_metadata"]["tenant"] == "forged"

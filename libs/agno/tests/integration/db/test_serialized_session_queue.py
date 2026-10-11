@@ -135,8 +135,19 @@ async def test_stale_head_is_reclaimed_before_next_turn(store):
 
 
 @pytest.mark.asyncio
-async def test_postgres_rechecks_a_concurrent_earlier_enqueue_after_claim_lock(store):
-    """An enqueue can sort ahead of a ticket selected by an uncommitted claimant."""
+async def test_same_second_turns_run_in_acceptance_order(store):
+    # Random run ids must not reorder turns submitted within one second.
+    await store.enqueue_job(job("z", created_at=1))
+    await store.enqueue_job(job("a", created_at=1))
+    assert (await store.claim_job("one"))["id"] == "z"
+    assert await store.claim_job("two") is None
+    assert await store.complete_job("z", "one", 1, "completed")
+    assert (await store.claim_job("two"))["id"] == "a"
+
+
+@pytest.mark.asyncio
+async def test_postgres_enqueue_during_claim_sorts_after_selected_ticket(store):
+    """A ticket enqueued while another claimant holds its candidate never jumps ahead of it."""
     import threading
 
     from sqlalchemy import event
@@ -162,14 +173,13 @@ async def test_postgres_rechecks_a_concurrent_earlier_enqueue_after_claim_lock(s
     try:
         assert await asyncio.to_thread(selected.wait, 5)
         await store.enqueue_job(job("a", created_at=1))
-        second = await store.claim_job("second")
-        assert second["id"] == "a"
+        assert await store.claim_job("second") is None
     finally:
         release.set()
         first = await first_claim
         event.remove(db.db_engine, "after_cursor_execute", pause_after_select)
-    assert first is None, "the first claimant must observe the newly running session owner"
-    assert (await store.get_job("z"))["attempt"] == 0
+    assert first["id"] == "z"
+    assert (await store.get_job("a"))["attempt"] == 0
 
 
 @pytest.mark.asyncio
@@ -182,3 +192,40 @@ async def test_serialization_marker_requires_a_boolean(store):
     await store.enqueue_job(second)
     assert (await store.claim_job("one"))["id"] == "a"
     assert (await store.claim_job("two"))["id"] == "b"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("kind", ["postgres", "async_postgres"])
+async def test_postgres_claims_under_a_stricter_engine_isolation_level(kind):
+    url = os.getenv("AGNO_TEST_POSTGRES_URL")
+    if not url:
+        pytest.skip("Set AGNO_TEST_POSTGRES_URL for real Postgres acceptance")
+    from sqlalchemy import create_engine, text
+    from sqlalchemy.ext.asyncio import create_async_engine
+
+    from agno.db.postgres import AsyncPostgresDb, PostgresDb
+
+    table = "sq_" + uuid4().hex[:12]
+    if kind == "async_postgres":
+        engine = create_async_engine(url, isolation_level="REPEATABLE READ")
+        db = AsyncPostgresDb(db_engine=engine, job_table=table)
+        store = db
+    else:
+        engine = create_engine(url, isolation_level="REPEATABLE READ")
+        db = PostgresDb(db_engine=engine, job_table=table)
+        store = _SyncStoreAdapter(db)
+    await store.ensure_jobs_table()
+    try:
+        await store.enqueue_job(job("a", created_at=1))
+        await store.enqueue_job(job("b", created_at=2))
+        assert (await store.claim_job("one"))["id"] == "a"
+        assert await store.claim_job("two") is None
+    finally:
+        cleanup = create_engine(url)
+        with cleanup.begin() as conn:
+            conn.execute(text(f'DROP TABLE "{db.db_schema}"."{table}"'))
+        cleanup.dispose()
+        if kind == "async_postgres":
+            await engine.dispose()
+        else:
+            engine.dispose()

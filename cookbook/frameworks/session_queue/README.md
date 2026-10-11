@@ -7,10 +7,11 @@ remain queued and do not consume attempts or worker slots; an earlier turn's ret
 backoff also holds later turns. Cancellation and exhausted-job reconciliation
 release the next eligible turn.
 
-Queue order is `(created_at, id)`, with the ID breaking same-second ties. It is not
-a promise of wall-clock HTTP arrival order. Session run rows can be persisted in a
-different order, so execution follows the elected queue ticket rather than the
-order of pending history rows. Active RUNNING rows still protect against an
+Within a session, turns run in the order the store accepted them: each store stamps
+a per-session sequence at enqueue, under the session's lock, so a new turn always
+sorts after every live turn of its session regardless of wall-clock seconds or run
+IDs. Session run rows can be persisted in a different order, so execution follows
+the elected queue ticket rather than the order of pending history rows. Active RUNNING rows still protect against an
 already-running direct call.
 
 This change does not provide cross-replica admission for direct/nonqueued calls,
@@ -21,7 +22,8 @@ advertise `serializes_sessions = True` before the worker trusts their election.
 
 Upgrade queue workers together before relying on this behavior; old workers do
 not enforce the new contract. Drain existing unmarked tickets before switching.
-Postgres serialized claiming requires READ COMMITTED transaction isolation.
+Postgres claims and serialized enqueues pin READ COMMITTED on their own
+transactions, whatever the engine's default isolation level.
 Redis's per-session active index is updated atomically with job records; preserve
 both in backups and configure appropriate Redis persistence for durability.
 

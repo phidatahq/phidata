@@ -2534,7 +2534,7 @@ class RedisDb(BaseDb):
         if (job.get("payload") or {}).get("serialize_session") is True:
             key = self._q_session_key(job)
             if job["status"] in ("queued", "running"):
-                pipe.zadd(key, {job["id"]: job["created_at"]})
+                pipe.zadd(key, {job["id"]: job["payload"].get("session_seq") or 0})
             else:
                 pipe.zrem(key, job["id"])
 
@@ -2601,6 +2601,16 @@ class RedisDb(BaseDb):
                     if pipe.exists(job_key):
                         pipe.unwatch()
                         raise RuntimeError(f"enqueue_job: job {job['id']} already exists; ids are never reused")
+
+                    if (job.get("payload") or {}).get("serialize_session") is True:
+                        from agno.job_queue.session import with_session_seq
+
+                        # The session index holds exactly the live tickets, scored by sequence.
+                        # Watching it orders concurrent submits by the commit that wins.
+                        session_key = self._q_session_key(job)
+                        pipe.watch(session_key)
+                        top = pipe.zrevrange(session_key, 0, 0, withscores=True)
+                        job = with_session_seq(job, int(top[0][1]) + 1 if top else 1)
 
                     pipe.multi()
                     if idem_key is not None:

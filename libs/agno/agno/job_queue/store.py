@@ -19,7 +19,7 @@ import asyncio
 import time
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from agno.job_queue.session import session_blocked
+from agno.job_queue.session import is_serialized, next_session_seq, session_blocked, with_session_seq
 
 
 class InMemoryQueueStore:
@@ -57,6 +57,8 @@ class InMemoryQueueStore:
             # fenced out.
             if job["id"] in self._jobs:
                 raise RuntimeError(f"enqueue_job: job {job['id']} already exists; ids are never reused")
+            if is_serialized(job):
+                job = with_session_seq(job, next_session_seq(job, self._jobs.values()))
             self._jobs[job["id"]] = dict(job)
             return {"accepted": True, "reason": None, "job": dict(job)}
 

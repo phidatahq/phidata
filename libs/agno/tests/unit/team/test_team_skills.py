@@ -606,20 +606,9 @@ def test_team_with_the_default_executor_round_trips_unchanged(tmp_path):
 # ============================================================================
 
 
-def _team_db(tmp_path, name="team_exec_load.db"):
-    """Postgres, not SQLite: Team.load passes label= to load_component_graph, which the
-    SQLite backend's signature does not accept (a pre-existing gap, unrelated to skills),
-    so Team.load cannot run on SQLite at all."""
-    import pytest as _pytest
-
-    from agno.db.postgres import PostgresDb
-
-    try:
-        db = PostgresDb(db_url="postgresql+psycopg://postgres:test@localhost:5433/skillstest")
-        if db.get_skill("greeter") is None:
-            db.create_skill({"name": "greeter", "description": "d", "instructions": "i"})
-    except Exception as exc:  # pragma: no cover - depends on a local server
-        _pytest.skip(f"postgres not available: {exc}")
+def _team_db(tmp_path):
+    db = _make_db(tmp_path)
+    _create_skill_row(db, "greeter")
     return db
 
 
@@ -660,36 +649,85 @@ def test_team_load_accepts_a_re_supplied_executor(tmp_path):
 
 
 def test_team_load_supplies_the_executor_to_a_sandboxed_member(tmp_path):
-    """The fan-out: a member agent's skills are rebuilt during team hydration too.
-
-    Without threading the executor to the member site, hydrating a team whose member was
-    saved under a sandbox would raise with nothing to catch it.
-    """
+    """A member's skills are rebuilt while the team's members resolve, before the graph
+    children are hydrated, so the executor has to reach that first site too."""
     from agno.agent import Agent
 
-    db = _team_db(tmp_path, "team_member_exec.db")
+    db = _team_db(tmp_path)
     member = Agent(
         name="m",
         id="m-sandboxed",
         db=db,
         skills=Skills(loaders=[DbSkills(db)], executor=_TeamSandboxExecutor()),
     )
-    member.save(db=db)
     team = Team(name="t", id="t-with-member", members=[member], db=db)
     team.save(db=db)
+    executor = _TeamSandboxExecutor()
 
-    loaded = Team.load("t-with-member", db=db, skill_executor=_TeamSandboxExecutor())
+    for _ in range(2):
+        loaded = Team.load("t-with-member", db=db, skill_executor=executor)
+        assert loaded is not None
+        hydrated = [m for m in loaded.members if getattr(m, "id", None) == "m-sandboxed"]
+        assert hydrated, "the sandboxed member was not hydrated"
+        assert hydrated[0].skills.executor is executor
+        with pytest.raises(ComponentRehydrationError, match="executor"):
+            Team.load("t-with-member", db=db)
 
-    assert loaded is not None
-    hydrated = [m for m in loaded.members if getattr(m, "id", None) == "m-sandboxed"]
-    assert hydrated, "the sandboxed member was not hydrated"
-    assert isinstance(hydrated[0].skills.executor, _TeamSandboxExecutor)
+
+def test_team_load_supplies_the_executor_to_a_sandboxed_member_team(tmp_path):
+    db = _team_db(tmp_path)
+    inner = Team(
+        name="inner",
+        id="t-inner",
+        members=[],
+        db=db,
+        skills=Skills(loaders=[DbSkills(db)], executor=_TeamSandboxExecutor()),
+    )
+    Team(name="outer", id="t-outer", members=[inner], db=db).save(db=db)
+    executor = _TeamSandboxExecutor()
+
+    for _ in range(2):
+        loaded = Team.load("t-outer", db=db, skill_executor=executor)
+        assert loaded is not None
+        assert [m.id for m in loaded.members] == ["t-inner"]
+        assert loaded.members[0].skills.executor is executor
+        with pytest.raises(ComponentRehydrationError, match="executor"):
+            Team.load("t-outer", db=db)
+
+
+def test_lenient_pin_miss_supplies_the_executor_to_the_members_current_version(tmp_path):
+    """A pinned member version that is gone falls back to the member's current version,
+    and that fallback rebuilds the member's skills with the executor too."""
+    from agno.agent import Agent
+
+    db = _team_db(tmp_path)
+    member = Agent(
+        name="m",
+        id="m-sandboxed",
+        db=db,
+        skills=Skills(loaders=[DbSkills(db)], executor=_TeamSandboxExecutor()),
+    )
+    Team(name="t", id="t-pin-miss", members=[member], db=db).save(db=db)
+    pinned = db.get_links(component_id="t-pin-miss", version=1)[0]["child_version"]
+    member.save(db=db)
+    # delete_config refuses to break a pin, so drop the row as a corrupt catalog would.
+    configs = db._get_table(table_type="component_configs")
+    with db.Session() as session, session.begin():
+        session.execute(configs.delete().where(configs.c.component_id == "m-sandboxed", configs.c.version == pinned))
+    executor = _TeamSandboxExecutor()
+
+    for _ in range(2):
+        loaded = Team.load("t-pin-miss", db=db, skill_executor=executor)
+        assert loaded is not None
+        assert loaded.members[0].skills.executor is executor
+        with pytest.raises(ComponentRehydrationError, match="executor"):
+            Team.load("t-pin-miss", db=db)
 
 
 def test_team_load_of_a_default_executor_team_is_unchanged(tmp_path):
     from agno.skills.executor import LocalSkillExecutor
 
-    db = _team_db(tmp_path, "team_default_load.db")
+    db = _team_db(tmp_path)
     team = Team(name="t", id="t-default", members=[], db=db, skills=Skills(loaders=[DbSkills(db)]))
     team.save(db=db)
 

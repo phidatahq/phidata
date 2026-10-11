@@ -988,6 +988,9 @@ def from_dict(
             saved skill names with no row raise ComponentRehydrationError instead of being
             silently dropped. Pass False to reconstruct as much as possible,
             e.g. for listings that must show degraded components.
+        skill_executor: Executor to run skill scripts with, for the team and its members.
+            Required when a saved config records a non-default executor, since one cannot
+            be serialized.
         for_listing: True from a listing: the skills are built without their initial read,
             and a recorded executor that is not supplied drops them with a warning instead
             of refusing; save() refuses the result.
@@ -1046,6 +1049,7 @@ def from_dict(
                             registry=registry,
                             user_id=owner_user_id,
                             strict=strict,
+                            skill_executor=skill_executor,
                         )
                         if db is not None
                         else None
@@ -1075,7 +1079,12 @@ def from_dict(
                     )
                     if db is not None:
                         agent = get_agent_by_id(
-                            id=agent_id, db=db, registry=registry, strict=False, user_id=owner_user_id
+                            id=agent_id,
+                            db=db,
+                            registry=registry,
+                            strict=False,
+                            user_id=owner_user_id,
+                            skill_executor=skill_executor,
                         )
                 # Fall back to a code-defined agent registered in the registry.
                 # These are legitimately not persisted as DB components (e.g. agents
@@ -1112,6 +1121,7 @@ def from_dict(
                             registry=registry,
                             user_id=owner_user_id,
                             strict=strict,
+                            skill_executor=skill_executor,
                         )
                         if db is not None
                         else None
@@ -1141,7 +1151,12 @@ def from_dict(
                     )
                     if db is not None:
                         nested_team = get_team_by_id(
-                            id=team_id, db=db, registry=registry, strict=False, user_id=owner_user_id
+                            id=team_id,
+                            db=db,
+                            registry=registry,
+                            strict=False,
+                            user_id=owner_user_id,
+                            skill_executor=skill_executor,
                         )
                 # Fall back to a code-defined team registered in the registry.
                 # Deep copy so the shared registry singleton isn't mutated on run.

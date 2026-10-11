@@ -1871,6 +1871,7 @@ def get_agent_by_id(
     user_id: Optional[str] = None,
     strict: bool = False,
     published_only: bool = True,
+    skill_executor: Optional[SkillExecutor] = None,
 ) -> Optional["Agent"]:
     """
     Get an Agent by id from the database (new entities/configs schema).
@@ -1887,13 +1888,15 @@ def get_agent_by_id(
         user_id: If set, only resolve the agent when owned by this user, unowned (shared), or published.
         strict: If True, unresolvable registry references raise
             ComponentRehydrationError; None strictly means the agent was not found.
+        skill_executor: Executor to run skill scripts with. Required when the saved config
+            records a non-default executor, since one cannot be serialized.
 
     Returns:
         Agent instance or None.
 
     Raises:
         ComponentRehydrationError: If strict and a registry reference cannot be resolved, or the
-            saved skills record a non-default executor, which this helper cannot supply.
+            saved skills record a non-default executor and skill_executor is not passed.
     """
     from agno.exceptions import ComponentRehydrationError
     from agno.utils.log import log_error
@@ -1922,7 +1925,7 @@ def get_agent_by_id(
         if cfg is None:
             raise ValueError(f"Invalid config found for agent {id}")
 
-        agent = Agent.from_dict(cfg, db=db, registry=registry, strict=strict)
+        agent = Agent.from_dict(cfg, db=db, registry=registry, strict=strict, skill_executor=skill_executor)
         agent.id = id
         # Only fall back to the caller-provided db if the config didn't
         # reconstruct one, matching Agent.load.

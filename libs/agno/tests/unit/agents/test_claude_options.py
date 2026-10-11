@@ -207,3 +207,47 @@ def test_sdk_is_still_optional_until_needed(monkeypatch):
     agent = ClaudeAgent(model="example", tools=[])
     with pytest.raises(ImportError, match="SDK is not installed"):
         agent._build_options()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("source", ["native", "named", "legacy", "relative"])
+async def test_media_uses_resolved_sdk_workspace(tmp_path, monkeypatch, source):
+    from pathlib import Path
+
+    from agno.media import File
+
+    monkeypatch.chdir(tmp_path)
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    config = {"options": Options(cwd=str(workspace))}
+    if source == "named":
+        config = {"cwd": str(workspace), "options": Options(cwd=str(tmp_path / "ignored"))}
+    elif source == "legacy":
+        config = {"cwd": str(tmp_path / "ignored"), "options_kwargs": {"cwd": str(workspace)}}
+    elif source == "relative":
+        config = {"cwd": "workspace"}
+    agent = ClaudeAgent(**config)
+    seen = []
+
+    async def query(input, history, **kwargs):
+        native_workspace = Path(agent._build_options().cwd).resolve()
+        attachment = native_workspace / ".agno/uploads/media-run/notes.txt"
+        assert attachment.read_bytes() == b"payload"
+        assert str(attachment) in input
+        seen.append(attachment)
+        yield "ok"
+
+    monkeypatch.setattr(agent, "_aquery_sdk", query)
+    messages = [
+        message
+        async for message in agent._aquery(
+            "Read it",
+            None,
+            streaming=False,
+            run_id="media-run",
+            media={"files": [File(content=b"payload", filename="notes.txt")]},
+        )
+    ]
+    assert messages == ["ok"] and len(seen) == 1
+    assert not seen[0].exists()
+    assert not (tmp_path / ".agno").exists()

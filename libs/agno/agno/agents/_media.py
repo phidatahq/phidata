@@ -55,7 +55,7 @@ def accept_media(media: Dict[str, Any], supported: Sequence[str] = SUPPORTED_MED
 
 
 def uploads_root(workspace: Optional[Any], run_id: str) -> Path:
-    return Path(workspace or Path.cwd()) / UPLOADS_DIR / run_id
+    return Path(workspace or Path.cwd()).resolve() / UPLOADS_DIR / run_id
 
 
 def _safe_name(name: str) -> str:
@@ -105,7 +105,7 @@ def remember_uploads_root(session: Any, workspace: Optional[Any]) -> None:
     if data is None:
         data = {}
         session.session_data = data
-    data.setdefault(UPLOADS_ROOT_KEY, str(Path(workspace or Path.cwd()) / UPLOADS_DIR))
+    data.setdefault(UPLOADS_ROOT_KEY, str(Path(workspace or Path.cwd()).resolve() / UPLOADS_DIR))
 
 
 def stage_media(
@@ -262,7 +262,7 @@ def stage_prior_media(
     if not attachments:
         return [], ""
     recorded = (getattr(session, "session_data", None) or {}).get(UPLOADS_ROOT_KEY)
-    current = Path(workspace or Path.cwd()) / UPLOADS_DIR
+    current = Path(workspace or Path.cwd()).resolve() / UPLOADS_DIR
     target_root = current
     if recorded and Path(recorded) != current:
         try:

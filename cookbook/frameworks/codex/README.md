@@ -204,6 +204,8 @@ Every run reports the token usage for the whole turn on `RunOutput.metrics` (inp
 
 ## Images and files
 
+Attachments use the effective SDK workspace: named `cwd` wins, then `turn_options["cwd"]`, then the thread workspace. Relative workspaces produce absolute attachment paths so Codex can open them after changing directories.
+
 Images passed to `run` / `arun`, or uploaded through the AgentOS API and UI, go to Codex as native image inputs on the turn, so the model sees them directly. Files are written under `cwd/.agno/uploads/<run_id>/` and named in the prompt; Codex reads them with its shell, so text formats work everywhere and PDFs need a reader such as `pdftotext` on the machine. The folder is removed when the run ends unless `keep_uploads=True`. Before any later turn of the session, the attachments of earlier runs are written back to the uploads folder the session recorded when they were first staged, so the paths Codex already knows resolve again on whichever replica runs that turn (replicas normally share the same layout). If that folder cannot be written there, the files go under the replica's own working directory and the prompt names the new location. A continued or forked run gets the same treatment. The run's `input` records what was attached. Audio and video are rejected before the run starts.
 
 ## Sandbox and approvals

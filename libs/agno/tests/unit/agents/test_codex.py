@@ -1421,7 +1421,10 @@ PNG_BYTES = b"\x89PNG\r\n\x1a\n" + bytes(32)
 
 @pytest.mark.parametrize("stream", [False, True])
 @pytest.mark.parametrize("structured", [False, True])
-def test_images_go_to_codex_natively_and_files_through_the_workspace(fake_sdk, tmp_db, tmp_path, stream, structured):
+@pytest.mark.parametrize("workspace_source", ["named", "thread", "turn", "relative"])
+def test_images_go_to_codex_natively_and_files_through_the_workspace(
+    fake_sdk, tmp_db, tmp_path, monkeypatch, stream, structured, workspace_source
+):
     from agno.media import File, Image
 
     fake_sdk.notifications = (
@@ -1429,9 +1432,17 @@ def test_images_go_to_codex_natively_and_files_through_the_workspace(fake_sdk, t
         if structured
         else [_delta("m1", "seen"), _turn_completed()]
     )
-    agent = CodexAgent(
-        name="Codex", id="codex", db=tmp_db, cwd=str(tmp_path), output_schema=Movie if structured else None
-    )
+    monkeypatch.chdir(tmp_path)
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    config = {"cwd": str(workspace)}
+    if workspace_source == "thread":
+        config = {"thread_options": {"cwd": str(workspace)}}
+    elif workspace_source == "turn":
+        config = {"thread_options": {"cwd": str(tmp_path / "ignored")}, "turn_options": {"cwd": str(workspace)}}
+    elif workspace_source == "relative":
+        config = {"cwd": "workspace"}
+    agent = CodexAgent(name="Codex", id="codex", db=tmp_db, output_schema=Movie if structured else None, **config)
     media = dict(
         images=[Image(content=PNG_BYTES, format="png")],
         files=[File(content=b"a,b", filename="data.csv", mime_type="text/csv")],
@@ -1452,7 +1463,7 @@ def test_images_go_to_codex_natively_and_files_through_the_workspace(fake_sdk, t
     assert items[0].text.startswith("What is attached?") and "data.csv" in items[0].text and "text/csv" in items[0].text
     assert "image-1.png" not in items[0].text, "images are native inputs, not prompt lines"
     [image] = [item for item in items if isinstance(item, LocalImageInput)]
-    uploads = tmp_path / ".agno" / "uploads" / run_id
+    uploads = workspace / ".agno" / "uploads" / run_id
     assert image.path == str(uploads / "image-1.png") and turn["paths_exist"] == [True]
     assert not uploads.exists(), "attachments are removed after the run"
     stored = agent.get_run_output(run_id, "s")

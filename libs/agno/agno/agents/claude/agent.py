@@ -384,6 +384,11 @@ class ClaudeAgent(BaseExternalAgent):
         if session_id:
             self._sdk_session_ids.pop(session_id, None)
 
+    def _media_workspace(self) -> Optional[Union[str, Path]]:
+        """Stage files in the workspace selected by the same precedence as SDK options."""
+        cwd = self.cwd if self.cwd is not None else self._option_values().get("cwd")
+        return self.options_kwargs.get("cwd", cwd)
+
     def _media_kwargs(self, **media: Any) -> Dict[str, Any]:
         """Images and files are written under cwd/.agno/uploads/<run_id>/ and named in the prompt,
         so Claude Code opens them with its Read tool. Audio and video are rejected."""
@@ -393,19 +398,20 @@ class ClaudeAgent(BaseExternalAgent):
         self, input: Any, history: Optional[List[Dict[str, Any]]], *, streaming: bool, **kwargs: Any
     ) -> AsyncIterator[Any]:
         """Stage attachments for the run, query, then remove them unless keep_uploads is set."""
+        workspace = self._media_workspace()
         media = kwargs.pop("media", None)
         run_id = kwargs.get("run_id") or str(uuid4())
         kwargs["run_id"] = run_id
-        staged = stage_media(self.cwd, run_id, media) if media else []
+        staged = stage_media(workspace, run_id, media) if media else []
         if staged:
-            remember_uploads_root(kwargs.get("session"), self.cwd)
+            remember_uploads_root(kwargs.get("session"), workspace)
         if staged and input is not None:
             input = f"{input}{media_prompt_block(staged)}"
         # Earlier turns' attachments come back under their original paths, so Claude can
         # open again a file it was given before, on whichever replica runs this turn.
         continuation: Optional[ExternalContinuation] = kwargs.get("continuation")
         restaged, moved_note = stage_prior_media(
-            self.cwd,
+            workspace,
             kwargs.get("session"),
             exclude_run_id=run_id,
             until_run_id=continuation.source_run_id if continuation is not None else None,
@@ -418,7 +424,7 @@ class ClaudeAgent(BaseExternalAgent):
         finally:
             if not self.keep_uploads:
                 if staged:
-                    cleanup_media(self.cwd, run_id)
+                    cleanup_media(workspace, run_id)
                 for folder in restaged:
                     remove_upload_folder(folder)
 

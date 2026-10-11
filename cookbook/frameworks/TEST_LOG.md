@@ -414,3 +414,35 @@ API/session metadata emits only `sdk`; old persisted `framework` remains readabl
 No new live calls or soak. Earlier live evidence remains pinned to its original
 revision. The instance-local session guard is not a distributed atomic claim;
 the READMEs now explicitly require application-side same-session serialization.
+
+## Final DX review — 2026-10-11
+
+**Status:** PASS (local deterministic checks; live provider acceptance not rerun)
+
+**Source:** Reviewed `0ef72a0dc2e98f31c21f01f3700bbe67604130c2` against main
+`dbdca9ac6d9de6604383e6f4f04653a8244eb3c7`, then applied the workspace fix below.
+
+**Finding and fix:** Media staging used only the adapter's named `cwd`, ignoring
+native Claude options and Codex thread/turn options. Relative workspaces also
+produced paths that the harness could resolve relative to its already-changed
+working directory. Staging, recorded upload roots and cleanup now use the
+resolved configuration workspace and absolute paths. Twenty targeted cases
+cover named/native/legacy/relative configuration, streaming, schema output and
+cleanup; 15 reproduced the defect before the fix and all 20 pass afterward.
+
+**Result:** The expanded `libs/agno/tests/unit/agents`, `unit/os`, and `unit/run`
+suite produced 4,467 passes and 23 skips, with 17 local HTTP tests blocked by the
+execution sandbox's socket-bind restriction. Rerunning their entire
+`test_public_json_bounds.py` file with loopback access passes all 29 cases,
+including those 17: 4,484 unique passing cases across the runs. An initial
+collection failure was resolved by installing the repository's optional
+`pyTelegramBotAPI` dependency in the isolated validation environment. First
+failures remain in the local review artifacts. No product failure remains in
+these executed checks.
+
+Full format/validation passes in `.venvs/claude-dx-validation` (1115 Agno and 21
+agnoctl mypy files). All three review threads were resolved and the reviewed
+pre-fix head's GitHub checks were green. The workspace-fix commit requires its
+own CI result. No live model calls, new soak or changes to the cumulative call
+budget. Distributed same-session serialization and final provider release
+acceptance remain separate from this DX merge review.

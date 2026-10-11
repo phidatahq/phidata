@@ -591,6 +591,15 @@ class CodexAgent(BaseExternalAgent):
     # Adapter hooks
     # ---------------------------------------------------------------------------
 
+    def _media_workspace(self) -> Optional[str]:
+        """A named cwd wins; otherwise a turn cwd overrides the thread workspace."""
+        if self.cwd is not None:
+            return self.cwd
+        turn = self.turn_options if self.turn_options is not None else self.turn_kwargs
+        if turn.get("cwd") is not None:
+            return turn["cwd"]
+        return self._resolved_thread_options().get("cwd")
+
     def _media_kwargs(self, **media: Any) -> Dict[str, Any]:
         """Images go to Codex as native local-image inputs; files are written under
         cwd/.agno/uploads/<run_id>/ and named in the prompt. Audio and video are rejected."""
@@ -614,39 +623,41 @@ class CodexAgent(BaseExternalAgent):
         self, input: Any, *, history: Optional[List[Dict[str, Any]]] = None, **kwargs: Any
     ) -> ExternalRunResult:
         """Stage attachments for the run, execute, then remove them unless keep_uploads is set."""
+        workspace = self._media_workspace()
         media = kwargs.pop("media", None)
         run_id = kwargs.get("run_id") or str(uuid4())
         kwargs["run_id"] = run_id
-        kwargs["staged_media"] = stage_media(self.cwd, run_id, media) if media else []
+        kwargs["staged_media"] = stage_media(workspace, run_id, media) if media else []
         if kwargs["staged_media"]:
-            remember_uploads_root(kwargs.get("session"), self.cwd)
-        restaged, kwargs["moved_note"] = stage_prior_media(self.cwd, kwargs.get("session"), exclude_run_id=run_id)
+            remember_uploads_root(kwargs.get("session"), workspace)
+        restaged, kwargs["moved_note"] = stage_prior_media(workspace, kwargs.get("session"), exclude_run_id=run_id)
         try:
             return await self._arun_adapter_sdk(input, history=history, **kwargs)
         finally:
             if not self.keep_uploads:
                 if kwargs["staged_media"]:
-                    cleanup_media(self.cwd, run_id)
+                    cleanup_media(workspace, run_id)
                 for folder in restaged:
                     remove_upload_folder(folder)
 
     async def _arun_adapter_stream(
         self, input: Any, *, history: Optional[List[Dict[str, Any]]] = None, **kwargs: Any
     ) -> AsyncIterator[RunOutputEvent]:
+        workspace = self._media_workspace()
         media = kwargs.pop("media", None)
         run_id = kwargs.get("run_id") or str(uuid4())
         kwargs["run_id"] = run_id
-        kwargs["staged_media"] = stage_media(self.cwd, run_id, media) if media else []
+        kwargs["staged_media"] = stage_media(workspace, run_id, media) if media else []
         if kwargs["staged_media"]:
-            remember_uploads_root(kwargs.get("session"), self.cwd)
-        restaged, kwargs["moved_note"] = stage_prior_media(self.cwd, kwargs.get("session"), exclude_run_id=run_id)
+            remember_uploads_root(kwargs.get("session"), workspace)
+        restaged, kwargs["moved_note"] = stage_prior_media(workspace, kwargs.get("session"), exclude_run_id=run_id)
         try:
             async for event in self._arun_adapter_stream_sdk(input, history=history, **kwargs):
                 yield event
         finally:
             if not self.keep_uploads:
                 if kwargs["staged_media"]:
-                    cleanup_media(self.cwd, run_id)
+                    cleanup_media(workspace, run_id)
                 for folder in restaged:
                     remove_upload_folder(folder)
 

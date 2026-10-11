@@ -96,3 +96,91 @@ def test_response_shape_is_stable(client: TestClient):
     body = client.post("/agents/a1/sessions/s1/compact").json()
 
     assert set(body) == {"status", "message", "compacted", "record", "metrics"}
+
+
+@pytest.fixture(params=["claude", "codex"])
+def external_compaction(request, monkeypatch):
+    from unittest.mock import AsyncMock
+
+    from agno.agents.claude import ClaudeAgent
+    from agno.agents.codex import CodexAgent
+    from agno.db.in_memory import InMemoryDb
+
+    db = InMemoryDb()
+    db.upsert_session(AgentSession(session_id="s1", agent_id="external", user_id="owner", runs=[]))
+    db.upsert_session(AgentSession(session_id="other", agent_id="different", user_id="owner", runs=[]))
+    cls = ClaudeAgent if request.param == "claude" else CodexAgent
+    agent = cls(id="external", db=db)
+    run = AsyncMock(side_effect=AssertionError("Compaction must not execute a model turn"))
+    monkeypatch.setattr(agent, "arun", run)
+    app = AgentOS(agents=[agent]).get_app()
+
+    @app.middleware("http")
+    async def scope(request, call_next):
+        request.state.user_id = request.headers.get("x-test-user", "owner")
+        request.state.user_isolation_enabled = True
+        return await call_next(request)
+
+    with TestClient(app, raise_server_exceptions=False) as client:
+        yield request.param, agent, client, run
+    run.assert_not_called()
+
+
+def test_external_missing_session_is_404_before_capability_check(external_compaction):
+    _, _, client, _ = external_compaction
+    response = client.post("/agents/external/sessions/missing/compact")
+    assert response.status_code == 404, response.text
+
+
+def test_external_compaction_cannot_access_other_users_session(external_compaction):
+    _, _, client, _ = external_compaction
+    response = client.post("/agents/external/sessions/s1/compact", headers={"x-test-user": "stranger"})
+    assert response.status_code == 404, response.text
+
+
+def test_external_compaction_other_component_is_404(external_compaction):
+    _, _, client, _ = external_compaction
+    response = client.post("/agents/external/sessions/other/compact")
+    assert response.status_code == 404, response.text
+
+
+def test_claude_http_compaction_is_explicitly_unsupported(external_compaction):
+    provider, _, client, _ = external_compaction
+    if provider != "claude":
+        pytest.skip("Claude capability contract")
+    response = client.post("/agents/external/sessions/s1/compact")
+    assert response.status_code == 501, response.text
+    assert "/compact as a run input" in response.json()["detail"]
+
+
+@pytest.mark.parametrize("result", [True, False])
+def test_codex_http_compaction_serializes_native_result(external_compaction, monkeypatch, result):
+    from unittest.mock import AsyncMock
+
+    provider, agent, client, _ = external_compaction
+    if provider != "codex":
+        pytest.skip("Codex capability contract")
+    compact = AsyncMock(return_value=result)
+    monkeypatch.setattr(agent, "acompact", compact)
+    response = client.post("/agents/external/sessions/s1/compact")
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["compacted"] is result
+    assert body["status"] == ("compacted" if result else "no_history")
+    assert body["record"] is None and body["metrics"] is None
+    compact.assert_awaited_once_with(session_id="s1", user_id="owner")
+
+
+@pytest.mark.parametrize("failure,code", [("busy", 409), ("timeout", 504)])
+def test_codex_http_compaction_errors_are_handled(external_compaction, monkeypatch, failure, code):
+    from unittest.mock import AsyncMock
+
+    from agno.exceptions import SessionBusyError
+
+    provider, agent, client, _ = external_compaction
+    if provider != "codex":
+        pytest.skip("Codex capability contract")
+    error = SessionBusyError("run is active", session_id="s1") if failure == "busy" else TimeoutError("native timeout")
+    monkeypatch.setattr(agent, "acompact", AsyncMock(side_effect=error))
+    response = client.post("/agents/external/sessions/s1/compact")
+    assert response.status_code == code, response.text

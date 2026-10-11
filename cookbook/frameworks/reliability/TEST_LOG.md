@@ -268,3 +268,18 @@ Suggested wording:
 > need idempotency. Turns within a session should be serialized. Claude credential
 > refresh, metrics, step replay and the pending agent-retry changes still need
 > release acceptance before we promise the full reliability contract.
+
+### HTTP compaction contract regression
+
+**Status:** PASS
+
+**Description:** `libs/agno/tests/unit/os/routers/test_compaction_route.py` checks
+native response compatibility, Claude's explicit 501, Codex boolean serialization,
+handled busy/timeouts, and session visibility before capability checks. The Codex
+adapter suite verifies native compaction notifications, missing rollouts and busy
+sessions using a scripted SDK fixture.
+
+**Result:** 129 passed, 5 provider-inapplicable cases skipped. Deterministic tests;
+this does not establish live-provider compaction or cross-replica mutual exclusion.
+
+---

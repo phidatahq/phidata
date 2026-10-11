@@ -1229,6 +1229,7 @@ def test_compact_propagates_other_resume_failures(fake_client, tmp_db, monkeypat
 
 
 def test_compact_refuses_while_a_run_is_in_flight(fake_client, tmp_db):
+    from agno.exceptions import SessionBusyError
     from agno.run.agent import RunOutput
     from agno.session.agent import AgentSession
 
@@ -1243,7 +1244,7 @@ def test_compact_refuses_while_a_run_is_in_flight(fake_client, tmp_db):
         return session
 
     agent.aget_session = aget_session  # type: ignore[method-assign]
-    with pytest.raises(RuntimeError, match="r1 is RUNNING"):
+    with pytest.raises(SessionBusyError, match="r1 is RUNNING"):
         agent.compact("s1")
     assert not [c for c in fake_client.state.calls if c["op"] in ("thread_resume", "thread_compact")]
 

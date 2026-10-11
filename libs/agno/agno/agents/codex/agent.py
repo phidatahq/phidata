@@ -314,7 +314,7 @@ class CodexAgent(BaseExternalAgent):
 
         Compaction opens its own app-server on the thread, so it must not overlap a run on the
         same session: two processes would append to one rollout. A run recorded as pending or
-        running for the session raises RuntimeError.
+        running for the session raises SessionBusyError.
         """
         sdk = _sdk()
         session = await self.aget_session(session_id, user_id)
@@ -346,8 +346,10 @@ class CodexAgent(BaseExternalAgent):
         run = cls._run_in_flight(session)
         if run is not None:
             status = getattr(run.status, "value", run.status)
-            raise RuntimeError(
-                f"Cannot compact session {session_id}: run {run.run_id} is {status}. Wait for it to finish."
+            raise SessionBusyError(
+                f"Cannot compact session {session_id}: run {run.run_id} is {status}. Wait for it to finish.",
+                run_id=run.run_id,
+                session_id=session_id,
             )
 
     @staticmethod

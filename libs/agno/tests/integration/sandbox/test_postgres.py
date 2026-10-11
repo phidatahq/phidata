@@ -310,3 +310,52 @@ async def test_sync_api_contract(store):
         assert (await asyncio.to_thread(store.get, state.lease)).lease == state.lease
         await asyncio.to_thread(store.begin_stop, state.lease, status="ERROR", reason="no compute")
         assert (await asyncio.to_thread(store.finish_stop, state.lease))["status"] == "ERROR"
+
+
+async def test_atomic_admission_does_not_leave_a_rejected_run(store):
+    await seed(store)
+    await claim(store)
+    value = {
+        **result((await claim(store)).lease)["run"],
+        "run_id": "rejected",
+        "status": "RUNNING",
+        "input": {"input_content": "new"},
+    }
+    with pytest.raises(SandboxSessionBusy):
+        await claim(store, run_id="rejected", prepared_run=value)
+    assert await store._transaction(lambda c: c.execute(select(store.runs.c.run_id)).scalars().all()) == ["run"]
+
+
+async def test_existing_non_sandbox_history_requires_explicit_migration(store):
+    await seed(store)
+    await store._transaction(lambda c: c.execute(update(store.runs).values(status="COMPLETED")))
+    value = {"run_id": "new", "session_id": "session", "agent_id": "agent", "user_id": "user", "status": "RUNNING"}
+    with pytest.raises(SandboxError, match="migrate explicitly"):
+        await claim(store, run_id="new", prepared_run=value)
+    assert await store._transaction(lambda c: c.execute(select(store.bindings)).first()) is None
+    assert await store._transaction(lambda c: c.execute(select(store.runs.c.run_id)).scalars().all()) == ["run"]
+
+
+async def test_cancelled_provider_operation_drains_before_releasing_ownership_rows(store):
+    await seed(store)
+    state = await claim(store)
+    entered, release = asyncio.Event(), asyncio.Event()
+
+    async def operation(record):
+        entered.set()
+        await release.wait()
+        record["drained"] = True
+        return record
+
+    active = asyncio.create_task(store._aoperation(state.lease, operation))
+    await entered.wait()
+    active.cancel()
+    contender = asyncio.create_task(claim(store, owner="other"))
+    await asyncio.sleep(0.05)
+    assert not active.done() and not contender.done()
+    release.set()
+    with pytest.raises(asyncio.CancelledError):
+        await active
+    with pytest.raises(SandboxSessionBusy):
+        await contender
+    assert (await store.aget(state.lease)).record["drained"] is True

@@ -130,6 +130,12 @@ class DockerSandboxProvider(SandboxProvider):
             raise SandboxError("Sandbox identity changed; refusing the operation")
         return current
 
+    async def afind(self, spec: SandboxSpec) -> Optional[SandboxHandle]:
+        handle = await self.aget(self._name(spec))
+        if handle is not None and handle.config_digest != self._digest(spec):
+            raise SandboxError("Existing generation has different compute configuration")
+        return handle
+
     async def acreate(self, spec: SandboxSpec) -> SandboxHandle:
         name, digest = self._name(spec), self._digest(spec)
         current = await self.aget(name)

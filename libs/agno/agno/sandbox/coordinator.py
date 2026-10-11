@@ -1,0 +1,400 @@
+"""Durable cold-replacement session execution. Service credentials stay on this side."""
+
+from __future__ import annotations
+
+import asyncio
+import hashlib
+import json
+from contextlib import suppress
+from copy import deepcopy
+from dataclasses import asdict, replace
+from typing import Any, AsyncIterator, Dict, Optional
+from uuid import uuid4
+
+from agno.run.agent import (
+    RunCancelledEvent,
+    RunCompletedEvent,
+    RunErrorEvent,
+    RunInput,
+    RunOutput,
+    run_output_event_from_dict,
+)
+from agno.run.base import RunStatus
+from agno.sandbox.base import SandboxError, SandboxHandle, SandboxProvider, SandboxSpec
+from agno.sandbox.checkpoint import CheckpointRef
+from agno.sandbox.client import RuntimeExecution, SandboxRuntimeClient
+from agno.sandbox.postgres import PostgresSandboxStore, SandboxLease, SandboxLeaseLost, SandboxRunFinished
+from agno.sandbox.transfer import DockerCheckpointTransfer
+
+
+class SandboxCoordinator:
+    """Restore, execute, checkpoint and atomically complete one logical session turn.
+
+    Setup the Postgres store before accepting traffic. All replicas need the same
+    provider namespace and durable checkpoint storage. This initial version retires
+    each computer after a turn. Files/native history survive; processes restart.
+    Losing a caller detaches it; explicit cancellation retires the computer.
+    """
+
+    def __init__(
+        self,
+        store: PostgresSandboxStore,
+        provider: SandboxProvider,
+        transfer: DockerCheckpointTransfer,
+        *,
+        lease_seconds: float = 600,
+        poll_interval: float = 0.25,
+    ) -> None:
+        if not 30 <= lease_seconds <= 3600 or not 0.01 <= poll_interval <= 30:
+            raise ValueError("Use a 30-3600 second lease and a 0.01-30 second polling interval")
+        self.store, self.provider, self.transfer = store, provider, transfer
+        self.client = SandboxRuntimeClient(provider)
+        self.lease_seconds, self.poll_interval = lease_seconds, poll_interval
+
+    async def arun(
+        self,
+        spec: SandboxSpec,
+        *,
+        run_id: str,
+        input: str,
+        sdk: str,
+        user_id: Optional[str] = None,
+        config: Optional[Dict[str, Any]] = None,
+        queue_attempt: Optional[int] = None,
+        execution_timeout: float = 900,
+    ) -> RunOutput:
+        result = None
+        async for value in self._astream(
+            spec,
+            run_id=run_id,
+            input=input,
+            sdk=sdk,
+            user_id=user_id,
+            config=config,
+            queue_attempt=queue_attempt,
+            execution_timeout=execution_timeout,
+        ):
+            if isinstance(value, RunOutput):
+                result = value
+        if result is not None:
+            return result
+        raise SandboxError("Coordinator ended without a committed result")
+
+    def run(
+        self,
+        spec: SandboxSpec,
+        *,
+        run_id: str,
+        input: str,
+        sdk: str,
+        user_id: Optional[str] = None,
+        config: Optional[Dict[str, Any]] = None,
+        queue_attempt: Optional[int] = None,
+        execution_timeout: float = 900,
+    ) -> RunOutput:
+        return self.store._sync(
+            self.arun,
+            spec,
+            run_id=run_id,
+            input=input,
+            sdk=sdk,
+            user_id=user_id,
+            config=config,
+            queue_attempt=queue_attempt,
+            execution_timeout=execution_timeout,
+        )
+
+    async def _stop(self, lease: SandboxLease, *, status: str, reason: str) -> Dict[str, Any]:
+        state = await self.store.abegin_stop(lease, status=status, reason=reason)
+        if state.record.get("computer") is not None:
+            handle = SandboxHandle(**state.record["computer"])
+            # The persisted stopping phase forbids every subsequent owner from
+            # restarting execution on this immutable generation.
+            await self.provider.adestroy(handle)
+            if await self.provider.aget(handle.provider_ref) is not None:
+                raise SandboxError("Provider has not confirmed compute removal")
+            await self.store.aconfirm_stopped(lease, handle.provider_ref)
+        return await self.store.afinish_stop(lease)
+
+    async def _astream(
+        self,
+        template: SandboxSpec,
+        *,
+        run_id: str,
+        input: str,
+        sdk: str,
+        user_id: Optional[str] = None,
+        config: Optional[Dict[str, Any]] = None,
+        queue_attempt: Optional[int] = None,
+        execution_timeout: float = 900,
+    ) -> AsyncIterator[Any]:
+        if not isinstance(input, str) or sdk not in ("claude", "codex", "fixture"):
+            raise ValueError("Sandbox runtime requires text input and a supported SDK")
+        # Validate before any allocation, including JSON serializability and limits.
+        from agno.sandbox.protocol import validate_request as _validate
+
+        request = dict(
+            version=1,
+            execution_id="validate",
+            run_id=run_id,
+            agent_id=template.agent_id,
+            session_id=template.session_id,
+            user_id=user_id,
+            input=input,
+            sdk=sdk,
+            config=dict(config or {}),
+            execution_timeout=execution_timeout,
+        )
+        # Fixture opt-in belongs to the compute image/environment; production SDKs
+        # use the same pure request validation without importing either SDK.
+        _validate({**request, "sdk": "claude" if sdk == "fixture" else sdk})
+        request = json.loads(json.dumps(request, allow_nan=False))
+        config = request["config"]
+        if len(json.dumps(request, allow_nan=False).encode()) > 1024 * 1024:
+            raise ValueError("Runtime request exceeds 1 MiB")
+        run = RunOutput(
+            run_id=run_id,
+            agent_id=template.agent_id,
+            session_id=template.session_id,
+            user_id=user_id,
+            input=RunInput(input_content=input),
+            status=RunStatus.running,
+        )
+        prepared = run.to_dict()
+        prepared["queue_attempt"] = queue_attempt
+        claim_task = asyncio.create_task(
+            self.store.aclaim(
+                agent_id=template.agent_id,
+                session_id=template.session_id,
+                user_id=user_id,
+                run_id=run_id,
+                owner=uuid4().hex,
+                queue_attempt=queue_attempt,
+                lease_seconds=self.lease_seconds,
+                prepared_run=prepared,
+            )
+        )
+        try:
+            state = await asyncio.shield(claim_task)
+        except asyncio.CancelledError:
+            try:
+                accepted = await claim_task
+            except Exception:
+                pass
+            else:
+                await self.store.arelinquish(accepted.lease)
+            raise
+        except SandboxRunFinished as finished:
+            yield self._terminal(finished.run)
+            yield RunOutput.from_dict(finished.run)
+            return
+        lease = state.lease
+        heartbeat_error: list[BaseException] = []
+
+        async def heartbeat() -> None:
+            try:
+                while True:
+                    await asyncio.sleep(self.lease_seconds / 3)
+                    await self.store.arenew(lease, lease_seconds=self.lease_seconds)
+            except asyncio.CancelledError:
+                raise
+            except BaseException as error:
+                heartbeat_error.append(error)
+
+        heart = asyncio.create_task(heartbeat())
+        try:
+            spec = replace(template, generation=state.record["generation"])
+            fingerprint = hashlib.sha256(
+                json.dumps(
+                    {
+                        "request": request,
+                        "image": spec.image,
+                        "env": dict(spec.env),
+                        "cpus": spec.cpus,
+                        "memory": spec.memory_mb,
+                        "pids": spec.pids_limit,
+                        "workspace": spec.workspace_mb,
+                        "network": spec.network,
+                    },
+                    sort_keys=True,
+                    allow_nan=False,
+                ).encode()
+            ).hexdigest()
+
+            async def provision(record: Dict[str, Any]) -> Dict[str, Any]:
+                from agno.run.cancel import ais_cancelled
+
+                if await ais_cancelled(run_id):
+                    if record.get("computer") is None and record["phase"] == "executing":
+                        orphan = await self.provider.afind(spec)
+                        if orphan is not None:
+                            record["computer"] = asdict(orphan)
+                    record.update(
+                        phase="stopping",
+                        stop_status="CANCELLED",
+                        stop_reason="Run cancelled",
+                        computer_stopped=record.get("computer") is None,
+                    )
+                    return record
+                if record["phase"] != "executing":
+                    return record
+                if record.get("request_hash") not in (None, fingerprint):
+                    raise SandboxError("Active run configuration changed; reconnect with the original configuration")
+                record["request_hash"] = fingerprint
+                if record.get("computer") is not None:
+                    return record
+                # No SDK execution can start before this binding commits. An
+                # unbound allocation is a crashed provisioning attempt: replace
+                # it before retrying restore, never restore over uncertain files.
+                orphan = await self.provider.afind(spec)
+                if orphan is not None:
+                    await self.provider.adestroy(orphan)
+                handle = await self.provider.acreate(spec)
+                try:
+                    if record.get("checkpoint"):
+                        restored = await self.transfer.arestore(handle, CheckpointRef(**record["checkpoint"]))
+                        if restored.get("binding") != record.get("checkpoint_identity"):
+                            raise SandboxError("Checkpoint manifest does not match committed session identity")
+                except BaseException:
+                    await self.provider.adestroy(handle)
+                    raise
+                record["computer"] = asdict(handle)
+                return record
+
+            state = await self.store._aoperation(lease, provision)
+            if state.record["phase"] == "stopping":
+                committed = await self._stop(
+                    lease, status=state.record["stop_status"], reason=state.record["stop_reason"]
+                )
+            else:
+                if state.record["phase"] == "executing":
+                    handle = SandboxHandle(**state.record["computer"])
+                    current = await self.provider.aget(handle.provider_ref)
+                    if current is None or current.state != "running":
+                        committed = await self._stop(
+                            lease,
+                            status="ERROR",
+                            reason="Sandbox execution computer was lost; recover from the previous completed turn",
+                        )
+                        yield self._terminal(committed)
+                        yield RunOutput.from_dict(committed)
+                        return
+                    execution = RuntimeExecution(handle, state.record["execution_id"], run_id)
+                    # Identical execution identity/request reconciles a lost start acknowledgement.
+                    await self.client.astart(
+                        handle,
+                        execution_id=execution.execution_id,
+                        run_id=run_id,
+                        sdk=sdk,
+                        input=input,
+                        user_id=user_id,
+                        config=config,
+                        execution_timeout=execution_timeout,
+                    )
+                    cursor = 0
+                    while True:
+                        if heartbeat_error:
+                            raise heartbeat_error[0]
+                        await self.store.aget(lease)
+                        from agno.run.cancel import ais_cancelled
+
+                        if await ais_cancelled(run_id):
+                            committed = await self._stop(lease, status="CANCELLED", reason="Run cancelled")
+                            yield self._terminal(committed)
+                            yield RunOutput.from_dict(committed)
+                            return
+                        page = await self.client.apoll(execution, cursor=cursor)
+                        cursor = page.cursor
+                        # A resumed caller may receive provisional events again.
+                        # Queue/event transport supplies its own attempt fencing.
+                        await self.store.aget(lease)
+                        for event in page.events:
+                            yield run_output_event_from_dict(event)
+                        if page.result is not None:
+                            if page.result["type"] != "execution_finished":
+                                committed = await self._stop(
+                                    lease,
+                                    status="ERROR",
+                                    reason=str(page.result.get("error", "Runtime outcome is unknown"))[:8192],
+                                )
+                                yield self._terminal(committed)
+                                yield RunOutput.from_dict(committed)
+                                return
+                            state = await self.store.astage_result(lease, page.result)
+                            break
+                        await asyncio.sleep(self.poll_interval)
+                if state.record["result"]["run"]["status"] != "COMPLETED":
+                    result = state.record["result"]["run"]
+                    committed = await self._stop(
+                        lease, status=result["status"], reason=str(result.get("content", "Execution failed"))[:8192]
+                    )
+                else:
+                    committed = await self._finalize(lease)
+            yield self._terminal(committed)
+            yield RunOutput.from_dict(committed)
+        finally:
+            heart.cancel()
+            with suppress(asyncio.CancelledError):
+                await heart
+            with suppress(SandboxLeaseLost):
+                await self.store.arelinquish(lease)
+
+    async def _finalize(self, lease: SandboxLease) -> Dict[str, Any]:
+        async def capture(record: Dict[str, Any]) -> Dict[str, Any]:
+            if record["phase"] != "finalizing":
+                raise SandboxError("Only retained execution output can be finalized")
+            if record.get("staged_checkpoint") is None:
+                handle = SandboxHandle(**record["computer"])
+                current = await self.provider.aget(handle.provider_ref)
+                if current is None or current.state != "running":
+                    record.update(
+                        phase="stopping",
+                        stop_status="ERROR",
+                        stop_reason="Completed execution lost compute before checkpointing; model execution will not be repeated",
+                    )
+                    return record
+                identity = dict(
+                    agent_id=lease.agent_id,
+                    session_id=lease.session_id,
+                    user_id=lease.user_id,
+                    incarnation=record["incarnation"],
+                    run_id=lease.run_id,
+                    execution_id=record["execution_id"],
+                    generation=record["generation"],
+                )
+                reference = await self.transfer.acapture(
+                    handle, state={"binding": identity, "result": record["result"]}
+                )
+                await self.transfer.store.averify(reference)
+                record.update(staged_checkpoint=asdict(reference), staged_identity=identity)
+            await self.transfer.store.averify(CheckpointRef(**record["staged_checkpoint"]))
+            return record
+
+        state = await self.store._aoperation(lease, capture)
+        if state.record["phase"] == "stopping":
+            return await self._stop(lease, status="ERROR", reason=state.record["stop_reason"])
+        if state.record.get("computer") is not None:
+            handle = SandboxHandle(**state.record["computer"])
+            await self.provider.adestroy(handle)
+            if await self.provider.aget(handle.provider_ref) is not None:
+                raise SandboxError("Provider has not confirmed compute removal")
+            await self.store.aconfirm_stopped(lease, handle.provider_ref)
+        try:
+            return await self.store.acommit(lease)
+        except SandboxRunFinished as finished:
+            if finished.run.get("status") == "COMPLETED":
+                return finished.run
+            return await self._stop(
+                lease, status=finished.run["status"], reason="Service run was terminated during finalization"
+            )
+
+    @staticmethod
+    def _terminal(run: Dict[str, Any]) -> Any:
+        fields: Dict[str, Any] = {key: run.get(key) for key in ("run_id", "agent_id", "session_id", "content")}
+        if run["status"] == "COMPLETED":
+            output = RunOutput.from_dict(deepcopy(run))
+            return RunCompletedEvent(**fields, content_type=output.content_type, metrics=output.metrics)
+        if run["status"] == "CANCELLED":
+            fields.pop("content")
+            return RunCancelledEvent(**fields, reason="Run cancelled")
+        return RunErrorEvent(**fields)

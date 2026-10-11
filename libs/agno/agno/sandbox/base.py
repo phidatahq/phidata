@@ -87,6 +87,13 @@ class SandboxProvider(ABC):
     def create(self, spec: SandboxSpec) -> SandboxHandle:
         return _sync(self.acreate(spec))
 
+    async def afind(self, spec: SandboxSpec) -> Optional[SandboxHandle]:
+        """Reconcile allocation by immutable session generation, including lost create acknowledgements."""
+        raise NotImplementedError("This provider does not support generation reconciliation")
+
+    def find(self, spec: SandboxSpec) -> Optional[SandboxHandle]:
+        return _sync(self.afind(spec))
+
     @abstractmethod
     async def aget(self, provider_ref: str) -> Optional[SandboxHandle]: ...
 

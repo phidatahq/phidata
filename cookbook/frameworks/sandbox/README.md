@@ -95,3 +95,13 @@ A runtime result is staged first. A verified checkpoint reference and provider-c
 This PR supplies the storage contract, not the AgentOS coordinator. The caller still verifies checkpoint bytes, binds the correct manifest, renews leases, and confirms provider cleanup. Local checkpoint directories need deployment-specific durable storage before claiming host-loss recovery.
 
 The runtime forces `require_native_resume=True` and `strict_persistence=True` on Claude/Codex adapters. Missing native state is an error; successful-turn history must not silently seed a new native conversation. Codex ephemeral threads are incompatible with this contract. The runtime reads back its local SQLite result before returning execution output. Ordinary SDK users keep the existing fallback defaults unless they explicitly enable these options.
+
+### Session computer coordinator
+
+`session_computer.py` runs two fixture turns through the complete Docker/Postgres path. Build the runtime, then set `AGNO_TEST_RUNTIME_IMAGE` and `AGNO_TEST_SANDBOX_DB_URL` before running it. No model credentials are used. The second turn restores the first turn's workspace onto a replacement computer.
+
+`SandboxCoordinator` stages the execution result before capturing an archive, persists that reference before removing compute, and atomically publishes conversation plus recovery metadata afterwards. A reconnect uses the same execution identity; a finalization retry never starts another model turn. Missing compute before capture fails visibly and preserves the previous checkpoint. A missing cleanup or commit acknowledgement can be reconciled with the same run ID and input. `run()` requires PostgresDb; `arun()` supports both Postgres adapters.
+
+Provider mutation operations hold the session ownership rows until their bounded transport calls drain. Takeover waits for an in-flight restore/capture instead of racing it. This costs a database connection and can delay cancellation until a transfer finishes. The initial implementation uses cold replacement after every completed turn; no warm-computer reuse is claimed.
+
+Use deployment storage accessible to every coordinator replica for checkpoint bytes. The local directory store in these examples is temporary and does not certify host-loss recovery. Workspace and native files restore; live processes restart, and remote MCP/tool effects are not rolled back. Direct stream reconnection may repeat provisional events; durable event transport remains an AgentOS integration responsibility.

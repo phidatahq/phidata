@@ -92,6 +92,8 @@ def test_partial_event_is_not_exposed(dispatch):
 def test_runtime_rejects_invalid_config_and_disabled_fixture(request_data, monkeypatch):
     with pytest.raises(ValueError, match="configuration"):
         runtime._validate({**request_data, "config": {"db": "secret"}})
+    with pytest.raises(ValueError, match="configuration"):
+        runtime._validate({**request_data, "config": {"options_kwargs": {"cwd": "/tmp"}}})
     with pytest.raises(ValueError, match="timeout"):
         runtime._validate({**request_data, "execution_timeout": float("nan")})
     monkeypatch.delenv("AGNO_SANDBOX_TEST_RUNTIME")

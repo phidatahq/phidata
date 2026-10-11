@@ -11,7 +11,6 @@ import asyncio
 import fcntl
 import hashlib
 import json
-import math
 import os
 import subprocess
 import sys
@@ -21,6 +20,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterator
 
 from agno.sandbox.base import SandboxError
+from agno.sandbox.protocol import validate_request as _validate
 
 _VERSION = 1
 _MAX_REQUEST = 1024 * 1024
@@ -47,29 +47,6 @@ def _job(root: Path, execution_id: str) -> Path:
     if not isinstance(execution_id, str) or not execution_id or len(execution_id) > 256:
         raise ValueError("Invalid runtime execution identity")
     return root / "jobs" / hashlib.sha256(execution_id.encode()).hexdigest()
-
-
-def _validate(request: Dict[str, Any]) -> None:
-    if type(request.get("version")) is not int or request["version"] != _VERSION:
-        raise ValueError("Unsupported runtime protocol version")
-    for key in ("execution_id", "run_id", "session_id", "agent_id"):
-        if not isinstance(request.get(key), str) or not request[key] or len(request[key]) > 256:
-            raise ValueError("Runtime requires bounded string identities")
-    if request.get("sdk") not in ("claude", "codex", "fixture"):
-        raise ValueError("Unsupported runtime SDK")
-    if not isinstance(request.get("input"), str) or not isinstance(request.get("config", {}), dict):
-        raise ValueError("Runtime input must be text and configuration must be JSON")
-    if request["sdk"] == "fixture" and os.environ.get("AGNO_SANDBOX_TEST_RUNTIME") != "1":
-        raise ValueError("The fixture runtime is disabled")
-    if {"db", "cwd", "id", "retries", "env", "client_options", "options", "keep_uploads"} & set(
-        request.get("config", {})
-    ):
-        raise ValueError("Runtime owns database, workspace, identity, process environment and retry configuration")
-    timeout = request.get("execution_timeout", 900)
-    if not isinstance(timeout, (float, int)) or not math.isfinite(timeout) or not 0 < timeout <= 86400:
-        raise ValueError("Runtime execution timeout must be between 0 and 86400 seconds")
-    if len(_encode(request)) > _MAX_REQUEST:
-        raise ValueError("Runtime request exceeds its limit")
 
 
 @contextmanager
@@ -188,6 +165,7 @@ def _agent(request: Dict[str, Any], native: Path) -> Any:
         keep_uploads=True,
         require_native_resume=True,
         strict_persistence=True,
+        store_events=True,
     )
     if request["sdk"] == "claude":
         from agno.agents.claude import ClaudeAgent

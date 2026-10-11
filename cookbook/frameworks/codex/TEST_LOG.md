@@ -42,6 +42,16 @@ Tested 2026-10-08 with openai-codex 0.161.0 (bundled Codex CLI 0.161.0), model g
 
 ---
 
+### codex_structured_output.py (Pydantic output_schema, 2026-10-10)
+
+**Status:** PASS
+
+**Description:** Reran with openai-codex 0.161.0 after `output_schema` moved to the base class. `output_schema=Movie` (Pydantic, sent as a strict schema): a non-streaming run, a streaming run, then a per-run JSON Schema dict. Also reran `codex_basic.py` to check a run without a schema is unchanged.
+
+**Result:** Non-streaming content was a `Movie` with `content_type` "Movie". The streaming `RunCompleted` event carried a `Movie`. The per-run schema returned `{'title': 'The Hive Within'}` with `content_type` "dict". Codex accepted the strict schema built from the Pydantic model. `codex_basic.py` streamed a normal answer.
+
+---
+
 ### codex_structured_output.py
 
 **Status:** PASS

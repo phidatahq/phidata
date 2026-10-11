@@ -70,6 +70,14 @@ Every run reports the tokens, cache usage and cost Claude Code returned for the 
 
 `cache_read_tokens` counts every API call inside the turn. Claude Code's system prompt, tool schemas and project context are a cached prefix of roughly 15k tokens, and a turn with one tool call makes two API calls, so a cache read figure around 30k for such a turn is expected. Cached reads are billed at a tenth of the input price, which is why cost stays low.
 
+## Structured output
+
+`output_schema` takes a Pydantic model or a JSON Schema dict, on the agent or per run (`agent.run(..., output_schema=...)`), the same as an Agno `Agent`. The run content is the parsed model, or a dict for a JSON Schema, and `content_type` names it. Claude Code returns the object through a `StructuredOutput` tool call and then replies in prose: the streamed text is that reply, and the `RunCompleted` event and the stored run carry the parsed object. An answer that cannot be parsed stays text and a warning is logged. AgentOS's per-request `output_schema` form field reaches the agent the same way.
+
+```bash
+.venvs/demo/bin/python cookbook/frameworks/claude-agent-sdk/structured_output.py
+```
+
 ## Background runs and cancellation
 
 `background_cancel.py` serves the agent through AgentOS. Submit runs with `background=true`, poll the run endpoint, or use `stream=true` for indexed SSE. Runs continue after disconnects; the resume endpoint reads the configured event stream. Cancel through the run cancellation endpoint.

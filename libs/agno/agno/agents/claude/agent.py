@@ -1,6 +1,19 @@
 import copy
 from dataclasses import dataclass, field
-from typing import Any, AsyncIterator, Awaitable, Dict, Iterator, List, Literal, Optional, Tuple, Union, cast
+from typing import (
+    Any,
+    AsyncIterator,
+    Awaitable,
+    ClassVar,
+    Dict,
+    Iterator,
+    List,
+    Literal,
+    Optional,
+    Tuple,
+    Union,
+    cast,
+)
 from uuid import uuid4
 
 from agno.agents.base import (
@@ -8,6 +21,7 @@ from agno.agents.base import (
     ExternalContinuation,
     ExternalRunMetricsEvent,
     ExternalRunResult,
+    ExternalRunStructuredOutputEvent,
     ExternalRunWarningEvent,
 )
 from agno.db.base import AsyncBaseDb, BaseDb
@@ -84,6 +98,8 @@ class ClaudeAgent(BaseExternalAgent):
         max_budget_usd: Maximum cost budget in USD.
         cwd: Working directory for the agent.
         mcp_servers: MCP server configurations for custom tools.
+        output_schema: Pydantic model or JSON Schema for the final answer. The run content is the
+            parsed model (a dict for a JSON Schema); the streamed text is Claude's reply around it.
         options_kwargs: Additional kwargs passed to ClaudeAgentOptions.
         retries: Number of times to retry a failed run. Cancelled runs, max_turns / max_budget_usd limits
             and errors that would fail again (authentication, billing, invalid requests) are not retried.
@@ -123,6 +139,8 @@ class ClaudeAgent(BaseExternalAgent):
     mcp_servers: Optional[Dict[str, Any]] = None
     options_kwargs: Dict[str, Any] = field(default_factory=dict)
     framework: str = "claude-agent-sdk"
+
+    _supports_output_schema: ClassVar[bool] = True
 
     # Key under which the SDK session id is stored in the Agno session's session_data.
     _SESSION_KEY = "claude_sdk_session_id"
@@ -190,6 +208,7 @@ class ClaudeAgent(BaseExternalAgent):
         resume: Optional[str] = None,
         agno_session_id: Optional[str] = None,
         session_store: Optional[Any] = None,
+        output_schema: Optional[Any] = None,
     ) -> Any:
         """Build ClaudeAgentOptions from agent config.
 
@@ -218,6 +237,11 @@ class ClaudeAgent(BaseExternalAgent):
             opts["cwd"] = self.cwd
         if self.mcp_servers:
             opts["mcp_servers"] = self.mcp_servers
+        if output_schema is not None:
+            opts["output_format"] = {
+                "type": "json_schema",
+                "schema": self._output_json_schema(output_schema, "anthropic"),
+            }
 
         # Enable token-level streaming when streaming is requested
         if streaming:
@@ -288,7 +312,9 @@ class ClaudeAgent(BaseExternalAgent):
         while True:
             if run_state is not None:
                 run_state.clear()
-            options = self._build_options(streaming=streaming, resume=resume, session_store=store)
+            options = self._build_options(
+                streaming=streaming, resume=resume, session_store=store, output_schema=kwargs.get("output_schema")
+            )
             prompt = self._build_prompt(input, history, resumed=resume is not None)
             received = False
             assistant_error: Optional[str] = None
@@ -859,6 +885,7 @@ class ClaudeAgent(BaseExternalAgent):
         final_result = ""
         tools: Dict[str, ToolExecution] = {}
         metrics: Optional[RunMetrics] = None
+        structured_output: Any = None
 
         async for message in self._aquery(input, history, streaming=False, **kwargs):
             # Share the live accumulator so the base class can persist work
@@ -894,10 +921,15 @@ class ClaudeAgent(BaseExternalAgent):
                 if hasattr(message, "result") and message.result:
                     final_result = str(message.result)
                 metrics = self._metrics_from_result(message)
+                structured_output = getattr(message, "structured_output", None)
 
         # Prefer ResultMessage.result, fall back to accumulated assistant text
         return ExternalRunResult(
-            final_result or assistant_text, list(tools.values()) or None, warnings or None, metrics=metrics
+            final_result or assistant_text,
+            list(tools.values()) or None,
+            warnings or None,
+            metrics=metrics,
+            structured_output=structured_output,
         )
 
     async def _arun_adapter_stream(
@@ -950,6 +982,11 @@ class ClaudeAgent(BaseExternalAgent):
                 metrics = self._metrics_from_result(message)
                 if metrics is not None:
                     yield ExternalRunMetricsEvent(run_id=run_id, agent_id=self.get_id(), metrics=metrics)
+                structured_output = getattr(message, "structured_output", None)
+                if structured_output is not None:
+                    yield ExternalRunStructuredOutputEvent(
+                        run_id=run_id, agent_id=self.get_id(), structured_output=structured_output
+                    )
 
             elif isinstance(message, sdk.AssistantMessage):
                 # Always extract tool calls from complete AssistantMessage

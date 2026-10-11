@@ -2,6 +2,16 @@
 
 ## 2026-10-10
 
+### structured_output.py
+
+**Status:** PASS
+
+**Description:** `output_schema=ProjectSummary` (nested Pydantic list) with Read and Glob tools: a non-streaming run, a streaming run, then a per-run JSON Schema dict overriding the agent's model.
+
+**Result:** Non-streaming content was a `ProjectSummary` with three files, `content_type` "ProjectSummary". The streaming `RunCompleted` event carried a `ProjectSummary`. The per-run schema returned `{'python_files': 13}` with `content_type` "dict" (13 is correct). Also checked through AgentOS: `POST /agents/claude/runs` with an `output_schema` form field returned `content_type` "Capital" and `{'city': 'Paris'}`.
+
+---
+
 ### metrics_agentos.py --verify
 
 **Status:** PASS

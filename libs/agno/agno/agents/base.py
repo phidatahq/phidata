@@ -5,8 +5,23 @@ from contextvars import ContextVar
 from copy import copy
 from dataclasses import dataclass
 from time import time
-from typing import TYPE_CHECKING, Any, AsyncIterator, Awaitable, Dict, Iterator, List, Optional, Sequence, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    AsyncIterator,
+    Awaitable,
+    ClassVar,
+    Dict,
+    Iterator,
+    List,
+    Optional,
+    Sequence,
+    Type,
+    Union,
+)
 from uuid import uuid4
+
+from pydantic import BaseModel, ValidationError
 
 from agno.db.base import AsyncBaseDb, BaseDb, SessionType
 from agno.exceptions import RunCancelledException
@@ -32,6 +47,7 @@ from agno.run.base import RunStatus
 from agno.session.agent import AgentSession
 from agno.utils.events import error_type_of
 from agno.utils.log import log_exception, log_warning
+from agno.utils.string import parse_response_dict_str, parse_response_model_str
 
 if TYPE_CHECKING:
     from agno.tools.component import ComponentTool
@@ -96,13 +112,26 @@ class ExternalRunMetricsEvent(CustomEvent):
 
 
 @dataclass
+class ExternalRunStructuredOutputEvent(CustomEvent):
+    """The answer to parse into output_schema when it is not the streamed text; consumed by the base, not forwarded."""
+
+    structured_output: Any = None
+
+
+@dataclass
 class ExternalRunResult:
-    """Adapter output with tool executions retained for session history."""
+    """Adapter output with tool executions retained for session history.
+
+    structured_output is the answer to parse into output_schema when content holds something
+    else (prose around a tool-delivered object, commentary before the final answer): a decoded
+    object or the answer's JSON text.
+    """
 
     content: str
     tools: Optional[List[ToolExecution]] = None
     warnings: Optional[List[Dict[str, Any]]] = None
     metrics: Optional[RunMetrics] = None
+    structured_output: Any = None
 
 
 @dataclass
@@ -157,6 +186,12 @@ class BaseExternalAgent:
     delay_between_retries: int = 1
     # Exponential backoff: if True, the delay between retries is doubled each time
     exponential_backoff: bool = False
+    # Pydantic model or plain JSON Schema the final answer must match. As with Agent, the run's
+    # content is the parsed model (or dict), and stays the answer text if it cannot be parsed.
+    output_schema: Optional[Union[Type[BaseModel], Dict[str, Any]]] = None
+
+    # Adapters that pass output_schema to their framework set this; others reject the option.
+    _supports_output_schema: ClassVar[bool] = False
 
     def __post_init__(self) -> None:
         from agno.utils.string import generate_id_from_name
@@ -165,6 +200,7 @@ class BaseExternalAgent:
             self.id = generate_id_from_name(self.name)
         if self.events_to_skip is None:
             self.events_to_skip = [RunEvent.run_content]
+        self._check_output_schema(self.output_schema)
 
     def get_id(self) -> str:
         """Return the agent ID, guaranteed non-None after __post_init__."""
@@ -706,6 +742,62 @@ class BaseExternalAgent:
             _handle_owner.reset(owner_token)
             await acleanup_run(run_id)
 
+    # ---------------------------------------------------------------------------
+    # Structured output
+    # ---------------------------------------------------------------------------
+
+    def _check_output_schema(self, output_schema: Any) -> None:
+        if output_schema is not None and not self._supports_output_schema:
+            raise ValueError(f"{type(self).__name__} does not support output_schema")
+
+    def _resolve_output_schema(self, kwargs: Dict[str, Any]) -> Optional[Union[Type[BaseModel], Dict[str, Any]]]:
+        """The run's output_schema, the call's over the agent's, left in kwargs for the adapter."""
+        output_schema = kwargs.get("output_schema")
+        if output_schema is None:
+            output_schema = self.output_schema
+        self._check_output_schema(output_schema)
+        if output_schema is not None:
+            kwargs["output_schema"] = output_schema
+        return output_schema
+
+    @staticmethod
+    def _output_json_schema(output_schema: Union[Type[BaseModel], Dict[str, Any]], provider: str) -> Dict[str, Any]:
+        """JSON Schema for the framework: a dict is passed as given, a model is normalized for the provider."""
+        if isinstance(output_schema, dict):
+            return output_schema
+        from agno.utils.models.schema_utils import get_response_schema_for_provider
+
+        return get_response_schema_for_provider(output_schema, provider)
+
+    def _apply_output_schema(
+        self,
+        run: RunOutput,
+        output_schema: Optional[Union[Type[BaseModel], Dict[str, Any]]],
+        structured_output: Any = None,
+    ) -> None:
+        """Replace a completed run's content with its answer parsed into output_schema."""
+        if output_schema is None or run.status != RunStatus.completed:
+            return
+        answer = structured_output if structured_output is not None else run.content
+        parsed: Any = None
+        if isinstance(output_schema, dict):
+            parsed = answer if isinstance(answer, dict) else parse_response_dict_str(str(answer or ""))
+            content_type = "dict"
+        else:
+            content_type = output_schema.__name__
+            try:
+                if isinstance(answer, dict):
+                    parsed = output_schema.model_validate(answer)
+                else:
+                    parsed = parse_response_model_str(str(answer or ""), output_schema)
+            except ValidationError as error:
+                log_warning(f"{self.framework} answer does not match {content_type}: {error}")
+        if parsed is None:
+            log_warning(f"Could not parse the {self.framework} answer into the output_schema; keeping the text")
+            return
+        run.content = parsed
+        run.content_type = content_type
+
     def _retry_delay(self, attempt: int) -> int:
         if self.exponential_backoff:
             return self.delay_between_retries * (2**attempt)
@@ -1184,6 +1276,7 @@ class BaseExternalAgent:
         user_id = kwargs.get("user_id")
         continuation: Optional[ExternalContinuation] = kwargs.get("continuation")
         record_input = input if continuation is None else continuation.record_input
+        output_schema = self._resolve_output_schema(kwargs)
         run_state: Dict[str, Any] = {}
         session = await self.aread_or_create_session(session_id, user_id) if self.db else None
         history = (
@@ -1227,6 +1320,9 @@ class BaseExternalAgent:
             )
             if isinstance(content, ExternalRunResult) and content.warnings:
                 run_output.metadata = {"warnings": content.warnings}
+            self._apply_output_schema(
+                run_output, output_schema, content.structured_output if isinstance(content, ExternalRunResult) else None
+            )
         except RunCancelledException:
             # Cancelled mid-attempt or during a retry backoff: the tools that completed ran. A
             # failed attempt's tools were already moved into carried_tools before the backoff.
@@ -1266,6 +1362,7 @@ class BaseExternalAgent:
         user_id = kwargs.get("user_id")
         yield_run_output = kwargs.pop("yield_run_output", False)
         continuation: Optional[ExternalContinuation] = kwargs.get("continuation")
+        output_schema = self._resolve_output_schema(kwargs)
         run_state: Dict[str, Any] = {}
         session = await self.aread_or_create_session(session_id, user_id) if self.db else None
         history = (
@@ -1290,6 +1387,7 @@ class BaseExternalAgent:
         run_error: Optional[Exception] = None
         attempts_made = 0
         adapter_metrics: Optional[RunMetrics] = None
+        structured_output: Any = None
         timer = RunMetrics()
         timer.start_timer()
         try:
@@ -1300,12 +1398,16 @@ class BaseExternalAgent:
                     # Content is the final attempt's answer; tool calls from every attempt ran, so they are kept.
                     accumulated_content = ""
                     adapter_metrics = None
+                    structured_output = None
                     try:
                         async for event in self._arun_adapter_stream(
                             input, history=history, run_id=run_id, session=session, run_state=run_state, **kwargs
                         ):
                             if isinstance(event, ExternalRunMetricsEvent):
                                 adapter_metrics = event.metrics
+                                continue
+                            if isinstance(event, ExternalRunStructuredOutputEvent):
+                                structured_output = event.structured_output
                                 continue
                             if isinstance(event, ExternalRunWarningEvent) and event.warning is not None:
                                 warnings.append(event.warning)
@@ -1355,6 +1457,7 @@ class BaseExternalAgent:
             run.metadata = {**(run.metadata or {}), **self._failure_metadata(run_error)}
         if attempts_made > 1:
             run.metadata = {**(run.metadata or {}), "attempts": attempts_made}
+        self._apply_output_schema(run, output_schema, structured_output)
         self._finish_run_output(run, run_state, continuation)
         fields: Dict[str, Any] = dict(
             run_id=run_id,
@@ -1373,7 +1476,7 @@ class BaseExternalAgent:
         elif run_error is not None:
             terminal = RunErrorEvent(**fields, error_type=error_type_of(run_error))
         else:
-            terminal = RunCompletedEvent(**fields, metrics=run.metrics)
+            terminal = RunCompletedEvent(**fields, content_type=run.content_type, metrics=run.metrics)
         keep(terminal)
         if stored_events is not None:
             run.events = list(stored_events)

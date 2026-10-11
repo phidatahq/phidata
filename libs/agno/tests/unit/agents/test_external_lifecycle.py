@@ -762,3 +762,13 @@ async def test_retry_cleanup_keeps_the_newer_attempts_handle():
     proceed["second"].set()
     await second
     assert run_id not in _live_handles
+
+
+def test_adapters_without_structured_output_reject_output_schema():
+    with pytest.raises(ValueError, match="does not support output_schema"):
+        BlockingAgent(id="external", output_schema={"type": "object"})
+
+    agent = BlockingAgent(id="external")
+    with pytest.raises(ValueError, match="does not support output_schema"):
+        agent.run("hi", output_schema={"type": "object"})
+    assert agent.calls == []

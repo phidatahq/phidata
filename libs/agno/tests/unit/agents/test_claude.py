@@ -12,6 +12,7 @@ from types import ModuleType
 from typing import Any, Dict, List, Optional
 
 import pytest
+from pydantic import BaseModel
 
 from agno.agents.claude import ClaudeAgent
 from agno.agents.claude import agent as claude_module
@@ -66,6 +67,7 @@ class ResultMessage:
     model_usage: Optional[Dict[str, Any]] = None
     num_turns: Optional[int] = None
     duration_api_ms: Optional[int] = None
+    structured_output: Any = None
 
 
 class StreamEvent:
@@ -97,6 +99,7 @@ class FakeState:
         self.known_sessions: set = set()
         self.session_counter = 0
         self.calls: List[Dict[str, Any]] = []
+        self.options: List[Dict[str, Any]] = []
         self.reply = "ok"
         # Extra ResultMessage fields (usage, cost, model_usage) for metrics tests
         self.result_fields: Dict[str, Any] = {}
@@ -108,6 +111,7 @@ def fake_sdk(monkeypatch) -> FakeState:
 
     async def query(prompt: str, options: ClaudeAgentOptions):
         state.calls.append({"prompt": prompt, "resume": options.resume})
+        state.options.append(options.extra)
         if options.resume is not None and options.resume not in state.known_sessions:
             # Mirrors the CLI: "No conversation found" on stderr, exit 1, no messages yielded
             raise ProcessError("Command failed with exit code 1")
@@ -1341,3 +1345,66 @@ def test_runs_without_usage_still_report_duration(fake_sdk, tmp_db):
     agent = ClaudeAgent(name="Claude", id="claude", db=tmp_db)
     run = agent.run("hi", session_id="s")
     assert run.metrics is not None and run.metrics.total_tokens == 0 and run.metrics.duration is not None
+
+
+# ---------------------------------------------------------------------------
+# Structured output
+# ---------------------------------------------------------------------------
+
+
+class Capital(BaseModel):
+    city: str
+    country: str
+
+
+@pytest.mark.parametrize("stream", [True, False])
+def test_output_schema_parses_the_structured_output_not_the_reply(fake_sdk, tmp_db, stream):
+    # Claude delivers the object through a tool and then replies in prose.
+    fake_sdk.reply = "The capital of France is **Paris**."
+    fake_sdk.result_fields = {"structured_output": {"city": "Paris", "country": "France"}}
+    agent = ClaudeAgent(name="Claude", id="claude", db=tmp_db, output_schema=Capital)
+
+    if stream:
+        events = _collect(agent, "Capital of France?", session_id="s")
+        assert not [e for e in events if type(e).__name__ == "ExternalRunStructuredOutputEvent"]
+        completed = events[-1]
+        assert isinstance(completed, RunCompletedEvent)
+        assert completed.content == Capital(city="Paris", country="France")
+        assert completed.content_type == "Capital"
+    else:
+        run = agent.run("Capital of France?", session_id="s")
+        assert run.content == Capital(city="Paris", country="France")
+        assert run.content_type == "Capital"
+
+    output_format = fake_sdk.options[-1]["output_format"]
+    assert output_format["type"] == "json_schema"
+    assert output_format["schema"]["required"] == ["city", "country"]
+    stored = agent.get_session("s").runs[-1]
+    assert stored.content == {"city": "Paris", "country": "France"}
+    assert stored.messages[-1].content == "The capital of France is **Paris**."
+
+
+def test_output_schema_per_run_overrides_the_agent_and_accepts_json_schema(fake_sdk):
+    schema = {"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]}
+    fake_sdk.result_fields = {"structured_output": {"city": "Paris"}}
+    agent = ClaudeAgent(name="Claude", id="claude", output_schema=Capital)
+
+    run = agent.run("Capital of France?", output_schema=schema)
+
+    assert run.content == {"city": "Paris"} and run.content_type == "dict"
+    assert fake_sdk.options[-1]["output_format"] == {"type": "json_schema", "schema": schema}
+
+
+def test_without_output_schema_no_output_format_is_sent(fake_sdk):
+    agent = ClaudeAgent(name="Claude", id="claude")
+    run = agent.run("hi")
+    assert run.content == "ok" and run.content_type == "str"
+    assert "output_format" not in fake_sdk.options[-1]
+
+
+def test_answer_that_does_not_match_the_schema_stays_text(fake_sdk):
+    fake_sdk.reply = "I could not find it."
+    agent = ClaudeAgent(name="Claude", id="claude", output_schema=Capital)
+    run = agent.run("Capital of Atlantis?")
+    assert run.status == RunStatus.completed
+    assert run.content == "I could not find it." and run.content_type == "str"

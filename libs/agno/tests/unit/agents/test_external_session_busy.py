@@ -171,6 +171,26 @@ async def test_cancelling_an_unowned_run_row_frees_its_session(tmp_path, status,
 
 
 @pytest.mark.asyncio
+async def test_cancelling_a_row_still_registered_by_a_dead_process_frees_its_session(tmp_path):
+    """A shared cancellation manager keeps a crashed process's registration until its TTL, so
+    'registered' does not mean live. With no handle in this process the row is still cancelled."""
+    from agno.run.cancel import aregister_run
+
+    db = SqliteDb(db_file=str(tmp_path / "runs.db"))
+    agent = SlowAgent(id="slow", db=db)
+    agent.gate.set()
+    db.upsert_session(AgentSession(session_id="s", agent_id="slow"))
+    db.upsert_run(
+        run=RunOutput(run_id="crashed", session_id="s", agent_id="slow", status=RunStatus.running), session_id="s"
+    )
+    await aregister_run("crashed")  # the dead process's registration outlives it
+
+    assert await agent.acancel_run("crashed") is True, "the manager still reports it registered"
+    assert agent.get_run_output("crashed", "s").status == RunStatus.cancelled
+    assert (await agent._arun_non_stream("go", session_id="s")).status == RunStatus.completed
+
+
+@pytest.mark.asyncio
 async def test_cancel_leaves_finished_and_other_agents_rows_alone(tmp_path):
     db = SqliteDb(db_file=str(tmp_path / "runs.db"))
     agent = SlowAgent(id="slow", db=db)

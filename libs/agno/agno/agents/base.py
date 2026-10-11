@@ -702,7 +702,7 @@ class BaseExternalAgent:
         live = _live_handles.get(run_id)
         if live is not None and not live.loop.is_closed():
             asyncio.run_coroutine_threadsafe(live.agent._ainterrupt_live_handle(run_id), live.loop)
-        elif not registered:
+        else:
             run_coroutine_sync(self._acancel_unowned_row(run_id))
         return registered
 
@@ -719,15 +719,19 @@ class BaseExternalAgent:
                 await asyncio.wrap_future(
                     asyncio.run_coroutine_threadsafe(live.agent._ainterrupt_live_handle(run_id), live.loop)
                 )
-        elif not registered:
+        else:
             await self._acancel_unowned_row(run_id)
         return registered
 
     async def _acancel_unowned_row(self, run_id: str) -> None:
-        """Mark this agent's pending or running row cancelled when no process has the run registered.
+        """Mark this agent's pending or running row cancelled when this process holds no handle for it.
 
-        Such a row was left by a process that stopped mid-run. Nothing else finishes it, and it
-        keeps its session busy, so cancelling it is how the session is freed.
+        A row left pending or running by a process that stopped mid-run keeps its session busy,
+        and nothing else finishes it, so cancelling it is how the session is freed. The
+        cancellation manager's registration is not a reliable sign of a live run: a shared
+        (Redis) manager keeps a crashed process's registration until its TTL, a day by default,
+        so the row is marked whenever no live handle exists here. A run that is live on another
+        replica sees the cancellation through the manager and ends cancelled as well.
         """
         if self.db is None:
             return

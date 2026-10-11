@@ -34,3 +34,17 @@ AGNO_TEST_DOCKER_IMAGE=python:3.12-slim .venv/bin/python -m pytest libs/agno/tes
 ```
 
 Integration tests use unique namespaces and remove only their own containers. See [TEST_LOG.md](TEST_LOG.md) for the tested environment and limits.
+
+## Checkpoint archive and storage
+
+```bash
+.venv/bin/python cookbook/frameworks/sandbox/checkpoint_files.py
+```
+
+This credential-free example captures real filesystem roots, uploads an immutable object, deletes the original files, and restores them through another store instance. `CheckpointArchive` requires `workspace` and `native` roots and a JSON state manifest. `FileCheckpointStore` stores immutable SHA-256-addressed bytes with size/checksum verification and atomic publication. Both classes provide sync and async operations.
+
+Drain native SDK writes and quiesce all applications before capture. The native root must contain only restorable state; keep credentials outside it or explicitly exclude credential paths. Exclusions are exact relative paths (and their descendants), not glob expressions. Ignored and untracked workspace files are included. Safe relative symlinks and file permissions survive; hardlinked source files become separate files. Special files, escaping/cyclic links and malicious archives are rejected. Archive limits bound bytes, entry counts and metadata. Uncompressed tar avoids decompression bombs; restore validates all paths before materializing into a new directory. Restore never updates a running workspace in place.
+
+The object directory and restore parent must be trusted coordinator-owned paths, never mounted into sandbox compute or exposed to agent tools. Production storage must survive the intended failure domain, for example a suitably configured shared filesystem; a service-local directory does not provide host-loss recovery. The demo uses temporary local disk and proves filesystem semantics only. Objects are not deleted when compute is destroyed; retention needs a separate reconciler.
+
+An upload is not a completed run. A following coordinator transaction must publish the checkpoint reference together with authoritative conversation/native metadata and terminal run state, fenced against the current session generation. These archive/store primitives do not implement that transaction, SDK capture, Docker transport or automatic session recovery. Async cancellation waits for in-progress filesystem work to finish, so cleanup does not race a background writer; callers must reconcile whether that operation completed.

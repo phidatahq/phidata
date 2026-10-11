@@ -31,6 +31,7 @@ dependencies = [
   # Floor keeps pre-release resolvers from picking httpx 1.0 dev builds, which drop
   # HTTPStatusError and break fastmcp 4 (see mcp 2.x migration notes).
   "httpx[http2]>=0.28.1",
+  "jsonschema>=4.18.0",
   "packaging",
   "pydantic-settings",
   "pydantic",

@@ -1821,11 +1821,13 @@ def test_non_object_output_schema_is_rejected_before_the_run(fake_sdk):
     assert fake_sdk.calls == []
 
 
-def test_answer_that_does_not_match_the_schema_stays_text(fake_sdk):
+def test_answer_that_does_not_match_the_schema_fails_with_raw_text(fake_sdk):
     fake_sdk.reply = "I could not find it."
     agent = ClaudeAgent(name="Claude", id="claude", output_schema=Capital)
     run = agent.run("Capital of Atlantis?")
-    assert run.status == RunStatus.completed
+    assert run.status == RunStatus.error
+    assert run.metadata["error_type"] == "output_validation_error"
+    assert run.metadata["retryable"] is False
     assert run.content == "I could not find it." and run.content_type == "str"
 
 

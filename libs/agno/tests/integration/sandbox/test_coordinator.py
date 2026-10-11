@@ -213,6 +213,7 @@ async def test_lost_compute_before_checkpoint_fails_without_model_replay(system,
     monkeypatch.setattr(coordinator.transfer, "acapture", capture)
     output = await run(coordinator, spec)
     assert output.status == RunStatus.error and "will not be repeated" in output.content
+    assert output.metadata["retryable"] is False
     assert (await binding(coordinator))["record"]["checkpoint"] is None
 
 
@@ -321,3 +322,22 @@ async def test_crash_after_provision_replaces_unbound_computer_before_execution(
     assert (await run(coordinator, spec)).status == RunStatus.completed
     assert await coordinator.provider.aget(orphan.provider_ref) is None
     assert await recovered_effects(coordinator, root) == ["first"]
+
+
+async def test_native_mirror_failure_cannot_publish_success(system, monkeypatch):
+    coordinator, spec, _ = system
+    poll = coordinator.client.apoll
+
+    async def warning(*args, **kwargs):
+        page = await poll(*args, **kwargs)
+        if page.result is not None and page.result["type"] == "execution_finished":
+            page.result["run"]["metadata"] = {"warnings": [{"type": "transcript_persistence_failed"}]}
+            page.result["run"]["tools"] = [{"tool_name": "fixture", "tool_call_id": "effect", "result": "already ran"}]
+        return page
+
+    monkeypatch.setattr(coordinator.client, "apoll", warning)
+    output = await run(coordinator, spec)
+    assert output.status == RunStatus.error and "transcript persistence" in output.content
+    assert output.tools[0].result == "already ran"
+    assert output.metadata["retryable"] is False
+    assert (await binding(coordinator))["record"]["checkpoint"] is None

@@ -1,6 +1,7 @@
 """Docker execution for customer-operated trusted-team deployments."""
 
 import asyncio
+import base64
 import hashlib
 import json
 import math
@@ -141,6 +142,7 @@ class DockerSandboxProvider(SandboxProvider):
             args = [
                 "container",
                 "create",
+                "--init",
                 "--name",
                 name,
                 "--user",
@@ -196,16 +198,31 @@ class DockerSandboxProvider(SandboxProvider):
         return current
 
     async def aexec(
-        self, handle: SandboxHandle, argv: Sequence[str], *, timeout: float = 60, max_output_bytes: int = 1_048_576
+        self,
+        handle: SandboxHandle,
+        argv: Sequence[str],
+        *,
+        timeout: float = 60,
+        max_output_bytes: int = 1_048_576,
+        stdin: bytes = b"",
     ) -> ExecResult:
         if isinstance(argv, (str, bytes)) or not argv or any(not isinstance(arg, str) or "\x00" in arg for arg in argv):
             raise ValueError("Commands must be a nonempty sequence of strings")
         if not math.isfinite(timeout) or timeout <= 0 or not 1 <= max_output_bytes <= 4 * 1024 * 1024:
             raise ValueError("Timeout must be positive and output limit must be between 1 byte and 4 MiB")
+        if not isinstance(stdin, bytes) or len(stdin) > 8 * 1024 * 1024:
+            raise ValueError("Command stdin must be bytes no larger than 8 MiB")
         current = await self._owned(handle)
         if current is None or current.state != "running":
             raise SandboxError("Sandbox is not running")
-        request = json.dumps({"argv": list(argv), "timeout": timeout, "max_output_bytes": max_output_bytes}).encode()
+        request = json.dumps(
+            {
+                "argv": list(argv),
+                "timeout": timeout,
+                "max_output_bytes": max_output_bytes,
+                "stdin": base64.b64encode(stdin).decode("ascii"),
+            }
+        ).encode()
         try:
             code, out, err = await self._docker(
                 "container",

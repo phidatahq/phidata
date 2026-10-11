@@ -95,13 +95,25 @@ class SandboxProvider(ABC):
 
     @abstractmethod
     async def aexec(
-        self, handle: SandboxHandle, argv: Sequence[str], *, timeout: float = 60, max_output_bytes: int = 1_048_576
+        self,
+        handle: SandboxHandle,
+        argv: Sequence[str],
+        *,
+        timeout: float = 60,
+        max_output_bytes: int = 1_048_576,
+        stdin: bytes = b"",
     ) -> ExecResult: ...
 
     def exec(
-        self, handle: SandboxHandle, argv: Sequence[str], *, timeout: float = 60, max_output_bytes: int = 1_048_576
+        self,
+        handle: SandboxHandle,
+        argv: Sequence[str],
+        *,
+        timeout: float = 60,
+        max_output_bytes: int = 1_048_576,
+        stdin: bytes = b"",
     ) -> ExecResult:
-        return _sync(self.aexec(handle, argv, timeout=timeout, max_output_bytes=max_output_bytes))
+        return _sync(self.aexec(handle, argv, timeout=timeout, max_output_bytes=max_output_bytes, stdin=stdin))
 
     @abstractmethod
     async def astop(self, handle: SandboxHandle) -> None: ...

@@ -30,9 +30,9 @@ export SANDBOX_HARNESS=fixture
 .venv/bin/python cookbook/frameworks/sandbox/agentos.py
 ```
 
-Every replica must reach the same Postgres, Redis, Docker daemon and checkpoint storage, with identical runtime configuration. A local directory is suitable for development; it does not provide host-loss recovery. Production checkpoint storage must survive the intended failure domain and be accessible to every coordinator. `FileCheckpointStore` expects a trusted service-owned directory, never mounted into agent compute.
+Every replica must reach the same Postgres, Redis, selected provider account/configuration (or Docker daemon) and checkpoint storage, with identical runtime configuration. A local directory is suitable for development; it does not provide host-loss recovery. Production checkpoint storage must survive the intended failure domain and be accessible to every coordinator. `FileCheckpointStore` expects a trusted service-owned directory, never mounted into agent compute.
 
-For a real harness, set `SANDBOX_HARNESS=claude` with `ANTHROPIC_API_KEY`, or `SANDBOX_HARNESS=codex` with `OPENAI_API_KEY`. These are live model calls. The example forwards only the explicitly selected model environment values and enables bridge networking for real harnesses. Customer infrastructure owns egress policy. Never pass service Postgres/Redis credentials into compute.
+For a real harness, set `SANDBOX_HARNESS=claude` with `ANTHROPIC_API_KEY`, or `SANDBOX_HARNESS=codex` with `OPENAI_API_KEY`. These are live model calls. The example forwards only the explicitly selected model environment values and enables bridge networking for Docker or internet access for hosted real harnesses. Customer infrastructure owns egress policy. Never pass service Postgres/Redis credentials into compute.
 
 ```bash
 curl -X POST http://localhost:7777/agents/coder/runs \
@@ -274,3 +274,43 @@ session/project rejection, create settings and client cleanup. Local Linux tests
 exercise the staging scripts against tampered files and symlinks. VCR readiness,
 provider permissions, resource/network controls, transfer and native harnesses still
 require live acceptance. The workload creates billable compute.
+
+
+### Preparing live acceptance
+
+`agentos.py` supports `SANDBOX_PROVIDER=docker|e2b|daytona|modal|vercel` (default
+Docker). Set `SANDBOX_RUNTIME_IMAGE` to the provider-specific prepared identifier,
+and keep `SANDBOX_NAMESPACE`, database/Redis configuration, checkpoint storage,
+`SANDBOX_MAX_ALLOCATIONS` and `SANDBOX_LIFETIME` identical across replicas. CPU and
+memory are configurable with `SANDBOX_CPUS` and `SANDBOX_MEMORY_MB`. Hosted PID/disk
+controls remain explicitly provider defaults.
+
+| Provider | Service-side account setup | Prepared runtime |
+|---|---|---|
+| E2B | `E2B_API_KEY` | Template with matching CPU/memory |
+| Daytona | `DAYTONA_API_KEY`; configured target/API if self-hosted | Snapshot with matching CPU/memory and root control |
+| Modal | Existing Modal credentials/profile, `AGNO_MODAL_APP` | Registry image accessible to that app |
+| Vercel | `VERCEL_TOKEN`, `VERCEL_TEAM_ID`, `VERCEL_PROJECT_ID` | VCR image accessible to that project |
+
+Configure credentials locally in the service environment. None of these provider
+credentials is forwarded in the agent environment. The native harness additionally
+needs the selected model credential. Use `SANDBOX_HARNESS=fixture` for initial
+platform tests without model calls, then test both real harnesses explicitly.
+
+Build for the provider's architecture before publishing an image. For example:
+
+```bash
+python cookbook/frameworks/sandbox/build_image.py --platform linux/amd64 --tag YOUR_IMAGE_TAG
+```
+
+The builder sends only public package/build files, not the repository or local
+credentials. Publishing the image and creating templates/snapshots are account
+operations. Confirm their architecture, permissions, regions, resource limits and
+lifetime against the account before acceptance. `hosted_workload.py` also accepts
+`--cpus`, `--memory-mb` and `--lifetime` to match that setup.
+
+Live acceptance should cover the coding workload, two sequential AgentOS turns
+with native conversation and independent file continuity, replica replacement,
+cancellation, lost create/control replies, a failed checkpoint upload, quota
+exhaustion, and verified cleanup. Record compute/model spend separately. Passing
+the credential-free SDK tests does not establish these platform guarantees.

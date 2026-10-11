@@ -29,6 +29,9 @@ def main() -> None:
         required=True,
         help="Prepared provider template/snapshot/image identifier",
     )
+    parser.add_argument("--cpus", type=float, default=2)
+    parser.add_argument("--memory-mb", type=int)
+    parser.add_argument("--lifetime", type=int, default=600)
     args = parser.parse_args()
 
     namespace = "acceptance-" + uuid4().hex[:12]
@@ -49,13 +52,13 @@ def main() -> None:
         from agno.sandbox.e2b import E2BSandboxProvider
 
         provider = E2BSandboxProvider(
-            namespace, journal, max_allocations=2, lifetime=600
+            namespace, journal, max_allocations=2, lifetime=args.lifetime
         )
     elif args.provider == "daytona":
         from agno.sandbox.daytona import DaytonaSandboxProvider
 
         provider = DaytonaSandboxProvider(
-            namespace, journal, max_allocations=2, lifetime=600
+            namespace, journal, max_allocations=2, lifetime=args.lifetime
         )
     elif args.provider == "modal":
         from agno.sandbox.modal import ModalSandboxProvider
@@ -65,13 +68,13 @@ def main() -> None:
             journal,
             app_name=os.environ["AGNO_MODAL_APP"],
             max_allocations=2,
-            lifetime=600,
+            lifetime=args.lifetime,
         )
     else:
         from agno.sandbox.vercel import VercelSandboxProvider
 
         provider = VercelSandboxProvider(
-            namespace, journal, max_allocations=2, lifetime=600
+            namespace, journal, max_allocations=2, lifetime=args.lifetime
         )
     spec = SandboxSpec(
         "coder",
@@ -80,7 +83,10 @@ def main() -> None:
         args.image,
         pids_limit=None,
         workspace_mb=None,
-        memory_mb=4096 if args.provider == "vercel" else 2048,
+        cpus=args.cpus,
+        memory_mb=args.memory_mb
+        if args.memory_mb is not None
+        else (4096 if args.provider == "vercel" else 2048),
     )
     script = Path(__file__).with_name("workload_fixture.py").read_text()
     handles = []

@@ -153,3 +153,13 @@ Python 3.9 follow-up: 76 sandbox unit tests, 40 real Postgres cases and 12 Agent
 **Result:** 816 focused unit tests passed; 175 integration tests passed and 4 intentionally inapplicable controlled-interleaving backend variants skipped. The isolated wheel passed the actual HTTP background/replay, artifacts, retirement/recovery/history deletion, attachment restoration and coding-workload exercises. Required format/validation scripts passed. This verifies an unreleased local wheel, not a published package. No live models or hosted providers were exercised.
 
 ---
+
+### Hosted allocation foundation
+
+**Status:** PASS
+
+**Description:** Verified service-side allocation tokens, lost-response intents, shared capacity and stale-token fencing on real synchronous and asynchronous Postgres adapters, including engines configured for repeatable read. Docker rejects unset process/filesystem limits before allocation.
+
+**Result:** 10 real Postgres tests and 96 sandbox unit tests passed. Required format and validation scripts passed. No hosted provider calls were made; this is allocation contract evidence, not hosted acceptance.
+
+---

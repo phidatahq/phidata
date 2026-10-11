@@ -137,6 +137,8 @@ class DockerSandboxProvider(SandboxProvider):
         return handle
 
     async def acreate(self, spec: SandboxSpec) -> SandboxHandle:
+        if spec.pids_limit is None or spec.workspace_mb is None:
+            raise ValueError("Docker requires explicit process and workspace limits")
         name, digest = self._name(spec), self._digest(spec)
         current = await self.aget(name)
         if current is None:

@@ -106,3 +106,24 @@ AGNO_TEST_REDIS_URL=redis://localhost:6407/0 \
 Tests use unique tables/namespaces and remove their own resources. Run unit and integration directories separately to avoid duplicate test-module names. [TEST_LOG.md](TEST_LOG.md) distinguishes deterministic tests, real local infrastructure, and live model/provider acceptance; fixture success is not live harness certification.
 
 Smaller exercises: `docker_execution.py` (provider), `checkpoint_files.py` (archive/store), `runtime_journal.py` (reconnection), `replace_computer.py` (transfer), `durable_completion.py` (Postgres publication), and `session_computer.py` (two coordinated fixture turns). Public operations provide synchronous/asynchronous variants. These primitives alone do not imply the complete durability contract; use the integrated coordinator and AgentOS configuration.
+
+### Hosted allocation contract
+
+Hosted adapters use a service-side `PostgresAllocationJournal` alongside the
+existing `PostgresSandboxStore`. Initialize the journal with `await journal.asetup()`
+(or `journal.setup()`) after creating the sandbox store. Keep its database access
+on the service. Every replica must use the same provider/deployment namespace and
+allocation capacity. Active computers and uncertain creates both consume capacity.
+
+A durable intent is recorded before a provider create request. After a lost
+response, reconciliation must locate the computer by its exact allocation token.
+An empty inventory response does not authorize a second create: the first request
+may still be processing. Pending intents do not expire automatically. A confirmed
+destruction releases capacity; uncertain allocations require reconciliation.
+
+The base compute specification accepts `pids_limit=None` and `workspace_mb=None`
+to explicitly select a hosted provider's default controls where per-computer hard
+limits cannot be requested. These values do not promise unlimited or durable disk.
+Docker continues to require both limits. Portable checkpoint limits apply separately
+from the live filesystem size. Provider-specific setup and live acceptance are
+required before claiming hosted execution support.

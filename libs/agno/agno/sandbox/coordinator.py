@@ -24,7 +24,7 @@ from agno.sandbox.base import SandboxError, SandboxHandle, SandboxProvider, Sand
 from agno.sandbox.checkpoint import CheckpointRef
 from agno.sandbox.client import RuntimeExecution, SandboxRuntimeClient
 from agno.sandbox.postgres import PostgresSandboxStore, SandboxLease, SandboxLeaseLost, SandboxRunFinished
-from agno.sandbox.transfer import DockerCheckpointTransfer
+from agno.sandbox.transfer import CheckpointTransfer
 
 
 class SandboxCoordinator:
@@ -40,7 +40,7 @@ class SandboxCoordinator:
         self,
         store: PostgresSandboxStore,
         provider: SandboxProvider,
-        transfer: DockerCheckpointTransfer,
+        transfer: CheckpointTransfer,
         *,
         lease_seconds: float = 600,
         poll_interval: float = 0.25,

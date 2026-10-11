@@ -3,6 +3,7 @@
 import asyncio
 import copy
 import json
+import logging
 import threading
 from pathlib import Path
 from typing import Callable, ClassVar, Dict, List, Optional, Set
@@ -1063,6 +1064,32 @@ def test_skill_script_execute_path_traversal_blocked(mock_loader: MockSkillLoade
 
 
 # ============================================================================
+# SAVE-TIME WARNINGS
+# ============================================================================
+
+
+def test_get_skills_from_db_warns_once_per_instance_naming_the_skipped_skills(
+    mock_loader_multiple: MockSkillLoader, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Every save and to_dict serializes through here, so skills that cannot be persisted
+    are reported once per instance, naming each skipped skill and how to persist it."""
+    skills = Skills(loaders=[mock_loader_multiple])
+
+    with caplog.at_level(logging.WARNING):
+        for _ in range(3):
+            assert skills.get_skills_from_db() == []
+    warnings = [record.getMessage() for record in caplog.records if record.levelno >= logging.WARNING]
+    assert len(warnings) == 1, warnings
+    assert "test-skill" in warnings[0] and "minimal-skill" in warnings[0]
+    assert "publish" in warnings[0]
+
+    caplog.clear()
+    with caplog.at_level(logging.WARNING):
+        Skills(loaders=[mock_loader_multiple]).get_skills_from_db()
+    assert len([record for record in caplog.records if record.levelno >= logging.WARNING]) == 1
+
+
+# ============================================================================
 # OWNER-SCOPED VIEWS
 # ============================================================================
 
@@ -1211,6 +1238,19 @@ def test_skill_tool_schemas_are_unchanged(mock_loader: MockSkillLoader) -> None:
     for tool in tools:
         tool.process_entrypoint()
     assert {tool.name: tool.parameters for tool in tools} == _SKILL_TOOL_SCHEMAS
+
+
+def test_skills_can_be_built_without_the_initial_load(sample_skill: Skill) -> None:
+    """A listing only needs the configured names: lazy=True builds the object with its loaders
+    unread, reports them unloaded, and reads them on the first refresh or reload()."""
+    loader = RefreshingLoader([sample_skill])
+    skills = Skills(loaders=[loader], lazy=True)
+    assert skills.has_unloaded_loaders() and skills.get_skill_names() == [] and loader.load_count == 0
+
+    assert "test-skill" in skills.get_system_prompt_snippet()
+    assert not skills.has_unloaded_loaders() and loader.load_count == 1
+    skills.reload()
+    assert skills.get_skill_names() == ["test-skill"] and loader.load_count == 2
 
 
 # ============================================================================
@@ -1493,32 +1533,35 @@ def test_a_users_refresh_keeps_owned_rows_out_of_the_shared_state(
     sample_skill: Skill, minimal_skill: Skill, content_skill: Skill
 ) -> None:
     """Owned rows reach only their user's view: never the per-loader cache, the shared mapping,
-    another user's view or a later anonymous prompt."""
-    skills = Skills(loaders=[_parkable(sample_skill, minimal_skill, content_skill)])
-    for _ in range(2):
-        skills.get_system_prompt_snippet(user_id="alice")
-        skills.get_system_prompt_snippet(user_id="bob")
-        assert _cached_names(skills) == {"test-skill"}
-        assert skills.get_skill_names() == ["test-skill"]
-        assert list(skills._view_for("alice")) == ["test-skill", "minimal-skill"]
-        assert list(skills._view_for("bob")) == ["test-skill", "content-skill"]
-        assert "minimal-skill" not in skills.get_system_prompt_snippet()
-        assert _cached_names(skills) == {"test-skill"}
+    another user's view or a later anonymous prompt, whether the loader loaded eagerly or its
+    shared rows were first filled by a user's refresh."""
+    for lazy in (False, True):
+        skills = Skills(loaders=[_parkable(sample_skill, minimal_skill, content_skill)], lazy=lazy)
+        for _ in range(2):
+            skills.get_system_prompt_snippet(user_id="alice")
+            skills.get_system_prompt_snippet(user_id="bob")
+            assert _cached_names(skills) == {"test-skill"}
+            assert skills.get_skill_names() == ["test-skill"]
+            assert list(skills._view_for("alice")) == ["test-skill", "minimal-skill"]
+            assert list(skills._view_for("bob")) == ["test-skill", "content-skill"]
+            assert "minimal-skill" not in skills.get_system_prompt_snippet()
+            assert _cached_names(skills) == {"test-skill"}
 
 
 async def test_a_users_refresh_keeps_owned_rows_out_of_the_shared_state_async(
     sample_skill: Skill, minimal_skill: Skill, content_skill: Skill
 ) -> None:
-    skills = Skills(loaders=[_parkable(sample_skill, minimal_skill, content_skill)])
-    for _ in range(2):
-        await skills.aget_system_prompt_snippet(user_id="alice")
-        await skills.aget_system_prompt_snippet(user_id="bob")
-        assert _cached_names(skills) == {"test-skill"}
-        assert skills.get_skill_names() == ["test-skill"]
-        assert list(skills._view_for("alice")) == ["test-skill", "minimal-skill"]
-        assert list(skills._view_for("bob")) == ["test-skill", "content-skill"]
-        assert "minimal-skill" not in await skills.aget_system_prompt_snippet()
-        assert _cached_names(skills) == {"test-skill"}
+    for lazy in (False, True):
+        skills = Skills(loaders=[_parkable(sample_skill, minimal_skill, content_skill)], lazy=lazy)
+        for _ in range(2):
+            await skills.aget_system_prompt_snippet(user_id="alice")
+            await skills.aget_system_prompt_snippet(user_id="bob")
+            assert _cached_names(skills) == {"test-skill"}
+            assert skills.get_skill_names() == ["test-skill"]
+            assert list(skills._view_for("alice")) == ["test-skill", "minimal-skill"]
+            assert list(skills._view_for("bob")) == ["test-skill", "content-skill"]
+            assert "minimal-skill" not in await skills.aget_system_prompt_snippet()
+            assert _cached_names(skills) == {"test-skill"}
 
 
 def test_two_users_sync_refreshes_interleave_without_mixing_views(
@@ -1576,7 +1619,7 @@ def test_a_siblings_shared_rows_survive_a_commit_in_progress(monkeypatch: pytest
     sibling.join(1)
     assert not sibling.is_alive()
     assert skills.get_skill_names() == ["first-shared", "second-shared"]
-    assert set(skills._loader_results) == {0, 1}
+    assert not skills.has_unloaded_loaders()
     assert "first-alice" in skills.get_system_prompt_snippet(user_id="alice")
 
 

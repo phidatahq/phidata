@@ -35,12 +35,17 @@ class Skills:
         loaders: List of SkillLoader instances to load skills from.
         executor: Runs a skill's scripts. Defaults to LocalSkillExecutor, which runs them as
             subprocesses on this host.
+        lazy: Build with the loaders unread, for a listing that only needs their configured
+            names; reload() reads them, as does the first per-request refresh for the
+            loaders marked for it.
     """
 
     def __init__(
         self,
         loaders: List[SkillLoader],
         executor: Optional[SkillExecutor] = None,
+        *,
+        lazy: bool = False,
     ):
         self.loaders = loaders
         self.executor = executor if executor is not None else LocalSkillExecutor()
@@ -56,7 +61,9 @@ class Skills:
         # The last committed refresh per view (None is the shared mapping), forgotten with the
         # view, so a refresh older than an evicted view's last one still lands.
         self._committed_refreshes: Dict[Optional[str], int] = {}
-        self._load_skills()
+        self._warned_unsaved_skills = False
+        if not lazy:
+            self._load_skills()
 
     def __getstate__(self) -> Dict[str, Any]:
         # A lock cannot be copied or pickled; a copy gets a lock of its own.
@@ -113,7 +120,7 @@ class Skills:
         fresh: Dict[int, List[Skill]] = {}
         # The shared rows of a loader the shared mapping never loaded, read alongside the
         # user's: the eager load cannot await an async database, and under user-only
-        # traffic nothing else would fill what get_skill_names and a view-less tool call read.
+        # traffic nothing else would fill what strict loads and the saved names read.
         shared: Dict[int, List[Skill]] = {}
         for index, loader in enumerate(self.loaders):
             if not loader.refresh_per_request:
@@ -238,6 +245,72 @@ class Skills:
             A list of skill names.
         """
         return list(self._skills.keys())
+
+    def has_unloaded_loaders(self) -> bool:
+        """Whether any loader has never loaded successfully, so the mapping may lack its skills."""
+        return any(index not in self._loader_results for index in range(len(self.loaders)))
+
+    def get_skills_from_db(self) -> List[str]:
+        """The skill names to_config saves for a stored agent or team when no loader reads every row.
+
+        Only DbSkills-produced skills count (anything else would resolve to the wrong row or
+        nothing, and is named in one warning per instance), plus each database loader's
+        configured names, so a save during an outage preserves them instead of erasing.
+        """
+        from agno.skills.loaders.db import DbSkills
+
+        # Replaying the merge order identifies which loader won each name.
+        source: Dict[str, SkillLoader] = {}
+        for index, loader in enumerate(self.loaders):
+            for skill in self._loader_results.get(index, []):
+                source[skill.name] = loader
+
+        names = []
+        skipped = []
+        for name in self._skills:
+            if isinstance(source.get(name), DbSkills):
+                names.append(name)
+            else:
+                skipped.append(name)
+        # Once per instance: every save and to_dict comes through here.
+        if skipped and not self._warned_unsaved_skills:
+            self._warned_unsaved_skills = True
+            log_warning(
+                f"Skills {skipped} did not come from the skills table: a save does not store them, and "
+                "a reload serves a table skill of the same name only where a database loader here lists "
+                "it or loads every row; publish them to the table and read them through a database "
+                "loader to keep them."
+            )
+        seen = set(names)
+        for loader in self.loaders:
+            if isinstance(loader, DbSkills) and loader.names:
+                for name in loader.names:
+                    if name not in seen:
+                        seen.add(name)
+                        names.append(name)
+        return names
+
+    def to_config(self) -> Optional[Dict[str, Any]]:
+        """The skills block a stored agent or team saves, or None when nothing resolves from the table."""
+        from agno.skills.loaders.db import DbSkills
+
+        names = self.get_skills_from_db()
+        config: Dict[str, Any] = {}
+        if any(isinstance(loader, DbSkills) and loader.names is None for loader in self.loaders):
+            # A marker, not names: names would freeze the rows present at save time, and an
+            # async database has none loaded before its first request. A load resolves it
+            # against the config's database, so a loader on another database is swapped for
+            # that one's rows.
+            config["all"] = True
+        elif names:
+            config["names"] = names
+        else:
+            return None
+        # An executor cannot be serialized: record that one was configured, so a load without
+        # it refuses rather than run scripts on the host.
+        if type(self.executor) is not LocalSkillExecutor:
+            config["requires_executor"] = True
+        return config
 
     def get_system_prompt_snippet(self, user_id: Optional[str] = None) -> str:
         """Generate a system prompt snippet with available skills metadata.

@@ -57,6 +57,7 @@ from agno.run.team import (
 from agno.session import SessionSummaryManager, TeamSession
 from agno.session.summary import SessionSummary
 from agno.skills import Skills
+from agno.skills.executor import SkillExecutor
 from agno.team import (
     _default_tools,
     _init,
@@ -704,6 +705,8 @@ class Team:
         # Component metadata (set by get_teams during DB loading)
         self._version: Optional[int] = None
         self._stage: Optional[str] = None
+        # The saved skills block of a team a listing showed without its skills; save() refuses while set.
+        self._degraded_skills: Optional[Dict[str, Any]] = None
 
     @property
     def background_executor(self) -> Any:
@@ -1641,8 +1644,11 @@ class Team:
         registry: Optional["Registry"] = None,
         links: Optional[List[Dict[str, Any]]] = None,
         strict: bool = False,
+        skill_executor: Optional[SkillExecutor] = None,
     ) -> "Team":
-        return _storage.from_dict(cls, data=data, db=db, registry=registry, links=links, strict=strict)
+        return _storage.from_dict(
+            cls, data=data, db=db, registry=registry, links=links, strict=strict, skill_executor=skill_executor
+        )
 
     def save(
         self,
@@ -1665,6 +1671,7 @@ class Team:
         version: Optional[int] = None,
         strict: bool = False,
         published_only: bool = False,
+        skill_executor: Optional[SkillExecutor] = None,
     ) -> Optional["Team"]:
         return _storage.load(
             cls,
@@ -1675,6 +1682,7 @@ class Team:
             version=version,
             strict=strict,
             published_only=published_only,
+            skill_executor=skill_executor,
         )
 
     def delete(
@@ -1888,6 +1896,7 @@ def get_team_by_id(
     user_id: Optional[str] = None,
     strict: bool = False,
     published_only: bool = True,
+    skill_executor: Optional[SkillExecutor] = None,
 ) -> Optional["Team"]:
     """
     Get a Team by id from the database.
@@ -1906,12 +1915,15 @@ def get_team_by_id(
         user_id: If set, only resolve the team when owned by this user, unowned (shared), or published.
         strict: If True, unresolvable members and registry references
             raise ComponentRehydrationError; None strictly means the team was not found.
+        skill_executor: Executor to run skill scripts with. Required when the saved config,
+            or a member's, records a non-default executor, since one cannot be serialized.
 
     Returns:
         Team instance or None.
 
     Raises:
-        ComponentRehydrationError: If strict and a member or registry reference cannot be resolved.
+        ComponentRehydrationError: If strict and a member or registry reference cannot be resolved,
+            or the saved skills record a non-default executor and skill_executor is not passed.
     """
     from agno.exceptions import ComponentRehydrationError
 
@@ -1952,7 +1964,9 @@ def get_team_by_id(
 
         # Resolve DB-backed members under the same owner scope as the team.
         with component_owner_scope(user_id):
-            team = Team.from_dict(cfg, db=db, registry=registry, links=links, strict=strict)
+            team = Team.from_dict(
+                cfg, db=db, registry=registry, links=links, strict=strict, skill_executor=skill_executor
+            )
         # Ensure team.id is set to the component_id
         team.id = id
         # Only fall back to the caller-provided db if the config didn't
@@ -2055,7 +2069,9 @@ def get_teams(
                         # per-version pin links are a detail-read concern.
                         # Resolve DB-backed members under the same owner scope as the team.
                         with component_owner_scope(user_id):
-                            team = Team.from_dict(team_config, db=db, registry=registry, strict=False)
+                            team = _storage.from_dict(
+                                Team, data=team_config, db=db, registry=registry, strict=False, for_listing=True
+                            )
                         team.id = component_id
                         team._version = component.get("current_version")
                         team._stage = config.get("stage")

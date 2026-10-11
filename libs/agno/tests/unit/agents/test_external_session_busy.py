@@ -131,3 +131,84 @@ def test_agentos_answers_409_and_a_typed_run_error_event(tmp_path):
     assert [e["event"] for e in events] == ["RunError"]
     assert events[0]["error_type"] == "session_busy" and "r-other" in events[0]["content"]
     assert agent.calls == []
+
+
+@pytest.mark.asyncio
+async def test_queued_turns_on_one_session_run_in_acceptance_order(tmp_path):
+    agent = SlowAgent(id="slow", db=SqliteDb(db_file=str(tmp_path / "runs.db")))
+    agent.gate.set()
+    await agent._aprepare_pending_run("first", "s", None, "one")
+    await agent._aprepare_pending_run("second", "s", None, "two")
+
+    with pytest.raises(SessionBusyError) as info:
+        await agent.arun("two", run_id="second", session_id="s")
+    assert info.value.run_id == "first", "a turn waits for the pending turn accepted before it"
+
+    assert (await agent.arun("one", run_id="first", session_id="s")).status == RunStatus.completed
+    assert (await agent.arun("two", run_id="second", session_id="s")).status == RunStatus.completed
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", [RunStatus.pending, RunStatus.running])
+@pytest.mark.parametrize("sync_cancel", [False, True])
+async def test_cancelling_an_unowned_run_row_frees_its_session(tmp_path, status, sync_cancel):
+    db = SqliteDb(db_file=str(tmp_path / "runs.db"))
+    agent = SlowAgent(id="slow", db=db)
+    agent.gate.set()
+    db.upsert_session(AgentSession(session_id="s", agent_id="slow"))
+    db.upsert_run(run=RunOutput(run_id="crashed", session_id="s", agent_id="slow", status=status), session_id="s")
+    with pytest.raises(SessionBusyError):
+        await agent._arun_non_stream("go", session_id="s")
+
+    if sync_cancel:
+        agent.cancel_run("crashed")
+    else:
+        await agent.acancel_run("crashed")
+
+    row = agent.get_run_output("crashed", "s")
+    assert row.status == RunStatus.cancelled and row.content == "Run cancelled"
+    assert (await agent._arun_non_stream("go", session_id="s")).status == RunStatus.completed
+
+
+@pytest.mark.asyncio
+async def test_cancel_leaves_finished_and_other_agents_rows_alone(tmp_path):
+    db = SqliteDb(db_file=str(tmp_path / "runs.db"))
+    agent = SlowAgent(id="slow", db=db)
+    db.upsert_session(AgentSession(session_id="s", agent_id="slow"))
+    db.upsert_run(
+        run=RunOutput(run_id="done", session_id="s", agent_id="slow", status=RunStatus.completed, content="ok"),
+        session_id="s",
+    )
+    db.upsert_session(AgentSession(session_id="t", agent_id="other"))
+    db.upsert_run(
+        run=RunOutput(run_id="theirs", session_id="t", agent_id="other", status=RunStatus.running), session_id="t"
+    )
+
+    await agent.acancel_run("done")
+    await agent.acancel_run("theirs")
+    assert db.get_run("done").status == RunStatus.completed
+    assert db.get_run("theirs").status == RunStatus.running
+
+
+@pytest.mark.asyncio
+async def test_rewriting_a_queued_runs_row_goes_through_the_attempt_fence(monkeypatch):
+    from unittest.mock import MagicMock
+
+    from agno.run import status_persist
+    from agno.run.concurrency import worker_managed_execution
+
+    db = MagicMock(spec=SqliteDb)
+    agent = SlowAgent(id="slow", db=db)
+    session = AgentSession(session_id="s", agent_id="slow")
+    run = RunOutput(run_id="r", session_id="s", agent_id="slow", status=RunStatus.completed)
+    fenced: List[str] = []
+
+    async def refuse(db: Any, run: Any, *args: Any, **kwargs: Any) -> bool:
+        fenced.append(run.run_id)
+        return True  # a newer attempt owns the row: the save was handled by being dropped
+
+    monkeypatch.setattr(status_persist, "apersist_worker_owned_run", refuse)
+    with worker_managed_execution("r", "worker-1", attempt=1):
+        await agent._arewrite_run_row(session, run)
+    assert fenced == ["r"]
+    db.upsert_run.assert_not_called()

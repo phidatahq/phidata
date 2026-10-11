@@ -74,7 +74,7 @@ Every run reports the tokens, cache usage and cost Claude Code returned for the 
 
 Claude Code keeps one conversation per Agno session on its side (the transcript), and two turns writing to it at once corrupt it. A session therefore takes one turn at a time. A second turn started while one is in flight is refused before anything runs, with `SessionBusyError` (HTTP 409 from AgentOS, a `RunError` event with `error_type: session_busy` on a stream) naming the run in flight; no run is recorded for the refused turn. The check covers the turns this process is running and, when a database is configured, the session's pending and running run rows, so a turn accepted on another replica counts too.
 
-A run row left pending or running by a crash keeps its session busy until that run is cancelled. The durable queue sweeps crashed queued runs on its own; cancel an orphaned background run through the run cancellation endpoint. A queued turn on a busy session is re-driven after the queue's retry delay when `max_attempts` allows it, which serializes it behind the turn in flight.
+A run row left pending or running by a crash keeps its session busy until that run is cancelled. The durable queue sweeps crashed queued runs on its own; cancel an orphaned background run through the run cancellation endpoint. A queued turn on a busy session is re-driven after the queue's retry delay when `max_attempts` allows it, which serializes it behind the turn in flight; turns queued on one session run in the order they were accepted.
 
 ## Background runs and cancellation
 

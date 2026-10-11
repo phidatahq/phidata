@@ -115,6 +115,24 @@ class TraceNode(BaseModel):
             if step_types := span.attributes.get("agno.workflow.step_types"):
                 metadata["step_types"] = step_types
 
+        # Compaction spans use CHAIN but carry context-management metadata rather than workflow steps.
+        for field in (
+            "id",
+            "trigger",
+            "status",
+            "tokens_before",
+            "tokens_after",
+            "duration_unknown",
+            "input_source",
+            "output_source",
+        ):
+            value = span.attributes.get(f"agno.compaction.{field}")
+            if value is not None:
+                metadata["compaction_id" if field == "id" else field] = value
+        if span.attributes.get("agno.compaction.id") is not None:
+            if parent_id := span.attributes.get("agno.tool.parent_call_id"):
+                metadata["parent_tool_call_id"] = parent_id
+
         # Add session/user context if present
         if session_id := span.attributes.get("session.id"):
             metadata["session_id"] = session_id

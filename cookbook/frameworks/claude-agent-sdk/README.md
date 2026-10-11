@@ -91,3 +91,87 @@ A database without transcript storage logs a warning once and the agent continue
 local-disk transcripts, so resume works on the machine that ran the session. Transcript storage is also
 skipped, with a warning, when `enable_file_checkpointing` is set in `options_kwargs`, because the SDK
 does not allow the two together. A `session_store` supplied in `options_kwargs` is used as is.
+
+## Tracing subagent tools
+
+With an OpenInference Agno instrumenter that supports external tool lineage, streamed
+Claude runs preserve the SDK's explicit parent tool-call IDs. Tools run by a delegated
+subagent appear beneath its `Agent` tool span; tools run by the main agent remain
+siblings of that span. The `Agent` invocation remains a tool span, not a native Agno agent.
+
+```bash
+.venv/bin/python cookbook/frameworks/claude-agent-sdk/tracing_subagents.py
+```
+
+This cookbook runs a subagent with Bash and Read, then a top-level Bash call, and asserts
+the stored span relationships in `tmp/claude-nested-traces.db`. Install the updated Agno
+and OpenInference checkouts in the environment running AgentOS, then restart the server.
+No database migration is required: lineage is stored in tool JSON and span attributes.
+Previously recorded flat traces are not rewritten. Non-streaming runs retain parent IDs
+on their tool records, but do not synthesize timed tool spans.
+
+### AgentOS tracing database discovery
+
+`AgentOS(tracing=True)` can use the database on a `ClaudeAgent` or another
+`BaseExternalAgent` without repeating `db` on AgentOS:
+
+```python
+from agno.agents.claude import ClaudeAgent
+from agno.db.postgres import PostgresDb
+from agno.os import AgentOS
+
+# Local PostgreSQL example; configure the connection for your deployment.
+db = PostgresDb(db_url="postgresql+psycopg://ai:ai@localhost:5532/ai")
+agent = ClaudeAgent(name="Claude Assistant", db=db)
+agent_os = AgentOS(agents=[agent], tracing=True)
+```
+
+An explicit `AgentOS(db=...)` takes precedence. Otherwise, tracing selects the first
+native or external agent database, then falls back to native teams and workflows.
+External-agent spans require an OpenInference Agno instrumenter with external-agent support.
+
+### Compaction tracing
+
+`ClaudeAgent` emits `CompactionStarted` and `CompactionCompleted` events for SDK
+compaction activity. It adds a `PreCompact` observer alongside your existing
+hooks and recognizes the SDK's `compact_boundary` completion message. Manual
+`/compact` and automatic compaction use the same path. Observation timestamps,
+trigger, correlation ID, and reported token counts are also retained in
+`RunOutput.metadata["compaction_events"]`, including non-streamed runs.
+When Agno transcript storage is enabled, the adapter enriches completed records
+after the SDK flushes its transcript. It matches the exact boundary UUID to its
+summary and follows the preceding message ancestry to retrieve recorded context.
+The final record contains `recorded_context` and `summary` when available; an
+initial streamed completion event can arrive before those fields are populated.
+Custom compaction instructions and thinking blocks are not copied into these fields.
+
+With the updated OpenInference Agno instrumenter, the trace contains a
+`ClaudeAgent.compaction` child span. Durations measure the observed hook-to-boundary
+interval; delivery of streaming events can be buffered by the SDK. The parent is
+an enclosing tool span only when the SDK explicitly identifies that tool and its
+span was observed; otherwise it is the agent run. Token counts before/after are
+context sizes, not additional billed usage. After-compaction tokens are omitted
+when the SDK does not report them.
+
+The span's **Input** contains the recorded conversation before compaction, and
+**Output** contains Claude's actual transcript summary. Input is conversation
+context, not just the latest query or Claude's internal summarization prompt.
+Metadata identifies these sources as `recorded_conversation` and
+`transcript_summary`. OpenInference input/output masking applies to the span
+payloads. Without transcript storage or matching transcript records, unavailable
+fields remain empty. No summary is synthesized. Spans are exported after the run
+finishes, retaining their original compaction completion timestamps.
+
+A boundary without an observed start produces a zero-duration completion marker
+with `agno.compaction.duration_unknown=true`. A start without a completion boundary
+is marked incomplete, cancelled, or errored, rather than successful. `/compact`
+returning "Not enough messages to compact" does not create a completion span.
+
+```bash
+.venv/bin/python cookbook/frameworks/claude-agent-sdk/tracing_compaction.py
+.venv/bin/python cookbook/frameworks/claude-agent-sdk/tracing_compaction.py --stream
+```
+
+Both commands verify persisted spans in `tmp/claude-compaction-traces.db`. No
+tracing database migration is required. See the SDK's
+[compaction boundary documentation](https://code.claude.com/docs/en/agent-sdk/skills#compact-history-with-compact).

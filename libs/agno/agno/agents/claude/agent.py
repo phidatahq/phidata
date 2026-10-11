@@ -10,12 +10,15 @@ from agno.agents.base import (
     ExternalRunResult,
     ExternalRunWarningEvent,
 )
+from agno.agents.claude._compaction import CompactionTracker
 from agno.db.base import AsyncBaseDb, BaseDb
 from agno.exceptions import ModelProviderError, RunNotContinuableError
 from agno.metrics import BaseMetrics, ModelMetrics, RunMetrics
 from agno.models.message import Message
 from agno.models.response import ToolExecution
 from agno.run.agent import (
+    CompactionCompletedEvent,
+    CompactionStartedEvent,
     RunContentEvent,
     RunOutput,
     RunOutputEvent,
@@ -287,12 +290,24 @@ class ClaudeAgent(BaseExternalAgent):
 
         while True:
             if run_state is not None:
+                compaction_events = run_state.get("compaction_events", [])
                 run_state.clear()
+                run_state["compaction_events"] = compaction_events
+            else:
+                compaction_events = []
             options = self._build_options(streaming=streaming, resume=resume, session_store=store)
             prompt = self._build_prompt(input, history, resumed=resume is not None)
             received = False
             assistant_error: Optional[str] = None
             run_id = kwargs.get("run_id") or str(uuid4())
+            compaction = CompactionTracker(
+                compaction_events,
+                run_id=run_id,
+                session_id=session_id,
+                agent_id=self.get_id(),
+                agent_name=self.name or "",
+            )
+            compaction.install(sdk, options)
             client = sdk.ClaudeSDKClient(options=options)
             try:
                 await client.connect()
@@ -300,6 +315,8 @@ class ClaudeAgent(BaseExternalAgent):
                 await client.query(prompt)
                 self._set_run_handle(run_id, client)
                 async for message in client.receive_response():
+                    for event in compaction.observe(message):
+                        yield event
                     self._record_message_ref(sdk, message, run_state)
                     if isinstance(message, sdk.UserMessage) and not self._tool_result_ids(sdk, message):
                         # The echoed prompt is bookkeeping only; adapters never see it.
@@ -333,6 +350,7 @@ class ClaudeAgent(BaseExternalAgent):
             finally:
                 self._clear_run_handle(run_id)
                 await client.disconnect()
+                await compaction.enrich_from_store(getattr(options, "session_store", None))
 
     async def _ainterrupt_run(self, handle: Any) -> None:
         await handle.interrupt()
@@ -385,6 +403,9 @@ class ClaudeAgent(BaseExternalAgent):
         tool result that is later in the transcript than every tool result before it and earlier
         than every tool result after it.
         """
+        if events := run_state.get("compaction_events"):
+            # Retain timestamps even for non-streamed runs and failed attempts.
+            run.metadata = {**(run.metadata or {}), "compaction_events": [event.to_dict() for event in events]}
         sdk_session_id = run_state.get("session_id")
         if not sdk_session_id or not run.messages:
             return
@@ -932,6 +953,9 @@ class ClaudeAgent(BaseExternalAgent):
         tool_info_map: Dict[str, Dict[str, Any]] = {}
 
         async for message in self._aquery(input, history, streaming=True, **kwargs):
+            if isinstance(message, (CompactionStartedEvent, CompactionCompletedEvent)):
+                yield message
+                continue
             warning = self._mirror_warning(message)
             if warning is not None:
                 yield ExternalRunWarningEvent(run_id=run_id, agent_id=self.get_id(), warning=warning)

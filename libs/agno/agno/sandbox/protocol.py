@@ -34,6 +34,9 @@ def validate_request(request: Dict[str, Any]) -> None:
         "keep_uploads",
     } & set(request.get("config", {})):
         raise ValueError("Runtime owns database, workspace, identity, process environment and retry configuration")
+    from agno.sandbox.media import validate_media
+
+    validate_media(request.get("media", []))
     timeout = request.get("execution_timeout", 900)
     if not isinstance(timeout, (float, int)) or not math.isfinite(timeout) or not 0 < timeout <= 86400:
         raise ValueError("Runtime execution timeout must be between 0 and 86400 seconds")

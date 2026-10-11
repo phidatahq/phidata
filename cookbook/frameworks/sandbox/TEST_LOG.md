@@ -123,3 +123,13 @@ Python 3.9 follow-up: 76 sandbox unit tests, 40 real Postgres cases and 12 Agent
 **Result:** 197 focused database/sandbox/queue unit cases passed. Twenty lifecycle/database cases passed across both Postgres adapters; four lifecycle HTTP cases and twelve AgentOS regression cases passed after classifying retired-session input as a permanent queue failure. Required scripts passed in the established environment. Review fixed an early acknowledgement race with the queue cancellation worker. A test's ordinary-session fixture initially omitted its required creation timestamp and was corrected. No live model or hosted-provider calls. Unreferenced upload retention, warm reuse and fleet quotas are outside this published-checkpoint deletion slice.
 
 ---
+
+### upload_input.py
+
+**Status:** PASS
+
+**Description:** Actual fixture AgentOS server, dedicated Postgres/Redis and rebuilt Docker runtime. Uploaded file bytes were stored in run input, checkpointed, restored into a second computer and downloaded unchanged. No model calls.
+
+**Result:** Cookbook passed. Media/AgentOS integration: 19 passed; final media validation: 9 passed after adding malformed-array cases. Sandbox/external-agent units: 621 passed; queue regressions: 110 passed; Python 3.9 sandbox units: 94 passed. Required format and validation scripts passed. Model interpretation and hosted-provider behavior remain untested.
+
+---

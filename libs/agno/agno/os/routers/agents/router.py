@@ -802,6 +802,11 @@ def get_agent_router(
         input_files: List[FileMedia] = []
 
         if files:
+            if getattr(agent, "_sandbox_execution", False) is True:
+                from agno.sandbox.media import MAX_MEDIA_BYTES, MAX_MEDIA_ITEMS
+
+                if len(files) > MAX_MEDIA_ITEMS or sum(file.size or 0 for file in files) > MAX_MEDIA_BYTES:
+                    raise HTTPException(status_code=400, detail="Sandbox uploads exceed 16 files or 512 KiB")
             for idx, file in enumerate(files):
                 file_meta = files_metadata_list[idx] if idx < len(files_metadata_list) else None
                 file_category = classify_upload_file(file)
@@ -810,6 +815,8 @@ def get_agent_router(
                         base64_image = process_image(file, metadata=file_meta)
                         base64_images.append(base64_image)
                     except Exception as e:
+                        if getattr(agent, "_sandbox_execution", False) is True:
+                            raise HTTPException(status_code=400, detail="Invalid sandbox attachment") from e
                         log_error(f"Error processing image {file.filename}: {str(e)}")
                         continue
                 elif file_category == "audio":
@@ -817,6 +824,8 @@ def get_agent_router(
                         audio = process_audio(file, metadata=file_meta)
                         base64_audios.append(audio)
                     except Exception as e:
+                        if getattr(agent, "_sandbox_execution", False) is True:
+                            raise HTTPException(status_code=400, detail="Invalid sandbox attachment") from e
                         log_error(
                             f"Error processing audio {file.filename} with content type {file.content_type}: {str(e)}"
                         )
@@ -826,19 +835,48 @@ def get_agent_router(
                         base64_video = process_video(file, metadata=file_meta)
                         base64_videos.append(base64_video)
                     except Exception as e:
+                        if getattr(agent, "_sandbox_execution", False) is True:
+                            raise HTTPException(status_code=400, detail="Invalid sandbox attachment") from e
                         log_error(f"Error processing video {file.filename}: {str(e)}")
                         continue
                 elif file_category == "document":
                     # Process document files
                     try:
                         input_file = process_document(file, metadata=file_meta)
+                        if input_file is None and getattr(agent, "_sandbox_execution", False) is True:
+                            raise ValueError("Unsupported sandbox document")
                         if input_file is not None:
                             input_files.append(input_file)
                     except Exception as e:
+                        if getattr(agent, "_sandbox_execution", False) is True:
+                            raise HTTPException(status_code=400, detail="Invalid sandbox attachment") from e
                         log_error(f"Error processing file {file.filename}: {str(e)}")
                         continue
                 else:
                     raise HTTPException(status_code=400, detail="Unsupported file type")
+
+        if getattr(agent, "_sandbox_execution", False) is True:
+            # The generic media reconstructor is intentionally permissive. Use
+            # the original fields here so malformed inputs cannot disappear or
+            # lose forbidden path/reference fields before sandbox validation.
+            form = await request.form()
+            for form_key, key in (
+                ("images", "images"),
+                ("audio", "audio"),
+                ("videos", "videos"),
+                ("input_files", "files"),
+            ):
+                raw = form.get(form_key)
+                if raw:
+                    if not isinstance(raw, str) or len(raw) > 1024 * 1024:
+                        raise HTTPException(status_code=400, detail="Sandbox attachment field exceeds its limit")
+                    try:
+                        decoded = json.loads(raw)
+                        if not isinstance(decoded, list):
+                            raise ValueError("Sandbox attachments must be an array")
+                        kwargs[key] = decoded
+                    except ValueError as error:
+                        raise HTTPException(status_code=400, detail="Sandbox attachments require valid JSON") from error
 
         # Merge media passed as JSON form fields (sent by AgnoClient, e.g. when a team
         # delegates to this agent as a remote member) with media from uploaded files.
@@ -864,7 +902,20 @@ def get_agent_router(
         auth_token = get_auth_token_from_request(request)
 
         if getattr(agent, "_sandbox_execution", False) is True:
+            from agno.exceptions import UnsupportedMediaError
             from agno.os.routers.agents.sandbox import sandbox_run_response
+            from agno.sandbox.media import encode_media
+
+            try:
+                wire = encode_media(
+                    {"images": base64_images, "audio": base64_audios, "videos": base64_videos, "files": input_files}
+                )
+            except (ValueError, UnsupportedMediaError) as error:
+                raise HTTPException(status_code=400, detail=str(error)) from error
+            if "sandbox_media" in kwargs:
+                raise HTTPException(status_code=400, detail="Use images/files fields for sandbox attachments")
+            if wire:
+                kwargs["sandbox_media"] = wire
 
             return await sandbox_run_response(
                 agent,
@@ -877,7 +928,6 @@ def get_agent_router(
                 stream=stream,
                 background=background,
                 version=version,
-                media=bool(base64_images or base64_audios or base64_videos or input_files),
             )
 
         # Background execution

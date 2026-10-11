@@ -132,7 +132,7 @@ curl -X POST http://localhost:7777/agents/coder/runs \
 
 Keep the returned run ID. Reconnect with `POST /agents/coder/runs/{run_id}/resume` using form fields `session_id` and optionally `last_event_index`; cancel with `POST /agents/coder/runs/{run_id}/cancel?session_id=example`. Reusing an idempotency key requires the same session ID, input and options. Conflicting submissions return 409. Streaming terminal success follows the durable checkpoint commit. Retained indexed events support replay after the live Redis view expires; content deltas follow the agent's `events_to_skip` policy.
 
-This slice accepts text and JSON runtime configuration, including structured-output schemas. File/image inputs, step replay/fork, version-pinned instances and arbitrary per-turn SDK options are explicitly rejected pending checkpoint-aware integrations. The ordinary session deletion API refuses sessions with retained sandbox recovery; purge their recovery data first using the lifecycle API below. A failed checkpoint upload retries finalization without repeating the model. If the configured queue attempts are exhausted, compute is removed and the turn fails visibly while retaining the previous checkpoint. External effects can still repeat after execution crashes and need application idempotency.
+This slice accepts text, bounded file/image attachments and JSON runtime configuration, including structured-output schemas. Step replay/fork, version-pinned instances and arbitrary per-turn SDK options are explicitly rejected pending checkpoint-aware integrations. The ordinary session deletion API refuses sessions with retained sandbox recovery; purge their recovery data first using the lifecycle API below. A failed checkpoint upload retries finalization without repeating the model. If the configured queue attempts are exhausted, compute is removed and the turn fails visibly while retaining the previous checkpoint. External effects can still repeat after execution crashes and need application idempotency.
 
 
 ## Status and artifacts after compute removal
@@ -164,3 +164,12 @@ With the `agentos.py` fixture server running, this example creates and deletes o
 ```
 
 Library code can use `SandboxLifecycle.retire/delete_recovery` or `aretire/adelete_recovery`. Ownership is exact, including `user_id=None`; synchronous entry points require `PostgresDb`.
+
+
+## File and image inputs
+
+`upload_input.py` uploads a document and verifies its exact bytes after a second turn replaces compute. Run it against the fixture `agentos.py` server. Multipart `files` accepts image/document uploads. JSON form fields `images` and `input_files` accept arrays with base64 `content` and optional `format`, `mime_type`, or file `filename`. The `files` field is reserved for multipart uploads.
+
+Each turn accepts up to 16 attachments and 512 KiB of combined decoded bytes, within a 1 MiB queued/runtime request. Larger inputs need a future object transport. HTTP paths, URLs, external storage references, audio and video are rejected before enqueue. Direct SDK `Image`/`File` inputs accept bytes or explicitly supplied regular local files; only bytes cross the runtime boundary.
+
+The queue persists canonical attachment bytes and deterministic identities. A worker can reconstruct the pending input after the submitting process disappears. The harness stages files under `/workspace/.agno/uploads/<run_id>/` and retains them in completed checkpoints. This includes their bytes in service run history and checkpoint storage; deleting recovery alone retains conversation inputs until the ordinary session history is deleted. File/image transport fixture tests do not certify model interpretation of the content.

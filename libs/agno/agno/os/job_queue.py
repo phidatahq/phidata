@@ -1640,6 +1640,7 @@ class QueueWorker:
                     session_id=job["session_id"],
                     user_id=job.get("user_id"),
                     input=payload.get("input"),
+                    run_kwargs=payload.get("kwargs"),
                 )
             except Exception as e:
                 log_error(
@@ -2279,7 +2280,13 @@ async def _aappend_pending_run(
 
 
 async def aprepare_queued_run(
-    component: Any, component_type: str, run_id: str, session_id: str, user_id: Optional[str], input: Any
+    component: Any,
+    component_type: str,
+    run_id: str,
+    session_id: str,
+    user_id: Optional[str],
+    input: Any,
+    run_kwargs: Optional[Dict[str, Any]] = None,
 ) -> None:
     """Persist the PENDING run row after a successful enqueue so pollers find
     the run immediately. Idempotent: if a worker already started (and possibly
@@ -2297,6 +2304,10 @@ async def aprepare_queued_run(
     from agno.run.base import RunStatus
     from agno.run.status_persist import component_hook
 
+    submission_hook = component_hook(component, "_aprepare_queued_submission")
+    if component_type == "agent" and submission_hook is not None:
+        await submission_hook(run_id, session_id, user_id, input, run_kwargs or {})
+        return
     prepare_hook = component_hook(component, "_aprepare_pending_run")
     if component_type == "agent" and prepare_hook is not None:
         await prepare_hook(run_id, session_id, user_id, input)
@@ -2425,6 +2436,7 @@ async def aprepare_accepted_or_abort(
     session_id: str,
     user_id: Optional[str],
     input: Any,
+    run_kwargs: Optional[Dict[str, Any]] = None,
 ) -> None:
     """Post-enqueue prepare under the acceptance invariant: once the ticket
     committed, every response must either ACKNOWLEDGE the durable acceptance
@@ -2445,7 +2457,7 @@ async def aprepare_accepted_or_abort(
       lie - the work happens anyway.
     """
     try:
-        await aprepare_queued_run(component, component_type, run_id, session_id, user_id, input)
+        await aprepare_queued_run(component, component_type, run_id, session_id, user_id, input, run_kwargs)
     except Exception as e:
         cancelled = False
         with contextlib.suppress(Exception):

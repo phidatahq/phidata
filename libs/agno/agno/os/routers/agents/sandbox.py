@@ -62,7 +62,7 @@ async def enqueue_sandbox_run(
         if existing.get("payload") != payload:
             raise HTTPException(status_code=409, detail="Idempotency-Key already has different input or options")
         return existing
-    await aprepare_accepted_or_abort(worker, agent, "agent", job["id"], session_id, user_id, input)
+    await aprepare_accepted_or_abort(worker, agent, "agent", job["id"], session_id, user_id, input, run_kwargs=options)
     # The queue row is authoritative even if registering the live stream fails.
     from agno.os.event_streams import get_event_stream
     from agno.run.base import RunStatus
@@ -86,12 +86,11 @@ async def sandbox_run_response(
     stream: bool,
     background: bool,
     version: Any = None,
-    media: bool = False,
 ) -> Any:
-    if version is not None or media:
+    if version is not None:
         raise HTTPException(
             status_code=400,
-            detail="Sandbox runs currently require a registered version and text input; media cannot fall back to service execution",
+            detail="Sandbox runs require the registered agent version",
         )
     try:
         job = await enqueue_sandbox_run(

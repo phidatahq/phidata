@@ -23,8 +23,8 @@ class SandboxAgent(BaseExternalAgent):
     execution requires a durable QueueConfig; every response mode submits there.
     Direct Python run/arun uses the same Postgres session fence. SDK background
     submission requires an active AgentOS queue. Native options are JSON and
-    provisioned consistently across replicas. Media/step replay require separate
-    checkpoint-aware APIs and are rejected here rather than run on the service.
+    provisioned consistently across replicas. File/image bytes are bounded and
+    checkpointed inside compute. Step replay requires a separate recovery API.
     """
 
     coordinator: Optional[SandboxCoordinator] = field(default=None, repr=False)
@@ -73,6 +73,12 @@ class SandboxAgent(BaseExternalAgent):
             pids_limit=self.pids_limit,
         )
 
+    def _media_kwargs(self, **media: Any) -> Dict[str, Any]:
+        from agno.sandbox.media import encode_media
+
+        wire = encode_media(media, allow_local_paths=True)
+        return {"sandbox_media": wire} if wire else {}
+
     def _submission(self, input: Any, kwargs: Dict[str, Any]) -> Dict[str, Any]:
         from agno.sandbox.protocol import validate_request
 
@@ -81,7 +87,7 @@ class SandboxAgent(BaseExternalAgent):
         extra = {key: value for key, value in kwargs.items() if value is not None}
         for key in ("run_id", "session_id", "user_id", "yield_run_output", "stream_events", "background_tasks"):
             extra.pop(key, None)
-        unknown = set(extra) - {"output_schema"}
+        unknown = set(extra) - {"output_schema", "sandbox_media"}
         if unknown:
             raise ValueError("Unsupported sandbox run options: " + ", ".join(sorted(unknown)))
         schema = extra.get("output_schema", self.output_schema)
@@ -102,17 +108,22 @@ class SandboxAgent(BaseExternalAgent):
                 session_id="validate",
                 sdk="claude" if self.harness == "fixture" else self.harness,
                 input=input,
+                media=extra.get("sandbox_media", []),
                 config=config,
                 execution_timeout=self.execution_timeout,
             )
         )
-        return {"output_schema": schema} if schema is not None else {}
+        result = {"output_schema": schema} if schema is not None else {}
+        if extra.get("sandbox_media"):
+            result["sandbox_media"] = json.loads(json.dumps(extra["sandbox_media"]))
+        return result
 
     def _execution(self, input: Any, kwargs: Dict[str, Any]) -> Dict[str, Any]:
         from agno.run.concurrency import get_worker_ownership
 
         options = self._submission(input, kwargs)
         config = json.loads(json.dumps(self.runtime_config, allow_nan=False))
+        media = options.pop("sandbox_media", [])
         config.update(options)
         if self.name is not None:
             config["name"] = self.name
@@ -122,6 +133,7 @@ class SandboxAgent(BaseExternalAgent):
             run_id=run_id,
             input=input,
             sdk=self.harness,
+            media=media,
             user_id=kwargs.get("user_id"),
             config=config,
             queue_attempt=owner.attempt if owner is not None else None,
@@ -160,14 +172,22 @@ class SandboxAgent(BaseExternalAgent):
     async def _aprepare_pending_run(
         self, run_id: str, session_id: str, user_id: Optional[str], input: Any
     ) -> RunOutput:
+        return await self._aprepare_queued_submission(run_id, session_id, user_id, input, {})
+
+    async def _aprepare_queued_submission(
+        self, run_id: str, session_id: str, user_id: Optional[str], input: Any, run_kwargs: Dict[str, Any]
+    ) -> RunOutput:
+        from agno.sandbox.media import decode_media
+
         assert self.coordinator is not None
+        options = self._submission(input, run_kwargs)
         run = RunOutput(
             run_id=run_id,
             session_id=session_id,
             agent_id=self.get_id(),
             user_id=user_id,
             agent_name=self.name,
-            input=RunInput(input_content=input),
+            input=RunInput(input_content=input, **decode_media(options.get("sandbox_media", []))),
             status=RunStatus.pending,
         )
         await self.coordinator.store.aprepare(run.to_dict())

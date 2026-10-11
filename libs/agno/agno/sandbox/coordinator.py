@@ -62,6 +62,7 @@ class SandboxCoordinator:
         config: Optional[Dict[str, Any]] = None,
         queue_attempt: Optional[int] = None,
         execution_timeout: float = 900,
+        media: Optional[list[Dict[str, Any]]] = None,
     ) -> RunOutput:
         result = None
         async for value in self._astream(
@@ -73,6 +74,7 @@ class SandboxCoordinator:
             config=config,
             queue_attempt=queue_attempt,
             execution_timeout=execution_timeout,
+            media=media,
         ):
             if isinstance(value, RunOutput):
                 result = value
@@ -91,6 +93,7 @@ class SandboxCoordinator:
         config: Optional[Dict[str, Any]] = None,
         queue_attempt: Optional[int] = None,
         execution_timeout: float = 900,
+        media: Optional[list[Dict[str, Any]]] = None,
     ) -> RunOutput:
         return self.store._sync(
             self.arun,
@@ -102,6 +105,7 @@ class SandboxCoordinator:
             config=config,
             queue_attempt=queue_attempt,
             execution_timeout=execution_timeout,
+            media=media,
         )
 
     async def _stop(self, lease: SandboxLease, *, status: str, reason: str, retryable: bool = False) -> Dict[str, Any]:
@@ -167,6 +171,7 @@ class SandboxCoordinator:
         config: Optional[Dict[str, Any]] = None,
         queue_attempt: Optional[int] = None,
         execution_timeout: float = 900,
+        media: Optional[list[Dict[str, Any]]] = None,
     ) -> AsyncGenerator[Any, None]:
         if not isinstance(input, str) or sdk not in ("claude", "codex", "fixture"):
             raise ValueError("Sandbox runtime requires text input and a supported SDK")
@@ -185,6 +190,8 @@ class SandboxCoordinator:
             config=dict(config or {}),
             execution_timeout=execution_timeout,
         )
+        if media:
+            request["media"] = media
         # Fixture opt-in belongs to the compute image/environment; production SDKs
         # use the same pure request validation without importing either SDK.
         _validate({**request, "sdk": "claude" if sdk == "fixture" else sdk})
@@ -192,12 +199,15 @@ class SandboxCoordinator:
         config = request["config"]
         if len(json.dumps(request, allow_nan=False).encode()) > 1024 * 1024:
             raise ValueError("Runtime request exceeds 1 MiB")
+        from agno.sandbox.media import decode_media
+
+        media = request.get("media", [])
         run = RunOutput(
             run_id=run_id,
             agent_id=template.agent_id,
             session_id=template.session_id,
             user_id=user_id,
-            input=RunInput(input_content=input),
+            input=RunInput(input_content=input, **decode_media(media)),
             status=RunStatus.running,
         )
         prepared = run.to_dict()
@@ -331,6 +341,7 @@ class SandboxCoordinator:
                         user_id=user_id,
                         config=config,
                         execution_timeout=execution_timeout,
+                        media=media,
                     )
                     cursor = 0
                     while True:

@@ -70,6 +70,7 @@ class SandboxRuntimeClient:
         config: Optional[Mapping[str, Any]] = None,
         user_id: Optional[str] = None,
         execution_timeout: float = 900,
+        media: Optional[List[Dict[str, Any]]] = None,
     ) -> RuntimeExecution:
         response = await self._rpc(
             computer,
@@ -85,6 +86,7 @@ class SandboxRuntimeClient:
                 "config": dict(config or {}),
                 "user_id": user_id,
                 "execution_timeout": execution_timeout,
+                **({"media": media} if media else {}),
             },
         )
         if response.get("accepted") is not True:
@@ -102,6 +104,7 @@ class SandboxRuntimeClient:
         config: Optional[Mapping[str, Any]] = None,
         user_id: Optional[str] = None,
         execution_timeout: float = 900,
+        media: Optional[List[Dict[str, Any]]] = None,
     ) -> RuntimeExecution:
         return _sync(
             self.astart(
@@ -113,6 +116,7 @@ class SandboxRuntimeClient:
                 config=config,
                 user_id=user_id,
                 execution_timeout=execution_timeout,
+                media=media,
             )
         )
 

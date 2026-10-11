@@ -30,6 +30,7 @@ from agno.exceptions import (
     OutputCheckError,
     RunNotContinuableError,
     RunNotFoundError,
+    SessionBusyError,
 )
 from agno.media import Audio, Image, Video
 from agno.media import File as FileMedia
@@ -77,6 +78,7 @@ from agno.os.schema import (
 )
 from agno.os.settings import AgnoAPISettings
 from agno.os.utils import (
+    AgnoHTTPException,
     adraft_preview_identity,
     afinalize_continue_stream,
     allow_draft_preview,
@@ -1123,6 +1125,8 @@ def get_agent_router(
                         **kwargs,
                     ),
                 )
+            except SessionBusyError as e:
+                raise AgnoHTTPException(e) from e
             except InputCheckError as e:
                 raise HTTPException(status_code=400, detail=str(e))
             return JSONResponse(
@@ -1181,6 +1185,8 @@ def get_agent_router(
                 )
                 return run_response.to_dict()
 
+            except SessionBusyError as e:
+                raise AgnoHTTPException(e) from e
             except InputCheckError as e:
                 raise HTTPException(status_code=400, detail=str(e))
 
@@ -1811,6 +1817,8 @@ def get_agent_router(
                     )
                 return run_response_obj.to_dict()
 
+            except SessionBusyError as e:
+                raise AgnoHTTPException(e) from e
             except RunNotFoundError as e:
                 raise HTTPException(status_code=404, detail=str(e))
             except RunNotContinuableError as e:

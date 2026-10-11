@@ -213,3 +213,13 @@ Python 3.9 follow-up: 76 sandbox unit tests, 40 real Postgres cases and 12 Agent
 **Result:** 5 SDK tests passed. Local hosted runtime/transfer plus staging suite passed across both Postgres adapters. No Vercel account or live model calls were made; VCR and platform acceptance remain pending.
 
 ---
+
+### Capture versus in-flight privilege transition
+
+**Status:** PASS
+
+**Description:** Self-review reproduced a missing workspace file on the previous image by delaying a root command helper during privilege transition while capture ran. The helper now holds a shared dispatch lock through an unprivileged child; capture takes the exclusive lock and the transport parent remains root through reply delivery.
+
+**Result:** The previous image failed the reproducer. The corrected image passed all 12 hosted Linux/Postgres cases, including the controlled overlap on both database adapters. A first lock-only attempt exposed reply-freeze behavior and was replaced before this fix was published.
+
+---

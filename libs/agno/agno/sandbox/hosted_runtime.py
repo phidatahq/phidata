@@ -8,6 +8,7 @@ filesystem checkpoint, not an application-consistent database backup.
 
 import argparse
 import ctypes
+import fcntl
 import hashlib
 import json
 import os
@@ -15,6 +16,8 @@ import re
 import shutil
 import signal
 import stat
+import subprocess
+import sys
 import time
 from pathlib import Path
 from typing import Any, Dict
@@ -174,6 +177,19 @@ def _restore(request: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _dispatch(operation: str, request: Dict[str, Any]) -> Dict[str, Any]:
+    # Root requests must cross the privilege boundary before capture starts.
+    # Otherwise a root helper descheduled between checking the freeze marker and
+    # setuid could launch a new writer after the final process scan. Inherited
+    # subprocesses do not retain this close-on-exec descriptor.
+    descriptor = os.open(_CONTROL / "dispatch.lock", os.O_CREAT | os.O_RDONLY | os.O_NOFOLLOW, 0o600)
+    try:
+        fcntl.flock(descriptor, fcntl.LOCK_SH if operation in ("exec", "start", "poll") else fcntl.LOCK_EX)
+        return _dispatch_locked(operation, request)
+    finally:
+        os.close(descriptor)
+
+
+def _dispatch_locked(operation: str, request: Dict[str, Any]) -> Dict[str, Any]:
     if operation == "init":
         return _initialize()
     if not (_CONTROL / "initialized").exists():
@@ -188,6 +204,28 @@ def _dispatch(operation: str, request: Dict[str, Any]) -> Dict[str, Any]:
     if operation not in ("exec", "start", "poll"):
         raise ValueError("Unsupported hosted operation")
     (_CONTROL / "used").touch(mode=0o600)
+    return _user_process(operation, request)
+
+
+def _user_process(operation: str, request: Dict[str, Any]) -> Dict[str, Any]:
+    # Keep the transport parent root-owned through reply delivery. Freezing all
+    # user processes must not freeze a completed control reply before EOF.
+    result = subprocess.run(
+        [sys.executable, "-I", "-m", "agno.sandbox.hosted_runtime", "user", operation],
+        input=json.dumps(request, allow_nan=False).encode(),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        timeout=float(request.get("timeout", 15)) + 15,
+        check=False,
+    )
+    if result.returncode:
+        raise SandboxError("Unprivileged runtime failed: " + result.stderr.decode(errors="replace")[-2000:])
+    if len(result.stdout) > 4 * 1024 * 1024:
+        raise SandboxError("Unprivileged runtime reply exceeds its limit")
+    return json.loads(result.stdout)
+
+
+def _user(operation: str, request: Dict[str, Any]) -> Dict[str, Any]:
     _drop()
     if operation == "exec":
         from agno.sandbox._exec import _execute
@@ -204,10 +242,15 @@ def _dispatch(operation: str, request: Dict[str, Any]) -> Dict[str, Any]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Hosted sandbox control transport")
-    parser.add_argument("operation", choices=("init", "exec", "start", "poll", "capture", "restore", "remove"))
+    parser.add_argument("operation", choices=("init", "exec", "start", "poll", "capture", "restore", "remove", "user"))
     parser.add_argument("request", nargs="?")
     args = parser.parse_args()
     _control()
+    if args.operation == "user":
+        if args.request not in ("exec", "start", "poll"):
+            raise ValueError("Unsupported unprivileged operation")
+        print(json.dumps(_user(args.request, json.loads(sys.stdin.buffer.read(_MAX_REQUEST + 1))), allow_nan=False))
+        return
     request = {}
     if args.request is not None:
         request = json.loads(_read(args.request, _MAX_REQUEST))

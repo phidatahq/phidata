@@ -7573,6 +7573,8 @@ class PostgresDb(BaseDb):
         """
         from sqlalchemy.exc import IntegrityError
 
+        from agno.job_queue.session import next_session_seq_query, session_claim_lock_key, with_session_seq
+
         table = self._get_table(table_type="jobs", create_table_if_not_found=True)
         if table is None:
             raise RuntimeError("Failed to get or create job queue table")
@@ -7581,8 +7583,11 @@ class PostgresDb(BaseDb):
         # empty-header submit into an IntegrityError -> 500
         if not job.get("idempotency_key"):
             job = {**job, "idempotency_key": None}
+        serialized = (job.get("payload") or {}).get("serialize_session") is True
         try:
             with self.Session() as sess, sess.begin():
+                if serialized:
+                    sess.connection(execution_options={"isolation_level": "READ COMMITTED"})
                 # Idempotency FIRST: resubmitting an already-accepted job
                 # must return the existing run even when the queue is full
                 if job.get("idempotency_key"):
@@ -7599,6 +7604,13 @@ class PostgresDb(BaseDb):
                     queued = sess.execute(count_stmt).scalar() or 0
                     if queued >= max_depth:
                         return {"accepted": False, "reason": "queue_full", "job": None}
+                if serialized:
+                    # Under the session lock a new ticket sorts after every live ticket of its
+                    # session, so execution follows store acceptance, not wall-clock seconds.
+                    lock_key = session_claim_lock_key(table.fullname, job)
+                    sess.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": lock_key})
+                    seq = (sess.execute(next_session_seq_query(table, job))).scalar_one()
+                    job = with_session_seq(job, seq)
                 sess.execute(table.insert().values(**job))
             return {"accepted": True, "reason": None, "job": job}
         except IntegrityError:
@@ -7640,8 +7652,10 @@ class PostgresDb(BaseDb):
             now = _db_epoch()
             stale = now - lock_grace_seconds
             with self.Session() as sess, sess.begin():
+                # The session predicate and lock recheck rely on per-statement snapshots.
+                sess.connection(execution_options={"isolation_level": "READ COMMITTED"})
                 candidate_query = (
-                    select(table.c.id)
+                    select(table)
                     .where(
                         table.c.available_at <= now,
                         session_claim_condition(table),
@@ -7659,17 +7673,13 @@ class PostgresDb(BaseDb):
                     .limit(1)
                     .with_for_update(skip_locked=True)
                 )
-                candidate = (sess.execute(candidate_query)).scalar_one_or_none()
-                if candidate is None:
+                candidate_row = (sess.execute(candidate_query)).mappings().first()
+                if candidate_row is None:
                     return None
-                candidate_row = (sess.execute(select(table).where(table.c.id == candidate))).mappings().one()
+                candidate = candidate_row["id"]
                 if (candidate_row["payload"] or {}).get("serialize_session") is True:
-                    # Serialize claims for this session, including a newly enqueued ticket
-                    # that sorts before a concurrently claimed ticket. Recheck after the
-                    # lock under READ COMMITTED so the preceding claimant is visible.
-                    isolation = (sess.execute(text("SHOW transaction_isolation"))).scalar_one()
-                    if isolation != "read committed":
-                        raise RuntimeError("Serialized session queues require READ COMMITTED isolation")
+                    # A concurrent claim of another ticket in this session may have committed
+                    # after the candidate scan; recheck under the session lock.
                     lock_key = session_claim_lock_key(table.fullname, dict(candidate_row))
                     locked = (
                         sess.execute(text("SELECT pg_try_advisory_xact_lock(:key)"), {"key": lock_key})

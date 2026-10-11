@@ -32,7 +32,7 @@ CodexAgent(name="Codex").login_api_key("sk-...")
 - `codex_tools.py` — shell commands in a read-only sandbox, surfaced as Agno tool calls
 - `codex_session.py` — multi-turn session; the Codex thread is resumed across turns via Agno's DB
 - `codex_mcp_tools.py` — connect Codex to an MCP server through `config` overrides
-- `codex_structured_output.py` — `output_schema` as a Pydantic model (content is the model) or a JSON Schema dict (content is a dict), on the agent or per run. A model is sent as a strict schema. When streaming, the text includes Codex's commentary; the `RunCompleted` event carries the parsed final answer
+- `codex_structured_output.py` — `output_schema` as a Pydantic model (content is the model) or a JSON Schema dict (content is a dict), on the agent or per run. A model is sent as a strict schema. The schema must describe a JSON object (Codex rejects an array or scalar root), so a `RootModel[List[...]]` is refused with `ValueError` before the turn. When streaming, the text includes Codex's commentary; the `RunCompleted` event carries the parsed final answer
 - `codex_retries.py` — retry failed runs with exponential backoff. The cookbook injects a transient failure so the retry can be watched resuming the failed attempt's thread, then shows exhaustion and the default of no retries. Limits and permanent errors are not retried
 - `codex_agentos.py` — serve Codex through AgentOS
 - `codex_session_agentos.py` — same with SQLite-backed sessions

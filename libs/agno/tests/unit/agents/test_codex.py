@@ -1186,6 +1186,16 @@ def test_json_schema_dict_returns_a_dict(fake_sdk, stream):
     assert turn["kwargs"]["output_schema"] == schema
 
 
+def test_non_object_output_schema_is_rejected_before_the_turn(fake_sdk):
+    """Codex's response format requires an object root; an array schema is a 400 from the API."""
+    with pytest.raises(ValueError, match="must describe a JSON object"):
+        CodexAgent(name="Codex", id="codex", output_schema={"type": "array", "items": {"type": "string"}})
+    agent = CodexAgent(name="Codex", id="codex")
+    with pytest.raises(ValueError, match="must describe a JSON object"):
+        agent.run("List colours", output_schema={"type": "string"})
+    assert not [c for c in fake_sdk.calls if c["op"] == "turn"]
+
+
 def test_failed_turn_with_output_schema_keeps_the_error_text(fake_sdk):
     fake_sdk.notifications = [_turn_completed("failed", error="boom")]
     run = CodexAgent(name="Codex", id="codex", output_schema=Movie).run("Invent a movie")

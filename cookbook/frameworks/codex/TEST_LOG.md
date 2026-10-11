@@ -159,3 +159,13 @@ Tested 2026-10-08 with openai-codex 0.161.0 (bundled Codex CLI 0.161.0), model g
 **Result:** Before: streamed turn recorded 14972 of 44739 actual, non-streamed 14502 of 43341. After: streamed 44725 of 44725, non-streamed 43289 of 43289 (three requests each). Other cookbooks unchanged.
 
 ---
+
+### codex_structured_output.py (review follow-ups, 2026-10-11)
+
+**Status:** PASS (openai-codex 0.161.0, gpt-5.6-luna)
+
+**Description:** Review of the output_schema change. Live: a model with an `Optional` field (strict schema, nullable), non-streamed; a streamed turn on the resumed thread and its stored run; a `RootModel[List[str]]` and an array JSON Schema; the cookbook rerun after the fixes.
+
+**Result:** Optional field came back `null` and parsed to `None`; the resumed streamed turn parsed and stored the model with `content_type` Movie. An array-rooted schema failed the turn with Codex's `invalid_json_schema: schema must be a JSON Schema of 'type: "object"'`; it is now refused with `ValueError` before the turn. Cookbook reran unchanged.
+
+---

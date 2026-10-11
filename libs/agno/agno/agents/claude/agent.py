@@ -144,6 +144,10 @@ class ClaudeAgent(BaseExternalAgent):
 
     # Key under which the SDK session id is stored in the Agno session's session_data.
     _SESSION_KEY = "claude_sdk_session_id"
+    # The tool Claude Code calls to deliver output_schema's object. The object is read from the
+    # result message; the call itself is the mechanism, not work the agent did, so it is not
+    # recorded as a tool call.
+    _STRUCTURED_OUTPUT_TOOL = "StructuredOutput"
     # Message.provider_data key holding the SDK session id and transcript uuid behind a message.
     _MESSAGE_REF_KEY = "claude_sdk"
     _CONTINUE_PROMPT = "Continue from where you left off."
@@ -886,6 +890,7 @@ class ClaudeAgent(BaseExternalAgent):
         tools: Dict[str, ToolExecution] = {}
         metrics: Optional[RunMetrics] = None
         structured_output: Any = None
+        hidden_tool_ids: set = set()
 
         async for message in self._aquery(input, history, streaming=False, **kwargs):
             # Share the live accumulator so the base class can persist work
@@ -901,6 +906,9 @@ class ClaudeAgent(BaseExternalAgent):
                     if isinstance(block, sdk.TextBlock):
                         assistant_text += block.text
                     elif isinstance(block, sdk.ToolUseBlock):
+                        if block.name == self._STRUCTURED_OUTPUT_TOOL:
+                            hidden_tool_ids.add(block.id)
+                            continue
                         tools[block.id] = ToolExecution(
                             tool_call_id=block.id,
                             tool_name=block.name,
@@ -911,6 +919,8 @@ class ClaudeAgent(BaseExternalAgent):
             elif isinstance(message, sdk.UserMessage) and isinstance(message.content, list):
                 for block in message.content:
                     if isinstance(block, sdk.ToolResultBlock):
+                        if block.tool_use_id in hidden_tool_ids:
+                            continue
                         tool = tools.setdefault(
                             block.tool_use_id,
                             ToolExecution(
@@ -1013,6 +1023,9 @@ class ClaudeAgent(BaseExternalAgent):
                         tool_name = getattr(block, "name", "unknown")
                         tool_input = getattr(block, "input", {})
                         tool_id = getattr(block, "id", str(uuid4()))
+                        if tool_name == self._STRUCTURED_OUTPUT_TOOL:
+                            emitted_tool_ids.add(tool_id)
+                            continue
                         if tool_id not in emitted_tool_ids:
                             emitted_tool_ids.add(tool_id)
                             tool_args = tool_input if isinstance(tool_input, dict) else {"input": tool_input}
@@ -1041,6 +1054,8 @@ class ClaudeAgent(BaseExternalAgent):
                     for block in content:
                         if isinstance(block, sdk.ToolResultBlock):
                             tool_use_id = getattr(block, "tool_use_id", str(uuid4()))
+                            if tool_use_id in emitted_tool_ids and tool_use_id not in tool_info_map:
+                                continue  # the structured output tool's acknowledgement
                             result_content = getattr(block, "content", "")
                             if isinstance(result_content, list):
                                 result_str = " ".join(getattr(item, "text", str(item)) for item in result_content)

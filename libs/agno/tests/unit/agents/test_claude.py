@@ -17,7 +17,13 @@ from pydantic import BaseModel
 from agno.agents.claude import ClaudeAgent
 from agno.agents.claude import agent as claude_module
 from agno.db.sqlite import SqliteDb
-from agno.run.agent import RunCompletedEvent, RunContentEvent, RunErrorEvent
+from agno.run.agent import (
+    RunCompletedEvent,
+    RunContentEvent,
+    RunErrorEvent,
+    ToolCallCompletedEvent,
+    ToolCallStartedEvent,
+)
 from agno.run.base import RunStatus
 
 # ---------------------------------------------------------------------------
@@ -1400,6 +1406,65 @@ def test_without_output_schema_no_output_format_is_sent(fake_sdk):
     run = agent.run("hi")
     assert run.content == "ok" and run.content_type == "str"
     assert "output_format" not in fake_sdk.options[-1]
+
+
+@pytest.mark.parametrize("stream", [True, False])
+def test_structured_output_tool_call_is_not_recorded_as_a_tool(fake_sdk, tmp_db, monkeypatch, stream):
+    """Claude Code delivers the object through a StructuredOutput tool call; the object comes from the
+    result message, so the call is not a tool call the agent made."""
+    read = ToolUseBlock()
+    read.id, read.name, read.input = "call-read", "Read", {"path": "notes.md"}
+    read_result = ToolResultBlock()
+    read_result.tool_use_id, read_result.content = "call-read", "Paris is the capital"
+    deliver = ToolUseBlock()
+    deliver.id, deliver.name, deliver.input = "call-so", "StructuredOutput", {"city": "Paris", "country": "France"}
+    ack = ToolResultBlock()
+    ack.tool_use_id, ack.content = "call-so", "Structured output provided successfully"
+    results = UserMessage()
+    results.content = [read_result, ack]
+
+    async def query(prompt, options):
+        yield SystemMessage(subtype="init", data={"session_id": "sdk-1"})
+        yield AssistantMessage([read, deliver])
+        yield results
+        yield AssistantMessage([TextBlock(text="The capital of France is Paris.")])
+        yield ResultMessage(
+            "sdk-1", "The capital of France is Paris.", structured_output={"city": "Paris", "country": "France"}
+        )
+
+    monkeypatch.setattr(claude_module._sdk(), "query", query)
+    agent = ClaudeAgent(name="Claude", id="claude", db=tmp_db, output_schema=Capital)
+    if stream:
+        events = _collect(agent, "Capital of France?", session_id="s")
+        started = [e.tool.tool_name for e in events if isinstance(e, ToolCallStartedEvent)]
+        completed = [e.tool.tool_name for e in events if isinstance(e, ToolCallCompletedEvent)]
+        assert started == ["Read"] and completed == ["Read"]
+        run = agent.get_session("s").runs[-1]
+    else:
+        run = agent.run("Capital of France?", session_id="s")
+    assert run.content == Capital(city="Paris", country="France") or run.content == {
+        "city": "Paris",
+        "country": "France",
+    }
+    assert [t.tool_name for t in run.tools or []] == ["Read"]
+    assert [m.content for m in run.messages or [] if m.role == "tool"] == ["Paris is the capital"]
+
+
+def test_non_object_output_schema_is_rejected_before_the_run(fake_sdk):
+    """Claude Code's structured output tool takes an object; the API answers 400 for an array root."""
+    from typing import List
+
+    from pydantic import RootModel
+
+    class Names(RootModel[List[str]]):
+        pass
+
+    with pytest.raises(ValueError, match="must describe a JSON object"):
+        ClaudeAgent(name="Claude", id="claude", output_schema=Names)
+    agent = ClaudeAgent(name="Claude", id="claude")
+    with pytest.raises(ValueError, match="must describe a JSON object"):
+        agent.run("List colours", output_schema={"type": "array", "items": {"type": "string"}})
+    assert fake_sdk.calls == []
 
 
 def test_answer_that_does_not_match_the_schema_stays_text(fake_sdk):

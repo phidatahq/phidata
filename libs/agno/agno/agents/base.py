@@ -1010,13 +1010,22 @@ class BaseExternalAgent:
             return
         if not self._supports_output_schema:
             raise ValueError(f"{type(self).__name__} does not support output_schema")
-        schema = output_schema if isinstance(output_schema, dict) else output_schema.model_json_schema()
+        schema = (
+            output_schema
+            if isinstance(output_schema, dict)
+            else getattr(output_schema, "__agno_output_schema__", None) or output_schema.model_json_schema()
+        )
         root_type = schema.get("type")
         if root_type != "object" and not (root_type is None and "properties" in schema):
             raise ValueError(
                 f"{type(self).__name__} output_schema must describe a JSON object (got type {root_type!r}); "
                 "wrap a list or scalar in a model field"
             )
+
+        if isinstance(output_schema, dict) or getattr(output_schema, "__agno_output_schema__", None) is not None:
+            from agno.utils.output_schema import output_validator
+
+            output_validator(schema)
 
     def _resolve_output_schema(self, kwargs: Dict[str, Any]) -> Optional[Union[Type[BaseModel], Dict[str, Any]]]:
         """The run's output_schema, the call's over the agent's, left in kwargs for the adapter."""
@@ -1033,6 +1042,9 @@ class BaseExternalAgent:
         """JSON Schema for the framework: a dict is passed as given, a model is normalized for the provider."""
         if isinstance(output_schema, dict):
             return output_schema
+        original_schema = getattr(output_schema, "__agno_output_schema__", None)
+        if original_schema is not None:
+            return original_schema
         from agno.utils.models.schema_utils import get_response_schema_for_provider
 
         return get_response_schema_for_provider(output_schema, provider)
@@ -1050,9 +1062,32 @@ class BaseExternalAgent:
         parsed: Any = None
         # A decoded value (the framework already parsed the JSON) is validated as it is; only text
         # goes through the JSON parsers, which also strip fences and surrounding prose.
+        diagnostic = None
+        original_schema = getattr(output_schema, "__agno_output_schema__", None)
+        if original_schema is not None:
+            from jsonschema.exceptions import ValidationError as OriginalSchemaError  # type: ignore[import-untyped]
+            from referencing.exceptions import Unresolvable as OriginalReferenceError
+
+            from agno.utils.output_schema import output_validator
+
+            try:
+                output_validator(original_schema).validate(
+                    parse_response_dict_str(answer) if isinstance(answer, str) else answer
+                )
+            except (OriginalSchemaError, OriginalReferenceError):
+                diagnostic = "The final answer does not match the requested JSON Schema"
         if isinstance(output_schema, dict):
-            parsed = parse_response_dict_str(answer) if isinstance(answer, str) else answer
+            from jsonschema.exceptions import ValidationError as SchemaValidationError  # type: ignore[import-untyped]
+            from referencing.exceptions import Unresolvable
+
+            from agno.utils.output_schema import output_validator
+
             content_type = "dict"
+            parsed = parse_response_dict_str(answer) if isinstance(answer, str) else answer
+            try:
+                output_validator(output_schema).validate(parsed)
+            except (SchemaValidationError, Unresolvable):
+                diagnostic = "The final answer does not match the requested JSON Schema"
         else:
             content_type = output_schema.__name__
             try:
@@ -1060,10 +1095,18 @@ class BaseExternalAgent:
                     parsed = parse_response_model_str(answer, output_schema)
                 else:
                     parsed = output_schema.model_validate(answer)
-            except ValidationError as error:
-                log_warning(f"{self.framework} answer does not match {content_type}: {error}")
-        if parsed is None:
-            log_warning(f"Could not parse the {self.framework} answer into the output_schema; keeping the text")
+            except ValidationError:
+                diagnostic = "The final answer does not match the requested output model"
+        if parsed is None or diagnostic is not None:
+            # Preserve the raw answer and completed tools for diagnosis. Retrying
+            # the full turn here could repeat business effects just to repair JSON.
+            run.status = RunStatus.error
+            run.metadata = {
+                **(run.metadata or {}),
+                "error_type": "output_validation_error",
+                "retryable": False,
+                "output_validation_error": diagnostic or "The final answer is missing valid structured output",
+            }
             return
         run.content = parsed
         run.content_type = content_type
@@ -1805,6 +1848,9 @@ class BaseExternalAgent:
                 )
             elif run_error is not None:
                 terminal = RunErrorEvent(**fields, error_type=error_type_of(run_error))
+            elif run.status == RunStatus.error:
+                fields["content"] = (run.metadata or {}).get("output_validation_error")
+                terminal = RunErrorEvent(**fields, error_type="output_validation_error", additional_data=run.metadata)
             else:
                 terminal = RunCompletedEvent(**fields, content_type=run.content_type, metrics=run.metrics)
             keep(terminal)

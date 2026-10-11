@@ -1,0 +1,311 @@
+"""Checkpoint transport for Docker-managed bounded session volumes."""
+
+import asyncio
+import copy
+import io
+import json
+import tarfile
+import tempfile
+from contextlib import suppress
+from pathlib import Path
+from typing import Any, Mapping, Optional, Sequence
+
+from agno.sandbox.base import SandboxError, SandboxHandle, _sync
+from agno.sandbox.checkpoint import CheckpointArchive, CheckpointRef, FileCheckpointStore, _name, _preflight
+from agno.sandbox.docker import DockerSandboxProvider
+
+DEFAULT_NATIVE_EXCLUSIONS = ("native/codex/auth.json", "native/.claude/.credentials.json")
+
+
+class DockerCheckpointTransfer:
+    """Copy frozen filesystem state through the daemon without host bind mounts.
+
+    The caller must own the session generation, drain the SDK and quiesce any
+    application requiring a logical backup before capture. Pause freezes files,
+    not application transactions. Restore targets a fresh, unused generation.
+    """
+
+    def __init__(
+        self,
+        provider: DockerSandboxProvider,
+        store: FileCheckpointStore,
+        *,
+        archive: Optional[CheckpointArchive] = None,
+    ) -> None:
+        self.provider, self.store = provider, store
+        self.archive = archive or CheckpointArchive()
+
+    async def _copy(
+        self,
+        handle: SandboxHandle,
+        source: str,
+        destination: str,
+        *,
+        output: Optional[Path] = None,
+        input_file: Optional[Path] = None,
+        timeout: float = 120,
+    ) -> None:
+        # Never ask Docker to extract an untrusted archive on the control-plane
+        # host. Capture writes raw bytes; restore sends a validated/repacked tar.
+        stream = input_file.open("rb") if input_file is not None else None
+        target = output.open("xb") if output is not None else None
+        process = None
+        tasks = []
+        try:
+            process = await asyncio.create_subprocess_exec(
+                self.provider.docker_binary,
+                "container",
+                "cp",
+                "--archive",
+                source,
+                destination,
+                stdin=stream if stream is not None else asyncio.subprocess.DEVNULL,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+
+            async def stdout() -> None:
+                size = 0
+                assert process is not None and process.stdout is not None
+                while chunk := await process.stdout.read(1024 * 1024):
+                    size += len(chunk)
+                    limit = self.archive.limits.max_bytes if target is not None else 65536
+                    if size > limit:
+                        raise SandboxError("Checkpoint transfer exceeds its byte limit")
+                    if target is not None:
+                        from agno.sandbox.checkpoint import _thread
+
+                        await _thread(target.write, chunk)
+
+            async def stderr() -> bytes:
+                data = bytearray()
+                assert process is not None and process.stderr is not None
+                while chunk := await process.stderr.read(65536):
+                    if len(data) + len(chunk) > 1024 * 1024:
+                        raise SandboxError("Checkpoint transfer diagnostics exceeded their limit")
+                    data.extend(chunk)
+                return bytes(data)
+
+            tasks = [asyncio.create_task(stdout()), asyncio.create_task(stderr())]
+            values = await asyncio.wait_for(asyncio.gather(*tasks), timeout)
+            await asyncio.wait_for(process.wait(), 5)
+            if process.returncode:
+                error = values[1] or b""
+                raise SandboxError("Docker checkpoint transfer failed: " + error.decode(errors="replace")[-1000:])
+        except BaseException:
+            if process is not None and process.returncode is None:
+                with suppress(ProcessLookupError):
+                    process.kill()
+                await process.wait()
+            for task in tasks:
+                task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
+            raise
+        finally:
+            if stream is not None:
+                stream.close()
+            if target is not None:
+                target.close()
+
+    def _combine(
+        self, exports: Mapping[str, Path], destination: Path, state: Mapping[str, Any], exclude: Sequence[str]
+    ) -> None:
+        exclusions = set(exclude)
+        for value in exclusions:
+            path = _name(value)
+            if value == "manifest.json" or len(path.parts) == 1:
+                raise ValueError("Cannot exclude an entire root or the manifest")
+        manifest = json.dumps(
+            {"version": 1, "state": dict(state), "excluded": sorted(exclusions)}, allow_nan=False
+        ).encode()
+        if len(manifest) > self.archive.limits.max_manifest_bytes:
+            raise SandboxError("Checkpoint manifest exceeds its limit")
+        with tarfile.open(destination, "w", format=tarfile.PAX_FORMAT) as target:
+            info = tarfile.TarInfo("manifest.json")
+            info.size, info.mode = len(manifest), 0o600
+            target.addfile(info, io.BytesIO(manifest))
+            entries, total = 1, len(manifest)
+            for root, source in sorted(exports.items()):
+                with source.open("rb") as stream:
+                    _preflight(stream, self.archive.limits)
+                    with tarfile.open(fileobj=stream, mode="r:") as archive:
+                        for member in archive:
+                            path = _name(member.name)
+                            if path.parts[0] != root:
+                                raise SandboxError("Docker export escaped its declared root")
+                            if any(member.name == value or member.name.startswith(value + "/") for value in exclusions):
+                                continue
+                            info = copy.copy(member)
+                            info.pax_headers = {}
+                            info.mode &= 0o777
+                            info.uid = info.gid = 0
+                            info.uname = info.gname = ""
+                            if info.islnk():
+                                if _name(info.linkname).parts[0] != root:
+                                    raise SandboxError("Docker hardlink escaped its declared root")
+                                linked = archive.getmember(info.linkname)
+                                if not linked.isfile():
+                                    raise SandboxError("Docker export has an unsupported hardlink chain")
+                                info.type, info.size, info.linkname = tarfile.REGTYPE, linked.size, ""
+                                info.mode = linked.mode & 0o777
+                            entries += 1
+                            total += info.size
+                            if entries > self.archive.limits.max_entries or total > self.archive.limits.max_bytes:
+                                raise SandboxError("Checkpoint export exceeds its limits")
+                            target.addfile(info, archive.extractfile(member) if info.isfile() else None)
+                if target.offset > self.archive.limits.max_bytes:
+                    raise SandboxError("Checkpoint archive exceeds its limit")
+        self.archive.validate(destination)
+
+    async def _check_mounts(self, handle: SandboxHandle) -> None:
+        if await self.provider._owned(handle) is None:
+            raise SandboxError("Checkpoint computer is missing")
+        code, out, _ = await self.provider._docker("container", "inspect", handle.provider_ref)
+        if code:
+            raise SandboxError("Could not inspect checkpoint mounts")
+        mounts = {item["Destination"]: item for item in json.loads(out)[0].get("Mounts", [])}
+        for role, destination in (("workspace", "/workspace"), ("runtime", "/runtime")):
+            mount = mounts.get(destination, {})
+            if (
+                mount.get("Type") != "volume"
+                or mount.get("Name") != handle.name + "-" + role
+                or mount.get("RW") is not True
+            ):
+                raise SandboxError("Computer does not have checkpointable managed volumes")
+            volume = await self.provider._volume(handle.name + "-" + role)
+            expected = {
+                "namespace": self.provider.namespace,
+                "agent": handle.agent_id,
+                "session": handle.session_id,
+                "generation": str(handle.generation),
+                "config": handle.config_digest,
+                "role": role,
+            }
+            if volume is None or any(
+                (volume.get("Labels") or {}).get("io.agno.sandbox." + key) != value for key, value in expected.items()
+            ):
+                raise SandboxError("Checkpoint volume identity mismatch")
+            options = volume.get("Options") or {}
+            if volume.get("Driver") != "local" or options.get("type") != "tmpfs" or options.get("device") != "tmpfs":
+                raise SandboxError("Unsupported checkpoint volume storage")
+
+    async def _pause(self, handle: SandboxHandle) -> None:
+        current = await self.provider._owned(handle)
+        if current is None or current.state != "running":
+            raise SandboxError("Checkpoint requires a running, exclusively owned computer")
+        try:
+            code, _, err = await self.provider._docker("container", "pause", handle.provider_ref)
+        except BaseException:
+
+            async def reconcile_pause() -> None:
+                current = await self.provider._owned(handle)
+                if current is not None and current.state == "paused":
+                    await self._unpause(handle)
+
+            cleanup = asyncio.create_task(reconcile_pause())
+            await asyncio.shield(cleanup)
+            raise
+        if code:
+            raise SandboxError("Docker pause failed: " + err.decode(errors="replace")[-1000:])
+
+    async def _unpause(self, handle: SandboxHandle) -> None:
+        try:
+            _, _, err = await self.provider._docker("container", "unpause", handle.provider_ref)
+        except asyncio.TimeoutError:
+            err = b"Unpause response timed out"
+        current = await self.provider._owned(handle)
+        if current is None or current.state != "running":
+            raise SandboxError(
+                "Could not confirm resumed compute after checkpoint: " + err.decode(errors="replace")[-1000:]
+            )
+
+    async def acapture(
+        self, handle: SandboxHandle, *, state: Mapping[str, Any], exclude: Sequence[str] = DEFAULT_NATIVE_EXCLUSIONS
+    ) -> CheckpointRef:
+        await self._check_mounts(handle)
+        ready = await self.provider.aexec(handle, ["mkdir", "-p", "/runtime/native"])
+        if ready.exit_code:
+            raise SandboxError("Could not prepare the native state directory")
+        with tempfile.TemporaryDirectory(prefix=".capture-", dir=self.store.root) as directory:
+            root = Path(directory)
+            await self._pause(handle)
+            try:
+                await self._copy(handle, handle.provider_ref + ":/workspace", "-", output=root / "workspace.tar")
+                await self._copy(handle, handle.provider_ref + ":/runtime/native", "-", output=root / "native.tar")
+            finally:
+                task = asyncio.create_task(self._unpause(handle))
+                try:
+                    await asyncio.shield(task)
+                except asyncio.CancelledError:
+                    await task
+                    raise
+            # Files no longer change after export. Validation and upload run outside
+            # the pause, so storage latency does not freeze warm applications.
+            from agno.sandbox.checkpoint import _thread
+
+            await _thread(
+                self._combine,
+                {"workspace": root / "workspace.tar", "native": root / "native.tar"},
+                root / "checkpoint.tar",
+                state,
+                exclude,
+            )
+            return await self.store.aput(root / "checkpoint.tar")
+
+    def capture(
+        self, handle: SandboxHandle, *, state: Mapping[str, Any], exclude: Sequence[str] = DEFAULT_NATIVE_EXCLUSIONS
+    ) -> CheckpointRef:
+        return _sync(self.acapture(handle, state=state, exclude=exclude))
+
+    def _export_root(self, checkpoint: Path, root: str, destination: Path) -> None:
+        with (
+            tarfile.open(checkpoint, "r:") as source,
+            tarfile.open(destination, "w", format=tarfile.PAX_FORMAT) as target,
+        ):
+            for member in source:
+                if member.name.startswith(root + "/"):
+                    info = copy.copy(member)
+                    info.pax_headers = {}
+                    info.name = member.name[len(root) + 1 :]
+                    info.mode &= 0o777
+                    info.uid = info.gid = 1000
+                    info.uname = info.gname = ""
+                    target.addfile(info, source.extractfile(member) if member.isfile() else None)
+
+    async def arestore(self, handle: SandboxHandle, reference: CheckpointRef) -> Mapping[str, Any]:
+        from agno.sandbox.checkpoint import _thread
+
+        await self._check_mounts(handle)
+        checkpoint = await self.store.averify(reference)
+        state = await self.archive.avalidate(checkpoint)
+        check = await self.provider.aexec(
+            handle,
+            [
+                "python",
+                "-I",
+                "-c",
+                "from pathlib import Path; w=Path('/workspace'); n=Path('/runtime/native'); assert not any(w.iterdir()), 'workspace is not empty'; n.mkdir(exist_ok=True); assert not any(n.iterdir()), 'native state is not empty'",
+            ],
+        )
+        if check.exit_code:
+            raise SandboxError("Restore requires an empty, unused generation")
+        with tempfile.TemporaryDirectory(prefix=".import-", dir=self.store.root) as directory:
+            root = Path(directory)
+            await _thread(self._export_root, checkpoint, "workspace", root / "workspace.tar")
+            await _thread(self._export_root, checkpoint, "native", root / "native.tar")
+            await self._pause(handle)
+            try:
+                await self._copy(handle, "-", handle.provider_ref + ":/workspace", input_file=root / "workspace.tar")
+                await self._copy(handle, "-", handle.provider_ref + ":/runtime/native", input_file=root / "native.tar")
+                await self._unpause(handle)
+            except BaseException:
+                # A partially restored computer must never execute another turn.
+                # Unpause first: Docker stop cannot gracefully stop a paused one.
+                with suppress(Exception):
+                    await asyncio.shield(self._unpause(handle))
+                await asyncio.shield(self.provider.astop(handle))
+                raise
+        return state
+
+    def restore(self, handle: SandboxHandle, reference: CheckpointRef) -> Mapping[str, Any]:
+        return _sync(self.arestore(handle, reference))

@@ -58,12 +58,29 @@ class FakeDocker(DockerSandboxProvider):
     def __init__(self):
         super().__init__("test")
         self.record = None
+        self.volumes = {}
         self.calls = []
         self.lose_create_response = False
 
     async def _docker(self, *args, **kwargs):
         self.calls.append((args, kwargs))
         operation = args[1]
+        if args[0] == "volume":
+            name = args[-1]
+            if operation == "inspect":
+                return (
+                    (0, json.dumps([self.volumes[name]]).encode(), b"")
+                    if name in self.volumes
+                    else (1, b"", b"no such volume")
+                )
+            if operation == "create":
+                fields = {}
+                for flag, field in (("--opt", "Options"), ("--label", "Labels")):
+                    fields[field] = dict(args[i + 1].split("=", 1) for i, arg in enumerate(args) if arg == flag)
+                self.volumes[name] = {"Name": name, "Driver": "local", **fields}
+            elif operation == "rm":
+                self.volumes.pop(name, None)
+            return 0, b"", b""
         if operation == "inspect":
             if self.record is None:
                 return 1, b"", b"No such container"
@@ -99,7 +116,7 @@ async def test_create_is_idempotent_and_hardened(monkeypatch):
     first = await provider.acreate(spec(env={"MODEL_TOKEN": "explicit"}))
     second = await provider.acreate(spec(env={"MODEL_TOKEN": "explicit"}))
     assert first == second
-    creates = [call for call in provider.calls if call[0][1] == "create"]
+    creates = [call for call in provider.calls if call[0][:2] == ("container", "create")]
     assert len(creates) == 1
     argv = creates[0][0]
     assert "--read-only" in argv and "--cap-drop" in argv and "1000:1000" in argv
@@ -113,7 +130,7 @@ async def test_lost_create_response_reconciles_the_same_generation():
     provider.lose_create_response = True
     handle = await provider.acreate(spec())
     assert handle.state == "running"
-    assert len([call for call in provider.calls if call[0][1] == "create"]) == 1
+    assert len([call for call in provider.calls if call[0][:2] == ("container", "create")]) == 1
 
 
 @pytest.mark.asyncio
@@ -195,3 +212,27 @@ async def test_invalid_command_result_stops_remote_execution():
     with pytest.raises(SandboxError, match="invalid command"):
         await provider.aexec(handle, ["example"])
     assert (await provider.aget(handle.provider_ref)).state == "exited"
+
+
+@pytest.mark.asyncio
+async def test_owned_volumes_are_bounded_and_removed_after_lost_container_delete():
+    provider = FakeDocker()
+    handle = await provider.acreate(spec(workspace_mb=32))
+    assert len(provider.volumes) == 2
+    volume = provider.volumes[handle.name + "-workspace"]
+    assert volume["Options"]["type"] == "tmpfs"
+    assert "size=32m" in volume["Options"]["o"]
+    provider.record = None  # Container removal succeeded, but its response was lost.
+    await provider.adestroy(handle)
+    assert provider.volumes == {}
+
+
+@pytest.mark.asyncio
+async def test_foreign_orphan_volume_is_not_removed():
+    provider = FakeDocker()
+    handle = await provider.acreate(spec())
+    provider.record = None
+    provider.volumes[handle.name + "-workspace"]["Labels"]["io.agno.sandbox.namespace"] = "other"
+    with pytest.raises(SandboxError, match="different sandbox identity"):
+        await provider.adestroy(handle)
+    assert len(provider.volumes) == 2

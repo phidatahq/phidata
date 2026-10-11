@@ -17,7 +17,7 @@ _RUNNER = Path(__file__).with_name("_exec.py").read_text()
 
 
 class DockerSandboxProvider(SandboxProvider):
-    """Linux/Python sandbox compute with explicit env and no host filesystem mounts.
+    """Linux/Python sandbox compute with explicit env and no host filesystem bind mounts.
 
     The Docker daemon is trusted infrastructure. Its socket is never mounted into
     the sandbox. Files are ephemeral tmpfs: stop/destroy requires an external
@@ -38,6 +38,7 @@ class DockerSandboxProvider(SandboxProvider):
     def _digest(spec: SandboxSpec) -> str:
         data = {item.name: getattr(spec, item.name) for item in fields(spec)}
         data["env"] = dict(spec.env)
+        data["storage"] = "managed-tmpfs-v1"
         return hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest()
 
     async def _docker(
@@ -120,6 +121,7 @@ class DockerSandboxProvider(SandboxProvider):
         current = await self.aget(handle.provider_ref)
         if current is not None and (
             current.provider_ref != handle.provider_ref
+            or current.name != handle.name
             or current.agent_id != handle.agent_id
             or current.session_id != handle.session_id
             or current.generation != handle.generation
@@ -139,6 +141,8 @@ class DockerSandboxProvider(SandboxProvider):
                 "generation": str(spec.generation),
                 "config": digest,
             }
+            await self._ensure_volume(name + "-workspace", labels, "workspace", spec.workspace_mb)
+            await self._ensure_volume(name + "-runtime", labels, "runtime", 256)
             args = [
                 "container",
                 "create",
@@ -162,10 +166,10 @@ class DockerSandboxProvider(SandboxProvider):
                 str(spec.cpus),
                 "--pids-limit",
                 str(spec.pids_limit),
-                "--tmpfs",
-                f"/workspace:rw,nosuid,nodev,uid=1000,gid=1000,mode=0700,size={spec.workspace_mb}m",
-                "--tmpfs",
-                "/runtime:rw,nosuid,nodev,uid=1000,gid=1000,mode=0700,size=256m",
+                "--mount",
+                f"type=volume,source={name}-workspace,target=/workspace,volume-nocopy",
+                "--mount",
+                f"type=volume,source={name}-runtime,target=/runtime,volume-nocopy",
                 "--tmpfs",
                 "/tmp:rw,nosuid,nodev,uid=1000,gid=1000,mode=1777,size=128m",
                 "--workdir",
@@ -257,18 +261,80 @@ class DockerSandboxProvider(SandboxProvider):
         current = await self._owned(handle)
         if current is None or current.state in ("exited", "dead", "created"):
             return
+        if current.state == "paused":
+            code, _, err = await self._docker("container", "unpause", handle.provider_ref)
+            if code:
+                raise SandboxError("Docker could not unpause before stop: " + err.decode(errors="replace")[:500])
         code, _, err = await self._docker("container", "stop", "--time", "2", handle.provider_ref, timeout=15)
         if code:
             raise SandboxError("Docker stop failed: " + err.decode(errors="replace")[:500])
 
+    async def _volume(self, name: str) -> Optional[Any]:
+        code, out, err = await self._docker("volume", "inspect", name)
+        if code:
+            if b"no such volume" in err.lower():
+                return None
+            raise SandboxError("Docker volume inspection failed: " + err.decode(errors="replace")[:500])
+        return json.loads(out)[0]
+
+    async def _ensure_volume(self, name: str, labels: Any, role: str, size_mb: int) -> None:
+        options = {
+            "type": "tmpfs",
+            "device": "tmpfs",
+            "o": f"rw,nosuid,nodev,size={size_mb}m,uid=1000,gid=1000,mode=0700",
+        }
+        expected = {_LABEL + key: value for key, value in {**labels, "role": role}.items()}
+        current = await self._volume(name)
+        if current is None:
+            args = ["volume", "create", "--driver", "local"]
+            for key, value in options.items():
+                args.extend(["--opt", key + "=" + value])
+            for key, value in expected.items():
+                args.extend(["--label", key + "=" + value])
+            args.append(name)
+            try:
+                await self._docker(*args)
+            except asyncio.TimeoutError:
+                pass  # Resolve a lost create response through the deterministic name.
+            current = await self._volume(name)
+        if (
+            current is None
+            or current.get("Driver") != "local"
+            or current.get("Options") != options
+            or any((current.get("Labels") or {}).get(key) != value for key, value in expected.items())
+        ):
+            raise SandboxError("Docker volume identity or storage configuration mismatch")
+
+    async def _delete_volumes(self, handle: SandboxHandle) -> None:
+        for role in ("workspace", "runtime"):
+            name = handle.name + "-" + role
+            current = await self._volume(name)
+            if current is None:
+                continue
+            labels = current.get("Labels") or {}
+            expected = {
+                "namespace": self.namespace,
+                "agent": handle.agent_id,
+                "session": handle.session_id,
+                "generation": str(handle.generation),
+                "config": handle.config_digest,
+                "role": role,
+            }
+            if any(labels.get(_LABEL + key) != value for key, value in expected.items()):
+                raise SandboxError("Refusing to remove a volume with a different sandbox identity")
+            code, _, err = await self._docker("volume", "rm", name)
+            if code and await self._volume(name) is not None:
+                raise SandboxError("Docker volume removal failed: " + err.decode(errors="replace")[:500])
+
     async def adestroy(self, handle: SandboxHandle) -> None:
-        if await self._owned(handle) is None:
-            return
-        code, _, err = await self._docker("container", "rm", "--force", handle.provider_ref)
-        if code and b"already in progress" in err:
-            for _ in range(50):
-                if await self._owned(handle) is None:
-                    return
-                await asyncio.sleep(0.1)
-        if code and await self._owned(handle) is not None:
-            raise SandboxError("Docker removal failed: " + err.decode(errors="replace")[:500])
+        if await self._owned(handle) is not None:
+            code, _, err = await self._docker("container", "rm", "--force", handle.provider_ref)
+            if code and b"already in progress" in err:
+                for _ in range(50):
+                    if await self._owned(handle) is None:
+                        break
+                    await asyncio.sleep(0.1)
+            if code and await self._owned(handle) is not None:
+                raise SandboxError("Docker removal failed: " + err.decode(errors="replace")[:500])
+        # Also reconcile a lost removal response after the container is already gone.
+        await self._delete_volumes(handle)

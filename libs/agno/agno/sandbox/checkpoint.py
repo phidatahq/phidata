@@ -87,6 +87,35 @@ def _link(name: str, target: str) -> None:
         raise SandboxError("Checkpoint symlink escapes its durable root")
 
 
+def _validate_link_graph(members: Mapping[str, tarfile.TarInfo]) -> None:
+    for name, info in members.items():
+        if not info.issym():
+            continue
+        root = name.split("/", 1)[0]
+        pending = name.split("/")[:-1] + info.linkname.split("/")
+        resolved: list[str] = []
+        hops = 0
+        while pending:
+            part, *pending = pending
+            if part in ("", "."):
+                continue
+            if part == "..":
+                if len(resolved) <= 1:
+                    raise SandboxError("Checkpoint symlink chain escapes its durable root")
+                resolved.pop()
+                continue
+            resolved.append(part)
+            if resolved[0] != root:
+                raise SandboxError("Checkpoint symlink chain escapes its durable root")
+            target = members.get("/".join(resolved))
+            if target is not None and target.issym():
+                hops += 1
+                if hops > 40:
+                    raise SandboxError("Checkpoint contains a symlink cycle or excessive indirection")
+                resolved.pop()
+                pending = target.linkname.split("/") + pending
+
+
 def _regular(path: Path) -> BinaryIO:
     fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
     if not stat.S_ISREG(os.fstat(fd).st_mode):
@@ -243,6 +272,57 @@ class CheckpointArchive:
     ) -> None:
         await _thread(self.capture, roots, destination, state=state, exclude=exclude)
 
+    def _inspect(self, archive: tarfile.TarFile) -> tuple[Dict[str, Any], Dict[str, tarfile.TarInfo]]:
+        members: Dict[str, tarfile.TarInfo] = {}
+        total = 0
+        for member in archive:
+            _name(member.name)
+            if member.name in members:
+                raise SandboxError("Duplicate checkpoint path")
+            if not (member.isdir() or member.isfile() or member.issym()) or member.sparse is not None:
+                raise SandboxError("Checkpoint contains an unsupported file type")
+            if member.size < 0 or (not member.isfile() and member.size != 0):
+                raise SandboxError("Invalid checkpoint member size")
+            if member.issym():
+                _link(member.name, member.linkname)
+            total += member.size
+            members[member.name] = member
+            if total > self.limits.max_bytes or len(members) > self.limits.max_entries:
+                raise SandboxError("Checkpoint exceeds restore limits")
+        if any(root not in members or not members[root].isdir() for root in _ROOTS):
+            raise SandboxError("Checkpoint is missing durable roots")
+        for name in members:
+            for parent in PurePosixPath(name).parents:
+                if str(parent) != "." and (str(parent) not in members or not members[str(parent)].isdir()):
+                    raise SandboxError("Checkpoint parent is not a declared directory")
+        manifest_info = members.get(_MANIFEST)
+        if manifest_info is None or not manifest_info.isfile() or manifest_info.size > self.limits.max_manifest_bytes:
+            raise SandboxError("Invalid checkpoint manifest")
+        manifest_file = archive.extractfile(manifest_info)
+        assert manifest_file is not None
+        manifest = json.load(manifest_file)
+        if (
+            not isinstance(manifest, dict)
+            or manifest.get("version") != 1
+            or not isinstance(manifest.get("state"), dict)
+        ):
+            raise SandboxError("Unsupported checkpoint manifest")
+        _validate_link_graph(members)
+        return manifest, members
+
+    def validate(self, source: Path) -> Dict[str, Any]:
+        """Validate archive framing, roots, metadata and the complete link graph without extracting."""
+        with _regular(Path(source)) as stream:
+            if os.fstat(stream.fileno()).st_size > self.limits.max_bytes:
+                raise SandboxError("Checkpoint archive exceeds its limit")
+            _preflight(stream, self.limits)
+            with tarfile.open(fileobj=stream, mode="r:") as archive:
+                manifest, _ = self._inspect(archive)
+                return manifest["state"]
+
+    async def avalidate(self, source: Path) -> Dict[str, Any]:
+        return await _thread(self.validate, source)
+
     def restore(self, source: Path, destination: Path) -> Dict[str, Any]:
         """Restore into a new directory; failure never exposes a partial destination.
 
@@ -259,44 +339,7 @@ class CheckpointArchive:
                     raise SandboxError("Checkpoint archive exceeds its limit")
                 _preflight(stream, self.limits)
                 with tarfile.open(fileobj=stream, mode="r:") as archive:
-                    members: Dict[str, tarfile.TarInfo] = {}
-                    total = 0
-                    for member in archive:
-                        _name(member.name)
-                        if member.name in members:
-                            raise SandboxError("Duplicate checkpoint path")
-                        if not (member.isdir() or member.isfile() or member.issym()) or member.sparse is not None:
-                            raise SandboxError("Checkpoint contains an unsupported file type")
-                        if member.size < 0 or (not member.isfile() and member.size != 0):
-                            raise SandboxError("Invalid checkpoint member size")
-                        if member.issym():
-                            _link(member.name, member.linkname)
-                        total += member.size
-                        members[member.name] = member
-                        if total > self.limits.max_bytes or len(members) > self.limits.max_entries:
-                            raise SandboxError("Checkpoint exceeds restore limits")
-                    if any(root not in members or not members[root].isdir() for root in _ROOTS):
-                        raise SandboxError("Checkpoint is missing durable roots")
-                    for name in members:
-                        for parent in PurePosixPath(name).parents:
-                            if str(parent) != "." and (str(parent) not in members or not members[str(parent)].isdir()):
-                                raise SandboxError("Checkpoint parent is not a declared directory")
-                    manifest_info = members.get(_MANIFEST)
-                    if (
-                        manifest_info is None
-                        or not manifest_info.isfile()
-                        or manifest_info.size > self.limits.max_manifest_bytes
-                    ):
-                        raise SandboxError("Invalid checkpoint manifest")
-                    manifest_file = archive.extractfile(manifest_info)
-                    assert manifest_file is not None
-                    manifest = json.load(manifest_file)
-                    if (
-                        not isinstance(manifest, dict)
-                        or manifest.get("version") != 1
-                        or not isinstance(manifest.get("state"), dict)
-                    ):
-                        raise SandboxError("Unsupported checkpoint manifest")
+                    manifest, members = self._inspect(archive)
                     # No extractall: validate the entire member graph before creating paths.
                     for name, member in sorted(
                         members.items(), key=lambda item: (len(PurePosixPath(item[0]).parts), item[0])

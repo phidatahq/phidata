@@ -233,3 +233,15 @@ Python 3.9 follow-up: 76 sandbox unit tests, 40 real Postgres cases and 12 Agent
 **Result:** 103 sandbox units and 14 real Linux/Postgres hosted cases passed. Combined regression suite: 833 passed, 4 optional installed-SDK modules skipped. Required format/validation passed. Hosted platform calls remain pending account setup.
 
 ---
+
+### Combined provider-ready acceptance
+
+**Status:** PASS
+
+**Description:** Final core 32c1dd9695 was rebuilt into an unreleased wheel and installed into isolated application and provider-SDK environments. The AgentOS cookbook now selects Docker, E2B, Daytona, Modal or Vercel; the image builder accepts a target architecture and hosted workloads accept matching resources/lifetime.
+
+**Result:** Combined core unit matrix: 833 passed, 4 optional SDK modules skipped. Installed-wheel sandbox matrix with all four SDKs: 123 passed (overlaps core tests), five Daytona deprecation warnings. Python 3.9 sandbox matrix: 103 passed, 4 SDK modules skipped. Real Docker/Postgres/Redis matrix: 199 passed, 4 deliberately inapplicable asynchronous-backend interleaving cases skipped. Four offline cookbook provider configurations passed. Actual installed-wheel HTTP background/SSE, artifacts, retirement/recovery/history deletion, media continuation, and clone/install/fail-edit-pass/application/database/replacement/restore cookbooks passed. Required formatting and validation passed.
+
+**Limits:** No hosted account or native model calls. This is local/runtime/SDK evidence, not hosted or two-harness release sign-off. Hosted portable checkpoints are capped at 64 MiB; PID/disk settings use provider defaults. Prepared images, provider controls, model behavior, cross-replica live continuation and spending/cleanup must be validated with accounts. The locally built wheel is not the published release.
+
+---

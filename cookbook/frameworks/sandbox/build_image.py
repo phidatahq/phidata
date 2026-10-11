@@ -10,6 +10,11 @@ from pathlib import Path
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--tag", default="agno-sandbox:local")
+    parser.add_argument(
+        "--platform",
+        choices=("linux/amd64", "linux/arm64"),
+        help="Target the provider architecture when publishing a hosted image",
+    )
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[3]
     with tempfile.TemporaryDirectory(prefix="agno-runtime-build-") as directory:
@@ -24,7 +29,15 @@ def main() -> None:
         shutil.copyfile(root / "README.md", context / "README.md")
         shutil.copyfile(Path(__file__).with_name("Dockerfile"), context / "Dockerfile")
         subprocess.run(
-            ["docker", "build", "--progress=plain", "--tag", args.tag, str(context)],
+            [
+                "docker",
+                "build",
+                "--progress=plain",
+                *(["--platform", args.platform] if args.platform else []),
+                "--tag",
+                args.tag,
+                str(context),
+            ],
             check=True,
         )
 

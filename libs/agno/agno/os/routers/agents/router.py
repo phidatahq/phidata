@@ -21,6 +21,7 @@ from agno.agent.agent import Agent
 from agno.agent.factory import AgentFactory
 from agno.agent.protocol import AgentProtocol
 from agno.agent.remote import RemoteAgent
+from agno.agents.base import BaseExternalAgent
 from agno.db.base import BaseDb, SessionType
 from agno.db.schemas.jobs import QueuedJob
 from agno.exceptions import (
@@ -1337,6 +1338,7 @@ def get_agent_router(
             400: {"description": "Invalid JSON in tools field or invalid tool structure", "model": BadRequestResponse},
             403: {"description": "Run has a pending admin approval and cannot be continued by the user yet."},
             404: {"description": "Agent not found", "model": NotFoundResponse},
+            501: {"description": "Background harness continuation requires an existing paused durable queue ticket"},
             409: {
                 "description": (
                     "Continuation conflict: a durable queue ticket owns this run's continuation "
@@ -1410,7 +1412,11 @@ def get_agent_router(
         stream: bool = Form(True, description="Enable streaming responses via Server-Sent Events (SSE)"),
         background: bool = Form(
             False,
-            description="Run continue in background (survives client disconnect). Requires database. Use /resume to reconnect.",
+            description=(
+                "Run continue in background (survives client disconnect). Requires database. Use /resume to reconnect. "
+                "Harness agents require an existing paused durable queue ticket; checkpoint forks and completed-run "
+                "follow-ups return 501 before execution. Use background=false for those continuations."
+            ),
         ),
     ):
         kwargs = await get_request_kwargs(request, continue_agent_run)
@@ -1652,11 +1658,27 @@ def get_agent_router(
                             status_code=202,
                             content={"run_id": run_id, "session_id": session_id, "status": "PENDING"},
                         )
-                    log_warning(
-                        "Background continue bypasses the durable queue (no paused ticket for "
-                        "this run): executing on the accepting replica instead - bounded and "
-                        "observable, but NOT durable."
-                    )
+                    if not isinstance(agent, BaseExternalAgent):
+                        log_warning(
+                            "Background continue bypasses the durable queue (no paused ticket for "
+                            "this run): executing on the accepting replica instead - bounded and "
+                            "observable, but NOT durable."
+                        )
+
+        if background and isinstance(agent, BaseExternalAgent):
+            # Only an accepted paused ticket above owns durable execution. Forks mint a new
+            # run inside the adapter, so this route cannot hand them to the queue yet. Do not
+            # silently run a requested background turn inline or detach it without a ticket.
+            if await agent.aget_run_output(run_id, session_id=session_id, user_id=user_id) is None:
+                raise HTTPException(status_code=404, detail="Run not found")
+            raise HTTPException(
+                status_code=501,
+                detail=(
+                    "Background harness continuation requires an existing paused durable queue ticket. "
+                    "Checkpoint forks and completed-run follow-ups are not supported in background mode. "
+                    "Use background=false; no continuation was started."
+                ),
+            )
 
         if not fork and not regenerate:
             # Inline-door admission gate: a paused/queued/running durable

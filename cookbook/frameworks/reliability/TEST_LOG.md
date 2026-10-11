@@ -268,3 +268,19 @@ Suggested wording:
 > need idempotency. Turns within a session should be serialized. Claude credential
 > refresh, metrics, step replay and the pending agent-retry changes still need
 > release acceptance before we promise the full reliability contract.
+
+### Harness background continuation admission
+
+**Status:** PASS
+
+**Description:** HTTP regressions submit completed-run follow-ups, explicit forks
+and regeneration with background mode, both with and without a queue and in both
+stream modes. Unsupported requests return 501 without dispatch, modifying the
+original run or creating a queue ticket. Ownership/missing-run checks, foreground
+continuation and the existing paused-ticket transition remain covered.
+
+**Result:** Deterministic HTTP and existing continuation/admission regression
+suites passed. Durable background checkpoint forks remain UNSUPPORTED; the route
+now reports that limitation before execution. No provider calls.
+
+---

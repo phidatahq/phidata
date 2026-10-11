@@ -130,3 +130,17 @@ docker compose -f cookbook/frameworks/reliability/compose.yaml down
 
 See [TEST_LOG.md](TEST_LOG.md) for recorded results. Do not interpret an unexecuted
 scenario or a green process exit without evidence as a pass.
+
+## Checkpoint continuation and background mode
+
+For Claude checkpoint replay, forks and completed-run follow-ups, call
+`POST /agents/{agent_id}/runs/{run_id}/continue` with `background=false`.
+Set `stream=true` for foreground SSE or `stream=false` for the completed result.
+The adapter creates the new run inside continuation; AgentOS does not yet submit
+that new run as a durable background queue ticket.
+
+For harness agents, `background=true` returns 501 before execution when there is
+no eligible paused durable ticket, in both streaming and non-streaming mode.
+No continuation is started by this refusal. An existing paused ticket can still
+be requeued through the existing continuation path. Ordinary background **new
+runs** remain supported. Codex has no checkpoint continuation API.

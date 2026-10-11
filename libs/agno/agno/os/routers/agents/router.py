@@ -177,6 +177,8 @@ async def agent_response_streamer(
             session_id=session_id,
             agent_id=getattr(agent, "id", None) or "",
             agent_name=getattr(agent, "name", None) or "",
+            error_type=getattr(e, "type", None),
+            error_id=getattr(e, "error_id", None),
         )
         yield format_sse_event(error_response)
 
@@ -271,6 +273,8 @@ async def agent_resumable_response_streamer(
             session_id=session_id,
             agent_id=getattr(agent, "id", None) or "",
             agent_name=getattr(agent, "name", None) or "",
+            error_type=getattr(e, "type", None),
+            error_id=getattr(e, "error_id", None),
         )
         yield format_sse_event(error_response)
 
@@ -474,6 +478,8 @@ async def agent_resumable_continue_response_streamer(
             session_id=session_id,
             agent_id=getattr(agent, "id", None) or "",
             agent_name=getattr(agent, "name", None) or "",
+            error_type=getattr(e, "type", None),
+            error_id=getattr(e, "error_id", None),
         )
         yield format_sse_event(error_response)
 
@@ -519,16 +525,9 @@ async def _resume_stream_generator(
                     yield frame
                 return
             elif run_output:
-                meta = {
-                    "event": "replay",
-                    "run_id": run_id,
-                    "status": run_output.status.value
-                    if hasattr(run_output.status, "value")
-                    else (run_output.status or "unknown"),
-                    "total_events": 0,
-                    "message": "Run completed but no events stored.",
-                }
-                yield f"event: replay\ndata: {json.dumps(meta)}\n\n"
+                from agno.os.utils import no_stored_events_replay_meta
+
+                yield f"event: replay\ndata: {json.dumps(no_stored_events_replay_meta(run_output, run_id))}\n\n"
                 return
 
         # Run not found anywhere
@@ -2430,6 +2429,10 @@ def get_agent_router(
             "1. **Run still active**: Sends catch-up events + continues live streaming\n"
             "2. **Run completed (in buffer)**: Replays missed buffered events\n"
             "3. **Run completed (in database)**: Replays events from database\n\n"
+            "A run submitted with `stream=false`, inline or with `background=true`, has no event stream: "
+            "nothing is published while it runs and no events are stored with it. For such a run this "
+            "endpoint sends one `replay` frame with `total_events: 0` and its current status; poll the "
+            "run endpoint for the result instead.\n\n"
             "**Client usage:**\n"
             "Track `event_index` from each SSE event. On reconnection, pass the last "
             "received `event_index` as `last_event_index`."

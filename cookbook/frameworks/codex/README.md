@@ -94,6 +94,9 @@ including empty strings, empty dictionaries and `False`. `None` inherits the
 option/SDK default. Options are copied before use; the adapter does not mutate
 caller-owned dictionaries or `CodexConfig`.
 
+Commands that exit non-zero, declined commands, and failed MCP tools are stored
+with `tool_call_error=True` and their output or error message as the result.
+
 `thread_kwargs` and `turn_kwargs` are deprecated aliases. Rename them to
 `thread_options` and `turn_options`; do not pass both forms. Named settings now
 win over aliases too, which changes calls that previously supplied conflicting
@@ -212,9 +215,17 @@ Images passed to `run` / `arun`, or uploaded through the AgentOS API and UI, go 
 
 Test results are tracked in `TEST_LOG.md`.
 
+## One turn per session
+
+Codex keeps one conversation per Agno session (the thread); overlapping turns can corrupt it. Reuse one agent instance and serialize turns for each session. When the adapter detects an in-flight turn on that instance, or a pending/running run in the stored session, it raises `SessionBusyError` before execution (HTTP 409 from AgentOS, or a `RunError` event with `error_type: session_busy` on a stream). The error names the blocking run.
+
+This check is not an atomic claim across agent instances or replicas. Simultaneous requests can race, and a direct foreground run has no in-flight database row before execution. Applications must serialize same-session submissions across replicas; the check alone does not provide distributed mutual exclusion. If the Codex app-server reports "already has an active writer", the adapter maps it to `SessionBusyError`; configured agent retries can retry after backoff. This backstop does not replace application-side serialization.
+
+A run row left pending or running by a crash keeps its session busy until that run is cancelled. The durable queue sweeps crashed queued runs on its own; cancel an orphaned background run through the run cancellation endpoint. A queued turn on a busy session is re-driven after the queue's retry delay when `max_attempts` allows it, which serializes it behind the turn in flight; turns queued on one session run in the order they were accepted.
+
 ## Background runs and cancellation
 
-`background_cancel.py` serves the agent through AgentOS. Submit runs with `background=true`, poll the run endpoint, or use `stream=true` for indexed SSE. Runs continue after disconnects; the resume endpoint reads the configured event stream. Cancel through the run cancellation endpoint.
+`background_cancel.py` serves the agent through AgentOS. Submit runs with `background=true`, poll the run endpoint, or use `stream=true` for indexed SSE. Runs continue after disconnects; the resume endpoint reads the configured event stream. Cancel through the run cancellation endpoint. A run submitted with `stream=false` has no event stream to attach to later: nothing is published while it runs and no events are stored with it, so the resume endpoint answers with its status and zero events. Choose `stream=true` at submission when live or replayed events are needed, and poll the run endpoint otherwise.
 
 Run `background_cancel.py --verify` to start a real streamed turn, cancel after its first content event, and verify CANCELLED in the database. Multi-replica resume and cancellation require shared event-stream and cancellation-manager backends. Stored-event replay after the event-stream TTL is a follow-up.
 

@@ -395,3 +395,22 @@ streaming and nonstreaming modes. Constructor typing also covers model schemas.
 Full format/validation passes in `.venvs/claude-dx-validation`. These checks do
 not include the unmerged session-busy, A2A or DB-skills stacks, and do not replace
 final live release acceptance.
+
+## Session-busy and replay integration refresh — 2026-10-11
+
+**Status:** PASS (deterministic regression checks; no live calls)
+
+**Source:** DX head `c88e47d54de487f4d14b95c684a4c3e5889e8d0f` combined
+with main `dbdca9ac6d9de6604383e6f4f04653a8244eb3c7` (#10958, including #10962).
+Eight conflicted files reconciled. Preserved session claim/release, terminal event
+index persistence, busy error details, media inputs on every terminal outcome,
+typed options, schema parsing and both sets of regression tests.
+
+**Result:** 620 adapter, schema, background-stream, database replay, queue worker,
+queue store and WebSocket replay tests pass, including the public typing fixture.
+Full `./scripts/format.sh` and `./scripts/validate.sh` pass using
+`.venvs/claude-dx-validation` (1115 Agno and 21 agnoctl mypy files).
+API/session metadata emits only `sdk`; old persisted `framework` remains readable.
+No new live calls or soak. Earlier live evidence remains pinned to its original
+revision. The instance-local session guard is not a distributed atomic claim;
+the READMEs now explicitly require application-side same-session serialization.

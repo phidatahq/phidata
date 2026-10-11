@@ -28,7 +28,7 @@ from pydantic import BaseModel, ValidationError
 
 from agno.agents._config import agent_dataclass
 from agno.db.base import AsyncBaseDb, BaseDb, SessionType
-from agno.exceptions import RunCancelledException, UnsupportedMediaError
+from agno.exceptions import RunCancelledException, SessionBusyError, UnsupportedMediaError
 from agno.media import Audio, File, Image, Video
 from agno.metrics import BaseMetrics, ModelMetrics, RunMetrics, SessionMetrics
 from agno.models.message import Message
@@ -249,6 +249,9 @@ class BaseExternalAgent:
 
         if self.id is None:
             self.id = generate_id_from_name(self.name)
+        # session_id -> run_id of the turn this process is running on it. A session accepts
+        # one turn at a time: the harness keeps one conversation per session on its side.
+        self._sessions_in_flight: Dict[str, str] = {}
         if self.events_to_skip is None:
             self.events_to_skip = [RunEvent.run_content]
         self._check_output_schema(self.output_schema)
@@ -811,6 +814,37 @@ class BaseExternalAgent:
             if strict or worker_owned:
                 raise
 
+    async def _arewrite_run_row(self, session: AgentSession, run_output: RunOutput) -> None:
+        """Write the run's row again with its current fields; no session metrics are re-added.
+
+        Used after the run was already persisted, when a field only known later (the terminal
+        event's stream index) must reach storage. A failure is logged and not raised: the run
+        itself is already stored.
+        """
+        if self.db is None:
+            return
+        from agno.run.status_persist import apersist_worker_owned_run
+        from agno.session._utils import resolve_run_index
+
+        session.upsert_run(run=run_output)
+        user_id = run_output.user_id or session.user_id
+        try:
+            # A queued attempt's write goes through the attempt fence, so a stale attempt cannot
+            # overwrite the row a newer attempt owns.
+            if await apersist_worker_owned_run(self.db, run_output, session.session_id, user_id):
+                return
+            run_index = resolve_run_index(session, run_output)
+            if isinstance(self.db, AsyncBaseDb):
+                await self.db.upsert_run(
+                    run=run_output, session_id=session.session_id, user_id=user_id, run_index=run_index
+                )
+            elif isinstance(self.db, BaseDb):
+                self.db.upsert_run(run=run_output, session_id=session.session_id, user_id=user_id, run_index=run_index)
+        except NotImplementedError:
+            pass
+        except Exception as upsert_err:
+            log_warning(f"Failed to rewrite run row for {self.framework} agent '{self.id}': {upsert_err}")
+
     def get_session(self, session_id: str, user_id: Optional[str] = None) -> Optional[AgentSession]:
         """Read a session scoped to this agent and, when supplied, its user."""
         if self.db is None:
@@ -846,6 +880,8 @@ class BaseExternalAgent:
         live = _live_handles.get(run_id)
         if live is not None and not live.loop.is_closed():
             asyncio.run_coroutine_threadsafe(live.agent._ainterrupt_live_handle(run_id), live.loop)
+        else:
+            run_coroutine_sync(self._acancel_unowned_row(run_id))
         return registered
 
     async def acancel_run(self, run_id: str) -> bool:
@@ -861,7 +897,47 @@ class BaseExternalAgent:
                 await asyncio.wrap_future(
                     asyncio.run_coroutine_threadsafe(live.agent._ainterrupt_live_handle(run_id), live.loop)
                 )
+        else:
+            await self._acancel_unowned_row(run_id)
         return registered
+
+    async def _acancel_unowned_row(self, run_id: str) -> None:
+        """Mark this agent's pending or running row cancelled when this process holds no handle for it.
+
+        A row left pending or running by a process that stopped mid-run keeps its session busy,
+        and nothing else finishes it, so cancelling it is how the session is freed. The
+        cancellation manager's registration is not a reliable sign of a live run: a shared
+        (Redis) manager keeps a crashed process's registration until its TTL, a day by default,
+        so the row is marked whenever no live handle exists here. A run that is live on another
+        replica sees the cancellation through the manager and ends cancelled as well.
+        """
+        if self.db is None:
+            return
+        from agno.run.status_persist import apersist_run_transition
+
+        try:
+            if isinstance(self.db, AsyncBaseDb):
+                row = await self.db.get_run(run_id)
+            else:
+                row = self.db.get_run(run_id)
+            if isinstance(row, dict):
+                row = RunOutput.from_dict(row)
+            if not isinstance(row, RunOutput) or row.agent_id != self.get_id() or row.session_id is None:
+                return
+            if getattr(row.status, "value", row.status) not in (RunStatus.pending.value, RunStatus.running.value):
+                return
+            row.status = RunStatus.cancelled
+            extra_fields = None
+            if not row.content:
+                row.content = "Run cancelled"
+                extra_fields = {"content": row.content}
+            await apersist_run_transition(
+                self, "agent", row.session_id, row, user_id=row.user_id, extra_fields=extra_fields
+            )
+        except Exception as error:
+            log_warning(
+                f"Could not mark unowned run {run_id} cancelled for {self.framework} agent '{self.id}': {error}"
+            )
 
     def _set_run_handle(self, run_id: str, handle: Any) -> None:
         _live_handles[run_id] = _LiveHandle(self, handle, asyncio.get_running_loop(), owner=_handle_owner.get())
@@ -1110,6 +1186,8 @@ class BaseExternalAgent:
         from agno.run.cancel import aregister_run
         from agno.run.status_persist import apersist_run_transition
 
+        # Checked before the pending row is written, so a busy session is refused at submission.
+        self._assert_session_free(await self.aread_or_create_session(session_id, user_id), session_id, run_id)
         run = await self._aprepare_pending_run(run_id, session_id, user_id, input)
         await aregister_run(run_id)
         transport = _BackgroundStream(run, yield_run_output=yield_run_output) if stream else None
@@ -1196,6 +1274,70 @@ class BaseExternalAgent:
             return None
         session = await self.aget_session(session_id, user_id)
         return self._find_run_in_session(session, run_id) if session else None
+
+    # ---------------------------------------------------------------------------
+    # One turn per session
+    # ---------------------------------------------------------------------------
+
+    @staticmethod
+    def _run_in_flight(session: Any, exclude_run_id: Optional[str] = None) -> Optional[RunOutput]:
+        """The session's unfinished run (pending or running), other than ``exclude_run_id``."""
+        for run in getattr(session, "runs", None) or []:
+            status = getattr(run.status, "value", run.status)
+            if run.run_id != exclude_run_id and status in (RunStatus.pending.value, RunStatus.running.value):
+                return run
+        return None
+
+    @staticmethod
+    def _run_ahead(session: Any, run_id: str) -> Optional[RunOutput]:
+        """The unfinished run a turn starting as ``run_id`` must wait for.
+
+        A running row always blocks. A pending row blocks only when it was accepted before
+        ``run_id`` (session runs are in acceptance order), so two queued turns do not each
+        refuse the other. A run with no row of its own counts as accepted last.
+        """
+        ahead = True
+        for run in getattr(session, "runs", None) or []:
+            if run.run_id == run_id:
+                ahead = False
+                continue
+            status = getattr(run.status, "value", run.status)
+            if status == RunStatus.running.value or (ahead and status == RunStatus.pending.value):
+                return run
+        return None
+
+    def _assert_session_free(self, session: Any, session_id: str, run_id: str, starting: bool = False) -> None:
+        """Raise SessionBusyError when another turn is in flight on the session.
+
+        Two checks: the turns this process is running (exact, no database needed), then the
+        session's stored runs, where a pending or running row is a turn accepted on any
+        replica. At submission any unfinished row blocks; when a turn starts, only rows ahead
+        of it do. A row left unfinished by a crash keeps the session busy until that run is
+        cancelled, so the error names the run.
+        """
+        other = self._sessions_in_flight.get(session_id)
+        if other is None:
+            if starting:
+                blocking = self._run_ahead(session, run_id)
+            else:
+                blocking = self._run_in_flight(session, exclude_run_id=run_id)
+            other = blocking.run_id if blocking is not None else None
+        if other is not None and other != run_id:
+            raise SessionBusyError(
+                f"Session {session_id} already has run {other} in flight. A session takes one turn at a "
+                "time: wait for that run to finish, or cancel it, then send the turn again.",
+                run_id=other,
+                session_id=session_id,
+            )
+
+    def _claim_session(self, session: Any, session_id: str, run_id: str) -> None:
+        """Hold the session for one turn of ``run_id``; a second turn is rejected until released."""
+        self._assert_session_free(session, session_id, run_id, starting=True)
+        self._sessions_in_flight[session_id] = run_id
+
+    def _release_session(self, session_id: str, run_id: str) -> None:
+        if self._sessions_in_flight.get(session_id) == run_id:
+            del self._sessions_in_flight[session_id]
 
     def _build_run_output(
         self,
@@ -1453,84 +1595,90 @@ class BaseExternalAgent:
         output_schema = self._resolve_output_schema(kwargs)
         run_state: Dict[str, Any] = {}
         session = await self.aread_or_create_session(session_id, user_id) if self.db else None
-        history = (
-            self._get_history_from_session(session, exclude_run_id=run_id) if session and not continuation else None
-        )
-        # Tool calls from attempts that failed; they ran, so the stored run keeps them.
-        carried_tools: Dict[str, ToolExecution] = {}
-        attempts_made = 0
-        timer = RunMetrics()
-        timer.start_timer()
+        self._claim_session(session, session_id, run_id)
         try:
-            async with self._run_cancellation(run_id):
-                num_attempts = self.retries + 1
-                for attempt in range(num_attempts):
-                    attempts_made = attempt + 1
-                    try:
-                        content = await self._arun_adapter(
-                            input, history=history, run_id=run_id, session=session, run_state=run_state, **kwargs
-                        )
-                        break
-                    except RunCancelledException:
-                        raise
-                    except Exception as error:
-                        self._collect_attempt_tools(run_state, carried_tools)
-                        if not self._should_retry(error, attempt, num_attempts):
+            history = (
+                self._get_history_from_session(session, exclude_run_id=run_id) if session and not continuation else None
+            )
+            # Tool calls from attempts that failed; they ran, so the stored run keeps them.
+            carried_tools: Dict[str, ToolExecution] = {}
+            attempts_made = 0
+            timer = RunMetrics()
+            timer.start_timer()
+            try:
+                async with self._run_cancellation(run_id):
+                    num_attempts = self.retries + 1
+                    for attempt in range(num_attempts):
+                        attempts_made = attempt + 1
+                        try:
+                            content = await self._arun_adapter(
+                                input, history=history, run_id=run_id, session=session, run_state=run_state, **kwargs
+                            )
+                            break
+                        except RunCancelledException:
                             raise
-                        await self._await_retry(run_id, attempt, num_attempts, error)
-            run_output = self._build_run_output(
-                run_id,
-                session_id,
-                user_id,
-                record_input,
-                content.content if isinstance(content, ExternalRunResult) else content,
-                RunStatus.completed,
-                tools=self._merge_tools(
-                    carried_tools, content.tools if isinstance(content, ExternalRunResult) else None
-                ),
-                metrics=self._finish_metrics(
-                    timer, content.metrics if isinstance(content, ExternalRunResult) else None
-                ),
-                media=kwargs.get("media"),
-            )
-            if isinstance(content, ExternalRunResult) and content.warnings:
-                run_output.metadata = {"warnings": content.warnings}
-            self._apply_output_schema(
-                run_output, output_schema, content.structured_output if isinstance(content, ExternalRunResult) else None
-            )
-        except RunCancelledException:
-            # Cancelled mid-attempt or during a retry backoff: the tools that completed ran. A
-            # failed attempt's tools were already moved into carried_tools before the backoff.
-            self._collect_attempt_tools(run_state, carried_tools)
-            run_output = self._build_run_output(
-                run_id,
-                session_id,
-                user_id,
-                record_input,
-                "Run cancelled",
-                RunStatus.cancelled,
-                tools=list(carried_tools.values()) or None,
-                media=kwargs.get("media"),
-            )
-        except Exception as error:
-            log_exception(f"Error in {self.sdk} agent '{self.id}': {error}")
-            run_output = self._build_run_output(
-                run_id,
-                session_id,
-                user_id,
-                record_input,
-                str(error),
-                RunStatus.error,
-                tools=list(carried_tools.values()) or None,
-                media=kwargs.get("media"),
-            )
-            run_output.metadata = self._failure_metadata(error)
-        if attempts_made > 1:
-            run_output.metadata = {**(run_output.metadata or {}), "attempts": attempts_made}
-        self._finish_run_output(run_output, run_state, continuation)
-        if session is not None:
-            await self._apersist_run_in_session(session, run_output)
-        return run_output
+                        except Exception as error:
+                            self._collect_attempt_tools(run_state, carried_tools)
+                            if not self._should_retry(error, attempt, num_attempts):
+                                raise
+                            await self._await_retry(run_id, attempt, num_attempts, error)
+                run_output = self._build_run_output(
+                    run_id,
+                    session_id,
+                    user_id,
+                    record_input,
+                    content.content if isinstance(content, ExternalRunResult) else content,
+                    RunStatus.completed,
+                    tools=self._merge_tools(
+                        carried_tools, content.tools if isinstance(content, ExternalRunResult) else None
+                    ),
+                    metrics=self._finish_metrics(
+                        timer, content.metrics if isinstance(content, ExternalRunResult) else None
+                    ),
+                    media=kwargs.get("media"),
+                )
+                if isinstance(content, ExternalRunResult) and content.warnings:
+                    run_output.metadata = {"warnings": content.warnings}
+                self._apply_output_schema(
+                    run_output,
+                    output_schema,
+                    content.structured_output if isinstance(content, ExternalRunResult) else None,
+                )
+            except RunCancelledException:
+                # Cancelled mid-attempt or during a retry backoff: the tools that completed ran. A
+                # failed attempt's tools were already moved into carried_tools before the backoff.
+                self._collect_attempt_tools(run_state, carried_tools)
+                run_output = self._build_run_output(
+                    run_id,
+                    session_id,
+                    user_id,
+                    record_input,
+                    "Run cancelled",
+                    RunStatus.cancelled,
+                    tools=list(carried_tools.values()) or None,
+                    media=kwargs.get("media"),
+                )
+            except Exception as error:
+                log_exception(f"Error in {self.sdk} agent '{self.id}': {error}")
+                run_output = self._build_run_output(
+                    run_id,
+                    session_id,
+                    user_id,
+                    record_input,
+                    str(error),
+                    RunStatus.error,
+                    tools=list(carried_tools.values()) or None,
+                    media=kwargs.get("media"),
+                )
+                run_output.metadata = self._failure_metadata(error)
+            if attempts_made > 1:
+                run_output.metadata = {**(run_output.metadata or {}), "attempts": attempts_made}
+            self._finish_run_output(run_output, run_state, continuation)
+            if session is not None:
+                await self._apersist_run_in_session(session, run_output)
+            return run_output
+        finally:
+            self._release_session(session_id, run_id)
 
     async def _arun_stream(self, input: Any, **kwargs: Any) -> AsyncIterator[Any]:
         run_id = kwargs.pop("run_id", None) or str(uuid4())
@@ -1542,127 +1690,138 @@ class BaseExternalAgent:
         output_schema = self._resolve_output_schema(kwargs)
         run_state: Dict[str, Any] = {}
         session = await self.aread_or_create_session(session_id, user_id) if self.db else None
-        history = (
-            self._get_history_from_session(session, exclude_run_id=run_id) if session and not continuation else None
-        )
-        stored_events: Optional[List[Any]] = [] if self.store_events else None
-        skipped = {event.value for event in self.events_to_skip or []}
-
-        def keep(event: Any) -> Any:
-            # Record an event on the run before it is yielded, unless the agent skips its kind.
-            if stored_events is not None and getattr(event, "event", None) not in skipped:
-                stored_events.append(event)
-            return event
-
-        yield keep(
-            RunStartedEvent(run_id=run_id, agent_id=self.get_id(), agent_name=self.name or "", session_id=session_id)
-        )
-        accumulated_content = ""
-        warnings: List[Dict[str, Any]] = []
-        tools: Dict[str, ToolExecution] = {}
-        status = RunStatus.completed
-        run_error: Optional[Exception] = None
-        attempts_made = 0
-        adapter_metrics: Optional[RunMetrics] = None
-        structured_output: Any = None
-        timer = RunMetrics()
-        timer.start_timer()
+        self._claim_session(session, session_id, run_id)
         try:
-            async with self._run_cancellation(run_id):
-                num_attempts = self.retries + 1
-                for attempt in range(num_attempts):
-                    attempts_made = attempt + 1
-                    # Content is the final attempt's answer; tool calls from every attempt ran, so they are kept.
-                    accumulated_content = ""
-                    adapter_metrics = None
-                    structured_output = None
-                    try:
-                        async for event in self._arun_adapter_stream(
-                            input, history=history, run_id=run_id, session=session, run_state=run_state, **kwargs
-                        ):
-                            if isinstance(event, ExternalRunMetricsEvent):
-                                adapter_metrics = event.metrics
-                                continue
-                            if isinstance(event, ExternalRunStructuredOutputEvent):
-                                structured_output = event.structured_output
-                                continue
-                            if isinstance(event, ExternalRunWarningEvent) and event.warning is not None:
-                                warnings.append(event.warning)
-                            if isinstance(event, RunContentEvent):
-                                if event.content:
-                                    timer.set_time_to_first_token()
-                                accumulated_content += event.content or ""
-                            elif isinstance(event, (ToolCallStartedEvent, ToolCallCompletedEvent)) and event.tool:
-                                key = event.tool.tool_call_id or str(uuid4())
-                                if key not in tools:
-                                    tools[key] = copy(event.tool)
-                                elif isinstance(event, ToolCallCompletedEvent):
-                                    tools[key].result = event.tool.result
-                                    tools[key].tool_call_error = event.tool.tool_call_error
-                            yield keep(event)
-                        break
-                    except RunCancelledException:
-                        raise
-                    except Exception as error:
-                        if not self._should_retry(error, attempt, num_attempts):
-                            raise
-                        # The failed attempt's events already reached the consumer. Say so before
-                        # the retry streams a fresh answer, and keep it in the stored run's warnings.
-                        warning = self._retry_warning(attempt, num_attempts, error)
-                        warnings.append(warning)
-                        yield keep(ExternalRunWarningEvent(run_id=run_id, agent_id=self.get_id(), warning=warning))
-                        await self._await_retry(run_id, attempt, num_attempts, error)
-        except RunCancelledException:
-            status = RunStatus.cancelled
-        except Exception as error:
-            log_exception(f"Error in {self.sdk} agent '{self.id}': {error}")
-            run_error = error
-            status = RunStatus.error
-        run = self._build_run_output(
-            run_id,
-            session_id,
-            user_id,
-            input if continuation is None else continuation.record_input,
-            str(run_error) if run_error else accumulated_content,
-            status,
-            list(tools.values()) or None,
-            metrics=self._finish_metrics(timer, adapter_metrics) if status == RunStatus.completed else None,
-            media=kwargs.get("media"),
-        )
-        if warnings:
-            run.metadata = {"warnings": warnings}
-        if run_error is not None:
-            run.metadata = {**(run.metadata or {}), **self._failure_metadata(run_error)}
-        if attempts_made > 1:
-            run.metadata = {**(run.metadata or {}), "attempts": attempts_made}
-        self._apply_output_schema(run, output_schema, structured_output)
-        self._finish_run_output(run, run_state, continuation)
-        fields: Dict[str, Any] = dict(
-            run_id=run_id,
-            session_id=session_id,
-            agent_id=self.get_id(),
-            agent_name=self.name or "",
-            content=run.content,
-        )
-        # The terminal event is built before the run is persisted so the stored run ends with it,
-        # which is what a replay from the database needs to know the run is over.
-        terminal: Any
-        if status == RunStatus.cancelled:
-            terminal = RunCancelledEvent(
-                run_id=run_id, session_id=session_id, agent_id=self.get_id(), reason="Run cancelled"
+            history = (
+                self._get_history_from_session(session, exclude_run_id=run_id) if session and not continuation else None
             )
-        elif run_error is not None:
-            terminal = RunErrorEvent(**fields, error_type=error_type_of(run_error))
-        else:
-            terminal = RunCompletedEvent(**fields, content_type=run.content_type, metrics=run.metrics)
-        keep(terminal)
-        if stored_events is not None:
-            run.events = list(stored_events)
-        if session is not None:
-            await self._apersist_run_in_session(session, run)
-        yield terminal
-        if yield_run_output:
-            yield run
+            stored_events: Optional[List[Any]] = [] if self.store_events else None
+            skipped = {event.value for event in self.events_to_skip or []}
+
+            def keep(event: Any) -> Any:
+                # Record an event on the run before it is yielded, unless the agent skips its kind.
+                if stored_events is not None and getattr(event, "event", None) not in skipped:
+                    stored_events.append(event)
+                return event
+
+            yield keep(
+                RunStartedEvent(
+                    run_id=run_id, agent_id=self.get_id(), agent_name=self.name or "", session_id=session_id
+                )
+            )
+            accumulated_content = ""
+            warnings: List[Dict[str, Any]] = []
+            tools: Dict[str, ToolExecution] = {}
+            status = RunStatus.completed
+            run_error: Optional[Exception] = None
+            attempts_made = 0
+            adapter_metrics: Optional[RunMetrics] = None
+            structured_output: Any = None
+            timer = RunMetrics()
+            timer.start_timer()
+            try:
+                async with self._run_cancellation(run_id):
+                    num_attempts = self.retries + 1
+                    for attempt in range(num_attempts):
+                        attempts_made = attempt + 1
+                        # Content is the final attempt's answer; tool calls from every attempt ran, so they are kept.
+                        accumulated_content = ""
+                        adapter_metrics = None
+                        structured_output = None
+                        try:
+                            async for event in self._arun_adapter_stream(
+                                input, history=history, run_id=run_id, session=session, run_state=run_state, **kwargs
+                            ):
+                                if isinstance(event, ExternalRunMetricsEvent):
+                                    adapter_metrics = event.metrics
+                                    continue
+                                if isinstance(event, ExternalRunStructuredOutputEvent):
+                                    structured_output = event.structured_output
+                                    continue
+                                if isinstance(event, ExternalRunWarningEvent) and event.warning is not None:
+                                    warnings.append(event.warning)
+                                if isinstance(event, RunContentEvent):
+                                    if event.content:
+                                        timer.set_time_to_first_token()
+                                    accumulated_content += event.content or ""
+                                elif isinstance(event, (ToolCallStartedEvent, ToolCallCompletedEvent)) and event.tool:
+                                    key = event.tool.tool_call_id or str(uuid4())
+                                    if key not in tools:
+                                        tools[key] = copy(event.tool)
+                                    elif isinstance(event, ToolCallCompletedEvent):
+                                        tools[key].result = event.tool.result
+                                        tools[key].tool_call_error = event.tool.tool_call_error
+                                yield keep(event)
+                            break
+                        except RunCancelledException:
+                            raise
+                        except Exception as error:
+                            if not self._should_retry(error, attempt, num_attempts):
+                                raise
+                            # The failed attempt's events already reached the consumer. Say so before
+                            # the retry streams a fresh answer, and keep it in the stored run's warnings.
+                            warning = self._retry_warning(attempt, num_attempts, error)
+                            warnings.append(warning)
+                            yield keep(ExternalRunWarningEvent(run_id=run_id, agent_id=self.get_id(), warning=warning))
+                            await self._await_retry(run_id, attempt, num_attempts, error)
+            except RunCancelledException:
+                status = RunStatus.cancelled
+            except Exception as error:
+                log_exception(f"Error in {self.sdk} agent '{self.id}': {error}")
+                run_error = error
+                status = RunStatus.error
+            run = self._build_run_output(
+                run_id,
+                session_id,
+                user_id,
+                input if continuation is None else continuation.record_input,
+                str(run_error) if run_error else accumulated_content,
+                status,
+                list(tools.values()) or None,
+                metrics=self._finish_metrics(timer, adapter_metrics) if status == RunStatus.completed else None,
+                media=kwargs.get("media"),
+            )
+            if warnings:
+                run.metadata = {"warnings": warnings}
+            if run_error is not None:
+                run.metadata = {**(run.metadata or {}), **self._failure_metadata(run_error)}
+            if attempts_made > 1:
+                run.metadata = {**(run.metadata or {}), "attempts": attempts_made}
+            self._apply_output_schema(run, output_schema, structured_output)
+            self._finish_run_output(run, run_state, continuation)
+            fields: Dict[str, Any] = dict(
+                run_id=run_id,
+                session_id=session_id,
+                agent_id=self.get_id(),
+                agent_name=self.name or "",
+                content=run.content,
+            )
+            # The terminal event is built before the run is persisted so the stored run ends with it,
+            # which is what a replay from the database needs to know the run is over.
+            terminal: Any
+            if status == RunStatus.cancelled:
+                terminal = RunCancelledEvent(
+                    run_id=run_id, session_id=session_id, agent_id=self.get_id(), reason="Run cancelled"
+                )
+            elif run_error is not None:
+                terminal = RunErrorEvent(**fields, error_type=error_type_of(run_error))
+            else:
+                terminal = RunCompletedEvent(**fields, content_type=run.content_type, metrics=run.metrics)
+            keep(terminal)
+            if stored_events is not None:
+                run.events = list(stored_events)
+            if session is not None:
+                await self._apersist_run_in_session(session, run)
+            yield terminal
+            if stored_events is not None and session is not None and getattr(terminal, "event_index", None) is not None:
+                # The consumer stamped the terminal event with its stream index while we were suspended
+                # on the yield (the event stream writes it on the object). Write the row again so the
+                # stored event carries that index and a replay from the database stays in order.
+                await self._arewrite_run_row(session, run)
+            if yield_run_output:
+                yield run
+        finally:
+            self._release_session(session_id, run_id)
 
     def _run_stream(self, input: Any, **kwargs: Any) -> Iterator[Union[RunOutputEvent, RunOutput]]:
         """Sync streaming wrapper. Runs the async stream on a background thread."""

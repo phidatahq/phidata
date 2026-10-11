@@ -559,5 +559,12 @@ evidence and limits. This does not rerun this directory's advanced examples.
 **Description:** Added a second step: a new agent instance with its own working directory (standing in for another replica) asks Claude to read the earlier run's notes file again. Earlier runs' attachments are re-staged from the recorded run input before each turn, under their original run folders, and removed afterwards; when the replica's working directory differs, the prompt names the new path. Also reran the multi-turn check: image attached on replica A, recalled without tools after cleanup, recalled on replica B resumed from the database, and re-read with the Read tool on replica B.
 
 **Result:** The later turn on the other replica quoted the owner line from the re-staged file. Replica B answered the colour from memory and, asked to re-read, opened the re-staged image (before this change it reported the file missing).
+### Overlapping turns on one session (2026-10-10)
+
+**Status:** PASS (claude-sonnet-4-6)
+
+**Description:** Soak finding: a second turn on a session whose first turn was still running was accepted and appended to the same transcript. Reproduced with two concurrent `arun` calls on one session, the first running a 6s shell command. Fixed with a one-turn-per-session check in the base class (in-process turns and pending or running run rows).
+
+**Result:** Before: both turns ran and both appended to the session's transcript concurrently. After: the second turn raises `SessionBusyError` in under a millisecond naming the run in flight, no run row is written for it, the first turn completes, and a turn sent afterwards runs normally.
 
 ---

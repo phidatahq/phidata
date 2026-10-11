@@ -19,7 +19,7 @@ Usage:
 from typing import List
 
 from agno.agents.codex import CodexAgent
-from agno.run.agent import RunCompletedEvent, RunOutput
+from agno.run.agent import RunOutput
 from pydantic import BaseModel, Field
 
 
@@ -38,18 +38,14 @@ agent = CodexAgent(
     output_schema=Movie,
 )
 
-# ----- Non-streaming: content is a Movie -----
-run_output = agent.run("Invent a science fiction movie set on Mars.")
+# ----- Streaming: the printer returns the parsed final answer -----
+run_output = agent.print_response(
+    "Invent a science fiction movie set on Mars.", stream=True
+)
 assert isinstance(run_output, RunOutput)
 assert isinstance(run_output.content, Movie)
 print("content_type:", run_output.content_type)
 print(run_output.content.model_dump_json(indent=2))
-
-# ----- Streaming: RunCompleted carries the parsed answer -----
-for event in agent.run("Invent a heist movie set underwater.", stream=True):
-    if isinstance(event, RunCompletedEvent):
-        print("\nRunCompleted content_type:", event.content_type)
-        print(event.content)
 
 # ----- Per-run JSON Schema: content is a dict -----
 title_schema = {
@@ -58,8 +54,10 @@ title_schema = {
     "required": ["title"],
     "additionalProperties": False,
 }
-titled = agent.run(
-    "Suggest a title for a documentary about bees.", output_schema=title_schema
+titled = agent.print_response(
+    "Suggest a title for a documentary about bees.",
+    output_schema=title_schema,
+    stream=True,
 )
 assert isinstance(titled, RunOutput)
 print("\nPer-run schema:", titled.content_type, titled.content)

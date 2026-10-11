@@ -223,7 +223,7 @@ Codex keeps one conversation per Agno session (the thread); overlapping turns ca
 
 This check is not an atomic claim across agent instances or replicas. Simultaneous requests can race, and a direct foreground run has no in-flight database row before execution. Applications must serialize same-session submissions across replicas; the check alone does not provide distributed mutual exclusion. If the Codex app-server reports "already has an active writer", the adapter maps it to `SessionBusyError`; configured agent retries can retry after backoff. This backstop does not replace application-side serialization.
 
-A run row left pending or running by a crash keeps its session busy until that run is cancelled. The durable queue sweeps crashed queued runs on its own; cancel an orphaned background run through the run cancellation endpoint. A queued turn on a busy session is re-driven after the queue's retry delay when `max_attempts` allows it, which serializes it behind the turn in flight; turns queued on one session run in the order they were accepted.
+A run row left pending or running by a crash keeps its session busy until that run is cancelled. The durable queue sweeps crashed queued runs on its own; cancel an orphaned background run through the run cancellation endpoint. A queued turn on a busy session can be re-driven after the queue's retry delay when `max_attempts` allows it. Those attempts can be exhausted before the active turn finishes. This is not a shared session lock or a FIFO conversation scheduler; serialize submissions per session in the application.
 
 ## Background runs and cancellation
 

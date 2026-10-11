@@ -40,9 +40,8 @@ class ProjectSummary(BaseModel):
 
 agent = ClaudeAgent(
     name="Claude Project Summarizer",
-    model="claude-sonnet-4-6",
+    model="claude-sonnet-5-5",
     allowed_tools=["Read", "Glob"],
-    max_turns=8,
     output_schema=ProjectSummary,
 )
 

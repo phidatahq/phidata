@@ -268,3 +268,39 @@ Suggested wording:
 > need idempotency. Turns within a session should be serialized. Claude credential
 > refresh, metrics, step replay and the pending agent-retry changes still need
 > release acceptance before we promise the full reliability contract.
+
+## 2026-10-11 pinned main release acceptance
+
+Framework source: `9e1f77f52a9bb16ee5dde3ccff9fa2491e86db5f`. Native SDK versions: Claude 0.2.165, Codex 0.162.1. Isolated local replicas, Postgres and Redis. Later checks used a clean installation of the wheel built from this revision while another session edited the checkout.
+
+### HTTP reliability matrix
+
+**Status:** PASS
+
+**Description:** Both providers exercised real MCP receipts, background acknowledgement, duplicate submission IDs, streamed disconnect/reconnect through another replica, retained database replay after Redis expiry, cross-replica cancellation, tool errors, independent-session concurrency at 1/4/8, and worker crash recovery.
+
+**Result:** Claude resumed the same native session; Codex recalled history through its documented fallback. With two queue attempts, crash recovery repeated the tool receipt. With one attempt, the interrupted run failed visibly without repeating the tool. Redis outage preserved stored-run polling and surfaced an explicit reconnect error. Nonstreamed submissions correctly require polling; the original test expected an SSE completion and was corrected.
+
+### Repeated load waves
+
+**Status:** PASS
+
+**Description:** Reused the same replicas for six waves per provider: 1, 4, 8, 1, 4, 8 concurrent independent sessions, with controlled tool barriers.
+
+**Result:** 26 runs per provider passed. Measured campaign duration was 259 seconds for Claude and 291 seconds for Codex, including pauses. This is bounded local repetition, not an overnight soak or a throughput benchmark.
+
+### Customer MCP workflow from the candidate wheel
+
+**Status:** PASS
+
+**Description:** Ran the docs-derived HTTP MCP ticket/order/note service against two AgentOS replicas for each provider, using the candidate wheel in a fresh environment.
+
+**Result:** Actual ticket/order reads and repeated `save_note` calls completed. The independent business database retained exactly one row for each repeated application-owned operation ID. The wheel is a candidate build from main, not the published release.
+
+### Known limits retained
+
+**Status:** FAIL
+
+**Description:** Same-session submissions are not protected by distributed mutual exclusion; queued busy turns can exhaust retries. Attachment staging on the pinned revision can leave partial files and restore to a writable historical root outside current cwd.
+
+**Result:** Application-level session serialization is required. Attachment defects need the separately reviewed fix before signing off changed-workspace or failure-cleanup behavior. A later fix must be verified on its own revision; these results do not imply it is merged.

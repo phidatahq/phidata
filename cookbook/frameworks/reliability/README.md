@@ -35,6 +35,8 @@ HARNESS_AUTH_ROOT/
   codex/b/
 ```
 
+Claude can instead inherit `ANTHROPIC_API_KEY` from the controller environment; empty isolated Claude homes are sufficient in that mode. Use `direnv exec . python ...` to load this repository's approved `.envrc`. Set `HARNESS_AUTH_MODE=oauth` only when deliberately testing native login without an API key.
+
 Authenticate each using `CLAUDE_CONFIG_DIR` or `CODEX_HOME`, respectively, or
 provision only your existing authentication material. Do not copy transcript,
 project or session directories. The controller defaults to
@@ -61,7 +63,7 @@ python cookbook/frameworks/reliability/verify.py --concurrency 4
 python cookbook/frameworks/reliability/verify.py --cases crash --attempts 2
 python cookbook/frameworks/reliability/verify.py --cases concurrency --concurrency 1
 python cookbook/frameworks/reliability/verify.py --cases concurrency --concurrency 8
-# Negative probes record failures as evidence; inspect TEST_LOG.md.
+# Verify polling-only behavior, live reconnect, tool errors and retained-event replay.
 python cookbook/frameworks/reliability/verify.py --cases active_reconnect,live_reconnect,tool_error,retention
 # Run separately from the soak: Redis outage stops the dedicated test service.
 python cookbook/frameworks/reliability/verify.py --cases same_session,redis_outage

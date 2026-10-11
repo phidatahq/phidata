@@ -6,6 +6,7 @@ Mirrors the team skills tests to verify parity:
 - Skills system prompt snippet is injected into the system message
 - Skills system prompt snippet is omitted when agent.skills is None
 - deep_copy shares the Skills instance by reference (shared resource)
+- save stores skill names or the all-rows marker; load re-resolves them from the database's skills table
 
 The tool registration and prompt injection are hand-maintained sync/async twins on the Agent
 (``_tools.get_tools``/``aget_tools``, ``_messages.get_system_message``/``aget_system_message``),
@@ -13,17 +14,23 @@ so both variants are asserted.
 """
 
 import json
+import logging
+from typing import List
 from unittest.mock import MagicMock
+
+import pytest
 
 from agno.agent._messages import aget_system_message, get_system_message
 from agno.agent._tools import aget_tools, get_tools
-from agno.agent.agent import Agent
+from agno.agent.agent import Agent, get_agent_by_id, get_agents
+from agno.exceptions import ComponentRehydrationError
 from agno.models.base import Function
 from agno.models.openai import OpenAIResponses
 from agno.run.agent import RunOutput
 from agno.run.base import RunContext
 from agno.session import AgentSession
 from agno.skills import DbSkills, LocalSkills, Skills
+from agno.skills.executor import LocalSkillExecutor, SkillExecutor
 from agno.tools.function import FunctionCall
 
 SAMPLE_SKILLS_DIR = "cookbook/02_agents/16_skills/sample_skills"
@@ -159,7 +166,7 @@ def test_deep_copy_shares_skills_by_reference():
 
 
 # ---------------------------------------------------------------------------
-# Per-user skills on the message path (the run's user reaches the loader)
+# Persistence tests (save stores skill names or the all-rows marker; load re-resolves them from the db)
 # ---------------------------------------------------------------------------
 
 
@@ -236,6 +243,487 @@ async def test_two_users_interleaved_requests_keep_their_own_skills_async(tmp_pa
         assert "not found" in _skill_instructions(fresh, bob, "alice-skill")["error"]
 
 
+def test_save_after_a_users_request_does_not_persist_owned_names(tmp_path):
+    """A user's request must not leak that user's owned skills into the saved config."""
+    db = _make_db(tmp_path)
+    _seed_owned_rows(db)
+    agent = Agent(name="test-agent", id="scoped", db=db, skills=Skills(loaders=[DbSkills(db)]))
+    agent.model = _make_model()
+
+    for _ in range(2):
+        get_system_message(agent, _make_session(), run_context=RunContext(run_id="r", session_id="s", user_id="alice"))
+        assert agent.to_dict()["skills"] == {"all": True}
+
+
+def test_to_dict_stores_skill_names_not_content(tmp_path):
+    """A saved agent carries only skill names; the content stays in the skills table."""
+    db = _make_db(tmp_path)
+    _create_skill_row(db)
+    agent = Agent(name="test-agent", db=db, skills=Skills(loaders=[DbSkills(db, names=["release-notes"])]))
+
+    config = agent.to_dict()
+
+    assert config["skills"] == {"names": ["release-notes"]}
+    assert "Instructions for release-notes." not in json.dumps(config)
+
+
+def test_save_then_load_round_trips_db_skills(tmp_path):
+    """End to end: a saved then reloaded agent keeps its db skills,
+    and the reloaded skills behave: snippet, instructions, reference, and script run.
+    """
+    db = _make_db(tmp_path)
+    _create_skill_row(db)
+    agent = Agent(name="test-agent", db=db, skills=Skills(loaders=[DbSkills(db)]))
+    agent.save()
+
+    loaded = Agent.load(agent.id, db=db)
+
+    assert loaded is not None and loaded.skills is not None
+    assert "release-notes" in loaded.skills.get_system_prompt_snippet()
+    instructions = json.loads(loaded.skills._get_skill_instructions("release-notes"))
+    assert instructions["instructions"] == "Instructions for release-notes."
+    reference = json.loads(loaded.skills._get_skill_reference("release-notes", "style.md"))
+    assert reference["content"] == "Keep it short.\n"
+    executed = json.loads(loaded.skills._get_skill_script("release-notes", "draft.sh", execute=True))
+    assert executed["returncode"] == 0
+    assert executed["stdout"].strip() == "draft"
+
+    # Twice: the second load must resolve from the table just as well as the first.
+    reloaded = Agent.load(agent.id, db=db)
+    assert reloaded is not None and reloaded.skills is not None
+    assert "release-notes" in reloaded.skills.get_system_prompt_snippet()
+
+
+def test_loaded_agent_resolves_only_its_stored_names(tmp_path):
+    """Resolution is by name: a loaded agent gets the names it stored, not the whole table."""
+    db = _make_db(tmp_path)
+    _create_skill_row(db, "release-notes")
+    agent = Agent(name="test-agent", db=db, skills=Skills(loaders=[DbSkills(db, names=["release-notes"])]))
+    agent.save()
+    _create_skill_row(db, "unrelated-skill")
+
+    loaded = Agent.load(agent.id, db=db)
+
+    assert loaded is not None and loaded.skills is not None
+    assert loaded.skills.get_skill_names() == ["release-notes"]
+
+
+def test_load_with_missing_row_warns_and_loads_rest(tmp_path, monkeypatch):
+    """A stored name with no row is skipped with a warning naming it; the rest still load."""
+    db = _make_db(tmp_path)
+    _create_skill_row(db, "release-notes")
+    _create_skill_row(db, "doomed-skill")
+    agent = Agent(
+        name="test-agent", db=db, skills=Skills(loaders=[DbSkills(db, names=["release-notes", "doomed-skill"])])
+    )
+    agent.save()
+    db.delete_skill("doomed-skill")
+
+    warnings: List[str] = []
+    monkeypatch.setattr("agno.skills.loaders.db.log_warning", warnings.append)
+    loaded = Agent.load(agent.id, db=db)
+
+    assert loaded is not None and loaded.skills is not None
+    assert loaded.skills.get_skill_names() == ["release-notes"]
+    assert any("doomed-skill" in w for w in warnings)
+
+
+def test_from_dict_without_db_drops_skills_with_warning(tmp_path, monkeypatch):
+    """With no db to resolve against, the reference is dropped with a warning, never an error."""
+    db = _make_db(tmp_path)
+    _create_skill_row(db)
+    config = Agent(name="test-agent", skills=Skills(loaders=[DbSkills(db, names=["release-notes"])])).to_dict()
+
+    warnings: List[str] = []
+    monkeypatch.setattr("agno.agent._storage.log_warning", warnings.append)
+    agent = Agent.from_dict(config)
+
+    assert agent.skills is None
+    assert any("release-notes" in w for w in warnings)
+
+
+def test_to_dict_with_no_loaded_skills_keeps_the_all_marker(tmp_path, monkeypatch):
+    """A failed eager load does not change what is saved: the marker comes from the loader's configuration."""
+    db = _make_db(tmp_path)
+    _create_skill_row(db)
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("database down")
+
+    original = db.get_skills_with_content
+    db.get_skills_with_content = boom
+    agent = Agent(name="test-agent", db=db, skills=Skills(loaders=[DbSkills(db)]))
+    db.get_skills_with_content = original
+
+    config = agent.to_dict()
+
+    assert config["skills"] == {"all": True}
+
+
+def test_get_agent_by_id_resolves_skills(tmp_path):
+    """The team-member load path resolves skills the same way a direct load does."""
+    db = _make_db(tmp_path)
+    _create_skill_row(db)
+    agent = Agent(name="test-agent", db=db, skills=Skills(loaders=[DbSkills(db)]))
+    agent.save()
+
+    loaded = get_agent_by_id(db, agent.id)
+
+    assert loaded is not None and loaded.skills is not None
+    assert "release-notes" in loaded.skills.get_system_prompt_snippet()
+
+
+def test_strict_load_raises_when_a_saved_skill_row_is_gone(tmp_path, monkeypatch):
+    """Under strict a saved skill name with no row is an unresolvable reference, like a
+    missing knowledge or tool reference; lenient keeps today's single warning and empty set."""
+    db = _make_db(tmp_path)
+    _create_skill_row(db)
+    config = Agent(name="test-agent", db=db, skills=Skills(loaders=[DbSkills(db, names=["release-notes"])])).to_dict()
+
+    assert Agent.from_dict(config, db=db, strict=True).skills.get_skill_names() == ["release-notes"]
+
+    db.delete_skill("release-notes")
+    warnings: List[str] = []
+    monkeypatch.setattr("agno.agent._storage.log_warning", warnings.append)
+    monkeypatch.setattr("agno.skills.loaders.db.log_warning", warnings.append)
+    for _ in range(2):
+        with pytest.raises(ComponentRehydrationError, match="release-notes"):
+            Agent.from_dict(config, db=db, strict=True)
+        warnings.clear()
+        lenient = Agent.from_dict(config, db=db, strict=False)
+        assert lenient.skills is not None
+        assert lenient.skills.get_skill_names() == []
+        assert len(warnings) == 1 and "release-notes" in warnings[0]
+
+
+def test_strict_load_resolves_skills_against_the_configs_own_db(tmp_path):
+    """An agent saved with its own db, custom skills table included, keeps resolving its skills
+    there when loaded through a catalog db with the default table, so a strict load does not
+    refuse a valid agent."""
+    from agno.db.sqlite import SqliteDb
+
+    own = SqliteDb(db_file=str(tmp_path / "own.db"), skills_table="my_skills")
+    own.create_skill({"name": "release-notes", "description": "d", "instructions": "i"})
+    catalog = _make_db(tmp_path)
+    agent = Agent(name="test-agent", id="own-db-agent", db=own, skills=Skills(loaders=[DbSkills(own)]))
+    version = agent.save(db=catalog)
+    config = catalog.get_config(component_id="own-db-agent", version=version)["config"]
+    assert config["db"]["skills_table"] == "my_skills"
+
+    for _ in range(2):
+        loaded = Agent.from_dict(config, db=catalog, strict=True)
+        assert loaded.skills.get_skill_names() == ["release-notes"]
+        by_id = get_agent_by_id(db=catalog, id="own-db-agent", strict=True)
+        assert by_id is not None
+        assert by_id.skills.get_skill_names() == ["release-notes"]
+
+
+def test_a_config_db_without_a_skills_table_falls_back_to_the_callers_db(tmp_path):
+    """A backend with no skills table cannot own skill rows: an agent whose own db is one
+    resolves its saved skills from the caller's db instead of loading none."""
+    from agno.db.in_memory import InMemoryDb
+    from agno.registry.registry import Registry
+
+    catalog = _make_db(tmp_path)
+    _create_skill_row(catalog)
+    own = InMemoryDb()
+    agent = Agent(name="test-agent", id="memory-db-agent", db=own, skills=Skills(loaders=[DbSkills(catalog)]))
+    version = agent.save(db=catalog)
+    config = catalog.get_config(component_id="memory-db-agent", version=version)["config"]
+    assert config["db"]["id"] == own.id
+    registry = Registry(dbs=[own])
+
+    for _ in range(2):
+        loaded = Agent.from_dict(config, db=catalog, registry=registry, strict=True)
+        assert loaded.db is own
+        assert loaded.skills.get_skill_names() == ["release-notes"]
+        by_id = get_agent_by_id(db=catalog, id="memory-db-agent", registry=registry, strict=True)
+        assert by_id is not None
+        assert by_id.skills.get_skill_names() == ["release-notes"]
+
+
+def test_strict_load_raises_when_no_db_can_resolve_the_saved_skills(tmp_path):
+    """A names block with nothing to resolve it against is dropped leniently and refused strictly."""
+    db = _make_db(tmp_path)
+    _create_skill_row(db)
+    config = Agent(name="test-agent", skills=Skills(loaders=[DbSkills(db, names=["release-notes"])])).to_dict()
+    assert "db" not in config
+
+    for _ in range(2):
+        with pytest.raises(ComponentRehydrationError, match="release-notes"):
+            Agent.from_dict(config, strict=True)
+        assert Agent.from_dict(config, strict=False).skills is None
+
+
+def test_strict_load_accepts_a_saved_skill_owned_by_another_user(tmp_path):
+    """A row that exists but belongs to a user is not missing: the eager load cannot see it,
+    its owner's requests resolve it, so strict must not refuse the agent."""
+    db = _make_db(tmp_path)
+    db.create_skill({"name": "alice-notes", "description": "d", "instructions": "i", "user_id": "alice"})
+    config = Agent(name="test-agent", db=db, skills=Skills(loaders=[DbSkills(db, names=["alice-notes"])])).to_dict()
+    assert config["skills"] == {"names": ["alice-notes"]}
+
+    for _ in range(2):
+        agent = Agent.from_dict(config, db=db, strict=True)
+        assert agent.skills is not None
+        assert "alice-notes" in agent.skills.get_system_prompt_snippet(user_id="alice")
+
+
+def test_resave_during_outage_keeps_the_all_marker(tmp_path, monkeypatch):
+    """Healthy save, load during an outage, resave, recover: nothing saved is lost."""
+    from agno.db.sqlite import SqliteDb
+
+    db = _make_db(tmp_path)
+    _create_skill_row(db)
+    agent = Agent(name="test-agent", db=db, skills=Skills(loaders=[DbSkills(db)]))
+    agent.save()
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("database down")
+
+    # On the class: the load resolves skills through the db it reconstructs from the
+    # config, a different instance from the one this test holds.
+    with monkeypatch.context() as patched:
+        patched.setattr(SqliteDb, "get_skills_with_content", boom)
+        loaded = Agent.load(agent.id, db=db)
+        assert loaded is not None and loaded.skills is not None
+        assert loaded.skills.get_skill_names() == []
+        loaded.save()
+
+    assert db.get_config(component_id=agent.id)["config"]["skills"] == {"all": True}
+    recovered = Agent.load(agent.id, db=db)
+    assert recovered is not None and recovered.skills is not None
+    assert "release-notes" in recovered.skills.get_system_prompt_snippet()
+
+
+def test_resave_of_fresh_instance_during_outage_keeps_the_all_marker(tmp_path):
+    """A redeploy during an outage must not erase the saved skills."""
+    db = _make_db(tmp_path)
+    _create_skill_row(db)
+    Agent(id="boot-agent", name="boot-agent", db=db, skills=Skills(loaders=[DbSkills(db)])).save()
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("database down")
+
+    original = db.get_skills_with_content
+    db.get_skills_with_content = boom
+    fresh = Agent(id="boot-agent", name="boot-agent", db=db, skills=Skills(loaders=[DbSkills(db)]))
+    fresh.save()
+    db.get_skills_with_content = original
+
+    assert db.get_config(component_id="boot-agent")["config"]["skills"] == {"all": True}
+    recovered = Agent.load("boot-agent", db=db)
+    assert recovered is not None and recovered.skills is not None
+    assert "release-notes" in recovered.skills.get_system_prompt_snippet()
+
+
+def test_resave_during_partial_outage_keeps_the_all_marker(tmp_path):
+    """A names=None loader saves the marker whichever loaders are down."""
+    from agno.db.sqlite import SqliteDb
+
+    db = _make_db(tmp_path)
+    _create_skill_row(db, "skill-a")
+    _create_skill_row(db, "skill-b")
+    # A second handle on the same file, so one backend can fail while the other serves.
+    db2 = SqliteDb(db_file=str(tmp_path / "agent-skills.db"))
+
+    loaders = [DbSkills(db, names=["skill-a"]), DbSkills(db2)]
+    Agent(id="partial-agent", name="partial-agent", db=db, skills=Skills(loaders=loaders)).save()
+    assert db.get_config(component_id="partial-agent")["config"]["skills"] == {"all": True}
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("database down")
+
+    original = db2.get_skills_with_content
+    db2.get_skills_with_content = boom
+    fresh = Agent(
+        id="partial-agent",
+        name="partial-agent",
+        db=db,
+        skills=Skills(loaders=[DbSkills(db, names=["skill-a"]), DbSkills(db2)]),
+    )
+    fresh.save()
+    db2.get_skills_with_content = original
+
+    assert db.get_config(component_id="partial-agent")["config"]["skills"] == {"all": True}
+    recovered = Agent.load("partial-agent", db=db)
+    assert recovered is not None and recovered.skills is not None
+    snippet = recovered.skills.get_system_prompt_snippet()
+    assert "skill-a" in snippet and "skill-b" in snippet
+
+
+def test_deleted_skill_not_resurrected_when_loader_succeeded(tmp_path):
+    """A name deleted from the table is not carried in the saved config or resolved on load."""
+    db = _make_db(tmp_path)
+    _create_skill_row(db, "skill-a")
+    _create_skill_row(db, "skill-b")
+    Agent(id="del-agent", name="del-agent", db=db, skills=Skills(loaders=[DbSkills(db)])).save()
+    assert db.get_config(component_id="del-agent")["config"]["skills"] == {"all": True}
+
+    db.delete_skill("skill-b")
+    fresh = Agent(id="del-agent", name="del-agent", db=db, skills=Skills(loaders=[DbSkills(db)]))
+    fresh.save()
+
+    assert db.get_config(component_id="del-agent")["config"]["skills"] == {"all": True}
+    loaded = Agent.load("del-agent", db=db)
+    assert loaded is not None and loaded.skills is not None
+    assert loaded.skills.get_skill_names() == ["skill-a"]
+
+
+def test_first_save_during_outage_keeps_the_all_marker(tmp_path):
+    """With no prior config and the table unreachable, the first save still records the marker."""
+    db = _make_db(tmp_path)
+    _create_skill_row(db)
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("database down")
+
+    original = db.get_skills_with_content
+    db.get_skills_with_content = boom
+    agent = Agent(id="first-agent", name="first-agent", db=db, skills=Skills(loaders=[DbSkills(db)]))
+    agent.save()
+    db.get_skills_with_content = original
+
+    assert db.get_config(component_id="first-agent")["config"]["skills"] == {"all": True}
+
+
+def test_resave_after_successful_empty_load_keeps_the_all_marker(tmp_path):
+    """An empty table still saves the marker, so rows created later resolve on load."""
+    db = _make_db(tmp_path)
+    _create_skill_row(db)
+    Agent(id="empty-agent", name="empty-agent", db=db, skills=Skills(loaders=[DbSkills(db)])).save()
+    db.delete_skill("release-notes")
+
+    fresh = Agent(id="empty-agent", name="empty-agent", db=db, skills=Skills(loaders=[DbSkills(db)]))
+    fresh.save()
+
+    assert db.get_config(component_id="empty-agent")["config"]["skills"] == {"all": True}
+    _create_skill_row(db, "added-later")
+    loaded = Agent.load("empty-agent", db=db)
+    assert loaded is not None and loaded.skills is not None
+    assert loaded.skills.get_skill_names() == ["added-later"]
+
+
+def test_to_dict_with_empty_skills_omits_key_with_a_trace(monkeypatch):
+    """A genuinely empty Skills — nothing configured, nothing loaded — is not persisted."""
+    agent = Agent(name="test-agent", skills=Skills(loaders=[]))
+
+    messages: List[str] = []
+    monkeypatch.setattr("agno.agent._storage.log_debug", messages.append)
+    config = agent.to_dict()
+
+    assert "skills" not in config
+    assert any("will not be saved" in m for m in messages)
+
+
+def test_local_only_agent_warns_once_across_saves(tmp_path, caplog):
+    """Two saves and a to_dict of an agent with local skills log one warning, not one per
+    skill per call; it names the skills, says what a save and a reload do with them, and how
+    to keep them. A reload serves a same-name table row only where a database loader lists it or
+    loads every row."""
+    db = _make_db(tmp_path)
+    agent = Agent(name="local-only", id="local-only", db=db, skills=_make_skills())
+    assert agent.skills.get_skill_names()
+
+    with caplog.at_level(logging.WARNING):
+        agent.save()
+        agent.save()
+        agent.to_dict()
+    warnings = [record.getMessage() for record in caplog.records if record.levelno >= logging.WARNING]
+    assert len(warnings) == 1, warnings
+    assert all(name in warnings[0] for name in agent.skills.get_skill_names())
+    assert "a save does not store them" in warnings[0]
+    assert "only where a database loader here lists it or loads every row" in warnings[0]
+    assert "publish them to the table and read them through a database loader" in warnings[0]
+    assert "skills" not in db.get_config(component_id="local-only")["config"]
+    _create_skill_row(db, "code-review")
+    assert Agent.load("local-only", db=db).skills is None
+
+    shadowing = Skills(loaders=[DbSkills(db, names=["code-review"]), LocalSkills(SAMPLE_SKILLS_DIR)])
+    caplog.clear()
+    with caplog.at_level(logging.WARNING):
+        Agent(name="shadowing", id="shadowing", db=db, skills=shadowing).save()
+    warnings = [record.getMessage() for record in caplog.records if record.levelno >= logging.WARNING]
+    assert len(warnings) == 1 and "code-review" in warnings[0] and "git-workflow" in warnings[0], warnings
+    assert db.get_config(component_id="shadowing")["config"]["skills"] == {"names": ["code-review"]}
+    _create_skill_row(db, "git-workflow")
+    loaded = Agent.load("shadowing", db=db)
+    assert loaded is not None and loaded.skills is not None
+    assert loaded.skills.get_skill("code-review").source_type == "db"
+    assert loaded.skills.get_skill("git-workflow") is None
+
+
+def test_database_backed_agent_warns_zero_times_on_save(tmp_path, caplog):
+    db = _make_db(tmp_path)
+    _create_skill_row(db)
+    agent = Agent(name="db-backed", id="db-backed", db=db, skills=Skills(loaders=[DbSkills(db)]))
+
+    with caplog.at_level(logging.WARNING):
+        agent.save()
+        agent.save()
+        agent.to_dict()
+    assert [record.getMessage() for record in caplog.records if record.levelno >= logging.WARNING] == []
+
+
+def test_studio_load_resolves_skills(tmp_path):
+    """The Studio loader bypasses Agent.load, so it must pass db to from_dict itself."""
+    from agno.registry.registry import Registry
+    from agno.tools.studio import StudioTools
+
+    db = _make_db(tmp_path)
+    _create_skill_row(db)
+    agent = Agent(name="studio-agent", db=db, skills=Skills(loaders=[DbSkills(db)]))
+    agent.save()
+
+    loaded = StudioTools(registry=Registry(), db=db)._load_agent_from_db(agent.id)
+
+    assert loaded is not None and loaded.skills is not None
+    assert "release-notes" in loaded.skills.get_system_prompt_snippet()
+
+
+def test_from_dict_positional_second_arg_is_registry(tmp_path):
+    """The pre-existing positional contract holds: from_dict(config, registry) binds
+    the registry, and db is keyword-only, so it cannot be passed positionally at all.
+    """
+    from agno.registry.registry import Registry
+
+    db = _make_db(tmp_path)
+    _create_skill_row(db)
+    config = Agent(name="test-agent", db=db, skills=Skills(loaders=[DbSkills(db)])).to_dict()
+
+    agent = Agent.from_dict(config, Registry())
+    # The registry bound to the positional slot, not the db. The skills still resolve,
+    # but from the db the config carries — not from anything the registry supplied.
+    assert agent.skills is not None
+    assert agent.skills.get_skill_names() == ["release-notes"]
+
+    with pytest.raises(TypeError):
+        Agent.from_dict(config, Registry(), False, db)
+
+
+def test_from_dict_third_positional_arg_is_strict(tmp_path):
+    """strict keeps its pre-existing positional slot: from_dict(config, registry, True)
+    refuses an unresolvable reference and False loads it leniently.
+    """
+    from agno.registry.registry import Registry
+
+    config = {"name": "k", "knowledge": {"name": "missing-kb"}}
+    with pytest.raises(ComponentRehydrationError, match="missing-kb"):
+        Agent.from_dict(dict(config), Registry(), True)
+
+    lenient = Agent.from_dict(dict(config), Registry(), False)
+    assert lenient.knowledge is None
+
+
+def test_from_dict_db_passed_positionally_does_not_bind_as_db(tmp_path):
+    """A third positional argument binds as strict, never as db: the db slot is keyword-only."""
+    from agno.registry.registry import Registry
+
+    db = _make_db(tmp_path)
+    agent = Agent.from_dict({"name": "plain"}, Registry(), db)
+    assert agent.db is None
+
+
 async def test_asystem_message_refreshes_skills_through_async_db(tmp_path):
     """The async message path reads an async backend through its awaited skills method.
 
@@ -253,3 +741,453 @@ async def test_asystem_message_refreshes_skills_through_async_db(tmp_path):
 
     assert msg is not None
     assert "async-skill" in msg.content
+
+
+# ============================================================================
+# EXECUTOR POLICY ACROSS A SAVE/LOAD ROUND TRIP
+# ============================================================================
+
+
+class _SandboxExecutor(SkillExecutor):
+    """Stands in for a sandboxed or remote runner: never executes on the host."""
+
+    def run(self, script_path, *, args=None, timeout=30, cwd=None):
+        raise AssertionError("the sandbox executor should not run on the host")
+
+
+def _db_with_skill(tmp_path):
+    from agno.db.sqlite import SqliteDb
+
+    db = SqliteDb(db_file=str(tmp_path / "exec.db"))
+    db.create_skill({"name": "greeter", "description": "d", "instructions": "i"})
+    return db
+
+
+def test_to_dict_records_that_a_non_default_executor_was_in_use(tmp_path):
+    db = _db_with_skill(tmp_path)
+    agent = Agent(name="a", id="a", db=db, skills=Skills(loaders=[DbSkills(db)], executor=_SandboxExecutor()))
+
+    config = agent.to_dict()
+
+    assert config["skills"]["requires_executor"] is True
+
+
+def test_to_dict_records_nothing_for_the_default_executor(tmp_path):
+    db = _db_with_skill(tmp_path)
+    agent = Agent(name="a", id="a", db=db, skills=Skills(loaders=[DbSkills(db)]))
+
+    config = agent.to_dict()
+
+    assert "requires_executor" not in config["skills"]
+
+
+def test_from_dict_refuses_to_load_when_a_recorded_executor_is_missing(tmp_path):
+    """Loading without the sandbox would move script execution back onto the host.
+
+    Silently falling back to the default executor turns a deliberate sandbox policy into
+    host execution, so the load fails instead.
+    """
+    db = _db_with_skill(tmp_path)
+    agent = Agent(name="a", id="a", db=db, skills=Skills(loaders=[DbSkills(db)], executor=_SandboxExecutor()))
+    config = agent.to_dict()
+
+    with pytest.raises(ComponentRehydrationError, match="executor"):
+        Agent.from_dict(config, db=db)
+
+
+def test_from_dict_loads_when_the_executor_is_supplied(tmp_path):
+    db = _db_with_skill(tmp_path)
+    agent = Agent(name="a", id="a", db=db, skills=Skills(loaders=[DbSkills(db)], executor=_SandboxExecutor()))
+    config = agent.to_dict()
+
+    restored = Agent.from_dict(config, db=db, skill_executor=_SandboxExecutor())
+
+    assert isinstance(restored.skills.executor, _SandboxExecutor)
+
+
+def test_from_dict_with_the_default_executor_is_unaffected(tmp_path):
+    """The common case: no marker, no injection needed, no raise."""
+    db = _db_with_skill(tmp_path)
+    agent = Agent(name="a", id="a", db=db, skills=Skills(loaders=[DbSkills(db)]))
+
+    restored = Agent.from_dict(agent.to_dict(), db=db)
+
+    assert type(restored.skills.executor) is LocalSkillExecutor
+
+
+# ============================================================================
+# THE EXECUTOR ACROSS THE PUBLIC load() API
+# ============================================================================
+
+
+def _saved_agent_with(db, executor=None, agent_id="exec-agent"):
+    """Save an agent whose skills use the given executor, and return its id."""
+    skills = Skills(loaders=[DbSkills(db)], executor=executor) if executor else Skills(loaders=[DbSkills(db)])
+    agent = Agent(name=agent_id, id=agent_id, db=db, skills=skills)
+    agent.save(db=db)
+    return agent_id
+
+
+def test_load_refuses_a_sandboxed_agent_without_an_executor(tmp_path):
+    """The refusal holds through load(), not only from_dict."""
+    db = _db_with_skill(tmp_path)
+    agent_id = _saved_agent_with(db, _SandboxExecutor())
+
+    with pytest.raises(ComponentRehydrationError, match="executor"):
+        Agent.load(agent_id, db=db)
+
+
+def test_get_agent_by_id_reports_a_missing_executor_as_a_rehydration_error(tmp_path):
+    """Every DB-backed caller lets ComponentRehydrationError through and swallows the rest,
+    so the refusal has to be one or a sandboxed agent reads as "not found"."""
+    db = _db_with_skill(tmp_path)
+    agent_id = _saved_agent_with(db, _SandboxExecutor())
+
+    for _ in range(2):
+        with pytest.raises(ComponentRehydrationError, match="skill_executor="):
+            get_agent_by_id(db=db, id=agent_id)
+        loaded = Agent.load(agent_id, db=db, skill_executor=_SandboxExecutor())
+        assert loaded is not None
+        assert isinstance(loaded.skills.executor, _SandboxExecutor)
+
+
+def test_agents_route_answers_a_missing_executor_with_the_rehydration_status(tmp_path):
+    """Through AgentOS the refusal gets the status every rehydration error gets, with its message."""
+    from fastapi.testclient import TestClient
+
+    from agno.os import AgentOS
+
+    db = _db_with_skill(tmp_path)
+    agent_id = _saved_agent_with(db, _SandboxExecutor())
+    client = TestClient(AgentOS(db=db, agents=[Agent(name="placeholder", id="placeholder", db=db)]).get_app())
+
+    for _ in range(2):
+        response = client.get(f"/agents/{agent_id}")
+        assert response.status_code == 422, response.text
+        assert "skill_executor=" in response.json()["detail"]
+
+
+def test_load_accepts_a_re_supplied_executor(tmp_path):
+    """Re-supplying the executor loads a sandboxed agent."""
+    db = _db_with_skill(tmp_path)
+    agent_id = _saved_agent_with(db, _SandboxExecutor())
+
+    loaded = Agent.load(agent_id, db=db, skill_executor=_SandboxExecutor())
+
+    assert loaded is not None
+    assert isinstance(loaded.skills.executor, _SandboxExecutor)
+
+
+def test_load_of_a_default_executor_agent_is_unchanged(tmp_path):
+    """The common case keeps working with no executor argument at all."""
+    db = _db_with_skill(tmp_path)
+    agent_id = _saved_agent_with(db)
+
+    loaded = Agent.load(agent_id, db=db)
+
+    assert loaded is not None
+    assert type(loaded.skills.executor) is LocalSkillExecutor
+
+
+def test_from_dict_falls_back_to_the_config_db_when_none_is_passed(tmp_path):
+    """An agent saved with its own db re-resolves its skills without the caller passing one.
+
+    to_dict serializes the agent's db, and from_dict turns it back into a live instance
+    before the skills block runs, so the skills reference resolves off that. Without the
+    fallback the caller would have to thread the same db in a second time or lose the skills.
+    """
+    db = _make_db(tmp_path)
+    _create_skill_row(db)
+    config = Agent(name="test-agent", db=db, skills=Skills(loaders=[DbSkills(db)])).to_dict()
+
+    loaded = Agent.from_dict(config)
+
+    assert loaded.skills is not None
+    assert loaded.skills.get_skill_names() == ["release-notes"]
+
+
+def test_the_config_db_answers_over_an_explicitly_passed_db(tmp_path):
+    """The agent's own saved database resolves its skills; the caller's is the fallback for a
+    config that carried none. Both databases hold the same skill name, so which one answered
+    is visible in the content that comes back."""
+    from agno.db.sqlite import SqliteDb
+
+    config_db = _make_db(tmp_path)
+    _create_skill_row(config_db)
+
+    explicit_db = SqliteDb(db_file=str(tmp_path / "explicit.db"))
+    explicit_db.create_skill(
+        {
+            "name": "release-notes",
+            "description": "Skill release-notes",
+            "instructions": "Instructions from the explicit database.",
+        }
+    )
+
+    config = Agent(name="test-agent", db=config_db, skills=Skills(loaders=[DbSkills(config_db)])).to_dict()
+
+    for _ in range(2):
+        loaded = Agent.from_dict(config, db=explicit_db)
+
+        assert loaded.skills is not None
+        instructions = json.loads(loaded.skills._get_skill_instructions("release-notes"))
+        assert instructions["instructions"] == "Instructions for release-notes."
+
+
+# ============================================================================
+# LISTINGS
+# ============================================================================
+
+
+def _save_sandboxed_agent(db, agent_id: str = "sandboxed") -> None:
+    skills = Skills(loaders=[DbSkills(db, names=["greeter"])], executor=_SandboxExecutor())
+    Agent(id=agent_id, name=agent_id, db=db, skills=skills).save()
+
+
+def test_listing_shows_a_sandboxed_agent_without_its_skills(tmp_path):
+    """A listing shows degraded components: an agent saved under a non-default executor is
+    listed with its skills left off and marked, and a save of that listed object refuses
+    rather than erase the stored names and marker."""
+    db = _db_with_skill(tmp_path)
+    _save_sandboxed_agent(db)
+    stored = {"names": ["greeter"], "requires_executor": True}
+
+    for _ in range(2):
+        listed = {agent.id: agent for agent in get_agents(db)}
+        assert "sandboxed" in listed
+        agent = listed["sandboxed"]
+        assert agent.skills is None
+        assert agent._degraded_skills == stored
+        with pytest.raises(ValueError, match="skill_executor"):
+            agent.save()
+        assert db.get_config(component_id="sandboxed")["config"]["skills"] == stored
+
+
+def test_load_from_dict_and_dispatch_still_refuse_a_sandboxed_agent(tmp_path):
+    """Only a listing degrades: the default load, a direct from_dict and the dispatch helper
+    keep refusing to run a saved sandbox policy without its executor."""
+    from agno.os.utils import get_agent_by_id as dispatch_agent_by_id
+
+    db = _db_with_skill(tmp_path)
+    _save_sandboxed_agent(db)
+    config = db.get_config(component_id="sandboxed")["config"]
+
+    for _ in range(2):
+        with pytest.raises(ComponentRehydrationError, match="executor"):
+            Agent.load("sandboxed", db=db)
+        with pytest.raises(ComponentRehydrationError, match="executor"):
+            Agent.from_dict(config)
+        with pytest.raises(ComponentRehydrationError, match="executor"):
+            Agent.from_dict(config, db=db)
+        with pytest.raises(ComponentRehydrationError, match="executor"):
+            get_agent_by_id(db, "sandboxed")
+        with pytest.raises(ComponentRehydrationError, match="executor"):
+            dispatch_agent_by_id("sandboxed", agents=None, db=db)
+    assert db.get_config(component_id="sandboxed")["config"]["skills"] == {
+        "names": ["greeter"],
+        "requires_executor": True,
+    }
+
+
+def test_listing_builds_skills_without_reading_them(tmp_path, monkeypatch):
+    """A listing only needs the saved names: its agents carry their loader unread, so a listing
+    of N agents runs no skills query, while a load and the dispatch helper still read eagerly
+    and a listed agent reads on its first use."""
+    from agno.db.sqlite import SqliteDb
+
+    db = _db_with_skill(tmp_path)
+    for n in range(3):
+        Agent(
+            id=f"plain-{n}", name=f"plain-{n}", db=db, skills=Skills(loaders=[DbSkills(db, names=["greeter"])])
+        ).save()
+    reads = []
+    original = SqliteDb.get_skills_with_content
+
+    def counting(self, *args, **kwargs):
+        reads.append(kwargs.get("names"))
+        return original(self, *args, **kwargs)
+
+    monkeypatch.setattr(SqliteDb, "get_skills_with_content", counting)
+
+    for _ in range(2):
+        reads.clear()
+        listed = sorted(get_agents(db), key=lambda agent: agent.id)
+        assert [agent.id for agent in listed] == ["plain-0", "plain-1", "plain-2"]
+        assert reads == []
+        for agent in listed:
+            assert agent.skills is not None and agent.skills.has_unloaded_loaders()
+            assert agent.skills.get_skill_names() == []
+            assert agent.skills.get_skills_from_db() == ["greeter"]
+            assert agent.to_dict()["skills"] == {"names": ["greeter"]}
+
+        reads.clear()
+        assert Agent.load("plain-0", db=db).skills.get_skill_names() == ["greeter"]
+        assert len(reads) == 1
+        reads.clear()
+        assert get_agent_by_id(db, "plain-1").skills.get_skill_names() == ["greeter"]
+        assert len(reads) == 1
+
+    listed_agent = get_agents(db)[0]
+    reads.clear()
+    assert "greeter" in listed_agent.skills.get_system_prompt_snippet()
+    assert len(reads) == 1 and not listed_agent.skills.has_unloaded_loaders()
+    listed_agent.skills.reload()
+    assert listed_agent.skills.get_skill_names() == ["greeter"]
+
+
+def test_strict_load_refuses_an_async_skills_db_it_cannot_check(tmp_path):
+    """A strict load verifies the saved names against the table, and the sync load cannot read
+    an async database: strict refuses rather than load unverified, lenient still loads with the
+    names unresolved until the first async refresh."""
+    from agno.db.sqlite.async_sqlite import AsyncSqliteDb
+
+    db = _db_with_skill(tmp_path)
+    config = Agent(name="a", skills=Skills(loaders=[DbSkills(db, names=["greeter"])])).to_dict()
+    async_db = AsyncSqliteDb(db_file=str(tmp_path / "exec.db"))
+
+    for _ in range(2):
+        with pytest.raises(ComponentRehydrationError, match="async"):
+            Agent.from_dict(config, db=async_db, strict=True)
+        lenient = Agent.from_dict(config, db=async_db)
+        assert lenient.skills is not None and lenient.skills.has_unloaded_loaders()
+        assert Agent.from_dict(config, db=db, strict=True).skills.get_skill_names() == ["greeter"]
+
+
+# ============================================================================
+# SAVES WHILE A LOADER HAS NOT LOADED (ASYNC SKILLS DATABASE)
+# ============================================================================
+
+
+def _async_skills_dbs(tmp_path):
+    """A sync and an async handle on one file: the async one never loads eagerly."""
+    from agno.db.sqlite import SqliteDb
+    from agno.db.sqlite.async_sqlite import AsyncSqliteDb
+
+    path = str(tmp_path / "async-skills.db")
+    sync_db = SqliteDb(db_file=path)
+    sync_db.create_skill({"name": "greeter", "description": "d", "instructions": "i"})
+    return sync_db, AsyncSqliteDb(db_file=path)
+
+
+def test_resave_keeps_the_executor_marker_while_a_loader_has_not_loaded(tmp_path):
+    """A second save must not drop requires_executor, or the load falls back to the host executor."""
+    sync_db, async_db = _async_skills_dbs(tmp_path)
+    skills = Skills(loaders=[DbSkills(async_db, names=["greeter"])], executor=_SandboxExecutor())
+    component = Agent(name="s", id="sandboxed", db=sync_db, skills=skills)
+
+    for _ in range(2):
+        component.save()
+        saved = sync_db.get_config(component_id="sandboxed")["config"]["skills"]
+        assert saved == {"names": ["greeter"], "requires_executor": True}
+        with pytest.raises(ComponentRehydrationError, match="executor"):
+            Agent.load("sandboxed", db=sync_db)
+
+
+def test_first_save_with_an_unloaded_all_rows_loader_round_trips(tmp_path):
+    """names=None on an async database has loaded nothing at save time; the marker still resolves every row."""
+    sync_db, async_db = _async_skills_dbs(tmp_path)
+    Agent(name="s", id="all-rows", db=sync_db, skills=Skills(loaders=[DbSkills(async_db)])).save()
+
+    assert sync_db.get_config(component_id="all-rows")["config"]["skills"] == {"all": True}
+    for _ in range(2):
+        loaded = Agent.load("all-rows", db=sync_db)
+        assert loaded is not None and loaded.skills is not None
+        assert loaded.skills.get_skill_names() == ["greeter"]
+
+
+# ============================================================================
+# THE ALL MARKER ON THE LISTING, DEGRADED AND STRICT PATHS
+# ============================================================================
+
+
+def test_listing_builds_an_all_rows_loader_without_reading_and_a_resave_keeps_the_marker(tmp_path, monkeypatch):
+    """A listed all-rows agent reads nothing, serializes the marker from configuration alone, a
+    save from the listing keeps it, and the first use reads every row."""
+    from agno.db.sqlite import SqliteDb
+
+    db = _make_db(tmp_path)
+    _create_skill_row(db, "release-notes")
+    Agent(id="all-rows", name="all-rows", db=db, skills=Skills(loaders=[DbSkills(db)])).save()
+    reads = []
+    original = SqliteDb.get_skills_with_content
+
+    def counting(self, *args, **kwargs):
+        reads.append(kwargs.get("names"))
+        return original(self, *args, **kwargs)
+
+    monkeypatch.setattr(SqliteDb, "get_skills_with_content", counting)
+    for _ in range(2):
+        reads.clear()
+        listed = next(agent for agent in get_agents(db) if agent.id == "all-rows")
+        assert reads == []
+        assert listed.skills is not None and listed.skills.has_unloaded_loaders()
+        assert listed.to_dict()["skills"] == {"all": True}
+        listed.save()
+        assert db.get_config(component_id="all-rows")["config"]["skills"] == {"all": True}
+    _create_skill_row(db, "added-later")
+    snippet = listed.skills.get_system_prompt_snippet()
+    assert "release-notes" in snippet and "added-later" in snippet
+
+
+def test_listing_shows_a_sandboxed_all_rows_agent_without_its_skills(tmp_path):
+    """The degraded marker holds for the all shape: listed without skills, a save refuses, and the
+    stored block keeps both the marker and the executor requirement."""
+    db = _make_db(tmp_path)
+    _create_skill_row(db, "release-notes")
+    skills = Skills(loaders=[DbSkills(db)], executor=_SandboxExecutor())
+    Agent(id="sandboxed", name="sandboxed", db=db, skills=skills).save()
+    stored = {"all": True, "requires_executor": True}
+    assert db.get_config(component_id="sandboxed")["config"]["skills"] == stored
+
+    for _ in range(2):
+        listed = next(agent for agent in get_agents(db) if agent.id == "sandboxed")
+        assert listed.skills is None
+        with pytest.raises(ValueError, match="listed without its skills"):
+            listed.save()
+        assert db.get_config(component_id="sandboxed")["config"]["skills"] == stored
+        with pytest.raises(ComponentRehydrationError, match="executor"):
+            Agent.load("sandboxed", db=db)
+        loaded = Agent.load("sandboxed", db=db, skill_executor=_SandboxExecutor())
+        assert loaded.skills.get_skill_names() == ["release-notes"]
+
+
+async def test_strict_load_of_the_all_shape_on_an_async_db_reads_on_the_first_async_prompt(tmp_path):
+    """Strict verifies saved names, which a sync load cannot read from an async database; the all
+    marker names nothing, so strict has nothing to refuse and the first async prompt reads every row."""
+    _, async_db = _async_skills_dbs(tmp_path)
+
+    for _ in range(2):
+        loaded = Agent.from_dict({"name": "a", "skills": {"all": True}}, db=async_db, strict=True)
+        assert loaded.skills is not None and loaded.skills.has_unloaded_loaders()
+        assert "greeter" in await loaded.skills.aget_system_prompt_snippet()
+        assert loaded.skills.get_skill_names() == ["greeter"]
+
+
+def test_the_all_shape_with_no_db_is_dropped_leniently_and_refused_strictly(monkeypatch):
+    """The marker with nothing to resolve it against: dropped with a warning that names all
+    skills, refused strictly."""
+    warnings: List[str] = []
+    monkeypatch.setattr("agno.agent._storage.log_warning", warnings.append)
+
+    for _ in range(2):
+        assert Agent.from_dict({"name": "a", "skills": {"all": True}}).skills is None
+        with pytest.raises(ComponentRehydrationError, match="all skills"):
+            Agent.from_dict({"name": "a", "skills": {"all": True}}, strict=True)
+    assert any("all skills" in w for w in warnings)
+
+
+def test_a_reloaded_all_rows_agent_resolves_each_users_own_rows(tmp_path):
+    """After a load the marker resolves per user: alice's prompt carries alice's row and not
+    bob's, the shared mapping holds the shared row only, and a resave keeps the marker."""
+    db = _make_db(tmp_path)
+    _seed_owned_rows(db)
+    Agent(name="scoped", id="scoped", db=db, skills=Skills(loaders=[DbSkills(db)])).save()
+
+    for _ in range(2):
+        loaded = Agent.load("scoped", db=db)
+        assert loaded.skills.get_skill_names() == ["shared-skill"]
+        alice = loaded.skills.get_system_prompt_snippet(user_id="alice")
+        assert "alice-skill" in alice and "bob-skill" not in alice
+        bob = loaded.skills.get_system_prompt_snippet(user_id="bob")
+        assert "bob-skill" in bob and "alice-skill" not in bob
+        assert loaded.to_dict()["skills"] == {"all": True}

@@ -6,18 +6,25 @@ Verifies that:
 - Skills system prompt snippet is injected into the system message (sync and async)
 - Skills system prompt snippet is omitted when team.skills is None
 - deep_copy shares the Skills instance by reference (shared resource)
+- save stores skill names or the all-rows marker; load re-resolves them from the database's skills table
 """
 
+import json
+from typing import List
 from unittest.mock import MagicMock
 
+import pytest
+
+from agno.exceptions import ComponentRehydrationError
 from agno.models.base import Function
 from agno.run.base import RunContext
 from agno.run.team import TeamRunOutput
 from agno.session import TeamSession
-from agno.skills import LocalSkills, Skills
+from agno.skills import DbSkills, LocalSkills, Skills
+from agno.skills.executor import SkillExecutor
 from agno.team._messages import aget_system_message, get_system_message
 from agno.team._tools import _determine_tools_for_model
-from agno.team.team import Team
+from agno.team.team import Team, get_team_by_id, get_teams
 
 SAMPLE_SKILLS_DIR = "cookbook/02_agents/16_skills/sample_skills"
 
@@ -155,3 +162,799 @@ async def test_asystem_message_contains_skills_snippet():
     assert msg is not None
     assert "<skills_system>" in msg.content
     assert "get_skill_instructions" in msg.content
+
+
+# ---------------------------------------------------------------------------
+# Persistence tests (save stores skill names or the all-rows marker; load re-resolves them from the db)
+# ---------------------------------------------------------------------------
+
+
+def _make_db(tmp_path):
+    from agno.db.sqlite import SqliteDb
+
+    return SqliteDb(db_file=str(tmp_path / "team-skills.db"))
+
+
+def _create_skill_row(db, name: str = "release-notes"):
+    db.create_skill(
+        {
+            "name": name,
+            "description": f"Skill {name}",
+            "instructions": f"Instructions for {name}.",
+        }
+    )
+
+
+def test_to_dict_stores_skill_names_not_content(tmp_path):
+    """A saved team carries only skill names; the content stays in the skills table."""
+    db = _make_db(tmp_path)
+    _create_skill_row(db)
+    team = Team(name="test-team", members=[], db=db, skills=Skills(loaders=[DbSkills(db, names=["release-notes"])]))
+
+    config = team.to_dict()
+
+    assert config["skills"] == {"names": ["release-notes"]}
+    assert "Instructions for release-notes." not in json.dumps(config)
+
+
+def test_save_then_load_round_trips_db_skills(tmp_path):
+    """A saved then reloaded team keeps its db skills, resolved by name from the table."""
+    db = _make_db(tmp_path)
+    _create_skill_row(db)
+    team = Team(name="test-team", members=[], db=db, skills=Skills(loaders=[DbSkills(db)]))
+    team.save()
+
+    loaded = get_team_by_id(db, team.id)
+
+    assert loaded is not None and loaded.skills is not None
+    assert "release-notes" in loaded.skills.get_system_prompt_snippet()
+    instructions = json.loads(loaded.skills._get_skill_instructions("release-notes"))
+    assert instructions["instructions"] == "Instructions for release-notes."
+
+    # Twice: the second load must resolve from the table just as well as the first.
+    reloaded = get_team_by_id(db, team.id)
+    assert reloaded is not None and reloaded.skills is not None
+    assert "release-notes" in reloaded.skills.get_system_prompt_snippet()
+
+
+def test_from_dict_without_db_drops_skills_with_warning(tmp_path, monkeypatch):
+    """With no db to resolve against, the reference is dropped with a warning, never an error."""
+    db = _make_db(tmp_path)
+    _create_skill_row(db)
+    config = Team(
+        name="test-team", members=[], skills=Skills(loaders=[DbSkills(db, names=["release-notes"])])
+    ).to_dict()
+
+    warnings: List[str] = []
+    monkeypatch.setattr("agno.team._storage.log_warning", warnings.append)
+    team = Team.from_dict(config)
+
+    assert team.skills is None
+    assert any("release-notes" in w for w in warnings)
+
+
+def test_strict_load_raises_when_a_saved_skill_row_is_gone(tmp_path, monkeypatch):
+    """The team twin: a saved skill name with no row is refused under strict, warned once leniently."""
+    from agno.exceptions import ComponentRehydrationError
+
+    db = _make_db(tmp_path)
+    _create_skill_row(db)
+    config = Team(
+        name="test-team", members=[], db=db, skills=Skills(loaders=[DbSkills(db, names=["release-notes"])])
+    ).to_dict()
+
+    assert Team.from_dict(config, db=db, strict=True).skills.get_skill_names() == ["release-notes"]
+
+    db.delete_skill("release-notes")
+    warnings: List[str] = []
+    monkeypatch.setattr("agno.team._storage.log_warning", warnings.append)
+    monkeypatch.setattr("agno.skills.loaders.db.log_warning", warnings.append)
+    for _ in range(2):
+        with pytest.raises(ComponentRehydrationError, match="release-notes"):
+            Team.from_dict(config, db=db, strict=True)
+        warnings.clear()
+        lenient = Team.from_dict(config, db=db, strict=False)
+        assert lenient.skills is not None
+        assert lenient.skills.get_skill_names() == []
+        assert len(warnings) == 1 and "release-notes" in warnings[0]
+
+
+def test_the_config_db_answers_over_an_explicitly_passed_db(tmp_path):
+    """The team's own saved database resolves its skills; the caller's is the fallback for a
+    config that carried none."""
+    from agno.db.sqlite import SqliteDb
+
+    config_db = _make_db(tmp_path)
+    _create_skill_row(config_db)
+    explicit_db = SqliteDb(db_file=str(tmp_path / "explicit.db"))
+    explicit_db.create_skill(
+        {
+            "name": "release-notes",
+            "description": "Skill release-notes",
+            "instructions": "Instructions from the explicit database.",
+        }
+    )
+    config = Team(name="test-team", members=[], db=config_db, skills=Skills(loaders=[DbSkills(config_db)])).to_dict()
+
+    for _ in range(2):
+        loaded = Team.from_dict(config, db=explicit_db)
+
+        assert loaded.skills is not None
+        instructions = json.loads(loaded.skills._get_skill_instructions("release-notes"))
+        assert instructions["instructions"] == "Instructions for release-notes."
+
+
+def test_strict_load_resolves_skills_against_the_configs_own_db(tmp_path):
+    from agno.db.sqlite import SqliteDb
+
+    own = SqliteDb(db_file=str(tmp_path / "own.db"), skills_table="my_skills")
+    own.create_skill({"name": "release-notes", "description": "d", "instructions": "i"})
+    catalog = _make_db(tmp_path)
+    team = Team(name="test-team", id="own-db-team", members=[], db=own, skills=Skills(loaders=[DbSkills(own)]))
+    version = team.save(db=catalog)
+    config = catalog.get_config(component_id="own-db-team", version=version)["config"]
+    assert config["db"]["skills_table"] == "my_skills"
+
+    for _ in range(2):
+        loaded = Team.from_dict(config, db=catalog, strict=True)
+        assert loaded.skills.get_skill_names() == ["release-notes"]
+        by_id = get_team_by_id(db=catalog, id="own-db-team", strict=True)
+        assert by_id is not None
+        assert by_id.skills.get_skill_names() == ["release-notes"]
+
+
+def test_a_config_db_without_a_skills_table_falls_back_to_the_callers_db(tmp_path):
+    from agno.db.in_memory import InMemoryDb
+    from agno.registry.registry import Registry
+
+    catalog = _make_db(tmp_path)
+    _create_skill_row(catalog)
+    own = InMemoryDb()
+    team = Team(name="test-team", id="memory-db-team", members=[], db=own, skills=Skills(loaders=[DbSkills(catalog)]))
+    version = team.save(db=catalog)
+    config = catalog.get_config(component_id="memory-db-team", version=version)["config"]
+    assert config["db"]["id"] == own.id
+    registry = Registry(dbs=[own])
+
+    for _ in range(2):
+        loaded = Team.from_dict(config, db=catalog, registry=registry, strict=True)
+        assert loaded.db is own
+        assert loaded.skills.get_skill_names() == ["release-notes"]
+        by_id = get_team_by_id(db=catalog, id="memory-db-team", registry=registry, strict=True)
+        assert by_id is not None
+        assert by_id.skills.get_skill_names() == ["release-notes"]
+
+
+def test_strict_load_raises_when_no_db_can_resolve_the_saved_skills(tmp_path):
+    from agno.exceptions import ComponentRehydrationError
+
+    db = _make_db(tmp_path)
+    _create_skill_row(db)
+    config = Team(
+        name="test-team", members=[], skills=Skills(loaders=[DbSkills(db, names=["release-notes"])])
+    ).to_dict()
+    assert "db" not in config
+
+    for _ in range(2):
+        with pytest.raises(ComponentRehydrationError, match="release-notes"):
+            Team.from_dict(config, strict=True)
+        assert Team.from_dict(config, strict=False).skills is None
+
+
+def test_strict_load_accepts_a_saved_skill_owned_by_another_user(tmp_path):
+    db = _make_db(tmp_path)
+    db.create_skill({"name": "alice-notes", "description": "d", "instructions": "i", "user_id": "alice"})
+    config = Team(
+        name="test-team", members=[], db=db, skills=Skills(loaders=[DbSkills(db, names=["alice-notes"])])
+    ).to_dict()
+    assert config["skills"] == {"names": ["alice-notes"]}
+
+    for _ in range(2):
+        team = Team.from_dict(config, db=db, strict=True)
+        assert team.skills is not None
+        assert "alice-notes" in team.skills.get_system_prompt_snippet(user_id="alice")
+
+
+def test_resave_during_outage_keeps_the_all_marker(tmp_path, monkeypatch):
+    """Healthy save, load during an outage, resave, recover: nothing saved is lost."""
+    from agno.db.sqlite import SqliteDb
+
+    db = _make_db(tmp_path)
+    _create_skill_row(db)
+    team = Team(name="test-team", members=[], db=db, skills=Skills(loaders=[DbSkills(db)]))
+    team.save()
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("database down")
+
+    # On the class: the load resolves skills through the db it reconstructs from the
+    # config, a different instance from the one this test holds.
+    with monkeypatch.context() as patched:
+        patched.setattr(SqliteDb, "get_skills_with_content", boom)
+        loaded = get_team_by_id(db, team.id)
+        assert loaded is not None and loaded.skills is not None
+        assert loaded.skills.get_skill_names() == []
+        loaded.save()
+
+    assert db.get_config(component_id=team.id)["config"]["skills"] == {"all": True}
+    recovered = get_team_by_id(db, team.id)
+    assert recovered is not None and recovered.skills is not None
+    assert "release-notes" in recovered.skills.get_system_prompt_snippet()
+
+
+def test_resave_of_fresh_instance_during_outage_keeps_the_all_marker(tmp_path):
+    """A redeploy during an outage must not erase the saved skills."""
+    db = _make_db(tmp_path)
+    _create_skill_row(db)
+    Team(id="boot-team", name="boot-team", members=[], db=db, skills=Skills(loaders=[DbSkills(db)])).save()
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("database down")
+
+    original = db.get_skills_with_content
+    db.get_skills_with_content = boom
+    fresh = Team(id="boot-team", name="boot-team", members=[], db=db, skills=Skills(loaders=[DbSkills(db)]))
+    fresh.save()
+    db.get_skills_with_content = original
+
+    assert db.get_config(component_id="boot-team")["config"]["skills"] == {"all": True}
+    recovered = get_team_by_id(db, "boot-team")
+    assert recovered is not None and recovered.skills is not None
+    assert "release-notes" in recovered.skills.get_system_prompt_snippet()
+
+
+def test_resave_during_partial_outage_keeps_the_all_marker(tmp_path):
+    """A names=None loader saves the marker whichever loaders are down."""
+    from agno.db.sqlite import SqliteDb
+
+    db = _make_db(tmp_path)
+    _create_skill_row(db, "skill-a")
+    _create_skill_row(db, "skill-b")
+    # A second handle on the same file, so one backend can fail while the other serves.
+    db2 = SqliteDb(db_file=str(tmp_path / "team-skills.db"))
+
+    loaders = [DbSkills(db, names=["skill-a"]), DbSkills(db2)]
+    Team(id="partial-team", name="partial-team", members=[], db=db, skills=Skills(loaders=loaders)).save()
+    assert db.get_config(component_id="partial-team")["config"]["skills"] == {"all": True}
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("database down")
+
+    original = db2.get_skills_with_content
+    db2.get_skills_with_content = boom
+    fresh = Team(
+        id="partial-team",
+        name="partial-team",
+        members=[],
+        db=db,
+        skills=Skills(loaders=[DbSkills(db, names=["skill-a"]), DbSkills(db2)]),
+    )
+    fresh.save()
+    db2.get_skills_with_content = original
+
+    assert db.get_config(component_id="partial-team")["config"]["skills"] == {"all": True}
+    recovered = get_team_by_id(db, "partial-team")
+    assert recovered is not None and recovered.skills is not None
+    snippet = recovered.skills.get_system_prompt_snippet()
+    assert "skill-a" in snippet and "skill-b" in snippet
+
+
+def test_deleted_skill_not_resurrected_when_loader_succeeded(tmp_path):
+    """A name deleted from the table is not carried in the saved config or resolved on load."""
+    db = _make_db(tmp_path)
+    _create_skill_row(db, "skill-a")
+    _create_skill_row(db, "skill-b")
+    Team(id="del-team", name="del-team", members=[], db=db, skills=Skills(loaders=[DbSkills(db)])).save()
+    assert db.get_config(component_id="del-team")["config"]["skills"] == {"all": True}
+
+    db.delete_skill("skill-b")
+    fresh = Team(id="del-team", name="del-team", members=[], db=db, skills=Skills(loaders=[DbSkills(db)]))
+    fresh.save()
+
+    assert db.get_config(component_id="del-team")["config"]["skills"] == {"all": True}
+    loaded = Team.load("del-team", db=db)
+    assert loaded is not None and loaded.skills is not None
+    assert loaded.skills.get_skill_names() == ["skill-a"]
+
+
+def test_first_save_during_outage_keeps_the_all_marker(tmp_path):
+    """With no prior config and the table unreachable, the first save still records the marker."""
+    db = _make_db(tmp_path)
+    _create_skill_row(db)
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("database down")
+
+    original = db.get_skills_with_content
+    db.get_skills_with_content = boom
+    team = Team(id="first-team", name="first-team", members=[], db=db, skills=Skills(loaders=[DbSkills(db)]))
+    team.save()
+    db.get_skills_with_content = original
+
+    assert db.get_config(component_id="first-team")["config"]["skills"] == {"all": True}
+
+
+def test_resave_after_successful_empty_load_keeps_the_all_marker(tmp_path):
+    """An empty table still saves the marker, so rows created later resolve on load."""
+    db = _make_db(tmp_path)
+    _create_skill_row(db)
+    Team(id="empty-team", name="empty-team", members=[], db=db, skills=Skills(loaders=[DbSkills(db)])).save()
+    db.delete_skill("release-notes")
+
+    fresh = Team(id="empty-team", name="empty-team", members=[], db=db, skills=Skills(loaders=[DbSkills(db)]))
+    fresh.save()
+
+    assert db.get_config(component_id="empty-team")["config"]["skills"] == {"all": True}
+    _create_skill_row(db, "added-later")
+    loaded = Team.load("empty-team", db=db)
+    assert loaded is not None and loaded.skills is not None
+    assert loaded.skills.get_skill_names() == ["added-later"]
+
+
+def test_graph_hydrated_member_agent_resolves_skills(tmp_path):
+    """Team.load's graph path hydrates member agents with their skills resolved.
+
+    _hydrate_from_graph builds members from preloaded child graphs, bypassing
+    get_agent_by_id, and those copies replace the members from_dict resolved —
+    so the db has to reach that Agent.from_dict call too.
+    """
+    from agno.agent.agent import Agent
+    from agno.team import _storage as team_storage
+
+    db = _make_db(tmp_path)
+    _create_skill_row(db)
+    member = Agent(name="member-agent", db=db, skills=Skills(loaders=[DbSkills(db)]))
+    team = Team(name="graph-team", members=[member], db=db)
+    team.save()
+
+    graph = db.load_component_graph(team.id)
+    loaded = team_storage._hydrate_from_graph(Team, graph, db=db)
+
+    assert loaded is not None
+    loaded_member = loaded.members[0]
+    assert loaded_member.skills is not None
+    assert "release-notes" in loaded_member.skills.get_system_prompt_snippet()
+
+
+class _TeamSandboxExecutor(SkillExecutor):
+    def run(self, script_path, *, args=None, timeout=30, cwd=None):
+        raise AssertionError("the sandbox executor should not run on the host")
+
+
+def test_team_from_dict_refuses_to_load_a_recorded_executor_that_is_missing(tmp_path):
+    """The team twin: a sandbox policy must not silently become host execution."""
+    from agno.db.sqlite import SqliteDb
+    from agno.exceptions import ComponentRehydrationError
+
+    db = SqliteDb(db_file=str(tmp_path / "team_exec.db"))
+    db.create_skill({"name": "greeter", "description": "d", "instructions": "i"})
+    team = Team(
+        name="t",
+        id="t",
+        members=[],
+        db=db,
+        skills=Skills(loaders=[DbSkills(db)], executor=_TeamSandboxExecutor()),
+    )
+    config = team.to_dict()
+    assert config["skills"]["requires_executor"] is True
+
+    with pytest.raises(ComponentRehydrationError, match="executor"):
+        Team.from_dict(config, db=db)
+
+    restored = Team.from_dict(config, db=db, skill_executor=_TeamSandboxExecutor())
+    assert isinstance(restored.skills.executor, _TeamSandboxExecutor)
+
+
+def test_get_team_by_id_reports_a_missing_executor_as_a_rehydration_error(tmp_path):
+    """The team twin: the refusal must be the one error DB-backed callers let through."""
+    from agno.db.sqlite import SqliteDb
+    from agno.exceptions import ComponentRehydrationError
+
+    db = SqliteDb(db_file=str(tmp_path / "team_exec_by_id.db"))
+    db.create_skill({"name": "greeter", "description": "d", "instructions": "i"})
+    Team(
+        name="t",
+        id="t-by-id",
+        members=[],
+        db=db,
+        skills=Skills(loaders=[DbSkills(db)], executor=_TeamSandboxExecutor()),
+    ).save(db=db)
+
+    for _ in range(2):
+        with pytest.raises(ComponentRehydrationError, match="skill_executor="):
+            get_team_by_id(db=db, id="t-by-id")
+
+
+def test_teams_route_answers_a_missing_executor_with_the_rehydration_status(tmp_path):
+    from fastapi.testclient import TestClient
+
+    from agno.db.sqlite import SqliteDb
+    from agno.os import AgentOS
+
+    db = SqliteDb(db_file=str(tmp_path / "team_exec_route.db"))
+    db.create_skill({"name": "greeter", "description": "d", "instructions": "i"})
+    Team(
+        name="t",
+        id="t-route",
+        members=[],
+        db=db,
+        skills=Skills(loaders=[DbSkills(db)], executor=_TeamSandboxExecutor()),
+    ).save(db=db)
+    client = TestClient(AgentOS(db=db, teams=[Team(name="placeholder", id="placeholder", members=[], db=db)]).get_app())
+
+    for _ in range(2):
+        response = client.get("/teams/t-route")
+        assert response.status_code == 422, response.text
+        assert "skill_executor=" in response.json()["detail"]
+
+
+def test_team_with_the_default_executor_round_trips_unchanged(tmp_path):
+    from agno.db.sqlite import SqliteDb
+    from agno.skills.executor import LocalSkillExecutor
+
+    db = SqliteDb(db_file=str(tmp_path / "team_default.db"))
+    db.create_skill({"name": "greeter", "description": "d", "instructions": "i"})
+    team = Team(name="t", id="t", members=[], db=db, skills=Skills(loaders=[DbSkills(db)]))
+
+    config = team.to_dict()
+    assert "requires_executor" not in config["skills"]
+    assert type(Team.from_dict(config, db=db).skills.executor) is LocalSkillExecutor
+
+
+# ============================================================================
+# THE EXECUTOR ACROSS THE PUBLIC load() API
+# ============================================================================
+
+
+def _team_db(tmp_path, name="team_exec_load.db"):
+    """Postgres, not SQLite: Team.load passes label= to load_component_graph, which the
+    SQLite backend's signature does not accept (a pre-existing gap, unrelated to skills),
+    so Team.load cannot run on SQLite at all."""
+    import pytest as _pytest
+
+    from agno.db.postgres import PostgresDb
+
+    try:
+        db = PostgresDb(db_url="postgresql+psycopg://postgres:test@localhost:5433/skillstest")
+        if db.get_skill("greeter") is None:
+            db.create_skill({"name": "greeter", "description": "d", "instructions": "i"})
+    except Exception as exc:  # pragma: no cover - depends on a local server
+        _pytest.skip(f"postgres not available: {exc}")
+    return db
+
+
+def test_team_load_refuses_a_sandboxed_team_without_an_executor(tmp_path):
+    """The refusal holds through Team.load, not only from_dict."""
+    from agno.exceptions import ComponentRehydrationError
+
+    db = _team_db(tmp_path)
+    team = Team(
+        name="t",
+        id="t-refuse",
+        members=[],
+        db=db,
+        skills=Skills(loaders=[DbSkills(db)], executor=_TeamSandboxExecutor()),
+    )
+    team.save(db=db)
+
+    with pytest.raises(ComponentRehydrationError, match="executor"):
+        Team.load("t-refuse", db=db)
+
+
+def test_team_load_accepts_a_re_supplied_executor(tmp_path):
+    """Re-supplying the executor loads the sandboxed team."""
+    db = _team_db(tmp_path)
+    team = Team(
+        name="t",
+        id="t-supply",
+        members=[],
+        db=db,
+        skills=Skills(loaders=[DbSkills(db)], executor=_TeamSandboxExecutor()),
+    )
+    team.save(db=db)
+
+    loaded = Team.load("t-supply", db=db, skill_executor=_TeamSandboxExecutor())
+
+    assert loaded is not None
+    assert isinstance(loaded.skills.executor, _TeamSandboxExecutor)
+
+
+def test_team_load_supplies_the_executor_to_a_sandboxed_member(tmp_path):
+    """The fan-out: a member agent's skills are rebuilt during team hydration too.
+
+    Without threading the executor to the member site, hydrating a team whose member was
+    saved under a sandbox would raise with nothing to catch it.
+    """
+    from agno.agent import Agent
+
+    db = _team_db(tmp_path, "team_member_exec.db")
+    member = Agent(
+        name="m",
+        id="m-sandboxed",
+        db=db,
+        skills=Skills(loaders=[DbSkills(db)], executor=_TeamSandboxExecutor()),
+    )
+    member.save(db=db)
+    team = Team(name="t", id="t-with-member", members=[member], db=db)
+    team.save(db=db)
+
+    loaded = Team.load("t-with-member", db=db, skill_executor=_TeamSandboxExecutor())
+
+    assert loaded is not None
+    hydrated = [m for m in loaded.members if getattr(m, "id", None) == "m-sandboxed"]
+    assert hydrated, "the sandboxed member was not hydrated"
+    assert isinstance(hydrated[0].skills.executor, _TeamSandboxExecutor)
+
+
+def test_team_load_of_a_default_executor_team_is_unchanged(tmp_path):
+    from agno.skills.executor import LocalSkillExecutor
+
+    db = _team_db(tmp_path, "team_default_load.db")
+    team = Team(name="t", id="t-default", members=[], db=db, skills=Skills(loaders=[DbSkills(db)]))
+    team.save(db=db)
+
+    loaded = Team.load("t-default", db=db)
+
+    assert loaded is not None
+    assert type(loaded.skills.executor) is LocalSkillExecutor
+
+
+# ============================================================================
+# LISTINGS
+# ============================================================================
+
+
+def _save_sandboxed_team(db, team_id: str = "sandboxed-team") -> None:
+    skills = Skills(loaders=[DbSkills(db, names=["greeter"])], executor=_TeamSandboxExecutor())
+    Team(id=team_id, name=team_id, members=[], db=db, skills=skills).save()
+
+
+def test_listing_shows_a_sandboxed_team_without_its_skills(tmp_path):
+    """Team twin: listed with its skills left off and marked; a save of the listed object
+    refuses rather than erase the stored names and marker."""
+    db = _make_db(tmp_path)
+    _create_skill_row(db, "greeter")
+    _save_sandboxed_team(db)
+    stored = {"names": ["greeter"], "requires_executor": True}
+
+    for _ in range(2):
+        listed = {team.id: team for team in get_teams(db)}
+        assert "sandboxed-team" in listed
+        team = listed["sandboxed-team"]
+        assert team.skills is None
+        assert team._degraded_skills == stored
+        with pytest.raises(ValueError, match="skill_executor"):
+            team.save()
+        assert db.get_config(component_id="sandboxed-team")["config"]["skills"] == stored
+
+
+def test_load_from_dict_and_dispatch_still_refuse_a_sandboxed_team(tmp_path):
+    """Team twin: the default load, a direct from_dict and the dispatch helper keep refusing."""
+    from agno.exceptions import ComponentRehydrationError
+    from agno.os.utils import get_team_by_id as dispatch_team_by_id
+
+    db = _make_db(tmp_path)
+    _create_skill_row(db, "greeter")
+    _save_sandboxed_team(db)
+    config = db.get_config(component_id="sandboxed-team")["config"]
+
+    for _ in range(2):
+        with pytest.raises(ComponentRehydrationError, match="executor"):
+            Team.load("sandboxed-team", db=db)
+        with pytest.raises(ComponentRehydrationError, match="executor"):
+            Team.from_dict(config)
+        with pytest.raises(ComponentRehydrationError, match="executor"):
+            Team.from_dict(config, db=db)
+        with pytest.raises(ComponentRehydrationError, match="executor"):
+            get_team_by_id(db, "sandboxed-team")
+        with pytest.raises(ComponentRehydrationError, match="executor"):
+            dispatch_team_by_id("sandboxed-team", teams=None, db=db)
+    assert db.get_config(component_id="sandboxed-team")["config"]["skills"] == {
+        "names": ["greeter"],
+        "requires_executor": True,
+    }
+
+
+def test_listing_builds_skills_without_reading_them(tmp_path, monkeypatch):
+    """Team twin: a listing runs no skills query, a load and the dispatch helper read eagerly,
+    and a listed team reads on its first use."""
+    from agno.db.sqlite import SqliteDb
+
+    db = _make_db(tmp_path)
+    _create_skill_row(db, "greeter")
+    for n in range(3):
+        skills = Skills(loaders=[DbSkills(db, names=["greeter"])])
+        Team(id=f"plain-{n}", name=f"plain-{n}", members=[], db=db, skills=skills).save()
+    reads = []
+    original = SqliteDb.get_skills_with_content
+
+    def counting(self, *args, **kwargs):
+        reads.append(kwargs.get("names"))
+        return original(self, *args, **kwargs)
+
+    monkeypatch.setattr(SqliteDb, "get_skills_with_content", counting)
+
+    for _ in range(2):
+        reads.clear()
+        listed = sorted(get_teams(db), key=lambda team: team.id)
+        assert [team.id for team in listed] == ["plain-0", "plain-1", "plain-2"]
+        assert reads == []
+        for team in listed:
+            assert team.skills is not None and team.skills.has_unloaded_loaders()
+            assert team.skills.get_skill_names() == []
+            assert team.skills.get_skills_from_db() == ["greeter"]
+            assert team.to_dict()["skills"] == {"names": ["greeter"]}
+
+        reads.clear()
+        assert Team.load("plain-0", db=db).skills.get_skill_names() == ["greeter"]
+        assert len(reads) == 1
+        reads.clear()
+        assert get_team_by_id(db, "plain-1").skills.get_skill_names() == ["greeter"]
+        assert len(reads) == 1
+
+    listed_team = get_teams(db)[0]
+    reads.clear()
+    assert "greeter" in listed_team.skills.get_system_prompt_snippet()
+    assert len(reads) == 1 and not listed_team.skills.has_unloaded_loaders()
+    listed_team.skills.reload()
+    assert listed_team.skills.get_skill_names() == ["greeter"]
+
+
+def test_strict_load_refuses_an_async_skills_db_it_cannot_check(tmp_path):
+    """Team twin: strict refuses an async skills database it cannot read; lenient still loads."""
+    from agno.db.sqlite.async_sqlite import AsyncSqliteDb
+    from agno.exceptions import ComponentRehydrationError
+
+    db = _make_db(tmp_path)
+    _create_skill_row(db, "greeter")
+    config = Team(name="t", members=[], skills=Skills(loaders=[DbSkills(db, names=["greeter"])])).to_dict()
+    async_db = AsyncSqliteDb(db_file=str(tmp_path / "agent-skills.db"))
+
+    for _ in range(2):
+        with pytest.raises(ComponentRehydrationError, match="async"):
+            Team.from_dict(config, db=async_db, strict=True)
+        lenient = Team.from_dict(config, db=async_db)
+        assert lenient.skills is not None and lenient.skills.has_unloaded_loaders()
+        assert Team.from_dict(config, db=db, strict=True).skills.get_skill_names() == ["greeter"]
+
+
+# ============================================================================
+# SAVES WHILE A LOADER HAS NOT LOADED (ASYNC SKILLS DATABASE)
+# ============================================================================
+
+
+def _async_skills_dbs(tmp_path):
+    """A sync and an async handle on one file: the async one never loads eagerly."""
+    from agno.db.sqlite import SqliteDb
+    from agno.db.sqlite.async_sqlite import AsyncSqliteDb
+
+    path = str(tmp_path / "async-skills.db")
+    sync_db = SqliteDb(db_file=path)
+    sync_db.create_skill({"name": "greeter", "description": "d", "instructions": "i"})
+    return sync_db, AsyncSqliteDb(db_file=path)
+
+
+def test_resave_keeps_the_executor_marker_while_a_loader_has_not_loaded(tmp_path):
+    """A second save must not drop requires_executor, or the load falls back to the host executor."""
+    sync_db, async_db = _async_skills_dbs(tmp_path)
+    skills = Skills(loaders=[DbSkills(async_db, names=["greeter"])], executor=_TeamSandboxExecutor())
+    component = Team(name="s", id="sandboxed", members=[], db=sync_db, skills=skills)
+
+    for _ in range(2):
+        component.save()
+        saved = sync_db.get_config(component_id="sandboxed")["config"]["skills"]
+        assert saved == {"names": ["greeter"], "requires_executor": True}
+        with pytest.raises(ComponentRehydrationError, match="executor"):
+            Team.load("sandboxed", db=sync_db)
+
+
+def test_first_save_with_an_unloaded_all_rows_loader_round_trips(tmp_path):
+    """names=None on an async database has loaded nothing at save time; the marker still resolves every row."""
+    sync_db, async_db = _async_skills_dbs(tmp_path)
+    Team(name="s", id="all-rows", members=[], db=sync_db, skills=Skills(loaders=[DbSkills(async_db)])).save()
+
+    assert sync_db.get_config(component_id="all-rows")["config"]["skills"] == {"all": True}
+    for _ in range(2):
+        loaded = Team.load("all-rows", db=sync_db)
+        assert loaded is not None and loaded.skills is not None
+        assert loaded.skills.get_skill_names() == ["greeter"]
+
+
+# ============================================================================
+# THE ALL MARKER ON THE LISTING, DEGRADED AND STRICT PATHS
+# ============================================================================
+
+
+def test_listing_builds_an_all_rows_loader_without_reading_and_a_resave_keeps_the_marker(tmp_path, monkeypatch):
+    """A listed all-rows team reads nothing, serializes the marker from configuration alone, a
+    save from the listing keeps it, and the first use reads every row."""
+    from agno.db.sqlite import SqliteDb
+
+    db = _make_db(tmp_path)
+    _create_skill_row(db, "release-notes")
+    Team(id="all-rows", name="all-rows", members=[], db=db, skills=Skills(loaders=[DbSkills(db)])).save()
+    reads = []
+    original = SqliteDb.get_skills_with_content
+
+    def counting(self, *args, **kwargs):
+        reads.append(kwargs.get("names"))
+        return original(self, *args, **kwargs)
+
+    monkeypatch.setattr(SqliteDb, "get_skills_with_content", counting)
+    for _ in range(2):
+        reads.clear()
+        listed = next(team for team in get_teams(db) if team.id == "all-rows")
+        assert reads == []
+        assert listed.skills is not None and listed.skills.has_unloaded_loaders()
+        assert listed.to_dict()["skills"] == {"all": True}
+        listed.save()
+        assert db.get_config(component_id="all-rows")["config"]["skills"] == {"all": True}
+    _create_skill_row(db, "added-later")
+    snippet = listed.skills.get_system_prompt_snippet()
+    assert "release-notes" in snippet and "added-later" in snippet
+
+
+def test_listing_shows_a_sandboxed_all_rows_team_without_its_skills(tmp_path):
+    """The degraded marker holds for the all shape: listed without skills, a save refuses, and the
+    stored block keeps both the marker and the executor requirement."""
+    db = _make_db(tmp_path)
+    _create_skill_row(db, "release-notes")
+    skills = Skills(loaders=[DbSkills(db)], executor=_TeamSandboxExecutor())
+    Team(id="sandboxed", name="sandboxed", members=[], db=db, skills=skills).save()
+    stored = {"all": True, "requires_executor": True}
+    assert db.get_config(component_id="sandboxed")["config"]["skills"] == stored
+
+    for _ in range(2):
+        listed = next(team for team in get_teams(db) if team.id == "sandboxed")
+        assert listed.skills is None
+        with pytest.raises(ValueError, match="listed without its skills"):
+            listed.save()
+        assert db.get_config(component_id="sandboxed")["config"]["skills"] == stored
+        with pytest.raises(ComponentRehydrationError, match="executor"):
+            Team.load("sandboxed", db=db)
+        loaded = Team.load("sandboxed", db=db, skill_executor=_TeamSandboxExecutor())
+        assert loaded.skills.get_skill_names() == ["release-notes"]
+
+
+async def test_strict_load_of_the_all_shape_on_an_async_db_reads_on_the_first_async_prompt(tmp_path):
+    """Strict verifies saved names, which a sync load cannot read from an async database; the all
+    marker names nothing, so strict has nothing to refuse and the first async prompt reads every row."""
+    _, async_db = _async_skills_dbs(tmp_path)
+
+    for _ in range(2):
+        loaded = Team.from_dict({"name": "t", "skills": {"all": True}}, db=async_db, strict=True)
+        assert loaded.skills is not None and loaded.skills.has_unloaded_loaders()
+        assert "greeter" in await loaded.skills.aget_system_prompt_snippet()
+        assert loaded.skills.get_skill_names() == ["greeter"]
+
+
+def test_the_all_shape_with_no_db_is_dropped_leniently_and_refused_strictly(monkeypatch):
+    """The marker with nothing to resolve it against: dropped with a warning that names all
+    skills, refused strictly."""
+    warnings: List[str] = []
+    monkeypatch.setattr("agno.team._storage.log_warning", warnings.append)
+
+    for _ in range(2):
+        assert Team.from_dict({"name": "t", "skills": {"all": True}}).skills is None
+        with pytest.raises(ComponentRehydrationError, match="all skills"):
+            Team.from_dict({"name": "t", "skills": {"all": True}}, strict=True)
+    assert any("all skills" in w for w in warnings)
+
+
+def test_a_reloaded_all_rows_team_resolves_each_users_own_rows(tmp_path):
+    """After a load the marker resolves per user: alice's prompt carries alice's row and not
+    bob's, the shared mapping holds the shared row only, and a resave keeps the marker."""
+    db = _make_db(tmp_path)
+    db.create_skill({"name": "alice-skill", "description": "d", "instructions": "i", "user_id": "alice"})
+    db.create_skill({"name": "bob-skill", "description": "d", "instructions": "i", "user_id": "bob"})
+    db.create_skill({"name": "shared-skill", "description": "d", "instructions": "i"})
+    Team(name="scoped", id="scoped", members=[], db=db, skills=Skills(loaders=[DbSkills(db)])).save()
+
+    for _ in range(2):
+        loaded = Team.load("scoped", db=db)
+        assert loaded.skills.get_skill_names() == ["shared-skill"]
+        alice = loaded.skills.get_system_prompt_snippet(user_id="alice")
+        assert "alice-skill" in alice and "bob-skill" not in alice
+        bob = loaded.skills.get_system_prompt_snippet(user_id="bob")
+        assert "bob-skill" in bob and "alice-skill" not in bob
+        assert loaded.to_dict()["skills"] == {"all": True}

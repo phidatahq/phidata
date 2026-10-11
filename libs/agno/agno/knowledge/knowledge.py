@@ -1216,11 +1216,13 @@ class Knowledge(RemoteKnowledge):
 
         self.vector_db = cast(VectorDb, self.vector_db)
 
+        _original_search_type: Optional[SearchType] = None
         if (
             hasattr(self.vector_db, "search_type")
             and isinstance(self.vector_db.search_type, SearchType)
             and search_type
         ):
+            _original_search_type = self.vector_db.search_type
             self.vector_db.search_type = SearchType(search_type)
         try:
             if self.vector_db is None:
@@ -1256,6 +1258,9 @@ class Knowledge(RemoteKnowledge):
         except Exception as e:
             log_error(f"Error searching for documents: {str(e)}")
             return []
+        finally:
+            if _original_search_type is not None:
+                self.vector_db.search_type = _original_search_type
 
     async def asearch(
         self,
@@ -1281,11 +1286,13 @@ class Knowledge(RemoteKnowledge):
         from agno.vectordb.search import SearchType
 
         self.vector_db = cast(VectorDb, self.vector_db)
+        _original_search_type: Optional[SearchType] = None
         if (
             hasattr(self.vector_db, "search_type")
             and isinstance(self.vector_db.search_type, SearchType)
             and search_type
         ):
+            _original_search_type = self.vector_db.search_type
             self.vector_db.search_type = SearchType(search_type)
         try:
             if self.vector_db is None:
@@ -1330,6 +1337,9 @@ class Knowledge(RemoteKnowledge):
         except Exception as e:
             log_error(f"Error searching for documents: {str(e)}")
             return []
+        finally:
+            if _original_search_type is not None:
+                self.vector_db.search_type = _original_search_type
 
     # ==========================================
     # PUBLIC API - CONTENT MANAGEMENT METHODS

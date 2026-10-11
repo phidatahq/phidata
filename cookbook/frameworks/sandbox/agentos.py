@@ -28,13 +28,13 @@ def create_agent_os() -> AgentOS:
         raise ValueError("SANDBOX_HARNESS must be claude, codex or fixture")
     # Explicitly forward only model credentials. Service Postgres/Redis settings
     # remain outside compute. Configure remote MCP credentials in runtime_config.
-    runtime_env = {
-        key: os.environ[key]
-        for key in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY")
-        if key in os.environ
-    }
     if harness == "fixture":
         runtime_env = {"AGNO_SANDBOX_TEST_RUNTIME": "1"}
+    else:
+        credential = "ANTHROPIC_API_KEY" if harness == "claude" else "OPENAI_API_KEY"
+        runtime_env = (
+            {credential: os.environ[credential]} if credential in os.environ else {}
+        )
     agent = SandboxAgent(
         id="coder",
         coordinator=SandboxCoordinator(store, provider, transfer),

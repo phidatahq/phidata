@@ -609,11 +609,16 @@ class BaseExternalAgent:
         """
         if self.db is None:
             return
+        from agno.run.status_persist import apersist_worker_owned_run
         from agno.session._utils import resolve_run_index
 
         session.upsert_run(run=run_output)
         user_id = run_output.user_id or session.user_id
         try:
+            # A queued attempt's write goes through the attempt fence, so a stale attempt cannot
+            # overwrite the row a newer attempt owns.
+            if await apersist_worker_owned_run(self.db, run_output, session.session_id, user_id):
+                return
             run_index = resolve_run_index(session, run_output)
             if isinstance(self.db, AsyncBaseDb):
                 await self.db.upsert_run(
@@ -661,6 +666,8 @@ class BaseExternalAgent:
         live = _live_handles.get(run_id)
         if live is not None and not live.loop.is_closed():
             asyncio.run_coroutine_threadsafe(live.agent._ainterrupt_live_handle(run_id), live.loop)
+        elif not registered:
+            run_coroutine_sync(self._acancel_unowned_row(run_id))
         return registered
 
     async def acancel_run(self, run_id: str) -> bool:
@@ -676,7 +683,43 @@ class BaseExternalAgent:
                 await asyncio.wrap_future(
                     asyncio.run_coroutine_threadsafe(live.agent._ainterrupt_live_handle(run_id), live.loop)
                 )
+        elif not registered:
+            await self._acancel_unowned_row(run_id)
         return registered
+
+    async def _acancel_unowned_row(self, run_id: str) -> None:
+        """Mark this agent's pending or running row cancelled when no process has the run registered.
+
+        Such a row was left by a process that stopped mid-run. Nothing else finishes it, and it
+        keeps its session busy, so cancelling it is how the session is freed.
+        """
+        if self.db is None:
+            return
+        from agno.run.status_persist import apersist_run_transition
+
+        try:
+            if isinstance(self.db, AsyncBaseDb):
+                row = await self.db.get_run(run_id)
+            else:
+                row = self.db.get_run(run_id)
+            if isinstance(row, dict):
+                row = RunOutput.from_dict(row)
+            if not isinstance(row, RunOutput) or row.agent_id != self.get_id() or row.session_id is None:
+                return
+            if getattr(row.status, "value", row.status) not in (RunStatus.pending.value, RunStatus.running.value):
+                return
+            row.status = RunStatus.cancelled
+            extra_fields = None
+            if not row.content:
+                row.content = "Run cancelled"
+                extra_fields = {"content": row.content}
+            await apersist_run_transition(
+                self, "agent", row.session_id, row, user_id=row.user_id, extra_fields=extra_fields
+            )
+        except Exception as error:
+            log_warning(
+                f"Could not mark unowned run {run_id} cancelled for {self.framework} agent '{self.id}': {error}"
+            )
 
     def _set_run_handle(self, run_id: str, handle: Any) -> None:
         _live_handles[run_id] = _LiveHandle(self, handle, asyncio.get_running_loop(), owner=_handle_owner.get())
@@ -955,17 +998,39 @@ class BaseExternalAgent:
                 return run
         return None
 
-    def _assert_session_free(self, session: Any, session_id: str, run_id: str) -> None:
+    @staticmethod
+    def _run_ahead(session: Any, run_id: str) -> Optional[RunOutput]:
+        """The unfinished run a turn starting as ``run_id`` must wait for.
+
+        A running row always blocks. A pending row blocks only when it was accepted before
+        ``run_id`` (session runs are in acceptance order), so two queued turns do not each
+        refuse the other. A run with no row of its own counts as accepted last.
+        """
+        ahead = True
+        for run in getattr(session, "runs", None) or []:
+            if run.run_id == run_id:
+                ahead = False
+                continue
+            status = getattr(run.status, "value", run.status)
+            if status == RunStatus.running.value or (ahead and status == RunStatus.pending.value):
+                return run
+        return None
+
+    def _assert_session_free(self, session: Any, session_id: str, run_id: str, starting: bool = False) -> None:
         """Raise SessionBusyError when another turn is in flight on the session.
 
         Two checks: the turns this process is running (exact, no database needed), then the
         session's stored runs, where a pending or running row is a turn accepted on any
-        replica. A row left unfinished by a crash keeps the session busy until that run is
+        replica. At submission any unfinished row blocks; when a turn starts, only rows ahead
+        of it do. A row left unfinished by a crash keeps the session busy until that run is
         cancelled, so the error names the run.
         """
         other = self._sessions_in_flight.get(session_id)
         if other is None:
-            blocking = self._run_in_flight(session, exclude_run_id=run_id)
+            if starting:
+                blocking = self._run_ahead(session, run_id)
+            else:
+                blocking = self._run_in_flight(session, exclude_run_id=run_id)
             other = blocking.run_id if blocking is not None else None
         if other is not None and other != run_id:
             raise SessionBusyError(
@@ -977,7 +1042,7 @@ class BaseExternalAgent:
 
     def _claim_session(self, session: Any, session_id: str, run_id: str) -> None:
         """Hold the session for one turn of ``run_id``; a second turn is rejected until released."""
-        self._assert_session_free(session, session_id, run_id)
+        self._assert_session_free(session, session_id, run_id, starting=True)
         self._sessions_in_flight[session_id] = run_id
 
     def _release_session(self, session_id: str, run_id: str) -> None:

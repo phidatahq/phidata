@@ -183,3 +183,13 @@ Python 3.9 follow-up: 76 sandbox unit tests, 40 real Postgres cases and 12 Agent
 **Result:** 5 passed. Format/validation passed. `hosted_workload.py --provider e2b` is prepared but has not run against an E2B account; template permissions, quotas, networking, and native harness behavior remain live acceptance gates.
 
 ---
+
+### Daytona installed-SDK contract
+
+**Status:** PASS
+
+**Description:** Five tests against Daytona 0.223.1 without provider calls verify both transport retry configurations, creation/lifetime/network parameters, stopped-compute refusal, confirmed deletion, inventory ownership labels and bounded stream cleanup.
+
+**Result:** 5 passed; SDK deprecation warnings observed. Required format/validation passed. The live Daytona workload remains unrun pending account/snapshot setup and a compute budget.
+
+---

@@ -189,3 +189,29 @@ Allocation and control HTTP retries are disabled. Expiry kills compute and the
 next turn restores from the last completed checkpoint. SDK contract tests run
 without network; live account, template, filesystem permissions and both native
 harnesses still need acceptance.
+
+### Daytona (live acceptance required)
+
+Install `agno[daytona-sandbox]` with Python 3.10+ (SDK pinned to 0.223.1), set
+`DAYTONA_API_KEY` on the service, and prepare a snapshot containing the hosted
+runtime. The default example requests 2 CPUs and 2 GiB memory; configure the
+snapshot to match. Its managed directories must be empty and the provider must
+allow root control commands. Agent commands still drop privileges.
+
+```bash
+python cookbook/frameworks/sandbox/hosted_workload.py --provider daytona --image YOUR_SNAPSHOT_NAME
+```
+
+Use `DaytonaSandboxProvider(namespace, journal)` with the same coordinator/transfer
+wiring as E2B. Optional `api_url` and `target` select the customer deployment.
+The adapter disables idle stop/pause/archive and sets an absolute TTL, rounded
+up to minutes. It waits for deletion to finish before releasing capacity. Both
+control and toolbox retries are disabled, including the SDK's default retry of
+commands after disconnected responses. The pinned SDK's polling mode avoids
+background websocket connections during adapter construction; that mode currently
+emits a deprecation warning and must be revisited on SDK upgrade.
+
+Installed-SDK tests verify parameter models, retry configuration, ownership label
+filtering, stopped-compute refusal, deletion waits and bounded stream cleanup.
+They do not establish live snapshot permissions, resource/network enforcement or
+native-model behavior. The opt-in workload creates billable compute.

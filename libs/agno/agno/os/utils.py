@@ -200,16 +200,23 @@ async def get_request_kwargs(request: Request, endpoint_func: Callable) -> Dict[
         "input_files": ("files", reconstruct_files),
     }
     for form_key, (kwarg_key, reconstructor) in media_params.items():
-        media_value = kwargs.get(form_key)
-        if not media_value or not isinstance(media_value, str):
+        if form_key not in kwargs:
             continue
-        kwargs.pop(form_key)
+        media_value = kwargs.pop(form_key)
         try:
-            reconstructed_media = reconstructor(drop_media_references(json.loads(media_value)))
-            if reconstructed_media:
-                kwargs[kwarg_key] = reconstructed_media
-        except json.JSONDecodeError as e:
-            log_warning(f"Invalid {form_key} parameter couldn't be loaded: {str(e)}")
+            decoded_media = json.loads(media_value) if isinstance(media_value, str) else media_value
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(
+                status_code=422, detail=f"Invalid {form_key}: expected a JSON array of objects"
+            ) from exc
+        if not isinstance(decoded_media, list) or any(not isinstance(item, dict) for item in decoded_media):
+            raise HTTPException(status_code=422, detail=f"Invalid {form_key}: expected a JSON array of objects")
+        # Storage reconstruction tolerates damaged historical entries. Incoming requests
+        # must instead fail as a whole, before a run can execute with missing inputs.
+        reconstructed_media = reconstructor(drop_media_references(decoded_media)) or []
+        if len(reconstructed_media) != len(decoded_media):
+            raise HTTPException(status_code=422, detail=f"Invalid {form_key}: could not reconstruct every media item")
+        kwargs[kwarg_key] = reconstructed_media
 
     if knowledge_filters := kwargs.get("knowledge_filters"):
         try:
@@ -251,24 +258,23 @@ async def get_request_kwargs(request: Request, endpoint_func: Callable) -> Dict[
     if isinstance(use_json_schema, str):
         use_json_schema = use_json_schema.lower() == "true"
 
-    if output_schema := kwargs.get("output_schema"):
+    if "output_schema" in kwargs:
+        output_schema = kwargs["output_schema"]
         try:
-            if isinstance(output_schema, str):
-                schema_dict = json.loads(output_schema)
-
-                if use_json_schema:
-                    # Keep as dict schema for direct JSON output
-                    kwargs["output_schema"] = schema_dict
-                else:
-                    # Convert to Pydantic model (default behavior)
-                    dynamic_model = json_schema_to_pydantic_model(schema_dict)
-                    kwargs["output_schema"] = dynamic_model
-        except json.JSONDecodeError as e:
-            kwargs.pop("output_schema")
-            log_warning(f"Invalid output_schema JSON: {output_schema}: {str(e)}")
-        except Exception as e:
-            kwargs.pop("output_schema")
-            log_warning(f"Failed to create output_schema model: {str(e)}")
+            schema_dict = json.loads(output_schema) if isinstance(output_schema, str) else output_schema
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(status_code=422, detail="Invalid output_schema: expected a JSON object schema") from exc
+        if not isinstance(schema_dict, dict) or schema_dict.get("type", "object") != "object":
+            raise HTTPException(status_code=422, detail="Invalid output_schema: expected a JSON object schema")
+        try:
+            if use_json_schema:
+                kwargs["output_schema"] = schema_dict
+            else:
+                kwargs["output_schema"] = json_schema_to_pydantic_model(schema_dict)
+        except (TypeError, ValueError, AttributeError) as exc:
+            raise HTTPException(
+                status_code=422, detail="Invalid output_schema: could not construct output model"
+            ) from exc
 
     # Parse boolean and null values
     for key, value in kwargs.items():

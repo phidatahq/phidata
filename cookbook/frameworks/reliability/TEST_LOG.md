@@ -268,3 +268,18 @@ Suggested wording:
 > need idempotency. Turns within a session should be serialized. Claude credential
 > refresh, metrics, step replay and the pending agent-retry changes still need
 > release acceptance before we promise the full reliability contract.
+
+### Session-busy HTTP keep-alive (2026-10-11)
+
+**Status:** PASS
+
+**Description:** A real Uvicorn HTTP server receives a `SessionBusyError` from
+Claude/Codex run dispatch or Claude continuation. The client then sends `/health`
+through its single-connection pool. Cases cover foreground/background requests
+and AgentOS-owned/custom FastAPI apps. No SDK/model calls.
+
+**Result:** The old route returned 409 then reset the pooled connection. The fixed
+route handles the conflict without an unhandled ASGI error and the health request
+uses the same TCP stream. Existing continuation-stream tests remain covered.
+
+---

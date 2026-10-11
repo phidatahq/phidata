@@ -340,3 +340,62 @@ async def test_runtime_validates_real_sqlite_result_before_checkpoint(tmp_path, 
     output = await runtime._execute(directory, {"sdk": "claude", "run_id": "r", "session_id": "s", "input": "hello"})
     assert output["run"]["content"] == "durable"
     assert (tmp_path / "native/history.db").exists()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("restored", [False, True])
+async def test_codex_home_exists_before_native_sdk_start(tmp_path, monkeypatch, restored):
+    from pathlib import Path
+
+    directory = tmp_path / "jobs" / "execution"
+    directory.mkdir(parents=True)
+    codex_home = tmp_path / "native" / "codex"
+    if restored:
+        codex_home.mkdir(parents=True)
+        (codex_home / "config.toml").write_text("restored configuration")
+    monkeypatch.setenv("HOME", "unused")
+    monkeypatch.setenv("CODEX_HOME", "unused")
+
+    def start(request, native):
+        assert Path(os.environ["CODEX_HOME"]) == codex_home
+        assert codex_home.is_dir()
+        if restored:
+            assert (codex_home / "config.toml").read_text() == "restored configuration"
+        raise RuntimeError("SDK startup reached")
+
+    monkeypatch.setattr(runtime, "_agent", start)
+    with pytest.raises(RuntimeError, match="SDK startup reached"):
+        await runtime._execute(directory, {"sdk": "codex", "run_id": "r", "session_id": "s", "input": "hello"})
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("sdk,api_key", [("codex", "test-key"), ("codex", None), ("claude", "test-key")])
+async def test_runtime_authenticates_codex_before_starting_turn(tmp_path, monkeypatch, sdk, api_key):
+    from types import SimpleNamespace
+
+    directory = tmp_path / "jobs" / "execution"
+    directory.mkdir(parents=True)
+    monkeypatch.setenv("HOME", "unused")
+    monkeypatch.setenv("CODEX_HOME", "unused")
+    if api_key:
+        monkeypatch.setenv("OPENAI_API_KEY", api_key)
+    else:
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    calls = []
+
+    class Agent:
+        db = SimpleNamespace(db_engine=SimpleNamespace(dispose=lambda: calls.append("disposed")))
+
+        async def alogin_api_key(self, key):
+            assert key == "test-key"
+            calls.append("authenticated")
+
+        async def arun(self, *args, **kwargs):
+            calls.append("started")
+            raise RuntimeError("Turn reached")
+            yield  # pragma: no cover
+
+    monkeypatch.setattr(runtime, "_agent", lambda *args: Agent())
+    with pytest.raises(RuntimeError, match="Turn reached"):
+        await runtime._execute(directory, {"sdk": sdk, "run_id": "r", "session_id": "s", "input": "hello"})
+    assert calls == (["authenticated"] if sdk == "codex" and api_key else []) + ["started", "disposed"]

@@ -153,3 +153,15 @@ Python 3.9 follow-up: 76 sandbox unit tests, 40 real Postgres cases and 12 Agent
 **Result:** 816 focused unit tests passed; 175 integration tests passed and 4 intentionally inapplicable controlled-interleaving backend variants skipped. The isolated wheel passed the actual HTTP background/replay, artifacts, retirement/recovery/history deletion, attachment restoration and coding-workload exercises. Required format/validation scripts passed. This verifies an unreleased local wheel, not a published package. No live models or hosted providers were exercised.
 
 ---
+
+### Live Docker native startup and recovery
+
+**Status:** PASS after fixes
+
+**Description:** Live Codex first exposed missing CODEX_HOME, then missing explicit app-server API-key login on a fresh computer. Create its native home before SDK startup and authenticate from the selected OPENAI_API_KEY on each restored computer. Native credential files remain excluded from checkpoints.
+
+**Result:** Claude and Codex both passed two-turn native identity/conversation/file continuity, checkpoint-failure finalization without repeating tools, and real HTTP background/reconnect/service-process replacement/retained replay. Eleven checkpoint archives excluded native auth files and selected API-key bytes. Runtime regression: 26 unit cases on Python 3.12 and 3.9; sandbox suite 108 passed, 4 optional SDK modules skipped; 8 real Docker runtime cases passed. Required scripts passed. Initial acceptance-probe assertion/setup mistakes were corrected separately; their successful model calls are included in the budget ledger.
+
+**Remaining:** A separate cross-replica cancellation race was reproduced: another stop claimant can replace cancellation intent with an error. Its fix and acceptance are tracked separately. Hosted acceptance remains deferred by the user. Live model budget is $100 total; metered/estimated completed calls remain below $1 at this checkpoint.
+
+---

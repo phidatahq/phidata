@@ -188,12 +188,18 @@ async def _execute(directory: Path, request: Dict[str, Any]) -> Dict[str, Any]:
     native = directory.parent.parent / "native"
     native.mkdir(exist_ok=True)
     os.environ["HOME"] = str(native)
-    os.environ["CODEX_HOME"] = str(native / "codex")
+    codex_home = native / "codex"
+    if request["sdk"] == "codex":
+        codex_home.mkdir(mode=0o700, exist_ok=True)
+    os.environ["CODEX_HOME"] = str(codex_home)
     from agno.sandbox.media import decode_media
 
     agent = _agent(request, native)
     run = None
     try:
+        if request["sdk"] == "codex" and os.environ.get("OPENAI_API_KEY"):
+            # Fresh computers have no native auth file; reauthenticate after every restore.
+            await agent.alogin_api_key(os.environ["OPENAI_API_KEY"])
         async for event in agent.arun(
             request["input"],
             run_id=request["run_id"],

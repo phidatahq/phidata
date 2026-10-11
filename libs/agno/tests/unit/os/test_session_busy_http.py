@@ -52,11 +52,17 @@ def test_busy_response_preserves_pooled_connection(agent_type, background, conti
             "/agents/busy-agent/runs/original/continue" if continuation else "/agents/busy-agent/runs",
             data={"message": "next", "session_id": "session", "stream": "false", "background": str(background).lower()},
         )
-        assert response.status_code == 409, response.text
-        if not custom_app:
+        unsupported_background = continuation and background
+        assert response.status_code == (501 if unsupported_background else 409), response.text
+        if unsupported_background:
+            assert "no continuation was started" in response.json()["detail"]
+        elif not custom_app:
             assert response.json()["error_type"] == "session_busy"
         health = client.get("/health")
         assert health.status_code == 200
         # A reconnect is not a pass: both responses must use the same TCP stream.
         assert health.extensions["network_stream"] is response.extensions["network_stream"]
-    run.assert_awaited_once()
+    if continuation and background:
+        run.assert_not_called()
+    else:
+        run.assert_awaited_once()

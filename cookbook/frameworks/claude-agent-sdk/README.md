@@ -70,6 +70,12 @@ Every run reports the tokens, cache usage and cost Claude Code returned for the 
 
 `cache_read_tokens` counts every API call inside the turn. Claude Code's system prompt, tool schemas and project context are a cached prefix of roughly 15k tokens, and a turn with one tool call makes two API calls, so a cache read figure around 30k for such a turn is expected. Cached reads are billed at a tenth of the input price, which is why cost stays low.
 
+## One turn per session
+
+Claude Code keeps one conversation per Agno session on its side (the transcript), and two turns writing to it at once corrupt it. A session therefore takes one turn at a time. A second turn started while one is in flight is refused before anything runs, with `SessionBusyError` (HTTP 409 from AgentOS, a `RunError` event with `error_type: session_busy` on a stream) naming the run in flight; no run is recorded for the refused turn. The check covers the turns this process is running and, when a database is configured, the session's pending and running run rows, so a turn accepted on another replica counts too.
+
+A run row left pending or running by a crash keeps its session busy until that run is cancelled. The durable queue sweeps crashed queued runs on its own; cancel an orphaned background run through the run cancellation endpoint. A queued turn on a busy session is re-driven after the queue's retry delay when `max_attempts` allows it, which serializes it behind the turn in flight; turns queued on one session run in the order they were accepted.
+
 ## Structured output
 
 `output_schema` takes a Pydantic model or a JSON Schema dict, on the agent or per run (`agent.run(..., output_schema=...)`), the same as an Agno `Agent`. The run content is the parsed model, or a dict for a JSON Schema, and `content_type` names it. Claude Code returns the object through a `StructuredOutput` tool call and then replies in prose: the streamed text is that reply, and the `RunCompleted` event and the stored run carry the parsed object. An answer that cannot be parsed stays text and a warning is logged. AgentOS's per-request `output_schema` form field reaches the agent the same way. The schema must describe a JSON object: Claude Code's structured output tool takes an object, and the API rejects an array or scalar root, so a `RootModel[List[...]]` or `{"type": "array"}` is refused with `ValueError` before the run; wrap the value in a model field. The `StructuredOutput` call Claude Code makes to deliver the object is not recorded as a tool call.
@@ -83,7 +89,7 @@ Every run reports the tokens, cache usage and cost Claude Code returned for the 
 
 ## Background runs and cancellation
 
-`background_cancel.py` serves the agent through AgentOS. Submit runs with `background=true`, poll the run endpoint, or use `stream=true` for indexed SSE. Runs continue after disconnects; the resume endpoint reads the configured event stream. Cancel through the run cancellation endpoint.
+`background_cancel.py` serves the agent through AgentOS. Submit runs with `background=true`, poll the run endpoint, or use `stream=true` for indexed SSE. Runs continue after disconnects; the resume endpoint reads the configured event stream. Cancel through the run cancellation endpoint. A run submitted with `stream=false` has no event stream to attach to later: nothing is published while it runs and no events are stored with it, so the resume endpoint answers with its status and zero events. Choose `stream=true` at submission when live or replayed events are needed, and poll the run endpoint otherwise.
 
 Run `background_cancel.py --verify` to start a real streamed turn, cancel after its first content event, and verify CANCELLED in the database. Multi-replica resume and cancellation require shared event-stream and cancellation-manager backends. Stored-event replay after the event-stream TTL is a follow-up.
 

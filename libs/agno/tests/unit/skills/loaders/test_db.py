@@ -420,12 +420,13 @@ async def test_a_users_async_refresh_fills_the_shared_mapping_once(async_sqlite_
     and the shared mapping would never fill."""
     await _seed_async_owned_skills(async_sqlite_db)
     skills = Skills(loaders=[DbSkills(async_sqlite_db)])
-    assert skills._loader_results == {}
+    assert skills.has_unloaded_loaders()
 
     for user in ("alice", "bob"):
         assert "shared-skill" in await skills.aget_system_prompt_snippet(user_id=user)
-        assert set(skills._loader_results) == {0}
+        assert not skills.has_unloaded_loaders()
         assert skills.get_skill_names() == ["shared-skill"]
+        assert skills.get_skills_from_db() == ["shared-skill"]
 
 
 async def test_a_tool_call_without_a_view_on_an_async_database_sees_the_shared_rows(async_sqlite_db) -> None:
@@ -464,3 +465,68 @@ def test_a_loader_without_owner_scoping_is_called_untouched(tmp_path, sqlite_db)
     # A refresh carrying a user must not pass it to the un-scoped loader.
     skills = Skills(loaders=[local])
     assert "greeter" in skills.get_system_prompt_snippet(user_id="alice")
+
+
+# ============================================================================
+# WHAT A SAVE PERSISTS
+# ============================================================================
+
+
+def _local_skill_folder(tmp_path, name="greeter"):
+    folder = tmp_path / name
+    folder.mkdir()
+    (folder / "SKILL.md").write_text(f"---\nname: {name}\ndescription: says hi\n---\n\nSay hello.\n", encoding="utf-8")
+    return tmp_path
+
+
+def test_only_database_backed_skills_are_persisted(tmp_path, sqlite_db, monkeypatch) -> None:
+    """A saved reference is resolved against the skills table on load, so only skills that
+    actually live there may be saved.
+
+    Persisting a filesystem skill's name would resolve it to whatever DB row happens to
+    share that name, or to nothing at all -- silently swapping the skill either way.
+    """
+    sqlite_db.create_skill({"name": "db-skill", "description": "d", "instructions": "i"})
+    skills = Skills(loaders=[LocalSkills(str(_local_skill_folder(tmp_path))), DbSkills(sqlite_db)])
+    assert sorted(skills._skills) == ["db-skill", "greeter"]
+
+    warnings: List[str] = []
+    monkeypatch.setattr("agno.skills.agent_skills.log_warning", warnings.append)
+
+    assert skills.get_skills_from_db() == ["db-skill"]
+    assert len(warnings) == 1
+    assert "greeter" in warnings[0]
+
+
+def test_database_backed_skills_still_round_trip(sqlite_db) -> None:
+    """The real case must be untouched: a database loader's skills are the names this answers."""
+    sqlite_db.create_skill({"name": "alpha", "description": "d", "instructions": "i"})
+    sqlite_db.create_skill({"name": "beta", "description": "d", "instructions": "i"})
+
+    skills = Skills(loaders=[DbSkills(sqlite_db)])
+
+    assert sorted(skills.get_skills_from_db()) == ["alpha", "beta"]
+
+
+def test_a_failed_database_load_still_persists_its_configured_names(sqlite_db, monkeypatch) -> None:
+    """The outage guard stays: a loader that never loaded still says what to resolve."""
+
+    def boom():
+        raise RuntimeError("database down")
+
+    skills = Skills(loaders=[DbSkills(sqlite_db, names=["alpha", "beta"])])
+    monkeypatch.setattr(sqlite_db, "Session", boom)
+    skills._refresh_loaders()
+
+    assert sorted(skills.get_skills_from_db()) == ["alpha", "beta"]
+
+
+def test_a_local_only_agent_persists_nothing(tmp_path, monkeypatch) -> None:
+    """With no database loader there is nothing resolvable, so nothing is saved."""
+    skills = Skills(loaders=[LocalSkills(str(_local_skill_folder(tmp_path)))])
+
+    warnings: List[str] = []
+    monkeypatch.setattr("agno.skills.agent_skills.log_warning", warnings.append)
+
+    assert skills.get_skills_from_db() == []
+    assert any("greeter" in w for w in warnings)

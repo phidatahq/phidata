@@ -69,3 +69,13 @@
 **Result:** Passed. Companion integration suite: 24 passed across PostgresDb and AsyncPostgresDb, including independent owners, lease expiry, queue attempt fencing, transaction rollback, lost acknowledgement, immutable staged output, deleted/recreated session isolation, external cancellation, and sync entry points. Review found and fixed native metadata overwriting service fields and old-session recovery reuse. Provider shutdown and archive verification remain coordinator responsibilities.
 
 ---
+
+### Strict native recovery and local persistence
+
+**Status:** PASS
+
+**Description:** Missing Claude/Codex native state fails without starting another conversation; new sessions still start normally. Failed local writes cannot emit terminal success. Runtime readback checks include a real SQLite round trip, with empty-event normalization handled by the RunOutput serializer.
+
+**Result:** 575 combined external-agent/sandbox unit cases passed on Python 3.12; 8 real Docker runtime cases passed with the rebuilt image, including installed SDK construction with both strict flags. No authenticated model calls. The combined suite emitted an aiosqlite background-thread teardown warning from an existing async test environment; the focused runtime tests passed without it. Required scripts passed.
+
+---

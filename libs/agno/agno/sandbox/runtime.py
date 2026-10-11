@@ -161,10 +161,15 @@ async def _fixture(directory: Path, request: Dict[str, Any]) -> Dict[str, Any]:
             "run_id": request["run_id"],
             "session_id": request["session_id"],
             "agent_id": request["agent_id"],
+            "user_id": request.get("user_id"),
             "status": "COMPLETED",
             "content": request["input"],
         },
-        "session": {"session_id": request["session_id"], "session_data": {"fixture": True}},
+        "session": {
+            "session_id": request["session_id"],
+            "user_id": request.get("user_id"),
+            "session_data": {"fixture": True},
+        },
     }
 
 
@@ -175,7 +180,15 @@ def _agent(request: Dict[str, Any], native: Path) -> Any:
     # database. It has no network credentials and is checkpointed after SDK drain.
     db = SqliteDb(db_file=str(native / "history.db"))
     config = dict(request.get("config", {}))
-    config.update(id=request["agent_id"], cwd="/workspace", db=db, retries=0, keep_uploads=True)
+    config.update(
+        id=request["agent_id"],
+        cwd="/workspace",
+        db=db,
+        retries=0,
+        keep_uploads=True,
+        require_native_resume=True,
+        strict_persistence=True,
+    )
     if request["sdk"] == "claude":
         from agno.agents.claude import ClaudeAgent
 
@@ -215,6 +228,12 @@ async def _execute(directory: Path, request: Dict[str, Any]) -> Dict[str, Any]:
         session = agent.get_session(request["session_id"], user_id=request.get("user_id"))
         if session is None:
             raise SandboxError("SDK runtime did not retain native session metadata")
+        persisted = agent.db.get_run(request["run_id"])
+        if (
+            persisted is None
+            or RunOutput.from_dict(persisted.to_dict()).to_dict() != RunOutput.from_dict(run.to_dict()).to_dict()
+        ):
+            raise SandboxError("SDK runtime did not durably retain its exact execution result")
         return {"type": "execution_finished", "run": run.to_dict(), "session": session.to_dict(include_runs=False)}
     finally:
         agent.db.db_engine.dispose()

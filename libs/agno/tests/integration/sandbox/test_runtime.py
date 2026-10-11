@@ -131,6 +131,8 @@ root.mkdir()
 claude = _agent({'sdk': 'claude', 'agent_id': 'a'}, root)
 codex = _agent({'sdk': 'codex', 'agent_id': 'a'}, root)
 assert claude.sdk == 'claude-agent-sdk' and codex.sdk == 'codex'
+assert claude.require_native_resume and codex.require_native_resume
+assert claude.strict_persistence and codex.strict_persistence
 assert claude.cwd == codex.cwd == '/workspace'
 assert claude.retries == codex.retries == 0
 assert claude.db.db_engine.dialect.name == 'sqlite'

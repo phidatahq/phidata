@@ -1643,3 +1643,23 @@ def test_failed_turn_with_output_schema_keeps_the_error_text(fake_sdk):
     run = CodexAgent(name="Codex", id="codex", output_schema=Movie).run("Invent a movie")
     assert run.status == RunStatus.error
     assert "boom" in run.content and run.content_type == "str"
+
+
+@pytest.mark.parametrize("stream", [False, True])
+def test_strict_native_resume_does_not_start_another_thread(fake_sdk, tmp_db, stream):
+    fake_sdk.notifications = [_delta("m1", "ok"), _turn_completed()]
+    agent = CodexAgent(id="codex", db=tmp_db, require_native_resume=True)
+    agent.run("first", session_id="s1")
+    fake_sdk.unresumable.add("thread-1")
+    if stream:
+        events = list(agent.run("second", session_id="s1", stream=True, yield_run_output=True))
+        assert events[-1].status == RunStatus.error
+    else:
+        assert agent.run("second", session_id="s1").status == RunStatus.error
+    assert sum(c["op"] == "thread_start" for c in fake_sdk.calls) == 1
+    assert agent.read_or_create_session("s1").session_data["codex_thread_id"] == "thread-1"
+
+
+def test_strict_native_resume_rejects_ephemeral_threads():
+    with pytest.raises(ValueError, match="ephemeral"):
+        CodexAgent(require_native_resume=True, ephemeral=True)

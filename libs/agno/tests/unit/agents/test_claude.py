@@ -1873,3 +1873,24 @@ async def test_subagent_tool_lineage_survives_events_and_storage(scripted, tmp_d
         restored = ToolExecution.from_dict(tools["call-1"].to_dict())
         assert restored.parent_tool_call_id == "parent-call"
     assert ToolExecution.from_dict({"tool_call_id": "old-record"}).parent_tool_call_id is None
+
+
+@pytest.mark.parametrize("stream", [False, True])
+def test_strict_native_resume_never_reconstructs_history(fake_sdk, tmp_db, monkeypatch, stream):
+    agent = ClaudeAgent(id="claude", db=tmp_db, require_native_resume=True)
+    agent.run("first", session_id="s1")
+    resumes = []
+
+    async def missing(prompt, options):
+        resumes.append(options.resume)
+        raise ResultError("No conversation found with session ID: sdk-1")
+        yield  # pragma: no cover
+
+    monkeypatch.setattr(claude_module._sdk(), "query", missing)
+    if stream:
+        events = list(agent.run("second", session_id="s1", stream=True, yield_run_output=True))
+        assert events[-1].status == RunStatus.error
+    else:
+        assert agent.run("second", session_id="s1").status == RunStatus.error
+    assert resumes == ["sdk-1"]
+    assert agent.read_or_create_session("s1").session_data["claude_sdk_session_id"] == "sdk-1"

@@ -221,12 +221,14 @@ def test_sync_client_wrappers():
 
 
 @pytest.mark.asyncio
-async def test_sdk_adapter_terminal_event_is_only_an_execution_result(tmp_path, monkeypatch):
+@pytest.mark.parametrize("retained", [True, False])
+async def test_sdk_adapter_terminal_event_is_only_an_execution_result(tmp_path, monkeypatch, retained):
     from agno.run.agent import RunCompletedEvent, RunContentEvent, RunOutput
     from agno.run.base import RunStatus
     from agno.session import AgentSession
 
     disposed = []
+    output = RunOutput(run_id="r", session_id="s", agent_id="a", content="hello", status=RunStatus.completed)
 
     class Engine:
         def dispose(self):
@@ -235,13 +237,16 @@ async def test_sdk_adapter_terminal_event_is_only_an_execution_result(tmp_path, 
     class Db:
         db_engine = Engine()
 
+        def get_run(self, run_id):
+            return output if retained else None
+
     class Agent:
         db = Db()
 
         async def arun(self, prompt, **kwargs):
             yield RunContentEvent(run_id="r", session_id="s", agent_id="a", content="hello")
             yield RunCompletedEvent(run_id="r", session_id="s", agent_id="a", content="hello")
-            yield RunOutput(run_id="r", session_id="s", agent_id="a", content="hello", status=RunStatus.completed)
+            yield output
 
         def get_session(self, *args, **kwargs):
             return AgentSession(session_id="s", agent_id="a", session_data={"native_id": "n"})
@@ -251,6 +256,11 @@ async def test_sdk_adapter_terminal_event_is_only_an_execution_result(tmp_path, 
     monkeypatch.setattr(runtime, "_agent", lambda *args: Agent())
     directory = tmp_path / "jobs/e"
     directory.mkdir(parents=True)
+    if not retained:
+        with pytest.raises(SandboxError, match="durably retain"):
+            await runtime._execute(directory, {"sdk": "claude", "run_id": "r", "session_id": "s", "input": "hello"})
+        assert disposed == [True]
+        return
     result = await runtime._execute(directory, {"sdk": "claude", "run_id": "r", "session_id": "s", "input": "hello"})
     assert result["type"] == "execution_finished"
     frames = [json.loads(line) for line in (directory / "events.jsonl").read_text().splitlines()]
@@ -302,3 +312,29 @@ def test_completion_racing_poll_cannot_skip_final_events(dispatch, monkeypatch):
     second = runtime._poll(root, "e", first["cursor"])
     assert second["frames"][0]["event"]["content"] == "last"
     assert second["result"]["error"] == "finished"
+
+
+@pytest.mark.asyncio
+async def test_runtime_validates_real_sqlite_result_before_checkpoint(tmp_path, monkeypatch):
+    from dataclasses import dataclass
+
+    from agno.agents.base import BaseExternalAgent
+    from agno.db.sqlite import SqliteDb
+    from agno.run.agent import RunContentEvent
+
+    @dataclass
+    class Echo(BaseExternalAgent):
+        async def _arun_adapter_stream(self, input, **kwargs):
+            yield RunContentEvent(content="durable", run_id=kwargs["run_id"])
+
+    def make_agent(request, native):
+        return Echo(id="a", db=SqliteDb(db_file=str(native / "history.db")), strict_persistence=True)
+
+    monkeypatch.setenv("HOME", os.environ.get("HOME", ""))
+    monkeypatch.setenv("CODEX_HOME", "unused")
+    monkeypatch.setattr(runtime, "_agent", make_agent)
+    directory = tmp_path / "jobs/e"
+    directory.mkdir(parents=True)
+    output = await runtime._execute(directory, {"sdk": "claude", "run_id": "r", "session_id": "s", "input": "hello"})
+    assert output["run"]["content"] == "durable"
+    assert (tmp_path / "native/history.db").exists()

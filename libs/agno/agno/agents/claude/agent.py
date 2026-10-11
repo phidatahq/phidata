@@ -448,6 +448,7 @@ class ClaudeAgent(BaseExternalAgent):
             resume = await self._afork_sdk_session(continuation.anchor, store)
         else:
             resume = self._get_sdk_session_id(session, session_id)
+        self._check_native_resume(resume, session)
 
         while True:
             if run_state is not None:
@@ -489,7 +490,13 @@ class ClaudeAgent(BaseExternalAgent):
                 return
             except Exception as e:
                 await araise_if_cancelled(run_id)
-                if resume is None or received or continuation is not None or not self._is_missing_session(sdk, e):
+                if (
+                    self.require_native_resume
+                    or resume is None
+                    or received
+                    or continuation is not None
+                    or not self._is_missing_session(sdk, e)
+                ):
                     raise
                 log_warning(
                     f"Claude SDK: could not resume session {resume} for session {session_id}: {e}. Starting a new one."

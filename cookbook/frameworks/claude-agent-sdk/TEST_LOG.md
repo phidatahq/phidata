@@ -1,0 +1,277 @@
+# Test log
+
+## 2026-10-10
+
+### structured_output_tools.py (2026-10-11)
+
+**Status:** PASS (claude-sonnet-4-6)
+
+**Description:** `output_schema=DiskUsage` with a Bash call (`du -sh .`), non-streamed and streamed, then a `RootModel[List[str]]` schema.
+
+**Result:** Both runs returned a `DiskUsage` with `content_type` DiskUsage. `run.tools` held only `Bash`, the stored history held only the `du` result, and the streamed tool events were `['Bash']`: the `StructuredOutput` delivery call is not recorded. The list-rooted schema was refused with `ValueError` before the run.
+
+---
+
+### structured_output.py (review follow-ups, 2026-10-11)
+
+**Status:** PASS (claude-sonnet-4-6)
+
+**Description:** Review of the output_schema change. Live: a model schema with a Bash call, non-streamed and streamed; a stored run read back; a `RootModel[List[str]]` and an array JSON Schema; AgentOS `output_schema` form field non-streamed, streamed, with `use_json_schema`, the run view, and a background run; then the cookbook rerun after the fixes.
+
+**Result:** Found and fixed: (1) Claude Code's `StructuredOutput` delivery call was recorded as a tool call (`run.tools` held Bash plus StructuredOutput with the acknowledgement as its result, the stream emitted a `ToolCallStarted` for it, and the stored history carried `tool result: Structured output provided successfully`); it is now dropped on both paths and the object still comes from the result message. (2) An array-rooted schema made the whole run fail with the API's `400 tools.N.custom.input_schema.type: Input should be 'object'`; it is now refused with `ValueError` before the run on both harnesses. AgentOS: `content_type` DynamicModel with the parsed dict on every path, `dict` with `use_json_schema`. Cookbook reran unchanged after the fixes.
+
+---
+
+### structured_output.py
+
+**Status:** PASS
+
+**Description:** `output_schema=ProjectSummary` (nested Pydantic list) with Read and Glob tools: a non-streaming run, a streaming run, then a per-run JSON Schema dict overriding the agent's model.
+
+**Result:** Non-streaming content was a `ProjectSummary` with three files, `content_type` "ProjectSummary". The streaming `RunCompleted` event carried a `ProjectSummary`. The per-run schema returned `{'python_files': 13}` with `content_type` "dict" (13 is correct). Also checked through AgentOS: `POST /agents/claude/runs` with an `output_schema` form field returned `content_type` "Capital" and `{'city': 'Paris'}`.
+
+---
+
+### metrics_agentos.py --verify
+
+**Status:** PASS
+
+**Description:** Through the AgentOS test client: a non-streamed run, a streamed run with a Bash call, then `GET /sessions/{id}`, `GET /sessions` and `GET /metrics`. Asserts the session total equals the two runs and that the daily aggregation counts both runs.
+
+**Result:** Run 1: 7 tokens, $0.0195. Run 2 (RunCompleted event): 123 tokens, $0.0348, time to first token 6.1s. Session: 130 tokens, $0.0543; sessions list column 130; metrics page agent_runs_count 2, total_tokens 130.
+
+---
+
+### metrics.py
+
+**Status:** PASS
+
+**Description:** One plain turn, one streamed turn with a Bash call, then the session totals. Checks that `RunOutput.metrics` and the `RunCompleted` event carry tokens, cache usage, cost and duration, and that `session_data["session_metrics"]` equals the sum of the two runs.
+
+**Result:** Run 1: 3 input, 4 output, 13802 cache read, 2665 cache write, $0.0208, 4.4s, with per-model entries for claude-sonnet-4-6 and the claude-haiku-4-5 helper model. Run 2 (streamed): 125 tokens, $0.0341, time to first token 5.5s. Session totals: 132 tokens, $0.0548 across 2 runs.
+
+---
+
+## 2026-10-09
+
+### compaction.py (transcript read API)
+
+**Status:** PASS
+
+**Description:** Reran after replacing the cookbook's raw SQL on `agno_transcripts` with `db.get_transcript_entries(framework, project_key, session_id)`, keyed by the Claude session id stored on the Agno session.
+
+**Result:** 29 rows before `/compact`, 39 after; the `compact_boundary` and summary entries were found at positions 33 and 34; replica B recalled the fact.
+
+---
+
+### compaction.py
+
+**Status:** PASS
+
+**Description:** Seeds a fact, adds three turns including a 1200-line filler document, sends `/compact` as the run input with a `PreCompact` hook registered through `options_kwargs`, prints the transcript rows the compaction produced, then resumes the session from a second agent instance with a different working directory.
+
+**Result:** 35 transcript rows before, 45 after. The hook fired with trigger `manual`. Rows 39 and 40 were the `compact_boundary` system entry and the `isCompactSummary` user entry. Replica B resumed from the database alone and answered `tangerine-walrus-88` from the summary. A conversation of one turn returns "Not enough messages to compact", which is why the cookbook adds turns first.
+
+---
+
+### continue_from.py (finished runs always fork)
+
+**Status:** PASS
+
+**Description:** Reran after `continue_run(fork=False)` on a completed run was changed to behave like native agents: the continuation becomes a new sibling run with fork lineage instead of rewriting the source run. Also exercised live with `background=True` on a completed run (ALPHA -> BETA -> GAMMA, three runs in the session, source run untouched).
+
+**Result:** Checkpoints listed at 3, 5 and 6; branch from step 3 kept only `echo alpha`; replayed turn returned DONE. The in-place-with-background ValueError is gone.
+
+---
+
+### continue_from.py (review fixes)
+
+**Status:** PASS
+
+**Description:** Reran after the review fixes: checkpoints are exposed per tool batch (one per sequential step, one per parallel batch, anchored at the batch's last transcript entry), `continue_from=0` starts a branch before the prompt, `continue_from="last_user"` replays the selected user turn rather than only the first, cancelled runs are rejected, and in-place continuation refuses `background=True`. The cookbook now asserts on the tool results the branch carries instead of on the model's wording, so a run where Claude batches both commands still passes.
+
+**Result:** Sequential run: checkpoints at messages 3, 5 and the end; the branch from step 3 carried only the first result and answered with the first command. Replay of the whole turn completed. A separate parallel run exposed a single checkpoint at the batch end.
+
+---
+## 2026-10-09
+
+### transcript_store.py
+
+**Status:** PASS
+
+**Description:** Replaces `session_store.py`. Runs replica A (first turn, stores a fact) and replica B (second agent instance, different working directory) against one database in a single process, printing the `agno_transcripts` rows after each step. Ran with the demo environment, claude-agent-sdk 0.2.110, Claude Code 2.1.250 and macOS Keychain login, both without flags (SQLite) and with `--postgres` (pgvector container).
+
+**Result:** On this branch's schema (positions numbered from 1, `framework` and `agno_session_id` columns): SQLite: replica A mirrored rows 1 to 12; replica B replied with the stored password, kept the same Claude session id, and appended rows 13 to 21. Postgres: same, 12 rows then 9 new. A Postgres table left over from the earlier branch schema raised a schema mismatch and had to be dropped first; it is recreated on first use. No API key or custom `CLAUDE_CONFIG_DIR` was needed because the SDK copies credentials into the temporary config directory it uses for a store-backed resume.
+
+---
+
+## 2026-10-08
+
+### session_store.py
+
+**Status:** FAIL
+
+**Description:** Launched the real two-process verification with claude-agent-sdk 0.2.148 using the shared demo environment and this worktree on PYTHONPATH. Both processes use fresh config directories.
+
+**Result:** Process A reached Claude but returned `Not logged in`. Authentication for an empty config directory is not configured. Cross-process transcript resume remains unverified; this is not a passing integration run.
+
+---
+
+### Transcript and adapter unit tests
+
+**Status:** PASS
+
+**Description:** 70 agent tests passed, including SDK store conformance through one bound store per project, SQLite/AsyncSQLite persistence, key rewriting, retries, tools, and resume fallback. The optional summary contract is not implemented.
+
+**Result:** Unit coverage passes; real SDK verification is separate.
+
+---
+
+### session_store.py (authenticated rerun)
+
+**Status:** PASS
+
+**Description:** Used the existing `ANTHROPIC_API_KEY` exported by `.envrc`, inherited by both child processes. No credential values were read or printed. Ran the demo environment with this worktree's `libs/agno` on PYTHONPATH and debug/monitor flags unset.
+
+**Result:** Process A replied `OK` and stored the SDK transcript. Its Agno run history was deleted. Process B, with a separate empty config directory, replied `cobalt orchard 742`. Verified with the per-run ClaudeSDKClient implementation.
+
+---
+
+### PostgreSQL transcript conformance
+
+**Status:** PASS
+
+**Description:** Executed the SDK store contracts on PostgresDb and AsyncPostgresDb against disposable schemas in PostgreSQL 18. SQLite and AsyncSQLite also pass. The optional summary contract is not implemented. Tests use one bound store per project to reconcile the SDK suite's caller-selected project keys with this adapter's binding.
+
+**Result:** Both PostgreSQL variants pass. A database transaction serializes position allocation across processes; the SQLite restart test resets the in-memory counter while holding time constant and verifies append order.
+
+---
+
+### Exact phase 1 source verification
+
+**Status:** PASS
+
+**Description:** Checked the committed phase 1 source independently of phase 2 in an isolated archive. Verified the imported Agno path before testing.
+
+**Result:** 72 phase 1 agent tests passed and the original query-based adapter passed the real two-process resume test. Four additional missing-table/empty-batch tests cover every transcript DB adapter. Guard mutation checks all failed their named tests when the guard was removed and passed after restoration.
+
+**Environment:** Python 3.12; claude-agent-sdk 0.2.148; openai-codex 0.162.0; SQLAlchemy 2.0.52, matching the demo environment. Fresh setup resolved SQLAlchemy 2.1.4, which reproduced six unrelated mypy errors on the unchanged base; validation passes with 2.0.52.
+
+---
+
+## 2026-10-08: background lifecycle
+
+### background_cancel.py
+
+**Status:** PASS
+
+**Description:** Ran the real SDK with this worktree imported. Started a detached streamed run, cancelled after the first content event, drained the SSE stream, and read the stored run. Claude used the API key exported by `.envrc`. Codex used `gpt-5.6-luna`, read-only sandboxing and `approval_mode="deny_all"`.
+
+**Result:** The SDK turn was interrupted and the final output and database row were CANCELLED. Both the shared demo environment and the env-gated integration tests in the worktree's development environment passed.
+
+---
+
+### Lifecycle and regression suite
+
+**Status:** PASS
+
+**Description:** 736 tests covering external agents, native background execution, cancellation, event streams, status persistence, queue retries/fencing, scoped reads and A2A. All five real integration cases were enabled and passed: Claude two-process resume, Claude cancel, Codex cancel, sync PostgreSQL transcripts, async PostgreSQL transcripts.
+
+**Result:** 736 unit/regression tests passed; 5 integration tests passed, none skipped. One existing AsyncMock warning arose in the unchanged native save-fencing test. Required format and validation scripts passed with SQLAlchemy 2.0.52.
+
+---
+
+### Transcript mirror failure regression (2026-10-08)
+
+**Status:** PASS
+
+**Description:** The installed SDK parser and mirror batcher were driven with synthetic transport
+frames and a transcript store that rejects every append. All three attempts failed. The completed
+response retained its content and exposed `transcript_persistence_failed` in run metadata.
+Streaming/non-streaming unit regressions also verify warning serialization and persisted history.
+
+**Result:** Durability failure is visible without reexecuting completed work. This is a local SDK
+fault-injection test, not a live provider run. Phase 1 agent tests: 78 passed. Format and validation pass.
+
+### Lifecycle persistence review regressions (2026-10-09)
+
+**Status:** PASS
+
+**Description:** Injected terminal database failures in sync/async SQLite queue runs, with both
+streaming modes and transient/permanent failures. Tickets retry and do not report success over
+an unfinished run. Real sync/async PostgreSQL tests cover session-identity fencing and rollback
+when session storage fails. In-memory SQLite async polling retains the completed run.
+
+**Result:** 751 unit/regression tests, 12 external-agent PostgreSQL integration tests and 13 existing
+native PostgreSQL tests passed. Format and validation passed. These are persistence fault-injection
+checks; the earlier live provider cancellation runs were not repeated.
+
+---
+
+### session_store.py (transcript schema revision)
+
+**Status:** PASS
+
+**Description:** Reran the two-process verification after scoping transcript rows by framework, project, session and subpath, numbering positions per transcript and recording the owning Agno session. Used claude-agent-sdk 0.2.95 from the demo environment, the `ANTHROPIC_API_KEY` from `.envrc` and empty config directories.
+
+**Result:** Process A replied `OK`; process B, with its Agno run deleted, replied `cobalt orchard 742`. The PostgreSQL contract test (PostgresDb and AsyncPostgresDb) passed against PostgreSQL 14.
+
+---
+
+### claude_retries.py (review follow-up)
+
+**Status:** PASS
+
+**Description:** Reran after two base-class changes from the review: a streamed retry now emits a `retry` warning event between the failed attempt's output and the new attempt (also stored in the run's warnings), and a non-streamed retry keeps the tool calls of failed attempts, which the adapters leave in `run_state["tools"]`. Live check with an injected failure after a Bash call.
+
+**Result:** Non-streamed: two attempts, same SDK session, stored run has both Bash calls (before the change it had one, while the streamed run had two). Streamed: unchanged, both calls kept. The four cookbook cases pass as before.
+
+---
+
+### claude_retries.py (demonstration rewrite)
+
+**Status:** PASS
+
+**Description:** The cookbook now injects the failure itself: the first attempt is cut off with a simulated transient error at the SDK result message, after the session started. Runs four cases with `retries=2`, `delay_between_retries=1`, `exponential_backoff=True`: one failure then success, more failures than retries, `max_turns=1` with retries left, and the default `retries=0`.
+
+**Result:** Case 1: two attempts, the retry resumed the same SDK session id and answered. Case 2: three attempts with 1s then 2s backoff, run ended in ERROR with the last error. Case 3: one attempt, `error_max_turns` logged as not retryable. Case 4: one attempt, ERROR. Separately verified streaming with the same injection: two attempts, same session id, RunCompleted, and the stored run kept the tool calls from both attempts.
+
+---
+
+### claude_retries.py
+
+**Status:** PASS
+
+**Description:** Ran the cookbook with claude-agent-sdk from the demo environment, then a fault-injection run with the real SDK: the first attempt's result message was made to raise after the SDK session had started, with `retries=2`.
+
+**Result:** The cookbook answered normally. In both streaming and non-streaming runs the first attempt failed, the retry resumed the SDK session the failed attempt started (same session id stored on the Agno session) and completed with `pong`.
+
+---
+
+### claude_retries.py (non-retryable errors)
+
+**Status:** PASS
+
+**Description:** Reran with error classification added. Live run with `max_turns=1`, `retries=2` and a prompt that needs two tool calls, then the fault-injection run that raises a generic error after the SDK session starts.
+
+**Result:** The `max_turns` run ended after one attempt with `error_max_turns` and logged that it was not retried (before the change it ran three attempts, three turns against a limit of one). The injected transient error was still retried, resumed the same SDK session and completed with `pong`.
+
+---
+
+### continue_from.py (2026-10-08)
+
+**Status:** PASS
+
+**Description:** Live run with claude-agent-sdk 0.2.95 and `claude-sonnet-4-6` on SQLite transcript storage. A two-step Bash turn listed checkpoints at both tool results and the end. Continuing from the first tool result with a question produced a branch that only knew `echo alpha`; `continue_from="last_user"` replayed the turn as a forked sibling. Separately, with `claude-haiku-4-5`, exercised AgentOS `/checkpoints` and `/continue` (non-stream and SSE), an in-place streamed continue, and a replay of a non-first turn that kept earlier context.
+
+**Result:** Continue and checkpoints work end to end against the real SDK. Files touched after a checkpoint are not rewound.
+
+### Overlapping turns on one session (2026-10-10)
+
+**Status:** PASS (claude-sonnet-4-6)
+
+**Description:** Soak finding: a second turn on a session whose first turn was still running was accepted and appended to the same transcript. Reproduced with two concurrent `arun` calls on one session, the first running a 6s shell command. Fixed with a one-turn-per-session check in the base class (in-process turns and pending or running run rows).
+
+**Result:** Before: both turns ran and both appended to the session's transcript concurrently. After: the second turn raises `SessionBusyError` in under a millisecond naming the run in flight, no run row is written for it, the first turn completes, and a turn sent afterwards runs normally.
+
+---

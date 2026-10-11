@@ -215,3 +215,28 @@ Installed-SDK tests verify parameter models, retry configuration, ownership labe
 filtering, stopped-compute refusal, deletion waits and bounded stream cleanup.
 They do not establish live snapshot permissions, resource/network enforcement or
 native-model behavior. The opt-in workload creates billable compute.
+
+### Modal (live acceptance required)
+
+Install `agno[modal-sandbox]` with Python 3.10+ (SDK pinned to 1.6.1), authenticate
+Modal on the service, and create a dedicated Modal application. Set
+`AGNO_MODAL_APP` to its name. Supply a published, prepared runtime image that Modal
+can pull; the adapter builds a root-user image layer for control and clears its
+entrypoint. Harness commands still drop to UID/GID 1000.
+
+```bash
+python cookbook/frameworks/sandbox/hosted_workload.py --provider modal --image YOUR_REGISTRY_IMAGE
+```
+
+`ModalSandboxProvider(namespace, journal, app_name=...)` uses gVisor, matching CPU
+request/limit and memory request/limit, explicit environment/network settings, no
+mounted volumes, and no injected Modal OIDC identity. The application must exist;
+lookup does not create it. Inspection of terminated compute returns absence and
+never restarts it. Teardown waits for remote exit.
+
+The adapter does not retry creation or commands. Modal's SDK transport retries
+retain its idempotency key/process ID, as verified in the pinned SDK source.
+A lost application-level response still follows the durable allocation journal.
+Contract tests cover SDK signatures/settings, terminated-compute refusal, deletion
+waits, scoped inventory, and file-size checks. Live gVisor privilege handling,
+image behavior, limits and both native harnesses remain acceptance gates.

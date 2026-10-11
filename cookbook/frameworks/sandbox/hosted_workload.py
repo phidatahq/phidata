@@ -21,7 +21,9 @@ from agno.sandbox.postgres import PostgresSandboxStore
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--provider", choices=("e2b", "daytona"), required=True)
+    parser.add_argument(
+        "--provider", choices=("e2b", "daytona", "modal"), required=True
+    )
     parser.add_argument(
         "--image",
         required=True,
@@ -49,11 +51,21 @@ def main() -> None:
         provider = E2BSandboxProvider(
             namespace, journal, max_allocations=2, lifetime=600
         )
-    else:
+    elif args.provider == "daytona":
         from agno.sandbox.daytona import DaytonaSandboxProvider
 
         provider = DaytonaSandboxProvider(
             namespace, journal, max_allocations=2, lifetime=600
+        )
+    else:
+        from agno.sandbox.modal import ModalSandboxProvider
+
+        provider = ModalSandboxProvider(
+            namespace,
+            journal,
+            app_name=os.environ["AGNO_MODAL_APP"],
+            max_allocations=2,
+            lifetime=600,
         )
     spec = SandboxSpec(
         "coder", "acceptance", 1, args.image, pids_limit=None, workspace_mb=None

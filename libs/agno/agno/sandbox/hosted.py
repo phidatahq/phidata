@@ -36,8 +36,8 @@ class HostedSandboxProvider(SandboxProvider):
     """Ownership, capacity and root transport shared by hosted implementations.
 
     Providers must supply authoritative identity/inventory and permanently stop
-    compute on deletion. No execution or create operation may be retried inside
-    the SDK. Prepared images must contain this package at a root-owned location.
+    compute on deletion. SDK retries must preserve a provider-enforced idempotency identity;
+    uncertain operations must never be sent as a new execution. Prepared images must contain this package at a root-owned location.
     Hosted disk/PID controls are provider defaults; checkpoint limits are separate.
     """
 

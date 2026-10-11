@@ -193,3 +193,13 @@ Python 3.9 follow-up: 76 sandbox unit tests, 40 real Postgres cases and 12 Agent
 **Result:** 5 passed; SDK deprecation warnings observed. Required format/validation passed. The live Daytona workload remains unrun pending account/snapshot setup and a compute budget.
 
 ---
+
+### Modal installed-SDK contract
+
+**Status:** PASS
+
+**Description:** Five tests against Modal 1.6.1 without account access exercise actual SDK signatures and image objects, resource/network/identity settings, stopped-compute refusal, termination waits, scoped inventory, and pre-download bounds.
+
+**Result:** 5 passed. Required format/validation passed after correcting a test import-order issue. Live image, gVisor process-freeze and native harness acceptance remain pending.
+
+---

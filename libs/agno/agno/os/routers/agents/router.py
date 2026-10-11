@@ -29,6 +29,7 @@ from agno.exceptions import (
     OutputCheckError,
     RunNotContinuableError,
     RunNotFoundError,
+    SessionBusyError,
 )
 from agno.media import Audio, Image, Video
 from agno.media import File as FileMedia
@@ -76,6 +77,7 @@ from agno.os.schema import (
 )
 from agno.os.settings import AgnoAPISettings
 from agno.os.utils import (
+    AgnoHTTPException,
     adraft_preview_identity,
     afinalize_continue_stream,
     allow_draft_preview,
@@ -1875,7 +1877,7 @@ def get_agent_router(
         operation_id="compact_agent_session",
         summary="Compact Agent Session",
         description=(
-            "Fold this session's older history into a summary now, without waiting for the "
+            "For native Agno agents, fold this session's older history into a summary without waiting for the "
             "context to reach ``compact_at_tokens``. The stored transcript is never modified - "
             "compaction shortens what is sent to the model, not the record.\n\n"
             "A compaction can legitimately decline, which is reported rather than raised. Check "
@@ -1888,7 +1890,13 @@ def get_agent_router(
             "safe cut point\n"
             "- ``no_history`` - the session exists but has no stored history yet\n"
             "- ``not_enabled`` - compaction is not configured on this agent\n"
-            "- ``summary_failed`` - the summarizer returned nothing"
+            "- ``summary_failed`` - the summarizer returned nothing\n\n"
+            "Codex compacts its local native thread and returns the same response keys, with no "
+            "Agno compaction record. If native thread files are unavailable, status is ``no_history``; "
+            "stored Agno run history alone cannot compact that thread. Claude does not implement "
+            "this endpoint: it returns 501. Submit ``/compact`` through the Claude run endpoint instead. "
+            "A busy Codex session returns 409; a compaction timeout returns 504 and does not prove "
+            "that the native operation stopped."
         ),
         responses={
             200: {
@@ -1929,6 +1937,9 @@ def get_agent_router(
                 },
             },
             404: {"description": "Agent or session not found", "model": NotFoundResponse},
+            409: {"description": "Session has an in-flight run"},
+            501: {"description": "Agent does not implement HTTP compaction"},
+            504: {"description": "Native compaction did not finish before the timeout"},
         },
         dependencies=[Depends(require_resource_access("agents", "run", "agent_id"))],
     )
@@ -1978,7 +1989,35 @@ def get_agent_router(
         if await agent.aget_session(session_id=session_id, user_id=effective_user_id) is None:  # type: ignore[union-attr]
             raise HTTPException(status_code=404, detail=SESSION_NOT_FOUND)
 
-        result = await agent.acompact(session_id=session_id, user_id=effective_user_id)  # type: ignore[union-attr]
+        compact = getattr(agent, "acompact", None)
+        if not callable(compact):
+            raise HTTPException(
+                status_code=501,
+                detail="This agent does not implement HTTP compaction. For Claude, submit /compact as a run input.",
+            )
+        try:
+            result = await compact(session_id=session_id, user_id=effective_user_id)
+        except SessionBusyError as exc:
+            raise AgnoHTTPException(exc) from exc
+        except TimeoutError as exc:
+            raise HTTPException(
+                status_code=504,
+                detail="Compaction timed out. The native operation may still be running; check before retrying.",
+            ) from exc
+
+        # Codex reports native thread compaction as a bool; it does not produce an Agno
+        # history-fold record. Do not infer success from the existence of stored run history.
+        if isinstance(result, bool):
+            from agno.compaction.types import CompactionResult, CompactionStatus
+
+            return CompactionResult(
+                status=CompactionStatus.COMPACTED if result else CompactionStatus.NO_HISTORY,
+                message=(
+                    "Compacted the native thread on this replica."
+                    if result
+                    else "No resumable native thread is available on this replica. Stored run history is unchanged."
+                ),
+            ).to_dict()
         return result.to_dict()
 
     @router.get(

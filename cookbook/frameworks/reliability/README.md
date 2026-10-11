@@ -130,3 +130,20 @@ docker compose -f cookbook/frameworks/reliability/compose.yaml down
 
 See [TEST_LOG.md](TEST_LOG.md) for recorded results. Do not interpret an unexecuted
 scenario or a green process exit without evidence as a pass.
+
+## HTTP compaction
+
+`POST /agents/{agent_id}/sessions/{session_id}/compact` checks session ownership
+before attempting compaction. Native Agno agents return their compaction result.
+Codex returns the same JSON keys (`status`, `message`, `compacted`, `record`,
+`metrics`), with `record` and `metrics` null: its compaction changes the local native
+thread. `no_history` means no resumable native thread is available on this replica;
+it does not mean the database has no run history. Route the request to a replica
+with that thread's files. A busy session returns 409; a timeout returns 504 and
+does not guarantee the native operation stopped, so do not blindly resubmit.
+
+Claude returns 501 from this endpoint. Send `/compact` as the message to the normal
+Claude run endpoint instead. This uses Claude's native command and session-store
+transcript synchronization. Automatic compaction and successful native commands
+must be verified independently of HTTP status codes. Compaction is not a durable
+background job and callers must coordinate it with other turns on the session.

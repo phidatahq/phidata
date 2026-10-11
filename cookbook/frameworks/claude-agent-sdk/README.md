@@ -76,7 +76,10 @@ Every run reports the tokens, cache usage and cost Claude Code returned for the 
 
 ```bash
 .venvs/demo/bin/python cookbook/frameworks/claude-agent-sdk/structured_output.py
+.venvs/demo/bin/python cookbook/frameworks/claude-agent-sdk/structured_output_tools.py
 ```
+
+`structured_output_tools.py` pairs a schema with a Bash call and shows that only Bash is recorded as a tool, on both paths, and that a list-rooted schema is refused before the run.
 
 ## Background runs and cancellation
 

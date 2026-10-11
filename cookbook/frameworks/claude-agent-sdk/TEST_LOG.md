@@ -2,6 +2,16 @@
 
 ## 2026-10-10
 
+### structured_output_tools.py (2026-10-11)
+
+**Status:** PASS (claude-sonnet-4-6)
+
+**Description:** `output_schema=DiskUsage` with a Bash call (`du -sh .`), non-streamed and streamed, then a `RootModel[List[str]]` schema.
+
+**Result:** Both runs returned a `DiskUsage` with `content_type` DiskUsage. `run.tools` held only `Bash`, the stored history held only the `du` result, and the streamed tool events were `['Bash']`: the `StructuredOutput` delivery call is not recorded. The list-rooted schema was refused with `ValueError` before the run.
+
+---
+
 ### structured_output.py (review follow-ups, 2026-10-11)
 
 **Status:** PASS (claude-sonnet-4-6)

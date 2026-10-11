@@ -59,3 +59,13 @@
 **Result:** 74 sandbox unit tests passed on Python 3.12 and 3.9; all 17 real Docker provider/runtime/transfer cases passed. Required scripts passed. This fixes an integration risk where a stale polling request could stop compute during another coordinator's checkpoint. No live model or hosted-provider calls.
 
 ---
+
+### durable_completion.py
+
+**Status:** PASS
+
+**Description:** Real local Postgres, unique fixture tables and immutable local archive; staged output remains RUNNING until checkpoint staging and cleanup acknowledgement permit atomic publication. No model calls or real compute in this cookbook.
+
+**Result:** Passed. Companion integration suite: 24 passed across PostgresDb and AsyncPostgresDb, including independent owners, lease expiry, queue attempt fencing, transaction rollback, lost acknowledgement, immutable staged output, deleted/recreated session isolation, external cancellation, and sync entry points. Review found and fixed native metadata overwriting service fields and old-session recovery reuse. Provider shutdown and archive verification remain coordinator responsibilities.
+
+---

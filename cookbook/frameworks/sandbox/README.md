@@ -85,3 +85,11 @@ Plain container tmpfs is rejected by the transport: Docker can return a successf
 The caller must hold exclusive generation ownership and finish/drain the SDK before capture. Applications requiring logical database backups need an explicit quiesce/backup procedure; pausing processes only establishes a filesystem capture boundary. No nested-container or anonymous-volume data is included. Current capture uses local staging space for raw and combined archives in the coordinator's object directory; provision several times the checkpoint byte limit per concurrent capture. A transfer is bounded to 120 seconds per root. These limits intentionally fail finalization rather than publish an incomplete recovery point.
 
 The known Codex `auth.json` and Claude `.credentials.json` paths are excluded by default. These defaults are not a secret scanner: use explicit exclusions or keep other credentials outside durable roots. Passing `exclude` replaces the default list. Keep native credentials provisioned separately for restored compute. Atomic run/conversation/checkpoint publication still belongs to the following AgentOS coordinator layer.
+
+### Atomic completion store
+
+`durable_completion.py` exercises the Postgres ownership/finalization contract using fixture output and an actual archive. Set `AGNO_TEST_SANDBOX_DB_URL` to a dedicated local test database. It creates unique tables and removes them afterwards. The store supports both Postgres adapters asynchronously; synchronous entry points require `PostgresDb`.
+
+A runtime result is staged first. A verified checkpoint reference and provider-confirmed compute cleanup are required before one transaction publishes the run and session recovery reference. Lease epochs and queue attempts fence previous coordinators. Native metadata is nested under `session_data.sandbox.native`; runtime data cannot replace control-plane session fields. Recreating a deleted session requires explicit reconciliation of its old registry/compute; it cannot silently inherit that state.
+
+This PR supplies the storage contract, not the AgentOS coordinator. The caller still verifies checkpoint bytes, binds the correct manifest, renews leases, and confirms provider cleanup. Local checkpoint directories need deployment-specific durable storage before claiming host-loss recovery.

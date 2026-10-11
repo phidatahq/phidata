@@ -104,6 +104,8 @@ def _db_epoch() -> Any:
 
 
 class AsyncPostgresDb(AsyncBaseDb):
+    serializes_sessions: bool = True
+
     def __init__(
         self,
         id: Optional[str] = None,
@@ -4885,6 +4887,8 @@ class AsyncPostgresDb(AsyncBaseDb):
         jobs only on matching workers; deployment_id=None degenerates to
         claiming only unstamped jobs.
         """
+        from agno.job_queue.session import session_claim_condition, session_claim_lock_key
+
         try:
             table = await self._get_table(table_type="jobs")
             if table is None:
@@ -4893,10 +4897,11 @@ class AsyncPostgresDb(AsyncBaseDb):
             stale = now - lock_grace_seconds
             async with self.async_session_factory() as sess:
                 async with sess.begin():
-                    subq = (
+                    candidate_query = (
                         select(table.c.id)
                         .where(
                             table.c.available_at <= now,
+                            session_claim_condition(table),
                             or_(table.c.deployment_id.is_(None), table.c.deployment_id == deployment_id),
                             or_(
                                 table.c.status == "queued",
@@ -4907,14 +4912,37 @@ class AsyncPostgresDb(AsyncBaseDb):
                                 ),
                             ),
                         )
-                        .order_by(table.c.created_at.asc())
+                        .order_by(table.c.created_at.asc(), table.c.id.asc())
                         .limit(1)
                         .with_for_update(skip_locked=True)
-                        .scalar_subquery()
                     )
+                    candidate = (await sess.execute(candidate_query)).scalar_one_or_none()
+                    if candidate is None:
+                        return None
+                    candidate_row = (await sess.execute(select(table).where(table.c.id == candidate))).mappings().one()
+                    if (candidate_row["payload"] or {}).get("serialize_session") is True:
+                        # Serialize claims for this session, including a newly enqueued ticket
+                        # that sorts before a concurrently claimed ticket. Recheck after the
+                        # lock under READ COMMITTED so the preceding claimant is visible.
+                        isolation = (await sess.execute(text("SHOW transaction_isolation"))).scalar_one()
+                        if isolation != "read committed":
+                            raise RuntimeError("Serialized session queues require READ COMMITTED isolation")
+                        lock_key = session_claim_lock_key(table.fullname, dict(candidate_row))
+                        locked = (
+                            await sess.execute(text("SELECT pg_try_advisory_xact_lock(:key)"), {"key": lock_key})
+                        ).scalar_one()
+                        if not locked:
+                            return None
+                        eligible = (
+                            await sess.execute(
+                                select(table.c.id).where(table.c.id == candidate, session_claim_condition(table))
+                            )
+                        ).first()
+                        if eligible is None:
+                            return None
                     stmt = (
                         update(table)
-                        .where(table.c.id == subq)
+                        .where(table.c.id == candidate)
                         .values(
                             status="running",
                             locked_by=worker_id,

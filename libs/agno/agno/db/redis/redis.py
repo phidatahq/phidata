@@ -52,6 +52,8 @@ except ImportError:
 
 
 class RedisDb(BaseDb):
+    serializes_sessions: bool = True
+
     def __init__(
         self,
         id: Optional[str] = None,
@@ -2519,8 +2521,22 @@ class RedisDb(BaseDb):
             return None
         return json.loads(raw if isinstance(raw, str) else raw.decode())
 
+    def _q_session_key(self, job: Dict[str, Any]) -> str:
+        from hashlib import sha256
+
+        from agno.job_queue.session import session_identity
+
+        identity = json.dumps(session_identity(job), separators=(",", ":"))
+        return self._q_key("session:" + sha256(identity.encode()).hexdigest())
+
     def _q_save_job_in_pipe(self, pipe: Any, job: Dict[str, Any]) -> None:
         pipe.set(self._q_job_key(job["id"]), json.dumps(job))
+        if (job.get("payload") or {}).get("serialize_session") is True:
+            key = self._q_session_key(job)
+            if job["status"] in ("queued", "running"):
+                pipe.zadd(key, {job["id"]: job["created_at"]})
+            else:
+                pipe.zrem(key, job["id"])
 
     def enqueue_job(self, job: Dict[str, Any], max_depth: int = 0) -> Dict[str, Any]:
         """Insert an accepted run job (idempotency-first, then depth gate).
@@ -2716,6 +2732,21 @@ class RedisDb(BaseDb):
                 if not claimable:
                     pipe.unwatch()
                     return None
+                if (job.get("payload") or {}).get("serialize_session") is True:
+                    from agno.job_queue.session import session_blocked
+
+                    # Membership changes commit with each job transition. Watching the
+                    # session index fences a concurrent submit, completion or continuation.
+                    session_key = self._q_session_key(job)
+                    pipe.watch(session_key)
+                    member_ids = [_q_to_str(value) for value in pipe.zrange(session_key, 0, -1)]
+                    keys = [self._q_job_key(value) for value in member_ids]
+                    if keys:
+                        pipe.watch(*keys)
+                        members = [json.loads(value) for value in pipe.mget(keys) if value is not None]
+                        if session_blocked(job, members):
+                            pipe.unwatch()
+                            return None
                 job.update(
                     status="running", locked_by=worker_id, locked_at=now, attempt=job["attempt"] + 1, updated_at=now
                 )

@@ -19,9 +19,13 @@ import asyncio
 import time
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+from agno.job_queue.session import session_blocked
+
 
 class InMemoryQueueStore:
     """Process-local job queue store with the DB adapters' queue contract."""
+
+    serializes_sessions: bool = True
 
     def __init__(self) -> None:
         self._jobs: Dict[str, Dict[str, Any]] = {}
@@ -68,7 +72,8 @@ class InMemoryQueueStore:
             candidates = [
                 j
                 for j in self._jobs.values()
-                if j["available_at"] <= now
+                if not session_blocked(j, self._jobs.values())
+                and j["available_at"] <= now
                 and (j.get("deployment_id") is None or j.get("deployment_id") == deployment_id)
                 and (
                     j["status"] == "queued"
@@ -82,7 +87,7 @@ class InMemoryQueueStore:
             ]
             if not candidates:
                 return None
-            job = min(candidates, key=lambda j: j["created_at"])
+            job = min(candidates, key=lambda j: (j["created_at"], j["id"]))
             job.update(
                 status="running",
                 locked_by=worker_id,

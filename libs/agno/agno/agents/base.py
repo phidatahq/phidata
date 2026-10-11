@@ -1296,13 +1296,19 @@ class BaseExternalAgent:
         ``run_id`` (session runs are in acceptance order), so two queued turns do not each
         refuse the other. A run with no row of its own counts as accepted last.
         """
+        from agno.run.concurrency import get_worker_ownership
+
+        ownership = get_worker_ownership(run_id)
+        # A serialized queue has already elected the executable ticket. Pending
+        # session rows can arrive in a different order from queue acceptance.
+        queue_ordered = ownership is not None and ownership.session_serialized
         ahead = True
         for run in getattr(session, "runs", None) or []:
             if run.run_id == run_id:
                 ahead = False
                 continue
             status = getattr(run.status, "value", run.status)
-            if status == RunStatus.running.value or (ahead and status == RunStatus.pending.value):
+            if status == RunStatus.running.value or (ahead and not queue_ordered and status == RunStatus.pending.value):
                 return run
         return None
 

@@ -130,3 +130,19 @@ docker compose -f cookbook/frameworks/reliability/compose.yaml down
 
 See [TEST_LOG.md](TEST_LOG.md) for recorded results. Do not interpret an unexecuted
 scenario or a green process exit without evidence as a pass.
+
+## Attachment relocation
+
+Attachment staging records upload locations per original run in session data.
+A file first uploaded on replica B can therefore be restored on A with a prompt
+that names its new path, even when the session began on A. Previously visited
+locations are retained so A → B → A also corrects paths introduced by intervening
+relocation notes. Forks restore only attachments on their conversation branch,
+using the original run's directory name.
+
+Recorded locations are prompt metadata, never write targets. Restoration writes
+only under the current workspace's `.agno/uploads`. Older sessions without
+per-run locations use the legacy session root; origins that were never recorded
+cannot be recovered exactly. Relocation notes may repeat: staging alone does not
+prove that a model consumed a prior note, and retries/forks can replay older
+context. Removing redundant notes needs transcript-aware acknowledgement.

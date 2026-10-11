@@ -110,15 +110,16 @@ def _name_for(item: Any, kind: str, index: int) -> str:
 
 
 UPLOADS_ROOT_KEY = "uploads_root"
+UPLOADS_ROOTS_BY_RUN_KEY = "uploads_roots_by_run"
 # Earlier runs whose attachments are restored before a turn; older ones stay in the session only.
 RESTORED_RUNS_LIMIT = 10
 
 
-def remember_uploads_root(session: Any, workspace: Optional[Any]) -> None:
-    """Record, once per session, the uploads folder the harness's transcript will name.
+def remember_uploads_root(session: Any, workspace: Optional[Any], run_id: Optional[str] = None) -> None:
+    """Remember staging locations per attachment-owning run, with a legacy session fallback.
 
-    This is a historical locator for relocation notes, never permission to write outside
-    the active workspace. Later turns restore into their own workspace.
+    These are historical locators for relocation notes, never write authority. Retain each
+    visited location so a return to an earlier replica corrects paths from intervening turns.
     """
     if session is None:
         return
@@ -126,7 +127,19 @@ def remember_uploads_root(session: Any, workspace: Optional[Any]) -> None:
     if data is None:
         data = {}
         session.session_data = data
-    data.setdefault(UPLOADS_ROOT_KEY, str(Path(workspace or Path.cwd()).resolve() / UPLOADS_DIR))
+    root = str(Path(workspace or Path.cwd()).resolve() / UPLOADS_DIR)
+    data.setdefault(UPLOADS_ROOT_KEY, root)
+    if run_id:
+        by_run = data.get(UPLOADS_ROOTS_BY_RUN_KEY)
+        if not isinstance(by_run, dict):
+            by_run = {}
+            data[UPLOADS_ROOTS_BY_RUN_KEY] = by_run
+        roots = by_run.get(run_id)
+        if not isinstance(roots, list):
+            roots = []
+            by_run[run_id] = roots
+        if root not in roots:
+            roots.append(root)
 
 
 def stage_media(
@@ -228,7 +241,7 @@ def cleanup_run_media(workspace: Optional[Any], run_id: str, staged: Sequence[St
 
 def media_prompt_block(staged: Sequence[StagedMedia]) -> str:
     """The lines appended to the prompt so the harness knows what was attached and where."""
-    if not staged: 
+    if not staged:
         return ""
     lines = ["", "Attached files. Read them before answering; images and PDFs can be opened with the file tools:"]
     for item in staged:
@@ -316,11 +329,16 @@ def stage_prior_media(
     attachments = prior_attachments(session, exclude_run_id, limit, until_run_id)
     if not attachments:
         return [], ""
-    recorded = (getattr(session, "session_data", None) or {}).get(UPLOADS_ROOT_KEY)
+    data = getattr(session, "session_data", None) or {}
+    recorded = data.get(UPLOADS_ROOT_KEY)
+    by_run = data.get(UPLOADS_ROOTS_BY_RUN_KEY)
+    if not isinstance(by_run, dict):
+        by_run = {}
     current = Path(workspace or Path.cwd()).resolve() / UPLOADS_DIR
     folders: List[Path] = []
     created: List[Path] = []
     moved: List[str] = []
+    restored: List[str] = []
     try:
         for run_id, media in attachments.items():
             folder = uploads_root(workspace, run_id)
@@ -330,13 +348,28 @@ def stage_prior_media(
                 continue
             if not existed:
                 folders.append(folder)
-            if recorded and current != Path(recorded):
-                for item in staged:
-                    if item.path:
-                        moved.append(f"- {item.path} (was {Path(recorded) / run_id / item.name})")
+            roots = by_run.get(run_id)
+            if not isinstance(roots, list):
+                roots = [recorded] if isinstance(recorded, str) else []
+            previous = [Path(root) for root in roots if isinstance(root, str) and root and Path(root) != current]
+            for item in staged:
+                if item.path and previous:
+                    aliases = ", ".join(str(root / run_id / item.name) for root in previous)
+                    moved.append(f"- {item.path} (previously staged at {aliases})")
+            restored.append(run_id)
     except BaseException:
         _rollback_files(created)
         raise
+    # Commit the location history only after the whole restore succeeds. Repeated notes
+    # are intentional: staging does not prove the SDK consumed a prior relocation prompt.
+    for run_id in restored:
+        if run_id not in by_run and isinstance(recorded, str):
+            # Preserve the legacy origin before recording the first observed relocation.
+            if session is not None:
+                if not isinstance(session.session_data.get(UPLOADS_ROOTS_BY_RUN_KEY), dict):
+                    session.session_data[UPLOADS_ROOTS_BY_RUN_KEY] = {}
+                session.session_data[UPLOADS_ROOTS_BY_RUN_KEY][run_id] = [recorded]
+        remember_uploads_root(session, workspace, run_id)
     note = ""
     if moved:
         note = (

@@ -268,3 +268,18 @@ Suggested wording:
 > need idempotency. Turns within a session should be serialized. Claude credential
 > refresh, metrics, step replay and the pending agent-retry changes still need
 > release acceptance before we promise the full reliability contract.
+
+### Attachment location history across replicas
+
+**Status:** PASS
+
+**Description:** Deterministic tests cover files introduced on B after the session
+started on A, A → B → A relocation for both files, legacy-root migration, rollback
+without recording a failed restore, and recording new uploads through Claude and
+both Codex execution paths. Existing adapter/staging safety regressions also run.
+
+**Result:** Attachments use the active workspace; prompts identify historical
+aliases per original run. Repeated notes remain intentional. No live model calls;
+combined-candidate provider verification is separate.
+
+---

@@ -1591,7 +1591,9 @@ def test_prior_attachments_fall_back_to_the_workspace_when_the_recorded_root_is_
     new_path = workspace / ".agno" / "uploads" / "run-1" / "spec.txt"
     assert new_path.read_bytes() == b"v1"
     assert folders == [new_path.parent]
-    assert "have moved" in note and f"- {new_path} (was {recorded_root / 'run-1' / 'spec.txt'})" in note
+    assert (
+        "have moved" in note and f"- {new_path} (previously staged at {recorded_root / 'run-1' / 'spec.txt'})" in note
+    )
 
 
 def test_only_recent_runs_attachments_are_restaged(tmp_path):

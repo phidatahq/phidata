@@ -265,3 +265,44 @@ async def test_vercel_staging_bridge_rejects_source_symlinks(hosted):
         timeout=5,
     )
     assert result.exit_code != 0 and "Too many levels" in result.stderr
+
+
+async def test_capture_waits_for_control_request_crossing_privilege_boundary(hosted):
+    import asyncio
+
+    provider, create, transfer = hosted
+    handle = await create()
+    # Hold a real root helper immediately before privilege drop. Capture must
+    # wait for this accepted control request, not miss it in the UID scan.
+    script = """import time
+from pathlib import Path
+from agno.sandbox import hosted_runtime as runtime
+original=runtime._user_process
+def delayed(operation, request):
+ Path('/tmp/before-drop').touch()
+ time.sleep(2)
+ return original(operation, request)
+runtime._user_process=delayed
+runtime._control()
+result=runtime._dispatch('exec', {'argv':['python','-c',"from pathlib import Path; Path('after-drop').write_text('finished')"], 'timeout':5, 'max_output_bytes':1024})
+assert result['exit_code']==0
+"""
+    task = asyncio.create_task(provider._command(handle.provider_ref, ["python", "-I", "-c", script], timeout=10))
+    try:
+        for _ in range(30):
+            result = await provider._command(handle.provider_ref, ["test", "-f", "/tmp/before-drop"], timeout=5)
+            if result.exit_code == 0:
+                break
+            await asyncio.sleep(0.02)
+        else:
+            pytest.fail("Root helper did not reach the privilege boundary")
+        reference = await transfer.acapture(handle, state={})
+        result = await task
+        assert result.exit_code == 0, result.stderr
+        restored = transfer.store.root.parent / "race-restore"
+        await transfer.archive.arestore(await transfer.store.averify(reference), restored)
+        assert (restored / "workspace" / "after-drop").read_text() == "finished"
+    finally:
+        if not task.done():
+            await provider.adestroy(handle)
+        await asyncio.gather(task, return_exceptions=True)

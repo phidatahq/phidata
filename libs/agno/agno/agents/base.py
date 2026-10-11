@@ -28,7 +28,7 @@ from pydantic import BaseModel, ValidationError
 
 from agno.agents._config import agent_dataclass
 from agno.db.base import AsyncBaseDb, BaseDb, SessionType
-from agno.exceptions import RunCancelledException, SessionBusyError, UnsupportedMediaError
+from agno.exceptions import InputCheckError, RunCancelledException, SessionBusyError, UnsupportedMediaError
 from agno.media import Audio, File, Image, Video
 from agno.metrics import BaseMetrics, ModelMetrics, RunMetrics, SessionMetrics
 from agno.models.message import Message
@@ -1075,8 +1075,10 @@ class BaseExternalAgent:
 
     def _is_retryable_error(self, error: Exception) -> bool:
         """Whether a failed attempt is worth retrying. Unknown errors are retried; adapters
-        override this for errors that fail the same way every time or would bypass a limit."""
-        return not isinstance(error, ImportError)
+        override this for errors that fail the same way every time or would bypass a limit.
+        An input check error (unsupported or unstageable attachments) fails the same way on
+        every attempt."""
+        return not isinstance(error, (ImportError, InputCheckError))
 
     def _failure_metadata(self, error: Exception) -> Dict[str, Any]:
         """Recorded on a run that ends in error. The durable job queue reads ``retryable`` so a

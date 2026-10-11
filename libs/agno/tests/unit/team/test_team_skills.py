@@ -3,7 +3,7 @@
 Verifies that:
 - Skills tools are registered when team.skills is set
 - Skills tools are absent when team.skills is None
-- Skills system prompt snippet is injected into the system message
+- Skills system prompt snippet is injected into the system message (sync and async)
 - Skills system prompt snippet is omitted when team.skills is None
 - deep_copy shares the Skills instance by reference (shared resource)
 """
@@ -15,7 +15,7 @@ from agno.run.base import RunContext
 from agno.run.team import TeamRunOutput
 from agno.session import TeamSession
 from agno.skills import LocalSkills, Skills
-from agno.team._messages import get_system_message
+from agno.team._messages import aget_system_message, get_system_message
 from agno.team._tools import _determine_tools_for_model
 from agno.team.team import Team
 
@@ -143,3 +143,15 @@ def test_deep_copy_shares_skills_by_reference():
     copied = team.deep_copy()
 
     assert copied.skills is skills
+
+
+async def test_asystem_message_contains_skills_snippet():
+    """Async twin: system message includes the <skills_system> block when team.skills is set."""
+    team = Team(name="test-team", mode="coordinate", members=[], skills=_make_skills())
+    team.model = _make_model()
+
+    msg = await aget_system_message(team, TeamSession(session_id="test-session"))
+
+    assert msg is not None
+    assert "<skills_system>" in msg.content
+    assert "get_skill_instructions" in msg.content

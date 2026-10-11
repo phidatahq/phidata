@@ -508,7 +508,7 @@ class CompactionStartedEvent(BaseAgentRunEvent):
     """Event sent when conversation compaction is about to start"""
 
     event: str = RunEvent.compaction_started.value
-    # For compaction triggered by Claude External Agent 
+    # For compaction triggered by Claude External Agent
     compaction_id: Optional[str] = None
     trigger: Optional[str] = None
     timestamp_ns: Optional[int] = None
@@ -524,11 +524,14 @@ class CompactionCompletedEvent(BaseAgentRunEvent):
     tokens_before: Optional[int] = None
     tokens_after: Optional[int] = None
     archived: Optional[bool] = None
-    # For compaction triggered by Claude External Agent 
+    # For compaction triggered by Claude External Agent
     compaction_id: Optional[str] = None
     trigger: Optional[str] = None
     timestamp_ns: Optional[int] = None
     parent_tool_call_id: Optional[str] = None
+    # Transcript-derived context, not the harness's internal compaction prompt.
+    recorded_context: Optional[List[Dict[str, Any]]] = None
+    summary: Optional[Any] = None
 
 
 @dataclass

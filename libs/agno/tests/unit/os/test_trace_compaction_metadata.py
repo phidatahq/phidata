@@ -1,4 +1,3 @@
-import json
 from datetime import datetime, timezone
 from types import SimpleNamespace
 
@@ -17,7 +16,7 @@ def span(**attributes):
     )
 
 
-def test_compaction_info_and_metadata_reach_trace_node():
+def test_compaction_metadata_does_not_fabricate_input_output():
     node = TraceNode.from_span(
         span(
             **{
@@ -28,13 +27,10 @@ def test_compaction_info_and_metadata_reach_trace_node():
                 "agno.compaction.tokens_after": 0,
                 "agno.compaction.duration_unknown": False,
                 "agno.tool.parent_call_id": "delegate-1",
-                "input.value": '{"operation":"conversation_compaction","trigger":"auto","tokens_before":12000}',
-                "output.value": '{"status":"completed","tokens_after":0}',
             }
         )
     )
-    assert json.loads(node.input)["tokens_before"] == 12000
-    assert json.loads(node.output)["status"] == "completed"
+    assert node.input is None and node.output is None
     assert node.metadata == {
         "compaction_id": "compact-1",
         "trigger": "auto",
@@ -55,3 +51,21 @@ def test_existing_compaction_spans_gain_metadata_without_fabricated_values():
 def test_other_chain_spans_keep_existing_metadata():
     node = TraceNode.from_span(span(**{"agno.workflow.description": "workflow", "agno.workflow.steps_count": 2}))
     assert node.metadata == {"description": "workflow", "steps_count": 2}
+
+
+def test_transcript_payloads_populate_info_with_source_metadata():
+    node = TraceNode.from_span(
+        span(
+            **{
+                "agno.compaction.id": "c1",
+                "agno.compaction.input_source": "recorded_conversation",
+                "agno.compaction.output_source": "transcript_summary",
+                "input.value": '[{"role": "user", "content": "Remember tangerine"}]',
+                "output.value": "The codename is tangerine.",
+            }
+        )
+    )
+    assert "Remember tangerine" in node.input
+    assert node.output == "The codename is tangerine."
+    assert node.metadata["input_source"] == "recorded_conversation"
+    assert node.metadata["output_source"] == "transcript_summary"

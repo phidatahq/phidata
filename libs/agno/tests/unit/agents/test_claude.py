@@ -1388,6 +1388,9 @@ async def test_subagent_tool_lineage_survives_events_and_storage(scripted, tmp_d
         restored = ToolExecution.from_dict(tools["call-1"].to_dict())
         assert restored.parent_tool_call_id == "parent-call"
     assert ToolExecution.from_dict({"tool_call_id": "old-record"}).parent_tool_call_id is None
+
+
+@pytest.mark.parametrize("mode", ["sync", "async", "sync-stream", "async-stream"])
 @pytest.mark.parametrize("trigger", ["auto", "manual"])
 async def test_compaction_events_preserve_hooks_and_storage(fake_sdk, monkeypatch, tmp_db, mode, trigger):
     from types import SimpleNamespace

@@ -138,8 +138,12 @@ hooks and recognizes the SDK's `compact_boundary` completion message. Manual
 `/compact` and automatic compaction use the same path. Observation timestamps,
 trigger, correlation ID, and reported token counts are also retained in
 `RunOutput.metadata["compaction_events"]`, including non-streamed runs.
-Transcript contents, summaries, and custom compaction instructions are not copied
-into this tracing metadata.
+When Agno transcript storage is enabled, the adapter enriches completed records
+after the SDK flushes its transcript. It matches the exact boundary UUID to its
+summary and follows the preceding message ancestry to retrieve recorded context.
+The final record contains `recorded_context` and `summary` when available; an
+initial streamed completion event can arrive before those fields are populated.
+Custom compaction instructions and thinking blocks are not copied into these fields.
 
 With the updated OpenInference Agno instrumenter, the trace contains a
 `ClaudeAgent.compaction` child span. Durations measure the observed hook-to-boundary
@@ -148,6 +152,15 @@ an enclosing tool span only when the SDK explicitly identifies that tool and its
 span was observed; otherwise it is the agent run. Token counts before/after are
 context sizes, not additional billed usage. After-compaction tokens are omitted
 when the SDK does not report them.
+
+The span's **Input** contains the recorded conversation before compaction, and
+**Output** contains Claude's actual transcript summary. Input is conversation
+context, not just the latest query or Claude's internal summarization prompt.
+Metadata identifies these sources as `recorded_conversation` and
+`transcript_summary`. OpenInference input/output masking applies to the span
+payloads. Without transcript storage or matching transcript records, unavailable
+fields remain empty. No summary is synthesized. Spans are exported after the run
+finishes, retaining their original compaction completion timestamps.
 
 A boundary without an observed start produces a zero-duration completion marker
 with `agno.compaction.duration_unknown=true`. A start without a completion boundary

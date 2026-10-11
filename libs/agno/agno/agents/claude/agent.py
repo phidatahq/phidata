@@ -350,6 +350,7 @@ class ClaudeAgent(BaseExternalAgent):
             finally:
                 self._clear_run_handle(run_id)
                 await client.disconnect()
+                await compaction.enrich_from_store(getattr(options, "session_store", None))
 
     async def _ainterrupt_run(self, handle: Any) -> None:
         await handle.interrupt()

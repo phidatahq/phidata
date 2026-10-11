@@ -253,3 +253,27 @@ Automatic compaction triggers are covered by deterministic SDK-event tests;
 a live context-limit auto-compaction was not forced.
 
 ---
+
+### tracing_compaction.py — transcript input and summary (2026-10-11)
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/frameworks/claude-agent-sdk/tracing_compaction.py`
+with and without `--stream`, using live Claude and both local editable checkouts.
+Verified that the persisted trace and AgentOS `TraceNode` contain recorded
+conversation input, the matching transcript summary, and content-source metadata.
+
+**Result:** Both modes captured four conversation messages and the seeded fact
+in the summary. Streaming: 3,216 summary characters, 17,522 ms, trace
+`a590f58868c03b6dd2eccee841e888fc`. Non-streaming: 2,934 summary characters,
+13,815 ms, trace `b6f1fbc4b72cdbbfeeca81b8df3c8478`. The first non-streaming
+attempt was interrupted because sandbox networking prevented SDK progress;
+the retry with network access passed. No live automatic compaction was forced.
+
+Regression verification: 113 focused Agno tests and all 245 OpenInference Agno
+package tests passed. Coverage includes repeated compactions, transcript branch
+matching, missing ancestry, subagent transcripts, read failures, event
+serialization, late enrichment, database persistence, masking, and original
+completion timestamps retained across retries.
+
+---

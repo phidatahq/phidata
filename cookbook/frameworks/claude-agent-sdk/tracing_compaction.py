@@ -81,16 +81,19 @@ async def main(stream: bool) -> None:
     assert span.attributes["agno.compaction.tokens_before"] > 0
     assert span.duration_ms > 0
     node = TraceNode.from_span(span)
-    assert (
-        json.loads(node.input)["tokens_before"]
-        == span.attributes["agno.compaction.tokens_before"]
-    )
-    assert json.loads(node.output)["status"] == "completed"
+    recorded_context = json.loads(node.input)
+    assert isinstance(recorded_context, list) and recorded_context
+    assert "tangerine" in node.input.lower()
+    assert node.output and "tangerine" in node.output.lower()
+    assert node.metadata["input_source"] == "recorded_conversation"
+    assert node.metadata["output_source"] == "transcript_summary"
     assert node.metadata["trigger"] == "manual"
     assert node.metadata["tokens_before"] > 0
     print("ClaudeAgent.run -> ClaudeAgent.compaction")
     print("Compaction duration (ms):", span.duration_ms)
     print("Tokens before:", span.attributes["agno.compaction.tokens_before"])
+    print("Recorded context messages:", len(recorded_context))
+    print("Summary characters:", len(node.output))
     print("Trace ID:", record.trace_id)
     print("Verified compaction trace in tmp/claude-compaction-traces.db")
 

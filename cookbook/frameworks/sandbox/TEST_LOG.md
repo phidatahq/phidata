@@ -133,3 +133,23 @@ Python 3.9 follow-up: 76 sandbox unit tests, 40 real Postgres cases and 12 Agent
 **Result:** Cookbook passed. Media/AgentOS integration: 19 passed; final media validation: 9 passed after adding malformed-array cases. Sandbox/external-agent units: 621 passed; queue regressions: 110 passed; Python 3.9 sandbox units: 94 passed. Required format and validation scripts passed. Model interpretation and hosted-provider behavior remain untested.
 
 ---
+
+### coding_workload.py / workload_fixture.py
+
+**Status:** PASS
+
+**Description:** Real disposable Docker computers, network disabled and no model credentials. Created and cloned a local Git fixture, installed a local wheel into a copied-interpreter virtual environment, reproduced a failing test, edited code, passed tests, ran an HTTP application and committed SQLite data. Stopped the application, checkpointed, destroyed compute and restored into a second generation.
+
+**Result:** Hashes for tracked, untracked and ignored files and database bytes matched; Git HEAD and the installed dependency survived; tests passed and the application restarted with the persisted database row. This is infrastructure acceptance, not model/harness conversation acceptance or a claim about arbitrary live-database snapshots.
+
+---
+
+### Combined stack and installed-wheel acceptance
+
+**Status:** PASS
+
+**Description:** Combined sandbox core plus queue acceptance-ordering fix and sandbox idempotency compatibility. Python 3.12, real dedicated Docker/Postgres/Redis, fixture harness. Fresh locally built wheel installed into a new service environment and its site-packages import path verified.
+
+**Result:** 816 focused unit tests passed; 175 integration tests passed and 4 intentionally inapplicable controlled-interleaving backend variants skipped. The isolated wheel passed the actual HTTP background/replay, artifacts, retirement/recovery/history deletion, attachment restoration and coding-workload exercises. Required format/validation scripts passed. This verifies an unreleased local wheel, not a published package. No live models or hosted providers were exercised.
+
+---

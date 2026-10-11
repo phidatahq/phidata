@@ -1130,6 +1130,13 @@ class AsyncPostgresDb(AsyncBaseDb):
             transcripts_table = await self._get_table(table_type="transcripts")
 
             async with self.async_session_factory() as sess, sess.begin():
+                from agno.db.session_resources import assert_session_resources_released
+
+                protected = select(table.c.session_data).where(table.c.session_id == session_id)
+                if user_id is not None:
+                    protected = protected.where(table.c.user_id == user_id)
+                for data in (await sess.execute(protected.with_for_update())).scalars():
+                    assert_session_resources_released(data)
                 delete_stmt = table.delete().where(table.c.session_id == session_id)
                 if user_id is not None:
                     delete_stmt = delete_stmt.where(table.c.user_id == user_id)
@@ -1157,6 +1164,10 @@ class AsyncPostgresDb(AsyncBaseDb):
             return True
 
         except Exception as e:
+            from agno.db.session_resources import SessionResourcesPending
+
+            if isinstance(e, SessionResourcesPending):
+                raise
             log_error(f"Error deleting session: {str(e)}")
             return False
 
@@ -1183,10 +1194,17 @@ class AsyncPostgresDb(AsyncBaseDb):
                 # cascade below removes stored payloads, which no filter on the
                 # sessions table would stop it from doing for another user's
                 # session id.
-                select_stmt = select(table.c.session_id).where(table.c.session_id.in_(session_ids))
+                select_stmt = select(table.c.session_id, table.c.session_data).where(
+                    table.c.session_id.in_(session_ids)
+                )
                 if user_id is not None:
                     select_stmt = select_stmt.where(table.c.user_id == user_id)
-                deletable_ids = [row[0] for row in await sess.execute(select_stmt)]
+                from agno.db.session_resources import assert_session_resources_released
+
+                protected_rows = (await sess.execute(select_stmt.with_for_update())).all()
+                for row in protected_rows:
+                    assert_session_resources_released(row[1])
+                deletable_ids = [row[0] for row in protected_rows]
                 # Stored payloads are cascaded only for sessions this delete
                 # was allowed to remove. An unscoped delete has no other user
                 # to protect, so it also cleans up after a session whose row
@@ -1216,6 +1234,10 @@ class AsyncPostgresDb(AsyncBaseDb):
                 self._run_object_cache.drop_session(deleted_id)
 
         except Exception as e:
+            from agno.db.session_resources import SessionResourcesPending
+
+            if isinstance(e, SessionResourcesPending):
+                raise
             log_error(f"Error deleting sessions: {str(e)}")
 
     async def _cascade_tool_results(self, session_ids: List[str]) -> None:

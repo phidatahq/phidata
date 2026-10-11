@@ -7,6 +7,7 @@ from fastapi import APIRouter, Body, Depends, HTTPException, Path, Query, Reques
 
 from agno.db.base import AsyncBaseDb, BaseDb, SessionType
 from agno.db.schemas.scheduler import strip_reserved_run_metadata
+from agno.db.session_resources import SessionResourcesPending
 from agno.db.utils import deserialize_session_by_type, resolve_session_type
 from agno.exceptions import AgnoError
 from agno.media.storage.base import AsyncMediaStorage, MediaStorage
@@ -884,11 +885,14 @@ def attach_routes(
 
         media_keys = await _collect_media_keys(db, [session_id], effective_user_id) if delete_media else []
 
-        if isinstance(db, AsyncBaseDb):
-            db = cast(AsyncBaseDb, db)
-            await db.delete_session(**local_kwargs)
-        else:
-            db.delete_session(**local_kwargs)
+        try:
+            if isinstance(db, AsyncBaseDb):
+                db = cast(AsyncBaseDb, db)
+                await db.delete_session(**local_kwargs)
+            else:
+                db.delete_session(**local_kwargs)
+        except SessionResourcesPending as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
 
         await _delete_media_keys(media_keys)
 
@@ -956,11 +960,14 @@ def attach_routes(
 
         media_keys = await _collect_media_keys(db, request.session_ids, effective_user_id) if delete_media else []
 
-        if isinstance(db, AsyncBaseDb):
-            db = cast(AsyncBaseDb, db)
-            await db.delete_sessions(**local_kwargs)
-        else:
-            db.delete_sessions(**local_kwargs)
+        try:
+            if isinstance(db, AsyncBaseDb):
+                db = cast(AsyncBaseDb, db)
+                await db.delete_sessions(**local_kwargs)
+            else:
+                db.delete_sessions(**local_kwargs)
+        except SessionResourcesPending as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
 
         await _delete_media_keys(media_keys)
 

@@ -81,9 +81,13 @@ def _drop() -> None:
     os.environ["CODEX_HOME"] = "/runtime/native/codex"
 
 
-def _initialize() -> Dict[str, Any]:
+def _initialize(identity: str) -> Dict[str, Any]:
+    if not isinstance(identity, str) or not re.fullmatch(r"[a-f0-9]{64}", identity):
+        raise ValueError("Hosted initialization requires an allocation identity")
     marker = _CONTROL / "initialized"
     if marker.exists():
+        if marker.read_text() != identity:
+            raise SandboxError("Prepared image contains another allocation's initialized runtime")
         return {"initialized": True}
     for path in (Path("/workspace"), Path("/runtime")):
         if path.exists() or path.is_symlink():
@@ -95,7 +99,7 @@ def _initialize() -> Dict[str, Any]:
         os.chown(path, 1000, 1000)
     Path("/runtime/native").mkdir(mode=0o700)
     os.chown("/runtime/native", 1000, 1000)
-    marker.write_text("1")
+    marker.write_text(identity)
     return {"initialized": True}
 
 
@@ -191,7 +195,7 @@ def _dispatch(operation: str, request: Dict[str, Any]) -> Dict[str, Any]:
 
 def _dispatch_locked(operation: str, request: Dict[str, Any]) -> Dict[str, Any]:
     if operation == "init":
-        return _initialize()
+        return _initialize(request["identity"])
     if not (_CONTROL / "initialized").exists():
         raise SandboxError("Hosted runtime is not initialized")
     if operation == "capture":
@@ -252,7 +256,9 @@ def main() -> None:
         print(json.dumps(_user(args.request, json.loads(sys.stdin.buffer.read(_MAX_REQUEST + 1))), allow_nan=False))
         return
     request = {}
-    if args.request is not None:
+    if args.operation == "init":
+        request = {"identity": args.request}
+    elif args.request is not None:
         request = json.loads(_read(args.request, _MAX_REQUEST))
         _path(args.request).unlink()
     print(json.dumps(_dispatch(args.operation, request), allow_nan=False))

@@ -223,3 +223,13 @@ Python 3.9 follow-up: 76 sandbox unit tests, 40 real Postgres cases and 12 Agent
 **Result:** The previous image failed the reproducer. The corrected image passed all 12 hosted Linux/Postgres cases, including the controlled overlap on both database adapters. A first lock-only attempt exposed reply-freeze behavior and was replaced before this fix was published.
 
 ---
+
+### Allocation identity reconciliation
+
+**Status:** PASS
+
+**Description:** Reproduced ready allocations accepting changed ownership metadata, then added exact-label validation. Root initialization now binds its marker to the physical allocation, refusing prepared images containing another computer's initialized runtime while retaining same-allocation idempotency.
+
+**Result:** 103 sandbox units and 14 real Linux/Postgres hosted cases passed. Combined regression suite: 833 passed, 4 optional installed-SDK modules skipped. Required format/validation passed. Hosted platform calls remain pending account setup.
+
+---

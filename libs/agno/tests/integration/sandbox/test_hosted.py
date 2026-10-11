@@ -306,3 +306,14 @@ assert result['exit_code']==0
         if not task.done():
             await provider.adestroy(handle)
         await asyncio.gather(task, return_exceptions=True)
+
+
+async def test_initialized_image_marker_is_bound_to_exact_allocation(hosted):
+    provider, create, _ = hosted
+    handle = await create()
+    assert await provider._control(handle, "init", {}) == {"initialized": True}
+    wrong = await provider._command(
+        handle.provider_ref, ["python", "-I", "-m", "agno.sandbox.hosted_runtime", "init", "a" * 64], timeout=5
+    )
+    assert wrong.exit_code != 0 and "another allocation" in wrong.stderr
+    assert (await provider.aexec(handle, ["true"])).exit_code == 0

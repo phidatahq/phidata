@@ -268,3 +268,19 @@ Suggested wording:
 > need idempotency. Turns within a session should be serialized. Claude credential
 > refresh, metrics, step replay and the pending agent-retry changes still need
 > release acceptance before we promise the full reliability contract.
+
+### Durable queue finality on run polls and streamed errors
+
+**Status:** PASS
+
+**Description:** Both harness types are polled with an ERROR attempt row under
+queued/running/paused/settled tickets. Responses preserve attempt evidence while
+reporting queue status/finality. Tests cover exhausted and permanent failures,
+store outages, missing tickets, ownership, and ticket-before-run-row acceptance.
+Real worker streaming code annotates errors before the settlement decision.
+
+**Result:** Deterministic HTTP/queue regressions passed; shared infrastructure and
+provider verification are tracked separately. Ticket expiry reports unknown
+finality; no exactly-once side-effect guarantee is implied.
+
+---

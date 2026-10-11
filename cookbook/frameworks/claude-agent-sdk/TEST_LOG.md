@@ -235,3 +235,21 @@ checks; the earlier live provider cancellation runs were not repeated.
 **Description:** Live run with claude-agent-sdk 0.2.95 and `claude-sonnet-4-6` on SQLite transcript storage. A two-step Bash turn listed checkpoints at both tool results and the end. Continuing from the first tool result with a question produced a branch that only knew `echo alpha`; `continue_from="last_user"` replayed the turn as a forked sibling. Separately, with `claude-haiku-4-5`, exercised AgentOS `/checkpoints` and `/continue` (non-stream and SSE), an in-place streamed continue, and a replay of a non-first turn that kept earlier context.
 
 **Result:** Continue and checkpoints work end to end against the real SDK. Files touched after a checkpoint are not rewound.
+
+### tracing_compaction.py (2026-10-11)
+
+**Status:** PASS
+
+**Description:** Ran manual `/compact` with live claude-sonnet-4-6 using local
+editable Agno and OpenInference, in streaming and non-streaming modes. The
+cookbook seeds a conversation and verifies the stored SQLite trace.
+
+**Result:** Both modes produced one `ClaudeAgent.compaction` child span, with
+manual trigger, OK status, and 28,826 pre-compaction tokens. Observed durations
+were 14,561 ms (streaming) and 14,460 ms (non-streaming). Start/completion events
+were retained in run metadata. Stream trace: `8531b9c69355e87448b07e8cc1325153`;
+non-stream trace: `f2902ad28cc6b1801e2cec9a02ed2fae`.
+Automatic compaction triggers are covered by deterministic SDK-event tests;
+a live context-limit auto-compaction was not forced.
+
+---

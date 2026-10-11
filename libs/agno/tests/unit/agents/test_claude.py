@@ -33,6 +33,7 @@ class ClaudeAgentOptions:
     def __init__(self, **kwargs: Any) -> None:
         self.resume = kwargs.pop("resume", None)
         self.include_partial_messages = kwargs.pop("include_partial_messages", False)
+        self.hooks = kwargs.pop("hooks", None)
         self.extra = kwargs
 
 
@@ -1387,3 +1388,105 @@ async def test_subagent_tool_lineage_survives_events_and_storage(scripted, tmp_d
         restored = ToolExecution.from_dict(tools["call-1"].to_dict())
         assert restored.parent_tool_call_id == "parent-call"
     assert ToolExecution.from_dict({"tool_call_id": "old-record"}).parent_tool_call_id is None
+@pytest.mark.parametrize("trigger", ["auto", "manual"])
+async def test_compaction_events_preserve_hooks_and_storage(fake_sdk, monkeypatch, tmp_db, mode, trigger):
+    from types import SimpleNamespace
+
+    from agno.run.agent import CompactionCompletedEvent, CompactionStartedEvent
+
+    sdk = claude_module._sdk()
+    monkeypatch.setattr(sdk, "HookMatcher", SimpleNamespace, raising=False)
+    hook_calls = []
+
+    async def user_hook(input_data, tool_use_id, context):
+        hook_calls.append(input_data["trigger"])
+        return {"suppressOutput": True}
+
+    original_hooks = {"PreCompact": [SimpleNamespace(hooks=[user_hook])]}
+
+    async def query(prompt, options):
+        yield SystemMessage("init", {"session_id": "compact-session"})
+        for matcher in options.hooks["PreCompact"]:
+            for hook in matcher.hooks:
+                await hook({"trigger": trigger, "custom_instructions": "private"}, None, {})
+        yield SystemMessage("status", {"status": "compacting"})
+        yield SystemMessage("compact_boundary", {"compact_metadata": {"trigger": trigger, "pre_tokens": 1234}})
+        yield ResultMessage("compact-session", "done")
+
+    monkeypatch.setattr(sdk, "query", query)
+    agent = ClaudeAgent(id="compaction", db=tmp_db, options_kwargs={"hooks": original_hooks})
+    if mode.endswith("stream"):
+        kwargs = dict(stream=True, yield_run_output=True, session_id="s")
+        if mode == "sync-stream":
+            events = list(agent.run("compact", **kwargs))
+        else:
+            events = [event async for event in agent.arun("compact", **kwargs)]
+        run = events[-1]
+        compactions = [e for e in events if isinstance(e, (CompactionStartedEvent, CompactionCompletedEvent))]
+        assert len(compactions) == 2
+    elif mode == "sync":
+        run = agent.run("compact", session_id="s")
+    else:
+        run = await agent.arun("compact", session_id="s")
+    assert run.status == RunStatus.completed
+    assert hook_calls == [trigger]
+    assert len(original_hooks["PreCompact"]) == 1
+    stored = await agent.aget_run_output(run.run_id, "s")
+    records = stored.metadata["compaction_events"]
+    assert records == run.metadata["compaction_events"]
+    started, completed = records
+    assert started["event"] == "CompactionStarted"
+    assert completed["event"] == "CompactionCompleted"
+    assert started["compaction_id"] == completed["compaction_id"]
+    assert started["trigger"] == completed["trigger"] == trigger
+    assert 0 < started["timestamp_ns"] <= completed["timestamp_ns"]
+    assert completed["tokens_before"] == 1234
+    assert "private" not in str(records)
+    assert CompactionStartedEvent.from_dict(started).compaction_id == started["compaction_id"]
+    assert CompactionCompletedEvent.from_dict(completed).tokens_before == 1234
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("stream", [False, True])
+async def test_compaction_metadata_survives_failed_attempt_and_retry(fake_sdk, monkeypatch, stream):
+    from types import SimpleNamespace
+
+    sdk = claude_module._sdk()
+    monkeypatch.setattr(sdk, "HookMatcher", SimpleNamespace, raising=False)
+    attempts = []
+
+    async def query(prompt, options):
+        attempts.append(options.resume)
+        yield SystemMessage("init", {"session_id": "retry-compact"})
+        await options.hooks["PreCompact"][-1].hooks[0]({"trigger": "auto"}, None, {})
+        if len(attempts) == 1:
+            raise ProcessError("temporary error")
+        yield SystemMessage("compact_boundary", {"compact_metadata": {"trigger": "auto", "pre_tokens": 500}})
+        yield ResultMessage("retry-compact", "done")
+
+    monkeypatch.setattr(sdk, "query", query)
+    agent = ClaudeAgent(id="retry-compaction", retries=1, delay_between_retries=0)
+    if stream:
+        events = [e async for e in agent.arun("go", stream=True, yield_run_output=True)]
+        run = events[-1]
+    else:
+        run = await agent.arun("go")
+    assert run.status == RunStatus.completed
+    records = run.metadata["compaction_events"]
+    assert [r["event"] for r in records] == ["CompactionStarted", "CompactionStarted", "CompactionCompleted"]
+    assert records[0]["compaction_id"] != records[1]["compaction_id"]
+    assert records[1]["compaction_id"] == records[2]["compaction_id"]
+
+
+@pytest.mark.asyncio
+async def test_noop_compact_does_not_emit_compaction(fake_sdk, monkeypatch):
+    sdk = claude_module._sdk()
+
+    async def query(prompt, options):
+        yield ResultMessage("noop", "Not enough messages to compact.")
+
+    monkeypatch.setattr(sdk, "query", query)
+    agent = ClaudeAgent(id="noop")
+    events = [e async for e in agent.arun("/compact", stream=True, yield_run_output=True)]
+    assert not any(getattr(e, "event", "").startswith("Compaction") for e in events)
+    assert not (events[-1].metadata or {}).get("compaction_events")

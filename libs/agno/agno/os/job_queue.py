@@ -1559,7 +1559,15 @@ class QueueWorker:
         # construction: the early returns below (foreign job_type, missing
         # component) and pre-slot exceptions all unwind through the context
         # manager's finally - the bare mark/unmark pair leaked on all three.
-        with worker_managed_execution(job["id"], self.worker_id, job["attempt"]) as ownership:
+        with worker_managed_execution(
+            job["id"],
+            self.worker_id,
+            job["attempt"],
+            session_serialized=(
+                (job.get("payload") or {}).get("serialize_session") is True
+                and getattr(self.store, "serializes_sessions", False) is True
+            ),
+        ) as ownership:
             await self._execute_claimed_inner(job, ownership)
 
     async def _await_with_timeout(self, execution: Any, ownership: Any) -> Any:

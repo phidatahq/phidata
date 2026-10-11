@@ -476,3 +476,19 @@ async def test_queue_termination_fences_owner_and_rejects_stale_attempt(store):
     with pytest.raises(SandboxLeaseLost):
         await store.aget(old.lease)
     assert (await store.afinish_stop(stopping.lease))["status"] == "CANCELLED"
+
+
+@pytest.mark.parametrize("first_status,next_status", [("CANCELLED", "ERROR"), ("ERROR", "CANCELLED")])
+async def test_stop_takeover_preserves_cancellation_over_error(store, first_status, next_status):
+    await seed(store, attempt=1)
+    await claim(store, queue_attempt=1)
+    args = dict(agent_id="agent", session_id="session", user_id="user", run_id="run", queue_attempt=1)
+    first = await store._aclaim_stop(**args, status=first_status, reason="first durable intent")
+    second = await store._aclaim_stop(**args, status=next_status, reason="competing cleanup")
+    assert second.record["stop_status"] == "CANCELLED"
+    assert second.record["stop_reason"] == (
+        "first durable intent" if first_status == "CANCELLED" else "competing cleanup"
+    )
+    with pytest.raises(SandboxLeaseLost):
+        await store.aget(first.lease)
+    assert (await store.afinish_stop(second.lease))["status"] == "CANCELLED"

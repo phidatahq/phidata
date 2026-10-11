@@ -399,6 +399,15 @@ class SandboxCoordinator:
                     committed = await self._finalize(lease)
             yield self._terminal(committed)
             yield RunOutput.from_dict(committed)
+        except SandboxLeaseLost:
+            from agno.exceptions import RunCancelledException
+            from agno.run.cancel import ais_cancelled
+
+            # Remote cancellation fences this worker before compute cleanup.
+            # Let the queue reconcile cancellation instead of failing its ticket.
+            if await ais_cancelled(run_id):
+                raise RunCancelledException("Run cancelled by another replica") from None
+            raise
         except asyncio.CancelledError:
             from agno.run.cancel import ais_cancelled
             from agno.run.concurrency import get_worker_ownership

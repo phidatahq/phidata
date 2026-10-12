@@ -1643,3 +1643,48 @@ def test_failed_turn_with_output_schema_keeps_the_error_text(fake_sdk):
     run = CodexAgent(name="Codex", id="codex", output_schema=Movie).run("Invent a movie")
     assert run.status == RunStatus.error
     assert "boom" in run.content and run.content_type == "str"
+
+
+def test_runs_record_the_configured_model_and_provider(fake_sdk, tmp_db):
+    fake_sdk.notifications = [_delta("m1", "ok"), _turn_completed()]
+    run = CodexAgent(name="Codex", id="codex", db=tmp_db, model="gpt-5.6-luna").run("hi", session_id="s")
+    assert (run.model, run.model_provider) == ("gpt-5.6-luna", "OpenAI")
+    assert (tmp_db.get_run(run.run_id).model, tmp_db.get_run(run.run_id).model_provider) == ("gpt-5.6-luna", "OpenAI")
+
+
+def test_unset_model_falls_back_to_the_default_model(fake_sdk, tmp_db):
+    """Like a native model's default id: the default is what the thread is started with, what
+    the run records and what its per-model usage names. A model set in thread_options wins."""
+    fake_sdk.notifications = [_token_usage_updated(_single_request()), _agent_message("m1", "ok"), _turn_completed()]
+    agent = CodexAgent(name="Codex", id="codex", db=tmp_db)
+    assert agent.model == "gpt-5.6-luna"
+    run = agent.run("hi", session_id="s")
+    assert (run.model, run.model_provider) == ("gpt-5.6-luna", "OpenAI")
+    assert next(c for c in fake_sdk.calls if c["op"] == "thread_start")["kwargs"]["model"] == "gpt-5.6-luna"
+    [model] = run.metrics.details["model"]
+    assert (model.id, model.provider) == ("gpt-5.6-luna", "openai")
+    fake_sdk.notifications = [_agent_message("m1", "ok"), _turn_completed()]
+    agent = CodexAgent(name="Codex", id="codex", thread_options={"model": "thread-model"})
+    assert agent.model is None
+    run = agent.run("hi")
+    assert (run.model, run.model_provider) == ("thread-model", "OpenAI")
+    assert [c for c in fake_sdk.calls if c["op"] == "thread_start"][-1]["kwargs"]["model"] == "thread-model"
+
+
+def test_metrics_page_counts_codex_runs_per_model(fake_sdk, tmp_db):
+    from fastapi.testclient import TestClient
+
+    from agno.os import AgentOS
+
+    fake_sdk.notifications = [_delta("m1", "ok"), _turn_completed()]
+    agent = CodexAgent(name="Codex", id="codex", db=tmp_db, model="gpt-5.6-luna")
+    client = TestClient(AgentOS(agents=[agent], db=tmp_db, telemetry=False).get_app())
+    for _ in range(2):
+        fake_sdk.notifications = [_delta("m1", "ok"), _turn_completed()]
+        assert (
+            client.post("/agents/codex/runs", data={"message": "hi", "session_id": "s", "stream": "false"}).status_code
+            == 200
+        )
+    body = client.get("/metrics").json()
+    days = body["metrics"] if isinstance(body, dict) else body
+    assert days[-1]["model_metrics"] == [{"model_id": "gpt-5.6-luna", "model_provider": "OpenAI", "count": 2}]

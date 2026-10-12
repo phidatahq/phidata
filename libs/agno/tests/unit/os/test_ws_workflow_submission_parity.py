@@ -64,12 +64,10 @@ def _queued_acks(env) -> List[dict]:
 
 
 @pytest.mark.asyncio
-async def test_version_pinned_submission_does_not_ride_the_queue(ws_env):
-    """The worker resolves the registry instance, so a ticket cannot carry a
-    version pin. HTTP refuses to queue pinned submissions and runs them
-    in-process with the pin stamped on the run; the WebSocket door must do
-    the same instead of queueing the run and silently executing whatever
-    version is current."""
+async def test_version_pinned_submission_rides_the_queue_with_its_pin(ws_env):
+    """The ticket carries the pin (resolution scope + run metadata stamp), so
+    a pinned WebSocket submission queues like its HTTP twin, and a later
+    continue reloads the pinned version rather than whatever is current."""
     from agno.run.base import RunStatus
 
     env = ws_env
@@ -77,11 +75,14 @@ async def test_version_pinned_submission_does_not_ride_the_queue(ws_env):
         env.ws, {"workflow_id": "wf1", "session_id": "s1", "message": "hi", "version": 2}, env.os
     )
     try:
-        assert not _queued_acks(env), "a version-pinned submission must not be queued"
-        assert await env.store.count_queued_jobs() == 0
-        assert len(env.arun_calls) == 1, "it must take the in-process path instead"
-        stamped = env.arun_calls[0].get("metadata") or {}
-        assert stamped.get(COMPONENT_VERSION_METADATA_KEY) == 2, "and carry the pin on the run"
+        acks = _queued_acks(env)
+        assert len(acks) == 1, "a version-pinned submission must ride the queue"
+        assert env.arun_calls == [], "and not also run in-process"
+        job = await env.store.get_job(acks[0]["run_id"])
+        assert job is not None
+        assert job["payload"]["scope"]["pinned"] == 2
+        stamped = job["payload"]["kwargs"].get("metadata") or {}
+        assert stamped.get(COMPONENT_VERSION_METADATA_KEY) == 2, "the queued run carries the pin"
     finally:
         for ack in _queued_acks(env):
             await env.stream.complete_run(ack["run_id"], RunStatus.completed)

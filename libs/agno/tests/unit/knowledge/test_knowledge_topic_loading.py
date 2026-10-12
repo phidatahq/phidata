@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from agno.knowledge.content import Content
+from agno.knowledge.content import Content, ContentStatus
 from agno.knowledge.document import Document
 
 
@@ -18,6 +18,16 @@ class MockReader:
     async def async_read(self, topic) -> List[Document]:
         self.processed_topics.append(topic)
         return [Document(name=topic, content=f"Content for {topic}")]
+
+
+class EmptyReader:
+    """A reader that returns no documents for any topic."""
+
+    def read(self, topic) -> List[Document]:
+        return []
+
+    async def async_read(self, topic) -> List[Document]:
+        return []
 
 
 def _as_lightrag(vector_db) -> None:
@@ -164,3 +174,48 @@ async def test_aload_from_topics_lightrag_continues(knowledge):
     await knowledge._aload_from_topics(content, upsert=False, skip_if_exists=False)
 
     assert len(processed_topics) == 3
+
+
+def test_load_from_topics_empty_read_skips_vector_insert(knowledge):
+    # Regression test for #10931: when a topic's reader returns no documents
+    # the row must stay FAILED ("No content found for topic") and must not
+    # fall through to the vector-db insert, which would overwrite the status
+    # to COMPLETED and stamp _agno.vectors_indexed = True.
+    updated: List[Content] = []
+
+    knowledge._should_skip = MagicMock(return_value=False)
+    knowledge._insert_contents_db = MagicMock()
+    knowledge._update_content = MagicMock(side_effect=lambda content: updated.append(content))
+    knowledge._handle_vector_db_insert = MagicMock()
+    knowledge._build_content_hash = MagicMock(return_value="hash")
+    knowledge._prepare_documents_for_insert = MagicMock()
+
+    content = Content(topics=["empty"], reader=EmptyReader())
+    knowledge._load_from_topics(content, upsert=False, skip_if_exists=False)
+
+    # The empty read must not trigger a vector-db insert at all.
+    assert knowledge._handle_vector_db_insert.call_count == 0
+    assert len(updated) == 1
+    assert updated[0].status == ContentStatus.FAILED
+    assert updated[0].status_message == "No content found for topic"
+
+
+@pytest.mark.asyncio
+async def test_aload_from_topics_empty_read_skips_vector_insert(knowledge):
+    # Async counterpart of test_load_from_topics_empty_read_skips_vector_insert.
+    updated: List[Content] = []
+
+    knowledge._should_skip = MagicMock(return_value=False)
+    knowledge._ainsert_contents_db = AsyncMock()
+    knowledge._aupdate_content = AsyncMock(side_effect=lambda content: updated.append(content))
+    knowledge._ahandle_vector_db_insert = AsyncMock()
+    knowledge._build_content_hash = MagicMock(return_value="hash")
+    knowledge._prepare_documents_for_insert = MagicMock()
+
+    content = Content(topics=["empty"], reader=EmptyReader())
+    await knowledge._aload_from_topics(content, upsert=False, skip_if_exists=False)
+
+    assert knowledge._ahandle_vector_db_insert.call_count == 0
+    assert len(updated) == 1
+    assert updated[0].status == ContentStatus.FAILED
+    assert updated[0].status_message == "No content found for topic"

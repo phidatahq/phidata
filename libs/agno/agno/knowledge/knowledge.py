@@ -4065,6 +4065,7 @@ class Knowledge(RemoteKnowledge):
                 content.status = ContentStatus.FAILED
                 content.status_message = "No content found for topic"
                 await self._aupdate_content(content)
+                continue  # Skip vector insert so the FAILED status sticks
 
             await self._ahandle_vector_db_insert(content, read_documents, upsert, prior_status=prior_status)
 
@@ -4126,6 +4127,7 @@ class Knowledge(RemoteKnowledge):
                 content.status = ContentStatus.FAILED
                 content.status_message = "No content found for topic"
                 self._update_content(content)
+                continue  # Skip vector insert so the FAILED status sticks
 
             self._handle_vector_db_insert(content, read_documents, upsert, prior_status=prior_status)
 

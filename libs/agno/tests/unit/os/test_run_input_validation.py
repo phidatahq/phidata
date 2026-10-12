@@ -149,7 +149,13 @@ def test_raw_response_formats_pass_through(parser_client, schema):
         ({"type": "json_schema"}, "true"),
         ({"type": "json_schema", "json_schema": {"name": "P", "schema": {"type": "string"}}}, "true"),
         ({"type": "json_schema", "json_schema": {"name": "P", "schema": {"allOf": [{"type": "string"}]}}}, "true"),
-        ({"type": "json_schema", "json_schema": {"name": "P", "schema": {"type": "object", "properties": {"a": "bad"}}}}, "true"),
+        (
+            {
+                "type": "json_schema",
+                "json_schema": {"name": "P", "schema": {"type": "object", "properties": {"a": "bad"}}},
+            },
+            "true",
+        ),
     ],
     ids=["json_object-model", "json_schema-model", "missing-inner", "scalar-inner", "untyped-inner", "malformed-inner"],
 )

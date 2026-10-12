@@ -269,6 +269,22 @@ Suggested wording:
 > refresh, metrics, step replay and the pending agent-retry changes still need
 > release acceptance before we promise the full reliability contract.
 
+### HTTP input validation regressions (2026-10-11)
+
+**Status:** PASS
+
+**Description:** Real FastAPI run routes with Claude/Codex execution spies reject malformed
+JSON media, scalar or non-object media entries, and malformed/scalar output schemas.
+Invalid media is checked for foreground JSON, SSE and background submissions. Every
+rejection asserts zero agent executions. Valid media bytes and object schemas survive
+parsing; caller-supplied storage references remain stripped.
+
+**Result:** 175 initial API cases and 173 existing OS utility cases passed. An additional
+invalid-media reconstruction case passed. No model calls. This does not establish
+fail-closed validation of generated structured answers; that is a separate fix.
+
+---
+
 ## 2026-10-11 pinned main release acceptance
 
 Framework source: `9e1f77f52a9bb16ee5dde3ccff9fa2491e86db5f`. Native SDK versions: Claude 0.2.165, Codex 0.162.1. Isolated local replicas, Postgres and Redis. Later checks used a clean installation of the wheel built from this revision while another session edited the checkout.

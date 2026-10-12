@@ -4,18 +4,20 @@ import warnings
 from copy import deepcopy
 from dataclasses import dataclass, field, replace
 from importlib import import_module
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, AsyncIterator, ClassVar, Dict, Iterator, List, Optional, Set, Tuple
 from uuid import uuid4
 
 from agno.agents._config import agent_dataclass
 from agno.agents._media import (
     accept_media,
-    cleanup_media,
+    cleanup_run_media,
     media_prompt_block,
     remember_uploads_root,
     remove_upload_folder,
     stage_media,
     stage_prior_media,
+    uploads_root,
 )
 from agno.agents.base import (
     BaseExternalAgent,
@@ -627,16 +629,22 @@ class CodexAgent(BaseExternalAgent):
         media = kwargs.pop("media", None)
         run_id = kwargs.get("run_id") or str(uuid4())
         kwargs["run_id"] = run_id
-        kwargs["staged_media"] = stage_media(workspace, run_id, media) if media else []
-        if kwargs["staged_media"]:
-            remember_uploads_root(kwargs.get("session"), workspace)
-        restaged, kwargs["moved_note"] = stage_prior_media(workspace, kwargs.get("session"), exclude_run_id=run_id)
+        kwargs["staged_media"] = []
+        restaged: List[Path] = []
+        prepared = False
+        created_root = False
         try:
+            if media:
+                created_root = not uploads_root(workspace, run_id).exists()
+                kwargs["staged_media"] = stage_media(workspace, run_id, media)
+            if kwargs["staged_media"]:
+                remember_uploads_root(kwargs.get("session"), workspace)
+            restaged, kwargs["moved_note"] = stage_prior_media(workspace, kwargs.get("session"), exclude_run_id=run_id)
+            prepared = True
             return await self._arun_adapter_sdk(input, history=history, **kwargs)
         finally:
-            if not self.keep_uploads:
-                if kwargs["staged_media"]:
-                    cleanup_media(workspace, run_id)
+            if not self.keep_uploads or not prepared:
+                cleanup_run_media(workspace, run_id, kwargs["staged_media"], created_root)
                 for folder in restaged:
                     remove_upload_folder(folder)
 
@@ -647,17 +655,23 @@ class CodexAgent(BaseExternalAgent):
         media = kwargs.pop("media", None)
         run_id = kwargs.get("run_id") or str(uuid4())
         kwargs["run_id"] = run_id
-        kwargs["staged_media"] = stage_media(workspace, run_id, media) if media else []
-        if kwargs["staged_media"]:
-            remember_uploads_root(kwargs.get("session"), workspace)
-        restaged, kwargs["moved_note"] = stage_prior_media(workspace, kwargs.get("session"), exclude_run_id=run_id)
+        kwargs["staged_media"] = []
+        restaged: List[Path] = []
+        prepared = False
+        created_root = False
         try:
+            if media:
+                created_root = not uploads_root(workspace, run_id).exists()
+                kwargs["staged_media"] = stage_media(workspace, run_id, media)
+            if kwargs["staged_media"]:
+                remember_uploads_root(kwargs.get("session"), workspace)
+            restaged, kwargs["moved_note"] = stage_prior_media(workspace, kwargs.get("session"), exclude_run_id=run_id)
+            prepared = True
             async for event in self._arun_adapter_stream_sdk(input, history=history, **kwargs):
                 yield event
         finally:
-            if not self.keep_uploads:
-                if kwargs["staged_media"]:
-                    cleanup_media(workspace, run_id)
+            if not self.keep_uploads or not prepared:
+                cleanup_run_media(workspace, run_id, kwargs["staged_media"], created_root)
                 for folder in restaged:
                     remove_upload_folder(folder)
 

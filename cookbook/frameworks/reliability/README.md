@@ -132,3 +132,23 @@ docker compose -f cookbook/frameworks/reliability/compose.yaml down
 
 See [TEST_LOG.md](TEST_LOG.md) for recorded results. Do not interpret an unexecuted
 scenario or a green process exit without evidence as a pass.
+
+### HTTP input validation
+
+JSON media fields (`images`, `audio`, `videos`, and `input_files`) must be arrays
+of media objects. Use `[]` when there are no items. Invalid JSON, scalar values,
+non-object entries, or items that cannot be reconstructed return HTTP 422 before
+execution. Binary multipart attachments still use the `files` field.
+
+An `output_schema` form field must contain a valid JSON Schema whose root declares
+`"type": "object"`. With `use_json_schema=true`, `{"type": "json_object"}` and
+`{"type": "json_schema", "json_schema": {"schema": {...}}}` are also accepted; the
+wrapped schema follows the same rule. Invalid JSON, malformed or overly nested schemas,
+and scalar or untyped roots return HTTP 422 instead of silently running without the
+requested schema. This input check is separate from validating the generated answer.
+
+Run the deterministic HTTP regressions without provider credentials:
+
+```bash
+python -m pytest libs/agno/tests/unit/os/test_run_input_validation.py -q -o addopts=''
+```

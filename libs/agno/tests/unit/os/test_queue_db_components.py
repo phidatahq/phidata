@@ -217,7 +217,7 @@ class TestWorkerReplaysDbResolution:
             assert unpinned is not None and unpinned.instructions == "hi", "unpinned takes the published version"
 
     @pytest.mark.asyncio
-    async def test_worker_still_prefers_the_registry(self, agent_os):
+    async def test_ticket_source_picks_between_registry_and_db_twins(self, agent_os):
         from agno.agent import Agent
 
         registered = Agent(id="db-agent", name="Registered twin", db=agent_os.db)
@@ -226,10 +226,40 @@ class TestWorkerReplaysDbResolution:
         async with queue_lifespan(app, agent_os):
             worker = get_active_queue_worker()
             assert worker is not None
-            resolved = await worker._aresolve_job_component(
-                {"component_type": "agent", "component_id": "db-agent", "payload": {"scope": queue_scope(None, None)}}
+            from_registry = await worker._aresolve_job_component(
+                {
+                    "component_type": "agent",
+                    "component_id": "db-agent",
+                    "payload": {"scope": queue_scope(None, None, source="registry")},
+                }
             )
-            assert resolved is not None and resolved.name == "Registered twin"
+            assert from_registry is not None and from_registry.name == "Registered twin"
+            # Accepted on a replica without the registry entry: a newer
+            # deploy's same-id registry component must not replace it
+            from_db = await worker._aresolve_job_component(
+                {"component_type": "agent", "component_id": "db-agent", "payload": {"scope": queue_scope(None, 1)}}
+            )
+            assert from_db is not None and from_db.name == "db-agent"
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("isolation", [True, False])
+    async def test_rehydrated_agent_gets_the_os_filesystem_isolation(self, agent_os, isolation):
+        agent_os.db.upsert_config(
+            "db-agent", config={"name": "db-agent", "instructions": "hi", "filesystem": True}, stage="published"
+        )
+        agent_os.db.set_current_version("db-agent", 2)
+        app = SimpleNamespace(state=SimpleNamespace(user_isolation_enabled=isolation))
+        async with queue_lifespan(app, agent_os):
+            worker = get_active_queue_worker()
+            assert worker is not None
+            resolved = await worker._aresolve_job_component(
+                {"component_type": "agent", "component_id": "db-agent", "payload": {"scope": queue_scope(None, 2)}}
+            )
+            assert resolved is not None
+            from agno.agent._init import get_filesystems
+
+            stores = get_filesystems(resolved)
+            assert stores and all(fs.user_scoped is isolation for fs, _ in stores)
 
     @pytest.mark.asyncio
     async def test_unknown_component_resolves_to_none(self, agent_os):
@@ -429,9 +459,19 @@ class TestFactoryIdNeverFallsThroughToTheDb:
             worker = get_active_queue_worker()
             assert worker is not None
             resolved = await worker._aresolve_job_component(
-                {"component_type": "agent", "component_id": "fx-agent", "payload": {"scope": queue_scope(None, 1)}}
+                {
+                    "component_type": "agent",
+                    "component_id": "fx-agent",
+                    "payload": {"scope": queue_scope(None, None, source="registry")},
+                }
             )
             assert resolved is None
+            # A db-sourced ticket was accepted against the db component (on a
+            # replica without the factory), so that is what it executes
+            db_sourced = await worker._aresolve_job_component(
+                {"component_type": "agent", "component_id": "fx-agent", "payload": {"scope": queue_scope(None, 1)}}
+            )
+            assert db_sourced is not None and db_sourced.name == "fx-agent"
 
 
 class TestUnfencedWarningCoversTheAgentOsDb:

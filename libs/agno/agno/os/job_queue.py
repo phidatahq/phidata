@@ -2745,7 +2745,12 @@ async def queue_lifespan(app: Any, agent_os: Any):
         from agno.team import Team, TeamFactory
         from agno.workflow import Workflow, WorkflowFactory
 
-        for candidate in registry or []:
+        scope = scope or {}
+        # The ticket's source is authoritative in both directions: a
+        # db-sourced ticket must not run a registry component that a newer
+        # deploy registered under the same id, and vice versa below
+        from_db = scope.get("source") == "db"
+        for candidate in [] if from_db else registry or []:
             if getattr(candidate, "id", None) != component_id:
                 continue
             if isinstance(candidate, (AgentFactory, TeamFactory, WorkflowFactory)):
@@ -2766,8 +2771,7 @@ async def queue_lifespan(app: Any, agent_os: Any):
             else:
                 resolved = candidate
             break
-        scope = scope or {}
-        if resolved is None and agent_os.db is not None and scope.get("source") == "db":
+        if resolved is None and agent_os.db is not None and from_db:
             # Off-registry: the accepting endpoint rehydrated the component
             # from the db (components API / version pin). Replay that load
             # under the scope stamped on the ticket so the worker executes
@@ -2823,6 +2827,15 @@ async def queue_lifespan(app: Any, agent_os: Any):
                     f"Job queue: could not rehydrate {component_type}/{component_id} from the db (scope={scope}): {e}"
                 )
                 resolved = None
+        if isinstance(resolved, Agent) and (resolved.filesystem or resolved.tools):
+            # Same isolation policy the HTTP door applies to every resolved
+            # agent: a rehydrated agent's unset filesystem would otherwise
+            # default to shared across users
+            from agno.agent import _init as agent_init
+
+            agent_init.apply_filesystem_user_isolation(
+                resolved, bool(getattr(app.state, "user_isolation_enabled", False))
+            )
         if isinstance(resolved, Team):
             # Mirror the HTTP path's per-request copy: member HITL continue
             # reloads member tool state from the DB and depends on this - the

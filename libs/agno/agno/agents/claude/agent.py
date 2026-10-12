@@ -22,12 +22,13 @@ from uuid import uuid4
 from agno.agents._config import agent_dataclass
 from agno.agents._media import (
     accept_media,
-    cleanup_media,
+    cleanup_run_media,
     media_prompt_block,
     remember_uploads_root,
     remove_upload_folder,
     stage_media,
     stage_prior_media,
+    uploads_root,
 )
 from agno.agents.base import (
     BaseExternalAgent,
@@ -127,7 +128,7 @@ class ClaudeAgent(BaseExternalAgent):
         name: Display name for this agent.
         id: Unique identifier (auto-generated from name if not set).
         system_prompt: Optional system prompt for the agent.
-        model: Model to use. Defaults to the SDK default unless set in options.
+        model: Model to use. Defaults to claude-sonnet-4-6 unless set in options.
         tools: Built-in tool names or the Claude Code tool preset. An empty list disables built-in tools.
         allowed_tools: Tool calls to auto-approve; this does not limit the available tool set.
         disallowed_tools: List of tools to block.
@@ -227,11 +228,21 @@ class ClaudeAgent(BaseExternalAgent):
                 stacklevel=2,
             )
         self._validate_runtime_options(self._option_values())
+        if self._effective_model() is None:
+            # Like a native model's default id: the default is what the SDK runs and the run records.
+            self.model = "claude-sonnet-4-6"
         # Without id or name, get_id() is random per process, so the default key cannot be shared across replicas.
         self._warn_unstable_project_key = self.project_key is None and self.id is None and self.name is None
         super().__post_init__()
         if self.project_key is None:
             self.project_key = self.get_id()
+
+    def _run_model(self) -> Tuple[Optional[str], Optional[str]]:
+        return self._effective_model(), "Anthropic"
+
+    def _effective_model(self) -> Optional[str]:
+        """The model the SDK is asked to run, in the precedence _build_options applies."""
+        return self.options_kwargs.get("model") or self.model or self._option_values().get("model")
 
     def _option_values(self) -> Dict[str, Any]:
         if self.options is not None:
@@ -402,29 +413,34 @@ class ClaudeAgent(BaseExternalAgent):
         media = kwargs.pop("media", None)
         run_id = kwargs.get("run_id") or str(uuid4())
         kwargs["run_id"] = run_id
-        staged = stage_media(workspace, run_id, media) if media else []
-        if staged:
-            remember_uploads_root(kwargs.get("session"), workspace)
-        if staged and input is not None:
-            input = f"{input}{media_prompt_block(staged)}"
-        # Earlier turns' attachments come back under their original paths, so Claude can
-        # open again a file it was given before, on whichever replica runs this turn.
-        continuation: Optional[ExternalContinuation] = kwargs.get("continuation")
-        restaged, moved_note = stage_prior_media(
-            workspace,
-            kwargs.get("session"),
-            exclude_run_id=run_id,
-            until_run_id=continuation.source_run_id if continuation is not None else None,
-        )
-        if moved_note and input is not None:
-            input = f"{input}{moved_note}"
+        staged: List[Any] = []
+        restaged: List[Path] = []
+        prepared = False
+        created_root = False
         try:
+            if media:
+                created_root = not uploads_root(workspace, run_id).exists()
+                staged = stage_media(workspace, run_id, media)
+            if staged:
+                remember_uploads_root(kwargs.get("session"), workspace)
+            if staged and input is not None:
+                input = f"{input}{media_prompt_block(staged)}"
+            # Restore earlier inputs in this workspace and describe any relocated paths.
+            continuation: Optional[ExternalContinuation] = kwargs.get("continuation")
+            restaged, moved_note = stage_prior_media(
+                workspace,
+                kwargs.get("session"),
+                exclude_run_id=run_id,
+                until_run_id=continuation.source_run_id if continuation is not None else None,
+            )
+            if moved_note and input is not None:
+                input = f"{input}{moved_note}"
+            prepared = True
             async for message in self._aquery_sdk(input, history, streaming=streaming, **kwargs):
                 yield message
         finally:
-            if not self.keep_uploads:
-                if staged:
-                    cleanup_media(workspace, run_id)
+            if not self.keep_uploads or not prepared:
+                cleanup_run_media(workspace, run_id, staged, created_root)
                 for folder in restaged:
                     remove_upload_folder(folder)
 
@@ -984,7 +1000,7 @@ class ClaudeAgent(BaseExternalAgent):
             cost=float(cost) if cost is not None else None,
         )
         if not details:
-            details.append(ModelMetrics(id=self.model or "claude", provider="anthropic", **totals.__dict__))
+            details.append(ModelMetrics(id=self._effective_model() or "", provider="anthropic", **totals.__dict__))
         additional: Dict[str, Any] = {}
         if getattr(message, "num_turns", None) is not None:
             additional["num_turns"] = int(message.num_turns)

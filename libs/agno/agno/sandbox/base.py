@@ -1,7 +1,9 @@
 """Small execution-provider contract; ownership and durable completion belong to AgentOS."""
 
+import asyncio
 import math
 from abc import ABC, abstractmethod
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import Any, Coroutine, Mapping, Optional, Sequence
@@ -17,7 +19,7 @@ class SandboxSpec:
     session_id: str
     generation: int
     image: str
-    env: Mapping[str, str] = field(default_factory=dict, repr=False)
+    env: Mapping[str, str] = field(default_factory=dict, repr=False, hash=False)
     cpus: float = 2.0
     memory_mb: int = 2048
     pids_limit: int = 256
@@ -30,6 +32,8 @@ class SandboxSpec:
                 raise ValueError("Sandbox identity, image and network must be nonempty strings")
         if self.image.startswith("-") or self.network == "host" or self.network.startswith("container:"):
             raise ValueError("Option-like images and shared host/container networking are not supported")
+        if type(self.cpus) not in (int, float):
+            raise ValueError("Sandbox CPU limit must be a number")
         if type(self.generation) is not int or self.generation < 1 or not math.isfinite(self.cpus) or self.cpus <= 0:
             raise ValueError("Sandbox generation and CPU limit must be positive")
         if any(type(value) is not int or value < 1 for value in (self.memory_mb, self.pids_limit, self.workspace_mb)):
@@ -69,9 +73,13 @@ class ExecResult:
 
 
 def _sync(coro: Coroutine[Any, Any, Any]) -> Any:
-    from agno.agents.base import run_coroutine_sync
-
-    return run_coroutine_sync(coro)
+    # Inside a running loop (notebook, async server) run on a worker thread with its own loop.
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(coro)
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        return pool.submit(asyncio.run, coro).result()
 
 
 class SandboxProvider(ABC):

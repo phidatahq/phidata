@@ -108,3 +108,49 @@ def test_bad_media_item_does_not_silently_disappear(parser_client):
     response = parser_client.post("/parse", data={"images": '[{"url":123}]'})
     assert response.status_code == 422
     assert "reconstruct" in response.json()["detail"]
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("images", "[" * 20_000 + "]" * 20_000),
+        ("output_schema", '{"a":' * 20_000 + "1" + "}" * 20_000),
+        ("output_schema", '{"type":"object","properties":{"x":' + '{"items":' * 5_000 + "{}" + "}" * 5_000 + "}}"),
+        ("output_schema", '{"type":"object","allOf":[' * 100 + '{"type":"object"}' + "]}" * 100),
+    ],
+    ids=["media-json", "schema-json", "schema-structure", "schema-allof"],
+)
+def test_deeply_nested_input_is_rejected_not_crashed(parser_client, field, value):
+    response = parser_client.post("/parse", data={field: value})
+    assert response.status_code == 422, response.text
+    assert field in response.json()["detail"]
+
+
+RAW_JSON_SCHEMA = {
+    "type": "json_schema",
+    "json_schema": {"name": "Person", "schema": {"type": "object", "properties": {"name": {"type": "string"}}}},
+}
+
+
+@pytest.mark.parametrize("schema", [{"type": "json_object"}, RAW_JSON_SCHEMA], ids=["json_object", "json_schema"])
+def test_raw_response_formats_pass_through(parser_client, schema):
+    response = parser_client.post("/parse", data={"output_schema": json.dumps(schema), "use_json_schema": "true"})
+    assert response.status_code == 200, response.text
+    assert response.json()["schema"] == schema
+
+
+@pytest.mark.parametrize(
+    "schema,raw_schema",
+    [
+        ({"type": "json_object"}, "false"),
+        (RAW_JSON_SCHEMA, "false"),
+        ({"type": "json_schema"}, "true"),
+        ({"type": "json_schema", "json_schema": {"name": "P", "schema": {"type": "string"}}}, "true"),
+        ({"type": "json_schema", "json_schema": {"name": "P", "schema": {"properties": {"a": "bad"}}}}, "true"),
+    ],
+    ids=["json_object-model", "json_schema-model", "missing-inner", "scalar-inner", "malformed-inner"],
+)
+def test_invalid_raw_response_formats_rejected(parser_client, schema, raw_schema):
+    response = parser_client.post("/parse", data={"output_schema": json.dumps(schema), "use_json_schema": raw_schema})
+    assert response.status_code == 422, response.text
+    assert "output_schema" in response.json()["detail"]

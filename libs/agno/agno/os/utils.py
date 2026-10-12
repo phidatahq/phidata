@@ -120,6 +120,23 @@ def drop_media_references(media_dicts: Any) -> Any:
     return media_dicts
 
 
+def _check_object_json_schema(schema: Dict[str, Any]) -> None:
+    """Raise HTTP 422 unless schema is a structurally valid JSON Schema with an object root."""
+    if schema.get("type", "object") != "object":
+        raise HTTPException(status_code=422, detail="Invalid output_schema: expected a JSON object schema")
+    try:
+        from jsonschema import Draft202012Validator  # type: ignore[import-untyped]
+        from jsonschema.exceptions import SchemaError  # type: ignore[import-untyped]
+    except ImportError:
+        raise ImportError("`jsonschema` not installed. Please install using `pip install jsonschema`")
+    try:
+        Draft202012Validator.check_schema(schema)
+    except SchemaError as exc:
+        raise HTTPException(status_code=422, detail=f"Invalid output_schema: {exc.message}") from exc
+    except RecursionError as exc:
+        raise HTTPException(status_code=422, detail="Invalid output_schema: schema is nested too deeply") from exc
+
+
 async def get_request_kwargs(request: Request, endpoint_func: Callable) -> Dict[str, Any]:
     """Given a Request and an endpoint function, return a dictionary with all extra form data fields.
 
@@ -205,7 +222,7 @@ async def get_request_kwargs(request: Request, endpoint_func: Callable) -> Dict[
         media_value = kwargs.pop(form_key)
         try:
             decoded_media = json.loads(media_value) if isinstance(media_value, str) else media_value
-        except (TypeError, ValueError) as exc:
+        except (TypeError, ValueError, RecursionError) as exc:
             raise HTTPException(
                 status_code=422, detail=f"Invalid {form_key}: expected a JSON array of objects"
             ) from exc
@@ -262,25 +279,27 @@ async def get_request_kwargs(request: Request, endpoint_func: Callable) -> Dict[
         output_schema = kwargs["output_schema"]
         try:
             schema_dict = json.loads(output_schema) if isinstance(output_schema, str) else output_schema
-        except (TypeError, ValueError) as exc:
+        except (TypeError, ValueError, RecursionError) as exc:
             raise HTTPException(status_code=422, detail="Invalid output_schema: expected a JSON object schema") from exc
-        if not isinstance(schema_dict, dict) or schema_dict.get("type", "object") != "object":
+        if not isinstance(schema_dict, dict):
             raise HTTPException(status_code=422, detail="Invalid output_schema: expected a JSON object schema")
-        try:
-            from jsonschema import Draft202012Validator  # type: ignore[import-untyped]
-            from jsonschema.exceptions import SchemaError  # type: ignore[import-untyped]
-        except ImportError:
-            raise ImportError("`jsonschema` not installed. Please install using `pip install jsonschema`")
-        try:
-            Draft202012Validator.check_schema(schema_dict)
-        except SchemaError as exc:
-            raise HTTPException(status_code=422, detail=f"Invalid output_schema: {exc.message}") from exc
+        # Raw mode also accepts provider response formats: {"type": "json_object"} and {"type": "json_schema", ...}
+        object_schema: Optional[Any] = schema_dict
+        if use_json_schema and schema_dict.get("type") == "json_object":
+            object_schema = None
+        elif use_json_schema and schema_dict.get("type") == "json_schema":
+            wrapped = schema_dict.get("json_schema")
+            object_schema = wrapped.get("schema") if isinstance(wrapped, dict) else None
+            if not isinstance(object_schema, dict):
+                raise HTTPException(status_code=422, detail="Invalid output_schema: json_schema.schema must be an object")
+        if object_schema is not None:
+            _check_object_json_schema(object_schema)
         try:
             if use_json_schema:
                 kwargs["output_schema"] = schema_dict
             else:
                 kwargs["output_schema"] = json_schema_to_pydantic_model(schema_dict)
-        except (TypeError, ValueError, AttributeError) as exc:
+        except (TypeError, ValueError, AttributeError, RecursionError) as exc:
             raise HTTPException(
                 status_code=422, detail="Invalid output_schema: could not construct output model"
             ) from exc

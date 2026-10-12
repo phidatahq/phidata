@@ -568,3 +568,107 @@ evidence and limits. This does not rerun this directory's advanced examples.
 **Result:** Before: both turns ran and both appended to the session's transcript concurrently. After: the second turn raises `SessionBusyError` in under a millisecond naming the run in flight, no run row is written for it, the first turn completes, and a turn sent afterwards runs normally.
 
 ---
+
+## 2026-10-11 release acceptance
+
+Framework source: `9e1f77f52a9bb16ee5dde3ccff9fa2491e86db5f`. Python 3.12, Claude SDK 0.2.165, Codex SDK 0.162.1. Claude uses `claude-sonnet-5-5` with API-key authentication; Codex uses `gpt-5.6-luna`. Separate native homes and working directories per example. Cookbook configuration updates in this batch use typed options and remove incidental run limits; explicit limits remain in limit/recovery demonstrations.
+
+### claude_native_sdk.py
+
+**Status:** PASS
+
+**Description:** Executed the cookbook with real SDK calls and its assertions.
+
+**Result:** Exit 0 in 4.7 seconds.
+
+---
+### claude_basic.py
+
+**Status:** PASS
+
+**Description:** Executed the cookbook with real SDK calls and its assertions.
+
+**Result:** Exit 0 in 4.7 seconds.
+
+---
+### claude_tools.py
+
+**Status:** PASS
+
+**Description:** Executed the cookbook with real SDK calls and its assertions.
+
+**Result:** Exit 0 in 8.7 seconds.
+
+---
+### claude_mcp_tools.py
+
+**Status:** PASS
+
+**Description:** Executed the cookbook with real SDK calls and its assertions.
+
+**Result:** Exit 0 in 7.1 seconds.
+
+---
+### claude_session.py
+
+**Status:** PASS
+
+**Description:** Executed the cookbook with real SDK calls and its assertions.
+
+**Result:** Exit 0 in 45.7 seconds.
+
+---
+### transcript_store.py
+
+**Status:** PASS
+
+**Description:** Executed the cookbook with real SDK calls and its assertions.
+
+**Result:** Exit 0 in 13.5 seconds.
+
+---
+### metrics.py
+
+**Status:** PASS
+
+**Description:** Executed the cookbook with real SDK calls and its assertions.
+
+**Result:** Exit 0 in 7.5 seconds.
+
+---
+### structured_output.py
+
+**Status:** PASS
+
+**Description:** Executed the cookbook with real SDK calls and its assertions.
+
+**Result:** Exit 0 in 47.5 seconds.
+
+---
+### structured_output_tools.py
+
+**Status:** PASS
+
+**Description:** Executed the cookbook with real SDK calls and its assertions.
+
+**Result:** Exit 0 in 9.7 seconds.
+
+---
+### claude_media.py
+
+**Status:** PASS
+
+**Description:** Executed the cookbook with real SDK calls and its assertions.
+
+**Result:** Exit 0 in 10.4 seconds.
+
+---
+### compaction.py
+
+**Status:** PASS
+
+**Description:** Executed the cookbook with real SDK calls and its assertions.
+
+**Result:** Exit 0 in 23.9 seconds.
+
+---

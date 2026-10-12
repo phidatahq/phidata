@@ -53,7 +53,8 @@ class Replica:
 
     def start(self):
         env = dict(os.environ)
-        env.pop("ANTHROPIC_API_KEY", None)
+        if env.get("HARNESS_AUTH_MODE", "inherit") == "oauth":
+            env.pop("ANTHROPIC_API_KEY", None)
         auth = (
             Path(env.get("HARNESS_AUTH_ROOT", str(STATE / "auth")))
             / self.suite.provider
@@ -351,6 +352,7 @@ class Suite:
         }
 
     def case_active_reconnect(self):
+        """A nonstreamed background run directs reconnecting clients to polling."""
         case = str(uuid4())
         self.active_case = case
         run, session, _ = self.submit(self.tool_prompt(case, True))
@@ -367,7 +369,11 @@ class Suite:
                 if event.get("event") == "ToolCallStarted":
                     self.release(case)
         write_json(self.directory / "active-reconnect-events.json", received)
-        assert any(e.get("event") == "RunCompleted" for e in received), received
+        assert any("without streaming" in e.get("message", "") for e in received), (
+            received
+        )
+        assert not any(e.get("event") == "RunCompleted" for e in received), received
+        self.release(case)
         final = self.poll(run["run_id"], session)
         self.assert_tool(final, case)
         return {"events": received, "run": final}

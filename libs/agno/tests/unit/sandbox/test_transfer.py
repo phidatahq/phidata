@@ -2,6 +2,7 @@ import io
 import json
 import tarfile
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
@@ -60,6 +61,92 @@ def test_combine_converts_hardlinks_and_excludes_native_credentials(tmp_path):
     with tarfile.open(tmp_path / "import.tar") as archive:
         assert archive.getnames() == ["file", "link"]
         assert all(member.uid == member.gid == 1000 for member in archive)
+
+
+@pytest.mark.parametrize(
+    "entries",
+    [
+        [
+            ("native/codex/auth.json", tarfile.REGTYPE, b"secret"),
+            ("native/codex/thread", tarfile.LNKTYPE, "native/codex/auth.json"),
+        ],
+        [
+            ("native/codex/thread", tarfile.REGTYPE, b"secret"),
+            ("native/codex/auth.json", tarfile.LNKTYPE, "native/codex/thread"),
+        ],
+    ],
+)
+def test_combine_rejects_hardlinks_between_excluded_and_retained_paths(tmp_path, entries):
+    exported(tmp_path / "workspace.tar", "workspace", [])
+    exported(tmp_path / "native.tar", "native", [("native/codex", tarfile.DIRTYPE, ""), *entries])
+    transfer = DockerCheckpointTransfer(DockerSandboxProvider("test"), FileCheckpointStore(tmp_path / "objects"))
+    with pytest.raises(SandboxError, match="shares a hardlink"):
+        transfer._combine(
+            {"workspace": tmp_path / "workspace.tar", "native": tmp_path / "native.tar"},
+            tmp_path / "result.tar",
+            {},
+            DEFAULT_NATIVE_EXCLUSIONS,
+        )
+
+
+def test_combine_names_absolute_virtualenv_link_and_accepts_its_exclusion(tmp_path):
+    exported(tmp_path / "native.tar", "native", [])
+    exported(
+        tmp_path / "workspace.tar",
+        "workspace",
+        [
+            ("workspace/.venv", tarfile.DIRTYPE, ""),
+            ("workspace/.venv/bin", tarfile.DIRTYPE, ""),
+            ("workspace/.venv/bin/python", tarfile.SYMTYPE, "/usr/local/bin/python3"),
+            ("workspace/app.py", tarfile.REGTYPE, b"print(1)"),
+        ],
+    )
+    transfer = DockerCheckpointTransfer(DockerSandboxProvider("test"), FileCheckpointStore(tmp_path / "objects"))
+    exports = {"workspace": tmp_path / "workspace.tar", "native": tmp_path / "native.tar"}
+    with pytest.raises(SandboxError, match="workspace/.venv/bin/python"):
+        transfer._combine(exports, tmp_path / "rejected.tar", {}, DEFAULT_NATIVE_EXCLUSIONS)
+    transfer._combine(exports, tmp_path / "result.tar", {}, (*DEFAULT_NATIVE_EXCLUSIONS, "workspace/.venv"))
+    with tarfile.open(tmp_path / "result.tar") as archive:
+        assert "workspace/app.py" in archive.getnames()
+        assert not any(name.startswith("workspace/.venv") for name in archive.getnames())
+
+
+@pytest.mark.parametrize(
+    "entries",
+    [
+        [("workspace/link", tarfile.LNKTYPE, "workspace/missing")],
+        [("workspace/link", tarfile.LNKTYPE, "workspace/file"), ("workspace/file", tarfile.REGTYPE, b"data")],
+    ],
+)
+def test_combine_rejects_hardlinks_to_missing_or_later_entries(tmp_path, entries):
+    exported(tmp_path / "workspace.tar", "workspace", entries)
+    exported(tmp_path / "native.tar", "native", [])
+    transfer = DockerCheckpointTransfer(DockerSandboxProvider("test"), FileCheckpointStore(tmp_path / "objects"))
+    with pytest.raises(SandboxError, match="missing or later entry"):
+        transfer._combine(
+            {"workspace": tmp_path / "workspace.tar", "native": tmp_path / "native.tar"},
+            tmp_path / "result.tar",
+            {},
+            DEFAULT_NATIVE_EXCLUSIONS,
+        )
+
+
+@pytest.mark.asyncio
+async def test_restore_applies_the_captured_native_root_mode(tmp_path):
+    exported(tmp_path / "workspace.tar", "workspace", [])
+    exported(tmp_path / "native.tar", "native", [])
+    provider = DockerSandboxProvider("test")
+    provider.aexec = AsyncMock(return_value=SimpleNamespace(exit_code=1))
+    transfer = DockerCheckpointTransfer(provider, FileCheckpointStore(tmp_path / "objects"))
+    transfer._combine(
+        {"workspace": tmp_path / "workspace.tar", "native": tmp_path / "native.tar"}, tmp_path / "result.tar", {}, []
+    )
+    transfer._check_mounts = AsyncMock()
+    transfer.store.averify = AsyncMock(return_value=tmp_path / "result.tar")
+    handle = SandboxHandle("id", "name", "a", "s", 1, "running", "digest")
+    with pytest.raises(SandboxError, match="empty, unused"):
+        await transfer.arestore(handle, None)
+    assert provider.aexec.call_args.args[1][-1].endswith("n.chmod(0o700)")
 
 
 def test_capture_combine_rejects_wrong_export_root(tmp_path):

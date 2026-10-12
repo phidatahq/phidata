@@ -8,7 +8,7 @@ import math
 from contextlib import suppress
 from dataclasses import fields
 from pathlib import Path
-from typing import Any, Optional, Sequence
+from typing import Any, Dict, Optional, Sequence, Union
 
 from agno.sandbox.base import ExecResult, SandboxError, SandboxHandle, SandboxProvider, SandboxSpec
 
@@ -141,8 +141,6 @@ class DockerSandboxProvider(SandboxProvider):
                 "generation": str(spec.generation),
                 "config": digest,
             }
-            await self._ensure_volume(name + "-workspace", labels, "workspace", spec.workspace_mb)
-            await self._ensure_volume(name + "-runtime", labels, "runtime", 256)
             args = [
                 "container",
                 "create",
@@ -183,16 +181,32 @@ class DockerSandboxProvider(SandboxProvider):
                 args.extend(["--env", key + "=" + value])
             args.extend(["--entrypoint", "python", spec.image, "-I", "-c", "import time; time.sleep(2147483647)"])
             try:
-                code, _, err = await self._docker(*args, timeout=120)
-            except asyncio.TimeoutError:
-                code, err = 1, b"Creation response timed out"
-            # A concurrent creator or lost response is resolved by the deterministic name.
-            current = await self.aget(name)
-            if current is None:
-                raise SandboxError("Docker creation failed: " + err.decode(errors="replace")[:500])
+                await self._ensure_volume(
+                    name + "-workspace", self._volume_labels(spec, digest, "workspace"), spec.workspace_mb
+                )
+                await self._ensure_volume(name + "-runtime", self._volume_labels(spec, digest, "runtime"), 256)
+                try:
+                    code, _, err = await self._docker(*args, timeout=120)
+                except asyncio.TimeoutError:
+                    code, err = 1, b"Creation response timed out"
+                # A concurrent creator or lost response is resolved by the deterministic name.
+                current = await self.aget(name)
+                if current is None:
+                    raise SandboxError("Docker creation failed: " + err.decode(errors="replace")[:500])
+            except Exception:
+                # Unmounted volumes would block a corrected spec for this generation; Docker keeps in-use ones.
+                with suppress(Exception):
+                    await self._delete_volumes(name, spec, digest)
+                raise
         if current.config_digest != digest:
             raise SandboxError("Sandbox generation already exists with different configuration")
-        if current.state == "created":
+        if current.state == "paused":
+            # A capture interrupted by a coordinator crash leaves the generation frozen.
+            code, _, err = await self._docker("container", "unpause", current.provider_ref)
+            current = await self.aget(current.provider_ref)
+            if code and (current is None or current.state != "running"):
+                raise SandboxError("Docker unpause failed: " + err.decode(errors="replace")[:500])
+        if current is not None and current.state == "created":
             code, _, err = await self._docker("container", "start", current.provider_ref)
             current = await self.aget(current.provider_ref)
             if code and (current is None or current.state != "running"):
@@ -277,13 +291,23 @@ class DockerSandboxProvider(SandboxProvider):
             raise SandboxError("Docker volume inspection failed: " + err.decode(errors="replace")[:500])
         return json.loads(out)[0]
 
-    async def _ensure_volume(self, name: str, labels: Any, role: str, size_mb: int) -> None:
+    def _volume_labels(self, owner: Union[SandboxSpec, SandboxHandle], config: str, role: str) -> Dict[str, str]:
+        labels = {
+            "namespace": self.namespace,
+            "agent": owner.agent_id,
+            "session": owner.session_id,
+            "generation": str(owner.generation),
+            "config": config,
+            "role": role,
+        }
+        return {_LABEL + key: value for key, value in labels.items()}
+
+    async def _ensure_volume(self, name: str, expected: Dict[str, str], size_mb: int) -> None:
         options = {
             "type": "tmpfs",
             "device": "tmpfs",
             "o": f"rw,nosuid,nodev,size={size_mb}m,uid=1000,gid=1000,mode=0700",
         }
-        expected = {_LABEL + key: value for key, value in {**labels, "role": role}.items()}
         current = await self._volume(name)
         if current is None:
             args = ["volume", "create", "--driver", "local"]
@@ -305,22 +329,14 @@ class DockerSandboxProvider(SandboxProvider):
         ):
             raise SandboxError("Docker volume identity or storage configuration mismatch")
 
-    async def _delete_volumes(self, handle: SandboxHandle) -> None:
+    async def _delete_volumes(self, prefix: str, owner: Union[SandboxSpec, SandboxHandle], config: str) -> None:
         for role in ("workspace", "runtime"):
-            name = handle.name + "-" + role
+            name = prefix + "-" + role
             current = await self._volume(name)
             if current is None:
                 continue
             labels = current.get("Labels") or {}
-            expected = {
-                "namespace": self.namespace,
-                "agent": handle.agent_id,
-                "session": handle.session_id,
-                "generation": str(handle.generation),
-                "config": handle.config_digest,
-                "role": role,
-            }
-            if any(labels.get(_LABEL + key) != value for key, value in expected.items()):
+            if any(labels.get(key) != value for key, value in self._volume_labels(owner, config, role).items()):
                 raise SandboxError("Refusing to remove a volume with a different sandbox identity")
             code, _, err = await self._docker("volume", "rm", name)
             if code and await self._volume(name) is not None:
@@ -337,4 +353,4 @@ class DockerSandboxProvider(SandboxProvider):
             if code and await self._owned(handle) is not None:
                 raise SandboxError("Docker removal failed: " + err.decode(errors="replace")[:500])
         # Also reconcile a lost removal response after the container is already gone.
-        await self._delete_volumes(handle)
+        await self._delete_volumes(handle.name, handle, handle.config_digest)

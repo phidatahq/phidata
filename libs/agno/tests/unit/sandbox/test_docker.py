@@ -100,7 +100,7 @@ class FakeDocker(DockerSandboxProvider):
             if self.lose_create_response:
                 raise asyncio.TimeoutError
             return 0, b"container-id", b""
-        if operation == "start":
+        if operation == "start" or operation == "unpause":
             self.record["State"]["Status"] = "running"
         elif operation == "stop":
             self.record["State"]["Status"] = "exited"
@@ -236,3 +236,29 @@ async def test_foreign_orphan_volume_is_not_removed():
     with pytest.raises(SandboxError, match="different sandbox identity"):
         await provider.adestroy(handle)
     assert len(provider.volumes) == 2
+
+
+@pytest.mark.asyncio
+async def test_failed_container_create_removes_its_volumes_so_a_corrected_spec_can_retry():
+    class FailedCreate(FakeDocker):
+        async def _docker(self, *args, **kwargs):
+            if args[:2] == ("container", "create") and "python:missing" in args:
+                self.calls.append((args, kwargs))
+                return 1, b"", b"No such image"
+            return await super()._docker(*args, **kwargs)
+
+    provider = FailedCreate()
+    with pytest.raises(SandboxError, match="No such image"):
+        await provider.acreate(SandboxSpec(agent_id="coder", session_id="s", generation=1, image="python:missing"))
+    assert provider.volumes == {}
+    assert (await provider.acreate(spec())).state == "running"
+
+
+@pytest.mark.asyncio
+async def test_reacquire_resumes_a_generation_left_paused_by_an_interrupted_capture():
+    provider = FakeDocker()
+    handle = await provider.acreate(spec())
+    provider.record["State"]["Status"] = "paused"
+    with pytest.raises(SandboxError, match="not running"):
+        await provider.aexec(handle, ["example"])
+    assert (await provider.acreate(spec())).state == "running"

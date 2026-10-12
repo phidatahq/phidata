@@ -81,10 +81,12 @@ def _name(name: str) -> PurePosixPath:
 
 def _link(name: str, target: str) -> None:
     if not target or target.startswith("/") or "\\" in target or "\x00" in target:
-        raise SandboxError("Unsafe checkpoint symlink")
+        raise SandboxError(f"Unsafe checkpoint symlink {name!r} -> {target!r}; exclude it before capture")
     resolved = posixpath.normpath(posixpath.join(posixpath.dirname(name), target))
     if PurePosixPath(resolved).parts[0] != PurePosixPath(name).parts[0]:
-        raise SandboxError("Checkpoint symlink escapes its durable root")
+        raise SandboxError(
+            f"Checkpoint symlink {name!r} -> {target!r} escapes its durable root; exclude it before capture"
+        )
 
 
 def _validate_link_graph(members: Mapping[str, tarfile.TarInfo]) -> None:
@@ -219,7 +221,9 @@ class CheckpointArchive:
                     elif stat.S_ISLNK(entry.st_mode):
                         info.type, info.linkname = tarfile.SYMTYPE, os.readlink(path)
                     else:
-                        raise SandboxError("Checkpoint contains an unsupported file type")
+                        raise SandboxError(
+                            f"Checkpoint contains an unsupported file type at {name!r}; exclude it before capture"
+                        )
                     if info.isdir():
                         archive.addfile(info)
                         for child in sorted(path.iterdir()):
@@ -280,7 +284,9 @@ class CheckpointArchive:
             if member.name in members:
                 raise SandboxError("Duplicate checkpoint path")
             if not (member.isdir() or member.isfile() or member.issym()) or member.sparse is not None:
-                raise SandboxError("Checkpoint contains an unsupported file type")
+                raise SandboxError(
+                    f"Checkpoint contains an unsupported file type at {member.name!r}; exclude it before capture"
+                )
             if member.size < 0 or (not member.isfile() and member.size != 0):
                 raise SandboxError("Invalid checkpoint member size")
             if member.issym():

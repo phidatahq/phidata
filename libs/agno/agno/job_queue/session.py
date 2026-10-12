@@ -2,26 +2,85 @@
 
 from typing import Any, Dict, Iterable
 
+LIVE_STATUSES = ("queued", "running")
+
+
+def is_serialized(job: Dict[str, Any]) -> bool:
+    return (job.get("payload") or {}).get("serialize_session") is True
+
 
 def session_identity(job: Dict[str, Any]) -> tuple:
     # User/deployment affinity does not create a different mutable component session.
     return job.get("component_type"), job.get("component_id"), job.get("session_id")
 
 
+def session_seq(job: Dict[str, Any]) -> int:
+    return int((job.get("payload") or {}).get("session_seq") or 0)
+
+
+def next_session_seq(job: Dict[str, Any], others: Iterable[Dict[str, Any]]) -> int:
+    """The acceptance sequence for a new ticket: after every live ticket of its session.
+
+    Stores call this while holding the session's enqueue lock, so the sequence follows
+    store acceptance order rather than wall-clock seconds."""
+    seqs = [
+        session_seq(other)
+        for other in others
+        if is_serialized(other)
+        and other["status"] in LIVE_STATUSES
+        and session_identity(other) == session_identity(job)
+    ]
+    return max(seqs, default=0) + 1
+
+
+def with_session_seq(job: Dict[str, Any], seq: int) -> Dict[str, Any]:
+    return {**job, "payload": {**(job.get("payload") or {}), "session_seq": seq}}
+
+
 def session_blocked(job: Dict[str, Any], others: Iterable[Dict[str, Any]]) -> bool:
-    if (job.get("payload") or {}).get("serialize_session") is not True:
+    if not is_serialized(job):
         return False
-    order = (job["created_at"], job["id"])
+    order = (session_seq(job), job["id"])
     for other in others:
         if other["id"] == job["id"] or session_identity(other) != session_identity(job):
             continue
-        if (other.get("payload") or {}).get("serialize_session") is not True:
+        if not is_serialized(other):
             continue
         if other["status"] == "running":
             return True
-        if job["status"] == "queued" and other["status"] == "queued" and (other["created_at"], other["id"]) < order:
+        if job["status"] == "queued" and other["status"] == "queued" and (session_seq(other), other["id"]) < order:
             return True
     return False
+
+
+def _session_seq_sql(table: Any) -> Any:
+    from sqlalchemy import BigInteger, func
+
+    return func.coalesce(table.c.payload["session_seq"].astext.cast(BigInteger), 0)
+
+
+def _same_session_sql(table: Any, other: Any) -> Any:
+    from sqlalchemy import and_
+
+    return and_(
+        other.c.component_type == table.c.component_type,
+        other.c.component_id == table.c.component_id,
+        other.c.session_id == table.c.session_id,
+    )
+
+
+def next_session_seq_query(table: Any, job: Dict[str, Any]) -> Any:
+    """SQL equivalent of next_session_seq; run while holding the session advisory lock."""
+    from sqlalchemy import func, select
+
+    component_type, component_id, session_id = session_identity(job)
+    return select(func.coalesce(func.max(_session_seq_sql(table)), 0) + 1).where(
+        table.c.component_type == component_type,
+        table.c.component_id == component_id,
+        table.c.session_id == session_id,
+        table.c.payload.contains({"serialize_session": True}),
+        table.c.status.in_(LIVE_STATUSES),
+    )
 
 
 def session_claim_condition(table: Any) -> Any:
@@ -32,16 +91,14 @@ def session_claim_condition(table: Any) -> Any:
     serialized = table.c.payload.contains({"serialize_session": True})
     other_serialized = other.c.payload.contains({"serialize_session": True})
     earlier = or_(
-        other.c.created_at < table.c.created_at,
-        and_(other.c.created_at == table.c.created_at, other.c.id < table.c.id),
+        _session_seq_sql(other) < _session_seq_sql(table),
+        and_(_session_seq_sql(other) == _session_seq_sql(table), other.c.id < table.c.id),
     )
     blocker = (
         select(other.c.id)
         .where(
             other.c.id != table.c.id,
-            other.c.component_type == table.c.component_type,
-            other.c.component_id == table.c.component_id,
-            other.c.session_id == table.c.session_id,
+            _same_session_sql(table, other),
             other_serialized,
             or_(
                 other.c.status == "running",

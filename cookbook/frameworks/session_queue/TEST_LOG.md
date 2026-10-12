@@ -4,14 +4,19 @@
 
 **Status:** PASS
 
-**Description:** Five shared scenarios across in-memory, fakeredis, real Redis,
+**Description:** Shared scenarios across in-memory, fakeredis, real Redis,
 synchronous Postgres and asynchronous Postgres: contention, independent-session
-progress, retry backoff, cancellation and stale-claim fencing.
+progress, retry backoff, cancellation, stale-claim fencing, same-second acceptance
+order, requeued and continued turns rejoining behind live turns, and boolean-marker
+parity. Postgres-only cases cover an enqueue racing a
+claimant that already selected its ticket, and claiming under an engine whose
+default isolation is REPEATABLE READ. Fakeredis cases force 15 lost WATCH rounds on
+a same-session submit and on a requeue.
 
-**Result:** 31 cases passed on dedicated local Postgres 16 and Redis 7, including a
-controlled concurrent enqueue/claim race and strict boolean-marker parity. Four
-parameter combinations skip the PostgreSQL-specific controlled interleaving.
-No model or hosted-provider calls were made.
+**Result:** 41 passed, 13 skipped on local Postgres 14 and fakeredis. The skips are
+real-Redis parameters (no `AGNO_TEST_REDIS_URL`) and the Postgres-only cases on other
+stores. The original scenarios also passed on Postgres 16 and Redis 7. No model or
+hosted-provider calls were made.
 
 ---
 

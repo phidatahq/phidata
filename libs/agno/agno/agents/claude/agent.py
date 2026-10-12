@@ -22,12 +22,13 @@ from uuid import uuid4
 from agno.agents._config import agent_dataclass
 from agno.agents._media import (
     accept_media,
-    cleanup_media,
+    cleanup_run_media,
     media_prompt_block,
     remember_uploads_root,
     remove_upload_folder,
     stage_media,
     stage_prior_media,
+    uploads_root,
 )
 from agno.agents.base import (
     BaseExternalAgent,
@@ -402,29 +403,34 @@ class ClaudeAgent(BaseExternalAgent):
         media = kwargs.pop("media", None)
         run_id = kwargs.get("run_id") or str(uuid4())
         kwargs["run_id"] = run_id
-        staged = stage_media(workspace, run_id, media) if media else []
-        if staged:
-            remember_uploads_root(kwargs.get("session"), workspace)
-        if staged and input is not None:
-            input = f"{input}{media_prompt_block(staged)}"
-        # Earlier turns' attachments come back under their original paths, so Claude can
-        # open again a file it was given before, on whichever replica runs this turn.
-        continuation: Optional[ExternalContinuation] = kwargs.get("continuation")
-        restaged, moved_note = stage_prior_media(
-            workspace,
-            kwargs.get("session"),
-            exclude_run_id=run_id,
-            until_run_id=continuation.source_run_id if continuation is not None else None,
-        )
-        if moved_note and input is not None:
-            input = f"{input}{moved_note}"
+        staged: List[Any] = []
+        restaged: List[Path] = []
+        prepared = False
+        created_root = False
         try:
+            if media:
+                created_root = not uploads_root(workspace, run_id).exists()
+                staged = stage_media(workspace, run_id, media)
+            if staged:
+                remember_uploads_root(kwargs.get("session"), workspace)
+            if staged and input is not None:
+                input = f"{input}{media_prompt_block(staged)}"
+            # Restore earlier inputs in this workspace and describe any relocated paths.
+            continuation: Optional[ExternalContinuation] = kwargs.get("continuation")
+            restaged, moved_note = stage_prior_media(
+                workspace,
+                kwargs.get("session"),
+                exclude_run_id=run_id,
+                until_run_id=continuation.source_run_id if continuation is not None else None,
+            )
+            if moved_note and input is not None:
+                input = f"{input}{moved_note}"
+            prepared = True
             async for message in self._aquery_sdk(input, history, streaming=streaming, **kwargs):
                 yield message
         finally:
-            if not self.keep_uploads:
-                if staged:
-                    cleanup_media(workspace, run_id)
+            if not self.keep_uploads or not prepared:
+                cleanup_run_media(workspace, run_id, staged, created_root)
                 for folder in restaged:
                     remove_upload_folder(folder)
 

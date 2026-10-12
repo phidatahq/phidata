@@ -171,7 +171,7 @@ class CodexAgent(BaseExternalAgent):
     Args:
         name: Display name for this agent.
         id: Unique identifier (auto-generated from name if not set).
-        model: Codex model id. Defaults to gpt-5.6-luna unless set in thread_options.
+        model: Codex model id. Defaults to gpt-5.6-luna unless set in thread_options or turn_options.
         instructions: Developer instructions appended to the Codex system prompt.
         base_instructions: Replaces the Codex built-in system prompt entirely.
         sandbox: "read-only", "workspace-write" or "full-access". Defaults to the Codex default.
@@ -479,12 +479,13 @@ class CodexAgent(BaseExternalAgent):
         return model, {"openai": "OpenAI"}.get(provider.lower(), provider)
 
     def _effective_model(self) -> Tuple[Optional[str], str]:
-        """The model and provider the thread is started with, in the precedence
-        _resolved_thread_options applies. Reads the raw settings so a run that failed on
-        invalid options can still be recorded."""
-        options = self.thread_options if self.thread_options is not None else self.thread_kwargs
-        model = self.model or options.get("model")
-        provider = self.model_provider or options.get("model_provider") or "openai"
+        """The model and provider a turn runs on: the named setting, else the turn option,
+        else the thread option, as a turn's model overrides the thread's for that turn. Reads
+        the raw settings so a run that failed on invalid options can still be recorded."""
+        thread = self.thread_options if self.thread_options is not None else self.thread_kwargs
+        turn = self.turn_options if self.turn_options is not None else self.turn_kwargs
+        model = self.model or turn.get("model") or thread.get("model")
+        provider = self.model_provider or thread.get("model_provider") or "openai"
         return (str(model) if model else None), str(provider)
 
     def _thread_kwargs(self, sdk: Any, *, resume: bool) -> Dict[str, Any]:

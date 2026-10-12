@@ -1671,6 +1671,26 @@ def test_unset_model_falls_back_to_the_default_model(fake_sdk, tmp_db):
     assert [c for c in fake_sdk.calls if c["op"] == "thread_start"][-1]["kwargs"]["model"] == "thread-model"
 
 
+def test_turn_option_model_is_kept_and_recorded(fake_sdk, tmp_db):
+    """A model in turn_options is a configured model too: the default must not replace it (named
+    settings override turn options, so defaulting `model` would silently change what runs), and
+    when thread and turn both name one the turn's is what the turn runs on, so that is recorded."""
+    fake_sdk.notifications = [_agent_message("m1", "ok"), _turn_completed()]
+    agent = CodexAgent(name="Codex", id="codex", turn_options={"model": "turn-model"})
+    assert agent.model is None
+    run = agent.run("hi")
+    assert (run.model, run.model_provider) == ("turn-model", "OpenAI")
+    assert [c for c in fake_sdk.calls if c["op"] == "turn"][-1]["kwargs"]["model"] == "turn-model"
+    fake_sdk.notifications = [_agent_message("m1", "ok"), _turn_completed()]
+    both = CodexAgent(
+        name="Codex", id="codex", thread_options={"model": "thread-model"}, turn_options={"model": "turn-model"}
+    )
+    run = both.run("hi")
+    assert run.model == "turn-model"
+    assert [c for c in fake_sdk.calls if c["op"] == "thread_start"][-1]["kwargs"]["model"] == "thread-model"
+    assert [c for c in fake_sdk.calls if c["op"] == "turn"][-1]["kwargs"]["model"] == "turn-model"
+
+
 def test_metrics_page_counts_codex_runs_per_model(fake_sdk, tmp_db):
     from fastapi.testclient import TestClient
 

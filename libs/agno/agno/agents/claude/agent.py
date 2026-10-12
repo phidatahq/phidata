@@ -128,7 +128,7 @@ class ClaudeAgent(BaseExternalAgent):
         name: Display name for this agent.
         id: Unique identifier (auto-generated from name if not set).
         system_prompt: Optional system prompt for the agent.
-        model: Model to use. Defaults to the SDK default unless set in options.
+        model: Model to use. Defaults to claude-sonnet-4-6 unless set in options.
         tools: Built-in tool names or the Claude Code tool preset. An empty list disables built-in tools.
         allowed_tools: Tool calls to auto-approve; this does not limit the available tool set.
         disallowed_tools: List of tools to block.
@@ -228,11 +228,21 @@ class ClaudeAgent(BaseExternalAgent):
                 stacklevel=2,
             )
         self._validate_runtime_options(self._option_values())
+        if self._effective_model() is None:
+            # Like a native model's default id: the default is what the SDK runs and the run records.
+            self.model = "claude-sonnet-4-6"
         # Without id or name, get_id() is random per process, so the default key cannot be shared across replicas.
         self._warn_unstable_project_key = self.project_key is None and self.id is None and self.name is None
         super().__post_init__()
         if self.project_key is None:
             self.project_key = self.get_id()
+
+    def _run_model(self) -> Tuple[Optional[str], Optional[str]]:
+        return self._effective_model(), "Anthropic"
+
+    def _effective_model(self) -> Optional[str]:
+        """The model the SDK is asked to run, in the precedence _build_options applies."""
+        return self.options_kwargs.get("model") or self.model or self._option_values().get("model")
 
     def _option_values(self) -> Dict[str, Any]:
         if self.options is not None:
@@ -990,7 +1000,7 @@ class ClaudeAgent(BaseExternalAgent):
             cost=float(cost) if cost is not None else None,
         )
         if not details:
-            details.append(ModelMetrics(id=self.model or "claude", provider="anthropic", **totals.__dict__))
+            details.append(ModelMetrics(id=self._effective_model() or "", provider="anthropic", **totals.__dict__))
         additional: Dict[str, Any] = {}
         if getattr(message, "num_turns", None) is not None:
             additional["num_turns"] = int(message.num_turns)

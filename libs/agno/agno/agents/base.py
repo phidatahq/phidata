@@ -18,6 +18,7 @@ from typing import (
     Literal,
     Optional,
     Sequence,
+    Tuple,
     Type,
     Union,
     overload,
@@ -1407,12 +1408,15 @@ class BaseExternalAgent:
             Message(role="assistant", content=str(content), created_at=now),
         )
 
+        model_id, model_provider = self._run_model()
         return RunOutput(
             run_id=run_id,
             agent_id=self.get_id(),
             agent_name=self.name,
             session_id=session_id,
             user_id=user_id,
+            model=model_id,
+            model_provider=model_provider,
             input=(
                 RunInput(
                     input_content=str(input_text),
@@ -1453,6 +1457,13 @@ class BaseExternalAgent:
             details={"model": list(models)} if models else None,
             additional_metrics=additional_metrics or None,
         )
+
+    def _run_model(self) -> Tuple[Optional[str], Optional[str]]:
+        """The model id and provider recorded on the run, as Agent records its model's id and
+        provider. AgentOS's metrics page counts runs per model from these two fields and skips
+        runs without one. An adapter with a default model, like a native model has, names the
+        model that effectively ran; the default records nothing."""
+        return None, None
 
     @staticmethod
     def _finish_metrics(timer: RunMetrics, adapter_metrics: Optional[RunMetrics]) -> Optional[RunMetrics]:

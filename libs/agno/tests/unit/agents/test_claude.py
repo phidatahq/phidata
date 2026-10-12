@@ -1872,3 +1872,50 @@ async def test_subagent_tool_lineage_survives_events_and_storage(scripted, tmp_d
         restored = ToolExecution.from_dict(tools["call-1"].to_dict())
         assert restored.parent_tool_call_id == "parent-call"
     assert ToolExecution.from_dict({"tool_call_id": "old-record"}).parent_tool_call_id is None
+
+
+# ---------------------------------------------------------------------------
+# Model identity on the run row (the metrics page counts runs per model from it)
+# ---------------------------------------------------------------------------
+
+
+def test_runs_record_the_model_and_provider(fake_sdk, tmp_db):
+    run = ClaudeAgent(name="Claude", id="claude", db=tmp_db, model="claude-sonnet-4-6").run("hi", session_id="s")
+    assert (run.model, run.model_provider) == ("claude-sonnet-4-6", "Anthropic")
+    stored = tmp_db.get_run(run.run_id)
+    assert (stored.model, stored.model_provider) == ("claude-sonnet-4-6", "Anthropic")
+
+
+def test_unset_model_falls_back_to_the_default_model(fake_sdk, tmp_db):
+    """Like a native model's default id: the default is what the SDK is asked to run and what
+    the run records. A model set in options wins over the default."""
+    agent = ClaudeAgent(name="Claude", id="claude", db=tmp_db)
+    assert agent.model == "claude-sonnet-4-6"
+    run = agent.run("hi", session_id="s")
+    assert (run.model, run.model_provider) == ("claude-sonnet-4-6", "Anthropic")
+    assert fake_sdk.options[-1]["model"] == "claude-sonnet-4-6"
+    with pytest.warns(DeprecationWarning):
+        agent = ClaudeAgent(name="Claude", id="claude", options_kwargs={"model": "options-model"})
+    assert agent.model is None
+    run = agent.run("hi")
+    assert (run.model, run.model_provider) == ("options-model", "Anthropic")
+    assert fake_sdk.options[-1]["model"] == "options-model"
+
+
+def test_metrics_page_counts_runs_per_model(fake_sdk, tmp_db):
+    from fastapi.testclient import TestClient
+
+    from agno.os import AgentOS
+
+    agent = ClaudeAgent(name="Claude", id="claude", db=tmp_db, model="claude-sonnet-4-6")
+    client = TestClient(AgentOS(agents=[agent], db=tmp_db, telemetry=False).get_app())
+    for _ in range(2):
+        assert (
+            client.post("/agents/claude/runs", data={"message": "hi", "session_id": "s", "stream": "false"}).status_code
+            == 200
+        )
+    body = client.get("/metrics").json()
+    days = body["metrics"] if isinstance(body, dict) else body
+    today = days[-1]
+    assert today["agent_runs_count"] == 2
+    assert today["model_metrics"] == [{"model_id": "claude-sonnet-4-6", "model_provider": "Anthropic", "count": 2}]

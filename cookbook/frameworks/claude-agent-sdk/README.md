@@ -165,6 +165,7 @@ Use [TEST_PROMPT.md](../TEST_PROMPT.md) for reproducible live tests and
 - [claude_session.py](claude_session.py): multi-turn conversations.
 - [claude_session_agentos.py](claude_session_agentos.py): sessions through AgentOS.
 - [claude_config_dir.py](claude_config_dir.py): run under a scratch home so tests stay out of your Claude history.
+- [claude_home_skills.py](claude_home_skills.py): Agno skills and user memories written into the home before each run.
 - [claude_mcp_tools.py](claude_mcp_tools.py): connect native MCP tools.
 - [transcript_store.py](transcript_store.py): inspect transcript mirroring and restoration.
 - [background_cancel.py](background_cancel.py): background execution and cancellation.
@@ -197,6 +198,44 @@ python cookbook/frameworks/claude-agent-sdk/claude_config_dir.py
 
 The example snapshots your personal transcript list before the run and exits
 non-zero if the run added to it.
+
+## Agno skills and memories in the home
+
+Claude Code discovers skills under `<config_dir>/skills/<name>/SKILL.md` and
+reads `<config_dir>/CLAUDE.md` as user-level instructions. With `agno_skills`
+and `add_memories_to_context` the adapter writes Agno's state there before
+each run, so the harness picks it up natively and the same skills work on
+Codex without conversion:
+
+```python
+agent = ClaudeAgent(
+    model="claude-sonnet-5-5",
+    config_dir="tmp/harnesses/claude/home",
+    agno_skills=Skills(loaders=[LocalSkills("path/to/skills")]),
+    db=db,
+    add_memories_to_context=True,
+    tools=["Skill", "Read"],
+    setting_sources=["user"],
+)
+```
+
+Skills are enabled for the run unless the agent already selects `skills`
+itself. Each skill folder Agno writes is tracked in `<config_dir>/.agno/`, so
+a skill removed from Agno is removed from the home on the next run, and
+folders Agno did not write are left alone. Memories for the run's `user_id`
+go into a block between `<!-- agno:start -->` and `<!-- agno:end -->` in
+`CLAUDE.md`; anything else in that file is kept. `memory_manager` is used when
+given, otherwise one is created on the agent's `db`. Both settings need
+`config_dir`, and `setting_sources` must include `"user"`, or Claude Code
+will not read the home.
+
+```bash
+python cookbook/frameworks/claude-agent-sdk/claude_home_skills.py
+```
+
+The example stores one memory in SQLite, asks Claude to use the code-review
+skill and to greet the user by name, and exits non-zero unless the Skill tool
+was called and the name came back.
 
 ## Durable transcripts
 

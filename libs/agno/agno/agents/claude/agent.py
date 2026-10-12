@@ -208,6 +208,7 @@ class ClaudeAgent(BaseExternalAgent):
     options_kwargs: Dict[str, Any] = field(default_factory=dict)
 
     _sdk_name: ClassVar[str] = "claude-agent-sdk"
+    _HOME_PARAM: ClassVar[Optional[str]] = "config_dir"
     # Key under which the SDK session id is stored in the Agno session.
     _SESSION_KEY = "claude_sdk_session_id"
     _store_warning_logged: bool = field(default=False, init=False, repr=False)
@@ -240,6 +241,9 @@ class ClaudeAgent(BaseExternalAgent):
         super().__post_init__()
         if self.project_key is None:
             self.project_key = self.get_id()
+
+    def _native_home(self) -> Optional[Path]:
+        return Path(native_home(self.config_dir)) if self.config_dir is not None else None
 
     def _option_values(self) -> Dict[str, Any]:
         if self.options is not None:
@@ -311,11 +315,13 @@ class ClaudeAgent(BaseExternalAgent):
         agno_session_id: Optional[str] = None,
         session_store: Optional[Any] = None,
         output_schema: Optional[Any] = None,
+        skills: Optional[List[str]] = None,
     ) -> Any:
         """Build ClaudeAgentOptions from agent config.
 
         The transcript store is taken from session_store when given, otherwise created for
-        agno_session_id.
+        agno_session_id. skills names the skills Agno wrote into config_dir for this run; they
+        are enabled unless the agent already selects skills itself.
         """
         sdk = _sdk()
 
@@ -345,6 +351,8 @@ class ClaudeAgent(BaseExternalAgent):
                 "type": "json_schema",
                 "schema": self._output_json_schema(output_schema, "anthropic"),
             }
+        if skills and opts.get("skills") is None:
+            opts["skills"] = list(skills)
 
         # Keep the old dictionary's precedence during migration, without allowing it to
         # override the native session selected by Agno or disable requested streaming.
@@ -435,6 +443,7 @@ class ClaudeAgent(BaseExternalAgent):
             )
             if moved_note and input is not None:
                 input = f"{input}{moved_note}"
+            kwargs["materialized_skills"] = await self._amaterialize_home("CLAUDE.md", kwargs.get("user_id"))
             prepared = True
             async for message in self._aquery_sdk(input, history, streaming=streaming, **kwargs):
                 yield message
@@ -469,7 +478,11 @@ class ClaudeAgent(BaseExternalAgent):
             if run_state is not None:
                 run_state.clear()
             options = self._build_options(
-                streaming=streaming, resume=resume, session_store=store, output_schema=kwargs.get("output_schema")
+                streaming=streaming,
+                resume=resume,
+                session_store=store,
+                output_schema=kwargs.get("output_schema"),
+                skills=kwargs.get("materialized_skills"),
             )
             prompt = self._build_prompt(input, history, resumed=resume is not None)
             received = False

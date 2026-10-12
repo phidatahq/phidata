@@ -170,6 +170,7 @@ Use [TEST_PROMPT.md](../TEST_PROMPT.md) for reproducible live tests and
 - [codex_session.py](codex_session.py): multi-turn conversations.
 - [codex_session_agentos.py](codex_session_agentos.py): sessions through AgentOS.
 - [codex_home.py](codex_home.py): run under a scratch home so tests stay out of your Codex history.
+- [codex_home_skills.py](codex_home_skills.py): Agno skills and user memories written into the home before each run.
 - [codex_mcp_tools.py](codex_mcp_tools.py): connect native MCP tools.
 - [codex_structured_output.py](codex_structured_output.py): parsed Pydantic models or JSON Schema objects, configured on the agent or per run. Schemas require an object root. Streaming text may include commentary; the completed run carries the parsed answer.
 - [codex_metrics.py](codex_metrics.py): per-run token usage and session totals.
@@ -203,6 +204,37 @@ python cookbook/frameworks/codex/codex_home.py
 
 The example snapshots your personal session list before the run and exits
 non-zero if the run added to it.
+
+## Agno skills and memories in the home
+
+Codex discovers skills under `<codex_home>/skills/<name>/SKILL.md` and reads
+`<codex_home>/AGENTS.md` as user-level instructions. With `agno_skills` and
+`add_memories_to_context` the adapter writes Agno's state there before each
+run, so the same skills and memories serve Codex and Claude:
+
+```python
+agent = CodexAgent(
+    model="gpt-5.6-luna",
+    codex_home="tmp/harnesses/codex/home",
+    agno_skills=Skills(loaders=[LocalSkills("path/to/skills")]),
+    db=db,
+    add_memories_to_context=True,
+)
+```
+
+Each skill folder Agno writes is tracked in `<codex_home>/.agno/`, so a skill
+removed from Agno is removed from the home on the next run, and folders Agno
+did not write are left alone. Memories for the run's `user_id` go into a block
+between `<!-- agno:start -->` and `<!-- agno:end -->` in `AGENTS.md`; anything
+else in that file is kept. `memory_manager` is used when given, otherwise one
+is created on the agent's `db`. Both settings need `codex_home`.
+
+```bash
+python cookbook/frameworks/codex/codex_home_skills.py
+```
+
+The example stores one memory in SQLite, asks Codex to use the code-review
+skill and to greet the user by name, and exits non-zero unless both show up.
 
 ## How sessions work
 

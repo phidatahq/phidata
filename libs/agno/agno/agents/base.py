@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager, suppress
 from contextvars import ContextVar
 from copy import copy
 from dataclasses import dataclass
+from pathlib import Path
 from time import time
 from typing import (
     TYPE_CHECKING,
@@ -27,6 +28,7 @@ from uuid import uuid4
 from pydantic import BaseModel, ValidationError
 
 from agno.agents._config import agent_dataclass
+from agno.agents._home import materialize_skills, memories_block, write_managed_block
 from agno.db.base import AsyncBaseDb, BaseDb, SessionType
 from agno.exceptions import InputCheckError, RunCancelledException, SessionBusyError, UnsupportedMediaError
 from agno.media import Audio, File, Image, Video
@@ -54,6 +56,8 @@ from agno.utils.log import log_exception, log_warning
 from agno.utils.string import parse_response_dict_str, parse_response_model_str
 
 if TYPE_CHECKING:
+    from agno.memory.manager import MemoryManager
+    from agno.skills import Skills
     from agno.tools.component import ComponentTool
 
 # Limits for the history replayed into a fresh harness session when the framework's own
@@ -244,6 +248,14 @@ class BaseExternalAgent:
     # Adapters that pass output_schema to their framework set this; others reject the option.
     _supports_output_schema: ClassVar[bool] = False
 
+    # Agno-owned state written into the harness's home directory before each run, so the
+    # harness discovers it natively. Both need the adapter's home directory parameter.
+    agno_skills: Optional["Skills"] = None
+    memory_manager: Optional["MemoryManager"] = None
+    add_memories_to_context: bool = False
+    # Name of the adapter's home directory parameter, for error messages.
+    _HOME_PARAM: ClassVar[Optional[str]] = None
+
     def __post_init__(self) -> None:
         from agno.utils.string import generate_id_from_name
 
@@ -255,6 +267,44 @@ class BaseExternalAgent:
         if self.events_to_skip is None:
             self.events_to_skip = [RunEvent.run_content]
         self._check_output_schema(self.output_schema)
+        self._check_home_state()
+
+    def _check_home_state(self) -> None:
+        wants_home = self.agno_skills is not None or self.add_memories_to_context
+        if wants_home and self._native_home() is None:
+            where = f"set {self._HOME_PARAM}" if self._HOME_PARAM else "an adapter with a home directory"
+            raise ValueError(
+                f"agno_skills and add_memories_to_context are written into the harness home directory; {where}."
+            )
+        if self.add_memories_to_context and self.memory_manager is None and self.db is None:
+            raise ValueError("add_memories_to_context needs memory_manager or db to read user memories from.")
+
+    def _native_home(self) -> Optional[Path]:
+        """The harness's own home directory, or None when it uses the CLI default."""
+        return None
+
+    async def _amaterialize_home(self, instructions_file: str, user_id: Optional[str]) -> List[str]:
+        """Write skills and user memories into the home before a run. Returns the skill names written.
+
+        Skills land under <home>/skills/<name>/ in the SKILL.md layout both harnesses read.
+        Memories go into a marked block of <home>/<instructions_file>, which Claude Code and
+        Codex load as user-level instructions; the rest of that file is left as is.
+        """
+        home = self._native_home()
+        if home is None:
+            return []
+        home.mkdir(parents=True, exist_ok=True)
+        names = materialize_skills(home, self.agno_skills) if self.agno_skills is not None else []
+        if self.add_memories_to_context:
+            manager = self.memory_manager
+            if manager is None:
+                from agno.memory.manager import MemoryManager
+
+                manager = MemoryManager(db=self.db)
+                self.memory_manager = manager
+            memories = await manager.aget_user_memories(user_id=user_id)
+            write_managed_block(home / instructions_file, memories_block(memories))
+        return names
 
     @property
     def sdk(self) -> str:

@@ -253,6 +253,7 @@ class CodexAgent(BaseExternalAgent):
 
     _supports_output_schema: ClassVar[bool] = True
     _sdk_name: ClassVar[str] = "codex"
+    _HOME_PARAM: ClassVar[Optional[str]] = "codex_home"
     # Key under which the Codex thread id is stored in the Agno session.
     _THREAD_KEY = "codex_thread_id"
 
@@ -269,6 +270,9 @@ class CodexAgent(BaseExternalAgent):
                     DeprecationWarning,
                     stacklevel=3,
                 )
+
+    def _native_home(self) -> Optional[Path]:
+        return Path(native_home(self.codex_home)) if self.codex_home is not None else None
 
     def _validate_options(self) -> None:
         for name, schema in (("thread", ThreadOptions), ("turn", TurnOptions)):
@@ -650,6 +654,7 @@ class CodexAgent(BaseExternalAgent):
             if kwargs["staged_media"]:
                 remember_uploads_root(kwargs.get("session"), workspace)
             restaged, kwargs["moved_note"] = stage_prior_media(workspace, kwargs.get("session"), exclude_run_id=run_id)
+            await self._amaterialize_home("AGENTS.md", kwargs.get("user_id"))
             prepared = True
             return await self._arun_adapter_sdk(input, history=history, **kwargs)
         finally:
@@ -676,6 +681,7 @@ class CodexAgent(BaseExternalAgent):
             if kwargs["staged_media"]:
                 remember_uploads_root(kwargs.get("session"), workspace)
             restaged, kwargs["moved_note"] = stage_prior_media(workspace, kwargs.get("session"), exclude_run_id=run_id)
+            await self._amaterialize_home("AGENTS.md", kwargs.get("user_id"))
             prepared = True
             async for event in self._arun_adapter_stream_sdk(input, history=history, **kwargs):
                 yield event

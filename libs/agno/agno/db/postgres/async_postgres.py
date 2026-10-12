@@ -4815,6 +4815,14 @@ class AsyncPostgresDb(AsyncBaseDb):
         if table is None:
             raise RuntimeError("Job queue table is unavailable after provisioning")
 
+    async def _q_next_session_seq(self, sess: Any, table: Any, job: Dict[str, Any]) -> int:
+        """Lock the ticket's session and sequence it after every live ticket there."""
+        from agno.job_queue.session import next_session_seq_query, session_claim_lock_key
+
+        lock_key = session_claim_lock_key(table.fullname, job)
+        await sess.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": lock_key})
+        return (await sess.execute(next_session_seq_query(table, job))).scalar_one()
+
     async def enqueue_job(self, job: Dict[str, Any], max_depth: int = 0) -> Dict[str, Any]:
         """Insert an accepted run job.
 
@@ -4826,7 +4834,7 @@ class AsyncPostgresDb(AsyncBaseDb):
         """
         from sqlalchemy.exc import IntegrityError
 
-        from agno.job_queue.session import next_session_seq_query, session_claim_lock_key, with_session_seq
+        from agno.job_queue.session import with_session_seq
 
         table = await self._get_table(table_type="jobs", create_table_if_not_found=True)
         if table is None:
@@ -4862,10 +4870,7 @@ class AsyncPostgresDb(AsyncBaseDb):
                     if serialized:
                         # Under the session lock a new ticket sorts after every live ticket of its
                         # session, so execution follows store acceptance, not wall-clock seconds.
-                        lock_key = session_claim_lock_key(table.fullname, job)
-                        await sess.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": lock_key})
-                        seq = (await sess.execute(next_session_seq_query(table, job))).scalar_one()
-                        job = with_session_seq(job, seq)
+                        job = with_session_seq(job, await self._q_next_session_seq(sess, table, job))
                     await sess.execute(table.insert().values(**job))
             return {"accepted": True, "reason": None, "job": job}
         except IntegrityError:
@@ -5304,6 +5309,8 @@ class AsyncPostgresDb(AsyncBaseDb):
     async def requeue_job(self, job_id: str) -> bool:
         """Operator requeue for a terminally failed/cancelled job: grants
         exactly one more execution by raising max_attempts to attempt + 1."""
+        from agno.job_queue.session import is_serialized, with_session_seq
+
         try:
             table = await self._get_table(table_type="jobs")
             if table is None:
@@ -5311,20 +5318,37 @@ class AsyncPostgresDb(AsyncBaseDb):
             now = _db_epoch()
             async with self.async_session_factory() as sess:
                 async with sess.begin():
-                    result = await sess.execute(
-                        update(table)
-                        .where(table.c.id == job_id, table.c.status.in_(["failed", "cancelled"]))
-                        .values(
-                            status="queued",
-                            max_attempts=table.c.attempt + 1,
-                            available_at=now,
-                            locked_by=None,
-                            locked_at=None,
-                            completed_at=None,
-                            updated_at=now,
+                    await sess.connection(execution_options={"isolation_level": "READ COMMITTED"})
+                    row = (
+                        (
+                            await sess.execute(
+                                select(table)
+                                .where(table.c.id == job_id, table.c.status.in_(["failed", "cancelled"]))
+                                .with_for_update()
+                            )
                         )
+                        .mappings()
+                        .first()
                     )
-                    return (result.rowcount or 0) > 0  # type: ignore[attr-defined]
+                    if row is None:
+                        return False
+                    values: Dict[str, Any] = dict(
+                        status="queued",
+                        max_attempts=row["attempt"] + 1,
+                        available_at=now,
+                        locked_by=None,
+                        locked_at=None,
+                        completed_at=None,
+                        updated_at=now,
+                    )
+                    job = dict(row)
+                    if is_serialized(job):
+                        # A requeued ticket rejoins its session behind every live turn.
+                        values["payload"] = with_session_seq(job, await self._q_next_session_seq(sess, table, job))[
+                            "payload"
+                        ]
+                    await sess.execute(update(table).where(table.c.id == job_id).values(**values))
+                    return True
         except Exception as e:
             log_error(f"Job queue store: requeue failed for job {job_id}: {e}")
             return False
@@ -5347,12 +5371,15 @@ class AsyncPostgresDb(AsyncBaseDb):
         requeue_job): this CAS is the durable acceptance of the continue, and
         a DB failure must surface as a 500, never masquerade as "conflict".
         """
+        from agno.job_queue.session import is_serialized
+
         table = await self._get_table(table_type="jobs")
         if table is None:
             raise RuntimeError("Job queue table not found")
         now = _db_epoch()
         async with self.async_session_factory() as sess:
             async with sess.begin():
+                await sess.connection(execution_options={"isolation_level": "READ COMMITTED"})
                 row = (await sess.execute(select(table).where(table.c.id == job_id).with_for_update())).fetchone()
                 if row is None:
                     return {"outcome": "conflict", "job": None}
@@ -5363,6 +5390,9 @@ class AsyncPostgresDb(AsyncBaseDb):
                     return {"outcome": "attach", "job": job}
                 payload = dict(job.get("payload") or {})
                 payload["continue"] = dict(continue_payload)
+                if is_serialized(job):
+                    # A continued ticket rejoins its session behind every live turn.
+                    payload["session_seq"] = await self._q_next_session_seq(sess, table, job)
                 values: Dict[str, Any] = {
                     "status": "queued",
                     "payload": payload,

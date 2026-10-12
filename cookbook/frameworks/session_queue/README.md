@@ -8,9 +8,9 @@ backoff also holds later turns. Cancellation and exhausted-job reconciliation
 release the next eligible turn.
 
 Within a session, turns run in the order the store accepted them: each store stamps
-a per-session sequence at enqueue, under the session's lock, so a new turn always
-sorts after every live turn of its session regardless of wall-clock seconds or run
-IDs. Session run rows can be persisted in a different order, so execution follows
+a per-session sequence under the session's lock whenever a turn is submitted,
+requeued or continued, so it sorts after every live turn of its session regardless
+of wall-clock seconds or run IDs. A retry keeps its sequence and its place. Session run rows can be persisted in a different order, so execution follows
 the elected queue ticket rather than the order of pending history rows. Active RUNNING rows still protect against an
 already-running direct call.
 

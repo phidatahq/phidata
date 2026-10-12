@@ -2529,6 +2529,18 @@ class RedisDb(BaseDb):
         identity = json.dumps(session_identity(job), separators=(",", ":"))
         return self._q_key("session:" + sha256(identity.encode()).hexdigest())
 
+    def _q_stamp_session_seq(self, pipe: Any, job: Dict[str, Any]) -> Dict[str, Any]:
+        """Sequence a ticket entering its session index after every live ticket.
+
+        The index holds exactly the live tickets, scored by sequence; watching it orders
+        concurrent entries (submit, requeue, continue) by the commit that wins."""
+        from agno.job_queue.session import with_session_seq
+
+        session_key = self._q_session_key(job)
+        pipe.watch(session_key)
+        top = pipe.zrevrange(session_key, 0, 0, withscores=True)
+        return with_session_seq(job, int(top[0][1]) + 1 if top else 1)
+
     def _q_save_job_in_pipe(self, pipe: Any, job: Dict[str, Any]) -> None:
         pipe.set(self._q_job_key(job["id"]), json.dumps(job))
         if (job.get("payload") or {}).get("serialize_session") is True:
@@ -2605,14 +2617,7 @@ class RedisDb(BaseDb):
                         raise RuntimeError(f"enqueue_job: job {job['id']} already exists; ids are never reused")
 
                     if (job.get("payload") or {}).get("serialize_session") is True:
-                        from agno.job_queue.session import with_session_seq
-
-                        # The session index holds exactly the live tickets, scored by sequence.
-                        # Watching it orders concurrent submits by the commit that wins.
-                        session_key = self._q_session_key(job)
-                        pipe.watch(session_key)
-                        top = pipe.zrevrange(session_key, 0, 0, withscores=True)
-                        job = with_session_seq(job, int(top[0][1]) + 1 if top else 1)
+                        job = self._q_stamp_session_seq(pipe, job)
 
                     pipe.multi()
                     if idem_key is not None:
@@ -3080,34 +3085,39 @@ class RedisDb(BaseDb):
         from redis.exceptions import WatchError
 
         job_key = self._q_job_key(job_id)
-        now = self._q_server_now()
-        try:
-            with self.redis_client.pipeline() as pipe:
-                pipe.watch(job_key)
-                raw = pipe.get(job_key)
-                if raw is None:
-                    pipe.unwatch()
-                    return False
-                job = json.loads(raw if isinstance(raw, str) else raw.decode())
-                if job["status"] not in ("failed", "cancelled"):
-                    pipe.unwatch()
-                    return False
-                job.update(
-                    status="queued",
-                    max_attempts=job["attempt"] + 1,
-                    available_at=now,
-                    locked_by=None,
-                    locked_at=None,
-                    completed_at=None,
-                    updated_at=now,
-                )
-                pipe.multi()
-                self._q_save_job_in_pipe(pipe, job)
-                pipe.zadd(self._q_key("queued"), {job_id: now})
-                pipe.execute()
-                return True
-        except WatchError:
-            return False
+        # A same-session submit can win the session index; re-evaluate instead of refusing.
+        for _ in range(100):
+            now = self._q_server_now()
+            try:
+                with self.redis_client.pipeline() as pipe:
+                    pipe.watch(job_key)
+                    raw = pipe.get(job_key)
+                    if raw is None:
+                        pipe.unwatch()
+                        return False
+                    job = json.loads(raw if isinstance(raw, str) else raw.decode())
+                    if job["status"] not in ("failed", "cancelled"):
+                        pipe.unwatch()
+                        return False
+                    if (job.get("payload") or {}).get("serialize_session") is True:
+                        job = self._q_stamp_session_seq(pipe, job)
+                    job.update(
+                        status="queued",
+                        max_attempts=job["attempt"] + 1,
+                        available_at=now,
+                        locked_by=None,
+                        locked_at=None,
+                        completed_at=None,
+                        updated_at=now,
+                    )
+                    pipe.multi()
+                    self._q_save_job_in_pipe(pipe, job)
+                    pipe.zadd(self._q_key("queued"), {job_id: now})
+                    pipe.execute()
+                    return True
+            except WatchError:
+                continue
+        return False
 
     def continue_job(self, job_id: str, continue_payload: Dict[str, Any]) -> Dict[str, Any]:
         """Continuation CAS: flip the EXISTING paused ticket back to queued,
@@ -3131,7 +3141,8 @@ class RedisDb(BaseDb):
         from redis.exceptions import WatchError
 
         job_key = self._q_job_key(job_id)
-        for _ in range(10):
+        # Same-session submits also contend on the session index; every round commits one of them.
+        for _ in range(100):
             now = self._q_server_now()
             try:
                 with self.redis_client.pipeline() as pipe:
@@ -3147,6 +3158,8 @@ class RedisDb(BaseDb):
                     if job["status"] in ("queued", "running"):
                         pipe.unwatch()
                         return {"outcome": "attach", "job": job}
+                    if (job.get("payload") or {}).get("serialize_session") is True:
+                        job = self._q_stamp_session_seq(pipe, job)
                     payload = dict(job.get("payload") or {})
                     payload["continue"] = dict(continue_payload)
                     job.update(
@@ -3166,7 +3179,7 @@ class RedisDb(BaseDb):
                     return {"outcome": "queued", "job": job}
             except WatchError:
                 continue  # ticket changed under us; re-evaluate its new status
-        raise RuntimeError("continue_job: ticket contention did not settle after 10 attempts")
+        raise RuntimeError("continue_job: ticket contention did not settle after 100 attempts")
 
     def queue_stats(self) -> Dict[str, Any]:
         now = int(time.time())

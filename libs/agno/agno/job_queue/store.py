@@ -297,6 +297,8 @@ class InMemoryQueueStore:
             if job is None or job["status"] not in ("failed", "cancelled"):
                 return False
             now = int(time.time())
+            if is_serialized(job):
+                job["payload"] = with_session_seq(job, next_session_seq(job, self._jobs.values()))["payload"]
             job.update(
                 status="queued",
                 max_attempts=job["attempt"] + 1,
@@ -334,6 +336,8 @@ class InMemoryQueueStore:
             now = int(time.time())
             payload = dict(job.get("payload") or {})
             payload["continue"] = dict(continue_payload)
+            if is_serialized(job):
+                payload["session_seq"] = next_session_seq(job, self._jobs.values())
             job.update(
                 status="queued",
                 payload=payload,

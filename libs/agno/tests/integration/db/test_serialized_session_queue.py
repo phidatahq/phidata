@@ -146,6 +146,24 @@ async def test_same_second_turns_run_in_acceptance_order(store):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("settled", ["failed", "paused"])
+async def test_requeued_or_continued_turn_rejoins_behind_live_turns(store, settled):
+    # Its id sorts first, so only a fresh sequence keeps the newer live turn ahead of it.
+    await store.enqueue_job(job("a", created_at=1))
+    assert (await store.claim_job("one"))["id"] == "a"
+    assert await store.complete_job("a", "one", 1, settled)
+    await store.enqueue_job(job("z", created_at=2))
+    if settled == "failed":
+        assert await store.requeue_job("a")
+    else:
+        assert (await store.continue_job("a", {"input": "approved"}))["outcome"] == "queued"
+    assert (await store.claim_job("two"))["id"] == "z"
+    assert await store.claim_job("three") is None
+    assert await store.complete_job("z", "two", 1, "completed")
+    assert (await store.claim_job("three"))["id"] == "a"
+
+
+@pytest.mark.asyncio
 async def test_postgres_enqueue_during_claim_sorts_after_selected_ticket(store):
     """A ticket enqueued while another claimant holds its candidate never jumps ahead of it."""
     import threading
@@ -231,7 +249,8 @@ async def test_postgres_claims_under_a_stricter_engine_isolation_level(kind):
             engine.dispose()
 
 
-def test_redis_enqueue_outlasts_same_session_submit_contention(monkeypatch):
+@pytest.mark.parametrize("entry", ["enqueue", "requeue"])
+def test_redis_session_entry_outlasts_same_session_submit_contention(monkeypatch, entry):
     fakeredis = pytest.importorskip("fakeredis")
     from redis.client import Pipeline
     from redis.exceptions import WatchError
@@ -239,6 +258,10 @@ def test_redis_enqueue_outlasts_same_session_submit_contention(monkeypatch):
     from agno.db.redis import RedisDb
 
     db = RedisDb(redis_client=fakeredis.FakeRedis(), db_prefix="sandbox_queue_" + uuid4().hex)
+    if entry == "requeue":
+        db.enqueue_job(job("a", created_at=1))
+        assert db.claim_job("one")["id"] == "a"
+        assert db.complete_job("a", "one", 1, "failed")
     execute = Pipeline.execute
     lost = []
 
@@ -250,5 +273,8 @@ def test_redis_enqueue_outlasts_same_session_submit_contention(monkeypatch):
         return execute(self, *args, **kwargs)
 
     monkeypatch.setattr(Pipeline, "execute", lose_races)
-    assert db.enqueue_job(job("a", created_at=1))["accepted"]
+    if entry == "enqueue":
+        assert db.enqueue_job(job("a", created_at=1))["accepted"]
+    else:
+        assert db.requeue_job("a")
     assert db.get_job("a")["payload"]["session_seq"] == 1

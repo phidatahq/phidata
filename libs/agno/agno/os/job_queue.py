@@ -1559,7 +1559,15 @@ class QueueWorker:
         # construction: the early returns below (foreign job_type, missing
         # component) and pre-slot exceptions all unwind through the context
         # manager's finally - the bare mark/unmark pair leaked on all three.
-        with worker_managed_execution(job["id"], self.worker_id, job["attempt"]) as ownership:
+        with worker_managed_execution(
+            job["id"],
+            self.worker_id,
+            job["attempt"],
+            session_serialized=(
+                (job.get("payload") or {}).get("serialize_session") is True
+                and getattr(self.store, "serializes_sessions", False) is True
+            ),
+        ) as ownership:
             await self._execute_claimed_inner(job, ownership)
 
     async def _await_with_timeout(self, execution: Any, ownership: Any) -> Any:
@@ -2278,7 +2286,7 @@ async def aprepare_queued_run(
 
     prepare_hook = component_hook(component, "_aprepare_pending_run")
     if component_type == "agent" and prepare_hook is not None:
-        await prepare_hook(run_id, session_id, user_id, input)
+        await prepare_hook(run_id, session_id, user_id, input, queued=True)
     elif component_type == "agent":
         from agno.agent._session import asave_run, asave_session
         from agno.agent._storage import aread_or_create_session, update_metadata
@@ -2295,6 +2303,8 @@ async def aprepare_queued_run(
             # land (silently - pollers 404 and the attempt stamp finds no row)
             input=RunInput(input_content=input),
             status=RunStatus.pending,
+            # 0 marks a durable queue ticket's row before any claim; in-process rows stay None.
+            queue_attempt=0,
         )
 
         async def load_agent_session() -> Any:
@@ -2331,6 +2341,7 @@ async def aprepare_queued_run(
             user_id=user_id,
             input=TeamRunInput(input_content=input),
             status=RunStatus.pending,
+            queue_attempt=0,
         )
 
         async def load_team_session() -> Any:
@@ -2366,6 +2377,7 @@ async def aprepare_queued_run(
             workflow_name=getattr(component, "name", None),
             created_at=int(datetime.now().timestamp()),
             status=RunStatus.pending,
+            queue_attempt=0,
         )
 
         async def load_workflow_session() -> Any:

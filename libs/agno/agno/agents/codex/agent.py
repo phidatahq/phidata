@@ -4,18 +4,20 @@ import warnings
 from copy import deepcopy
 from dataclasses import dataclass, field, replace
 from importlib import import_module
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, AsyncIterator, ClassVar, Dict, Iterator, List, Optional, Set, Tuple
 from uuid import uuid4
 
 from agno.agents._config import agent_dataclass
 from agno.agents._media import (
     accept_media,
-    cleanup_media,
+    cleanup_run_media,
     media_prompt_block,
     remember_uploads_root,
     remove_upload_folder,
     stage_media,
     stage_prior_media,
+    uploads_root,
 )
 from agno.agents.base import (
     BaseExternalAgent,
@@ -169,7 +171,7 @@ class CodexAgent(BaseExternalAgent):
     Args:
         name: Display name for this agent.
         id: Unique identifier (auto-generated from name if not set).
-        model: Codex model id (e.g. "gpt-5.6-luna"). Defaults to the Codex default.
+        model: Codex model id. Defaults to gpt-5.6-luna unless set in thread_options or turn_options.
         instructions: Developer instructions appended to the Codex system prompt.
         base_instructions: Replaces the Codex built-in system prompt entirely.
         sandbox: "read-only", "workspace-write" or "full-access". Defaults to the Codex default.
@@ -253,6 +255,9 @@ class CodexAgent(BaseExternalAgent):
     def __post_init__(self) -> None:
         super().__post_init__()
         self._validate_options()
+        if self._effective_model()[0] is None:
+            # Like a native model's default id: the default is what the thread runs and the run records.
+            self.model = "gpt-5.6-luna"
         for name in ("thread", "turn"):
             if getattr(self, f"{name}_kwargs"):
                 warnings.warn(
@@ -468,6 +473,21 @@ class CodexAgent(BaseExternalAgent):
             config["mcp_servers"] = deepcopy(self.mcp_servers)
         return options
 
+    def _run_model(self) -> Tuple[Optional[str], Optional[str]]:
+        model, provider = self._effective_model()
+        # Codex's own provider ids, spelled as Agno names the same providers.
+        return model, {"openai": "OpenAI"}.get(provider.lower(), provider)
+
+    def _effective_model(self) -> Tuple[Optional[str], str]:
+        """The model and provider a turn runs on: the named setting, else the turn option,
+        else the thread option, as a turn's model overrides the thread's for that turn. Reads
+        the raw settings so a run that failed on invalid options can still be recorded."""
+        thread = self.thread_options if self.thread_options is not None else self.thread_kwargs
+        turn = self.turn_options if self.turn_options is not None else self.turn_kwargs
+        model = self.model or turn.get("model") or thread.get("model")
+        provider = self.model_provider or thread.get("model_provider") or "openai"
+        return (str(model) if model else None), str(provider)
+
     def _thread_kwargs(self, sdk: Any, *, resume: bool) -> Dict[str, Any]:
         """Build native options from the settings used for Agno session bookkeeping."""
         excluded = _START_ONLY_KEYS if resume else {"include_turns"}
@@ -627,16 +647,22 @@ class CodexAgent(BaseExternalAgent):
         media = kwargs.pop("media", None)
         run_id = kwargs.get("run_id") or str(uuid4())
         kwargs["run_id"] = run_id
-        kwargs["staged_media"] = stage_media(workspace, run_id, media) if media else []
-        if kwargs["staged_media"]:
-            remember_uploads_root(kwargs.get("session"), workspace)
-        restaged, kwargs["moved_note"] = stage_prior_media(workspace, kwargs.get("session"), exclude_run_id=run_id)
+        kwargs["staged_media"] = []
+        restaged: List[Path] = []
+        prepared = False
+        created_root = False
         try:
+            if media:
+                created_root = not uploads_root(workspace, run_id).exists()
+                kwargs["staged_media"] = stage_media(workspace, run_id, media)
+            if kwargs["staged_media"]:
+                remember_uploads_root(kwargs.get("session"), workspace)
+            restaged, kwargs["moved_note"] = stage_prior_media(workspace, kwargs.get("session"), exclude_run_id=run_id)
+            prepared = True
             return await self._arun_adapter_sdk(input, history=history, **kwargs)
         finally:
-            if not self.keep_uploads:
-                if kwargs["staged_media"]:
-                    cleanup_media(workspace, run_id)
+            if not self.keep_uploads or not prepared:
+                cleanup_run_media(workspace, run_id, kwargs["staged_media"], created_root)
                 for folder in restaged:
                     remove_upload_folder(folder)
 
@@ -647,17 +673,23 @@ class CodexAgent(BaseExternalAgent):
         media = kwargs.pop("media", None)
         run_id = kwargs.get("run_id") or str(uuid4())
         kwargs["run_id"] = run_id
-        kwargs["staged_media"] = stage_media(workspace, run_id, media) if media else []
-        if kwargs["staged_media"]:
-            remember_uploads_root(kwargs.get("session"), workspace)
-        restaged, kwargs["moved_note"] = stage_prior_media(workspace, kwargs.get("session"), exclude_run_id=run_id)
+        kwargs["staged_media"] = []
+        restaged: List[Path] = []
+        prepared = False
+        created_root = False
         try:
+            if media:
+                created_root = not uploads_root(workspace, run_id).exists()
+                kwargs["staged_media"] = stage_media(workspace, run_id, media)
+            if kwargs["staged_media"]:
+                remember_uploads_root(kwargs.get("session"), workspace)
+            restaged, kwargs["moved_note"] = stage_prior_media(workspace, kwargs.get("session"), exclude_run_id=run_id)
+            prepared = True
             async for event in self._arun_adapter_stream_sdk(input, history=history, **kwargs):
                 yield event
         finally:
-            if not self.keep_uploads:
-                if kwargs["staged_media"]:
-                    cleanup_media(workspace, run_id)
+            if not self.keep_uploads or not prepared:
+                cleanup_run_media(workspace, run_id, kwargs["staged_media"], created_root)
                 for folder in restaged:
                     remove_upload_folder(folder)
 
@@ -856,7 +888,8 @@ class CodexAgent(BaseExternalAgent):
         for codex_field, agno_field in self._USAGE_FIELDS:
             before_turn = int(getattr(first_total, codex_field, 0) or 0) - int(getattr(first_last, codex_field, 0) or 0)
             counts[agno_field] = max(0, int(getattr(final_total, codex_field, 0) or 0) - before_turn)
-        model = ModelMetrics(id=self.model or "codex", provider="openai", **counts)
+        model_id, provider = self._effective_model()
+        model = ModelMetrics(id=model_id or "", provider=provider, **counts)
         return self._build_metrics(model, [model])
 
     # ---------------------------------------------------------------------------

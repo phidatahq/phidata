@@ -267,8 +267,10 @@ class AgentSummaryResponse(BaseModel):
     @classmethod
     def from_agent(cls, agent: Union[Agent, AgentProtocol, RemoteAgent, AgentFactory]) -> "AgentSummaryResponse":
         agent_db = getattr(agent, "db", None)
-        framework = getattr(agent, "framework", None)
-        metadata = {"framework": framework} if framework else None
+        # Built-in adapters expose sdk. The framework fallback is only for third-party adapters that
+        # satisfy AgentProtocol structurally and predate the rename; drop it with the framework alias.
+        sdk = getattr(agent, "sdk", None) or getattr(agent, "framework", None)
+        metadata = {"sdk": sdk} if sdk else None
         if isinstance(agent, AgentFactory):
             return cls(
                 id=agent.id,
@@ -455,6 +457,17 @@ class WorkflowRunRequest(BaseModel):
     session_id: Optional[str] = Field(None, description="Session identifier for context persistence")
 
 
+def _agent_metadata(
+    metadata: Optional[Dict[str, Any]], agent_data: Optional[Dict[str, Any]]
+) -> Optional[Dict[str, Any]]:
+    """Expose the persisted adapter identity without changing stored user metadata.
+    A malformed agent_data (not a mapping) means no label rather than a failed read."""
+    sdk = (agent_data.get("sdk") or agent_data.get("framework")) if isinstance(agent_data, dict) else None
+    if isinstance(sdk, str) and sdk:
+        return {**(metadata or {}), "sdk": sdk}
+    return dict(metadata) if metadata is not None else None
+
+
 class SessionSchema(BaseModel):
     session_id: str = Field(..., description="Unique identifier for the session")
     session_name: str = Field(..., description="Human-readable name for the session")
@@ -508,7 +521,9 @@ class SessionSchema(BaseModel):
             session_summary=summary,
             metrics=metrics,
             total_tokens=total_tokens,
-            metadata=session.get("metadata"),
+            metadata=_agent_metadata(session.get("metadata"), session.get("agent_data"))
+            if session_type_str == SessionType.AGENT.value
+            else session.get("metadata"),
         )
 
 
@@ -569,7 +584,7 @@ class AgentSessionDetailSchema(BaseModel):
             if session.session_data
             else None,
             metrics=session.session_data.get("session_metrics", {}) if session.session_data else None,  # type: ignore
-            metadata=session.metadata,
+            metadata=_agent_metadata(session.metadata, session.agent_data),
             chat_history=[message.to_dict() for message in session.get_chat_history()],
             created_at=to_utc_datetime(created_at),
             updated_at=to_utc_datetime(updated_at),
@@ -674,6 +689,7 @@ class RunSchema(BaseModel):
     reasoning_content: Optional[str] = Field(None, description="Reasoning content if reasoning was enabled")
     reasoning_steps: Optional[List[dict]] = Field(None, description="List of reasoning steps")
     metrics: Optional[dict] = Field(None, description="Performance and usage metrics")
+    metadata: Optional[dict] = Field(None, description="Run metadata, including sdk for external agent sessions")
     messages: Optional[List[dict]] = Field(None, description="Message history for the run")
     tools: Optional[List[dict]] = Field(None, description="Tools used in the run")
     events: Optional[List[dict]] = Field(None, description="Events generated during the run")
@@ -711,9 +727,17 @@ class RunSchema(BaseModel):
     )
 
     @classmethod
-    def from_dict(cls, run_dict: Dict[str, Any]) -> "RunSchema":
+    def from_dict(cls, run_dict: Dict[str, Any], *, session: Optional[Dict[str, Any]] = None) -> "RunSchema":
         run_input = get_run_input(run_dict)
         run_response_format = "text" if run_dict.get("content_type", "str") == "str" else "json"
+        agent_data = None
+        # Member/step runs must not inherit another agent's session identity.
+        if (
+            session is not None
+            and detect_session_type(session) == SessionType.AGENT.value
+            and run_dict.get("agent_id") in (None, session.get("agent_id"))
+        ):
+            agent_data = session.get("agent_data")
 
         return cls(
             run_id=run_dict.get("run_id", ""),
@@ -728,6 +752,7 @@ class RunSchema(BaseModel):
             reasoning_content=run_dict.get("reasoning_content", ""),
             reasoning_steps=run_dict.get("reasoning_steps", []),
             metrics=run_dict.get("metrics", {}),
+            metadata=_agent_metadata(run_dict.get("metadata"), agent_data),
             messages=[message for message in run_dict.get("messages", [])] if run_dict.get("messages") else None,
             tools=[tool for tool in run_dict.get("tools", [])] if run_dict.get("tools") else None,
             events=[event for event in run_dict["events"]] if run_dict.get("events") else None,

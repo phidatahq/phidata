@@ -229,3 +229,26 @@ async def test_postgres_claims_under_a_stricter_engine_isolation_level(kind):
             await engine.dispose()
         else:
             engine.dispose()
+
+
+def test_redis_enqueue_outlasts_same_session_submit_contention(monkeypatch):
+    fakeredis = pytest.importorskip("fakeredis")
+    from redis.client import Pipeline
+    from redis.exceptions import WatchError
+
+    from agno.db.redis import RedisDb
+
+    db = RedisDb(redis_client=fakeredis.FakeRedis(), db_prefix="sandbox_queue_" + uuid4().hex)
+    execute = Pipeline.execute
+    lost = []
+
+    def lose_races(self, *args, **kwargs):
+        if len(lost) < 15:
+            lost.append(1)
+            self.reset()
+            raise WatchError("a same-session submit committed first")
+        return execute(self, *args, **kwargs)
+
+    monkeypatch.setattr(Pipeline, "execute", lose_races)
+    assert db.enqueue_job(job("a", created_at=1))["accepted"]
+    assert db.get_job("a")["payload"]["session_seq"] == 1

@@ -2561,8 +2561,10 @@ class RedisDb(BaseDb):
         idem_key = self._q_idem_key(job.get("user_id"), idem) if idem is not None else None
 
         job_key = self._q_job_key(job["id"])
+        # Same-session submits also contend on the session index; every round commits one of them.
+        attempts = 100 if (job.get("payload") or {}).get("serialize_session") is True else 10
 
-        for _ in range(10):
+        for _ in range(attempts):
             with self.redis_client.pipeline() as pipe:
                 try:
                     # The job key is always WATCHed: the MULTI below SETs it,
@@ -2622,7 +2624,7 @@ class RedisDb(BaseDb):
                     return {"accepted": True, "reason": None, "job": dict(job)}
                 except WatchError:
                     continue  # another submitter raced this key; re-evaluate
-        raise RuntimeError("enqueue_job: idempotency-key contention did not settle after 10 attempts")
+        raise RuntimeError(f"enqueue_job: submit contention did not settle after {attempts} attempts")
 
     def claim_job(
         self, worker_id: str, lock_grace_seconds: int = 60, deployment_id: Optional[str] = None

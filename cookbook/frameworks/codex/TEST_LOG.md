@@ -517,3 +517,13 @@ Source 6aee3eb079 plus the uncommitted codex_home change, openai-codex 0.162.1 (
 **Result:** Run COMPLETED with the free-shipping answer. One thread was written under `tmp/harnesses/codex/home/sessions/2026/10/12/`, and the personal session list was unchanged. A first attempt failed after the run while printing the summary (`relative_to` against a resolved base); fixed in the example and rerun.
 
 ---
+
+### codex_home_skills.py (2026-10-12)
+
+**Status:** PASS (gpt-5.6-luna, openai-codex 0.162.1)
+
+**Description:** `agno_skills` from the sample skills folder and `add_memories_to_context` with one SQLite memory for user `sam`, written into a scratch `codex_home` before the run. Prompt asks for the first heading of the code-review skill and a greeting by name.
+
+**Result:** Run COMPLETED. `skills/code-review` and `skills/git-workflow` were written; `AGENTS.md` held the memory inside the marked block. Codex read the skill file with one `shell` call, answered "Code Review Skill" and greeted "Sam". No feature flag was needed for skill discovery on this Codex version.
+
+---

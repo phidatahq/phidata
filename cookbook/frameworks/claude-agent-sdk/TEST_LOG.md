@@ -696,3 +696,13 @@ Source 6aee3eb079 plus the uncommitted config_dir change, claude-agent-sdk 0.2.1
 **Result:** Run COMPLETED with the free-shipping answer. One transcript was written under `tmp/harnesses/claude/home/projects/<workspace key>/`, and the personal transcript list was unchanged. A first attempt failed after the run while printing the summary (`relative_to` against a resolved base); fixed in the example and rerun. With an empty scratch home and no API key the subprocess reports it is not logged in, as documented.
 
 ---
+
+### claude_home_skills.py (2026-10-12)
+
+**Status:** PASS (claude-sonnet-5-5, claude-agent-sdk 0.2.165)
+
+**Description:** `agno_skills` from the sample skills folder and `add_memories_to_context` with one SQLite memory for user `sam`, written into a scratch `config_dir` before the run. Prompt asks for the first heading of the code-review skill and a greeting by name.
+
+**Result:** Run COMPLETED. `skills/code-review` and `skills/git-workflow` were written with scripts and references; `CLAUDE.md` held the memory inside the marked block. Claude called `Skill(skill=code-review)`, answered "Code Review Skill" and greeted "Sam". Nothing was passed in the prompt beyond the question.
+
+---

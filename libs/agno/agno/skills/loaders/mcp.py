@@ -66,8 +66,8 @@ class MCPSkills(SkillLoader):
     Args:
         mcp_tools: A connected MCPTools toolkit. The server only advertises the
             extension on protocol revision 2026-07-28, so use `protocol_mode="auto"`.
-        label: Host-assigned name for the server. Skill names are namespaced as
-            `<label>/<skill-path>`. Defaults to the toolkit name.
+        label: Host-assigned name for the server, without "/". Skill names are
+            namespaced as `<label>/<skill-path>`. Defaults to the toolkit name.
         skill_uris: `SKILL.md` URIs to load with `skills/get` in addition to the
             listing, for skills a server does not enumerate.
         allow_dynamic: Load skills whose content the server marks "dynamic". Their
@@ -87,6 +87,9 @@ class MCPSkills(SkillLoader):
         self.label: str = label or mcp_tools.name
         if not self.label:
             raise ValueError("MCPSkills requires a label to identify the MCP server")
+        # Skill names are "<label>/<skill-path>": a "/" in the label would let two origins produce the same name.
+        if "/" in self.label:
+            raise ValueError(f"MCPSkills label cannot contain '/': {self.label!r}")
         self.skill_uris = list(skill_uris or [])
         self.allow_dynamic = allow_dynamic
         self._entries: Dict[str, _HeldEntry] = {}

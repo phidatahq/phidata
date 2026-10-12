@@ -1,3 +1,4 @@
+import asyncio
 import html
 import json
 import subprocess
@@ -208,12 +209,16 @@ class Skills:
                 lines.append(f"  <description>{skill.description}</description>")
             if skill.scripts:
                 script_names = [s["name"] if isinstance(s, dict) else s for s in skill.scripts]
+                if skill.origin is not None:
+                    script_names = [html.escape(name) for name in script_names]
                 lines.append(f"  <scripts>{', '.join(script_names)}</scripts>")
             else:
                 # Explicitly indicate no scripts to prevent model confusion
                 lines.append("  <scripts>none</scripts>")
             if skill.references:
                 ref_names = [r["name"] if isinstance(r, dict) else r for r in skill.references]
+                if skill.origin is not None:
+                    ref_names = [html.escape(name) for name in ref_names]
                 lines.append(f"  <references>{', '.join(ref_names)}</references>")
             lines.append("</skill>")
         lines.append("")
@@ -529,7 +534,8 @@ class Skills:
         """
         source = self._mcp_sources.get(skill_name)
         if source is None:
-            return self._get_skill_reference(skill_name, reference_path)
+            # Local reads touch the filesystem; keep them off the event loop.
+            return await asyncio.to_thread(self._get_skill_reference, skill_name, reference_path)
 
         skill = self._skills[skill_name]
         if not reference_path:
@@ -581,7 +587,10 @@ class Skills:
         """
         source = self._mcp_sources.get(skill_name)
         if source is None:
-            return self._get_skill_script(skill_name, script_path, execute=execute, args=args, timeout=timeout)
+            # Local scripts run as subprocesses for up to `timeout` seconds; keep them off the event loop.
+            return await asyncio.to_thread(
+                self._get_skill_script, skill_name, script_path, execute=execute, args=args, timeout=timeout
+            )
 
         skill = self._skills[skill_name]
         if not script_path:

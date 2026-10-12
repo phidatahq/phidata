@@ -1140,7 +1140,7 @@ class BaseExternalAgent:
             await araise_if_cancelled(run_id)
 
     async def _aprepare_pending_run(
-        self, run_id: str, session_id: str, user_id: Optional[str], input: Any
+        self, run_id: str, session_id: str, user_id: Optional[str], input: Any, queued: bool = False
     ) -> RunOutput:
         """Persist an idempotent PENDING row before background or queued execution."""
         from agno.os.job_queue import _aappend_pending_run
@@ -1153,6 +1153,8 @@ class BaseExternalAgent:
             agent_name=self.name,
             input=RunInput(input_content=input),
             status=RunStatus.pending,
+            # 0 marks a durable queue ticket's row before any claim; in-process rows stay None.
+            queue_attempt=0 if queued else None,
         )
         session = await _aappend_pending_run(
             self, session_id, run.to_dict(), user_id, lambda: self.aread_or_create_session(session_id, user_id)
@@ -1294,7 +1296,9 @@ class BaseExternalAgent:
 
         A running row always blocks. A pending row blocks only when it was accepted before
         ``run_id`` (session runs are in acceptance order), so two queued turns do not each
-        refuse the other. A run with no row of its own counts as accepted last.
+        refuse the other. A run with no row of its own counts as accepted last. When the
+        queue already elected this turn, pending queue tickets ahead are skipped, but
+        in-process turns the queue cannot see still block.
         """
         from agno.run.concurrency import get_worker_ownership
 
@@ -1308,7 +1312,10 @@ class BaseExternalAgent:
                 ahead = False
                 continue
             status = getattr(run.status, "value", run.status)
-            if status == RunStatus.running.value or (ahead and not queue_ordered and status == RunStatus.pending.value):
+            if status == RunStatus.running.value:
+                return run
+            elected_ahead = queue_ordered and getattr(run, "queue_attempt", None) is not None
+            if ahead and status == RunStatus.pending.value and not elected_ahead:
                 return run
         return None
 

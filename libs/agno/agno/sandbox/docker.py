@@ -201,12 +201,11 @@ class DockerSandboxProvider(SandboxProvider):
         if current.config_digest != digest:
             raise SandboxError("Sandbox generation already exists with different configuration")
         if current.state == "paused":
-            # A capture interrupted by a coordinator crash leaves the generation frozen.
-            code, _, err = await self._docker("container", "unpause", current.provider_ref)
-            current = await self.aget(current.provider_ref)
-            if code and (current is None or current.state != "running"):
-                raise SandboxError("Docker unpause failed: " + err.decode(errors="replace")[:500])
-        if current is not None and current.state == "created":
+            # Pause cannot tell an interrupted capture from a partial restore, so never resume implicitly.
+            raise SandboxError(
+                "Sandbox generation is paused by an interrupted checkpoint transfer; reconcile it before reuse"
+            )
+        if current.state == "created":
             code, _, err = await self._docker("container", "start", current.provider_ref)
             current = await self.aget(current.provider_ref)
             if code and (current is None or current.state != "running"):

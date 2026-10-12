@@ -100,7 +100,7 @@ class FakeDocker(DockerSandboxProvider):
             if self.lose_create_response:
                 raise asyncio.TimeoutError
             return 0, b"container-id", b""
-        if operation == "start" or operation == "unpause":
+        if operation == "start":
             self.record["State"]["Status"] = "running"
         elif operation == "stop":
             self.record["State"]["Status"] = "exited"
@@ -255,10 +255,12 @@ async def test_failed_container_create_removes_its_volumes_so_a_corrected_spec_c
 
 
 @pytest.mark.asyncio
-async def test_reacquire_resumes_a_generation_left_paused_by_an_interrupted_capture():
+async def test_reacquire_rejects_a_generation_left_paused_by_an_interrupted_transfer():
     provider = FakeDocker()
     handle = await provider.acreate(spec())
     provider.record["State"]["Status"] = "paused"
     with pytest.raises(SandboxError, match="not running"):
         await provider.aexec(handle, ["example"])
-    assert (await provider.acreate(spec())).state == "running"
+    with pytest.raises(SandboxError, match="interrupted checkpoint transfer"):
+        await provider.acreate(spec())
+    assert not any(call[0][:2] == ("container", "unpause") for call in provider.calls)

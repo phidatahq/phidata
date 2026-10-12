@@ -4,10 +4,12 @@ import asyncio
 import hashlib
 import json
 import math
+import os
+import tempfile
 from contextlib import suppress
 from dataclasses import fields
 from pathlib import Path
-from typing import Any, Optional, Sequence
+from typing import Any, Mapping, Optional, Sequence
 
 from agno.sandbox.base import ExecResult, SandboxError, SandboxHandle, SandboxProvider, SandboxSpec
 
@@ -38,6 +40,18 @@ class DockerSandboxProvider(SandboxProvider):
         data = {item.name: getattr(spec, item.name) for item in fields(spec)}
         data["env"] = dict(spec.env)
         return hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest()
+
+    @staticmethod
+    def _write_env_file(env: Mapping[str, str]) -> str:
+        for key, value in env.items():
+            if key[0] == "#" or any(char.isspace() for char in key) or "\n" in value or "\r" in value:
+                raise ValueError(
+                    "Docker sandbox env names cannot contain whitespace or start with '#'; values cannot contain newlines"
+                )
+        descriptor, path = tempfile.mkstemp(prefix="agno-sandbox-env-")
+        with os.fdopen(descriptor, "w", encoding="utf-8") as file:
+            file.writelines(key + "=" + value + "\n" for key, value in env.items())
+        return path
 
     async def _docker(
         self, *args: str, input_data: Optional[bytes] = None, timeout: float = 30
@@ -168,18 +182,20 @@ class DockerSandboxProvider(SandboxProvider):
                 "/tmp:rw,nosuid,nodev,uid=1000,gid=1000,mode=1777,size=128m",
                 "--workdir",
                 "/workspace",
-                "--env",
-                "HOME=/runtime",
             ]
             for key, value in labels.items():
                 args.extend(["--label", _LABEL + key + "=" + value])
-            for key, value in spec.env.items():
-                args.extend(["--env", key + "=" + value])
+            # Env values go through a private file so they never appear in the host process list.
+            env_file = self._write_env_file({"HOME": "/runtime", **spec.env})
+            args.extend(["--env-file", env_file])
             args.extend(["--entrypoint", "python", spec.image, "-I", "-c", "import time; time.sleep(2147483647)"])
             try:
                 code, _, err = await self._docker(*args, timeout=120)
             except asyncio.TimeoutError:
                 code, err = 1, b"Creation response timed out"
+            finally:
+                with suppress(FileNotFoundError):
+                    os.unlink(env_file)
             # A concurrent creator or lost response is resolved by the deterministic name.
             current = await self.aget(name)
             if current is None:
@@ -190,6 +206,9 @@ class DockerSandboxProvider(SandboxProvider):
             code, _, err = await self._docker("container", "start", current.provider_ref)
             current = await self.aget(current.provider_ref)
             if code and (current is None or current.state != "running"):
+                # A container that never ran holds no files; remove it so the caller is not left an orphan.
+                if current is not None and current.state == "created":
+                    await self._docker("container", "rm", current.provider_ref)
                 raise SandboxError("Docker start failed: " + err.decode(errors="replace")[:500])
         if current is None or current.state != "running":
             raise SandboxError("Sandbox generation is not running; recovery requires a new generation")

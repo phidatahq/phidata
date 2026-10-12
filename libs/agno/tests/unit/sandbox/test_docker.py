@@ -1,5 +1,7 @@
 import asyncio
 import json
+import os
+import subprocess
 import sys
 from dataclasses import replace
 
@@ -14,7 +16,10 @@ def spec(**kwargs):
     return SandboxSpec(agent_id="coder", session_id="s", generation=1, image="python:test", **kwargs)
 
 
-@pytest.mark.parametrize("kwargs", [{"cpus": 0}, {"cpus": float("nan")}, {"memory_mb": 0}, {"network": "host"}])
+@pytest.mark.parametrize(
+    "kwargs",
+    [{"cpus": 0}, {"cpus": float("nan")}, {"cpus": True}, {"cpus": "2"}, {"memory_mb": 0}, {"network": "host"}],
+)
 def test_invalid_limits_and_host_network_are_rejected(kwargs):
     with pytest.raises(ValueError):
         spec(**kwargs)
@@ -28,6 +33,17 @@ def test_environment_is_copied_and_not_in_repr():
     assert "secret" not in repr(value)
     with pytest.raises(TypeError):
         value.env["TOKEN"] = "mutated"
+
+
+def test_spec_is_hashable_and_env_still_affects_equality():
+    assert hash(spec(env={"A": "1"})) == hash(spec(env={"A": "1"}))
+    assert spec(env={"A": "1"}) != spec(env={"A": "2"})
+    assert spec(cpus=1) == spec(cpus=1.0)
+
+
+def test_sandbox_import_does_not_load_agent_runtime():
+    code = "import sys, agno.sandbox.docker; print(any(m.startswith('agno.agents') for m in sys.modules))"
+    assert subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True).stdout == "False\n"
 
 
 def test_command_runner_retains_exit_status_and_bounds_output():
@@ -60,6 +76,7 @@ class FakeDocker(DockerSandboxProvider):
         self.record = None
         self.calls = []
         self.lose_create_response = False
+        self.env_file = None
 
     async def _docker(self, *args, **kwargs):
         self.calls.append((args, kwargs))
@@ -74,6 +91,8 @@ class FakeDocker(DockerSandboxProvider):
                 if arg == "--label":
                     key, value = args[i + 1].split("=", 1)
                     labels[key] = value
+            with open(args[args.index("--env-file") + 1]) as file:
+                self.env_file = file.read()
             self.record = {
                 "Id": "container-id",
                 "Name": "/" + args[args.index("--name") + 1],
@@ -103,7 +122,9 @@ async def test_create_is_idempotent_and_hardened(monkeypatch):
     assert len(creates) == 1
     argv = creates[0][0]
     assert "--read-only" in argv and "--cap-drop" in argv and "1000:1000" in argv
-    assert "AGNO_DB_URL" not in " ".join(argv) and "MODEL_TOKEN=explicit" in argv
+    assert "AGNO_DB_URL" not in " ".join(argv) and "explicit" not in " ".join(argv)
+    assert provider.env_file == "HOME=/runtime\nMODEL_TOKEN=explicit\n"
+    assert not os.path.exists(argv[argv.index("--env-file") + 1])
     assert not any("docker.sock" in arg for arg in argv)
 
 
@@ -158,6 +179,14 @@ def test_sync_provider_wrappers():
 
 
 @pytest.mark.asyncio
+async def test_sync_provider_wrappers_inside_running_loop():
+    provider = FakeDocker()
+    handle = provider.create(spec())
+    assert handle.state == "running"
+    provider.destroy(handle)
+
+
+@pytest.mark.asyncio
 async def test_exec_validates_before_contacting_docker():
     provider = FakeDocker()
     handle = SandboxHandle("id", "name", "a", "s", 1, "running", "digest")
@@ -195,3 +224,27 @@ async def test_invalid_command_result_stops_remote_execution():
     with pytest.raises(SandboxError, match="invalid command"):
         await provider.aexec(handle, ["example"])
     assert (await provider.aget(handle.provider_ref)).state == "exited"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("env", [{"A": "multi\nline"}, {"A": "cr\r"}, {"#A": "x"}, {"A B": "x"}])
+async def test_env_that_cannot_be_written_to_an_env_file_is_rejected(env):
+    provider = FakeDocker()
+    with pytest.raises(ValueError, match="env"):
+        await provider.acreate(spec(env=env))
+    assert not any(call[0][1] == "create" for call in provider.calls)
+
+
+@pytest.mark.asyncio
+async def test_failed_start_removes_the_never_started_container():
+    class FailedStart(FakeDocker):
+        async def _docker(self, *args, **kwargs):
+            if args[1] == "start":
+                self.calls.append((args, kwargs))
+                return 1, b"", b"network Host not found"
+            return await super()._docker(*args, **kwargs)
+
+    provider = FailedStart()
+    with pytest.raises(SandboxError, match="start failed"):
+        await provider.acreate(spec())
+    assert provider.record is None

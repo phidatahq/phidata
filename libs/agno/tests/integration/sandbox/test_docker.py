@@ -106,3 +106,19 @@ async def test_real_concurrent_creation_and_idempotent_delete():
         handle = await first.aget(first._name(spec))
         if handle is not None:
             await first.adestroy(handle)
+
+
+async def test_real_env_file_values_and_failed_start_cleanup():
+    provider = DockerSandboxProvider("test-" + uuid4().hex)
+    value = " spaced = value # not a comment "
+    spec = SandboxSpec("coder", "env", 1, IMAGE, memory_mb=256, env={"EXPLICIT": value})
+    handle = await provider.acreate(spec)
+    try:
+        result = await provider.aexec(handle, ["python", "-c", "import os; print(repr(os.environ['EXPLICIT']))"])
+        assert result.stdout.strip() == repr(value)
+    finally:
+        await provider.adestroy(handle)
+    broken = SandboxSpec("coder", "broken", 1, IMAGE, memory_mb=256, network="agno-missing-" + uuid4().hex)
+    with pytest.raises(SandboxError, match="start failed"):
+        await provider.acreate(broken)
+    assert await provider.aget(provider._name(broken)) is None

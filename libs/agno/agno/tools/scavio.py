@@ -1543,9 +1543,9 @@ class ScavioTools(Toolkit):
 
         Returns:
             str: JSON string with ``video_id``, ``language_code``, ``language_name``, ``format``
-            and ``content`` (the whole transcript as one string). Costs 8 credits - the most
-            expensive YouTube tool by a wide margin, so check youtube_video's ``captions`` list
-            first and only pull a transcript you are going to read.
+            and ``content`` (the whole transcript as one string). Costs 5 credits - the most
+            expensive YouTube tool, so check youtube_video's ``captions`` list first and only
+            pull a transcript you are going to read.
         """
         return self._call(self.client.youtube.transcript, video_id, language=language, format=format)
 
@@ -2046,11 +2046,12 @@ class ScavioTools(Toolkit):
 
     # --------------------------------------------------------------- Instagram
     #
-    # Instagram is the expensive family and its cost is per tool, never a flat
-    # rate: instagram_user_posts is 2, instagram_post and
-    # instagram_comment_replies are 8, and the other nine are 10. Each docstring
-    # states its own. A profile-then-posts pass is therefore 12 credits, and a
-    # follower crawl is 10 per page - plan the cheap call first.
+    # Instagram cost is per tool, never a flat rate: instagram_profile,
+    # instagram_user_reels and instagram_user_tagged typically cost 1 (reels and
+    # tagged cost 2 the first time a username is looked up), and the other nine
+    # typically cost 2. User and hashtag search with a cursor cost 8. Any request
+    # can cost up to 10 when it needs extra work; credits_used in the response is
+    # the exact charge. Each docstring states its own typical cost.
 
     def instagram_profile(self, username: Optional[str] = None, user_id: Optional[str] = None) -> str:
         """Get an Instagram user profile.
@@ -2064,7 +2065,7 @@ class ScavioTools(Toolkit):
             str: JSON string of the profile inlined at the top level: ``username``,
             ``full_name``, ``biography``, ``follower_count``, ``following_count``,
             ``is_private``, ``is_verified``, ``profile_pic_url`` and the numeric ``pk`` you can
-            reuse as user_id. Costs 10 credits.
+            reuse as user_id. Typically costs 1 credit.
         """
         return self._call(self.client.instagram.profile, username=username, user_id=user_id)
 
@@ -2084,8 +2085,8 @@ class ScavioTools(Toolkit):
             cursor (Optional[str]): Pagination cursor from a previous response.
 
         Returns:
-            str: JSON string of the user's timeline posts. Costs 2 credits - by far the
-            cheapest Instagram tool, so prefer it over reels or tagged when either would do.
+            str: JSON string with the posts under ``data.items`` and the next-page cursor in
+            ``pagination_token``. Typically costs 2 credits per page.
         """
         return self._call(
             self.client.instagram.user_posts, username=username, user_id=user_id, count=count, cursor=cursor
@@ -2108,7 +2109,8 @@ class ScavioTools(Toolkit):
 
         Returns:
             str: JSON string with the reels under ``items``, plus ``next_max_id``.
-            Costs 10 credits.
+            Typically costs 1 credit (2 the first time a username is looked up; pass
+            user_id to keep it at 1).
         """
         return self._call(
             self.client.instagram.user_reels, username=username, user_id=user_id, count=count, cursor=cursor
@@ -2131,7 +2133,8 @@ class ScavioTools(Toolkit):
 
         Returns:
             str: JSON string with the tagged posts under ``items``, plus ``next_max_id``.
-            Costs 10 credits.
+            Typically costs 1 credit (2 the first time a username is looked up; pass
+            user_id to keep it at 1).
         """
         return self._call(
             self.client.instagram.user_tagged, username=username, user_id=user_id, count=count, cursor=cursor
@@ -2146,7 +2149,7 @@ class ScavioTools(Toolkit):
 
         Returns:
             str: JSON string with the currently active stories under ``items``. Stories are not
-            paginated. Costs 10 credits.
+            paginated. Typically costs 2 credits.
         """
         return self._call(self.client.instagram.user_stories, username=username, user_id=user_id)
 
@@ -2169,7 +2172,7 @@ class ScavioTools(Toolkit):
             str: JSON string with the post at ``items[0]``. Video URLs live in
             ``video_versions[].url`` and covers in ``image_versions2.candidates``; there is no
             video_url or thumbnail_url field. ``media_type`` is 1 image, 2 video, 8 carousel.
-            Costs 8 credits.
+            Typically costs 2 credits.
         """
         return self._call(self.client.instagram.post, url=url, media_id=media_id, shortcode=shortcode)
 
@@ -2191,7 +2194,8 @@ class ScavioTools(Toolkit):
 
         Returns:
             str: JSON string with ``comments``, ``comment_count``, ``has_more_comments`` and
-            ``next_min_id``. Costs 10 credits.
+            ``next_min_id``. Each comment carries its ``pk`` and ``media_id``, which is what
+            instagram_comment_replies takes. Typically costs 2 credits per page.
         """
         return self._call(
             self.client.instagram.post_comments, shortcode=shortcode, url=url, cursor=cursor, sort_order=sort_order
@@ -2201,13 +2205,14 @@ class ScavioTools(Toolkit):
         """List the replies to an Instagram comment.
 
         Args:
-            media_id (str): The post media id. Required, and instagram_post_comments does not
-                return one - resolve it with instagram_post first.
+            media_id (str): The post media id. Required; every comment from
+                instagram_post_comments carries it as ``media_id``.
             comment_id (str): The comment id to fetch replies for.
             cursor (Optional[str]): Pagination cursor from a previous response.
 
         Returns:
-            str: JSON string with ``child_comments`` and ``next_min_child_id``. Costs 8 credits.
+            str: JSON string with ``child_comments`` and ``next_min_child_id``. Typically costs
+            2 credits.
         """
         return self._call(self.client.instagram.comment_replies, media_id, comment_id, cursor=cursor)
 
@@ -2220,7 +2225,7 @@ class ScavioTools(Toolkit):
 
         Returns:
             str: JSON string with ``users`` and ``rank_token``. Page size is not controllable.
-            Costs 10 credits.
+            Typically costs 2 credits; a request with a cursor costs 8.
         """
         return self._call(self.client.instagram.search_users, keyword, cursor=cursor)
 
@@ -2232,7 +2237,8 @@ class ScavioTools(Toolkit):
             cursor (Optional[str]): Rank token from a previous response.
 
         Returns:
-            str: JSON string with ``hashtags`` and ``rank_token``. Costs 10 credits.
+            str: JSON string with ``hashtags`` and ``rank_token``. Typically costs 2 credits; a
+            request with a cursor costs 8.
         """
         return self._call(self.client.instagram.search_hashtags, keyword, cursor=cursor)
 
@@ -2252,8 +2258,8 @@ class ScavioTools(Toolkit):
             cursor (Optional[str]): Pagination cursor from a previous response.
 
         Returns:
-            str: JSON string with ``users`` and ``has_more``. Costs 10 credits PER PAGE, so a
-            full follower crawl is expensive - raise count rather than paging more often.
+            str: JSON string with ``users``, ``next_max_id`` and ``has_more``. Typically costs
+            2 credits per page.
         """
         return self._call(
             self.client.instagram.user_followers, username=username, user_id=user_id, count=count, cursor=cursor
@@ -2275,8 +2281,8 @@ class ScavioTools(Toolkit):
             cursor (Optional[str]): Pagination cursor from a previous response.
 
         Returns:
-            str: JSON string with ``users``, ``next_max_id`` and ``has_more``. Costs 10 credits
-            per page.
+            str: JSON string with ``users``, ``next_max_id`` and ``has_more``. Typically costs 2
+            credits per page.
         """
         return self._call(
             self.client.instagram.user_followings, username=username, user_id=user_id, count=count, cursor=cursor

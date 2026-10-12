@@ -91,7 +91,7 @@ class TestDbComponentSubmissionsRideTheQueue:
         # Unpinned: the door resolved current_version (1) and validated the
         # input against it, so the ticket names THAT version - a version
         # published while the ticket waits must not change what executes
-        assert job["payload"]["scope"] == {"user_id": None, "version": 1}
+        assert job["payload"]["scope"] == {"user_id": None, "version": 1, "pinned": None, "source": "db"}
         assert not any(BYPASS in str(r.getMessage()) for r in records), "no bypass warning for a queued run"
 
     def test_version_pinned_submission_carries_the_version(self, harness):
@@ -126,19 +126,26 @@ class TestQueueabilityGuard:
         factory = AgentFactory(id="fx", db=db, factory=lambda ctx: produced)
         assert component_is_queueable(produced, "fx", [factory], db=db) is False
 
-    def test_off_registry_component_needs_a_db_to_replay_from(self):
+    def test_off_registry_component_needs_a_sync_db_to_replay_from(self, db):
         from agno.agent import Agent
 
         agent = Agent(id="db-agent", name="DB Agent")
         assert component_is_queueable(agent, "db-agent", [], db=None) is False
-        assert component_is_queueable(agent, "db-agent", [], db=object()) is True
+        assert component_is_queueable(agent, "db-agent", [], db=db) is True
+        # The db loaders rehydrate only from a sync BaseDb
+        assert component_is_queueable(agent, "db-agent", [], db=object()) is False  # type: ignore[arg-type]
 
-    def test_unresolved_component_is_not_queueable(self):
-        assert component_is_queueable(None, "x", [], db=object()) is False
+    def test_unresolved_component_is_not_queueable(self, db):
+        assert component_is_queueable(None, "x", [], db=db) is False
 
     def test_scope_shape(self):
-        assert queue_scope("alice", 3) == {"user_id": "alice", "version": 3}
-        assert queue_scope(None, None) == {"user_id": None, "version": None}
+        assert queue_scope("alice", 3) == {"user_id": "alice", "version": 3, "pinned": None, "source": "db"}
+        assert queue_scope(None, None, pinned=None, source="registry") == {
+            "user_id": None,
+            "version": None,
+            "pinned": None,
+            "source": "registry",
+        }
 
 
 class TestWorkerReplaysDbResolution:
@@ -258,7 +265,7 @@ class TestResolverCompatibility:
         worker = QueueWorker(store=InMemoryQueueStore(), resolve_component=resolver, config=QueueConfig(durable=True))
         job = {"component_type": "agent", "component_id": "x", "payload": {"scope": queue_scope("alice", 2)}}
         assert await worker._aresolve_job_component(job) == "resolved"
-        assert seen["scope"] == {"user_id": "alice", "version": 2}
+        assert seen["scope"] == queue_scope("alice", 2)
 
 
 class TestWebSocketSubmissionCarriesTheVersionStamp:
@@ -313,40 +320,89 @@ class TestTicketNamesAConcreteVersion:
     def test_unpinned_db_component_pins_current_version(self, db):
         _create_db_agent(db, "db-agent")
         scope = resolve_queue_scope("db-agent", [], db, None, None)
-        assert scope == {"user_id": None, "version": 1}
+        assert scope == queue_scope(None, 1, pinned=None, source="db")
 
     def test_explicit_pin_wins(self, db):
         _create_db_agent(db, "db-agent")
         db.upsert_config("db-agent", config={"name": "db-agent", "instructions": "v2"})
-        assert resolve_queue_scope("db-agent", [], db, "alice", 2) == {"user_id": "alice", "version": 2}
+        assert resolve_queue_scope("db-agent", [], db, "alice", 2) == queue_scope("alice", 2, pinned=2, source="db")
 
     def test_registry_component_stays_unversioned(self, db):
         from agno.agent import Agent
 
         registered = Agent(id="reg-agent", name="Registered", db=db)
-        assert resolve_queue_scope("reg-agent", [registered], db, None, None) == {"user_id": None, "version": None}
+        assert resolve_queue_scope("reg-agent", [registered], db, None, None) == queue_scope(
+            None, None, pinned=None, source="registry"
+        )
 
     def test_no_db_stays_unversioned(self):
-        assert resolve_queue_scope("db-agent", [], None, None, None) == {"user_id": None, "version": None}
+        assert resolve_queue_scope("db-agent", [], None, None, None) == queue_scope(None, None, pinned=None)
 
-    def test_idempotency_duplicate_must_match_version(self):
+    def test_idempotency_duplicate_must_match_the_explicit_pin(self):
         from fastapi import HTTPException
 
         existing = {
             "component_type": "agent",
             "component_id": "db-agent",
-            "payload": {"scope": {"user_id": None, "version": 1}},
+            "payload": {"scope": queue_scope(None, 1, pinned=1)},
         }
         ensure_duplicate_matches_component(existing, "agent", "db-agent", version=1)
         with pytest.raises(HTTPException) as exc:
             ensure_duplicate_matches_component(existing, "agent", "db-agent", version=2)
         assert exc.value.status_code == 409
 
+    def test_unpinned_retry_after_a_publish_stays_idempotent(self, harness):
+        headers = {"Idempotency-Key": "retry-1"}
+        data = {"message": "hi", "stream": "false", "background": "true"}
+        first = harness.client.post("/agents/db-agent/runs", data=data, headers=headers)
+        assert first.status_code == 202, first.text
+        harness.db.upsert_config("db-agent", config={"name": "db-agent", "instructions": "v2"}, stage="published")
+        harness.db.set_current_version("db-agent", 2)
+        second = harness.client.post("/agents/db-agent/runs", data=data, headers=headers)
+        assert second.status_code == 202, second.text
+        assert second.json()["run_id"] == first.json()["run_id"]
+
     def test_idempotency_duplicate_without_scope_matches_unversioned(self):
         # Tickets from a pre-scope producer carry no scope: they match an
         # unversioned replay and nothing else
         existing = {"component_type": "agent", "component_id": "a1", "payload": {"input": "hi"}}
         ensure_duplicate_matches_component(existing, "agent", "a1", version=None)
+
+
+class TestRegistryTicketsNeverFallBackToTheDb:
+    @pytest.mark.asyncio
+    async def test_registry_ticket_on_a_replica_without_the_entry_stays_unresolved(self, db):
+        # A replica that lacks the registry entry (rolling deploy) must not
+        # run a db component that merely shares the id
+        _create_db_agent(db, "shared-id")
+        agent_os = SimpleNamespace(
+            queue=QueueConfig(durable=True, db=InMemoryQueueStore()),
+            db=db,
+            registry=None,
+            agents=[],
+            teams=[],
+            workflows=[],
+        )
+        app = SimpleNamespace(state=SimpleNamespace())
+        async with queue_lifespan(app, agent_os):
+            worker = get_active_queue_worker()
+            assert worker is not None
+            for scope in (queue_scope(None, None, source="registry"), None):
+                job = {"component_type": "agent", "component_id": "shared-id", "payload": {"scope": scope}}
+                assert await worker._aresolve_job_component(job) is None
+
+
+class TestScopeReadOnlyOnTheDurableBranch:
+    def test_no_component_read_when_the_queue_is_off(self, harness, monkeypatch):
+        calls: list = []
+        monkeypatch.setattr("agno.os.routers.agents.router.resolve_queue_scope", lambda *a, **k: calls.append(a) or {})
+        harness.app.state.queue_worker = None
+        harness.client.post(
+            "/agents/db-agent/runs",
+            data={"message": "hi", "stream": "false", "background": "true"},
+            headers={"Idempotency-Key": "off-1"},
+        )
+        assert calls == []
 
 
 class TestFactoryIdNeverFallsThroughToTheDb:

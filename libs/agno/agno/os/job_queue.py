@@ -235,28 +235,34 @@ def ensure_duplicate_matches_component(
     """Refuse an Idempotency-Key duplicate that belongs to a different component.
 
     The dedup namespace is (idempotency_key, user_id) only, so a key reused on
-    another component's submit route - or on another VERSION of the same
-    component - would otherwise be answered with the ORIGINAL run - a 202 (or live stream attach) whose ids then 404
-    through this route's poll endpoint, because the ticket poll fallback does
-    enforce component identity. Idempotency keys retry the same submission;
-    they never alias a different one.
+    another component's submit route - or with another explicitly pinned
+    VERSION of the same component - would otherwise be answered with the
+    ORIGINAL run - a 202 (or live stream attach) whose ids then 404 through
+    this route's poll endpoint, because the ticket poll fallback does enforce
+    component identity. Idempotency keys retry the same submission; they never
+    alias a different one.
+
+    ``version`` is the caller's explicit pin, compared against the pin the
+    original submission made - not the effective version the ticket executes.
+    An unpinned retry after a publish is still the identical submission and
+    must return the original run.
 
     The response deliberately omits the original ticket's identity: in
     unauthenticated deployments the key namespace is shared across clients,
     and the mismatch detail belongs in server logs, not on the wire.
     """
-    existing_version = ((existing.get("payload") or {}).get("scope") or {}).get("version")
+    existing_pin = ((existing.get("payload") or {}).get("scope") or {}).get("pinned")
     if (
         existing.get("component_type") == component_type
         and existing.get("component_id") == component_id
-        and existing_version == version
+        and existing_pin == version
     ):
         return
     from fastapi import HTTPException
 
     log_warning(
         f"Idempotency-Key reuse across components: key on ticket "
-        f"{existing.get('component_type')}/{existing.get('component_id')} (version {existing_version}) was replayed "
+        f"{existing.get('component_type')}/{existing.get('component_id')} (version {existing_pin}) was replayed "
         f"against {component_type}/{component_id} (version {version}); refusing with 409"
     )
     raise HTTPException(
@@ -320,16 +326,22 @@ def component_is_queueable(
     for candidate in registry or []:
         if getattr(candidate, "id", None) == component_id:
             return not _is_component_factory(candidate)
-    return db is not None
+    from agno.db.base import BaseDb
+
+    # The db loaders rehydrate only from a sync BaseDb
+    return isinstance(db, BaseDb)
 
 
-def queue_scope(user_id: Optional[str], version: Optional[int]) -> Dict[str, Any]:
+def queue_scope(
+    user_id: Optional[str], version: Optional[int], pinned: Optional[int] = None, source: str = "db"
+) -> Dict[str, Any]:
     """The resolution scope a ticket carries so the worker resolves the SAME
-    component the accepting endpoint did: the owner scope that gated a
-    db-backed component and the explicitly pinned version. Authorization
-    (ownership, draft preview) happened at the door; the worker only replays
-    the resolution, never re-decides it."""
-    return {"user_id": user_id, "version": version}
+    component the accepting endpoint did: where it came from (``registry`` or
+    ``db``), the owner scope that gated a db-backed component, the version it
+    executes, and the version the caller explicitly pinned (None when
+    unpinned). Authorization (ownership, draft preview) happened at the door;
+    the worker only replays the resolution, never re-decides it."""
+    return {"user_id": user_id, "version": version, "pinned": pinned, "source": source}
 
 
 def resolve_queue_scope(
@@ -345,11 +357,18 @@ def resolve_queue_scope(
     door and validates the input against it. Stamping ``version: None`` would
     let the worker resolve current_version AGAIN at claim time, so a version
     published while the ticket waited would execute a config the door never
-    validated. Registry components ignore versions and keep ``None``; a db
-    read failure also leaves ``None`` (the worker then resolves current, the
-    pre-existing behaviour) rather than refusing the submission.
+    validated. Registry components ignore versions; a db read failure leaves
+    ``None`` (the worker then resolves current, the pre-existing behaviour)
+    rather than refusing the submission.
+
+    Call it only on the durable branch, right before the enqueue: it reads the
+    component row, and the closer that read is to the door's own resolution,
+    the smaller the window for a publish to land between them.
     """
-    if version is None and db is not None and not any(getattr(c, "id", None) == component_id for c in registry or []):
+    if any(getattr(c, "id", None) == component_id for c in registry or []):
+        return queue_scope(user_id, version, pinned=version, source="registry")
+    effective = version
+    if effective is None and db is not None:
         from agno.db.base import BaseDb
 
         if isinstance(db, BaseDb):
@@ -357,10 +376,10 @@ def resolve_queue_scope(
                 row = db.get_component(component_id=component_id)
                 current = row.get("current_version") if isinstance(row, dict) else None
                 if isinstance(current, int):
-                    version = current
+                    effective = current
             except Exception as e:
                 log_debug(f"Could not pin the current version of {component_id} on the queue ticket: {e}")
-    return queue_scope(user_id, version)
+    return queue_scope(user_id, effective, pinned=version, source="db")
 
 
 def resolve_queue_store(config: QueueConfig, default_db: Any) -> Any:
@@ -2747,7 +2766,8 @@ async def queue_lifespan(app: Any, agent_os: Any):
             else:
                 resolved = candidate
             break
-        if resolved is None and agent_os.db is not None:
+        scope = scope or {}
+        if resolved is None and agent_os.db is not None and scope.get("source") == "db":
             # Off-registry: the accepting endpoint rehydrated the component
             # from the db (components API / version pin). Replay that load
             # under the scope stamped on the ticket so the worker executes
@@ -2755,9 +2775,12 @@ async def queue_lifespan(app: Any, agent_os: Any):
             # admitted. published_only keeps the run endpoints' default: an
             # unpinned load takes the published version; a pinned version
             # was already authorized (draft preview) at accept time.
+            # Registry-sourced tickets never take this path: a replica
+            # missing the registry entry must not run a db component that
+            # merely shares its id.
+            from agno.exceptions import ComponentRehydrationError
             from agno.os.utils import get_agent_by_id_async, get_team_by_id_async, get_workflow_by_id_async
 
-            scope = scope or {}
             try:
                 if component_type == "agent":
                     resolved = await get_agent_by_id_async(
@@ -2789,6 +2812,12 @@ async def queue_lifespan(app: Any, agent_os: Any):
                         create_fresh=True,
                         user_id=scope.get("user_id"),
                     )
+            except ComponentRehydrationError as e:
+                log_error(
+                    f"Job queue: {component_type}/{component_id} has a stored config that cannot be rehydrated "
+                    f"(scope={scope}); a redeploy will not fix it, the config must: {e}"
+                )
+                resolved = None
             except Exception as e:
                 log_error(
                     f"Job queue: could not rehydrate {component_type}/{component_id} from the db (scope={scope}): {e}"

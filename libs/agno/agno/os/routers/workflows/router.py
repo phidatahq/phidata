@@ -359,16 +359,10 @@ async def handle_workflow_via_websocket(
             "input": user_message,
             "kwargs": ws_run_kwargs,
             "stream": True,
-            "scope": resolve_queue_scope(workflow_id, os.workflows, os.db, scoped_user_id, version),
         }
         ws_submit_queueable = (
             queue_worker is not None
-            and not is_factory
             and getattr(workflow, "db", None) is not None
-            # The worker resolves the registry instance, so a ticket cannot
-            # carry a version pin: a pinned submission takes the in-process
-            # path below, where the pin is stamped on the run (as over HTTP)
-            and version is None
             and payload_is_queueable(queued_ws_payload)
             and component_is_queueable(workflow, workflow_id, os.workflows, os.db)
         )
@@ -381,6 +375,7 @@ async def handle_workflow_via_websocket(
                 return
             assert queue_worker is not None  # narrowed by ws_submit_queueable
             queued_run_id = str(uuid4())
+            queued_ws_payload["scope"] = resolve_queue_scope(workflow_id, os.workflows, os.db, scoped_user_id, version)
             job = QueuedJob(
                 id=queued_run_id,
                 component_type="workflow",
@@ -1826,7 +1821,6 @@ def get_workflow_router(
                     "input": message,
                     "kwargs": kwargs,
                     "stream": True,
-                    "scope": resolve_queue_scope(workflow_id, os.workflows, os.db, scoped_user_id, version),
                 }
                 stream_queueable = (
                     queue_worker is not None
@@ -1842,6 +1836,9 @@ def get_workflow_router(
 
                     queued_run_id = str(uuid4())
                     queued_session_id = session_id  # non-empty: defaulted at the top of the endpoint
+                    queued_stream_payload["scope"] = resolve_queue_scope(
+                        workflow_id, os.workflows, os.db, scoped_user_id, version
+                    )
                     job = QueuedJob(
                         id=queued_run_id,
                         component_type="workflow",
@@ -1865,9 +1862,7 @@ def get_workflow_router(
                                 status_code=409,
                                 detail="Idempotency-Key was already used but the original run could not be retrieved",
                             )
-                        ensure_duplicate_matches_component(
-                            existing, "workflow", job["component_id"], version=job["payload"]["scope"]["version"]
-                        )
+                        ensure_duplicate_matches_component(existing, "workflow", job["component_id"], version=version)
                         if not (existing.get("payload") or {}).get("stream"):
                             # The key was used by a NON-stream submission: its
                             # run never registers in the event stream, so a
@@ -1938,13 +1933,13 @@ def get_workflow_router(
             queued_payload = {
                 "input": message,
                 "kwargs": kwargs,
-                "scope": resolve_queue_scope(workflow_id, os.workflows, os.db, scoped_user_id, version),
             }
             if queue_worker is not None and workflow_is_queueable and payload_is_queueable(queued_payload):
                 # 202 must honor input_schema exactly like the inline path (400)
                 validate_seam_input(workflow, message)
                 queued_run_id = str(uuid4())
                 queued_session_id = session_id  # non-empty: defaulted at the top of the endpoint
+                queued_payload["scope"] = resolve_queue_scope(workflow_id, os.workflows, os.db, scoped_user_id, version)
                 job = QueuedJob(
                     id=queued_run_id,
                     component_type="workflow",
@@ -1967,9 +1962,7 @@ def get_workflow_router(
                     raise HTTPException(status_code=429, detail="Job queue is full")
                 if enqueue_result["reason"] == "duplicate" and enqueue_result["job"] is not None:
                     existing = enqueue_result["job"]
-                    ensure_duplicate_matches_component(
-                        existing, "workflow", job["component_id"], version=job["payload"]["scope"]["version"]
-                    )
+                    ensure_duplicate_matches_component(existing, "workflow", job["component_id"], version=version)
                     return JSONResponse(
                         status_code=202,
                         content={

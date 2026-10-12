@@ -892,7 +892,6 @@ def get_agent_router(
                     "input": message,
                     "kwargs": kwargs,
                     "stream": True,
-                    "scope": resolve_queue_scope(agent_id, os.agents, os.db, scoped_user_id, version),
                     "serialize_session": isinstance(agent, BaseExternalAgent),
                 }
                 stream_queueable = (
@@ -911,6 +910,9 @@ def get_agent_router(
 
                     queued_run_id = str(uuid4())
                     queued_session_id = session_id  # non-empty: defaulted at the top of the endpoint
+                    queued_stream_payload["scope"] = resolve_queue_scope(
+                        agent_id, os.agents, os.db, scoped_user_id, version
+                    )
                     job = QueuedJob(
                         id=queued_run_id,
                         component_type="agent",
@@ -934,9 +936,7 @@ def get_agent_router(
                                 status_code=409,
                                 detail="Idempotency-Key was already used but the original run could not be retrieved",
                             )
-                        ensure_duplicate_matches_component(
-                            existing, "agent", job["component_id"], version=job["payload"]["scope"]["version"]
-                        )
+                        ensure_duplicate_matches_component(existing, "agent", job["component_id"], version=version)
                         if not (existing.get("payload") or {}).get("stream"):
                             # The key was used by a NON-stream submission: its
                             # run never registers in the event stream, so a
@@ -1017,7 +1017,6 @@ def get_agent_router(
             queued_payload = {
                 "input": message,
                 "kwargs": kwargs,
-                "scope": resolve_queue_scope(agent_id, os.agents, os.db, scoped_user_id, version),
                 "serialize_session": isinstance(agent, BaseExternalAgent),
             }
             if (
@@ -1033,6 +1032,7 @@ def get_agent_router(
                 validate_seam_input(agent, message)
                 queued_run_id = str(uuid4())
                 queued_session_id = session_id  # non-empty: defaulted at the top of the endpoint
+                queued_payload["scope"] = resolve_queue_scope(agent_id, os.agents, os.db, scoped_user_id, version)
                 job = QueuedJob(
                     id=queued_run_id,
                     component_type="agent",
@@ -1055,9 +1055,7 @@ def get_agent_router(
                     raise HTTPException(status_code=429, detail="Job queue is full")
                 if enqueue_result["reason"] == "duplicate" and enqueue_result["job"] is not None:
                     existing = enqueue_result["job"]
-                    ensure_duplicate_matches_component(
-                        existing, "agent", job["component_id"], version=job["payload"]["scope"]["version"]
-                    )
+                    ensure_duplicate_matches_component(existing, "agent", job["component_id"], version=version)
                     return JSONResponse(
                         status_code=202,
                         content={

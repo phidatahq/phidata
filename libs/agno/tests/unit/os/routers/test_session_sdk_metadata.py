@@ -113,6 +113,13 @@ def test_non_agent_sessions_do_not_inherit_sdk(session_type):
     assert RunSchema.from_dict({"run_id": "member", "agent_id": "a"}, session=session).metadata is None
 
 
+@pytest.mark.parametrize("agent_data", ["codex", ["codex"], 7, {"sdk": None}, {"sdk": 3}])
+def test_malformed_agent_data_means_no_label_not_a_failed_read(agent_data):
+    session = {"session_id": "s", "session_type": "agent", "agent_id": "a", "agent_data": agent_data}
+    assert SessionSchema.from_dict({**session, "metadata": {"label": "keep"}}).metadata == {"label": "keep"}
+    assert RunSchema.from_dict({"run_id": "r", "agent_id": "a"}, session=session).metadata is None
+
+
 def test_native_runs_without_metadata_remain_unlabelled():
     run = RunSchema.from_dict({"run_id": "native", "agent_id": "a"})
     assert "metadata" not in run.model_dump(exclude_none=True)

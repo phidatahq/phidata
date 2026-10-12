@@ -460,8 +460,9 @@ class WorkflowRunRequest(BaseModel):
 def _agent_metadata(
     metadata: Optional[Dict[str, Any]], agent_data: Optional[Dict[str, Any]]
 ) -> Optional[Dict[str, Any]]:
-    """Expose the persisted adapter identity without changing stored user metadata."""
-    sdk = (agent_data or {}).get("sdk") or (agent_data or {}).get("framework")
+    """Expose the persisted adapter identity without changing stored user metadata.
+    A malformed agent_data (not a mapping) means no label rather than a failed read."""
+    sdk = (agent_data.get("sdk") or agent_data.get("framework")) if isinstance(agent_data, dict) else None
     if isinstance(sdk, str) and sdk:
         return {**(metadata or {}), "sdk": sdk}
     return dict(metadata) if metadata is not None else None

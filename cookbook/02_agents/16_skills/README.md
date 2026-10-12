@@ -4,7 +4,7 @@ Examples for defining and using agent skills and helper scripts.
 
 ## Files
 - `basic_skills.py` - Demonstrates basic skills.
-- `mcp_skills.py` - Loads skills served by an MCP server through the MCP Skills extension (`io.modelcontextprotocol/skills`). Requires `MCPTools(protocol_mode="auto")`.
+- `mcp_skills.py` - Loads skills served by an MCP server through the MCP Skills extension (`io.modelcontextprotocol/skills`) with `MCPSkills`.
 - `mcp_skills_server.py` - A minimal MCP server that serves `sample_skills/` through the Skills extension. Started over stdio by `mcp_skills.py`.
 - `sample_skills/code-review/scripts/check_style.py` - Demonstrates check style.
 - `sample_skills/git-workflow/scripts/commit_message.py` - Demonstrates commit message.

@@ -1,10 +1,11 @@
+import asyncio
 import base64
 import hashlib
 import json
 import posixpath
 import re
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, List, Literal, Optional, Sequence, Tuple, Union
 
 import yaml
 
@@ -12,9 +13,7 @@ from agno.skills.errors import SkillError
 from agno.skills.loaders.base import SkillLoader
 from agno.skills.skill import Skill
 from agno.utils.log import log_debug, log_warning
-
-if TYPE_CHECKING:
-    from agno.tools.mcp import MCPTools
+from agno.utils.mcp import get_default_toolkit_name
 
 SKILLS_EXTENSION = "io.modelcontextprotocol/skills"
 
@@ -60,14 +59,19 @@ class MCPSkills(SkillLoader):
     MCP-served skills are untrusted: they are tagged with their origin in the
     model's context, their scripts are never executed, and `allowed-tools` is ignored.
 
-    The loader does not own the connection. Connect `mcp_tools` before the run
-    (`async with MCPTools(...)`) or add it to the agent's tools so the agent connects it.
+    The loader owns its MCP client: it connects on demand, and the agent or team
+    closes it at the end of each run.
 
     Args:
-        mcp_tools: A connected MCPTools toolkit. The server only advertises the
-            extension on protocol revision 2026-07-28, so use `protocol_mode="auto"`.
+        command: Command that starts a stdio MCP server.
+        url: URL of a Streamable HTTP or SSE MCP server.
+        transport: "stdio", "sse" or "streamable-http". Inferred from `command`/`url` when omitted.
+        server_params: Connection parameters (StdioServerParameters, SSEClientParams or StreamableHTTPClientParams).
+        env: Environment variables for a stdio server.
+        headers: Static HTTP headers for HTTP transports.
+        timeout_seconds: Read timeout for MCP requests.
         label: Host-assigned name for the server, without "/". Skill names are
-            namespaced as `<label>/<skill-path>`. Defaults to the toolkit name.
+            namespaced as `<label>/<skill-path>`. Defaults to a name derived from `command` or `url`.
         skill_uris: `SKILL.md` URIs to load with `skills/get` in addition to the
             listing, for skills a server does not enumerate.
         allow_dynamic: Load skills whose content the server marks "dynamic". Their
@@ -78,13 +82,37 @@ class MCPSkills(SkillLoader):
 
     def __init__(
         self,
-        mcp_tools: "MCPTools",
+        command: Optional[str] = None,
+        *,
+        url: Optional[str] = None,
+        transport: Optional[Literal["stdio", "sse", "streamable-http"]] = None,
+        server_params: Optional[Any] = None,
+        env: Optional[Dict[str, str]] = None,
+        headers: Optional[Dict[str, Any]] = None,
+        timeout_seconds: int = 10,
         label: Optional[str] = None,
         skill_uris: Optional[List[str]] = None,
         allow_dynamic: bool = False,
     ):
-        self.mcp_tools = mcp_tools
-        self.label: str = label or mcp_tools.name
+        if not (command or url or server_params):
+            raise ValueError("MCPSkills needs a command, url or server_params")
+        from agno.tools.mcp.mcp import create_mcp_client
+
+        # The Skills extension is only advertised on protocol revision 2026-07-28, which "auto" negotiates.
+        self._client: Any = create_mcp_client(
+            command,
+            url=url,
+            transport=transport,
+            server_params=server_params,
+            env=env,
+            headers=headers,
+            timeout_seconds=timeout_seconds,
+            protocol_mode="auto",
+        )
+        self._connected = False
+        self._connection_lock: Optional[asyncio.Lock] = None
+
+        self.label: str = label or get_default_toolkit_name(url=url, command=command, server_params=server_params)
         if not self.label:
             raise ValueError("MCPSkills requires a label to identify the MCP server")
         # Skill names are "<label>/<skill-path>": a "/" in the label would let two origins produce the same name.
@@ -108,7 +136,7 @@ class MCPSkills(SkillLoader):
         Returns:
             Skills with metadata only. Instructions are read on demand.
         """
-        session = self._client_session()
+        session = await self._aclient_session()
         capabilities = session.server_capabilities
         extensions = getattr(capabilities, "extensions", None) or {}
         if SKILLS_EXTENSION not in extensions:
@@ -183,17 +211,29 @@ class MCPSkills(SkillLoader):
         data = await self._read_verified(skill_name, entry.root + normalized)
         return data.decode("utf-8", errors="replace")
 
-    def _client_session(self) -> Any:
-        from agno.tools.mcp.mcp import _is_fastmcp_client
+    async def aclose(self) -> None:
+        """Close the MCP connection. Later reads reconnect on demand."""
+        async with self._lock():
+            if self._connected:
+                self._connected = False
+                await self._client.__aexit__(None, None, None)
 
-        session: Any = self.mcp_tools.session
-        if session is None or not self.mcp_tools.initialized:
-            raise SkillError(
-                f"MCPTools for '{self.label}' is not connected. Use `async with MCPTools(...)` "
-                "or add it to the agent's tools."
-            )
+    def _lock(self) -> asyncio.Lock:
+        # Created lazily so the lock binds to the running event loop.
+        if self._connection_lock is None:
+            self._connection_lock = asyncio.Lock()
+        return self._connection_lock
+
+    async def _aclient_session(self) -> Any:
+        async with self._lock():
+            if not self._connected:
+                try:
+                    await self._client.__aenter__()
+                except Exception as e:
+                    raise SkillError(f"Could not connect to MCP server '{self.label}': {e}") from e
+                self._connected = True
         # fastmcp's Client wraps the SDK ClientSession that carries the raw request API.
-        return session.session if _is_fastmcp_client(session) else session
+        return self._client.session
 
     def _qualified_name(self, uri: str) -> str:
         skill_path = uri.split("://", 1)[1][: -len("/" + _SKILL_MD)]
@@ -279,7 +319,7 @@ class MCPSkills(SkillLoader):
         return data
 
     async def _fetch(self, uri: str) -> bytes:
-        result = await self._client_session().read_resource(uri)
+        result = await (await self._aclient_session()).read_resource(uri)
         contents = getattr(result, "contents", None) or []
         for content in contents:
             if str(content.uri) != uri:
@@ -321,7 +361,7 @@ class MCPSkills(SkillLoader):
     async def _send(self, request: Any) -> Dict[str, Any]:
         from pydantic import TypeAdapter
 
-        return await self._client_session().send_request(request, TypeAdapter(Dict[str, Any]))
+        return await (await self._aclient_session()).send_request(request, TypeAdapter(Dict[str, Any]))
 
 
 def _parse_entry(raw: Any) -> _HeldEntry:

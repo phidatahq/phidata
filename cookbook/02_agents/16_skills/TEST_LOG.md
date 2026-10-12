@@ -18,7 +18,7 @@
 
 **Status:** PASS
 **Tier:** untagged
-**Description:** Starts `mcp_skills_server.py` over stdio with `protocol_mode="auto"` (negotiated 2026-07-28) and loads its skills with `MCPSkills`. Listed `review-server/code-review` and `review-server/git-workflow` without reading content, then on demand the agent read `SKILL.md` and `references/style-guide.md`, each verified against the manifest digest and tagged `origin: mcp:review-server`. The model called `get_skill_script(..., execute=True)` and was refused, as MCP-served scripts are never executed. Tested on 2026-10-12 with `.venv/bin/python` and `gpt-5.6-luna`.
+**Description:** Module-level agent with `MCPSkills(command=...)`, which owns its MCP client and negotiates protocol revision 2026-07-28. On `aprint_response` it connected to `mcp_skills_server.py` over stdio and listed `review-server/code-review` and `review-server/git-workflow` without reading content. On demand the agent read `SKILL.md` and `references/style-guide.md`, each verified against the manifest digest and tagged `origin: mcp:review-server`. The model called `get_skill_script(..., execute=True)` and was refused, as MCP-served scripts are never executed. The server process exited when the run ended. Tested on 2026-10-12 with `.venv/bin/python` and `gpt-5.6-luna`.
 **Result:** Completed successfully with a structured code review.
 
 ---

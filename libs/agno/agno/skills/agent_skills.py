@@ -87,6 +87,14 @@ class Skills:
                 self._register(skill, loader)
             self._loaded_async_loaders.append(loader)
 
+    async def aclose(self) -> None:
+        """Close connections opened by loaders, such as MCPSkills. Loaders reconnect on demand."""
+        for loader in self.loaders:
+            try:
+                await loader.aclose()
+            except Exception as e:
+                log_warning(f"Error closing {loader}: {str(e)}")
+
     def _register(self, skill: Skill, loader: SkillLoader) -> None:
         existing = self._skills.get(skill.name)
         if existing is not None:

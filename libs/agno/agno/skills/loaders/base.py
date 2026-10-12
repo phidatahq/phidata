@@ -33,3 +33,7 @@ class SkillLoader(ABC):
     async def aload(self) -> List[Skill]:
         """Async variant of `load()`. Defaults to calling `load()`."""
         return self.load()
+
+    async def aclose(self) -> None:
+        """Release connections the loader opened. Called at the end of each async run."""
+        pass

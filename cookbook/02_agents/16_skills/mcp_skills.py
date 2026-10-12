@@ -20,30 +20,31 @@ from pathlib import Path
 from agno.agent import Agent
 from agno.models.openai import OpenAIResponses
 from agno.skills import MCPSkills, Skills
-from agno.tools.mcp import MCPTools
 
-SERVER_SCRIPT = Path(__file__).parent / "mcp_skills_server.py"
+# ---------------------------------------------------------------------------
+# Create Agent
+# ---------------------------------------------------------------------------
+server_script = Path(__file__).parent / "mcp_skills_server.py"
+review_skills = MCPSkills(
+    command=f"{sys.executable} {server_script}", label="review-server"
+)
+
+agent = Agent(
+    name="Code Review Agent",
+    model=OpenAIResponses(id="gpt-5.6-luna"),
+    skills=Skills(loaders=[review_skills]),
+    instructions=["You are a helpful assistant with access to specialized skills."],
+    markdown=True,
+)
 
 
 # ---------------------------------------------------------------------------
 # Run Agent
 # ---------------------------------------------------------------------------
-async def main() -> None:
-    # The Skills extension needs protocol revision 2026-07-28, which "auto" negotiates.
-    async with MCPTools(
-        command=f"{sys.executable} {SERVER_SCRIPT}", protocol_mode="auto"
-    ) as mcp_tools:
-        agent = Agent(
-            name="Code Review Agent",
-            model=OpenAIResponses(id="gpt-5.6-luna"),
-            skills=Skills(loaders=[MCPSkills(mcp_tools, label="review-server")]),
-            instructions=[
-                "You are a helpful assistant with access to specialized skills."
-            ],
-            markdown=True,
-        )
-
-        await agent.aprint_response(
+if __name__ == "__main__":
+    # MCP-served skills load on async runs.
+    asyncio.run(
+        agent.aprint_response(
             "Review this Python code and provide feedback:\n\n"
             "```python\n"
             "def calculate_total(items):\n"
@@ -53,9 +54,4 @@ async def main() -> None:
             "    return total\n"
             "```"
         )
-
-        print("Skills loaded from the MCP server:", agent.skills.get_skill_names())
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
+    )

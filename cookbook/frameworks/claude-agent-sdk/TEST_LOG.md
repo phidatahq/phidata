@@ -568,3 +568,13 @@ evidence and limits. This does not rerun this directory's advanced examples.
 **Result:** Before: both turns ran and both appended to the session's transcript concurrently. After: the second turn raises `SessionBusyError` in under a millisecond naming the run in flight, no run row is written for it, the first turn completes, and a turn sent afterwards runs normally.
 
 ---
+
+### session_busy_agentos.py (2026-10-12)
+
+**Status:** PASS (claude-sonnet-4-6)
+
+**Description:** AgentOS served in-process; a background turn running a 10s shell command; two more turns for the same session sent over one raw keep-alive connection while it ran; a third sent on the same connection after it finished.
+
+**Result:** Before the fix, the 409 for a busy session reached the catch-all exception handler, which re-raises after responding, so uvicorn logged a traceback and closed the connection: the second request on the same connection failed with `RemoteDisconnected`. After: both busy-time requests answered 409 with `error_id: session_busy` on the same connection with keep-alive intact, the first turn completed, and the next turn on that connection answered 200.
+
+---

@@ -256,6 +256,12 @@ This check is not an atomic claim across agent instances or replicas. Simultaneo
 
 A run row left pending or running by a crash keeps its session busy until that run is cancelled. The durable queue sweeps crashed queued runs on its own; cancel an orphaned background run through the run cancellation endpoint. A queued turn on a busy session is re-driven after the queue's retry delay when `max_attempts` allows it, which serializes it behind the turn in flight; turns queued on one session run in the order they were accepted.
 
+AgentOS answers the refused turn with 409 and keeps the client's keep-alive connection open, so a pooled HTTP client is not torn down by a routine conflict. `session_busy_agentos.py` serves an agent in-process, starts a long turn, sends two more turns for the session over one connection while it runs (both 409 on that connection) and one after it finished (200).
+
+```bash
+.venvs/demo/bin/python cookbook/frameworks/claude-agent-sdk/session_busy_agentos.py
+```
+
 ## Structured output
 
 `output_schema` takes a Pydantic model or a JSON Schema dict, on the agent or per run (`agent.run(..., output_schema=...)`), the same as an Agno `Agent`. The run content is the parsed model, or a dict for a JSON Schema, and `content_type` names it. Claude Code returns the object through a `StructuredOutput` tool call and then replies in prose: the streamed text is that reply, and the `RunCompleted` event and the stored run carry the parsed object. An answer that cannot be parsed stays text and a warning is logged. AgentOS's per-request `output_schema` form field reaches the agent the same way. The schema must describe a JSON object: Claude Code's structured output tool takes an object, and the API rejects an array or scalar root, so a `RootModel[List[...]]` or `{"type": "array"}` is refused with `ValueError` before the run; wrap the value in a model field. The `StructuredOutput` call Claude Code makes to deliver the object is not recorded as a tool call.

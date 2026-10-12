@@ -20,6 +20,7 @@ from agno.agent import Agent, AgentFactory, RemoteAgent
 from agno.agent.protocol import AgentProtocol
 from agno.agents.base import BaseExternalAgent
 from agno.db.base import AsyncBaseDb, BaseDb
+from agno.exceptions import SessionBusyError
 from agno.job_queue import QueueConfig
 from agno.knowledge.knowledge import Knowledge
 from agno.media.storage.base import AsyncMediaStorage, MediaStorage
@@ -1646,6 +1647,13 @@ class AgentOS:
                     status_code=exc.status_code,
                     content=_error_body(str(exc.detail), exc),
                 )
+
+            @fastapi_app.exception_handler(SessionBusyError)
+            async def session_busy_handler(_: Request, exc: SessionBusyError) -> JSONResponse:
+                # Handle this expected conflict without the catch-all handler's re-raise,
+                # which makes Uvicorn close the connection serving the request.
+                log_warning(f"{type(exc).__name__}: {exc.status_code} {exc}")
+                return JSONResponse(status_code=exc.status_code, content=_error_body(str(exc), exc))
 
             @fastapi_app.exception_handler(HTTPStatusError)
             async def http_status_error_handler(_: Request, exc: HTTPStatusError) -> JSONResponse:

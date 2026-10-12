@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 
-from agno.exceptions import UnsupportedMediaError
+from agno.exceptions import MediaStagingError, UnsupportedMediaError
 
 UPLOADS_DIR = ".agno/uploads"
 SUPPORTED_MEDIA = ("images", "files")
@@ -58,12 +58,12 @@ def accept_media(media: Dict[str, Any], supported: Sequence[str] = SUPPORTED_MED
 def uploads_root(workspace: Optional[Any], run_id: str) -> Path:
     """Resolve an upload directory without allowing IDs or symlinks to escape it."""
     if not run_id or run_id in (".", "..") or "/" in run_id or "\\" in run_id or "\x00" in run_id or ":" in run_id:
-        raise ValueError("Attachment run_id must be a single nonempty path component")
+        raise MediaStagingError("Attachment run_id must be a single nonempty path component")
     workspace_root = Path(workspace or Path.cwd()).resolve()
     root = workspace_root / UPLOADS_DIR / run_id
     for directory in (root.parent.parent, root.parent, root):
         if directory.is_symlink():
-            raise ValueError("Attachment directories must not be symlinks")
+            raise MediaStagingError("Attachment directories must not be symlinks")
     return root
 
 
@@ -145,7 +145,7 @@ def stage_media(
     """
     expected_root = uploads_root(workspace, run_id)
     if root is not None and root.absolute() != expected_root:
-        raise ValueError("Attachments must be staged under the active workspace uploads directory")
+        raise MediaStagingError("Attachments must be staged under the active workspace uploads directory")
     root = expected_root
     staged: List[StagedMedia] = []
     created: List[Path] = []
@@ -175,7 +175,7 @@ def stage_media(
                 counter = 1
                 while True:
                     if target.is_symlink():
-                        raise ValueError("Attachment files must not be symlinks")
+                        raise MediaStagingError("Attachment files must not be symlinks")
                     if target.name not in claimed:
                         if reuse_existing and target.is_file():
                             break
@@ -210,9 +210,25 @@ def cleanup_staged_media(staged: Sequence[StagedMedia]) -> None:
     _rollback_files([Path(item.path) for item in staged if item.path])
 
 
+def cleanup_run_media(workspace: Optional[Any], run_id: str, staged: Sequence[StagedMedia], created_root: bool) -> None:
+    """Remove a run's attachments after the turn.
+
+    A run folder this staging created holds nothing but this run's work, so it goes whole,
+    including files the harness wrote next to the inputs. A folder that already existed keeps
+    everything except the staged inputs.
+    """
+    if not staged:
+        return
+    if created_root:
+        with suppress(ValueError):
+            remove_upload_folder(uploads_root(workspace, run_id))
+        return
+    cleanup_staged_media(staged)
+
+
 def media_prompt_block(staged: Sequence[StagedMedia]) -> str:
     """The lines appended to the prompt so the harness knows what was attached and where."""
-    if not staged:
+    if not staged: 
         return ""
     lines = ["", "Attached files. Read them before answering; images and PDFs can be opened with the file tools:"]
     for item in staged:
@@ -236,17 +252,6 @@ def manifest(staged: Sequence[StagedMedia]) -> List[Dict[str, Any]]:
         }
         for s in staged
     ]
-
-
-def cleanup_media(workspace: Optional[Any], run_id: str) -> None:
-    """Remove the run's attachments, and the uploads folders if nothing else is left in them."""
-    root = uploads_root(workspace, run_id)
-    shutil.rmtree(root, ignore_errors=True)
-    for parent in (root.parent, root.parent.parent):
-        try:
-            parent.rmdir()
-        except OSError:
-            break
 
 
 def prior_attachments(

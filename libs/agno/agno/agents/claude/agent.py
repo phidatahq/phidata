@@ -22,12 +22,13 @@ from uuid import uuid4
 from agno.agents._config import agent_dataclass
 from agno.agents._media import (
     accept_media,
-    cleanup_staged_media,
+    cleanup_run_media,
     media_prompt_block,
     remember_uploads_root,
     remove_upload_folder,
     stage_media,
     stage_prior_media,
+    uploads_root,
 )
 from agno.agents.base import (
     BaseExternalAgent,
@@ -405,8 +406,11 @@ class ClaudeAgent(BaseExternalAgent):
         staged: List[Any] = []
         restaged: List[Path] = []
         prepared = False
+        created_root = False
         try:
-            staged = stage_media(workspace, run_id, media) if media else []
+            if media:
+                created_root = not uploads_root(workspace, run_id).exists()
+                staged = stage_media(workspace, run_id, media)
             if staged:
                 remember_uploads_root(kwargs.get("session"), workspace)
             if staged and input is not None:
@@ -426,8 +430,7 @@ class ClaudeAgent(BaseExternalAgent):
                 yield message
         finally:
             if not self.keep_uploads or not prepared:
-                if staged:
-                    cleanup_staged_media(staged)
+                cleanup_run_media(workspace, run_id, staged, created_root)
                 for folder in restaged:
                     remove_upload_folder(folder)
 

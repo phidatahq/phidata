@@ -165,3 +165,75 @@ def test_cleanup_preserves_preexisting_inputs_and_duplicate_names(tmp_path):
     _media.cleanup_staged_media(staged)
     assert list(root.iterdir()) == [root / "x.txt"]
     assert (root / "x.txt").read_bytes() == b"retained"
+
+
+def test_a_run_folder_created_by_the_turn_goes_whole_a_preexisting_one_keeps_its_files(tmp_path):
+    """The harness may write next to the inputs. A folder this staging created holds only this
+    run's work and is removed whole; a folder that existed before loses only the staged inputs."""
+    staged = _media.stage_media(tmp_path, "fresh", {"files": [attachment("in.txt")]})
+    (tmp_path / ".agno/uploads/fresh/harness-output.txt").write_bytes(b"made by the harness")
+    _media.cleanup_run_media(tmp_path, "fresh", staged, created_root=True)
+    assert not (tmp_path / ".agno").exists()
+
+    root = _media.uploads_root(tmp_path, "kept")
+    root.mkdir(parents=True)
+    (root / "user.txt").write_bytes(b"retained")
+    staged = _media.stage_media(tmp_path, "kept", {"files": [attachment("in.txt")]})
+    (root / "harness-output.txt").write_bytes(b"made by the harness")
+    _media.cleanup_run_media(tmp_path, "kept", staged, created_root=False)
+    assert sorted(p.name for p in root.iterdir()) == ["harness-output.txt", "user.txt"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("harness", ["claude", "codex"])
+async def test_wrappers_remove_the_run_folder_they_created_with_the_harness_output(tmp_path, monkeypatch, harness):
+    if harness == "claude":
+        from agno.agents.claude import ClaudeAgent
+
+        agent = ClaudeAgent(id="test", cwd=tmp_path)
+
+        async def sdk(input, history, *, streaming, **kwargs):
+            (tmp_path / ".agno/uploads/current/harness-output.txt").write_bytes(b"x")
+            yield "message"
+
+        monkeypatch.setattr(agent, "_aquery_sdk", sdk)
+        async for _ in agent._aquery(
+            "input", None, streaming=False, run_id="current", media={"files": [attachment("in.txt")]}
+        ):
+            pass
+    else:
+        from agno.agents.codex import CodexAgent
+
+        agent = CodexAgent(id="test", cwd=str(tmp_path))
+
+        async def sdk(input, *, history=None, **kwargs):
+            (tmp_path / ".agno/uploads/current/harness-output.txt").write_bytes(b"x")
+            return "done"
+
+        monkeypatch.setattr(agent, "_arun_adapter_sdk", sdk)
+        await agent._arun_adapter("input", run_id="current", media={"files": [attachment("in.txt")]})
+    assert not (tmp_path / ".agno").exists()
+
+
+def test_staging_errors_are_input_errors_and_never_retried(tmp_path):
+    """A symlinked uploads directory fails every attempt the same way: one attempt, not retryable,
+    reported as an input check error rather than a generic ValueError."""
+    from agno.agents.claude import ClaudeAgent
+    from agno.exceptions import InputCheckError, MediaStagingError
+    from agno.run.base import RunStatus
+
+    outside = tmp_path / "volume"
+    outside.mkdir()
+    workspace = tmp_path / "workspace"
+    (workspace / ".agno").mkdir(parents=True)
+    (workspace / ".agno/uploads").symlink_to(outside, target_is_directory=True)
+    agent = ClaudeAgent(id="test", cwd=workspace, retries=2, delay_between_retries=0)
+    from agno.media import File
+
+    run = agent.run("read it", files=[File(content=b"hi", filename="a.txt", mime_type="text/plain")])
+    assert run.status == RunStatus.error
+    assert "symlinks" in str(run.content)
+    assert run.metadata["retryable"] is False and "attempts" not in run.metadata
+    assert run.metadata["error_type"] == "input_check_error"
+    assert issubclass(MediaStagingError, InputCheckError) and issubclass(MediaStagingError, ValueError)
+    assert list(outside.iterdir()) == []

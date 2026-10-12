@@ -10,8 +10,23 @@ A failed staging operation removes its newly created files, including partial
 writes, while preserving preexisting files. Failure restoring older inputs also
 cleans newly staged current inputs, even when `keep_uploads=True`.
 
+After the turn, a run folder that the staging created is removed whole, including
+anything the harness wrote next to the inputs; a folder that already existed keeps
+everything except the staged inputs. A staging rejection (traversal run id, symlink)
+is a `MediaStagingError`, an input check error: it is never retried by the agent's
+`retries` and AgentOS reports it as an input problem.
+
 These filesystem checks are not a substitute for a sandbox that isolates
 concurrently executing hostile code. Configure a private workspace per session.
+
+Run the cookbook to watch the behaviour with a live ClaudeAgent: a simulated staging
+failure leaving nothing behind, a session continued on a replica with a different
+workspace, a file Claude writes beside an attachment, and a symlinked uploads
+directory refused without retries:
+
+```bash
+.venvs/demo/bin/python cookbook/frameworks/attachment_safety/attachment_staging.py
+```
 
 Run the deterministic regression scenarios without model credentials:
 

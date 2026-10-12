@@ -39,6 +39,7 @@ from agno.run.agent import (
 from agno.utils.log import log_debug, log_warning
 
 if TYPE_CHECKING:
+    from agno.compaction.types import CompactionResult
     from openai_codex import CodexConfig
 
 
@@ -298,11 +299,13 @@ class CodexAgent(BaseExternalAgent):
     # Context compaction
     # ---------------------------------------------------------------------------
 
-    def compact(self, session_id: str, user_id: Optional[str] = None, timeout: float = 120.0) -> bool:
+    def compact(self, session_id: str, user_id: Optional[str] = None, timeout: float = 120.0) -> "CompactionResult":
         """Sync version of acompact."""
         return run_coroutine_sync(self.acompact(session_id, user_id=user_id, timeout=timeout))
 
-    async def acompact(self, session_id: str, user_id: Optional[str] = None, timeout: float = 120.0) -> bool:
+    async def acompact(
+        self, session_id: str, user_id: Optional[str] = None, timeout: float = 120.0
+    ) -> "CompactionResult":
         """Compact the Codex thread behind an Agno session.
 
         Codex keeps the conversation in its own thread. Compaction asks the app-server to
@@ -310,19 +313,24 @@ class CodexAgent(BaseExternalAgent):
         next run on the session continues from that summary. The thread, its rollout and the
         summary stay on the machine running Codex.
 
-        Returns False when the session has no Codex thread, or its thread can no longer be
-        resumed (the stored id is then forgotten, as a run would). Waits until the thread is
-        idle again and raises TimeoutError if that takes longer than timeout seconds.
+        Reports no_history when the session has no Codex thread, or its thread can no longer
+        be resumed (the stored id is then forgotten, as a run would), and compacted once the
+        app-server has folded the thread. Waits until the thread is idle again and raises
+        TimeoutError if that takes longer than timeout seconds.
 
         Compaction opens its own app-server on the thread, so it must not overlap a run on the
         same session: two processes would append to one rollout. A run recorded as pending or
-        running for the session raises RuntimeError.
+        running for the session raises SessionBusyError.
         """
+        from agno.compaction.types import CompactionResult, CompactionStatus
+
         sdk = _sdk()
         session = await self.aget_session(session_id, user_id)
         thread_id = self._get_thread_id(session, session_id)
         if not thread_id:
-            return False
+            return CompactionResult(
+                status=CompactionStatus.NO_HISTORY, message="The session has no Codex thread to compact yet."
+            )
         self._check_no_run_in_flight(session, session_id)
         async with self._new_client() as codex:
             # Resume through the high-level client: it translates the adapter's options
@@ -337,20 +345,14 @@ class CodexAgent(BaseExternalAgent):
                 self._forget_thread(session, session_id)
                 if session is not None and self.db is not None:
                     await self.aupsert_session(session)
-                return False
+                return CompactionResult(
+                    status=CompactionStatus.NO_HISTORY,
+                    message=f"Codex thread {thread_id} no longer exists; the next run starts a new thread.",
+                )
             await thread.compact()
             await self._await_thread_idle(self._app_server_client(codex), thread_id, timeout)
         log_debug(f"Codex: compacted thread {thread_id} for session {session_id}")
-        return True
-
-    @classmethod
-    def _check_no_run_in_flight(cls, session: Any, session_id: str) -> None:
-        run = cls._run_in_flight(session)
-        if run is not None:
-            status = getattr(run.status, "value", run.status)
-            raise RuntimeError(
-                f"Cannot compact session {session_id}: run {run.run_id} is {status}. Wait for it to finish."
-            )
+        return CompactionResult(status=CompactionStatus.COMPACTED, message=f"Codex compacted thread {thread_id}.")
 
     @staticmethod
     def _app_server_client(codex: Any) -> Any:

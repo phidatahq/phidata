@@ -54,6 +54,7 @@ from agno.utils.log import log_exception, log_warning
 from agno.utils.string import parse_response_dict_str, parse_response_model_str
 
 if TYPE_CHECKING:
+    from agno.compaction.types import CompactionResult
     from agno.tools.component import ComponentTool
 
 # Limits for the history replayed into a fresh harness session when the framework's own
@@ -1278,6 +1279,40 @@ class BaseExternalAgent:
             return None
         session = await self.aget_session(session_id, user_id)
         return self._find_run_in_session(session, run_id) if session else None
+
+    # ---------------------------------------------------------------------------
+    # Compaction
+    # ---------------------------------------------------------------------------
+
+    def compact(self, session_id: str, user_id: Optional[str] = None) -> "CompactionResult":
+        """Sync version of acompact."""
+        return run_coroutine_sync(self.acompact(session_id, user_id=user_id))
+
+    async def acompact(self, session_id: str, user_id: Optional[str] = None) -> "CompactionResult":
+        """Compact the conversation behind a session.
+
+        The harness owns the conversation, so an adapter folds it with the harness's own
+        mechanism and reports the outcome the way Agent.acompact does, so the AgentOS
+        compaction route serves every agent alike. Adapters without a mechanism report
+        not_enabled.
+        """
+        from agno.compaction.types import CompactionResult, CompactionStatus
+
+        return CompactionResult(
+            status=CompactionStatus.NOT_ENABLED, message=f"{type(self).__name__} does not support compaction"
+        )
+
+    @classmethod
+    def _check_no_run_in_flight(cls, session: Any, session_id: str) -> None:
+        """Compaction must not overlap a run on the session: both write to the one conversation."""
+        run = cls._run_in_flight(session)
+        if run is not None:
+            status = getattr(run.status, "value", run.status)
+            raise SessionBusyError(
+                f"Cannot compact session {session_id}: run {run.run_id} is {status}. Wait for it to finish.",
+                run_id=run.run_id,
+                session_id=session_id,
+            )
 
     # ---------------------------------------------------------------------------
     # One turn per session

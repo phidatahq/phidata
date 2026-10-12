@@ -568,3 +568,13 @@ evidence and limits. This does not rerun this directory's advanced examples.
 **Result:** Before: both turns ran and both appended to the session's transcript concurrently. After: the second turn raises `SessionBusyError` in under a millisecond naming the run in flight, no run row is written for it, the first turn completes, and a turn sent afterwards runs normally.
 
 ---
+
+### Compaction endpoint (2026-10-12)
+
+**Status:** PASS (claude-sonnet-4-6)
+
+**Description:** `POST /agents/{agent_id}/sessions/{session_id}/compact` for a `ClaudeAgent` through AgentOS, on a one-turn session and on a missing session, then `compaction.py` with step 2 switched to `acompact`.
+
+**Result:** Before: 500 (`AttributeError`), the adapter had no `acompact`. After: 200 with `nothing_to_fold` and Claude Code's "Not enough messages to compact." for the short session, 404 for the missing session. The cookbook's long session compacted through `acompact` (`compacted`, 32 transcript rows before, 42 after, `compact_boundary` and summary rows present, PreCompact hook saw `manual`), no run was recorded for it, and replica B recalled the fact from the summary.
+
+---

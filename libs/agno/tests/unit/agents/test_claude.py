@@ -1872,3 +1872,79 @@ async def test_subagent_tool_lineage_survives_events_and_storage(scripted, tmp_d
         restored = ToolExecution.from_dict(tools["call-1"].to_dict())
         assert restored.parent_tool_call_id == "parent-call"
     assert ToolExecution.from_dict({"tool_call_id": "old-record"}).parent_tool_call_id is None
+
+
+# ---------------------------------------------------------------------------
+# Compaction
+# ---------------------------------------------------------------------------
+
+
+def test_compact_without_a_conversation_reports_no_history(fake_sdk, tmp_db):
+    agent = ClaudeAgent(name="Claude", id="claude", db=tmp_db)
+    result = agent.compact("s1")
+    assert result.status.value == "no_history" and not result.compacted
+    assert fake_sdk.calls == [], "Claude Code was not spawned"
+
+
+def test_compact_sends_the_slash_command_without_recording_a_run(fake_sdk, tmp_db, monkeypatch):
+    agent = ClaudeAgent(name="Claude", id="claude", db=tmp_db)
+    agent.run("hi", session_id="s1")
+    counts = iter([0, 1])
+    monkeypatch.setattr(agent, "_acompaction_row_count", lambda *a, **k: _value(next(counts)))
+    fake_sdk.reply = "Compacted the conversation."
+
+    result = agent.compact("s1")
+
+    assert result.compacted and result.status.value == "compacted"
+    assert result.message == "Compacted the conversation."
+    assert fake_sdk.calls[-1] == {"prompt": "/compact", "resume": "sdk-1"}, "sent on the stored SDK session"
+    assert len(agent.get_session("s1").runs) == 1, "no run is recorded for the compaction"
+    assert result.to_dict()["compacted"] is True
+
+
+def test_compact_reports_nothing_to_fold_from_the_reply_without_transcript_storage(fake_sdk, tmp_db, monkeypatch):
+    agent = ClaudeAgent(name="Claude", id="claude", db=tmp_db)
+    agent.run("hi", session_id="s1")
+    monkeypatch.setattr(agent, "_acompaction_row_count", lambda *a, **k: _value(None))
+    fake_sdk.reply = "Error: Not enough messages to compact."
+
+    result = agent.compact("s1")
+
+    assert result.status.value == "nothing_to_fold" and not result.compacted
+    assert "Not enough messages" in result.message
+
+
+def test_compact_refuses_while_a_run_is_in_flight(fake_sdk, tmp_db):
+    from agno.exceptions import SessionBusyError
+    from agno.run.agent import RunOutput
+
+    agent = ClaudeAgent(name="Claude", id="claude", db=tmp_db)
+    agent.run("hi", session_id="s1")
+    tmp_db.upsert_run(
+        run=RunOutput(run_id="r1", session_id="s1", agent_id="claude", status=RunStatus.running), session_id="s1"
+    )
+    with pytest.raises(SessionBusyError, match="r1 is RUNNING"):
+        agent.compact("s1")
+
+
+def test_compaction_endpoint_serves_claude(fake_sdk, tmp_db, monkeypatch):
+    """POST /agents/{id}/sessions/{session_id}/compact answered 500 for ClaudeAgent, which had no
+    acompact at all."""
+    from fastapi.testclient import TestClient
+
+    from agno.os import AgentOS
+
+    agent = ClaudeAgent(name="Claude", id="claude", db=tmp_db)
+    agent.run("hi", session_id="s1")
+    counts = iter([0, 1])
+    monkeypatch.setattr(agent, "_acompaction_row_count", lambda *a, **k: _value(next(counts)))
+    client = TestClient(AgentOS(agents=[agent], db=tmp_db).get_app(), raise_server_exceptions=False)
+
+    resp = client.post("/agents/claude/sessions/s1/compact")
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["status"] == "compacted" and resp.json()["compacted"] is True
+    assert client.post("/agents/claude/sessions/nope/compact").status_code == 404
+
+
+async def _value(value):
+    return value

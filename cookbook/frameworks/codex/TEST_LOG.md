@@ -417,3 +417,13 @@ multi-replica execution, retries or deployment readiness.
 **Result:** Optional field came back `null` and parsed to `None`; the resumed streamed turn parsed and stored the model with `content_type` Movie. An array-rooted schema failed the turn with Codex's `invalid_json_schema: schema must be a JSON Schema of 'type: "object"'`; it is now refused with `ValueError` before the turn. Cookbook reran unchanged.
 
 ---
+
+### Compaction endpoint (2026-10-12)
+
+**Status:** PASS (openai-codex 0.161.0, gpt-5.6-luna)
+
+**Description:** `POST /agents/{agent_id}/sessions/{session_id}/compact` for a `CodexAgent` through AgentOS, then `codex_compaction.py` with the `CompactionResult` return type.
+
+**Result:** Before: 500 (`AttributeError`), `acompact` returned a bool and the route calls `to_dict()`. After: 200 with `compacted` and the thread id in the message; 404 for a missing session. The cookbook: `compacted` after three turns, the in-flight guard now raises `SessionBusyError`, compacted again after the run finished, and a stale thread id reports `no_history` and is forgotten.
+
+---

@@ -1155,7 +1155,7 @@ def _started_session(fake_sdk, tmp_db, **agent_kwargs) -> CodexAgent:
 
 def test_compact_without_a_thread_is_a_no_op(fake_client, tmp_db):
     agent = CodexAgent(name="Codex", id="codex", db=tmp_db)
-    assert agent.compact("s1") is False
+    assert agent.compact("s1").status.value == "no_history"
     assert not [c for c in fake_client.state.calls if c["op"] == "thread_compact"]
 
 
@@ -1170,7 +1170,7 @@ def test_compact_resumes_the_session_thread_and_waits_for_idle(fake_client, tmp_
         SimpleNamespace(method="should-not-be-read", payload=SimpleNamespace()),
     ]
 
-    assert agent.compact("s1") is True
+    assert agent.compact("s1").compacted
 
     wanted = {"thread_resume", "thread_compact", "client_exit"}
     ops = [c["op"] for c in fake_client.state.calls if c["op"] in wanted]
@@ -1195,7 +1195,7 @@ def test_compact_resumes_with_the_same_translated_options_as_a_run(fake_client, 
     )
     fake_client.events = _idle_after_active()
 
-    assert agent.compact("s1") is True
+    assert agent.compact("s1").compacted
 
     [compact_resume] = [c for c in fake_client.state.calls if c["op"] == "thread_resume"]
     assert compact_resume["kwargs"]["sandbox"] is Sandbox.full_access
@@ -1210,7 +1210,7 @@ def test_compact_forgets_a_thread_whose_rollout_is_gone(fake_client, tmp_db):
     agent = _started_session(fake_client.state, tmp_db)
     fake_client.state.unresumable.add("thread-1")
 
-    assert agent.compact("s1") is False
+    assert agent.compact("s1").status.value == "no_history"
 
     assert not [c for c in fake_client.state.calls if c["op"] == "thread_compact"]
     assert "codex_thread_id" not in (agent.get_session("s1").session_data or {})
@@ -1243,15 +1243,18 @@ def test_compact_refuses_while_a_run_is_in_flight(fake_client, tmp_db):
         return session
 
     agent.aget_session = aget_session  # type: ignore[method-assign]
-    with pytest.raises(RuntimeError, match="r1 is RUNNING"):
+    from agno.exceptions import SessionBusyError
+
+    with pytest.raises(SessionBusyError, match="r1 is RUNNING") as info:
         agent.compact("s1")
+    assert info.value.status_code == 409 and info.value.run_id == "r1"
     assert not [c for c in fake_client.state.calls if c["op"] in ("thread_resume", "thread_compact")]
 
 
 def test_compact_accepts_the_compacted_notification(fake_client, tmp_db):
     agent = _started_session(fake_client.state, tmp_db)
     fake_client.events = [SimpleNamespace(method="thread/compacted", payload=SimpleNamespace(thread_id="thread-1"))]
-    assert asyncio.run(agent.acompact("s1")) is True
+    assert asyncio.run(agent.acompact("s1")).compacted
 
 
 def test_compact_times_out_and_closes_the_client(fake_client, tmp_db):
@@ -1643,3 +1646,20 @@ def test_failed_turn_with_output_schema_keeps_the_error_text(fake_sdk):
     run = CodexAgent(name="Codex", id="codex", output_schema=Movie).run("Invent a movie")
     assert run.status == RunStatus.error
     assert "boom" in run.content and run.content_type == "str"
+
+
+def test_compaction_endpoint_serves_codex(fake_client, tmp_db):
+    """POST /agents/{id}/sessions/{session_id}/compact answered 500 for external agents: the route
+    calls to_dict() on the result, and the adapter returned a bool."""
+    from fastapi.testclient import TestClient
+
+    from agno.os import AgentOS
+
+    agent = _started_session(fake_client.state, tmp_db)
+    fake_client.events = _idle_after_active()
+    client = TestClient(AgentOS(agents=[agent], db=tmp_db).get_app(), raise_server_exceptions=False)
+    resp = client.post("/agents/codex/sessions/s1/compact")
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["status"] == "compacted" and resp.json()["compacted"] is True
+    assert resp.json()["message"] == "Codex compacted thread thread-1."
+    assert client.post("/agents/codex/sessions/nope/compact").status_code == 404

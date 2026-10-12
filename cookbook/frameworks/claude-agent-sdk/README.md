@@ -217,7 +217,7 @@ Requires a database with transcript storage, and only runs recorded with it can 
 
 ## Compaction
 
-Claude Code compacts a long conversation into a summary on its own when the context window fills, or when asked with `/compact`. Through `ClaudeAgent` the slash command is an ordinary run input, and a `PreCompact` hook passed in `options_kwargs` sees every compaction. With transcript storage the compaction lands in `agno_transcripts` like any other line: a `compact_boundary` system entry followed by the summary. A later turn on any replica resumes from the database and continues from that summary.
+Claude Code compacts a long conversation into a summary on its own when the context window fills, or when asked with `/compact`. `ClaudeAgent.compact` / `acompact` send that command on the stored SDK session without recording a run and return a `CompactionResult` (`compacted`, `nothing_to_fold`, `no_history`, `summary_failed`), which AgentOS serves through `POST /agents/{agent_id}/sessions/{session_id}/compact`; the slash command also works as an ordinary run input. A `PreCompact` hook passed in `options_kwargs` sees every compaction, and compaction is refused with `SessionBusyError` while a run on the session is in flight. With transcript storage the compaction lands in `agno_transcripts` like any other line: a `compact_boundary` system entry followed by the summary. A later turn on any replica resumes from the database and continues from that summary.
 
 ```bash
 .venvs/demo/bin/python cookbook/frameworks/claude-agent-sdk/compaction.py

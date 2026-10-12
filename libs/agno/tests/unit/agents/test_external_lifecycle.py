@@ -802,3 +802,21 @@ def test_decoded_answers_are_validated_as_they_are():
     run = RunOutput(run_id="r", content='{"left": ["a"], "right": 1}', status=RunStatus.completed)
     agent._apply_output_schema(run, Pair, None)
     assert run.content == Pair(left=["a"], right=1), "text is still parsed"
+
+
+def test_adapters_without_compaction_report_not_enabled(tmp_path):
+    from fastapi.testclient import TestClient
+
+    from agno.os import AgentOS
+
+    from agno.session import AgentSession
+
+    db = SqliteDb(db_file=str(tmp_path / "runs.db"))
+    agent = BlockingAgent(id="external", db=db)
+    db.upsert_session(AgentSession(session_id="s1", agent_id="external"))
+    result = agent.compact("s1")
+    assert result.status.value == "not_enabled" and "does not support compaction" in result.message
+
+    client = TestClient(AgentOS(agents=[agent], db=db).get_app(), raise_server_exceptions=False)
+    resp = client.post("/agents/external/sessions/s1/compact")
+    assert resp.status_code == 200 and resp.json()["status"] == "not_enabled"

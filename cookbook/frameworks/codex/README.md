@@ -174,7 +174,7 @@ Use [TEST_PROMPT.md](../TEST_PROMPT.md) for reproducible live tests and
 - [codex_metrics.py](codex_metrics.py): per-run token usage and session totals.
 - [codex_metrics_agentos.py](codex_metrics_agentos.py): metrics through the AgentOS API.
 - [codex_retries.py](codex_retries.py): transient failures, retry limits and permanent errors.
-- [codex_compaction.py](codex_compaction.py): compact and resume a stored thread.
+- [codex_compaction.py](codex_compaction.py): compact and resume a stored thread. `compact` / `acompact` return a `CompactionResult` (`compacted` or `no_history`), which AgentOS serves through `POST /agents/{agent_id}/sessions/{session_id}/compact`; a run in flight on the session is refused with `SessionBusyError`.
 - [background_cancel.py](background_cancel.py): background execution and cancellation.
 
 Each exercise has its own setup and validation history in [TEST_LOG.md](TEST_LOG.md).

@@ -31,6 +31,7 @@ from agno.agents._media import (
     uploads_root,
 )
 from agno.agents.base import (
+    run_coroutine_sync,
     BaseExternalAgent,
     ExternalContinuation,
     ExternalRunMetricsEvent,
@@ -55,6 +56,7 @@ from agno.run.cancel import araise_if_cancelled
 from agno.utils.log import log_debug, log_warning
 
 if TYPE_CHECKING:
+    from agno.compaction.types import CompactionResult
     from claude_agent_sdk import ClaudeAgentOptions
     from claude_agent_sdk.types import (
         McpServerConfig,
@@ -358,6 +360,96 @@ class ClaudeAgent(BaseExternalAgent):
     # ---------------------------------------------------------------------------
     # Agno session <-> SDK session mapping
     # ---------------------------------------------------------------------------
+
+    # ---------------------------------------------------------------------------
+    # Compaction
+    # ---------------------------------------------------------------------------
+
+    def compact(self, session_id: str, user_id: Optional[str] = None) -> "CompactionResult":
+        """Sync version of acompact."""
+        return run_coroutine_sync(self.acompact(session_id, user_id=user_id))
+
+    async def acompact(self, session_id: str, user_id: Optional[str] = None) -> "CompactionResult":
+        """Compact the Claude Code conversation behind an Agno session.
+
+        Sends Claude Code's /compact command on the stored SDK session, the same thing a user
+        types in the CLI, without recording a run for it. With transcript storage the outcome
+        is read from the transcript (a compact_boundary entry appears); otherwise it is taken
+        from Claude Code's reply, which says "Not enough messages to compact" when the
+        conversation is too short. A session with no Claude conversation yet reports
+        no_history; a pending or running run on the session raises SessionBusyError.
+        """
+        from agno.compaction.types import CompactionResult, CompactionStatus
+
+        sdk = _sdk()
+        session = await self.aget_session(session_id, user_id)
+        sdk_session_id = self._get_sdk_session_id(session, session_id)
+        if not sdk_session_id:
+            return CompactionResult(
+                status=CompactionStatus.NO_HISTORY,
+                message="The session has no Claude Code conversation to compact yet.",
+            )
+        self._check_no_run_in_flight(session, session_id)
+        before = await self._acompaction_row_count(session_id, sdk_session_id)
+        reply = ""
+        try:
+            async for message in self._aquery(
+                "/compact",
+                None,
+                streaming=False,
+                session=session,
+                session_id=session_id,
+                run_id=str(uuid4()),
+                run_state={},
+            ):
+                if isinstance(message, sdk.ResultMessage) and getattr(message, "result", None):
+                    reply = str(message.result)
+        except ClaudeResultError as error:
+            return CompactionResult(status=CompactionStatus.SUMMARY_FAILED, message=str(error))
+        if session is not None and self.db is not None:
+            await self.aupsert_session(session)
+        after = await self._acompaction_row_count(
+            session_id, self._get_sdk_session_id(session, session_id) or sdk_session_id
+        )
+        if before is not None and after is not None:
+            compacted = after > before
+        else:
+            compacted = "not enough messages" not in reply.lower()
+        if compacted:
+            return CompactionResult(
+                status=CompactionStatus.COMPACTED, message=reply or "Claude Code compacted the conversation."
+            )
+        return CompactionResult(
+            status=CompactionStatus.NOTHING_TO_FOLD, message=reply or "Claude Code found nothing to compact."
+        )
+
+    async def _acompaction_row_count(self, session_id: str, sdk_session_id: str) -> Optional[int]:
+        """How many compactions the stored transcript holds, or None without transcript storage."""
+        if self._transcript_store(session_id) is None or self.db is None:
+            return None
+        from agno.agents.claude.session_store import AgnoSessionStore
+
+        try:
+            if isinstance(self.db, AsyncBaseDb):
+                entries = await self.db.get_transcript_entries(
+                    framework=AgnoSessionStore.framework,
+                    project_key=self.project_key or self.get_id(),
+                    session_id=sdk_session_id,
+                )
+            else:
+                entries = self.db.get_transcript_entries(
+                    framework=AgnoSessionStore.framework,
+                    project_key=self.project_key or self.get_id(),
+                    session_id=sdk_session_id,
+                )
+        except Exception as error:
+            log_warning(f"Could not read the transcript of Claude session {sdk_session_id}: {error}")
+            return None
+        return sum(
+            1
+            for entry in entries or []
+            if isinstance(entry, dict) and entry.get("type") == "system" and entry.get("subtype") == "compact_boundary"
+        )
 
     def _get_sdk_session_id(self, session: Any, session_id: Optional[str]) -> Optional[str]:
         if session is not None and session.session_data:

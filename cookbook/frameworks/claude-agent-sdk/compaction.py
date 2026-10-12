@@ -112,9 +112,12 @@ async def main():
         total, found = compaction_rows(replica_a)
         print(f"Before /compact: {total} transcript rows, {len(found)} compaction rows")
 
-        # 2. Ask Claude Code to compact. The slash command is an ordinary run input.
-        run = await replica_a.arun("/compact", session_id=SESSION_ID)
-        assert run.status == RunStatus.completed, run.content
+        # 2. Ask Claude Code to compact. acompact sends the /compact slash command on the stored
+        #    SDK session without recording a run, and reports the outcome; AgentOS serves the
+        #    same through POST /agents/{agent_id}/sessions/{session_id}/compact.
+        result = await replica_a.acompact(SESSION_ID)
+        print(f"Compaction: {result.status.value}, {result.message}")
+        assert result.compacted, result.message
         assert compactions == ["manual"], compactions
         total, found = compaction_rows(replica_a)
         print(

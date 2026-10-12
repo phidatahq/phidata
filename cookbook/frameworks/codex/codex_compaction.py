@@ -30,6 +30,7 @@ import tempfile
 
 from agno.agents.codex import CodexAgent
 from agno.db.sqlite import SqliteDb
+from agno.exceptions import SessionBusyError
 from agno.run.base import RunStatus
 
 SESSION_ID = "codex-compaction-demo"
@@ -61,7 +62,8 @@ async def main():
         )
 
         # No thread exists before the first run, so there is nothing to compact yet.
-        assert await agent.acompact(SESSION_ID) is False
+        result = await agent.acompact(SESSION_ID)
+        assert result.status.value == "no_history", result.message
 
         # 1. Build up a conversation.
         run = await agent.arun(
@@ -84,9 +86,9 @@ async def main():
         # 2. Compact the thread. This resumes it in the app-server with the agent's sandbox,
         #    instructions and approval mode, requests the compaction and waits for the thread
         #    to be idle again. The next turn continues from the summary.
-        compacted = await agent.acompact(SESSION_ID)
-        print(f"Compacted: {compacted}")
-        assert compacted is True
+        result = await agent.acompact(SESSION_ID)
+        print(f"Compaction: {result.status.value}, {result.message}")
+        assert result.compacted, result.message
         run = await agent.arun(
             "What is the release codename? Reply with just the codename.",
             session_id=SESSION_ID,
@@ -103,11 +105,11 @@ async def main():
         try:
             await agent.acompact(SESSION_ID)
             raise AssertionError("compaction should refuse while a run is in flight")
-        except RuntimeError as error:
+        except SessionBusyError as error:
             print(f"While a run is in flight: {error}")
         finished = await wait_for_run(agent, pending.run_id)
         assert finished.status == RunStatus.completed, finished.content
-        assert await agent.acompact(SESSION_ID) is True
+        assert (await agent.acompact(SESSION_ID)).compacted
         print("After the run finished: compacted again")
 
         # 3b. A stored thread id whose rollout no longer exists is forgotten, as a run would
@@ -119,10 +121,11 @@ async def main():
         session = await agent.aget_session(SESSION_ID)
         session.session_data["codex_thread_id"] = "01a121ff-0000-7000-8000-000000000000"
         await agent.aupsert_session(session)
-        assert await agent.acompact(SESSION_ID) is False
+        result = await agent.acompact(SESSION_ID)
+        assert result.status.value == "no_history", result.message
         session = await agent.aget_session(SESSION_ID)
         assert "codex_thread_id" not in (session.session_data or {})
-        print("Stale thread id: compaction returned False and the id was forgotten")
+        print(f"Stale thread id: {result.message}")
 
 
 if __name__ == "__main__":

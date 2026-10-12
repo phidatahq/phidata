@@ -28,7 +28,7 @@ from pydantic import BaseModel, ValidationError
 
 from agno.agents._config import agent_dataclass
 from agno.db.base import AsyncBaseDb, BaseDb, SessionType
-from agno.exceptions import RunCancelledException, SessionBusyError, UnsupportedMediaError
+from agno.exceptions import InputCheckError, RunCancelledException, SessionBusyError, UnsupportedMediaError
 from agno.media import Audio, File, Image, Video
 from agno.metrics import BaseMetrics, ModelMetrics, RunMetrics, SessionMetrics
 from agno.models.message import Message
@@ -1075,8 +1075,10 @@ class BaseExternalAgent:
 
     def _is_retryable_error(self, error: Exception) -> bool:
         """Whether a failed attempt is worth retrying. Unknown errors are retried; adapters
-        override this for errors that fail the same way every time or would bypass a limit."""
-        return not isinstance(error, ImportError)
+        override this for errors that fail the same way every time or would bypass a limit.
+        An input check error (unsupported or unstageable attachments) fails the same way on
+        every attempt."""
+        return not isinstance(error, (ImportError, InputCheckError))
 
     def _failure_metadata(self, error: Exception) -> Dict[str, Any]:
         """Recorded on a run that ends in error. The durable job queue reads ``retryable`` so a
@@ -1140,7 +1142,7 @@ class BaseExternalAgent:
             await araise_if_cancelled(run_id)
 
     async def _aprepare_pending_run(
-        self, run_id: str, session_id: str, user_id: Optional[str], input: Any
+        self, run_id: str, session_id: str, user_id: Optional[str], input: Any, queued: bool = False
     ) -> RunOutput:
         """Persist an idempotent PENDING row before background or queued execution."""
         from agno.os.job_queue import _aappend_pending_run
@@ -1153,6 +1155,8 @@ class BaseExternalAgent:
             agent_name=self.name,
             input=RunInput(input_content=input),
             status=RunStatus.pending,
+            # 0 marks a durable queue ticket's row before any claim; in-process rows stay None.
+            queue_attempt=0 if queued else None,
         )
         session = await _aappend_pending_run(
             self, session_id, run.to_dict(), user_id, lambda: self.aread_or_create_session(session_id, user_id)
@@ -1294,15 +1298,26 @@ class BaseExternalAgent:
 
         A running row always blocks. A pending row blocks only when it was accepted before
         ``run_id`` (session runs are in acceptance order), so two queued turns do not each
-        refuse the other. A run with no row of its own counts as accepted last.
+        refuse the other. A run with no row of its own counts as accepted last. When the
+        queue already elected this turn, pending queue tickets ahead are skipped, but
+        in-process turns the queue cannot see still block.
         """
+        from agno.run.concurrency import get_worker_ownership
+
+        ownership = get_worker_ownership(run_id)
+        # A serialized queue has already elected the executable ticket. Pending
+        # session rows can arrive in a different order from queue acceptance.
+        queue_ordered = ownership is not None and ownership.session_serialized
         ahead = True
         for run in getattr(session, "runs", None) or []:
             if run.run_id == run_id:
                 ahead = False
                 continue
             status = getattr(run.status, "value", run.status)
-            if status == RunStatus.running.value or (ahead and status == RunStatus.pending.value):
+            if status == RunStatus.running.value:
+                return run
+            elected_ahead = queue_ordered and getattr(run, "queue_attempt", None) is not None
+            if ahead and status == RunStatus.pending.value and not elected_ahead:
                 return run
         return None
 

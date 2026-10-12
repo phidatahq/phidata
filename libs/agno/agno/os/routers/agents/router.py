@@ -884,7 +884,14 @@ def get_agent_router(
                 # RUN (complete output guaranteed via the run row); the live
                 # stream is the best-effort view.
                 queue_worker = getattr(request.app.state, "queue_worker", None)
-                queued_stream_payload = {"input": message, "kwargs": kwargs, "stream": True}
+                from agno.agents.base import BaseExternalAgent
+
+                queued_stream_payload = {
+                    "input": message,
+                    "kwargs": kwargs,
+                    "stream": True,
+                    "serialize_session": isinstance(agent, BaseExternalAgent),
+                }
                 stream_queueable = (
                     queue_worker is not None
                     and getattr(agent, "db", None) is not None
@@ -1007,7 +1014,13 @@ def get_agent_router(
                 getattr(candidate, "id", None) == agent_id and not isinstance(candidate, AgentFactory)
                 for candidate in (os.agents or [])
             )
-            queued_payload = {"input": message, "kwargs": kwargs}
+            from agno.agents.base import BaseExternalAgent
+
+            queued_payload = {
+                "input": message,
+                "kwargs": kwargs,
+                "serialize_session": isinstance(agent, BaseExternalAgent),
+            }
             if (
                 queue_worker is not None
                 and agent_is_queueable

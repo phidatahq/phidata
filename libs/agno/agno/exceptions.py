@@ -375,6 +375,18 @@ class InputCheckError(Exception):
         self.additional_data = additional_data
 
 
+class MediaStagingError(InputCheckError, ValueError):
+    """Raised when an attachment cannot be staged safely in the harness workspace: a run id that
+    is not a single path component, or a symlink where the uploads directory or file should be.
+
+    An input check error, so it is never retried and AgentOS reports it as an input problem;
+    also a ValueError for callers that validated paths that way before.
+    """
+
+    def __init__(self, message: str):
+        super().__init__(message, check_trigger=CheckTrigger.INPUT_NOT_ALLOWED)
+
+
 class UnsupportedMediaError(InputCheckError, ValueError):
     """Raised when media (images, audio, videos, files) is passed to an agent that cannot take it.
 

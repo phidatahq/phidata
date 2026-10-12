@@ -267,6 +267,15 @@ async def get_request_kwargs(request: Request, endpoint_func: Callable) -> Dict[
         if not isinstance(schema_dict, dict) or schema_dict.get("type", "object") != "object":
             raise HTTPException(status_code=422, detail="Invalid output_schema: expected a JSON object schema")
         try:
+            from jsonschema import Draft202012Validator  # type: ignore[import-untyped]
+            from jsonschema.exceptions import SchemaError  # type: ignore[import-untyped]
+        except ImportError:
+            raise ImportError("`jsonschema` not installed. Please install using `pip install jsonschema`")
+        try:
+            Draft202012Validator.check_schema(schema_dict)
+        except SchemaError as exc:
+            raise HTTPException(status_code=422, detail=f"Invalid output_schema: {exc.message}") from exc
+        try:
             if use_json_schema:
                 kwargs["output_schema"] = schema_dict
             else:

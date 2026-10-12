@@ -34,7 +34,20 @@ def test_invalid_media_rejected_before_dispatch(harness_client, mode, field, val
     run.assert_not_called()
 
 
-@pytest.mark.parametrize("value", ["{not json", "123", "null", "[]", '{"type":"string"}', ""])
+@pytest.mark.parametrize(
+    "value",
+    [
+        "{not json",
+        "123",
+        "null",
+        "[]",
+        '{"type":"string"}',
+        "",
+        '{"type":"object","properties":{"answer":"bad"}}',
+        '{"type":"object","properties":{"answer":{"type":"bogus"}}}',
+        '{"type":"object","required":"answer"}',
+    ],
+)
 @pytest.mark.parametrize("raw_schema", ["true", "false"])
 def test_invalid_schema_rejected_before_dispatch(harness_client, value, raw_schema):
     client, run = harness_client

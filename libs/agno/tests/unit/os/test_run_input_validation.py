@@ -46,6 +46,8 @@ def test_invalid_media_rejected_before_dispatch(harness_client, mode, field, val
         '{"type":"object","properties":{"answer":"bad"}}',
         '{"type":"object","properties":{"answer":{"type":"bogus"}}}',
         '{"type":"object","required":"answer"}',
+        '{"allOf":[{"type":"string"}]}',
+        '{"properties":{"answer":{"type":"string"}}}',
     ],
 )
 @pytest.mark.parametrize("raw_schema", ["true", "false"])
@@ -146,9 +148,10 @@ def test_raw_response_formats_pass_through(parser_client, schema):
         (RAW_JSON_SCHEMA, "false"),
         ({"type": "json_schema"}, "true"),
         ({"type": "json_schema", "json_schema": {"name": "P", "schema": {"type": "string"}}}, "true"),
-        ({"type": "json_schema", "json_schema": {"name": "P", "schema": {"properties": {"a": "bad"}}}}, "true"),
+        ({"type": "json_schema", "json_schema": {"name": "P", "schema": {"allOf": [{"type": "string"}]}}}, "true"),
+        ({"type": "json_schema", "json_schema": {"name": "P", "schema": {"type": "object", "properties": {"a": "bad"}}}}, "true"),
     ],
-    ids=["json_object-model", "json_schema-model", "missing-inner", "scalar-inner", "malformed-inner"],
+    ids=["json_object-model", "json_schema-model", "missing-inner", "scalar-inner", "untyped-inner", "malformed-inner"],
 )
 def test_invalid_raw_response_formats_rejected(parser_client, schema, raw_schema):
     response = parser_client.post("/parse", data={"output_schema": json.dumps(schema), "use_json_schema": raw_schema})

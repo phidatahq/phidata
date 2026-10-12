@@ -121,9 +121,9 @@ def drop_media_references(media_dicts: Any) -> Any:
 
 
 def _check_object_json_schema(schema: Dict[str, Any]) -> None:
-    """Raise HTTP 422 unless schema is a structurally valid JSON Schema with an object root."""
-    if schema.get("type", "object") != "object":
-        raise HTTPException(status_code=422, detail="Invalid output_schema: expected a JSON object schema")
+    """Raise HTTP 422 unless schema is a structurally valid JSON Schema with an explicit object root."""
+    if schema.get("type") != "object":
+        raise HTTPException(status_code=422, detail='Invalid output_schema: root must declare "type": "object"')
     try:
         from jsonschema import Draft202012Validator  # type: ignore[import-untyped]
         from jsonschema.exceptions import SchemaError  # type: ignore[import-untyped]
@@ -291,7 +291,9 @@ async def get_request_kwargs(request: Request, endpoint_func: Callable) -> Dict[
             wrapped = schema_dict.get("json_schema")
             object_schema = wrapped.get("schema") if isinstance(wrapped, dict) else None
             if not isinstance(object_schema, dict):
-                raise HTTPException(status_code=422, detail="Invalid output_schema: json_schema.schema must be an object")
+                raise HTTPException(
+                    status_code=422, detail="Invalid output_schema: json_schema.schema must be an object"
+                )
         if object_schema is not None:
             _check_object_json_schema(object_schema)
         try:

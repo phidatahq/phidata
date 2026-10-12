@@ -22,3 +22,12 @@
 **Result:** Completed successfully with a structured code review.
 
 ---
+
+### mcp_skills_huggingface.py
+
+**Status:** PASS
+**Tier:** untagged
+**Description:** Loads skills from Hugging Face's public MCP server with `MCPSkills(url="https://huggingface.co/mcp")`, no credentials. The server negotiated protocol revision 2026-07-28 and listed 25 skills. Asked how to estimate GGUF memory, the agent loaded `hf/hf-mem` and answered with the `hf-mem` command. A separate sweep of the same server verified all 25 `SKILL.md` files and all 133 supporting files against their manifest digests and frontmatter. Tested on 2026-10-12 with `.venv/bin/python` and `gpt-5.6-luna`.
+**Result:** Completed successfully.
+
+---

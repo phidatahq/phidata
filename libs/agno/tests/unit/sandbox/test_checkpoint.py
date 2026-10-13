@@ -64,6 +64,30 @@ def test_hardlinked_source_files_are_copied_as_regular_bytes(tmp_path, roots):
     assert (tmp_path / "restored/workspace/hardlink").read_text() == "print('hello')"
 
 
+def test_a_hardlink_cannot_carry_out_an_excluded_credential(tmp_path, roots):
+    os.link(roots["native"] / "auth.json", roots["native"] / "session-cache")
+    with pytest.raises(SandboxError, match="hardlink to excluded"):
+        capture(tmp_path, roots)
+    assert not (tmp_path / "checkpoint.tar").exists()
+
+
+def test_an_exclusion_that_leaves_its_root_excludes_nothing_inside_it(tmp_path, roots):
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    bait = outside / "bait"
+    bait.write_text("bait")
+    os.link(bait, outside / "bait-alias")
+    os.link(bait, roots["workspace"] / "innocent")
+    (roots["native"] / "cache").symlink_to(outside)
+    # Excluding the link itself stops capture rejecting it, so the exclusion scan alone
+    # decides the outcome: it must not follow the link out of the root and treat what it
+    # finds there as excluded content.
+    archive = tmp_path / "checkpoint.tar"
+    CheckpointArchive().capture(roots, archive, state={}, exclude=["native/cache", "native/cache/bait"])
+    with tarfile.open(archive) as opened:
+        assert "workspace/innocent" in opened.getnames()
+
+
 def test_failed_capture_removes_partial_archive(tmp_path, roots):
     (roots["workspace"] / "outside").symlink_to("/etc/passwd")
     with pytest.raises(SandboxError, match="symlink"):

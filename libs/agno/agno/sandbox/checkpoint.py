@@ -20,7 +20,7 @@ import tempfile
 from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
-from typing import Any, BinaryIO, Callable, Dict, Mapping, Optional, Sequence, TypeVar
+from typing import Any, BinaryIO, Callable, Dict, Mapping, Optional, Sequence, Tuple, TypeVar
 
 from agno.sandbox.base import SandboxError
 
@@ -205,6 +205,29 @@ class CheckpointArchive:
                 raise SandboxError("Durable roots must be real directories")
             if destination.resolve().is_relative_to(root_paths[name]):
                 raise SandboxError("Checkpoint destination cannot be inside a captured root")
+        # An exclusion names a path, but a hardlink is a second name for the same bytes.
+        # Collect the inodes behind each exclusion so an alias cannot smuggle them in.
+        # Only possible while the excluded path exists: once its original is unlinked, a
+        # surviving link is indistinguishable from a file that was never excluded.
+        excluded_inodes: Dict[Tuple[int, int], str] = {}
+
+        def collect(path: Path, name: str) -> None:
+            entry = path.lstat()
+            if stat.S_ISDIR(entry.st_mode):
+                for child in sorted(path.iterdir()):
+                    collect(child, name + "/" + child.name)
+            elif stat.S_ISREG(entry.st_mode) and entry.st_nlink > 1:
+                excluded_inodes.setdefault((entry.st_dev, entry.st_ino), name)
+
+        for item in sorted(exclusions):
+            parts = PurePosixPath(item).parts
+            root = root_paths[parts[0]]
+            excluded = root.joinpath(*parts[1:])
+            # Resolve before walking. A symlinked component would otherwise send this
+            # outside the root and enumerate a tree the roots do not contain, and such a
+            # path excludes nothing inside the root anyway.
+            if os.path.lexists(excluded) and _resolved(excluded).is_relative_to(root):
+                collect(excluded, item)
         output_file = destination.open("xb")
         try:
             with (
@@ -247,6 +270,9 @@ class CheckpointArchive:
                             raise SandboxError("Checkpoint symlink chain escapes its durable root")
                         archive.addfile(info)
                     elif info.isfile():
+                        alias = excluded_inodes.get((entry.st_dev, entry.st_ino))
+                        if alias is not None:
+                            raise SandboxError(f"Checkpoint entry {name!r} is a hardlink to excluded {alias!r}")
                         size += info.size
                         if size > self.limits.max_bytes:
                             raise SandboxError("Checkpoint data exceeds its limit")

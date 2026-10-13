@@ -1,62 +1,45 @@
-"""Small execution-provider contract; ownership and durable completion belong to AgentOS."""
+"""Small sandbox contract; ownership and durable completion belong to AgentOS."""
 
 import asyncio
-import math
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass, field
-from types import MappingProxyType
-from typing import Any, Coroutine, Mapping, Optional, Sequence
+from dataclasses import dataclass
+from typing import Any, Coroutine, Dict, Mapping, Optional, Sequence
 
 
 class SandboxError(RuntimeError):
     """A sandbox operation failed; callers must reconcile uncertain execution outcomes."""
 
 
-@dataclass(frozen=True)
-class SandboxSpec:
-    agent_id: str
-    session_id: str
-    generation: int
-    image: str
-    env: Mapping[str, str] = field(default_factory=dict, repr=False, hash=False)
-    cpus: float = 2.0
-    memory_mb: int = 2048
-    pids_limit: int = 256
-    workspace_mb: int = 512
-    network: str = "none"
-
-    def __post_init__(self) -> None:
-        for value in (self.agent_id, self.session_id, self.image, self.network):
-            if not isinstance(value, str) or not value or "\x00" in value:
-                raise ValueError("Sandbox identity, image and network must be nonempty strings")
-        if self.image.startswith("-") or self.network == "host" or self.network.startswith("container:"):
-            raise ValueError("Option-like images and shared host/container networking are not supported")
-        if type(self.cpus) not in (int, float):
-            raise ValueError("Sandbox CPU limit must be a number")
-        if type(self.generation) is not int or self.generation < 1 or not math.isfinite(self.cpus) or self.cpus <= 0:
-            raise ValueError("Sandbox generation and CPU limit must be positive")
-        if any(type(value) is not int or value < 1 for value in (self.memory_mb, self.pids_limit, self.workspace_mb)):
-            raise ValueError("Sandbox memory, process and workspace limits must be positive")
-        values = dict(self.env)
-        for key, value in values.items():
-            if (
-                not isinstance(key, str)
-                or not key
-                or "=" in key
-                or "\x00" in key
-                or not isinstance(value, str)
-                or "\x00" in value
-            ):
-                raise ValueError("Sandbox environment must contain valid names and string values")
-        object.__setattr__(self, "env", MappingProxyType(values))
+def _identity(
+    session_id: str, agent_id: Optional[str], generation: int, env: Optional[Mapping[str, str]]
+) -> Dict[str, str]:
+    """Validate per-session create arguments and return a copy of env."""
+    if not isinstance(session_id, str) or not session_id or "\x00" in session_id:
+        raise ValueError("Sandbox session id must be a nonempty string")
+    if agent_id is not None and (not isinstance(agent_id, str) or not agent_id or "\x00" in agent_id):
+        raise ValueError("Sandbox agent id must be None or a nonempty string")
+    if type(generation) is not int or generation < 1:
+        raise ValueError("Sandbox generation must be a positive integer")
+    values = dict(env or {})
+    for key, value in values.items():
+        if (
+            not isinstance(key, str)
+            or not key
+            or "=" in key
+            or "\x00" in key
+            or not isinstance(value, str)
+            or "\x00" in value
+        ):
+            raise ValueError("Sandbox environment must contain valid names and string values")
+    return values
 
 
 @dataclass(frozen=True)
 class SandboxHandle:
     provider_ref: str
     name: str
-    agent_id: str
+    agent_id: Optional[str]
     session_id: str
     generation: int
     state: str
@@ -82,7 +65,7 @@ def _sync(coro: Coroutine[Any, Any, Any]) -> Any:
         return pool.submit(asyncio.run, coro).result()
 
 
-class SandboxProvider(ABC):
+class Sandbox(ABC):
     """A backend for compute, without queue ownership or checkpoint policy.
 
     Implementations must not retry uncertain commands. Optional snapshot, pause,
@@ -90,10 +73,24 @@ class SandboxProvider(ABC):
     """
 
     @abstractmethod
-    async def acreate(self, spec: SandboxSpec) -> SandboxHandle: ...
+    async def acreate(
+        self,
+        session_id: str,
+        *,
+        agent_id: Optional[str] = None,
+        generation: int = 1,
+        env: Optional[Mapping[str, str]] = None,
+    ) -> SandboxHandle: ...
 
-    def create(self, spec: SandboxSpec) -> SandboxHandle:
-        return _sync(self.acreate(spec))
+    def create(
+        self,
+        session_id: str,
+        *,
+        agent_id: Optional[str] = None,
+        generation: int = 1,
+        env: Optional[Mapping[str, str]] = None,
+    ) -> SandboxHandle:
+        return _sync(self.acreate(session_id, agent_id=agent_id, generation=generation, env=env))
 
     @abstractmethod
     async def aget(self, provider_ref: str) -> Optional[SandboxHandle]: ...

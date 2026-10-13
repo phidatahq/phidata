@@ -8,12 +8,8 @@ from dataclasses import replace
 import pytest
 
 from agno.sandbox._exec import _execute
-from agno.sandbox.base import SandboxError, SandboxHandle, SandboxSpec
-from agno.sandbox.docker import DockerSandboxProvider
-
-
-def spec(**kwargs):
-    return SandboxSpec(agent_id="coder", session_id="s", generation=1, image="python:test", **kwargs)
+from agno.sandbox.base import SandboxError, SandboxHandle
+from agno.sandbox.docker import DockerSandbox
 
 
 @pytest.mark.parametrize(
@@ -22,23 +18,31 @@ def spec(**kwargs):
 )
 def test_invalid_limits_and_host_network_are_rejected(kwargs):
     with pytest.raises(ValueError):
-        spec(**kwargs)
+        DockerSandbox("python:test", **kwargs)
 
 
-def test_environment_is_copied_and_not_in_repr():
-    env = {"TOKEN": "secret"}
-    value = spec(env=env)
-    env["TOKEN"] = "changed"
-    assert value.env["TOKEN"] == "secret"
-    assert "secret" not in repr(value)
-    with pytest.raises(TypeError):
-        value.env["TOKEN"] = "mutated"
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"session_id": ""},
+        {"session_id": "s", "agent_id": ""},
+        {"session_id": "s", "generation": 0},
+        {"session_id": "s", "generation": True},
+        {"session_id": "s", "env": {"A=B": "x"}},
+    ],
+)
+async def test_invalid_create_arguments_are_rejected_before_docker(kwargs):
+    sandbox = FakeDocker()
+    with pytest.raises(ValueError):
+        await sandbox.acreate(**kwargs)
+    assert sandbox.calls == []
 
 
-def test_spec_is_hashable_and_env_still_affects_equality():
-    assert hash(spec(env={"A": "1"})) == hash(spec(env={"A": "1"}))
-    assert spec(env={"A": "1"}) != spec(env={"A": "2"})
-    assert spec(cpus=1) == spec(cpus=1.0)
+def test_equal_configuration_has_equal_digest():
+    assert DockerSandbox("python:test", cpus=1)._digest("s", None, 1, {}) == DockerSandbox(
+        "python:test", cpus=1.0
+    )._digest("s", None, 1, {})
 
 
 def test_sandbox_import_does_not_load_agent_runtime():
@@ -70,9 +74,9 @@ def test_command_runner_missing_executable():
     assert result["exit_code"] == 127
 
 
-class FakeDocker(DockerSandboxProvider):
-    def __init__(self):
-        super().__init__("test")
+class FakeDocker(DockerSandbox):
+    def __init__(self, **kwargs):
+        super().__init__("python:test", namespace="test", **kwargs)
         self.record = None
         self.calls = []
         self.lose_create_response = False
@@ -114,86 +118,86 @@ class FakeDocker(DockerSandboxProvider):
 @pytest.mark.asyncio
 async def test_create_is_idempotent_and_hardened(monkeypatch):
     monkeypatch.setenv("AGNO_DB_URL", "must-not-be-forwarded")
-    provider = FakeDocker()
-    first = await provider.acreate(spec(env={"MODEL_TOKEN": "explicit"}))
-    second = await provider.acreate(spec(env={"MODEL_TOKEN": "explicit"}))
+    sandbox = FakeDocker()
+    first = await sandbox.acreate("s", agent_id="coder", env={"MODEL_TOKEN": "explicit"})
+    second = await sandbox.acreate("s", agent_id="coder", env={"MODEL_TOKEN": "explicit"})
     assert first == second
-    creates = [call for call in provider.calls if call[0][1] == "create"]
+    creates = [call for call in sandbox.calls if call[0][1] == "create"]
     assert len(creates) == 1
     argv = creates[0][0]
     assert "--read-only" in argv and "--cap-drop" in argv and "1000:1000" in argv
     assert "AGNO_DB_URL" not in " ".join(argv) and "explicit" not in " ".join(argv)
-    assert provider.env_file == "HOME=/runtime\nMODEL_TOKEN=explicit\n"
+    assert sandbox.env_file == "HOME=/runtime\nMODEL_TOKEN=explicit\n"
     assert not os.path.exists(argv[argv.index("--env-file") + 1])
     assert not any("docker.sock" in arg for arg in argv)
 
 
 @pytest.mark.asyncio
 async def test_lost_create_response_reconciles_the_same_generation():
-    provider = FakeDocker()
-    provider.lose_create_response = True
-    handle = await provider.acreate(spec())
+    sandbox = FakeDocker()
+    sandbox.lose_create_response = True
+    handle = await sandbox.acreate("s", agent_id="coder")
     assert handle.state == "running"
-    assert len([call for call in provider.calls if call[0][1] == "create"]) == 1
+    assert len([call for call in sandbox.calls if call[0][1] == "create"]) == 1
 
 
 @pytest.mark.asyncio
 async def test_existing_generation_cannot_change_configuration():
-    provider = FakeDocker()
-    await provider.acreate(spec())
+    sandbox = FakeDocker()
+    await sandbox.acreate("s", agent_id="coder", env={"A": "1"})
     with pytest.raises(SandboxError, match="different configuration"):
-        await provider.acreate(spec(cpus=1))
+        await sandbox.acreate("s", agent_id="coder", env={"A": "2"})
 
 
 @pytest.mark.asyncio
 async def test_stop_destroy_and_identity_checks():
-    provider = FakeDocker()
-    handle = await provider.acreate(spec())
+    sandbox = FakeDocker()
+    handle = await sandbox.acreate("s", agent_id="coder")
     with pytest.raises(SandboxError, match="identity changed"):
-        await provider.adestroy(replace(handle, generation=2))
-    assert provider.record is not None
-    await provider.astop(handle)
+        await sandbox.adestroy(replace(handle, generation=2))
+    assert sandbox.record is not None
+    await sandbox.astop(handle)
     with pytest.raises(SandboxError, match="new generation"):
-        await provider.acreate(spec())
-    await provider.adestroy(handle)
-    await provider.adestroy(handle)
-    assert await provider.aget(handle.provider_ref) is None
+        await sandbox.acreate("s", agent_id="coder")
+    await sandbox.adestroy(handle)
+    await sandbox.adestroy(handle)
+    assert await sandbox.aget(handle.provider_ref) is None
 
 
 @pytest.mark.asyncio
 async def test_foreign_namespace_is_never_removed():
-    provider = FakeDocker()
-    handle = await provider.acreate(spec())
-    provider.record["Config"]["Labels"]["io.agno.sandbox.namespace"] = "other"
+    sandbox = FakeDocker()
+    handle = await sandbox.acreate("s", agent_id="coder")
+    sandbox.record["Config"]["Labels"]["io.agno.sandbox.namespace"] = "other"
     with pytest.raises(SandboxError, match="namespace"):
-        await provider.adestroy(handle)
-    assert not any(call[0][1] == "rm" for call in provider.calls)
+        await sandbox.adestroy(handle)
+    assert not any(call[0][1] == "rm" for call in sandbox.calls)
 
 
-def test_sync_provider_wrappers():
-    provider = FakeDocker()
-    handle = provider.create(spec())
-    assert provider.get(handle.provider_ref) == handle
-    provider.stop(handle)
-    provider.destroy(handle)
+def test_sync_wrappers():
+    sandbox = FakeDocker()
+    handle = sandbox.create("s", agent_id="coder")
+    assert sandbox.get(handle.provider_ref) == handle
+    sandbox.stop(handle)
+    sandbox.destroy(handle)
 
 
 @pytest.mark.asyncio
-async def test_sync_provider_wrappers_inside_running_loop():
-    provider = FakeDocker()
-    handle = provider.create(spec())
+async def test_sync_wrappers_inside_running_loop():
+    sandbox = FakeDocker()
+    handle = sandbox.create("s", agent_id="coder")
     assert handle.state == "running"
-    provider.destroy(handle)
+    sandbox.destroy(handle)
 
 
 @pytest.mark.asyncio
 async def test_exec_validates_before_contacting_docker():
-    provider = FakeDocker()
+    sandbox = FakeDocker()
     handle = SandboxHandle("id", "name", "a", "s", 1, "running", "digest")
     for args in ["echo bad", [], ["a\x00b"]]:
         with pytest.raises(ValueError):
-            await provider.aexec(handle, args)
-    assert provider.calls == []
+            await sandbox.aexec(handle, args)
+    assert sandbox.calls == []
 
 
 @pytest.mark.asyncio
@@ -204,11 +208,11 @@ async def test_transport_failure_stops_remote_execution():
                 raise SandboxError("lost command transport")
             return await super()._docker(*args, **kwargs)
 
-    provider = FailedExec()
-    handle = await provider.acreate(spec())
+    sandbox = FailedExec()
+    handle = await sandbox.acreate("s", agent_id="coder")
     with pytest.raises(SandboxError, match="lost command"):
-        await provider.aexec(handle, ["example"])
-    assert (await provider.aget(handle.provider_ref)).state == "exited"
+        await sandbox.aexec(handle, ["example"])
+    assert (await sandbox.aget(handle.provider_ref)).state == "exited"
 
 
 @pytest.mark.asyncio
@@ -219,20 +223,20 @@ async def test_invalid_command_result_stops_remote_execution():
                 return 0, b"invalid json", b""
             return await super()._docker(*args, **kwargs)
 
-    provider = InvalidExec()
-    handle = await provider.acreate(spec())
+    sandbox = InvalidExec()
+    handle = await sandbox.acreate("s", agent_id="coder")
     with pytest.raises(SandboxError, match="invalid command"):
-        await provider.aexec(handle, ["example"])
-    assert (await provider.aget(handle.provider_ref)).state == "exited"
+        await sandbox.aexec(handle, ["example"])
+    assert (await sandbox.aget(handle.provider_ref)).state == "exited"
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("env", [{"A": "multi\nline"}, {"A": "cr\r"}, {"#A": "x"}, {"A B": "x"}])
 async def test_env_that_cannot_be_written_to_an_env_file_is_rejected(env):
-    provider = FakeDocker()
+    sandbox = FakeDocker()
     with pytest.raises(ValueError, match="env"):
-        await provider.acreate(spec(env=env))
-    assert not any(call[0][1] == "create" for call in provider.calls)
+        await sandbox.acreate("s", env=env)
+    assert not any(call[0][1] == "create" for call in sandbox.calls)
 
 
 @pytest.mark.asyncio
@@ -244,7 +248,15 @@ async def test_failed_start_removes_the_never_started_container():
                 return 1, b"", b"network Host not found"
             return await super()._docker(*args, **kwargs)
 
-    provider = FailedStart()
+    sandbox = FailedStart()
     with pytest.raises(SandboxError, match="start failed"):
-        await provider.acreate(spec())
-    assert provider.record is None
+        await sandbox.acreate("s", agent_id="coder")
+    assert sandbox.record is None
+
+
+@pytest.mark.asyncio
+async def test_agent_id_is_optional():
+    sandbox = FakeDocker()
+    handle = await sandbox.acreate("s")
+    assert handle.agent_id is None and handle.generation == 1
+    assert await sandbox.acreate("s") == handle

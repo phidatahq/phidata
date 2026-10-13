@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import errno
 import gzip
 import hashlib
@@ -14,7 +15,13 @@ from pathlib import Path
 import pytest
 
 from agno.sandbox import SandboxError
-from agno.sandbox.checkpoint import CheckpointArchive, CheckpointLimits, CheckpointRef, FileCheckpointStore
+from agno.sandbox.checkpoint import (
+    CheckpointArchive,
+    CheckpointLimits,
+    CheckpointRef,
+    CheckpointStore,
+    FileCheckpointStore,
+)
 
 
 @pytest.fixture
@@ -135,7 +142,7 @@ def test_capture_limits_cleanup_partial_files(tmp_path, roots):
 def test_corrupt_or_missing_object_is_not_restored(tmp_path, roots):
     store = FileCheckpointStore(tmp_path / "objects")
     reference = store.put(capture(tmp_path, roots))
-    path = store.verify(reference)
+    path = store.root / reference.sha256
     with path.open("r+b") as stream:
         stream.write(b"corrupt")
     with pytest.raises(SandboxError, match="checksum"):
@@ -302,7 +309,7 @@ async def test_async_capture_concurrent_upload_and_restore(tmp_path, roots):
     first, second = FileCheckpointStore(tmp_path / "objects"), FileCheckpointStore(tmp_path / "objects")
     refs = await asyncio.gather(first.aput(source), second.aput(source))
     assert refs[0] == refs[1]
-    assert await second.averify(refs[0]) == first.root / refs[0].sha256
+    assert await second.averify(refs[0]) is None
     assert await second.arestore(refs[0], tmp_path / "restored") == {"run_id": "r"}
 
 
@@ -414,7 +421,7 @@ def test_archive_cut_after_the_roots_is_rejected(tmp_path, roots):
     truncated.write_bytes(source.read_bytes()[:cut])
     store = FileCheckpointStore(tmp_path / "objects")
     reference = store.put(truncated)
-    assert store.verify(reference) == store.root / reference.sha256
+    assert store.verify(reference) is None
     with pytest.raises(SandboxError):
         store.restore(reference, tmp_path / "restored")
     assert not (tmp_path / "restored").exists()
@@ -831,3 +838,221 @@ async def test_async_capture_and_restore_round_trip_compressed(tmp_path, roots):
         destination = tmp_path / f"restored{index}"
         assert await store.arestore(reference, destination) == {"run_id": "r"}
         assert (destination / "workspace/tracked.py").read_text() == "print('hello')"
+
+
+class MemoryCheckpointStore:
+    """The smallest thing that satisfies the store contract, with no local object path.
+
+    It stands in for a store whose objects are remote: every read materializes a
+    temporary copy and removes it when the caller is done with it.
+    """
+
+    def __init__(self, directory):
+        self.objects = {}
+        self.directory = Path(directory)
+        self.directory.mkdir(parents=True, exist_ok=True)
+        self.materialized = []
+
+    def put(self, source):
+        data = Path(source).read_bytes()
+        reference = CheckpointRef(hashlib.sha256(data).hexdigest(), len(data))
+        self.objects[reference.sha256] = data
+        return reference
+
+    async def aput(self, source):
+        return self.put(source)
+
+    def verify(self, reference):
+        data = self.objects.get(reference.sha256)
+        if data is None:
+            raise SandboxError("Missing checkpoint object")
+        if len(data) != reference.size or hashlib.sha256(data).hexdigest() != reference.sha256:
+            raise SandboxError("Checkpoint checksum mismatch")
+
+    async def averify(self, reference):
+        self.verify(reference)
+
+    @contextlib.contextmanager
+    def open_archive(self, reference):
+        self.verify(reference)
+        descriptor, name = tempfile.mkstemp(dir=self.directory)
+        path = Path(name)
+        self.materialized.append(path)
+        try:
+            with os.fdopen(descriptor, "wb") as output:
+                output.write(self.objects[reference.sha256])
+            yield path
+        finally:
+            path.unlink(missing_ok=True)
+
+    @contextlib.asynccontextmanager
+    async def aopen_archive(self, reference):
+        with self.open_archive(reference) as path:
+            yield path
+
+    def delete(self, reference):
+        self.objects.pop(reference.sha256, None)
+
+    async def adelete(self, reference):
+        self.delete(reference)
+
+
+def test_a_minimal_store_satisfies_the_contract_its_consumers_use(tmp_path, roots):
+    """Consumers must depend on the contract, not on FileCheckpointStore's filesystem."""
+    for index, store in enumerate((FileCheckpointStore(tmp_path / "objects"), MemoryCheckpointStore(tmp_path / "mem"))):
+        assert isinstance(store, CheckpointStore)
+        reference = store.put(capture(tmp_path / f"source{index}", roots))
+        with store.open_archive(reference) as source:
+            state = CheckpointArchive().restore(source, tmp_path / f"restored{index}")
+        assert state == {"run_id": "r", "native_id": "n", "conversation": ["hello"]}
+
+
+def test_open_archive_yields_the_stored_bytes_and_keeps_the_object(tmp_path, roots):
+    source = capture(tmp_path, roots)
+    store = FileCheckpointStore(tmp_path / "objects")
+    reference = store.put(source)
+    with store.open_archive(reference) as path:
+        assert hashlib.sha256(path.read_bytes()).hexdigest() == reference.sha256
+        assert path.stat().st_size == reference.size
+    # An immutable object is store content, not a materialization: exiting the context
+    # must not remove it, and a second access must still find it.
+    assert (store.root / reference.sha256).exists()
+    assert store.verify(reference) is None
+
+
+def test_open_archive_refuses_an_object_that_does_not_match_its_reference(tmp_path, roots):
+    store = FileCheckpointStore(tmp_path / "objects")
+    reference = store.put(capture(tmp_path, roots))
+    (store.root / reference.sha256).write_bytes(b"corrupt")
+    entered = False
+    with pytest.raises(SandboxError, match="size"):
+        with store.open_archive(reference):
+            entered = True
+    assert not entered, "verification must happen before the path is handed out"
+
+
+def test_open_archive_releases_after_a_consumer_exception_and_keeps_the_object(tmp_path, roots):
+    store = FileCheckpointStore(tmp_path / "objects")
+    local = store.put(capture(tmp_path, roots))
+    memory = MemoryCheckpointStore(tmp_path / "mem")
+    remote = memory.put(capture(tmp_path / "source", roots))
+
+    for implementation, reference in ((store, local), (memory, remote)):
+        with pytest.raises(ZeroDivisionError):
+            with implementation.open_archive(reference):
+                raise ZeroDivisionError("the consumer failed")
+
+    assert (store.root / local.sha256).exists(), "an immutable object outlives a failed access"
+    assert not any(path.exists() for path in memory.materialized), "a materialization does not"
+    assert list(memory.directory.iterdir()) == []
+
+
+def test_repeated_and_concurrent_access_have_independent_lifetimes(tmp_path, roots):
+    store = FileCheckpointStore(tmp_path / "objects")
+    reference = store.put(capture(tmp_path, roots))
+    memory = MemoryCheckpointStore(tmp_path / "mem")
+    remote = memory.put(capture(tmp_path / "source", roots))
+
+    # Twice, because the second pass reads an object a completed access already read.
+    for _ in range(2):
+        with store.open_archive(reference) as outer:
+            with store.open_archive(reference) as inner:
+                assert inner.read_bytes() == outer.read_bytes()
+            assert outer.read_bytes()[:2] == b"\x1f\x8b", "the finished access must not invalidate this one"
+
+        with memory.open_archive(remote) as outer:
+            with memory.open_archive(remote) as inner:
+                assert inner != outer
+                assert inner.read_bytes() == outer.read_bytes()
+            assert not inner.exists(), "the inner materialization is gone"
+            assert outer.exists(), "the outer materialization is not"
+        assert not outer.exists()
+    assert list(memory.directory.iterdir()) == []
+
+
+def test_delete_removes_the_object_and_is_idempotent(tmp_path, roots):
+    store = FileCheckpointStore(tmp_path / "objects")
+    reference = store.put(capture(tmp_path, roots))
+    store.delete(reference)
+    assert list(store.root.iterdir()) == []
+    with pytest.raises(FileNotFoundError):
+        store.verify(reference)
+    # Retention runs on its own schedule and can see an object twice.
+    store.delete(reference)
+    assert list(store.root.iterdir()) == []
+
+
+def test_restore_verifies_the_object_once_for_one_access(tmp_path, roots, monkeypatch):
+    store = FileCheckpointStore(tmp_path / "objects")
+    reference = store.put(capture(tmp_path, roots))
+    calls = []
+    real = store.verify
+
+    def counted(value):
+        calls.append(value)
+        return real(value)
+
+    monkeypatch.setattr(store, "verify", counted)
+    assert store.restore(reference, tmp_path / "restored") == {
+        "run_id": "r",
+        "native_id": "n",
+        "conversation": ["hello"],
+    }
+    assert calls == [reference]
+
+
+@pytest.mark.asyncio
+async def test_async_access_restores_and_keeps_the_object(tmp_path, roots):
+    store = FileCheckpointStore(tmp_path / "objects")
+    reference = await store.aput(capture(tmp_path, roots))
+    for index in range(2):
+        async with store.aopen_archive(reference) as source:
+            assert await CheckpointArchive().arestore(source, tmp_path / f"restored{index}") == {
+                "run_id": "r",
+                "native_id": "n",
+                "conversation": ["hello"],
+            }
+    assert (store.root / reference.sha256).exists()
+
+
+@pytest.mark.asyncio
+async def test_async_access_cleans_up_after_a_consumer_exception(tmp_path, roots):
+    memory = MemoryCheckpointStore(tmp_path / "mem")
+    reference = memory.put(capture(tmp_path, roots))
+    with pytest.raises(ZeroDivisionError):
+        async with memory.aopen_archive(reference):
+            raise ZeroDivisionError("the consumer failed")
+    assert list(memory.directory.iterdir()) == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("cancels", [1, 3])
+async def test_cancelling_an_async_access_drains_its_verification(tmp_path, roots, monkeypatch, cancels):
+    store = FileCheckpointStore(tmp_path / "objects")
+    reference = await store.aput(capture(tmp_path, roots))
+    entered, release, settled = threading.Event(), threading.Event(), threading.Event()
+    real = store.verify
+
+    def gate(value):
+        entered.set()
+        assert release.wait(10), "the verification gate was never released"
+        try:
+            return real(value)
+        finally:
+            settled.set()
+
+    monkeypatch.setattr(store, "verify", gate)
+
+    async def access():
+        async with store.aopen_archive(reference) as source:
+            return source
+
+    task = asyncio.create_task(access())
+    assert await asyncio.to_thread(entered.wait, 5)
+    await deliver(task, cancels)
+    assert not task.done(), "the verification must not be abandoned mid-read"
+    release.set()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert await asyncio.to_thread(settled.wait, 5)
+    assert (store.root / reference.sha256).exists()

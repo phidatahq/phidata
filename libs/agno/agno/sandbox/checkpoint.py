@@ -19,11 +19,13 @@ import stat
 import tarfile
 import tempfile
 import zlib
-from contextlib import contextmanager, nullcontext, suppress
+from contextlib import asynccontextmanager, contextmanager, nullcontext, suppress
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import (
     Any,
+    AsyncContextManager,
+    AsyncIterator,
     BinaryIO,
     Callable,
     ContextManager,
@@ -31,9 +33,11 @@ from typing import (
     Iterator,
     Mapping,
     Optional,
+    Protocol,
     Sequence,
     Tuple,
     TypeVar,
+    runtime_checkable,
 )
 
 from agno.sandbox.base import SandboxError
@@ -520,6 +524,60 @@ class CheckpointArchive:
         return await _thread(self.restore, source, destination)
 
 
+@runtime_checkable
+class CheckpointStore(Protocol):
+    """Immutable checkpoint objects addressed by the digest of their stored bytes.
+
+    An implementation owns where those bytes live and nothing more: capture,
+    validation and restore all belong to ``CheckpointArchive``. A reference is only
+    publishable after the durable run commit, and ``delete`` belongs to retention
+    rather than to compute destruction, so destroying compute never removes an object.
+
+    Every operation raises ``SandboxError`` for an object that is absent, oversized or
+    does not match its reference, and lets the underlying filesystem or transport error
+    through unchanged.
+    """
+
+    def put(self, source: Path) -> CheckpointRef:
+        """Store ``source`` and return the reference describing its stored bytes."""
+        ...
+
+    async def aput(self, source: Path) -> CheckpointRef: ...
+
+    def verify(self, reference: CheckpointRef) -> None:
+        """Re-read the stored object and raise unless its size and digest both match.
+
+        Reading one back is ``open_archive``'s job: an object need not have a path.
+        """
+        ...
+
+    async def averify(self, reference: CheckpointRef) -> None: ...
+
+    def open_archive(self, reference: CheckpointRef) -> ContextManager[Path]:
+        """Verify the object, then yield a path holding its stored archive bytes.
+
+        The bytes are the ones the reference names, not a decoded archive, so the
+        digest still describes what the caller reads.
+
+        The store owns the path and it is valid only inside the context. Exiting
+        releases whatever the store materialized to produce it, on an exception as much
+        as on success, and never removes the object itself. Concurrent and repeated
+        accesses are independent.
+        """
+        ...
+
+    def aopen_archive(self, reference: CheckpointRef) -> AsyncContextManager[Path]:
+        """Async ``open_archive``, with the same ownership and lifetime, and releasing
+        what it materialized under cancellation too."""
+        ...
+
+    def delete(self, reference: CheckpointRef) -> None:
+        """Remove the object. Removing one that is already gone is not an error."""
+        ...
+
+    async def adelete(self, reference: CheckpointRef) -> None: ...
+
+
 class FileCheckpointStore:
     """Content-addressed immutable objects on trusted shared durable storage.
 
@@ -566,7 +624,7 @@ class FileCheckpointStore:
     async def aput(self, source: Path) -> CheckpointRef:
         return await _thread(self.put, source)
 
-    def verify(self, reference: CheckpointRef) -> Path:
+    def verify(self, reference: CheckpointRef) -> None:
         if reference.size > self.max_bytes:
             raise SandboxError("Checkpoint object exceeds its limit")
         path = self.root / reference.sha256
@@ -581,16 +639,36 @@ class FileCheckpointStore:
                 digest.update(chunk)
         if size != reference.size or digest.hexdigest() != reference.sha256:
             raise SandboxError("Checkpoint checksum mismatch")
-        return path
 
-    async def averify(self, reference: CheckpointRef) -> Path:
-        return await _thread(self.verify, reference)
+    async def averify(self, reference: CheckpointRef) -> None:
+        await _thread(self.verify, reference)
+
+    @contextmanager
+    def open_archive(self, reference: CheckpointRef) -> Iterator[Path]:
+        """Yield the object itself: it is immutable, so there is nothing to materialize."""
+        self.verify(reference)
+        yield self.root / reference.sha256
+
+    @asynccontextmanager
+    async def aopen_archive(self, reference: CheckpointRef) -> AsyncIterator[Path]:
+        await self.averify(reference)
+        yield self.root / reference.sha256
+
+    def delete(self, reference: CheckpointRef) -> None:
+        # Durable, because a reconciler that crashes must not find the object again.
+        (self.root / reference.sha256).unlink(missing_ok=True)
+        _fsync_directory(self.root)
+
+    async def adelete(self, reference: CheckpointRef) -> None:
+        await _thread(self.delete, reference)
 
     def restore(
         self, reference: CheckpointRef, destination: Path, *, archive: CheckpointArchive | None = None
     ) -> Dict[str, Any]:
         # The store is coordinator-owned and immutable. Sandboxes never mount it.
-        return (archive or CheckpointArchive()).restore(self.verify(reference), destination)
+        # One access, one verification: the access already established integrity.
+        with self.open_archive(reference) as source:
+            return (archive or CheckpointArchive()).restore(source, destination)
 
     async def arestore(
         self, reference: CheckpointRef, destination: Path, *, archive: CheckpointArchive | None = None

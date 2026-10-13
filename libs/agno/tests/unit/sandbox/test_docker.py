@@ -108,6 +108,10 @@ class FakeDocker(DockerSandbox):
             return 0, b"container-id", b""
         if operation == "start":
             self.record["State"]["Status"] = "running"
+        elif operation == "pause":
+            self.record["State"]["Status"] = "paused"
+        elif operation == "unpause":
+            self.record["State"]["Status"] = "running"
         elif operation == "stop":
             self.record["State"]["Status"] = "exited"
         elif operation == "rm":
@@ -260,3 +264,85 @@ async def test_agent_id_is_optional():
     handle = await sandbox.acreate("s")
     assert handle.agent_id is None and handle.generation == 1
     assert await sandbox.acreate("s") == handle
+
+
+# ---------------------------------------------------------------------------
+# Warm path: pause and resume keep the generation
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_pause_keeps_the_generation_and_only_resume_revives_it():
+    sandbox = FakeDocker()
+    handle = await sandbox.acreate("session", agent_id="coder")
+    await sandbox.apause(handle)
+    assert (await sandbox.aget(handle.provider_ref)).state == "paused"
+    await sandbox.apause(handle)  # idempotent
+    with pytest.raises(SandboxError, match="paused; resume"):
+        await sandbox.aexec(handle, ["true"])
+    # Create cannot tell a warm pause from a restore that died halfway, so it refuses to guess.
+    with pytest.raises(SandboxError, match="paused; resume it or destroy it"):
+        await sandbox.acreate("session", agent_id="coder")
+    assert (await sandbox.aget(handle.provider_ref)).state == "paused"
+    # The owner, who paused it, resumes it explicitly.
+    resumed = await sandbox.aresume(handle)
+    assert resumed.provider_ref == handle.provider_ref and resumed.state == "running"
+    assert [call[0][1] for call in sandbox.calls if call[0][1] in ("pause", "unpause", "create")] == [
+        "create",
+        "pause",
+        "unpause",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_resume_is_explicit_and_only_from_paused():
+    sandbox = FakeDocker()
+    handle = await sandbox.acreate("session")
+    assert (await sandbox.aresume(handle)).state == "running"  # already running: no-op
+    await sandbox.apause(handle)
+    assert (await sandbox.aresume(handle)).state == "running"
+    await sandbox.astop(handle)
+    with pytest.raises(SandboxError, match="not paused; recovery requires a new generation"):
+        await sandbox.aresume(handle)
+    with pytest.raises(SandboxError, match="Only a running sandbox"):
+        await sandbox.apause(handle)
+
+
+@pytest.mark.asyncio
+async def test_stop_and_destroy_still_take_the_cold_path_from_paused():
+    sandbox = FakeDocker()
+    handle = await sandbox.acreate("session")
+    await sandbox.apause(handle)
+    await sandbox.astop(handle)
+    assert (await sandbox.aget(handle.provider_ref)).state == "exited"
+    with pytest.raises(SandboxError, match="not running; recovery requires a new generation"):
+        await sandbox.acreate("session")
+    await sandbox.adestroy(handle)
+    assert await sandbox.aget(handle.provider_ref) is None
+
+
+@pytest.mark.asyncio
+async def test_providers_without_a_native_pause_say_so():
+    from agno.sandbox.base import Sandbox
+
+    class ColdOnly(Sandbox):
+        async def acreate(self, session_id, *, agent_id=None, generation=1, env=None):
+            raise NotImplementedError
+
+        async def aget(self, provider_ref):
+            return None
+
+        async def aexec(self, handle, argv, *, timeout=60, max_output_bytes=1_048_576, stdin=b""):
+            raise NotImplementedError
+
+        async def astop(self, handle):
+            pass
+
+        async def adestroy(self, handle):
+            pass
+
+    handle = SandboxHandle("ref", "name", None, "s", 1, "running", "digest")
+    with pytest.raises(NotImplementedError, match="pausing"):
+        await ColdOnly().apause(handle)
+    with pytest.raises(NotImplementedError, match="resuming"):
+        await ColdOnly().aresume(handle)

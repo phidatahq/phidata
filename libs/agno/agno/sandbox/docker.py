@@ -243,6 +243,10 @@ class DockerSandbox(Sandbox):
                 raise SandboxError("Docker creation failed: " + err.decode(errors="replace")[:500])
         if current.config_digest != digest:
             raise SandboxError("Sandbox generation already exists with different configuration")
+        if current.state == "paused":
+            # Only the owner knows whether this is a warm pause or a restore that died halfway,
+            # so create never revives it: the owner calls resume, anyone else destroys.
+            raise SandboxError("Sandbox generation is paused; resume it or destroy it")
         if current.state == "created":
             code, _, err = await self._docker("container", "start", current.provider_ref)
             current = await self.aget(current.provider_ref)
@@ -263,6 +267,8 @@ class DockerSandbox(Sandbox):
         if not math.isfinite(timeout) or timeout <= 0 or not 1 <= max_output_bytes <= 4 * 1024 * 1024:
             raise ValueError("Timeout must be positive and output limit must be between 1 byte and 4 MiB")
         current = await self._owned(handle)
+        if current is not None and current.state == "paused":
+            raise SandboxError("Sandbox is paused; resume it before running commands")
         if current is None or current.state != "running":
             raise SandboxError("Sandbox is not running")
         request = json.dumps({"argv": list(argv), "timeout": timeout, "max_output_bytes": max_output_bytes}).encode()
@@ -295,6 +301,29 @@ class DockerSandbox(Sandbox):
         except (TypeError, ValueError) as error:
             await self.astop(handle)
             raise SandboxError("Sandbox returned an invalid command result") from error
+
+    async def apause(self, handle: SandboxHandle) -> None:
+        current = await self._owned(handle)
+        if current is not None and current.state == "paused":
+            return
+        if current is None or current.state != "running":
+            raise SandboxError("Only a running sandbox can be paused")
+        # The cgroup freezer keeps memory, processes and tmpfs exactly as they are.
+        code, _, err = await self._docker("container", "pause", handle.provider_ref, timeout=15)
+        if code:
+            raise SandboxError("Docker pause failed: " + err.decode(errors="replace")[:500])
+
+    async def aresume(self, handle: SandboxHandle) -> SandboxHandle:
+        current = await self._owned(handle)
+        if current is not None and current.state == "running":
+            return current
+        if current is None or current.state != "paused":
+            raise SandboxError("Sandbox is not paused; recovery requires a new generation")
+        code, _, err = await self._docker("container", "unpause", handle.provider_ref, timeout=15)
+        current = await self._owned(handle)
+        if code or current is None or current.state != "running":
+            raise SandboxError("Docker unpause failed: " + err.decode(errors="replace")[:500])
+        return current
 
     async def astop(self, handle: SandboxHandle) -> None:
         current = await self._owned(handle)

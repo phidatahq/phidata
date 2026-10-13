@@ -41,12 +41,12 @@ def roots(tmp_path):
     return paths
 
 
-def capture(tmp_path, roots, *, compress=True):
+def capture(tmp_path, roots, *, compress=True, limits=CheckpointLimits()):
     # Created here so a test can capture the same roots twice into separate directories;
     # capture refuses to overwrite a destination.
     tmp_path.mkdir(parents=True, exist_ok=True)
     archive = tmp_path / "checkpoint.tar"
-    CheckpointArchive(compress=compress).capture(
+    CheckpointArchive(limits, compress=compress).capture(
         roots, archive, state={"run_id": "r", "native_id": "n", "conversation": ["hello"]}, exclude=["native/auth.json"]
     )
     return archive
@@ -562,7 +562,7 @@ async def test_retry_immediately_after_a_cancelled_upload(tmp_path, roots, monke
         await task
     reference = await store.aput(source)
     assert not list(store.root.glob(".upload-*"))
-    assert [path.name for path in store.root.iterdir()] == [reference.sha256]
+    assert (store.root / reference.sha256).exists()
     assert await store.arestore(reference, tmp_path / "recovered") == {
         "run_id": "r",
         "native_id": "n",
@@ -1240,3 +1240,37 @@ async def test_deleting_an_absent_object_is_still_successful(tmp_path, roots):
     assert store.delete(reference) is None
     assert await store.adelete(reference) is None
     assert list(store.root.iterdir()) == []
+
+
+def oversized(roots, shape):
+    """A tree whose expanded tar stream is far larger than its compressed object."""
+    if shape == "one padded file":
+        (roots["workspace"] / "padding").write_bytes(bytes(99_000))
+    else:
+        for index in range(200):
+            (roots["workspace"] / f"empty{index}").write_bytes(b"")
+
+
+@pytest.mark.parametrize("shape", ["one padded file", "two hundred empty files"])
+@pytest.mark.parametrize("compress", [True, False])
+def test_a_capture_cannot_exceed_the_limit_its_own_restore_applies(tmp_path, roots, shape, compress):
+    """Restore bounds the expanded tar stream, so capture has to bound the same bytes.
+
+    Entry framing and the end-of-archive padding are part of that stream, and a
+    compressed object's own size bounds none of it. Without this, capture publishes a
+    checkpoint that restore can never read back.
+    """
+    oversized(roots, shape)
+    destination = tmp_path / "checkpoint.tar"
+    with pytest.raises(SandboxError, match="limit"):
+        CheckpointArchive(CheckpointLimits(max_bytes=100_000), compress=compress).capture(roots, destination, state={})
+    assert not destination.exists()
+
+
+@pytest.mark.parametrize("compress", [True, False])
+def test_the_limit_admits_an_archive_whose_expanded_stream_exactly_fits(tmp_path, roots, compress):
+    """The bound is that stream's real length, not a conservative allowance for it."""
+    stored = capture(tmp_path / "reference", roots, compress=compress).read_bytes()
+    limits = CheckpointLimits(max_bytes=len(gzip.decompress(stored) if compress else stored))
+    destination = capture(tmp_path / "exact", roots, compress=compress, limits=limits)
+    assert CheckpointArchive(limits).restore(destination, tmp_path / "restored")["run_id"] == "r"

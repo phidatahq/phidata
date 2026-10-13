@@ -414,11 +414,18 @@ class CheckpointArchive:
                                 raise SandboxError("Workspace changed during checkpoint capture")
                     else:
                         raise SandboxError("Checkpoint contains an unsupported file type")
-                    if output.tell() > self.limits.max_bytes:
+                    if sink.tell() > self.limits.max_bytes:
                         raise SandboxError("Checkpoint archive exceeds its limit")
 
                 for name in sorted(_ROOTS):
                     add(root_paths[name], name)
+                # Closed here, not by the block, because only an open encoder reports the
+                # expanded length and the end-of-archive marker has to be in it first.
+                archive.close()
+                if sink.tell() > self.limits.max_bytes:
+                    raise SandboxError("Checkpoint archive exceeds its limit")
+            # Restore bounds the stored bytes too, and compression is not guaranteed to
+            # shrink what it wraps.
             if destination.stat().st_size > self.limits.max_bytes:
                 raise SandboxError("Checkpoint archive exceeds its limit")
         except BaseException:

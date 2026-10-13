@@ -10,7 +10,7 @@ import secrets
 import tempfile
 from contextlib import suppress
 from pathlib import Path
-from typing import Any, Dict, Mapping, Optional, Sequence
+from typing import Any, Dict, List, Mapping, Optional, Sequence
 
 from agno.sandbox.base import ExecResult, Sandbox, SandboxError, SandboxHandle, _identity
 
@@ -165,6 +165,24 @@ class DockerSandbox(Sandbox):
                 task.cancel()
             await asyncio.gather(*tasks, return_exceptions=True)
             raise
+
+    async def alist(self) -> List[SandboxHandle]:
+        """Every container of this namespace the daemon knows, running or not.
+
+        Discovery for relays and reapers. Identity comes from the daemon's labels, so a
+        container cannot claim to be another session's.
+        """
+        code, out, err = await self._docker(
+            "container", "ls", "--all", "--quiet", "--no-trunc", "--filter", f"label={_LABEL}namespace={self.namespace}"
+        )
+        if code:
+            raise SandboxError("Docker listing failed: " + err.decode(errors="replace")[:500])
+        handles = []
+        for provider_ref in out.decode().split():
+            handle = await self.aget(provider_ref)
+            if handle is not None:
+                handles.append(handle)
+        return handles
 
     async def aget(self, provider_ref: str) -> Optional[SandboxHandle]:
         if not provider_ref or provider_ref.startswith("-") or "\x00" in provider_ref:
@@ -328,7 +346,7 @@ class DockerSandbox(Sandbox):
             if self.runtime_port is not None:
                 # Published on runtime_host only; loopback by default, so only this host reaches it.
                 args.extend(["--publish", f"{self.runtime_host}::{self.runtime_port}"])
-                args.extend(["--entrypoint", "python", self.image, "-I", "-m", "agno.sandbox.runtime", "serve"])
+                args.extend(["--entrypoint", "python", self.image, "-I", "-m", "agno.sandbox.runtime", "supervise"])
                 args.extend(["--port", str(self.runtime_port)])
             else:
                 args.extend(["--entrypoint", "python", self.image, "-I", "-c", "import time; time.sleep(2147483647)"])

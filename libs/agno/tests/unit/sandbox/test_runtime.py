@@ -331,7 +331,8 @@ def test_server_health_start_and_poll_match_the_stdin_protocol(runtime_server):
     import httpx
 
     url, root, calls, request_data = runtime_server
-    assert httpx.get(url + "/health").json() == {"version": 1, "ok": True}
+    health = httpx.get(url + "/health").json()
+    assert (health["version"], health["ok"], health["executions"]) == (1, True, [])
     accepted = httpx.post(url + "/start", json=request_data)
     assert accepted.status_code == 200 and accepted.json()["accepted"] is True
     # The same request again attaches; a different one is refused with a conflict.
@@ -439,3 +440,76 @@ async def test_client_long_poll_does_not_sleep_between_pages():
     }
     assert (await pages.__anext__()).result["error"] == "done"
     assert [request.get("wait") for request in provider.requests[1:]] == [0.2, 0.2]
+
+
+# ---------------------------------------------------------------------------
+# Health lists executions; the supervisor keeps the server a restartable child
+# ---------------------------------------------------------------------------
+
+
+def test_health_lists_executions_with_worker_liveness(runtime_server, monkeypatch):
+    import httpx
+
+    url, root, calls, request_data = runtime_server
+    assert httpx.get(url + "/health").json()["executions"] == []
+    httpx.post(url + "/start", json=request_data)
+    [entry] = httpx.get(url + "/health").json()["executions"]
+    assert (entry["execution_id"], entry["run_id"], entry["session_id"]) == ("e", "r", "s")
+    assert entry["phase"] == "starting" and not entry["finished"] and entry["journal_bytes"] == 0
+    directory = runtime._job(root, "e")
+    runtime._atomic(directory / "status.json", runtime._encode({"phase": "running", "pid": 1, "start": "start"}))
+    runtime._append(directory, {"event": "RunContent", "content": "x"})
+    [entry] = httpx.get(url + "/health").json()["executions"]
+    assert entry["worker_alive"] and entry["journal_bytes"] > 0
+    monkeypatch.setattr(runtime, "_process_start", lambda pid: "gone")
+    [entry] = httpx.get(url + "/health").json()["executions"]
+    assert not entry["worker_alive"]
+
+
+def test_supervisor_restarts_a_crashed_server_and_stops_on_sigterm(monkeypatch):
+    import signal
+    import threading
+
+    spawned = []
+
+    class Child:
+        def __init__(self, code):
+            self.code, self._done, self.terminated = code, threading.Event(), False
+
+        def poll(self):
+            return self.code if self._done.is_set() else None
+
+        def wait(self):
+            self._done.wait()
+            return self.code
+
+        def terminate(self):
+            self.terminated = True
+            self._done.set()
+
+    plan = [Child(1), Child(0)]  # the first server crashes at once; the second runs until stopped
+
+    def popen(args, **kwargs):
+        assert args[-3:] == ["serve", "--port", "8765"]
+        child = plan[len(spawned)]
+        spawned.append(child)
+        if child.code == 1:
+            child._done.set()
+        return child
+
+    handlers = {}
+    monkeypatch.setattr(runtime.subprocess, "Popen", popen)
+    monkeypatch.setattr(signal, "signal", lambda s, h: handlers.__setitem__(s, h))
+    sleeps = []
+    monkeypatch.setattr(runtime.time, "sleep", lambda s: sleeps.append(s))
+
+    def stop_soon():
+        while len(spawned) < 2:
+            pass
+        handlers[signal.SIGTERM](signal.SIGTERM, None)
+
+    threading.Thread(target=stop_soon, daemon=True).start()
+    runtime._supervise(8765)
+    assert len(spawned) == 2, "the crashed server was restarted once, then the stop signal ended the loop"
+    assert sleeps == [0.4], "a crash backs off before the restart"
+    assert spawned[1].terminated, "SIGTERM terminates the running server child"

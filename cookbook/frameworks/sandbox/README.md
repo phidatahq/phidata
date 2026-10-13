@@ -58,6 +58,68 @@ The example runs the same concurrent fixture turns three ways and prints request
 
 Every container gets its own bearer token, generated at create, delivered through the private env file and read back onto the handle as `runtime_token`, so any replica holding the handle can talk to the server and nothing else can. The port is published on `runtime_host`, `127.0.0.1` by default, which only this host's replicas reach. With one Docker daemon shared by replicas on several hosts, set `runtime_host` to the daemon host's address those replicas can reach; it is part of the generation's configuration, so every replica must use the same value. The agent inside the container can read its own token, but it can already write the journal directly, so the server gives it no new capability. Hosted providers implement `rpc` against the same server and the same token through whatever port exposure they offer.
 
+## AgentOS as the host: the whole thing working together
+
+```bash
+docker run -d -p 6379:6379 redis
+./cookbook/scripts/run_pgvector.sh
+export ANTHROPIC_API_KEY=...   # or CLAUDE_CODE_OAUTH_TOKEN
+.venv/bin/python cookbook/frameworks/sandbox/agentos_sandbox.py
+
+curl -N -X POST http://localhost:7777/agents/coder/runs \
+  -F message='Create hello.py that prints hello, run it, reply with only the output' \
+  -F session_id=demo -F stream=true
+```
+
+`agentos_sandbox.py` is the user-facing shape, reduced to what exists on this branch. On the host there is an AgentOS app with Postgres, Redis and one agent, `SandboxedClaude`, declared like any other agent with a `DockerSandbox` provider, a `runtime_config` for Claude Code and the model credential to forward. The user curls `/agents/coder/runs`, or chats from the AgentOS frontend pointed at this server, and gets the normal SSE stream. The run row lands in Postgres with `metadata.sdk = "sandbox"`. A second turn on the same session resumes the paused container and Claude remembers the first.
+
+Inside the adapter a turn is: find or create the session's container (resume if paused, a new generation if gone), `start` the turn through the runtime client with the run id as the execution id so a retry attaches instead of re-running, deliver the events, take the result, pause the container. The finished `SandboxAgent` adds the lease table, checkpoint restore and the durable queue.
+
+## The relay
+
+The runtime writes a turn's events to its journal and serves them; something outside has to read them. The worker that started the turn can, but a worker can be absent: restarted in a deploy, scaled away, or dead. While nobody reads, the events wait safely in the journal, but nothing reaches Redis, so SSE, `/resume` and dashboards show nothing. `SandboxRelay` is a reader that is always there.
+
+It runs where the service credentials may live, outside every sandbox: inside the AgentOS process, started by the app lifespan, one per replica, as `agentos_sandbox.py` does; or as its own process beside the sandboxes with `python -m agno.sandbox.relay`, which is the shape for production, since an API deploy then never interrupts delivery. It lists the namespace's sandboxes through the provider (`alist`), reads each one's `/health` for running executions (`ahealth`), long-polls every execution from the cursor it last committed, and hands each page to `EventStreamRelaySink`. The sink writes the events into the AgentOS event stream under the run id, the same Redis-backed, indexed stream SSE and `/resume` already read, and commits the journal cursor and the execution result together in `RelayState` (Redis keys under `agno:os:sandbox:`). A relay restart resumes exactly: nothing repeated, nothing skipped. Identity on every page comes from the provider's view of the container, never from the journal. The relay never completes a run; completion is the coordinator's decision after the checkpoint commit.
+
+With a relay, the adapter serves a turn from the event stream instead of polling the container, so the relay is the container's only reader. `SANDBOX_EVENTS_FROM=container` restores direct polling for comparison.
+
+```bash
+.venv/bin/python cookbook/frameworks/sandbox/sandbox_takeover.py
+```
+
+The takeover example starts AgentOS A, sends a turn whose Claude call runs `sleep 12`, kills A with `SIGKILL` while Claude is inside it, and starts AgentOS B in the same namespace. B's relay resumes from the cursor A committed. The caller reconnects the way a frontend does, `POST /resume` on B with the last index it saw, and receives the events A relayed, the events B relayed, then the result. The run row in Postgres is not completed, because A died before committing and this branch has no coordinator; in the finished stack the queue redelivers the ticket and the next worker reads the result from the event stream and commits.
+
+```bash
+.venv/bin/python cookbook/frameworks/sandbox/sandbox_watch.py
+```
+
+The watcher prints container state changes and every event the relay writes, live, for a namespace; run it beside the server while chatting from the frontend.
+
+## Process model inside the container, and health
+
+With `runtime_port` set, the container's main process is a supervisor (`python -m agno.sandbox.runtime supervise`) under Docker's init. It runs the HTTP server as a child and restarts it with backoff if it exits. The server is the least important process in the container and the turn's worker the most: workers run detached, so a server crash does not touch them, and the host sees at most a short gap that the cursor-based reconnect absorbs. `SIGTERM`, which Docker sends on `stop`, ends the server and the supervisor; Docker then ends whatever else runs.
+
+`GET /health` reports the server is up and lists the container's executions: id, run id, session id, phase, whether the worker process is alive, whether a result is written, and the journal size. `Sandbox.ahealth(handle)` reads it with the handle's token; `Sandbox.alist()` enumerates a namespace from the daemon's labels.
+
+## Behaviour when a part is missing
+
+What each component does when something it depends on is absent. Items marked *decide* are choices still open.
+
+| Missing or failed | What happens today | Decide |
+|---|---|---|
+| Runtime server crashes mid-turn | Supervisor restarts it with backoff (0.2 s doubling to 5 s). Worker and journal untouched. Host requests fail until it is back; readers resume from their cursor. Verified live. | Alert after N restarts in a window. |
+| Worker (the turn) dies | `poll` and `/health` report it: pid or start time no longer match, `execution_unknown` with no result. | Coordinator fails the turn without re-running the model. |
+| Container dies | `inspect` shows exited or gone; `create` on the generation is refused. Turn lost; session recovers into a new generation from the last checkpoint. | None. |
+| Host loses the Docker daemon | Every call errors, including `inspect`. Nothing is known about compute. | Coordinator must back off and retry, never treat as a dead container. |
+| No AgentOS worker reading | Events wait in the journal; the result waits. With a relay, events and result are already in the event stream; a redelivered ticket finds the result. Without one, the next worker polls from its cursor. | Persist the poll cursor in the lease so a redelivered ticket does not replay from zero. |
+| Relay (or its AgentOS process) dies | Nothing lost: journal keeps the bytes, state keeps the last committed cursor. Other replicas' relays continue; a single replica resumes on restart. | Run the relay as its own process so API deploys never pause delivery. |
+| Redis down | Relay keeps the cursor where it was and retries; pages are relayed again later, never skipped. Events, cursor and result are written together. | None. |
+| Sandbox without a runtime server | `rpc` falls back to exec: works, costs a process per request, stops compute on control failure until #10980's semantics are merged into the fallback. Relay skips it. | Whether exec-only sandboxes are supported in production. |
+| No token on the server | Server accepts every reachable caller and warns on stderr. The Docker provider always generates one. | Refuse to start without a token unless bound to loopback. |
+| Token refused | 401; `rpc` returns a failed result, `ahealth` raises, relay logs and leaves the sandbox alone. Compute is never touched. | None. |
+| Timed-out poll | Raises and leaves compute alone on the HTTP path. | Same on the exec fallback once #10980 lands; pause, if ever, belongs to the coordinator. |
+| Two sandboxes on one bridge network | A can reach B's port; the token stops it using it. | ICC-disabled network or one network per session. |
+
 ## Boundaries
 
 - The image, Docker daemon and its administrator are trusted. This is not a hostile multitenant isolation service.

@@ -407,7 +407,7 @@ async def test_runtime_port_publishes_on_loopback_and_serves_the_runtime():
         "-I",
         "-m",
         "agno.sandbox.runtime",
-        "serve",
+        "supervise",
     ]
     assert "--label" in args and "io.agno.sandbox.runtime=8765" in args
     assert handle.runtime_url == "http://127.0.0.1:49152"
@@ -523,3 +523,25 @@ async def test_create_fails_when_the_runtime_server_never_answers(monkeypatch):
     provider.http_error = httpx.ConnectError("not up")
     with pytest.raises(SandboxError, match="did not become ready"):
         await provider.acreate("session")
+
+
+@pytest.mark.asyncio
+async def test_list_enumerates_the_namespace_from_daemon_labels():
+    provider = ServedDocker()
+    handle = await provider.acreate("session", agent_id="coder")
+    original = provider._docker
+
+    async def docker(*args, **kwargs):
+        if args[:2] == ("container", "ls"):
+            assert f"label=io.agno.sandbox.namespace={provider.namespace}" in args
+            return 0, (handle.provider_ref + "\n").encode(), b""
+        return await original(*args, **kwargs)
+
+    provider._docker = docker  # type: ignore[method-assign]
+    [listed] = await provider.alist()
+    assert (listed.provider_ref, listed.session_id, listed.runtime_url, listed.runtime_token) == (
+        handle.provider_ref,
+        "session",
+        handle.runtime_url,
+        handle.runtime_token,
+    )

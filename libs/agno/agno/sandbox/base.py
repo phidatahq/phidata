@@ -5,7 +5,7 @@ import json
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
-from typing import Any, Coroutine, Dict, Mapping, Optional, Sequence
+from typing import Any, Coroutine, Dict, List, Mapping, Optional, Sequence
 
 
 class SandboxError(RuntimeError):
@@ -166,6 +166,43 @@ class Sandbox(ABC):
 
     def rpc(self, handle: SandboxHandle, operation: str, payload: bytes) -> ExecResult:
         return _sync(self.arpc(handle, operation, payload))
+
+    async def alist(self) -> List[SandboxHandle]:
+        """Every sandbox of this provider's namespace, for relays and reapers. Providers that
+        cannot enumerate their sandboxes say so; a relay then has to be told what to watch."""
+        raise NotImplementedError("This provider does not enumerate its sandboxes")
+
+    def list(self) -> List[SandboxHandle]:
+        return _sync(self.alist())
+
+    async def ahealth(self, handle: SandboxHandle) -> Dict[str, Any]:
+        """The runtime's health: whether its server answers and which executions it holds.
+
+        Reads the server over ``runtime_url`` with the handle's token. A sandbox without a
+        server has no health to read. A refused token or an unreachable server raises
+        SandboxError; neither is a verdict on the sandbox, only on this read.
+        """
+        if handle.runtime_url is None:
+            raise NotImplementedError("This sandbox has no runtime server to read health from")
+        import httpx
+
+        headers = {"Authorization": "Bearer " + handle.runtime_token} if handle.runtime_token else {}
+        try:
+            async with httpx.AsyncClient(timeout=2.0) as client:
+                response = await client.get(handle.runtime_url + "/health", headers=headers)
+        except httpx.HTTPError as error:
+            raise SandboxError(f"Sandbox runtime health failed: {type(error).__name__}: {error}") from error
+        if response.status_code == 401:
+            raise SandboxError("Sandbox runtime refused the token")
+        if response.status_code != 200:
+            raise SandboxError(f"Sandbox runtime health answered {response.status_code}")
+        body = response.json()
+        if not isinstance(body, dict):
+            raise SandboxError("Sandbox runtime health is not a JSON object")
+        return body
+
+    def health(self, handle: SandboxHandle) -> Dict[str, Any]:
+        return _sync(self.ahealth(handle))
 
     async def apause(self, handle: SandboxHandle) -> None:
         """Freeze a running sandbox, keeping its files, memory and processes.

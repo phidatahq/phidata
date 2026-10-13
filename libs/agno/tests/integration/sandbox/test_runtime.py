@@ -185,3 +185,73 @@ async def test_http_transport_refuses_requests_without_the_containers_token(runt
             computer.runtime_url + "/health", headers={"Authorization": "Bearer " + computer.runtime_token}
         )
         assert owner.status_code == 200
+
+
+_KILL_SERVER = (
+    "import os, signal\n"
+    "for pid in os.listdir('/proc'):\n"
+    "    if not pid.isdigit() or int(pid) == os.getpid():\n"
+    "        continue\n"
+    "    try:\n"
+    "        cmd = open(f'/proc/{pid}/cmdline', 'rb').read().replace(b'\\0', b' ')\n"
+    "    except OSError:\n"
+    "        continue\n"
+    "    if b'agno.sandbox.runtime serve' in cmd:\n"
+    "        os.kill(int(pid), signal.SIGKILL)\n"
+    "        print(pid)\n"
+)
+
+
+async def test_server_crash_mid_turn_is_survived_by_the_turn_and_healed_by_the_supervisor(runtime_computer):
+    import asyncio
+
+    provider, computer, client = runtime_computer
+    if computer.runtime_url is None:
+        pytest.skip("exec transport")
+    execution = await client.astart(
+        computer, execution_id="crash", run_id="r", sdk="fixture", input="still here", config={"delay": 3.0}
+    )
+    killed = await provider.aexec(computer, ["python", "-c", _KILL_SERVER])
+    assert killed.exit_code == 0 and killed.stdout.strip(), "the server process was found and killed"
+    for _ in range(50):
+        try:
+            health = await provider.ahealth(computer)
+            break
+        except Exception:
+            await asyncio.sleep(0.1)
+    else:
+        pytest.fail("the runtime server did not come back")
+    [running] = [e for e in health["executions"] if e["execution_id"] == "crash"]
+    assert running["worker_alive"] and not running["finished"], "the worker kept running through the server crash"
+    result = await client.await_result(execution, timeout=20)
+    assert result["type"] == "execution_finished" and result["run"]["content"] == "still here"
+    assert (await provider.aexec(computer, ["cat", "fixture-effects.txt"])).stdout == "r\n", "ran exactly once"
+
+
+async def test_relay_delivers_a_turn_into_the_event_stream_with_nobody_polling(runtime_computer):
+    from agno.os.event_streams.in_memory import InMemoryEventStream
+    from agno.sandbox.relay import EventStreamRelaySink, MemoryRelayState, SandboxRelay
+
+    provider, computer, client = runtime_computer
+    if computer.runtime_url is None:
+        pytest.skip("exec transport")
+    stream, state = InMemoryEventStream(), MemoryRelayState()
+    relay = SandboxRelay(provider, EventStreamRelaySink(state, event_stream=stream), sweep_interval=0.2)
+    await client.astart(
+        computer, execution_id="relayed", run_id="run-x", sdk="fixture", input="hi", config={"delay": 1.0}
+    )
+    stop = __import__("asyncio").Event()
+    task = __import__("asyncio").create_task(relay.arun(stop=stop))
+    try:
+        for _ in range(100):
+            if await state.aget_result(computer.session_id, "relayed") is not None:
+                break
+            await __import__("asyncio").sleep(0.1)
+        else:
+            pytest.fail("the relay never delivered the result")
+    finally:
+        stop.set()
+        await task
+    assert [event.content for _, event in await stream.replay("run-x")] == ["hi"]
+    assert (await state.aget_result(computer.session_id, "relayed"))["run"]["content"] == "hi"
+    assert await state.aget_cursor(computer.session_id, "relayed") > 0

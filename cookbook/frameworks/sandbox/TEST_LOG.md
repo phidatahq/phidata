@@ -98,3 +98,13 @@ No model calls in the load run. Requests and daemon calls per turn are what scal
 
 ---
 
+### Relay, supervisor, health listing, AgentOS host and takeover
+
+**Status:** PASS
+
+**Description:** `SandboxRelay` follows every execution of a namespace (provider `alist` and `ahealth`, long-poll per execution) and writes pages through `EventStreamRelaySink` into the AgentOS event stream, committing the journal cursor and the result in `RelayState` (memory or Redis). The runtime's `/health` lists executions with worker liveness; the container's main process is a supervisor that restarts the server and ends on SIGTERM. `agentos_sandbox.py` registers a `SandboxedClaude` external agent on a real AgentOS with Postgres and Redis, runs the relay in the app lifespan, and serves turns from the event stream. `sandbox_takeover.py` kills AgentOS mid-turn and reads the turn back through a second AgentOS's `/resume`.
+
+**Result:** 121 sandbox unit tests passed: relay discovery into the event stream with indices and the run registered but never completed, resume from the committed cursor after a failed poll, skipping sandboxes without a server or paused, tolerating a refused token, stopping on signal, unknown event types skipped; health listing with worker liveness; supervisor restart with backoff and SIGTERM. Runtime integration over both transports: 18 passed, 4 exec-only skips, including the server killed mid-turn with the worker surviving and the turn finishing once, and a fixture turn relayed into an in-memory event stream with nobody polling. Takeover live: A relayed indices 0 and 1 (cursor 990) and was killed at 6.3 s; B up at 9.9 s; `/resume` on B replayed 0 and 1 and delivered 2 (ToolCallCompleted, 18.3 s) and 3 (RunContent "done", 19.8 s) live; relay state cursor 2007, result `execution_finished`. One model call. Earlier hangs were a stale AgentOS holding port 7802 from a previous run; the driver now reconnects to `/resume` in short rounds with the last index seen, as a frontend does.
+
+---
+

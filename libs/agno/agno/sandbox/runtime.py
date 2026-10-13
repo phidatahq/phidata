@@ -298,6 +298,38 @@ def _poll(root: Path, execution_id: str, cursor: int) -> Dict[str, Any]:
     return {"version": _VERSION, "execution_id": execution_id, "cursor": cursor, "frames": frames, "result": result}
 
 
+def _executions(root: Path) -> list:
+    """What this computer is running or has finished, for health checks and relays.
+
+    One entry per journaled execution: its id, run and session ids, phase, whether the
+    worker process is alive, whether a result is written, and the journal size.
+    """
+    entries: list = []
+    jobs = root / "jobs"
+    if not jobs.is_dir():
+        return entries
+    for directory in sorted(jobs.iterdir()):
+        try:
+            request = json.loads((directory / "request.json").read_bytes())
+            status = json.loads((directory / "status.json").read_bytes())
+        except (OSError, ValueError):
+            continue
+        alive = status.get("phase") == "running" and _process_start(status.get("pid", -1)) == status.get("start")
+        journal = directory / "events.jsonl"
+        entries.append(
+            {
+                "execution_id": request.get("execution_id"),
+                "run_id": request.get("run_id"),
+                "session_id": request.get("session_id"),
+                "phase": status.get("phase"),
+                "worker_alive": bool(alive),
+                "finished": (directory / "result.json").exists(),
+                "journal_bytes": journal.stat().st_size if journal.exists() else 0,
+            }
+        )
+    return entries
+
+
 _MAX_WAIT = 30.0
 
 
@@ -368,7 +400,7 @@ def _serve(root: Path, port: int, token: Optional[str] = None) -> Any:
             if not self._authorized():
                 return
             if self.path == "/health":
-                self._reply(200, {"version": _VERSION, "ok": True})
+                self._reply(200, {"version": _VERSION, "ok": True, "executions": _executions(root)})
             else:
                 self._reply(404, {"error": "Unknown runtime operation"})
 
@@ -411,15 +443,54 @@ def _serve(root: Path, port: int, token: Optional[str] = None) -> Any:
     return Server(("0.0.0.0", port), Handler)
 
 
+def _supervise(port: int) -> None:
+    """Keep the runtime server alive as a child; the container's main process.
+
+    The server is the least important process in the container and the turn's worker the
+    most. If the server were the main process, its crash would stop the container and kill
+    the turn. As a child of this loop it is restarted with backoff, workers are untouched
+    (they run detached, reparented to init), and the host sees a short gap that the
+    cursor-based reconnect absorbs. SIGTERM, which Docker sends on stop, ends the server
+    and this loop; Docker then ends whatever else is running.
+    """
+    import signal
+
+    stopping = False
+    child: Optional[subprocess.Popen[bytes]] = None
+
+    def stop(signum: int, frame: Any) -> None:
+        nonlocal stopping
+        stopping = True
+        if child is not None and child.poll() is None:
+            child.terminate()
+
+    signal.signal(signal.SIGTERM, stop)
+    signal.signal(signal.SIGINT, stop)
+    delay = 0.2
+    while not stopping:
+        started = time.monotonic()
+        child = subprocess.Popen([sys.executable, "-I", "-m", "agno.sandbox.runtime", "serve", "--port", str(port)])
+        code = child.wait()
+        if stopping:
+            break
+        # A server that ran for a while gets a fresh backoff; a crash loop backs off up to 5 s.
+        delay = 0.2 if time.monotonic() - started > 10 else min(delay * 2, 5.0)
+        print(f"sandbox runtime server exited with {code}; restarting in {delay:.1f}s", file=sys.stderr, flush=True)
+        time.sleep(delay)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Sandbox runtime protocol")
-    parser.add_argument("operation", choices=("start", "poll", "worker", "serve"))
+    parser.add_argument("operation", choices=("start", "poll", "worker", "serve", "supervise"))
     parser.add_argument("directory", nargs="?")
     parser.add_argument("--port", type=int, default=int(os.environ.get("AGNO_SANDBOX_RUNTIME_PORT", "8765")))
     args = parser.parse_args()
     root = Path(os.environ.get("AGNO_SANDBOX_RUNTIME_DIR", "/runtime"))
     if args.operation == "worker":
         _worker(Path(args.directory))
+        return
+    if args.operation == "supervise":
+        _supervise(args.port)
         return
     if args.operation == "serve":
         # The token comes from the environment, never the command line, so it stays out of ps.

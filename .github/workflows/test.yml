@@ -212,13 +212,61 @@ jobs:
           # run against the service above instead of importorskip-ing away.
           uv pip install pytest-split "psycopg[binary]" --quiet
           python -m pytest --splits 5 --group ${{ matrix.group }} ./libs/agno/tests/unit --ignore=libs/agno/tests/unit/models/litellm --ignore=libs/agno/tests/unit/tools/test_crawl4ai.py --ignore=libs/agno/tests/unit/tools/test_scrapegraph.py
-      # The queue stores' claim and enqueue paths are Postgres SQL; the parity
-      # suite runs its Postgres lanes against the service above on localhost:5532.
+
+  queue-store-parity:
+    runs-on: ubuntu-latest
+    # Skip push events if there's an open PR from the same branch
+    if: github.event_name != 'push' || !github.event.pull_request
+    name: queue store parity
+
+    # The parity suite runs every queue store scenario against real Postgres and
+    # real Redis (fakeredis's WATCH semantics have diverged before); its lanes skip
+    # when nothing listens on 5532 or 6379.
+    services:
+      postgres:
+        image: agnohq/pgvector:18
+        env:
+          POSTGRES_DB: ai
+          POSTGRES_USER: ai
+          POSTGRES_PASSWORD: ai
+        ports:
+          - "5532:5432"
+        options: >-
+          --health-cmd "pg_isready -U ai -d ai"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7
+        ports:
+          - "6379:6379"
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.12"
+      - name: Set up uv with cache
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: "libs/agno/pyproject.toml"
+      - name: Run test setup
+        working-directory: .
+        run: |
+          set -e
+          ./scripts/test_setup.sh
       - name: Run queue store parity tests
-        if: matrix.group == 1
         working-directory: .
         env:
           AGNO_TELEMETRY: false
         run: |
           source .venv/bin/activate
+          uv pip install "psycopg[binary]" --quiet
           python -m pytest -rs libs/agno/tests/integration/db/test_queue_store_parity.py

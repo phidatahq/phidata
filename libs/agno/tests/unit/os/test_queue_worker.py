@@ -3,6 +3,7 @@
 import asyncio
 from types import SimpleNamespace
 from typing import Any, Optional
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -2441,6 +2442,45 @@ class TestLocalWake:
         await worker.stop()
         worker.wake()  # after stop: must not raise or resurrect the loop
         assert worker._task is None
+
+    @pytest.mark.asyncio
+    async def test_wake_off_the_loop_is_dispatched_threadsafe(self):
+        """asyncio.Event.set() is not thread-safe: a wake from another thread
+        must hop onto the worker's loop instead of touching the event."""
+        worker = make_worker(InMemoryQueueStore(), FakeAgent(), make_config(poll_interval=5.0))
+        worker._running = True
+        worker._wake = asyncio.Event()
+        worker._loop = MagicMock()
+        await asyncio.to_thread(worker.wake)
+        worker._loop.call_soon_threadsafe.assert_called_once_with(worker._wake.set)
+        assert not worker._wake.is_set()
+
+    @pytest.mark.asyncio
+    async def test_wake_on_the_loop_sets_the_event_directly(self):
+        worker = make_worker(InMemoryQueueStore(), FakeAgent(), make_config(poll_interval=5.0))
+        worker._running = True
+        worker._wake = asyncio.Event()
+        worker._loop = asyncio.get_running_loop()
+        worker.wake()
+        assert worker._wake.is_set()
+
+    @pytest.mark.asyncio
+    async def test_finished_run_wakes_a_saturated_worker(self):
+        """At the concurrency cap a wake is consumed by a claim pass that can
+        take nothing; the next finished run must re-wake the loop so the
+        backlog does not wait out the tick."""
+        store, agent = InMemoryQueueStore(), FakeAgent(delay=0.2)
+        worker = make_worker(store, agent, make_config(poll_interval=5.0, max_concurrency=1))
+        await store.enqueue_job(make_job("r1"))
+        await worker.start()
+        try:
+            await asyncio.sleep(0.05)
+            await store.enqueue_job(make_job("r2"))
+            worker.wake()
+            job = await wait_for_status(store, "r2", "completed", timeout=1.5)
+            assert job["status"] == "completed"
+        finally:
+            await worker.stop()
 
 
 class TestWakeQueueWorkerHelper:

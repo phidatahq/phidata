@@ -1,6 +1,6 @@
-"""The accept seams wake the local worker after a ticket commits - and only
-then. Drives the REAL agent router via TestClient with a worker double that
-records wakes; the prepare is monkeypatched at the seam and nothing runs.
+"""The accept seams wake the local worker after the ticket commits and its run
+row is prepared - and only then. Drives the REAL agent router via TestClient
+with a worker double that records wakes; the prepare is monkeypatched at the seam and nothing runs.
 """
 
 from types import SimpleNamespace
@@ -60,3 +60,27 @@ class TestSeamWakes:
         harness.app.state.queue_worker = SimpleNamespace(store=harness.store, config=QueueConfig(durable=True))
         resp = _submit(harness)
         assert resp.status_code == 202, resp.text
+
+    def test_wake_follows_the_run_row_prepare(self, harness, monkeypatch):
+        """A worker woken before the prepare could claim the ticket first, and a
+        failed prepare would then lose its cancel and answer 202 for a run that
+        never got its row."""
+        events: list = []
+
+        async def recording_prepare(component, component_type, run_id, session_id, user_id, input):
+            events.append("prepare")
+
+        monkeypatch.setattr("agno.os.job_queue.aprepare_queued_run", recording_prepare)
+        harness.app.state.queue_worker.wake = lambda: events.append("wake")
+        resp = _submit(harness)
+        assert resp.status_code == 202, resp.text
+        assert events == ["prepare", "wake"]
+
+    def test_failed_prepare_cancels_without_waking(self, harness, monkeypatch):
+        async def failing_prepare(component, component_type, run_id, session_id, user_id, input):
+            raise RuntimeError("db down")
+
+        monkeypatch.setattr("agno.os.job_queue.aprepare_queued_run", failing_prepare)
+        resp = _submit(harness)
+        assert resp.status_code == 500, resp.text
+        assert harness.wakes == []

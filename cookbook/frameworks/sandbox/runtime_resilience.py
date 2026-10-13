@@ -106,7 +106,7 @@ def stream(client: SandboxRuntimeClient, execution, *, kill_after=None, sandbox=
 served = DockerSandbox(
     image=IMAGE,
     namespace="resilience-" + uuid4().hex,
-    network="bridge",
+    network="isolated",
     memory_mb=512,
     runtime_port=8765,
 )
@@ -164,7 +164,8 @@ try:
     say("server healthy again; effects file lists each run once, so nothing was re-run")
 finally:
     served.destroy(computer)
-    say("destroyed the served sandbox")
+    served.remove_network()
+    say("destroyed the served sandbox and its namespace network")
 
 section("3. Exec transport: a lost control reply leaves the container running")
 plain = DockerSandbox(

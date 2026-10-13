@@ -6,15 +6,20 @@ import hashlib
 import json
 import math
 import os
+import re
 import secrets
 import tempfile
 from contextlib import suppress
 from pathlib import Path
 from typing import Any, Dict, Mapping, Optional, Sequence
 
-from agno.sandbox.base import ExecResult, Sandbox, SandboxError, SandboxHandle, _identity
+from agno.sandbox.base import ExecResult, Sandbox, SandboxError, SandboxHandle, _identity, _sync
 
 _LABEL = "io.agno.sandbox."
+# A provider-owned bridge per namespace with inter-container traffic off: sandboxes reach the
+# internet and the host's published ports but not each other.
+_ISOLATED = "isolated"
+_ICC_OPTION = "com.docker.network.bridge.enable_icc"
 # Environment variable carrying the container's runtime bearer token.
 _TOKEN_ENV = "AGNO_SANDBOX_RUNTIME_TOKEN"
 # How long create waits for a freshly started runtime server to answer /health.
@@ -56,7 +61,9 @@ class DockerSandbox(Sandbox):
         if runtime_port is not None and (type(runtime_port) is not int or not 1 <= runtime_port <= 65535):
             raise ValueError("Sandbox runtime port must be between 1 and 65535")
         if runtime_port is not None and network == "none":
-            raise ValueError("The runtime server needs a network to publish its port; use bridge or a managed network")
+            raise ValueError(
+                "The runtime server needs a network to publish its port; use 'isolated', 'bridge' or a managed network"
+            )
         if (
             not isinstance(runtime_host, str)
             or not runtime_host
@@ -81,6 +88,83 @@ class DockerSandbox(Sandbox):
         # every replica can reach. Every request then needs the container's bearer token.
         self.runtime_host = runtime_host
         self._http: Dict[int, Any] = {}
+        self._network_ready = False
+
+    @property
+    def network_name(self) -> str:
+        """The Docker network containers join: the namespace's own bridge for 'isolated'."""
+        if self.network != _ISOLATED:
+            return self.network
+        if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,58}", self.namespace):
+            return "agno-" + self.namespace
+        return "agno-" + hashlib.sha256(self.namespace.encode()).hexdigest()[:40]
+
+    async def _anetwork(self) -> str:
+        """Ensure the namespace's isolated bridge exists and is ours, once per provider.
+
+        The network is shared by every generation in the namespace and is never removed with a
+        container; ``aremove_network`` deletes it on purpose. Creation races with another replica
+        resolve on the deterministic name: exists is success, as long as it carries our label.
+        """
+        name = self.network_name
+        if self.network != _ISOLATED or self._network_ready:
+            return name
+        code, out, _ = await self._docker("network", "inspect", name)
+        if code:
+            code, _, err = await self._docker(
+                "network",
+                "create",
+                "--driver",
+                "bridge",
+                "--opt",
+                _ICC_OPTION + "=false",
+                "--label",
+                _LABEL + "namespace=" + self.namespace,
+                "--label",
+                _LABEL + "network=" + _ISOLATED,
+                name,
+            )
+            if code and b"already exists" not in err:
+                raise SandboxError("Docker network creation failed: " + err.decode(errors="replace")[:500])
+            code, out, err = await self._docker("network", "inspect", name)
+            if code:
+                raise SandboxError("Docker network is missing after creation: " + err.decode(errors="replace")[:500])
+        try:
+            record = json.loads(out)[0]
+        except (ValueError, IndexError, TypeError) as error:
+            raise SandboxError("Docker returned an invalid network record") from error
+        labels = record.get("Labels") or {}
+        if (
+            labels.get(_LABEL + "namespace") != self.namespace
+            or (record.get("Options") or {}).get(_ICC_OPTION) != "false"
+        ):
+            raise SandboxError(
+                f"Docker network {name} exists but is not this namespace's isolated bridge; rename the namespace or remove it"
+            )
+        self._network_ready = True
+        return name
+
+    async def aremove_network(self) -> None:
+        """Remove the namespace's isolated bridge. Fails while any container is still attached."""
+        if self.network != _ISOLATED:
+            return
+        name = self.network_name
+        code, out, _ = await self._docker("network", "inspect", name)
+        if code:
+            return
+        try:
+            labels = json.loads(out)[0].get("Labels") or {}
+        except (ValueError, IndexError, TypeError, AttributeError):
+            labels = {}
+        if labels.get(_LABEL + "namespace") != self.namespace:
+            raise SandboxError(f"Docker network {name} is not this namespace's isolated bridge; refusing to remove it")
+        code, _, err = await self._docker("network", "rm", name)
+        if code and b"not found" not in err and b"No such network" not in err:
+            raise SandboxError("Docker network removal failed: " + err.decode(errors="replace")[:500])
+        self._network_ready = False
+
+    def remove_network(self) -> None:
+        _sync(self.aremove_network())
 
     def _name(self, session_id: str, agent_id: Optional[str], generation: int) -> str:
         identity = json.dumps([self.namespace, agent_id, session_id, generation])
@@ -274,6 +358,7 @@ class DockerSandbox(Sandbox):
         digest = self._digest(session_id, agent_id, generation, values)
         current = await self.aget(name)
         if current is None:
+            network = await self._anetwork()
             labels = {
                 "namespace": self.namespace,
                 "agent": agent_id or "",
@@ -297,7 +382,7 @@ class DockerSandbox(Sandbox):
                 "--security-opt",
                 "no-new-privileges",
                 "--network",
-                self.network,
+                network,
                 "--memory",
                 f"{self.memory_mb}m",
                 "--memory-swap",

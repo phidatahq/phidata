@@ -39,7 +39,7 @@ if not credentials:
 sandbox = DockerSandbox(
     image=os.environ.get("AGNO_SANDBOX_IMAGE", "agno-sandbox:local"),
     namespace="claude-runtime-" + uuid4().hex,
-    network="bridge",
+    network="isolated",
     memory_mb=1024,
     # The container serves the runtime over HTTP on a loopback-published port, so start and
     # poll are pooled requests instead of a docker exec each.
@@ -125,3 +125,5 @@ try:
     print("Turn 2 resumed native session", native_session)
 finally:
     sandbox.destroy(computer)
+    # This example's namespace is throwaway, so remove its network too; a deployment keeps its own.
+    sandbox.remove_network()

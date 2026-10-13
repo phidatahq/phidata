@@ -1,5 +1,6 @@
 import asyncio
 import json
+import re
 import os
 import subprocess
 import sys
@@ -81,10 +82,38 @@ class FakeDocker(DockerSandbox):
         self.calls = []
         self.lose_create_response = False
         self.env_file = None
+        self.networks = {}
+        self.network_create_says_exists = False
 
     async def _docker(self, *args, **kwargs):
         self.calls.append((args, kwargs))
         operation = args[1]
+        if args[0] == "network":
+            name = args[-1]
+            if operation == "inspect":
+                if name not in self.networks:
+                    return 1, b"", b"Error: No such network: " + name.encode()
+                return 0, json.dumps([self.networks[name]]).encode(), b""
+            if operation == "create":
+                if self.network_create_says_exists:
+                    return (
+                        1,
+                        b"",
+                        b"Error response from daemon: network with name " + name.encode() + b" already exists",
+                    )
+                labels, options = {}, {}
+                for i, arg in enumerate(args):
+                    if arg == "--label":
+                        key, value = args[i + 1].split("=", 1)
+                        labels[key] = value
+                    if arg == "--opt":
+                        key, value = args[i + 1].split("=", 1)
+                        options[key] = value
+                self.networks[name] = {"Name": name, "Labels": labels, "Options": options}
+                return 0, name.encode(), b""
+            if operation == "rm":
+                self.networks.pop(name, None)
+                return 0, b"", b""
         if operation == "inspect":
             if self.record is None:
                 return 1, b"", b"No such container"
@@ -548,3 +577,81 @@ async def test_exec_fallback_control_failure_never_stops_compute(failure):
     with pytest.raises(type(failure)):
         await provider.aexec(handle, ["sleep", "1"])
     assert any(call[0][:2] == ("container", "stop") for call in provider.calls)
+
+
+# ---------------------------------------------------------------------------
+# The isolated network: one provider-owned bridge per namespace, inter-container traffic off
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_isolated_network_is_created_once_per_namespace_and_joined():
+    sandbox = FakeDocker(network="isolated")
+    assert sandbox.network_name == "agno-test"
+    first = await sandbox.acreate("s1")
+    await sandbox.adestroy(first)
+    assert "agno-test" in sandbox.networks, "destroying a sandbox keeps the shared network"
+    assert not any(call[0][:2] == ("network", "rm") for call in sandbox.calls)
+    await sandbox.acreate("s2")
+    creates = [call[0] for call in sandbox.calls if call[0][:2] == ("network", "create")]
+    assert len(creates) == 1, "the next sandbox reuses the namespace's network"
+    argv = creates[0]
+    assert argv[argv.index("--opt") + 1] == "com.docker.network.bridge.enable_icc=false"
+    assert "io.agno.sandbox.namespace=test" in argv and argv[-1] == "agno-test"
+    container = [call[0] for call in sandbox.calls if call[0][:2] == ("container", "create")][0]
+    assert container[container.index("--network") + 1] == "agno-test"
+    assert "isolated" not in container, "containers join the real network, not the sentinel"
+
+
+@pytest.mark.asyncio
+async def test_isolated_network_creation_race_and_foreign_network():
+    racing = FakeDocker(network="isolated")
+    racing.network_create_says_exists = True
+    racing.networks["agno-test"] = {
+        "Name": "agno-test",
+        "Labels": {"io.agno.sandbox.namespace": "test"},
+        "Options": {"com.docker.network.bridge.enable_icc": "false"},
+    }
+
+    async def inspect_then_appear(*args, **kwargs):
+        # First inspect misses, create says it exists, the second inspect finds it.
+        if args[:2] == ("network", "inspect") and not any(c[0][:2] == ("network", "create") for c in racing.calls):
+            racing.calls.append((args, kwargs))
+            return 1, b"", b"No such network"
+        return await FakeDocker._docker(racing, *args, **kwargs)
+
+    racing._docker = inspect_then_appear  # type: ignore[method-assign]
+    await racing.acreate("s")
+    assert racing._network_ready
+
+    foreign = FakeDocker(network="isolated")
+    foreign.networks["agno-test"] = {"Name": "agno-test", "Labels": {}, "Options": {}}
+    with pytest.raises(SandboxError, match="not this namespace's isolated bridge"):
+        await foreign.acreate("s")
+    with pytest.raises(SandboxError, match="refusing to remove"):
+        await foreign.aremove_network()
+    assert "agno-test" in foreign.networks
+
+
+@pytest.mark.asyncio
+async def test_remove_network_removes_only_the_namespace_bridge():
+    sandbox = FakeDocker(network="isolated")
+    await sandbox.aremove_network()
+    assert not any(call[0][:2] == ("network", "rm") for call in sandbox.calls), "nothing to remove"
+    handle = await sandbox.acreate("s")
+    await sandbox.adestroy(handle)
+    await sandbox.aremove_network()
+    assert "agno-test" not in sandbox.networks and not sandbox._network_ready
+    plain = FakeDocker(network="bridge")
+    await plain.aremove_network()
+    assert not plain.calls, "an operator-named network is never touched"
+
+
+def test_network_choice_is_part_of_the_configuration_and_names_are_safe():
+    isolated = DockerSandbox("python:test", network="isolated")
+    bridge = DockerSandbox("python:test", network="bridge")
+    assert isolated._digest("s", None, 1, {}) != bridge._digest("s", None, 1, {})
+    odd = DockerSandbox("python:test", namespace="tenant one/with spaces", network="isolated")
+    assert re.fullmatch(r"agno-[0-9a-f]{40}", odd.network_name)
+    with pytest.raises(ValueError, match="'isolated', 'bridge' or a managed network"):
+        DockerSandbox("python:test", runtime_port=8765)

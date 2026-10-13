@@ -118,3 +118,13 @@ No model calls in the load run. Requests and daemon calls per turn are what scal
 **Result:** The turn saw `AGNO_SANDBOX_TEST_RUNTIME` only, no token. After the kill, four polls failed over about 0.4 s while the supervisor restarted the server, then events 3 through 8 arrived from cursor 270 onward; all eight arrived exactly once and the effects file lists each run once. The timed-out control request raised `SandboxError`, the container stayed `running`, and the same turn then streamed its event and finished.
 
 ---
+
+### Isolated network per namespace
+
+**Status:** PASS
+
+**Description:** `network="isolated"` makes the provider create and own one bridge per namespace, `agno-<namespace>`, with `com.docker.network.bridge.enable_icc=false`, labelled with the namespace. Containers join it; `destroy` leaves it; `remove_network` deletes it; a same-named network without the label is refused; a creation race resolves on the name. The harness cookbooks and the HTTP-transport live fixture moved from Docker's default `bridge` to it. README documents the host-services and address-pool caveats.
+
+**Result:** Unit: network created once per namespace and joined by the container, kept on destroy, creation race treated as success, foreign network refused for create and remove, remove touches only the namespace bridge, `isolated` and `bridge` yield distinct digests, unsafe namespaces hash the network name. 122 sandbox unit tests pass. Integration on `agno-sandbox:local`: all runtime cases pass over HTTP on the isolated network; two sandboxes in one namespace cannot open each other's runtime port on `isolated` while the same connection succeeds on `bridge`, and the host still reaches both through loopback. 21 passed, 3 skipped. `runtime_resilience.py` runs end to end on the isolated network and removes it.
+
+---

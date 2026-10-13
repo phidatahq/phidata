@@ -21,7 +21,7 @@ pytestmark = [
 async def runtime_computer(request):
     """Every runtime case runs over both transports: the runtime spawned per request over
     docker exec, and the runtime served over HTTP from a port published on loopback."""
-    options = {"network": "bridge", "runtime_port": 8765} if request.param == "http" else {}
+    options = {"network": "isolated", "runtime_port": 8765} if request.param == "http" else {}
     provider = DockerSandbox(IMAGE, namespace="runtime-test-" + uuid4().hex, memory_mb=512, **options)
     handle = await provider.acreate("s", agent_id="a", env={"AGNO_SANDBOX_TEST_RUNTIME": "1"})
     assert (handle.runtime_url is not None) == (request.param == "http")
@@ -29,6 +29,7 @@ async def runtime_computer(request):
         yield provider, handle, SandboxRuntimeClient(provider)
     finally:
         await provider.adestroy(handle)
+        await provider.aremove_network()
 
 
 async def test_reconnect_and_duplicate_dispatch_execute_only_once(runtime_computer):
@@ -238,3 +239,33 @@ async def test_server_crash_mid_turn_is_survived_by_the_turn_and_healed_by_the_s
     result = await client.await_result(execution, timeout=20)
     assert result["type"] == "execution_finished" and result["run"]["content"] == "still here"
     assert (await provider.aexec(computer, ["cat", "fixture-effects.txt"])).stdout == "r\n", "ran exactly once"
+
+
+_CONNECT = "import socket, sys; socket.create_connection((sys.argv[1], 8765), timeout=3); print('reached')"
+
+
+@pytest.mark.parametrize("network", ["isolated", "bridge"])
+async def test_sandboxes_cannot_reach_each_other_on_the_isolated_network(network):
+    """Two sandboxes in one namespace: on the isolated bridge neither can open the other's runtime
+    port, while on Docker's default bridge the same connection succeeds. The host still reaches
+    both through their published loopback ports, which create already verified via /health."""
+    provider = DockerSandbox(
+        IMAGE, namespace="isolation-test-" + uuid4().hex, memory_mb=512, network=network, runtime_port=8765
+    )
+    a = await provider.acreate("a", env={"AGNO_SANDBOX_TEST_RUNTIME": "1"})
+    b = await provider.acreate("b", env={"AGNO_SANDBOX_TEST_RUNTIME": "1"})
+    try:
+        code, out, _ = await provider._docker(
+            "container", "inspect", "-f", "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}", b.provider_ref
+        )
+        ip = out.decode().strip()
+        assert code == 0 and ip, "b has an address on the network"
+        result = await provider.aexec(a, ["python", "-c", _CONNECT, ip], timeout=10)
+        if network == "isolated":
+            assert result.exit_code != 0 and "reached" not in result.stdout, "a cannot open b's runtime port"
+        else:
+            assert result.exit_code == 0 and "reached" in result.stdout, "the default bridge lets a reach b"
+    finally:
+        await provider.adestroy(a)
+        await provider.adestroy(b)
+        await provider.aremove_network()

@@ -79,7 +79,7 @@ async def measure(label: str, runtime_port, wait: float) -> None:
     provider = DockerSandbox(
         IMAGE,
         namespace="load-" + uuid4().hex[:8],
-        network="bridge",
+        network="isolated",
         memory_mb=256,
         runtime_port=runtime_port,
     )
@@ -109,6 +109,7 @@ async def measure(label: str, runtime_port, wait: float) -> None:
                 probe.append(time.perf_counter() - began)
     finally:
         await asyncio.gather(*(provider.adestroy(handle) for handle in handles))
+        await provider.aremove_network()
     print(
         f"{label:<16} wall={wall:5.2f}s  turn mean={statistics.mean(turns):5.2f}s  "
         f"requests/turn={requests / SESSIONS:5.1f}  daemon calls/turn={daemon_calls / SESSIONS:5.1f}  "

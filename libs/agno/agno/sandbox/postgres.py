@@ -340,6 +340,11 @@ class _SandboxStore:
     def _write_record(
         self, connection: Connection, lease: SandboxLease, record: Dict[str, Any], *, extend: bool = False
     ) -> SandboxState:
+        # Track every published archive so recovery deletion does not depend on run history.
+        staged = record.get("staged_checkpoint")
+        published = record.setdefault("published_checkpoints", [])
+        if staged and staged not in published:
+            published.append(staged)
         values: Dict[str, Any] = {"record": self._json(record)}
         if extend:
             # Only for a writer that held the binding row lock throughout, so nobody else could own it.

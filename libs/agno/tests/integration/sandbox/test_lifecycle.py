@@ -1,6 +1,7 @@
 """Real recovery deletion, retirement and database deletion guards."""
 
 import asyncio
+from uuid import uuid4
 
 import pytest
 from sqlalchemy import select, update
@@ -46,6 +47,81 @@ async def test_delete_recovery_then_conversation_and_never_reuse_identity(system
     assert await delete(coordinator.store.db, "session") is True
     with pytest.raises(SandboxRecoveryDeleted):
         await run(coordinator, spec, "fourth")
+
+
+async def test_delete_recovery_removes_checkpoint_of_deleted_run(system):
+    coordinator, spec, _ = system
+    await run(coordinator, spec)
+    await run(coordinator, spec, "second")
+    objects = list(coordinator.transfer.store.root.iterdir())
+    assert len(objects) == 2
+    db = coordinator.store.db
+    if isinstance(db, AsyncPostgresDb):
+        assert await db.delete_run("first")
+    else:
+        assert await asyncio.to_thread(db.delete_run, "first")
+    await SandboxLifecycle(coordinator).adelete_recovery(agent_id="agent", session_id="session", user_id="user")
+    assert all(not value.exists() for value in objects)
+
+
+async def test_delete_recovery_removes_rolled_back_staged_checkpoint(system, monkeypatch):
+    coordinator, spec, _ = system
+    destroy = coordinator.provider.adestroy
+
+    async def lost_ack(handle):
+        await destroy(handle)
+        raise OSError("lost destroy acknowledgement")
+
+    monkeypatch.setattr(coordinator.provider, "adestroy", lost_ack)
+    with pytest.raises(OSError, match="lost destroy"):
+        await run(coordinator, spec, "retired-" + uuid4().hex)
+    assert (await binding(coordinator))["record"]["staged_checkpoint"]
+    monkeypatch.setattr(coordinator.provider, "adestroy", destroy)
+    lifecycle = SandboxLifecycle(coordinator)
+    await lifecycle.aretire(spec, user_id="user")
+    record = (await binding(coordinator))["record"]
+    assert record["staged_checkpoint"] is None and record["checkpoint"] is None
+    objects = list(coordinator.transfer.store.root.iterdir())
+    assert len(objects) == 1
+    await lifecycle.adelete_recovery(agent_id="agent", session_id="session", user_id="user")
+    assert not objects[0].exists()
+
+
+async def test_unavailable_storage_keeps_deletion_pending(system):
+    coordinator, spec, _ = system
+    await run(coordinator, spec)
+    root = coordinator.transfer.store.root
+    offline = root.with_name("objects-offline")
+    root.rename(offline)
+    lifecycle = SandboxLifecycle(coordinator)
+    with pytest.raises(FileNotFoundError):
+        await lifecycle.adelete_recovery(agent_id="agent", session_id="session", user_id="user")
+    assert (await binding(coordinator))["record"]["phase"] == "deleting"
+    offline.rename(root)
+    await lifecycle.adelete_recovery(agent_id="agent", session_id="session", user_id="user")
+    assert not list(root.iterdir())
+
+
+async def test_retry_restores_marker_lost_to_stale_session_write(system):
+    coordinator, spec, _ = system
+    await run(coordinator, spec)
+    store = coordinator.store
+    stale = await store._transaction(
+        lambda c: c.execute(select(store.sessions.c.session_data).where(store.sessions.c.session_id == "session"))
+        .scalars()
+        .one()
+    )
+    lifecycle = SandboxLifecycle(coordinator)
+    await lifecycle.adelete_recovery(agent_id="agent", session_id="session", user_id="user")
+    await store._transaction(
+        lambda c: c.execute(
+            update(store.sessions).where(store.sessions.c.session_id == "session").values(session_data=stale)
+        )
+    )
+    with pytest.raises(SessionResourcesPending):
+        await delete(store.db, "session")
+    await lifecycle.adelete_recovery(agent_id="agent", session_id="session", user_id="user")
+    assert await delete(store.db, "session") is True
 
 
 @pytest.mark.parametrize("bulk", [False, True])

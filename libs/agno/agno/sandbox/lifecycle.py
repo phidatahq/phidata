@@ -134,6 +134,7 @@ class SandboxLifecycle:
             references = {}
             for value in [
                 record.get("checkpoint"),
+                *record.get("published_checkpoints", []),
                 *[((run.get("metadata") or {}).get("sandbox") or {}).get("checkpoint") for run in runs],
             ]:
                 if value:
@@ -156,6 +157,9 @@ class SandboxLifecycle:
         try:
             path = objects.verify(reference)
         except FileNotFoundError:
+            # A missing object is already deleted; a missing root means storage is unavailable.
+            if not objects.root.is_dir():
+                raise
             return
         binding = CheckpointArchive().validate(path).get("binding") or {}
         if any(binding.get(key) != value for key, value in identity.items()):
@@ -168,9 +172,8 @@ class SandboxLifecycle:
     ) -> Dict[str, Any]:
         from sqlalchemy import select, update
 
+        # A deleted session still runs finish() so a retry restores a marker lost to a stale session write.
         record = await self._begin_delete(agent_id, session_id, user_id)
-        if record["phase"] == "deleted":
-            return {"session_id": session_id, "recovery_deleted": True, "conversation_retained": True}
         identity = dict(agent_id=agent_id, session_id=session_id, user_id=user_id, incarnation=record["incarnation"])
         for value in record["deletion_references"]:
             await _thread(self._remove_object, CheckpointRef(**value), identity)
@@ -230,6 +233,7 @@ class SandboxLifecycle:
                 staged_identity=None,
                 result=None,
                 deletion_references=[],
+                published_checkpoints=[],
             )
             connection.execute(update(self.store.bindings).where(self.store._key(session_id)).values(record=current))
 

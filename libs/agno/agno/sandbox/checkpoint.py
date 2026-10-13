@@ -83,6 +83,15 @@ async def _thread(function: Callable[..., _T], *args: Any, **kwargs: Any) -> _T:
         raise cancelled from failure
 
 
+class CheckpointObjectNotFound(SandboxError):
+    """The object a reference names is not in storage.
+
+    Retention, storage loss or an external deletion removes objects that references
+    still point at. It is a condition of the storage rather than of the request, so a
+    service answers it as storage being unavailable, not as a missing resource.
+    """
+
+
 @dataclass(frozen=True)
 class CheckpointRef:
     """Immutable bytes; publish this reference only after the durable run commit."""
@@ -540,9 +549,10 @@ class CheckpointStore(Protocol):
     publishable after the durable run commit, and ``delete`` belongs to retention
     rather than to compute destruction, so destroying compute never removes an object.
 
-    Every operation raises ``SandboxError`` for an object that is absent, oversized or
-    does not match its reference, and lets the underlying filesystem or transport error
-    through unchanged.
+    Reading an object that is absent raises ``CheckpointObjectNotFound``; one that is
+    oversized, or that does not match its reference, raises ``SandboxError``. ``delete``
+    is the exception, because removing an object that is already gone succeeds. Every
+    other filesystem or transport failure is passed through unchanged.
     """
 
     def put(self, source: Path) -> CheckpointRef:
@@ -554,7 +564,8 @@ class CheckpointStore(Protocol):
     def verify(self, reference: CheckpointRef) -> None:
         """Re-read the stored object and raise unless its size and digest both match.
 
-        Reading one back is ``open_archive``'s job: an object need not have a path.
+        Raises ``CheckpointObjectNotFound`` when storage no longer holds it. Reading one
+        back is ``open_archive``'s job: an object need not have a path.
         """
         ...
 
@@ -636,7 +647,11 @@ class FileCheckpointStore:
             raise SandboxError("Checkpoint object exceeds its limit")
         path = self.root / reference.sha256
         digest, size = hashlib.sha256(), 0
-        with _regular(path) as stream:
+        try:
+            stream = _regular(path)
+        except FileNotFoundError as error:
+            raise CheckpointObjectNotFound("Checkpoint object is missing") from error
+        with stream:
             if os.fstat(stream.fileno()).st_size != reference.size:
                 raise SandboxError("Checkpoint size mismatch")
             while chunk := stream.read(_CHUNK):

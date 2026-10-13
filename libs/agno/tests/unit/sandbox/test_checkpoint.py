@@ -18,6 +18,7 @@ from agno.sandbox import SandboxError
 from agno.sandbox.checkpoint import (
     CheckpointArchive,
     CheckpointLimits,
+    CheckpointObjectNotFound,
     CheckpointRef,
     CheckpointStore,
     FileCheckpointStore,
@@ -149,8 +150,9 @@ def test_corrupt_or_missing_object_is_not_restored(tmp_path, roots):
         store.restore(reference, tmp_path / "restored")
     assert not (tmp_path / "restored").exists()
     path.unlink()
-    with pytest.raises(FileNotFoundError):
+    with pytest.raises(CheckpointObjectNotFound) as absent:
         store.verify(reference)
+    assert isinstance(absent.value.__cause__, FileNotFoundError)
 
 
 def test_object_size_and_upload_cleanup(tmp_path, roots):
@@ -975,8 +977,9 @@ def test_delete_removes_the_object_and_is_idempotent(tmp_path, roots):
     reference = store.put(capture(tmp_path, roots))
     store.delete(reference)
     assert list(store.root.iterdir()) == []
-    with pytest.raises(FileNotFoundError):
+    with pytest.raises(CheckpointObjectNotFound) as absent:
         store.verify(reference)
+    assert isinstance(absent.value.__cause__, FileNotFoundError)
     # Retention runs on its own schedule and can see an object twice.
     store.delete(reference)
     assert list(store.root.iterdir()) == []
@@ -1147,3 +1150,93 @@ def test_roots_that_merely_share_a_name_prefix_are_not_overlapping(tmp_path):
     assert CheckpointArchive().restore(destination, tmp_path / "restored") == {"run_id": "r"}
     assert (tmp_path / "restored/workspace/app.py").read_text() == "print(1)"
     assert (tmp_path / "restored/native/thread.jsonl").read_text() == "{}\n"
+
+
+def vanished(tmp_path, roots):
+    """A valid reference whose object retention, storage loss or deletion removed."""
+    store = FileCheckpointStore(tmp_path / "objects")
+    reference = store.put(capture(tmp_path / "src", roots))
+    (store.root / reference.sha256).unlink()
+    return store, reference
+
+
+def test_a_missing_object_is_a_store_error_through_every_sync_access(tmp_path, roots):
+    store, reference = vanished(tmp_path, roots)
+    with pytest.raises(CheckpointObjectNotFound):
+        store.verify(reference)
+    with pytest.raises(CheckpointObjectNotFound):
+        with store.open_archive(reference):
+            pass
+    with pytest.raises(CheckpointObjectNotFound):
+        store.restore(reference, tmp_path / "restored")
+    assert not (tmp_path / "restored").exists()
+
+
+@pytest.mark.asyncio
+async def test_a_missing_object_is_a_store_error_through_every_async_access(tmp_path, roots):
+    store, reference = vanished(tmp_path, roots)
+    with pytest.raises(CheckpointObjectNotFound):
+        await store.averify(reference)
+    with pytest.raises(CheckpointObjectNotFound):
+        async with store.aopen_archive(reference):
+            pass
+    with pytest.raises(CheckpointObjectNotFound):
+        await store.arestore(reference, tmp_path / "restored")
+    assert not (tmp_path / "restored").exists()
+
+
+def test_the_missing_object_error_is_a_sandbox_error_that_keeps_its_cause(tmp_path, roots):
+    """Consumers catching SandboxError keep working; the filesystem detail is not lost."""
+    store, reference = vanished(tmp_path, roots)
+    with pytest.raises(SandboxError) as caught:
+        store.verify(reference)
+    assert isinstance(caught.value, CheckpointObjectNotFound)
+    assert isinstance(caught.value.__cause__, FileNotFoundError)
+    assert caught.value.__cause__.filename == str(store.root / reference.sha256)
+
+
+@pytest.mark.skipif(os.geteuid() == 0, reason="root ignores the mode this test relies on")
+def test_an_unreadable_object_stays_a_permission_error(tmp_path, roots):
+    """Only the missing case is translated; other filesystem failures stay themselves."""
+    store = FileCheckpointStore(tmp_path / "objects")
+    reference = store.put(capture(tmp_path / "src", roots))
+    path = store.root / reference.sha256
+    path.chmod(0o000)
+    try:
+        with pytest.raises(PermissionError):
+            store.verify(reference)
+        with pytest.raises(PermissionError):
+            store.restore(reference, tmp_path / "restored")
+    finally:
+        path.chmod(0o600)
+    assert store.verify(reference) is None
+
+
+def test_corrupt_and_oversized_objects_keep_their_existing_errors(tmp_path, roots):
+    store = FileCheckpointStore(tmp_path / "objects")
+    reference = store.put(capture(tmp_path / "src", roots))
+    path = store.root / reference.sha256
+    original = path.read_bytes()
+    damaged = bytearray(original)
+    damaged[len(damaged) // 2] ^= 0xFF
+    path.write_bytes(bytes(damaged))
+    with pytest.raises(SandboxError, match="checksum") as caught:
+        store.verify(reference)
+    assert not isinstance(caught.value, CheckpointObjectNotFound)
+    path.write_bytes(original + b"extra")
+    with pytest.raises(SandboxError, match="size") as caught:
+        store.verify(reference)
+    assert not isinstance(caught.value, CheckpointObjectNotFound)
+    path.write_bytes(original)
+    small = FileCheckpointStore(store.root, max_bytes=reference.size - 1)
+    with pytest.raises(SandboxError, match="limit") as caught:
+        small.verify(reference)
+    assert not isinstance(caught.value, CheckpointObjectNotFound)
+
+
+@pytest.mark.asyncio
+async def test_deleting_an_absent_object_is_still_successful(tmp_path, roots):
+    store, reference = vanished(tmp_path, roots)
+    assert store.delete(reference) is None
+    assert await store.adelete(reference) is None
+    assert list(store.root.iterdir()) == []

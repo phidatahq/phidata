@@ -17,6 +17,16 @@ The example creates a sandbox container, writes and reads a file, reuses that co
 
 `DockerSandbox` offers `create/get/exec/stop/destroy` and their asynchronous `acreate/aget/aexec/astop/adestroy` counterparts. Command arguments are passed as a sequence; explicitly use `sh -c` when shell syntax is intended. Nonzero command exits are returned as `ExecResult`; infrastructure failures raise `SandboxError`. Uncertain commands are never retried automatically.
 
+## Warm reuse between turns
+
+```bash
+.venv/bin/python cookbook/frameworks/sandbox/warm_reuse.py
+```
+
+The example does a turn's worth of work, writing a file and leaving a background process running, then pauses the container. Pausing uses the kernel freezer: files, memory and processes stay exactly as they are, no bytes are copied anywhere, and commands are refused until the container resumes. The next turn calls `create` with the same identity and gets the same container back running, with the file present and the background process continuing from where it froze. The example then stops the container to show the cold path: the tmpfs files are gone, the generation cannot restart, and the next turn needs generation 2 restored from a checkpoint.
+
+`pause`, `resume` and their async counterparts are part of the `Sandbox` contract. A provider without a native pause raises `NotImplementedError`, so a caller can fall back to keeping the container running or to the cold path. A paused container is still tied to one host and still counts against its memory, so pausing complements checkpoints rather than replacing them: checkpoints remain the recovery path when the host or the container is gone.
+
 ## Boundaries
 
 - The image, Docker daemon and its administrator are trusted. This is not a hostile multitenant isolation service.
@@ -26,7 +36,8 @@ The example creates a sandbox container, writes and reads a file, reuses that co
 - `/workspace`, `/runtime` (`HOME`) and `/tmp` are bounded, ephemeral tmpfs. Stopping or removing compute loses these files. A later checkpoint layer must establish durability before completed-turn recovery can be promised.
 - Command output is bounded by raw bytes, then decoded with UTF-8 replacement. Timeouts, excessive output, cancellation and uncertain command transport stop the whole container to terminate remote child processes. A stop failure is an infrastructure error requiring reconciliation; do not start a replacement writer until shutdown is confirmed. Completed commands can intentionally leave background applications running.
 - Caller cancellation during creation may leave an allocated container. Reconcile by calling `create` again with the same identity/configuration; do not invent another generation until the previous allocation is accounted for.
-- No pause/resume, preview, nested Docker, artifact API, shared admission, checkpoint or terminal-success semantics are implied by this sandbox.
+- `pause` and `resume` are the warm path between turns. A paused container keeps its files, memory and processes under the kernel freezer; `resume`, or `create` with the same identity, brings the same generation back running with nothing to restore. Commands are refused while paused. `stop` and `destroy` remain the cold path and lose the tmpfs files, so a later turn needs a new generation restored from a checkpoint. Pausing does not replace checkpoints: a paused container is still tied to one host.
+- No preview, nested Docker, artifact API, shared admission, checkpoint or terminal-success semantics are implied by this sandbox.
 
 ## Validation
 

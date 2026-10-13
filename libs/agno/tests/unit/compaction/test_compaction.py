@@ -1112,6 +1112,21 @@ def test_a_failing_token_counter_falls_back_to_the_local_estimate(caplog):
     assert any("token_counter failed" in r.message for r in caplog.records)
 
 
+@pytest.mark.parametrize("value", [float("inf"), float("-inf"), float("nan")])
+def test_invalid_float_token_counter_falls_back_to_local_estimate(caplog, value):
+    from agno.agent import Agent
+    from agno.agent._messages import _estimated_context_tokens
+
+    local = _estimated_context_tokens(Agent(compaction=Compaction()), _transcript())
+    with caplog.at_level(logging.WARNING, logger="agno"):
+        counted = _estimated_context_tokens(
+            Agent(compaction=Compaction(token_counter=lambda msgs, tools: value)), _transcript()
+        )
+
+    assert counted == local
+    assert any("using the local estimate instead" in r.message for r in caplog.records)
+
+
 def test_token_counter_must_be_a_function():
     with pytest.raises(TypeError, match="token_counter"):
         Compaction(token_counter=1_000)  # type: ignore[arg-type]

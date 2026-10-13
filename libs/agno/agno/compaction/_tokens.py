@@ -76,7 +76,7 @@ async def acount_request(
 def _as_count(counted: Any) -> Optional[int]:
     try:
         return int(counted)
-    except (TypeError, ValueError) as e:
+    except (TypeError, ValueError, OverflowError) as e:
         log_warning(f"Compaction: token_counter returned {counted!r}, using the local estimate instead: {e}")
         return None
 

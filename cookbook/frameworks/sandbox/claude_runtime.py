@@ -108,7 +108,9 @@ try:
     print("Paused:", sandbox.get(computer.provider_ref).state)
     resumed = sandbox.resume(computer)
     assert resumed.provider_ref == computer.provider_ref
-    print("Resumed the same container, nothing restored")
+    print(
+        "Resumed the same container: files and native session still in place, no checkpoint restore needed"
+    )
 
     second = run_turn(
         resumed,

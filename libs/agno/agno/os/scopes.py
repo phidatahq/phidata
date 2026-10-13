@@ -82,6 +82,7 @@ class AgentOSScope(str, Enum):
     - workflows:<workflow-id>:read - Read specific workflow
     - workflows:<workflow-id>:run - Run specific workflow
     - registry:<entry>:read - List one registry entry, matched by its name or id
+    - catalogs:<catalog>:read - List the registry entries of one catalog
 
     Wildcards:
     - agents:*:run - Run any agent

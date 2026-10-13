@@ -347,6 +347,28 @@ new tenant initech lists `slack`. A globex user gets 403 on the roles API.
 
 ---
 
+### 17_registry_catalogs.py
+
+**Status:** PASS
+
+**Test mode:** LIVE (managed roles and catalogs in SQLite under `tmp/`, no model key)
+
+**Description:** A proof of concept for catalogs: named sets of registry entries
+stored in the authorization database. The operator builds two catalogs through
+`PUT /authz/catalogs/{slug}`, tenant roles hold them through
+`catalogs:<slug>:read` scopes, and `GET /registry` lists the entries of every
+catalog the caller holds. Run on 2026-10-13 with the demo venv against this
+branch's `libs/agno`.
+
+**Result:** Exit 0, no traceback. Before any catalog exists the acme user lists
+nothing. After the two `PUT` calls acme (starter and analytics) lists
+`search, sql` and globex (starter) lists `search`. `GET /registry?catalog=analytics`
+lists `sql` for acme and returns 404 for globex. After the operator adds `slack`
+to the shared starter catalog, both tenants list it. A globex user gets 403 on
+the catalogs API.
+
+---
+
 ### console.html
 
 **Status:** PASS

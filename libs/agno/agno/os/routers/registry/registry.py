@@ -5,7 +5,11 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
-from agno.os.auth import afilter_resources_by_access, get_authentication_dependency
+from agno.os.auth import (
+    aaccessible_ids_from_provider,
+    afilter_resources_by_access,
+    get_authentication_dependency,
+)
 from agno.os.routers.registry.utils import (
     build_learning_resource,
     build_memory_manager_resource,
@@ -61,6 +65,31 @@ async def _afilter_entries_by_access(
     ]
     allowed = {key.index for key in await afilter_resources_by_access(request, keys, "registry")}
     return [resource for index, resource in enumerate(resources) if index in allowed]
+
+
+async def _aaccessible_catalogs(request: Request) -> List[Dict[str, Any]]:
+    """The catalogs the caller holds (catalogs:<slug>:read), with their entries.
+
+    Catalogs live in the authorization database, so an OS without managed roles has none.
+    """
+    store = getattr(request.app.state, "role_store", None)
+    if store is None:
+        return []
+    slugs = await aaccessible_ids_from_provider(request, "catalogs")
+    if not slugs:
+        return []
+    try:
+        catalogs = await store.alist_catalogs()
+    except (ValueError, NotImplementedError):
+        # No bound role store, or a database that does not store catalogs.
+        return []
+    return catalogs if "*" in slugs else [catalog for catalog in catalogs if catalog["slug"] in slugs]
+
+
+def _in_catalogs(resource: RegistryContentResponse, catalogs: List[Dict[str, Any]]) -> bool:
+    """Whether a registry entry is listed in any of ``catalogs``, by type and name or id."""
+    keys = {(resource.type.value, resource.name), (resource.type.value, resource.id)}
+    return any((entry["type"], entry["name"]) in keys for catalog in catalogs for entry in catalog["entries"])
 
 
 def get_registry_router(registry: Registry, settings: AgnoAPISettings = AgnoAPISettings()) -> APIRouter:
@@ -586,6 +615,7 @@ def attach_routes(router: APIRouter, registry: Registry) -> APIRouter:
         request: Request,
         resource_type: Optional[RegistryResourceType] = Query(None, description="Filter by resource type"),
         name: Optional[str] = Query(None, description="Filter by name (partial match)"),
+        catalog: Optional[str] = Query(None, description="List only the entries of this catalog"),
         page: int = Query(1, ge=1, description="Page number"),
         limit: int = Query(20, ge=1, le=100, description="Items per page"),
     ) -> PaginatedResponse[RegistryContentResponse]:
@@ -593,8 +623,21 @@ def attach_routes(router: APIRouter, registry: Registry) -> APIRouter:
             start_time_ms = time.time() * 1000
             resources = _get_resources(resource_type)
 
-            if getattr(request.state, "authorization_enabled", False):
-                resources = await _afilter_entries_by_access(request, resources)
+            authorization_enabled = getattr(request.state, "authorization_enabled", False)
+            catalogs = await _aaccessible_catalogs(request) if authorization_enabled else []
+
+            if catalog is not None:
+                # One catalog the caller holds. An unknown catalog and one the caller does
+                # not hold answer the same, so the listing does not reveal which exist.
+                selected = [c for c in catalogs if c["slug"] == catalog]
+                if not selected:
+                    raise HTTPException(status_code=404, detail=f"Catalog {catalog!r} not found")
+                resources = [r for r in resources if _in_catalogs(r, selected)]
+            elif authorization_enabled:
+                # Entries granted directly (registry:read, registry:<entry>:read), plus the
+                # entries of every catalog the caller holds.
+                granted = {id(r) for r in await _afilter_entries_by_access(request, resources)}
+                resources = [r for r in resources if id(r) in granted or _in_catalogs(r, catalogs)]
 
             if name:
                 needle = name.lower().strip()
@@ -615,6 +658,8 @@ def attach_routes(router: APIRouter, registry: Registry) -> APIRouter:
                     search_time_ms=round(time.time() * 1000 - start_time_ms, 2),
                 ),
             )
+        except HTTPException:
+            raise
         except Exception as e:
             log_error(f"Error listing registry resources: {str(e)}")
             raise HTTPException(status_code=500, detail=str(e))

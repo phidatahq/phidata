@@ -34,6 +34,7 @@ AUTHZ_ROLES = "authz_roles"
 AUTHZ_USERS = "authz_users"
 AUTHZ_AUDIT = "authz_audit"
 AUTHZ_DECISIONS = "authz_decisions"
+AUTHZ_CATALOGS = "authz_catalogs"
 
 # What a role may do, as (resource, action, effect). Deny-overrides is evaluated over
 # these rows, so ``effect`` is load-bearing and never nullable.
@@ -111,6 +112,18 @@ AUTHZ_DECISIONS_TABLE_SCHEMA = {
     "scopes": {"type": Text, "nullable": True},  # scopes the caller had (JSON)
 }
 
+# A named set of registry entries. A scope (catalogs:<slug>:read) grants the catalog, and
+# the registry listing expands it to its entries, so many roles can share one catalog and
+# one role can hold several. ``entries`` is a JSON list of {"type", "name"}.
+AUTHZ_CATALOGS_TABLE_SCHEMA = {
+    "slug": {"type": String, "primary_key": True, "nullable": False},
+    "name": {"type": String, "nullable": True},
+    "description": {"type": Text, "nullable": True},
+    "entries": {"type": Text, "nullable": False},
+    "created_at": {"type": BigInteger, "nullable": False},
+    "updated_at": {"type": BigInteger, "nullable": False},
+}
+
 # Registered in each SQLAlchemy backend's get_table_schema_definition so the authz tables
 # are created by the normal schema-aware path.
 AUTHZ_TABLE_SCHEMAS = {
@@ -120,10 +133,11 @@ AUTHZ_TABLE_SCHEMAS = {
     AUTHZ_USERS: AUTHZ_USERS_TABLE_SCHEMA,
     AUTHZ_AUDIT: AUTHZ_AUDIT_TABLE_SCHEMA,
     AUTHZ_DECISIONS: AUTHZ_DECISIONS_TABLE_SCHEMA,
+    AUTHZ_CATALOGS: AUTHZ_CATALOGS_TABLE_SCHEMA,
 }
 
 # Maps each table type to the BaseDb attribute holding its (renameable) table name, so a
-# backend's _get_table dispatch can resolve all six in one branch.
+# backend's _get_table dispatch can resolve all of them in one branch.
 AUTHZ_TABLE_NAME_ATTRS = {
     AUTHZ_POLICY: "authz_policy_table_name",
     AUTHZ_GROUPING: "authz_grouping_table_name",
@@ -131,4 +145,5 @@ AUTHZ_TABLE_NAME_ATTRS = {
     AUTHZ_USERS: "authz_users_table_name",
     AUTHZ_AUDIT: "authz_audit_table_name",
     AUTHZ_DECISIONS: "authz_decisions_table_name",
+    AUTHZ_CATALOGS: "authz_catalogs_table_name",
 }

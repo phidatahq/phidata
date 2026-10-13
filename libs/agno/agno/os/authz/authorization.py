@@ -636,6 +636,53 @@ class Authorization:
         """Async twin of :meth:`get_role`."""
         return await self._store().aget_role(role)
 
+    def set_catalog(
+        self,
+        slug: str,
+        entries: List[Dict[str, Any]],
+        name: Optional[str] = None,
+        description: Optional[str] = None,
+        actor: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Create a catalog, or replace it: a named set of registry entries, each
+        ``{"type": "tool", "name": "search"}``. Grant it with the scope ``catalogs:<slug>:read``."""
+        return self._store().set_catalog(slug, entries, name=name, description=description, actor=actor)
+
+    async def aset_catalog(
+        self,
+        slug: str,
+        entries: List[Dict[str, Any]],
+        name: Optional[str] = None,
+        description: Optional[str] = None,
+        actor: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Async twin of :meth:`set_catalog`."""
+        return await self._store().aset_catalog(slug, entries, name=name, description=description, actor=actor)
+
+    def get_catalog(self, slug: str) -> Optional[Dict[str, Any]]:
+        """A catalog with its entries, or None."""
+        return self._store().get_catalog(slug)
+
+    async def aget_catalog(self, slug: str) -> Optional[Dict[str, Any]]:
+        """Async twin of :meth:`get_catalog`."""
+        return await self._store().aget_catalog(slug)
+
+    def list_catalogs(self) -> List[Dict[str, Any]]:
+        """Every catalog with its entries."""
+        return self._store().list_catalogs()
+
+    async def alist_catalogs(self) -> List[Dict[str, Any]]:
+        """Async twin of :meth:`list_catalogs`."""
+        return await self._store().alist_catalogs()
+
+    def remove_catalog(self, slug: str, actor: Optional[str] = None) -> bool:
+        """Delete a catalog. Returns False when there was none."""
+        return self._store().remove_catalog(slug, actor=actor)
+
+    async def aremove_catalog(self, slug: str, actor: Optional[str] = None) -> bool:
+        """Async twin of :meth:`remove_catalog`."""
+        return await self._store().aremove_catalog(slug, actor=actor)
+
     def _get_role_scope_entries(self, role: str) -> List[dict]:
         """Return a role's scopes with effects: ``[{"scope": ..., "effect": ...}]``."""
         return self._store().get_role_scope_entries(role)

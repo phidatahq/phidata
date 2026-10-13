@@ -27,6 +27,7 @@ from agno.db.base import (
 from agno.db.migrations.manager import MigrationManager
 from agno.db.schemas.authz import (
     AUTHZ_AUDIT,
+    AUTHZ_CATALOGS,
     AUTHZ_DECISIONS,
     AUTHZ_GROUPING,
     AUTHZ_POLICY,
@@ -7775,6 +7776,22 @@ class SqliteDb(BaseDb):
     def delete_authz_role_meta(self, slug: str) -> None:
         table = self._get_table(table_type=AUTHZ_ROLES, create_table_if_not_found=True)
         authz_sql.delete_role_meta(self.db_engine, table, slug)
+
+    def get_authz_catalog(self, slug: str) -> Optional[Dict[str, Any]]:
+        table = self._get_table(table_type=AUTHZ_CATALOGS, create_table_if_not_found=True)
+        return authz_sql.get_catalog(self.db_engine, table, slug)
+
+    def list_authz_catalogs(self) -> List[Dict[str, Any]]:
+        table = self._get_table(table_type=AUTHZ_CATALOGS, create_table_if_not_found=True)
+        return authz_sql.list_catalogs(self.db_engine, table)
+
+    def upsert_authz_catalog(self, slug: str, values: Dict[str, Any]) -> None:
+        table = self._get_table(table_type=AUTHZ_CATALOGS, create_table_if_not_found=True)
+        authz_sql.upsert_catalog(self.db_engine, table, slug, values)
+
+    def delete_authz_catalog(self, slug: str) -> None:
+        table = self._get_table(table_type=AUTHZ_CATALOGS, create_table_if_not_found=True)
+        authz_sql.delete_catalog(self.db_engine, table, slug)
 
     def get_authz_user(self, user_id: str) -> Optional[Dict[str, Any]]:
         table = self._get_table(table_type=AUTHZ_USERS, create_table_if_not_found=True)

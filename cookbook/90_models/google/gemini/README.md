@@ -142,9 +142,6 @@ python cookbook/90_models/google/gemini/gemini_3_8_flash_market_brief.py
 
 ### 20. Run a basic agent on Gemini 4 Argon
 
-Uses web search tools with an async response. The Argon examples use
-`gemini-4-argon-eap`; set `GOOGLE_API_KEY` to a key with access to this model.
-
 ```shell
 python cookbook/90_models/google/gemini/gemini_4_argon.py
 ```

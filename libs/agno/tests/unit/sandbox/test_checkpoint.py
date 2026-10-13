@@ -7,6 +7,7 @@ import json
 import os
 import tarfile
 import threading
+import traceback
 from pathlib import Path
 
 import pytest
@@ -496,3 +497,72 @@ async def test_draining_an_already_cancelled_operation_terminates():
     await asyncio.wait({protected})
     assert protected.cancelled()
     await asyncio.wait_for(_drain(protected), 5)
+
+
+def chained(error):
+    """Every exception reachable from ``error`` by standard chaining.
+
+    Cancellation reaches the caller through a task boundary, and how deep the drained
+    failure sits differs by version: directly on ``__cause__`` from 3.11, one level
+    further through ``__context__`` before it. Walk the chain instead of naming one.
+    """
+    seen, found = set(), []
+    while error is not None and id(error) not in seen:
+        seen.add(id(error))
+        found.append(error)
+        error = error.__cause__ or error.__context__
+    return found
+
+
+@pytest.mark.asyncio
+async def test_cancelled_upload_keeps_the_write_failure_reachable(tmp_path, roots, monkeypatch):
+    store = FileCheckpointStore(tmp_path / "objects")
+    entered, release, settled = hold_upload(monkeypatch, fail=True)
+    task = asyncio.create_task(store.aput(capture(tmp_path, roots)))
+    try:
+        assert await asyncio.to_thread(entered.wait, 10)
+        await deliver(task, 1)
+    finally:
+        release.set()
+    with pytest.raises(asyncio.CancelledError) as error:
+        await task
+    assert settled.is_set(), "the write must settle before the caller returns"
+
+    failures = [item for item in chained(error.value) if isinstance(item, OSError)]
+    assert failures, "the write failure must stay reachable from the cancellation"
+    assert failures[0].errno == errno.ENOSPC
+    assert "injected upload failure" in str(failures[0])
+    # The failure keeps the frames where the write actually died, not a re-raise site.
+    assert "os.fsync(output.fileno())" in "".join(traceback.format_tb(failures[0].__traceback__))
+    rendered = "".join(traceback.format_exception(type(error.value), error.value, error.value.__traceback__))
+    assert "injected upload failure" in rendered, "chained formatting must show the write failure"
+    assert "CancelledError" in rendered
+
+    assert not list(store.root.glob(".upload-*"))
+    assert not list(store.root.iterdir()), "a failed upload publishes nothing"
+
+
+@pytest.mark.asyncio
+async def test_repeated_cancellation_keeps_the_write_failure_reachable(tmp_path, roots, monkeypatch):
+    store = FileCheckpointStore(tmp_path / "objects")
+    entered, release, settled = hold_upload(monkeypatch, fail=True)
+    task = asyncio.create_task(store.aput(capture(tmp_path, roots)))
+    try:
+        assert await asyncio.to_thread(entered.wait, 10)
+        await deliver(task, 3)
+        assert not settled.is_set(), "the gate is still held, so the worker cannot have finished"
+        assert not task.done(), "further cancellation must not detach the protected write"
+    finally:
+        release.set()
+    with pytest.raises(asyncio.CancelledError) as error:
+        await task
+    assert settled.is_set()
+
+    failures = [item for item in chained(error.value) if isinstance(item, OSError)]
+    assert failures, "repeated cancellation must not erase the write failure"
+    assert failures[0].errno == errno.ENOSPC
+    assert "injected upload failure" in "".join(
+        traceback.format_exception(type(error.value), error.value, error.value.__traceback__)
+    )
+    assert not list(store.root.glob(".upload-*"))
+    assert not list(store.root.iterdir())

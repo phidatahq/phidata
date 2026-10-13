@@ -20,7 +20,7 @@ import tempfile
 from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
-from typing import Any, BinaryIO, Callable, Dict, Mapping, Sequence, TypeVar
+from typing import Any, BinaryIO, Callable, Dict, Mapping, Optional, Sequence, TypeVar
 
 from agno.sandbox.base import SandboxError
 
@@ -30,21 +30,19 @@ _CHUNK = 1024 * 1024
 _T = TypeVar("_T")
 
 
-async def _drain(task: asyncio.Task[Any]) -> None:
+async def _drain(task: asyncio.Task[Any]) -> Optional[BaseException]:
     """Let a shielded operation finish, however often the caller is cancelled.
 
     Shielding alone is not enough: a second cancellation interrupts the await that was
     waiting for the work, and the caller returns while it is still running. ``wait``
     reports completion without re-raising, so the operation's own failure cannot divert
-    the drain either.
+    the drain either. Returning the failure retrieves it, so it is never a stray task
+    exception, and lets the caller chain it onto the cancellation it is about to raise.
     """
     while not task.done():
         with suppress(asyncio.CancelledError):
             await asyncio.wait({task})
-    if not task.cancelled():
-        # Cancellation stays the caller's outcome, so the operation's own failure is
-        # retrieved and dropped; unretrieved, it would surface as a stray task exception.
-        task.exception()
+    return None if task.cancelled() else task.exception()
 
 
 async def _thread(function: Callable[..., _T], *args: Any, **kwargs: Any) -> _T:
@@ -53,9 +51,13 @@ async def _thread(function: Callable[..., _T], *args: Any, **kwargs: Any) -> _T:
     task = asyncio.create_task(asyncio.to_thread(function, *args, **kwargs))
     try:
         return await asyncio.shield(task)
-    except asyncio.CancelledError:
-        await _drain(task)
-        raise
+    except asyncio.CancelledError as cancelled:
+        failure = await _drain(task)
+        if failure is None:
+            raise
+        # Cancellation stays the outcome, but the write that died under it is still the
+        # useful diagnostic, so chain it on rather than discarding it.
+        raise cancelled from failure
 
 
 @dataclass(frozen=True)

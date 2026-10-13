@@ -88,6 +88,19 @@ def test_an_exclusion_that_leaves_its_root_excludes_nothing_inside_it(tmp_path, 
         assert "workspace/innocent" in opened.getnames()
 
 
+def test_restore_applies_the_recorded_timestamps(tmp_path, roots):
+    stamp = 1000000000
+    for path in (roots["workspace"] / "tracked.py", roots["native"] / "transcript.jsonl", roots["workspace"]):
+        os.utime(path, (stamp, stamp))
+    os.utime(roots["workspace"] / "link", (stamp, stamp), follow_symlinks=False)
+    destination = tmp_path / "restored"
+    CheckpointArchive().restore(capture(tmp_path, roots), destination)
+    assert int((destination / "workspace/tracked.py").stat().st_mtime) == stamp
+    assert int((destination / "native/transcript.jsonl").stat().st_mtime) == stamp
+    assert int((destination / "workspace").stat().st_mtime) == stamp
+    assert int((destination / "workspace/link").lstat().st_mtime) == stamp
+
+
 def test_failed_capture_removes_partial_archive(tmp_path, roots):
     (roots["workspace"] / "outside").symlink_to("/etc/passwd")
     with pytest.raises(SandboxError, match="symlink"):
@@ -197,6 +210,38 @@ def test_unsafe_archives_never_expose_partial_restore(tmp_path, members):
     assert not (tmp_path / "destination").exists()
     assert not list(tmp_path.glob(".restore-*"))
     assert not (tmp_path / "escape").exists()
+
+
+def timestamped_archive(tmp_path, *, mtime=None, pax=None):
+    path = tmp_path / "timestamped.tar"
+    with tarfile.open(path, "w", format=tarfile.PAX_FORMAT) as archive:
+        manifest = json.dumps({"version": 1, "state": {}}).encode()
+        info = tarfile.TarInfo("manifest.json")
+        info.size = len(manifest)
+        archive.addfile(info, io.BytesIO(manifest))
+        for root in ("workspace", "native"):
+            info = tarfile.TarInfo(root)
+            info.type = tarfile.DIRTYPE
+            info.mode = 0o700
+            archive.addfile(info)
+        info = tarfile.TarInfo("workspace/file")
+        info.size = 1
+        info.mode = 0o600
+        if mtime is not None:
+            info.mtime = mtime
+        if pax is not None:
+            info.pax_headers.update(pax)
+        archive.addfile(info, io.BytesIO(b"x"))
+    return path
+
+
+@pytest.mark.parametrize("fields", [{"mtime": 2**64}, {"pax": {"mtime": "nan"}}])
+def test_a_timestamp_the_platform_cannot_store_is_rejected(tmp_path, fields):
+    path = timestamped_archive(tmp_path, **fields)
+    with pytest.raises(SandboxError, match="timestamp"):
+        CheckpointArchive().restore(path, tmp_path / "destination")
+    assert not (tmp_path / "destination").exists()
+    assert not list(tmp_path.glob(".restore-*"))
 
 
 def test_a_failed_rename_surfaces_its_cause_and_leaves_no_temporary_tree(tmp_path, roots, monkeypatch):

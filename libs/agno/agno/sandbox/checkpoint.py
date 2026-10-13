@@ -411,10 +411,24 @@ class CheckpointArchive:
                             root = temporary / PurePosixPath(name).parts[0]
                             if not _resolved(temporary / name).is_relative_to(root):
                                 raise SandboxError("Checkpoint symlink chain escapes its durable root")
-                    # Directories remain writable while children are materialized.
+                    # Last pass, deepest first: materializing a child retimes its parent,
+                    # and a directory stays writable until its own children exist.
                     for name, member in sorted(members.items(), reverse=True):
+                        if name == _MANIFEST:
+                            continue
+                        path = temporary / name
+                        times = (member.mtime, member.mtime)
+                        try:
+                            if member.issym():
+                                # Stamp the link itself; following it would retime its target.
+                                os.utime(path, times, follow_symlinks=False)
+                            else:
+                                os.utime(path, times)
+                        except (OverflowError, ValueError) as error:
+                            # A hostile archive can carry a NaN or out-of-range timestamp.
+                            raise SandboxError("Invalid checkpoint timestamp") from error
                         if member.isdir():
-                            (temporary / name).chmod(member.mode & 0o777)
+                            path.chmod(member.mode & 0o777)
             os.rename(temporary, destination)
             return manifest["state"]
         except tarfile.TarError as error:

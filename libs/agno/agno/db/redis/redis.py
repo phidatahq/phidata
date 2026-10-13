@@ -2541,6 +2541,14 @@ class RedisDb(BaseDb):
         top = pipe.zrevrange(session_key, 0, 0, withscores=True)
         return with_session_seq(job, int(top[0][1]) + 1 if top else 1)
 
+    def _q_session_members(self, session_key: str) -> List[Dict[str, Any]]:
+        """The live serialized tickets of a session, read outside any transaction (advisory)."""
+        member_ids = [_q_to_str(value) for value in self.redis_client.zrange(session_key, 0, -1)]
+        if not member_ids:
+            return []
+        raw = self.redis_client.mget([self._q_job_key(value) for value in member_ids])
+        return [json.loads(value) for value in raw if value is not None]
+
     def _q_save_job_in_pipe(self, pipe: Any, job: Dict[str, Any]) -> None:
         from agno.job_queue.session import LIVE_STATUSES
 
@@ -2685,8 +2693,11 @@ class RedisDb(BaseDb):
         rank shifted mid-scan (a peer claimed something on an earlier page).
         That only ends THIS burst early - every poll tick rescans from rank
         0, so a skipped job is picked up next tick; no starvation."""
+        from agno.job_queue.session import session_blocked
+
         page_size = 64
         offset = 0
+        session_views: Dict[str, List[Dict[str, Any]]] = {}
         while True:
             raw_ids = self.redis_client.zrangebyscore(zset_key, "-inf", max_score, start=offset, num=page_size)
             if not raw_ids:
@@ -2702,6 +2713,16 @@ class RedisDb(BaseDb):
                     continue
                 if candidate.get("deployment_id") is not None and candidate.get("deployment_id") != deployment_id:
                     continue
+                if (candidate.get("payload") or {}).get("serialize_session") is True:
+                    # Advisory pre-check from one view of the session per scan: a backlog
+                    # waiting behind a running or paused head would otherwise load the
+                    # whole session once per waiting ticket, every poll. The CAS in
+                    # _q_try_claim re-reads the session under WATCH and stays the authority.
+                    session_key = self._q_session_key(candidate)
+                    if session_key not in session_views:
+                        session_views[session_key] = self._q_session_members(session_key)
+                    if session_blocked(candidate, session_views[session_key]):
+                        continue
                 job = self._q_try_claim(
                     job_id,
                     worker_id,
@@ -3058,11 +3079,7 @@ class RedisDb(BaseDb):
         job = self._q_load_job(job_id)
         if job is None or job["status"] != "queued" or not is_serialized(job):
             return None
-        member_ids = [_q_to_str(value) for value in self.redis_client.zrange(self._q_session_key(job), 0, -1)]
-        if not member_ids:
-            return None
-        raw = self.redis_client.mget([self._q_job_key(value) for value in member_ids])
-        return session_blocker(job, [json.loads(value) for value in raw if value is not None])
+        return session_blocker(job, self._q_session_members(self._q_session_key(job)))
 
     def count_queued_jobs(self) -> int:
         return int(self.redis_client.zcard(self._q_key("queued")))

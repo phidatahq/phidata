@@ -860,6 +860,32 @@ class TestRedisSessionEntry:
         assert fast["payload"]["session_seq"] < slow["payload"]["session_seq"]
         assert db.claim_job("w1")["id"] == "fast"
 
+    def test_a_waiting_backlog_loads_its_session_once_per_claim(self, monkeypatch):
+        """Twenty turns queued behind a paused head must not read the session line
+        twenty times: the scan keeps one advisory view per session and only the
+        ticket it actually claims re-reads under WATCH."""
+        from redis.client import Pipeline
+
+        db = self._db()
+        db.enqueue_job(make_turn("head", created_at=1))
+        head = db.claim_job("w1")
+        assert head["id"] == "head"
+        assert db.complete_job("head", "w1", head["attempt"], "paused")
+        # available_at orders the queued scan: the backlog is scanned before the free ticket.
+        for i in range(20):
+            db.enqueue_job(make_turn(f"wait{i}", created_at=2, available_at=1))
+        db.enqueue_job(make_turn("free", created_at=3, available_at=2, session_id="other"))
+        watched_reads: list = []
+        pipe_zrange = Pipeline.zrange
+
+        def counting_zrange(self, *args, **kwargs):
+            watched_reads.append(args[0])
+            return pipe_zrange(self, *args, **kwargs)
+
+        monkeypatch.setattr(Pipeline, "zrange", counting_zrange)
+        assert db.claim_job("w2")["id"] == "free"
+        assert len(watched_reads) == 1
+
     @pytest.mark.parametrize("entry", ["enqueue", "requeue"])
     def test_entry_outlasts_same_session_submit_contention(self, monkeypatch, entry):
         from redis.client import Pipeline

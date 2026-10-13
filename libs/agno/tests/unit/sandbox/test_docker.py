@@ -272,7 +272,7 @@ async def test_agent_id_is_optional():
 
 
 @pytest.mark.asyncio
-async def test_pause_keeps_the_generation_and_create_resumes_it():
+async def test_pause_keeps_the_generation_and_only_resume_revives_it():
     sandbox = FakeDocker()
     handle = await sandbox.acreate("session", agent_id="coder")
     await sandbox.apause(handle)
@@ -280,8 +280,12 @@ async def test_pause_keeps_the_generation_and_create_resumes_it():
     await sandbox.apause(handle)  # idempotent
     with pytest.raises(SandboxError, match="paused; resume"):
         await sandbox.aexec(handle, ["true"])
-    # The next turn asks for the same generation and gets the paused container back, running.
-    resumed = await sandbox.acreate("session", agent_id="coder")
+    # Create cannot tell a warm pause from a restore that died halfway, so it refuses to guess.
+    with pytest.raises(SandboxError, match="paused; resume it or destroy it"):
+        await sandbox.acreate("session", agent_id="coder")
+    assert (await sandbox.aget(handle.provider_ref)).state == "paused"
+    # The owner, who paused it, resumes it explicitly.
+    resumed = await sandbox.aresume(handle)
     assert resumed.provider_ref == handle.provider_ref and resumed.state == "running"
     assert [call[0][1] for call in sandbox.calls if call[0][1] in ("pause", "unpause", "create")] == [
         "create",

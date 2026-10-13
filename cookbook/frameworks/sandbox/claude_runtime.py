@@ -8,9 +8,8 @@ The whole path on this branch, with a live model:
    and read the execution result. Claude Code runs inside the container, edits the
    workspace there, and keeps its native session under /runtime/native.
 3. Pause the container between turns. Nothing is copied anywhere.
-4. Resume it through create with the same identity and run turn 2 on the same
-   session. Claude remembers turn 1 because its transcript and the local history
-   database are still on the container's disk.
+4. Resume it and run turn 2 on the same session. Claude remembers turn 1 because
+   its transcript and the local history database are still on the container's disk.
 
 Build the image first, then export ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN:
 
@@ -21,7 +20,7 @@ A runtime result is execution output, not durable completion: the coordinator
 layer that checkpoints and commits it to the service database is a later PR.
 """
 
-import osz
+import os
 from uuid import uuid4
 
 from agno.sandbox.client import SandboxRuntimeClient
@@ -101,10 +100,10 @@ try:
     native_session = first["session"]["session_data"].get("claude_sdk_session_id")
     print("Claude session id recorded locally:", native_session)
 
-    # Between turns: pause, then resume through create with the same identity.
+    # Between turns: pause, then resume explicitly. Create refuses a paused generation.
     sandbox.pause(computer)
     print("Paused:", sandbox.get(computer.provider_ref).state)
-    resumed = sandbox.create(**identity)
+    resumed = sandbox.resume(computer)
     assert resumed.provider_ref == computer.provider_ref
     print("Resumed the same container, nothing restored")
 

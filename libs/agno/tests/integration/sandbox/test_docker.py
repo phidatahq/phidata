@@ -129,14 +129,16 @@ async def test_real_env_file_values_and_failed_start_cleanup():
     assert await broken.aget(broken._name("broken", "coder", 1)) is None
 
 
-async def test_real_pause_keeps_files_and_create_resumes_the_same_container(container):
+async def test_real_pause_keeps_files_and_resume_returns_the_same_container(container):
     sandbox, identity, handle = container
     assert (await sandbox.aexec(handle, ["sh", "-c", "echo kept > /workspace/warm"])).exit_code == 0
     await sandbox.apause(handle)
     assert (await sandbox.aget(handle.provider_ref)).state == "paused"
     with pytest.raises(SandboxError, match="paused; resume"):
         await sandbox.aexec(handle, ["cat", "/workspace/warm"])
-    resumed = await sandbox.acreate(**identity)
+    with pytest.raises(SandboxError, match="paused; resume it or destroy it"):
+        await sandbox.acreate(**identity)
+    resumed = await sandbox.aresume(handle)
     assert resumed.provider_ref == handle.provider_ref and resumed.state == "running"
     assert (await sandbox.aexec(resumed, ["cat", "/workspace/warm"])).stdout == "kept\n"
     # The cold path still works from paused: stop loses tmpfs and the generation cannot restart.

@@ -246,8 +246,9 @@ class DockerSandbox(Sandbox):
         if current.config_digest != digest:
             raise SandboxError("Sandbox generation already exists with different configuration")
         if current.state == "paused":
-            # The warm path: the generation kept its files and memory while paused.
-            current = await self.aresume(current)
+            # Only the owner knows whether this is a warm pause or a restore that died halfway,
+            # so create never revives it: the owner calls resume, anyone else destroys.
+            raise SandboxError("Sandbox generation is paused; resume it or destroy it")
         if current.state == "created":
             code, _, err = await self._docker("container", "start", current.provider_ref)
             current = await self.aget(current.provider_ref)

@@ -4,8 +4,9 @@ Shows the warm path next to the cold one, without model credentials:
 
 1. Run a turn's worth of work: write a file and leave a background process running.
 2. Pause the container. Files, memory and processes freeze in place; commands are refused.
-3. The next turn asks for the same generation. ``create`` resumes it: the file is there
-   and the background process carried on from where it stopped.
+3. The next turn resumes it. ``create`` refuses a paused generation, because only the
+   caller that paused it knows its files are whole; ``resume`` brings it back with the
+   file there and the background process carrying on from where it stopped.
 4. Stop the container. That is the cold path: the files are gone and the generation
    cannot restart, so recovery needs a new generation restored from a checkpoint.
 """
@@ -44,8 +45,12 @@ try:
         print("Command while paused refused:", error)
     time.sleep(1.0)
 
-    # Turn 2: the same identity resumes the same container.
-    resumed = sandbox.create(**identity)
+    # Turn 2: create will not guess why the generation is paused; the owner resumes it.
+    try:
+        sandbox.create(**identity)
+    except SandboxError as error:
+        print("Create while paused refused:", error)
+    resumed = sandbox.resume(handle)
     assert resumed.provider_ref == handle.provider_ref and resumed.state == "running"
     print("Resumed the same container:", resumed.name)
     print("notes.txt:", sandbox.exec(resumed, ["cat", "notes.txt"]).stdout.strip())

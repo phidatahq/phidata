@@ -154,6 +154,15 @@ class QueueConfig:
     # is not keyword-only, so inserting mid-list would silently reinterpret
     # positional constructions of the fields behind it.
     stop_timeout_seconds: Optional[int] = None
+    # At most one live job per session, in submission order. A head that
+    # cannot run holds its session: a PAUSED run until it is continued or
+    # cancelled, and a job pinned to a deployment_id with no live worker until
+    # it is cancelled or requeued. Applies to tickets accepted while it is on,
+    # at durable-queue claim time only; the in-process path is not gated.
+    # Components that set one_turn_per_session (Claude, Codex and the other
+    # external agents) are serialized regardless. Custom stores enforce it by
+    # setting serializes_sessions. (Appended last, see above.)
+    queue_per_session: bool = True
 
     def __post_init__(self) -> None:
         if self.db is not None and not self.durable:

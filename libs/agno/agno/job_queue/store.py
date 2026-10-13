@@ -19,9 +19,13 @@ import asyncio
 import time
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+from agno.job_queue.session import is_serialized, next_session_seq, session_blocked, session_blocker, with_session_seq
+
 
 class InMemoryQueueStore:
     """Process-local job queue store with the DB adapters' queue contract."""
+
+    serializes_sessions: bool = True
 
     def __init__(self) -> None:
         self._jobs: Dict[str, Dict[str, Any]] = {}
@@ -53,6 +57,8 @@ class InMemoryQueueStore:
             # fenced out.
             if job["id"] in self._jobs:
                 raise RuntimeError(f"enqueue_job: job {job['id']} already exists; ids are never reused")
+            if is_serialized(job):
+                job = with_session_seq(job, next_session_seq(job, self._jobs.values()))
             self._jobs[job["id"]] = dict(job)
             return {"accepted": True, "reason": None, "job": dict(job)}
 
@@ -68,7 +74,8 @@ class InMemoryQueueStore:
             candidates = [
                 j
                 for j in self._jobs.values()
-                if j["available_at"] <= now
+                if not session_blocked(j, self._jobs.values())
+                and j["available_at"] <= now
                 and (j.get("deployment_id") is None or j.get("deployment_id") == deployment_id)
                 and (
                     j["status"] == "queued"
@@ -82,7 +89,7 @@ class InMemoryQueueStore:
             ]
             if not candidates:
                 return None
-            job = min(candidates, key=lambda j: j["created_at"])
+            job = min(candidates, key=lambda j: (j["created_at"], j["id"]))
             job.update(
                 status="running",
                 locked_by=worker_id,
@@ -243,6 +250,14 @@ class InMemoryQueueStore:
             job = self._jobs.get(job_id)
             return dict(job) if job is not None else None
 
+    async def session_blocker(self, job_id: str) -> Optional[str]:
+        """The id of the ticket a queued serialized job waits behind, or None."""
+        async with self._lock:
+            job = self._jobs.get(job_id)
+            if job is None or job["status"] != "queued":
+                return None
+            return session_blocker(job, self._jobs.values())
+
     async def count_queued_jobs(self) -> int:
         async with self._lock:
             return sum(1 for j in self._jobs.values() if j["status"] == "queued")
@@ -290,6 +305,8 @@ class InMemoryQueueStore:
             if job is None or job["status"] not in ("failed", "cancelled"):
                 return False
             now = int(time.time())
+            if is_serialized(job):
+                job["payload"] = with_session_seq(job, next_session_seq(job, self._jobs.values()))["payload"]
             job.update(
                 status="queued",
                 max_attempts=job["attempt"] + 1,

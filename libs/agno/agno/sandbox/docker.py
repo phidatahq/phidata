@@ -247,9 +247,6 @@ class DockerSandbox(Sandbox):
                     code, _, err = await self._docker(*args, timeout=120)
                 except asyncio.TimeoutError:
                     code, err = 1, b"Creation response timed out"
-                finally:
-                    with suppress(FileNotFoundError):
-                        os.unlink(env_file)
                 # A concurrent creator or lost response is resolved by the deterministic name.
                 current = await self.aget(name)
                 if current is None:
@@ -259,6 +256,10 @@ class DockerSandbox(Sandbox):
                 with suppress(Exception):
                     await self._delete_volumes(name, session_id, agent_id, generation, digest)
                 raise
+            finally:
+                # The env file holds credentials, so remove it however volume setup or creation ends.
+                with suppress(FileNotFoundError):
+                    os.unlink(env_file)
         if current.config_digest != digest:
             raise SandboxError("Sandbox generation already exists with different configuration")
         if current.state == "paused":

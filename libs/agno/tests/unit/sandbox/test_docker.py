@@ -364,3 +364,20 @@ async def test_stop_unpauses_before_stopping():
     await sandbox.astop(handle)
     operations = [call[0][1] for call in sandbox.calls if call[0][0] == "container"]
     assert operations[-2:] == ["unpause", "stop"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure", [SandboxError("Docker volume identity mismatch"), asyncio.CancelledError()])
+async def test_env_file_is_removed_when_volume_preparation_fails(failure):
+    class FailedVolume(FakeDocker):
+        async def _ensure_volume(self, *args, **kwargs):
+            raise failure
+
+        def _write_env_file(self, env):
+            self.env_path = DockerSandbox._write_env_file(env)
+            return self.env_path
+
+    sandbox = FailedVolume()
+    with pytest.raises(type(failure)):
+        await sandbox.acreate("s", agent_id="coder", env={"MODEL_TOKEN": "secret"})
+    assert not os.path.exists(sandbox.env_path)

@@ -38,7 +38,9 @@ from agno.os.auth import (
 )
 from agno.os.event_streams import get_event_stream
 from agno.os.job_queue import (
+    aattach_waiting_on,
     acontinue_via_queue,
+    aenqueue_ticket,
     aprepare_accepted_or_abort,
     araise_if_ticket_owns_continue,
     aticket_poll_fallback,
@@ -386,7 +388,7 @@ async def handle_workflow_via_websocket(
                 max_attempts=queue_worker.config.max_attempts,
                 deployment_id=queue_worker.config.deployment_id,
             ).to_dict()
-            enqueue_result = await queue_worker.store.enqueue_job(job, max_depth=queue_worker.config.max_queue_depth)
+            enqueue_result = await aenqueue_ticket(queue_worker, job, workflow)
             if not enqueue_result["accepted"]:
                 # No Idempotency-Key over WS, so "duplicate" cannot legitimately
                 # happen on a fresh uuid - either way nothing was enqueued and
@@ -1850,9 +1852,7 @@ def get_workflow_router(
                         deployment_id=queue_worker.config.deployment_id,
                         idempotency_key=normalize_idempotency_key(request.headers.get("idempotency-key")),
                     ).to_dict()
-                    enqueue_result = await queue_worker.store.enqueue_job(
-                        job, max_depth=queue_worker.config.max_queue_depth
-                    )
+                    enqueue_result = await aenqueue_ticket(queue_worker, job, workflow)
                     if enqueue_result["reason"] == "queue_full":
                         raise HTTPException(status_code=429, detail="Job queue is full")
                     if enqueue_result["reason"] == "duplicate":
@@ -1955,9 +1955,7 @@ def get_workflow_router(
                 # Enqueue FIRST: the committed queue row is the acceptance.
                 # Rejected or duplicate submissions must leave no phantom
                 # PENDING run behind in the session.
-                enqueue_result = await queue_worker.store.enqueue_job(
-                    job, max_depth=queue_worker.config.max_queue_depth
-                )
+                enqueue_result = await aenqueue_ticket(queue_worker, job, workflow)
                 if enqueue_result["reason"] == "queue_full":
                     raise HTTPException(status_code=429, detail="Job queue is full")
                 if enqueue_result["reason"] == "duplicate" and enqueue_result["job"] is not None:
@@ -2752,7 +2750,7 @@ def get_workflow_router(
         if not run_matches_component(run_output, "workflows", workflow_id):
             raise HTTPException(status_code=404, detail="Run not found")
 
-        return run_output.to_dict()
+        return await aattach_waiting_on(getattr(request.app.state, "queue_worker", None), run_id, run_output.to_dict())
 
     @router.get(
         "/workflows/{workflow_id}/runs",

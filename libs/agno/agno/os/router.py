@@ -224,7 +224,15 @@ def get_base_router(
             traces=os._get_traces_config(),
             queue=QueueCapabilities(
                 durable=bool(os.queue is not None and os.queue.durable),
-                queue_per_session=bool(os.queue is not None and os.queue.durable and os.queue.queue_per_session),
+                queue_per_session=bool(
+                    os.queue is not None
+                    and os.queue.durable
+                    and getattr(
+                        getattr(request.app.state, "queue_worker", None),
+                        "queue_per_session",
+                        os.queue.queue_per_session,
+                    )
+                ),
             ),
             interfaces=[
                 InterfaceResponse(type=interface.type, version=interface.version, route=interface.prefix)

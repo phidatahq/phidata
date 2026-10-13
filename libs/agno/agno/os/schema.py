@@ -418,8 +418,8 @@ class QueueCapabilities(BaseModel):
 
     Reported as EFFECTIVE behavior, not raw settings: queue_per_session is
     true only when a durable queue actually enforces the per-session gate -
-    a queue_per_session flag without durable=True gates nothing and is
-    reported false. Readable by any authenticated caller (deployment
+    a queue_per_session flag without durable=True, or with a custom store
+    that does not serialize sessions, gates nothing and is reported false. Readable by any authenticated caller (deployment
     capability, not operator data - the admin-scoped /queue surface stays
     the only view of actual jobs).
 

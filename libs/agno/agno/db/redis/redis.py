@@ -2533,7 +2533,7 @@ class RedisDb(BaseDb):
         """Sequence a ticket entering its session index after every live ticket.
 
         The index holds exactly the live tickets, scored by sequence; watching it orders
-        concurrent entries (submit, requeue, continue) by the commit that wins."""
+        concurrent entries (submit, requeue) by the commit that wins."""
         from agno.job_queue.session import with_session_seq
 
         session_key = self._q_session_key(job)
@@ -2542,10 +2542,12 @@ class RedisDb(BaseDb):
         return with_session_seq(job, int(top[0][1]) + 1 if top else 1)
 
     def _q_save_job_in_pipe(self, pipe: Any, job: Dict[str, Any]) -> None:
+        from agno.job_queue.session import LIVE_STATUSES
+
         pipe.set(self._q_job_key(job["id"]), json.dumps(job))
         if (job.get("payload") or {}).get("serialize_session") is True:
             key = self._q_session_key(job)
-            if job["status"] in ("queued", "running"):
+            if job["status"] in LIVE_STATUSES:
                 pipe.zadd(key, {job["id"]: job["payload"].get("session_seq") or 0})
             else:
                 pipe.zrem(key, job["id"])
@@ -3049,6 +3051,19 @@ class RedisDb(BaseDb):
         docstring); this load propagates Redis errors in both modes."""
         return self._q_load_job(job_id)
 
+    def session_blocker(self, job_id: str) -> Optional[str]:
+        """The id of the ticket a queued serialized job waits behind, or None."""
+        from agno.job_queue.session import is_serialized, session_blocker
+
+        job = self._q_load_job(job_id)
+        if job is None or job["status"] != "queued" or not is_serialized(job):
+            return None
+        member_ids = [_q_to_str(value) for value in self.redis_client.zrange(self._q_session_key(job), 0, -1)]
+        if not member_ids:
+            return None
+        raw = self.redis_client.mget([self._q_job_key(value) for value in member_ids])
+        return session_blocker(job, [json.loads(value) for value in raw if value is not None])
+
     def count_queued_jobs(self) -> int:
         return int(self.redis_client.zcard(self._q_key("queued")))
 
@@ -3158,8 +3173,6 @@ class RedisDb(BaseDb):
                     if job["status"] in ("queued", "running"):
                         pipe.unwatch()
                         return {"outcome": "attach", "job": job}
-                    if (job.get("payload") or {}).get("serialize_session") is True:
-                        job = self._q_stamp_session_seq(pipe, job)
                     payload = dict(job.get("payload") or {})
                     payload["continue"] = dict(continue_payload)
                     job.update(

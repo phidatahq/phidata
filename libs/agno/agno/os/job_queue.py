@@ -295,42 +295,37 @@ def payload_is_queueable(payload: Any) -> bool:
         return False
 
 
-def claim_rejects_queue_per_session(store: Any) -> bool:
-    """True when the store's claim_job provably cannot take the
-    queue_per_session keyword: it exists, its signature is inspectable, and
-    it names neither that parameter nor **kwargs. Stores written against the
-    earlier contract, claim_job(worker_id, lock_grace_seconds, deployment_id),
-    are still valid stores while the per-session gate is off; with it on they
-    cannot honour it, and that must fail at startup - not as a TypeError on
-    every poll that the loop swallows while accepted jobs sit queued forever.
-    Anything uninspectable (mocks, C-implemented callables) is trusted."""
-    target = store._store if isinstance(store, _SyncStoreAdapter) else store
-    claim = getattr(target, "claim_job", None)
-    if not callable(claim):
-        return False
+def store_serializes_sessions(store: Any) -> bool:
+    """True when the queue store runs a session's marked tickets one at a time, in order."""
+    return getattr(store, "serializes_sessions", False) is True
+
+
+async def aenqueue_ticket(queue_worker: Any, job: Dict[str, Any], component: Any = None) -> Dict[str, Any]:
+    """Accept a ticket, marking it for per-session order when queue_per_session is on.
+
+    External agents are always marked: a second concurrent turn on their session fails
+    instead of waiting, so their order cannot depend on the flag."""
+    from agno.agents.base import BaseExternalAgent
+
+    config = queue_worker.config
+    if config.queue_per_session or isinstance(component, BaseExternalAgent):
+        job = {**job, "payload": {**(job.get("payload") or {}), "serialize_session": True}}
+    return await queue_worker.store.enqueue_job(job, max_depth=config.max_queue_depth)
+
+
+async def aattach_waiting_on(queue_worker: Any, run_id: str, body: Dict[str, Any]) -> Dict[str, Any]:
+    """Name the run a PENDING run waits behind in its session, when the store can tell."""
+    lookup = getattr(queue_worker.store, "session_blocker", None) if queue_worker is not None else None
+    if lookup is None or body.get("status") != "PENDING":
+        return body
     try:
-        params = inspect.signature(claim).parameters
-    except (TypeError, ValueError):
-        return False
-    if "queue_per_session" in params:
-        return False
-    return not any(p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values())
-
-
-def ensure_store_honours_queue_per_session(store: Any, config: QueueConfig) -> None:
-    """Fail fast when queue_per_session is on and the store cannot enforce
-    it. Silently claiming without the gate would advertise a per-session
-    ordering guarantee (also reported on /config) that nothing upholds."""
-    if not config.queue_per_session or not claim_rejects_queue_per_session(store):
-        return
-    target = store._store if isinstance(store, _SyncStoreAdapter) else store
-    raise ValueError(
-        f"Queue store {type(target).__name__}.claim_job does not accept the queue_per_session "
-        "keyword, but QueueConfig(queue_per_session=True) is set (the default). Add a "
-        "`queue_per_session: bool = False` parameter that restricts claims to each session's "
-        "head-of-line job (agno.job_queue.store.InMemoryQueueStore.claim_job is the reference), "
-        "or set QueueConfig(queue_per_session=False) to keep fully concurrent claiming on this store."
-    )
+        waiting_on = await lookup(run_id)
+    except Exception as e:
+        log_debug(f"Could not resolve the session blocker of queued run {run_id}: {e}")
+        return body
+    if waiting_on is not None:
+        body["waiting_on"] = waiting_on
+    return body
 
 
 def _is_component_factory(candidate: "RegisteredComponent") -> bool:
@@ -478,7 +473,6 @@ def resolve_queue_store(config: QueueConfig, default_db: Any) -> Any:
                 "Postgres-grade guarantees; default RDB snapshotting can lose recently "
                 "accepted jobs on a Redis crash)."
             )
-        ensure_store_honours_queue_per_session(store, config)
         if inspect.iscoroutinefunction(claim):
             return store
         return _SyncStoreAdapter(store)
@@ -523,12 +517,14 @@ class QueueWorker:
         self.worker_id = worker_id or f"worker-{uuid4().hex[:8]}"
         self.stop_timeout = stop_timeout
         self.auto_provision = auto_provision
-        # The gate keyword is passed only when the gate is on: a store built
-        # against the pre-gate claim contract keeps receiving the exact call
-        # it was written for, and one that cannot honour an enabled gate is
-        # refused here rather than failing every poll.
-        ensure_store_honours_queue_per_session(store, config)
-        self._claim_kwargs: Dict[str, Any] = {"queue_per_session": True} if config.queue_per_session else {}
+        # Effective per-session order: a custom store without serializes_sessions claims
+        # marked tickets concurrently, and /config reports the gate as off.
+        self.queue_per_session = config.queue_per_session and store_serializes_sessions(store)
+        if config.queue_per_session and not self.queue_per_session:
+            log_warning(
+                f"Queue store {type(getattr(store, '_store', store)).__name__} does not set serializes_sessions; "
+                "same-session runs will execute concurrently despite QueueConfig(queue_per_session=True)"
+            )
         if stop_timeout >= config.lock_grace_seconds:
             # Hard validation, not a warning: violating this GUARANTEES the
             # drain-sweep race - a draining run's lease can expire mid-drain
@@ -827,12 +823,7 @@ class QueueWorker:
                 effective_max = get_background_max_concurrency()
             if effective_max > 0 and len(self._in_flight) >= effective_max:
                 break
-            job = await self.store.claim_job(
-                self.worker_id,
-                self.config.lock_grace_seconds,
-                self.config.deployment_id,
-                **self._claim_kwargs,
-            )
+            job = await self.store.claim_job(self.worker_id, self.config.lock_grace_seconds, self.config.deployment_id)
             if job is None:
                 break
             task = asyncio.create_task(self._execute_claimed(job))
@@ -1754,8 +1745,7 @@ class QueueWorker:
             self.worker_id,
             job["attempt"],
             session_serialized=(
-                (job.get("payload") or {}).get("serialize_session") is True
-                and getattr(self.store, "serializes_sessions", False) is True
+                (job.get("payload") or {}).get("serialize_session") is True and store_serializes_sessions(self.store)
             ),
         ) as ownership:
             await self._execute_claimed_inner(job, ownership)
@@ -2731,7 +2721,7 @@ async def aticket_poll_fallback(
         from agno.run.base import CancellationStage
 
         body["cancellation_stage"] = CancellationStage.pending.value
-    return body
+    return await aattach_waiting_on(queue_worker, run_id, body)
 
 
 def warn_unfenced_session_stores(agent_os: Any) -> None:

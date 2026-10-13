@@ -124,6 +124,75 @@ def test_format_message_replays_merged_reasoning_details():
     assert rd[0]["signature"] == "sig"
 
 
+def test_same_index_with_different_ids_stays_two_blocks():
+    """Two distinct blocks reusing one index must not cross-merge.
+
+    Merging on index alone would concatenate the second block's text onto the
+    first and silently drop the first id.
+    """
+    fragments = [
+        {"type": "reasoning.text", "text": "text A", "id": "r-a", "index": 0},
+        {"type": "reasoning.text", "text": "text B", "id": "r-b", "index": 0},
+    ]
+
+    merged = _merge_reasoning_details(fragments)
+
+    assert merged == [
+        {"type": "reasoning.text", "text": "text A", "id": "r-a", "index": 0},
+        {"type": "reasoning.text", "text": "text B", "id": "r-b", "index": 0},
+    ]
+
+
+def test_entries_without_index_keep_their_original_position():
+    """An unindexed entry stays where it arrived, not reordered behind blocks."""
+    fragments = [
+        {"type": "reasoning.text", "text": "unindexed summary"},  # no index, arrives first
+        {"type": "reasoning.text", "text": "part 1", "index": 0},
+        {"type": "reasoning.text", "text": "part 2", "index": 0},
+    ]
+
+    merged = _merge_reasoning_details(fragments)
+
+    assert merged == [
+        {"type": "reasoning.text", "text": "unindexed summary"},
+        {"type": "reasoning.text", "text": "part 1part 2", "index": 0},
+    ]
+
+
+def test_encrypted_fragments_with_different_ids_never_concatenate_data():
+    """Same index, different ids: two encrypted payloads must stay separate."""
+    fragments = [
+        {"type": "reasoning.encrypted", "data": "QWJj", "id": "enc-1", "index": 0},
+        {"type": "reasoning.encrypted", "data": "ZGVm", "id": "enc-2", "index": 0},
+    ]
+
+    merged = _merge_reasoning_details(fragments)
+
+    assert [m["data"] for m in merged] == ["QWJj", "ZGVm"]
+    assert [m["id"] for m in merged] == ["enc-1", "enc-2"]
+
+
+def test_id_carried_on_only_some_fragments_still_merges():
+    """An id present on only some chunks of a stream still identifies one block.
+
+    OpenRouter often emits the id once (first or signature-bearing chunk); the
+    remaining chunks carry only index + text. A missing id must not break the
+    run — only a *conflicting* id does.
+    """
+    fragments = [
+        {"type": "reasoning.text", "id": "r-1", "text": "Hello", "index": 0},
+        {"type": "reasoning.text", "text": " world", "index": 0},  # no id here
+        {"type": "reasoning.text", "signature": "sig", "index": 0},  # no id either
+    ]
+
+    merged = _merge_reasoning_details(fragments)
+
+    assert len(merged) == 1
+    assert merged[0]["id"] == "r-1"
+    assert merged[0]["text"] == "Hello world"
+    assert merged[0]["signature"] == "sig"
+
+
 def test_format_message_leaves_other_provider_data_lists_untouched():
     """server_tool_blocks and other provider-data keys must not be altered.
 

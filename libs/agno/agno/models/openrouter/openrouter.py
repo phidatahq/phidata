@@ -19,7 +19,7 @@ _REASONING_TEXT_FIELDS = ("text", "data")
 
 
 def _merge_reasoning_details(reasoning_details: Optional[List[Any]]) -> List[Any]:
-    """Reconstruct one complete reasoning detail object per ``index``.
+    """Reconstruct complete reasoning detail blocks from streamed fragments.
 
     OpenRouter streams one reasoning block across multiple chunks sharing the
     same ``index`` — text arrives in pieces and the signature (Anthropic) or
@@ -29,41 +29,57 @@ def _merge_reasoning_details(reasoning_details: Optional[List[Any]]) -> List[Any
     those verbatim corrupts Anthropic's signed thinking blocks and fails the next
     request with ``Invalid signature in thinking block`` (agno-agi/agno#8794).
 
-    Fragments sharing an ``index`` are merged into a single block: text/data
-    fields are concatenated in arrival order, all other structural fields
-    (``type``, ``format``, ``id``, ``signature``, ...) are carried through. Entries
-    without an ``index`` or that are not dicts are passed through unchanged. Other
-    provider-data lists (e.g. ``server_tool_blocks``) are never touched.
+    A shared ``index`` alone is not proof of a shared block: fragments merge only
+    while the block identity holds. An ``id`` missing from a chunk does not break
+    the run (OpenRouter often carries it on just the first or final fragment),
+    but a fragment whose ``id`` disagrees with the one already established for
+    that index starts a new block — cross-merging would concatenate the second
+    block's text/data onto the first and drop the first id. Fragments without an
+    ``index`` (and non-dict entries) pass through in place, so the original list
+    order is preserved. Other provider-data lists (e.g. ``server_tool_blocks``)
+    are never touched.
     """
     if not reasoning_details:
         return []
 
-    grouped: Dict[Any, Dict[str, Any]] = {}
-    order: List[Any] = []
-    passthrough: List[Any] = []
+    blocks: Dict[Any, Any] = {}  # block key -> merged dict (or passthrough entry)
+    first_pos: Dict[Any, int] = {}  # block key -> position of its first fragment
+    open_key: Dict[Any, Any] = {}  # index -> key of the block currently receiving fragments
+    established_id: Dict[Any, Any] = {}  # index -> last non-None id merged into the open block
 
-    for fragment in reasoning_details:
+    for pos, fragment in enumerate(reasoning_details):
         if not isinstance(fragment, dict) or "index" not in fragment:
-            passthrough.append(fragment)
+            raw_key = ("raw", pos)
+            blocks[raw_key] = fragment
+            first_pos[raw_key] = pos
             continue
 
         idx = fragment["index"]
-        if idx not in grouped:
-            grouped[idx] = {}
-            order.append(idx)
-        target = grouped[idx]
-        for key, value in fragment.items():
+        fid = fragment.get("id")
+        key = open_key.get(idx)
+        if key is not None:
+            prior_id = established_id.get(idx)
+            if fid is not None and prior_id is not None and fid != prior_id:
+                key = None  # a different block is reusing this index
+
+        if key is None:
+            key = ("block", idx, pos)
+            blocks[key] = {}
+            first_pos[key] = pos
+            open_key[idx] = key
+        if fid is not None:
+            established_id[idx] = fid
+
+        target = blocks[key]
+        for field, value in fragment.items():
             if value is None:
                 continue
-            if key in _REASONING_TEXT_FIELDS and isinstance(value, str):
-                target[key] = target.get(key, "") + value
+            if field in _REASONING_TEXT_FIELDS and isinstance(value, str):
+                target[field] = target.get(field, "") + value
             else:
-                target[key] = value
+                target[field] = value
 
-    # Merge order: grouped blocks (in first-seen index order) then passthrough.
-    merged: List[Any] = [grouped[idx] for idx in order]
-    merged.extend(passthrough)
-    return merged
+    return [blocks[key] for key in sorted(first_pos, key=first_pos.get)]
 
 
 @dataclass

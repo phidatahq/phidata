@@ -16,7 +16,7 @@ def _execute(request: Dict[str, Any]) -> Dict[str, Any]:
     timed_out = False
     output_limited = False
     # Output goes to bounded-monitor temporary files so pipe buffers cannot deadlock
-    # execution. The provider also limits the container's /tmp filesystem.
+    # execution. The sandbox also limits the container's /tmp filesystem.
     with tempfile.TemporaryFile() as stdout, tempfile.TemporaryFile() as stderr:
         try:
             process = subprocess.Popen(request["argv"], stdout=stdout, stderr=stderr, start_new_session=True)

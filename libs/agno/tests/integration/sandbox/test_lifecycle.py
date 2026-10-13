@@ -102,6 +102,27 @@ async def test_unavailable_storage_keeps_deletion_pending(system):
     assert not list(root.iterdir())
 
 
+async def test_unmounted_storage_keeps_deletion_pending(system):
+    coordinator, spec, tmp_path = system
+    await run(coordinator, spec)
+    await run(coordinator, spec, "second")
+    root = coordinator.transfer.store.root
+    volume = tmp_path / "volume"
+    volume.mkdir()
+    for path in root.iterdir():
+        path.rename(volume / path.name)
+    lifecycle = SandboxLifecycle(coordinator)
+    for _ in range(2):
+        with pytest.raises(FileNotFoundError):
+            await lifecycle.adelete_recovery(agent_id="agent", session_id="session", user_id="user")
+    record = (await binding(coordinator))["record"]
+    assert record["phase"] == "deleting" and len(record["deletion_references"]) == 2
+    for path in volume.iterdir():
+        path.rename(root / path.name)
+    await lifecycle.adelete_recovery(agent_id="agent", session_id="session", user_id="user")
+    assert not list(root.iterdir())
+
+
 async def test_retry_restores_marker_lost_to_stale_session_write(system):
     coordinator, spec, _ = system
     await run(coordinator, spec)
@@ -144,11 +165,11 @@ async def test_partial_storage_delete_is_retryable_without_restoring_execution(s
     original = lifecycle._remove_object
     calls = []
 
-    def fail_after_first(reference, identity):
-        calls.append(reference.sha256)
+    def fail_after_first(path):
+        calls.append(path.name)
         if len(calls) == 2:
             raise OSError("storage outage")
-        return original(reference, identity)
+        return original(path)
 
     monkeypatch.setattr(lifecycle, "_remove_object", fail_after_first)
     with pytest.raises(OSError):

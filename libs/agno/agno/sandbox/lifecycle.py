@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import suppress
-from typing import Any, Dict, Optional
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 from agno.exceptions import InputCheckError
 from agno.sandbox.artifacts import SandboxSessionNotFound
@@ -152,20 +153,42 @@ class SandboxLifecycle:
 
         return await self.store._transaction(begin)
 
-    def _remove_object(self, reference: CheckpointRef, identity: Dict[str, Any]) -> None:
+    def _owned_object(self, reference: CheckpointRef, identity: Dict[str, Any], claimed: List[str]) -> Optional[Path]:
         objects = self.coordinator.transfer.store
         try:
             path = objects.verify(reference)
         except FileNotFoundError:
-            # A missing object is already deleted; a missing root means storage is unavailable.
-            if not objects.root.is_dir():
-                raise
-            return
+            # Missing proves deletion only for an object this cleanup verified and claimed before unlinking.
+            if reference.sha256 in claimed and objects.root.is_dir():
+                return None
+            raise
         binding = CheckpointArchive().validate(path).get("binding") or {}
         if any(binding.get(key) != value for key, value in identity.items()):
             raise SandboxError("Refusing to delete another session's checkpoint")
+        return path
+
+    def _remove_object(self, path: Path) -> None:
         path.unlink(missing_ok=True)
-        _fsync_directory(objects.root)
+        _fsync_directory(path.parent)
+
+    async def _claim_object(self, session_id: str, incarnation: Any, sha256: str) -> None:
+        from sqlalchemy import select, update
+
+        def claim(connection: Any) -> None:
+            row = (
+                connection.execute(select(self.store.bindings).where(self.store._key(session_id)).with_for_update())
+                .mappings()
+                .one()
+            )
+            record = self.store._json(row["record"])
+            if record["incarnation"] != incarnation or record["phase"] != "deleting":
+                raise SandboxError("Recovery deletion lost its session tombstone")
+            claimed = record.setdefault("claimed_references", [])
+            if sha256 not in claimed:
+                claimed.append(sha256)
+            connection.execute(update(self.store.bindings).where(self.store._key(session_id)).values(record=record))
+
+        await self.store._transaction(claim)
 
     async def adelete_recovery(
         self, *, agent_id: str, session_id: str, user_id: Optional[str] = None
@@ -175,8 +198,15 @@ class SandboxLifecycle:
         # A deleted session still runs finish() so a retry restores a marker lost to a stale session write.
         record = await self._begin_delete(agent_id, session_id, user_id)
         identity = dict(agent_id=agent_id, session_id=session_id, user_id=user_id, incarnation=record["incarnation"])
+        claimed = list(record.get("claimed_references", []))
         for value in record["deletion_references"]:
-            await _thread(self._remove_object, CheckpointRef(**value), identity)
+            reference = CheckpointRef(**value)
+            path = await _thread(self._owned_object, reference, identity, claimed)
+            if path is None:
+                continue
+            if reference.sha256 not in claimed:
+                await self._claim_object(session_id, record["incarnation"], reference.sha256)
+            await _thread(self._remove_object, path)
 
         def finish(connection: Any) -> None:
             assert self.store.runs is not None and self.store.sessions is not None
@@ -233,6 +263,7 @@ class SandboxLifecycle:
                 staged_identity=None,
                 result=None,
                 deletion_references=[],
+                claimed_references=[],
                 published_checkpoints=[],
             )
             connection.execute(update(self.store.bindings).where(self.store._key(session_id)).values(record=current))

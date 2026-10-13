@@ -673,15 +673,41 @@ class FileCheckpointStore:
         await _thread(self.verify, reference)
 
     @contextmanager
+    def _lease(self, reference: CheckpointRef) -> Iterator[Path]:
+        """Hold the object's bytes under a private name for as long as the lease lasts.
+
+        Retention unlinks the canonical name on its own schedule, which a reader that
+        already holds the object must not see disappear. A second link keeps those exact
+        bytes reachable; releasing it leaves the object itself alone.
+        """
+        lease = self.root / f".open-{os.urandom(8).hex()}"
+        try:
+            os.link(self.root / reference.sha256, lease)
+        except FileNotFoundError as error:
+            raise CheckpointObjectNotFound("Checkpoint object is missing") from error
+        try:
+            yield lease
+        finally:
+            lease.unlink(missing_ok=True)
+
+    @contextmanager
     def open_archive(self, reference: CheckpointRef) -> Iterator[Path]:
-        """Yield the object itself: it is immutable, so there is nothing to materialize."""
-        self.verify(reference)
-        yield self.root / reference.sha256
+        """Lease the object, verify it, and yield the leased name.
+
+        Verifying the canonical name verifies the lease with it: a name here is created
+        once, from content that already matched the digest it is named after.
+        """
+        with self._lease(reference) as lease:
+            self.verify(reference)
+            yield lease
 
     @asynccontextmanager
     async def aopen_archive(self, reference: CheckpointRef) -> AsyncIterator[Path]:
-        await self.averify(reference)
-        yield self.root / reference.sha256
+        # Two filesystem calls, taken and released without awaiting: the lease has to
+        # outlive cancellation of the verification it is holding the object for.
+        with self._lease(reference) as lease:
+            await self.averify(reference)
+            yield lease
 
     def delete(self, reference: CheckpointRef) -> None:
         # Durable, because a reconciler that crashes must not find the object again.

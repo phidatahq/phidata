@@ -562,7 +562,7 @@ async def test_retry_immediately_after_a_cancelled_upload(tmp_path, roots, monke
         await task
     reference = await store.aput(source)
     assert not list(store.root.glob(".upload-*"))
-    assert (store.root / reference.sha256).exists()
+    assert [path.name for path in store.root.iterdir()] == [reference.sha256]
     assert await store.arestore(reference, tmp_path / "recovered") == {
         "run_id": "r",
         "native_id": "n",
@@ -944,7 +944,7 @@ def test_open_archive_releases_after_a_consumer_exception_and_keeps_the_object(t
             with implementation.open_archive(reference):
                 raise ZeroDivisionError("the consumer failed")
 
-    assert (store.root / local.sha256).exists(), "an immutable object outlives a failed access"
+    assert [path.name for path in store.root.iterdir()] == [local.sha256], "nothing else survives it"
     assert not any(path.exists() for path in memory.materialized), "a materialization does not"
     assert list(memory.directory.iterdir()) == []
 
@@ -1058,7 +1058,7 @@ async def test_cancelling_an_async_access_drains_its_verification(tmp_path, root
     with pytest.raises(asyncio.CancelledError):
         await task
     assert await asyncio.to_thread(settled.wait, 5)
-    assert (store.root / reference.sha256).exists()
+    assert [path.name for path in store.root.iterdir()] == [reference.sha256]
 
 
 # A synthetic stand-in for a credential; never a real one.
@@ -1274,3 +1274,49 @@ def test_the_limit_admits_an_archive_whose_expanded_stream_exactly_fits(tmp_path
     limits = CheckpointLimits(max_bytes=len(gzip.decompress(stored) if compress else stored))
     destination = capture(tmp_path / "exact", roots, compress=compress, limits=limits)
     assert CheckpointArchive(limits).restore(destination, tmp_path / "restored")["run_id"] == "r"
+
+
+def test_an_opened_object_stays_readable_while_retention_deletes_it(tmp_path, roots):
+    """The path an access hands out stays valid for the whole context.
+
+    Retention runs on its own schedule, so it can remove the object while a consumer
+    holds it. One that already passed verification must not then fail to read.
+    """
+    store = FileCheckpointStore(tmp_path / "objects")
+    reference = store.put(capture(tmp_path, roots))
+    with store.open_archive(reference) as path:
+        store.delete(reference)
+        assert hashlib.sha256(path.read_bytes()).hexdigest() == reference.sha256
+        assert CheckpointArchive().restore(path, tmp_path / "restored")["run_id"] == "r"
+    assert not path.exists(), "what the access held is released with the context"
+    assert list(store.root.iterdir()) == []
+
+
+@pytest.mark.asyncio
+async def test_an_async_access_stays_readable_while_retention_deletes_its_object(tmp_path, roots):
+    store = FileCheckpointStore(tmp_path / "objects")
+    reference = await store.aput(capture(tmp_path, roots))
+    async with store.aopen_archive(reference) as path:
+        await store.adelete(reference)
+        assert await CheckpointArchive().arestore(path, tmp_path / "restored") == {
+            "run_id": "r",
+            "native_id": "n",
+            "conversation": ["hello"],
+        }
+    assert not path.exists()
+    assert list(store.root.iterdir()) == []
+
+
+def test_a_restore_survives_retention_deleting_the_object_after_verification(tmp_path, roots, monkeypatch):
+    """The in-repo consumer: ``restore`` opens the path once verification succeeded."""
+    store = FileCheckpointStore(tmp_path / "objects")
+    reference = store.put(capture(tmp_path, roots))
+    real = CheckpointArchive.restore
+
+    def delete_first(self, source, destination):
+        store.delete(reference)
+        return real(self, source, destination)
+
+    monkeypatch.setattr(CheckpointArchive, "restore", delete_first)
+    assert store.restore(reference, tmp_path / "restored")["run_id"] == "r"
+    assert list(store.root.iterdir()) == []

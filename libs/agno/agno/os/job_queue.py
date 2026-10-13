@@ -8,13 +8,34 @@ the corresponding runtime pieces, including the DB-backed queue worker
 import asyncio
 import contextlib
 import inspect
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, Dict, List, Optional, Protocol, Sequence, Union
 
 from agno.job_queue.config import QueueConfig, RedisCoordination
 from agno.utils.log import log_debug, log_error, log_info, log_warning
 
 if TYPE_CHECKING:
+    from agno.agent import Agent, AgentFactory, RemoteAgent
+    from agno.agent.protocol import AgentProtocol
+    from agno.db.base import AsyncBaseDb, BaseDb
+    from agno.run.base import CancellationStage
     from agno.run.status_persist import RunPersistOutcome
+    from agno.team import RemoteTeam, Team, TeamFactory
+    from agno.workflow import RemoteWorkflow, Workflow, WorkflowFactory
+
+    # A component a ticket can name: what the run endpoints resolve.
+    QueueableComponent = Union[Agent, RemoteAgent, AgentProtocol, Team, RemoteTeam, Workflow, RemoteWorkflow]
+    # An entry of an AgentOS code registry (os.agents / os.teams / os.workflows).
+    RegisteredComponent = Union[QueueableComponent, AgentFactory, TeamFactory, WorkflowFactory]
+
+
+class ComponentResolver(Protocol):
+    """Resolves the component a ticket names. ``scope`` is passed only for
+    tickets that carry one (see ``queue_scope``); the result may be sync or
+    awaitable."""
+
+    def __call__(
+        self, component_type: str, component_id: str, scope: Optional[Dict[str, Any]] = ...
+    ) -> Union[Optional["QueueableComponent"], Awaitable[Optional["QueueableComponent"]]]: ...
 
 
 def apply_queue_config(config: QueueConfig) -> None:
@@ -208,28 +229,41 @@ def ticket_status_to_api(ticket_status: str) -> Optional[str]:
     return _TICKET_STATUS_TO_API.get(ticket_status)
 
 
-def ensure_duplicate_matches_component(existing: Dict[str, Any], component_type: str, component_id: Any) -> None:
+def ensure_duplicate_matches_component(
+    existing: Dict[str, Any], component_type: str, component_id: Any, version: Optional[int] = None
+) -> None:
     """Refuse an Idempotency-Key duplicate that belongs to a different component.
 
     The dedup namespace is (idempotency_key, user_id) only, so a key reused on
-    another component's submit route would otherwise be answered with the
-    ORIGINAL component's run - a 202 (or live stream attach) whose ids then 404
-    through this route's poll endpoint, because the ticket poll fallback does
-    enforce component identity. Idempotency keys retry the same submission;
-    they never alias a different one.
+    another component's submit route - or with another explicitly pinned
+    VERSION of the same component - would otherwise be answered with the
+    ORIGINAL run - a 202 (or live stream attach) whose ids then 404 through
+    this route's poll endpoint, because the ticket poll fallback does enforce
+    component identity. Idempotency keys retry the same submission; they never
+    alias a different one.
+
+    ``version`` is the caller's explicit pin, compared against the pin the
+    original submission made - not the effective version the ticket executes.
+    An unpinned retry after a publish is still the identical submission and
+    must return the original run.
 
     The response deliberately omits the original ticket's identity: in
     unauthenticated deployments the key namespace is shared across clients,
     and the mismatch detail belongs in server logs, not on the wire.
     """
-    if existing.get("component_type") == component_type and existing.get("component_id") == component_id:
+    existing_pin = ((existing.get("payload") or {}).get("scope") or {}).get("pinned")
+    if (
+        existing.get("component_type") == component_type
+        and existing.get("component_id") == component_id
+        and existing_pin == version
+    ):
         return
     from fastapi import HTTPException
 
     log_warning(
         f"Idempotency-Key reuse across components: key on ticket "
-        f"{existing.get('component_type')}/{existing.get('component_id')} was replayed against "
-        f"{component_type}/{component_id}; refusing with 409"
+        f"{existing.get('component_type')}/{existing.get('component_id')} (version {existing_pin}) was replayed "
+        f"against {component_type}/{component_id} (version {version}); refusing with 409"
     )
     raise HTTPException(
         status_code=409,
@@ -297,6 +331,93 @@ def ensure_store_honours_queue_per_session(store: Any, config: QueueConfig) -> N
         "head-of-line job (agno.job_queue.store.InMemoryQueueStore.claim_job is the reference), "
         "or set QueueConfig(queue_per_session=False) to keep fully concurrent claiming on this store."
     )
+
+
+def _is_component_factory(candidate: "RegisteredComponent") -> bool:
+    from agno.agent.factory import AgentFactory
+    from agno.team.factory import TeamFactory
+    from agno.workflow.factory import WorkflowFactory
+
+    return isinstance(candidate, (AgentFactory, TeamFactory, WorkflowFactory))
+
+
+def component_is_queueable(
+    component: Optional["QueueableComponent"],
+    component_id: str,
+    registry: Optional[Sequence["RegisteredComponent"]],
+    db: Optional[Union["BaseDb", "AsyncBaseDb"]],
+) -> bool:
+    """True when the durable worker can re-resolve ``component`` at claim time.
+
+    Two sources exist, mirroring the HTTP resolution order:
+    - a code-registered instance resolves from the registry. Factory entries
+      are never queueable: they need the request context to build the
+      component, which the worker does not have.
+    - an off-registry component (created through the components API, or a
+      version-pinned load) was rehydrated from the AgentOS db at accept
+      time. The worker replays that load from the scope stamped on the
+      ticket (owner user_id + version), so it is queueable whenever the
+      AgentOS has a db to replay it from.
+    """
+    if component is None:
+        return False
+    for candidate in registry or []:
+        if getattr(candidate, "id", None) == component_id:
+            return not _is_component_factory(candidate)
+    from agno.db.base import BaseDb
+
+    # The db loaders rehydrate only from a sync BaseDb
+    return isinstance(db, BaseDb)
+
+
+def queue_scope(
+    user_id: Optional[str], version: Optional[int], pinned: Optional[int] = None, source: str = "db"
+) -> Dict[str, Any]:
+    """The resolution scope a ticket carries so the worker resolves the SAME
+    component the accepting endpoint did: where it came from (``registry`` or
+    ``db``), the owner scope that gated a db-backed component, the version it
+    executes, and the version the caller explicitly pinned (None when
+    unpinned). Authorization (ownership, draft preview) happened at the door;
+    the worker only replays the resolution, never re-decides it."""
+    return {"user_id": user_id, "version": version, "pinned": pinned, "source": source}
+
+
+def resolve_queue_scope(
+    component_id: str,
+    registry: Optional[Sequence["RegisteredComponent"]],
+    db: Optional[Union["BaseDb", "AsyncBaseDb"]],
+    user_id: Optional[str],
+    version: Optional[int],
+) -> Dict[str, Any]:
+    """Build the ticket scope with a CONCRETE version for db-backed components.
+
+    An unpinned submission resolves the component's current version at the
+    door and validates the input against it. Stamping ``version: None`` would
+    let the worker resolve current_version AGAIN at claim time, so a version
+    published while the ticket waited would execute a config the door never
+    validated. Registry components ignore versions; a db read failure leaves
+    ``None`` (the worker then resolves current, the pre-existing behaviour)
+    rather than refusing the submission.
+
+    Call it only on the durable branch, right before the enqueue: it reads the
+    component row, and the closer that read is to the door's own resolution,
+    the smaller the window for a publish to land between them.
+    """
+    if any(getattr(c, "id", None) == component_id for c in registry or []):
+        return queue_scope(user_id, version, pinned=version, source="registry")
+    effective = version
+    if effective is None and db is not None:
+        from agno.db.base import BaseDb
+
+        if isinstance(db, BaseDb):
+            try:
+                row = db.get_component(component_id=component_id)
+                current = row.get("current_version") if isinstance(row, dict) else None
+                if isinstance(current, int):
+                    effective = current
+            except Exception as e:
+                log_debug(f"Could not pin the current version of {component_id} on the queue ticket: {e}")
+    return queue_scope(user_id, effective, pinned=version, source="db")
 
 
 def resolve_queue_store(config: QueueConfig, default_db: Any) -> Any:
@@ -388,7 +509,7 @@ class QueueWorker:
     def __init__(
         self,
         store: Any,
-        resolve_component: Any,
+        resolve_component: ComponentResolver,
         config: QueueConfig,
         worker_id: Optional[str] = None,
         stop_timeout: int = _DEFAULT_STOP_TIMEOUT,
@@ -806,6 +927,22 @@ class QueueWorker:
             await self.store.settle_swept_job(job["id"], self.worker_id, "failed", error)
             log_warning(f"Job queue: swept job {job['id']} to failed ({error})")
 
+    async def _aresolve_job_component(self, job: Dict[str, Any]) -> Optional["QueueableComponent"]:
+        """Resolve the component a ticket names, honoring the resolution
+        scope stamped at accept time. Tickets without a scope (registry
+        components, pre-scope producers) resolve by type/id alone, so a
+        two-argument resolver keeps working; resolvers may be sync or async."""
+        # component_type / component_id are required ticket fields (QueuedJob)
+        component_type, component_id = job["component_type"], job["component_id"]
+        scope = (job.get("payload") or {}).get("scope")
+        if scope:
+            resolved = self.resolve_component(component_type, component_id, scope=scope)
+        else:
+            resolved = self.resolve_component(component_type, component_id)
+        if inspect.isawaitable(resolved):
+            resolved = await resolved
+        return resolved
+
     async def _areconcile_swept_job(self, job: Dict[str, Any]) -> bool:
         """Settle a swept ticket to MATCH an already-settled run row.
 
@@ -821,7 +958,9 @@ class QueueWorker:
         failure path."""
         from agno.run.base import RunStatus
 
-        component = self.resolve_component(job.get("component_type"), job.get("component_id"))
+        component: Any = await self._aresolve_job_component(
+            job
+        )  # runtime dispatch on component_type; the executor body predates the typed resolver
         if component is None or not callable(getattr(component, "aget_run_output", None)):
             return False
         try:
@@ -889,13 +1028,21 @@ class QueueWorker:
             prior = await self.store.get_job(run_id)
         if prior is None or prior.get("job_type", "run") != "run" or prior.get("status") not in ("queued", "paused"):
             return False
-        # A paused run has partially executed, so "before execution" would be
-        # wrong on it
-        reason = (
-            "cancelled while paused awaiting continuation"
-            if prior.get("status") == "paused"
-            else "cancelled before execution"
-        )
+        from agno.run.base import CancellationStage
+
+        # The stage is the status the RUN held, which the ticket's own status
+        # only approximates: a continued ticket sits queued again with its
+        # continuation payload while the run is a paused one with history,
+        # and a ticket queued for a retry backoff belongs to a run an earlier
+        # attempt already executed. Only a never-claimed, never-continued
+        # ticket is a run that never started.
+        payload = prior.get("payload") or {}
+        if prior.get("status") == "paused" or payload.get("continue"):
+            reason, stage = "cancelled while paused awaiting continuation", CancellationStage.paused
+        elif (prior.get("attempt") or 0) > 0:
+            reason, stage = "cancelled while awaiting retry", CancellationStage.executing
+        else:
+            reason, stage = "cancelled before execution", CancellationStage.pending
         # Run row first (fenced): if this cannot land, do NOT tombstone - a
         # terminal ticket over a live-looking row is the one divergence
         # nothing heals. Exception: an UNRESOLVABLE component means nobody
@@ -903,8 +1050,10 @@ class QueueWorker:
         # refusing the tombstone would loop the ticket in sweep-retry forever
         # instead of honouring the user's cancel; keep the old loud tombstone
         # for exactly that case.
-        component_reachable = self.resolve_component(prior.get("component_type"), prior.get("component_id")) is not None
-        if component_reachable and not await self._persist_run_error(prior, reason, status="cancelled"):
+        component_reachable = await self._aresolve_job_component(prior) is not None
+        if component_reachable and not await self._persist_run_error(
+            prior, reason, status="cancelled", cancellation_stage=stage
+        ):
             log_error(
                 f"Job queue: could not persist the cancelled run row for waiting job {run_id}; "
                 "ticket left as-is (the caller's cancellation intent covers any later execution)"
@@ -1082,7 +1231,11 @@ class QueueWorker:
             # would close cleanly and the client would never see the retry's
             # output. Leave the stream open; the retry attempt continues it
             # (dead-producer TTL detection bounds the wait if no retry comes).
-            will_retry = status == RunStatus.error and job.get("attempt", 1) < job.get("max_attempts", 1)
+            will_retry = (
+                status == RunStatus.error
+                and job.get("attempt", 1) < job.get("max_attempts", 1)
+                and not self._run_is_not_retryable(final_output)
+            )
             if not will_retry:
                 with contextlib.suppress(Exception):
                     await asyncio.shield(event_stream.complete_run(job_id, status, generation=stream_generation))
@@ -1108,7 +1261,13 @@ class QueueWorker:
         with contextlib.suppress(Exception):
             await asyncio.shield(get_event_stream().complete_run(job["id"], terminal, generation=job.get("attempt")))
 
-    async def _persist_run_error(self, job: Dict[str, Any], error: str, status: str = "error") -> bool:
+    async def _persist_run_error(
+        self,
+        job: Dict[str, Any],
+        error: str,
+        status: str = "error",
+        cancellation_stage: Optional["CancellationStage"] = None,
+    ) -> bool:
         """Persist a terminal status on the run row so pollers see it, never a
         stuck RUNNING/PENDING. Atomic-first with attempt fencing: a later
         attempt's write owns the row; this (possibly stale) writer is fenced
@@ -1125,25 +1284,35 @@ class QueueWorker:
         RUNNING/PENDING forever with nothing left to revisit it. The sweeper
         uses _persist_run_error_outcome instead: it needs the typed outcome
         (TERMINAL_REFUSED = the leg settled, reconcile rather than fail)."""
-        return await self._persist_run_error_outcome(job, error, status) is not None
+        return await self._persist_run_error_outcome(job, error, status, cancellation_stage) is not None
 
     async def _persist_run_error_outcome(
-        self, job: Dict[str, Any], error: str, status: str = "error"
+        self,
+        job: Dict[str, Any],
+        error: str,
+        status: str = "error",
+        cancellation_stage: Optional["CancellationStage"] = None,
     ) -> Optional["RunPersistOutcome"]:
         """Typed twin of _persist_run_error (never raises): the outcome from
         the fenced persist, UPDATED when the legacy fallback persisted, or
         None when nothing could be written (component unresolvable, store
         failure) - the keep-the-ticket-alive case."""
         try:
-            return await self._persist_run_error_inner(job, error, status)
+            return await self._persist_run_error_inner(job, error, status, cancellation_stage)
         except Exception as e:
             log_warning(f"Job queue: run-row error persist failed for job {job.get('id')}: {e}")
             return None
 
     async def _persist_run_error_inner(
-        self, job: Dict[str, Any], error: str, status: str
+        self,
+        job: Dict[str, Any],
+        error: str,
+        status: str,
+        cancellation_stage: Optional["CancellationStage"] = None,
     ) -> Optional["RunPersistOutcome"]:
-        component = self.resolve_component(job["component_type"], job["component_id"])
+        component: Any = await self._aresolve_job_component(
+            job
+        )  # runtime dispatch on component_type; the executor body predates the typed resolver
         if component is None:
             # A deploy removed the component: the run row (if any) is
             # unreachable, so the caller must keep the ticket alive for a
@@ -1154,16 +1323,21 @@ class QueueWorker:
             )
             return None
         from agno.run.base import RunStatus
-        from agno.run.status_persist import RunPersistOutcome, apersist_run_status, fallback_allowed
+        from agno.run.status_persist import RunPersistOutcome, apersist_run_status, component_hook, fallback_allowed
 
+        fields: Dict[str, Any] = {
+            "status": RunStatus.cancelled.value if status == "cancelled" else RunStatus.error.value,
+        }
+        if cancellation_stage is not None:
+            # Rides the same fenced patch as the status: the adapters apply
+            # fields onto the stored run, so no adapter knows the key
+            fields["cancellation_stage"] = cancellation_stage.value
         result = await apersist_run_status(
             component,
             job["component_type"],
             session_id=job["session_id"],
             run_id=job["id"],
-            fields={
-                "status": RunStatus.cancelled.value if status == "cancelled" else RunStatus.error.value,
-            },
+            fields=fields,
             content_if_absent=error,
             user_id=job.get("user_id"),
             expected_attempt=job.get("attempt"),
@@ -1177,7 +1351,16 @@ class QueueWorker:
             return result
 
         component_type = job["component_type"]
-        if component_type == "agent":
+        persist_fallback = component_hook(component, "_apersist_run_fallback")
+        if component_type == "agent" and persist_fallback is not None:
+            hook_run = await component.aget_run_output(job["id"], job["session_id"], user_id=job.get("user_id"))
+            if hook_run is not None and hook_run.status not in (RunStatus.completed, RunStatus.cancelled):
+                hook_run.status = RunStatus.cancelled if status == "cancelled" else RunStatus.error
+                hook_run.content = hook_run.content or error
+                if cancellation_stage is not None:
+                    hook_run.cancellation_stage = cancellation_stage
+                await persist_fallback(job["session_id"], hook_run, job.get("user_id"))
+        elif component_type == "agent":
             from agno.agent._session import asave_run, asave_session
             from agno.agent._storage import aread_or_create_session
             from agno.run.agent import RunOutput
@@ -1187,6 +1370,8 @@ class QueueWorker:
             if isinstance(run, RunOutput) and run.status not in (RunStatus.completed, RunStatus.cancelled):
                 run.status = RunStatus.cancelled if status == "cancelled" else RunStatus.error
                 run.content = run.content or error
+                if cancellation_stage is not None:
+                    run.cancellation_stage = cancellation_stage
                 session.upsert_run(run=run)
                 # v3 substrate: the run persists via the O(1) per-run save;
                 # asave_session writes only the session row
@@ -1209,6 +1394,8 @@ class QueueWorker:
             ):
                 team_run.status = RunStatus.cancelled if status == "cancelled" else RunStatus.error
                 team_run.content = team_run.content or error
+                if cancellation_stage is not None:
+                    team_run.cancellation_stage = cancellation_stage
                 team_session.upsert_run(run_response=team_run)
                 await team_asave_run(component, run=team_run, session_id=job["session_id"], user_id=job.get("user_id"))
                 await team_asave_session(component, session=team_session)
@@ -1224,6 +1411,8 @@ class QueueWorker:
             if workflow_run is not None and workflow_run.status not in (RunStatus.completed, RunStatus.cancelled):
                 workflow_run.status = RunStatus.cancelled if status == "cancelled" else RunStatus.error
                 workflow_run.content = workflow_run.content or error
+                if cancellation_stage is not None:
+                    workflow_run.cancellation_stage = cancellation_stage
                 workflow_session.upsert_run(run=workflow_run)
                 # asave_* absorbs a sync DB; branching would take the sync media path, which raises on an async backend.
                 await component.asave_run(run=workflow_run, session_id=job["session_id"], user_id=job.get("user_id"))
@@ -1248,6 +1437,51 @@ class QueueWorker:
             return 0  # explicit no-backoff configuration (tests, dev loops)
         ceiling = min(base * (2 ** max(0, attempt - 1)), base * 10)
         return random.randint(0, ceiling)
+
+    async def _ahonor_non_retryable_row(self, component: Any, job: Dict[str, Any]) -> bool:
+        """A reclaimed job whose earlier attempt persisted an ERROR run the component marked
+        non-retryable. The worker that wrote that row crashed before settling the ticket, so the
+        classification lives only on the row: honor it here instead of re-executing a failure
+        that would repeat. Settles the ticket failed and closes the stream view. Returns True
+        when the job must not execute now: handled this way, or the row could not be read and
+        execution is deferred to a later reclaim."""
+        from agno.run.base import RunStatus
+
+        reader = getattr(component, "aget_run_output", None)
+        if not callable(reader) or getattr(component, "db", None) is None:
+            # Nothing persisted to consult: the component keeps no run rows, so there is no
+            # classification to honor and the reclaim executes as it always did.
+            return False
+        try:
+            run = await reader(job["id"], job["session_id"], user_id=job.get("user_id"))
+        except Exception as e:
+            # Fail closed: without the row we cannot tell a transient failure from one the
+            # component refused to retry. Do not execute; leave the claim unsettled so the
+            # lease goes stale and a later reclaim reads the row again.
+            log_warning(
+                f"Job queue: reclaimed job {job['id']} (attempt {job['attempt']}) could not read its run row "
+                f"to check retryability ({e}); deferring execution until the row can be read"
+            )
+            return True
+        raw = getattr(run, "status", None)
+        status = raw.value if isinstance(raw, RunStatus) else raw
+        if run is None or str(status).upper() != RunStatus.error.value or not self._run_is_not_retryable(run):
+            return False
+        error = str(getattr(run, "content", "") or "run errored")
+        log_warning(
+            f"Job queue: reclaimed job {job['id']} (attempt {job['attempt']}) has a run row marked "
+            f"non-retryable by its component; failing the ticket without re-executing: {error}"
+        )
+        await self._asettle_ticket(job["id"], job["attempt"], "failed", error)
+        await self._terminate_stream_view(job, "error")
+        return True
+
+    @staticmethod
+    def _run_is_not_retryable(run: Any) -> bool:
+        """A run row whose component marked the failure as one that would repeat
+        (``metadata["retryable"] is False``, set by external agents from their error classification)."""
+        metadata = getattr(run, "metadata", None)
+        return isinstance(metadata, dict) and metadata.get("retryable") is False
 
     @staticmethod
     def _is_permanent_failure(exc: BaseException, continuation_component: Optional[str] = None) -> bool:
@@ -1515,7 +1749,15 @@ class QueueWorker:
         # construction: the early returns below (foreign job_type, missing
         # component) and pre-slot exceptions all unwind through the context
         # manager's finally - the bare mark/unmark pair leaked on all three.
-        with worker_managed_execution(job["id"], self.worker_id, job["attempt"]) as ownership:
+        with worker_managed_execution(
+            job["id"],
+            self.worker_id,
+            job["attempt"],
+            session_serialized=(
+                (job.get("payload") or {}).get("serialize_session") is True
+                and getattr(self.store, "serializes_sessions", False) is True
+            ),
+        ) as ownership:
             await self._execute_claimed_inner(job, ownership)
 
     async def _await_with_timeout(self, execution: Any, ownership: Any) -> Any:
@@ -1551,7 +1793,17 @@ class QueueWorker:
         job_id, attempt = job["id"], job["attempt"]
         job_type = job.get("job_type", "run")
         payload = job.get("payload") or {}
-        component_for_stamp = self.resolve_component(job.get("component_type"), job.get("component_id"))
+        component_for_stamp: Any = await self._aresolve_job_component(
+            job
+        )  # runtime dispatch on component_type; the executor body predates the typed resolver
+        if (
+            attempt > 1
+            and job_type == "run"
+            and component_for_stamp is not None
+            and not payload.get("continue")
+            and await self._ahonor_non_retryable_row(component_for_stamp, job)
+        ):
+            return
         if (
             job_type == "run"
             and component_for_stamp is not None
@@ -1612,7 +1864,9 @@ class QueueWorker:
             # has no executor for. Fail it visibly rather than guessing.
             await self._asettle_ticket(job_id, attempt, "failed", f"No executor registered for job type {job_type!r}")
             return
-        component = self.resolve_component(job["component_type"], job["component_id"])
+        component: Any = await self._aresolve_job_component(
+            job
+        )  # runtime dispatch on component_type; the executor body predates the typed resolver
         if component is None:
             # Same rule as every terminal path: never terminalize the ticket
             # while the run row (prepared PENDING at accept) cannot be
@@ -1655,6 +1909,7 @@ class QueueWorker:
                 from agno.run.base import RunStatus as _RS
                 from agno.run.status_persist import RunPersistOutcome as _RPO
                 from agno.run.status_persist import apersist_run_status as _aps
+                from agno.run.status_persist import component_hook
 
                 stamp_outcome = None
                 try:
@@ -1674,6 +1929,21 @@ class QueueWorker:
                         f"Job queue: RUNNING stamp failed for job {job_id} (worker={self.worker_id}, "
                         f"attempt={attempt}): {e}"
                     )
+                persist_fallback = component_hook(component, "_apersist_run_fallback")
+                if stamp_outcome in (_RPO.MISSING, _RPO.UNAVAILABLE) and persist_fallback is not None:
+                    # The read fails closed: an unreadable row may be a CANCELLED one this ticket must not run.
+                    hook_run = await component.aget_run_output(job_id, job["session_id"], user_id=job.get("user_id"))
+                    if hook_run is not None and hook_run.status in (_RS.completed, _RS.cancelled):
+                        stamp_outcome = _RPO.TERMINAL_REFUSED
+                    elif hook_run is not None:
+                        hook_run.status = _RS.running
+                        try:
+                            await persist_fallback(job["session_id"], hook_run, job.get("user_id"))
+                        except Exception as e:
+                            log_warning(
+                                f"Job queue: RUNNING fallback failed for job {job_id} (worker={self.worker_id}, "
+                                f"attempt={attempt}): {e}"
+                            )
                 if stamp_outcome is _RPO.TERMINAL_REFUSED:
                     # The run row is already COMPLETED/CANCELLED (the guard's
                     # exact terminal set - ERROR rows pass, so operator
@@ -1719,7 +1989,17 @@ class QueueWorker:
                 await self._asettle_ticket(job_id, attempt, "cancelled")
             elif status == RunStatus.error:
                 error_content = str(getattr(result, "content", "") or "run errored")
-                await self._aretry_or_fail_ticket(job_id, attempt, error_content, self._retry_delay(attempt))
+                if self._run_is_not_retryable(result):
+                    # The component already classified this failure as one that repeats
+                    # (a limit, authentication, billing, a bad request): re-driving it would
+                    # spend the remaining attempts on the same error.
+                    log_warning(
+                        f"Job queue: run {job_id} failed with a non-retryable error; "
+                        f"failing the ticket without retry: {error_content}"
+                    )
+                    await self._asettle_ticket(job_id, attempt, "failed", error_content)
+                else:
+                    await self._aretry_or_fail_ticket(job_id, attempt, error_content, self._retry_delay(attempt))
             else:
                 await self._asettle_ticket(job_id, attempt, "completed")
         except asyncio.CancelledError:
@@ -1761,7 +2041,23 @@ class QueueWorker:
             # Not gated: honouring the user's cancel on the ticket beats
             # run-row terminality (leaving the job stale would re-execute a
             # cancelled run) - but the divergence must be loud, not silent
-            if not await self._persist_run_error(job, "cancelled while queued for a slot", status="cancelled"):
+            from agno.run.base import CancellationStage
+
+            # The stage is what the run was doing when cancelled. Before the
+            # slot: a fresh leg never started, a continuation leg is a paused
+            # run with history. After the slot the component's own handler
+            # has already stamped the stage, and a CANCELLED-over-CANCELLED
+            # patch passes the terminal guard, so no stage is written here
+            # rather than overwriting the component's
+            stage = None
+            if not slot_acquired:
+                stage = CancellationStage.paused if payload.get("continue") else CancellationStage.pending
+            if not await self._persist_run_error(
+                job,
+                "cancelled while queued for a slot",
+                status="cancelled",
+                cancellation_stage=stage,
+            ):
                 log_error(f"Job queue: cancelled job {job_id} but its run row could not be terminalized")
             await self._terminate_stream_view(job, status="cancelled")
         except asyncio.TimeoutError:
@@ -2143,6 +2439,26 @@ async def _ainsert_session_if_absent(component: Any, session: Any) -> Optional[b
         return None
 
 
+async def _aappend_pending_run(
+    component: Any,
+    session_id: str,
+    run_dict: Dict[str, Any],
+    user_id: Optional[str],
+    load_session: Callable[[], Awaitable[Any]],
+) -> Optional[Any]:
+    """Land a PENDING run via the atomic primitives; return the loaded session only when the caller must save it."""
+    if await _atomic_append_run(component, session_id, run_dict, user_id) is not None:
+        return None  # atomically landed (True) or a worker's row already won (False)
+    # No session row yet: create it EMPTY via insert-if-absent, then retry the append.
+    # Both steps decline to a concurrent winner, so the prepare never overwrites anyone.
+    session = await load_session()
+    if await _ainsert_session_if_absent(component, session) is not None:
+        if await _atomic_append_run(component, session_id, run_dict, user_id) is not None:
+            return None
+    # Legacy create-and-save: adapters without the atomic primitives only
+    return None if session.get_run(run_dict["run_id"]) is not None else session
+
+
 async def aprepare_queued_run(
     component: Any, component_type: str, run_id: str, session_id: str, user_id: Optional[str], input: Any
 ) -> None:
@@ -2160,8 +2476,12 @@ async def aprepare_queued_run(
     the primitives keep the legacy create-and-save path (narrow unlocked
     read-check-save window, documented)."""
     from agno.run.base import RunStatus
+    from agno.run.status_persist import component_hook
 
-    if component_type == "agent":
+    prepare_hook = component_hook(component, "_aprepare_pending_run")
+    if component_type == "agent" and prepare_hook is not None:
+        await prepare_hook(run_id, session_id, user_id, input, queued=True)
+    elif component_type == "agent":
         from agno.agent._session import asave_run, asave_session
         from agno.agent._storage import aread_or_create_session, update_metadata
         from agno.run.agent import RunInput, RunOutput
@@ -2177,21 +2497,19 @@ async def aprepare_queued_run(
             # land (silently - pollers 404 and the attempt stamp finds no row)
             input=RunInput(input_content=input),
             status=RunStatus.pending,
+            # 0 marks a durable queue ticket's row before any claim; in-process rows stay None.
+            queue_attempt=0,
         )
-        run_dict = run_response_early.to_dict()
-        appended = await _atomic_append_run(component, session_id, run_dict, user_id)
-        if appended is not None:
-            return  # atomically landed (True) or a worker's row already won (False)
-        # No session row yet: create it EMPTY via insert-if-absent, then
-        # retry the row-locked append. Both steps decline to a concurrent
-        # winner, so the prepare never overwrites anyone.
-        session = await aread_or_create_session(component, session_id=session_id, user_id=user_id)
-        update_metadata(component, session=session)
-        if await _ainsert_session_if_absent(component, session) is not None:
-            if await _atomic_append_run(component, session_id, run_dict, user_id) is not None:
-                return
-        # Legacy create-and-save: adapters without the atomic primitives only
-        if session.get_run(run_id) is not None:
+
+        async def load_agent_session() -> Any:
+            agent_session = await aread_or_create_session(component, session_id=session_id, user_id=user_id)
+            update_metadata(component, session=agent_session)
+            return agent_session
+
+        session = await _aappend_pending_run(
+            component, session_id, run_response_early.to_dict(), user_id, load_agent_session
+        )
+        if session is None:
             return
         from agno.session._utils import resolve_run_index
 
@@ -2217,17 +2535,18 @@ async def aprepare_queued_run(
             user_id=user_id,
             input=TeamRunInput(input_content=input),
             status=RunStatus.pending,
+            queue_attempt=0,
         )
-        team_run_dict = team_run_early.to_dict()
-        appended = await _atomic_append_run(component, session_id, team_run_dict, user_id)
-        if appended is not None:
-            return
-        team_session = await _aread_or_create_session(component, session_id=session_id, user_id=user_id)
-        _update_metadata(component, session=team_session)
-        if await _ainsert_session_if_absent(component, team_session) is not None:
-            if await _atomic_append_run(component, session_id, team_run_dict, user_id) is not None:
-                return
-        if team_session.get_run(run_id) is not None:
+
+        async def load_team_session() -> Any:
+            loaded = await _aread_or_create_session(component, session_id=session_id, user_id=user_id)
+            _update_metadata(component, session=loaded)
+            return loaded
+
+        team_session = await _aappend_pending_run(
+            component, session_id, team_run_early.to_dict(), user_id, load_team_session
+        )
+        if team_session is None:
             return
         from agno.session._utils import resolve_run_index
 
@@ -2252,18 +2571,19 @@ async def aprepare_queued_run(
             workflow_name=getattr(component, "name", None),
             created_at=int(datetime.now().timestamp()),
             status=RunStatus.pending,
+            queue_attempt=0,
         )
-        workflow_run_dict = workflow_run_early.to_dict()
-        appended = await _atomic_append_run(component, session_id, workflow_run_dict, user_id)
-        if appended is not None:
-            return
-        workflow_session, _, _ = await component._aload_or_create_session(
-            session_id=session_id, user_id=user_id, session_state=None
+
+        async def load_workflow_session() -> Any:
+            loaded, _, _ = await component._aload_or_create_session(
+                session_id=session_id, user_id=user_id, session_state=None
+            )
+            return loaded
+
+        workflow_session = await _aappend_pending_run(
+            component, session_id, workflow_run_early.to_dict(), user_id, load_workflow_session
         )
-        if await _ainsert_session_if_absent(component, workflow_session) is not None:
-            if await _atomic_append_run(component, session_id, workflow_run_dict, user_id) is not None:
-                return
-        if workflow_session.get_run(run_id) is not None:
+        if workflow_session is None:
             return
         workflow_session.upsert_run(run=workflow_run_early)
         # Session row first, then the run row with its resolved index: the
@@ -2404,6 +2724,13 @@ async def aticket_poll_fallback(
     body: Dict[str, Any] = {"run_id": run_id, "session_id": session_id, "status": status}
     if status == "ERROR" and job.get("error"):
         body["content"] = job["error"]
+    if status == "CANCELLED" and not job.get("attempt"):
+        # A cancelled ticket that no worker ever claimed: the run never
+        # started. Claimed tickets always carry a run row, so a cancelled
+        # one reaching this fallback is by construction pre-execution.
+        from agno.run.base import CancellationStage
+
+        body["cancellation_stage"] = CancellationStage.pending.value
     return body
 
 
@@ -2426,6 +2753,12 @@ def warn_unfenced_session_stores(agent_os: Any) -> None:
             component_db = getattr(component, "db", None)
             if component_db is not None and not callable(getattr(component_db, "update_run_in_session", None)):
                 unfenced.add(type(component_db).__name__)
+    # Db-backed (components API) components are rehydrated with the AgentOS
+    # db as their session store, so it is a queue session store too even
+    # when no code-registered component uses it
+    os_db = getattr(agent_os, "db", None)
+    if os_db is not None and not callable(getattr(os_db, "update_run_in_session", None)):
+        unfenced.add(type(os_db).__name__)
     if unfenced:
         log_warning(
             f"Durable queue over session store(s) without atomic run persistence: {', '.join(sorted(unfenced))}. "
@@ -2449,33 +2782,116 @@ async def queue_lifespan(app: Any, agent_os: Any):
     if isinstance(get_event_stream(), InMemoryEventStream):
         log_warning("Queued-run streams are replica-local; configure queue.redis for cross-replica streaming.")
 
-    def resolve_component(component_type: str, component_id: str) -> Any:
-        registry = {
+    async def resolve_component(
+        component_type: str, component_id: str, scope: Optional[Dict[str, Any]] = None
+    ) -> Optional["QueueableComponent"]:
+        registry: Optional[Sequence["RegisteredComponent"]] = {
             "agent": agent_os.agents,
             "team": agent_os.teams,
             "workflow": agent_os.workflows,
         }.get(component_type)
-        for candidate in registry or []:
-            if getattr(candidate, "id", None) == component_id:
+        resolved: Optional["QueueableComponent"] = None
+        from agno.agent import Agent, AgentFactory
+        from agno.team import Team, TeamFactory
+        from agno.workflow import Workflow, WorkflowFactory
+
+        scope = scope or {}
+        # The ticket's source is authoritative in both directions: a
+        # db-sourced ticket must not run a registry component that a newer
+        # deploy registered under the same id, and vice versa below
+        from_db = scope.get("source") == "db"
+        for candidate in [] if from_db else registry or []:
+            if getattr(candidate, "id", None) != component_id:
+                continue
+            if isinstance(candidate, (AgentFactory, TeamFactory, WorkflowFactory)):
+                # Factory-backed components are rejected at submit time (they
+                # need request context). Return, never fall through: the db
+                # block below would otherwise execute a db component that
+                # merely shares the factory's id (the HTTP loader has the
+                # same shape and never reaches its db block on a factory hit)
+                return None
+            if isinstance(candidate, (Agent, Team, Workflow)):
                 # Fresh copy per execution, mirroring the HTTP path: queued
                 # runs must not share mutable state with concurrent runs on
-                # the registry instance. (Factory-backed components are
-                # rejected at submit time - they need request context.)
+                # the registry instance
+                try:
+                    resolved = candidate.deep_copy()
+                except Exception:
+                    resolved = candidate
+            else:
                 resolved = candidate
-                if callable(getattr(candidate, "deep_copy", None)):
-                    try:
-                        resolved = candidate.deep_copy()
-                    except Exception:
-                        resolved = candidate
-                if component_type == "team":
-                    # Mirror the HTTP path's per-request copy: member HITL
-                    # continue reloads member tool state from the DB and
-                    # depends on this - the registry instance carries the
-                    # class default (False)
-                    with contextlib.suppress(Exception):
-                        resolved.store_member_responses = True
-                return resolved
-        return None
+            break
+        if resolved is None and agent_os.db is not None and from_db:
+            # Off-registry: the accepting endpoint rehydrated the component
+            # from the db (components API / version pin). Replay that load
+            # under the scope stamped on the ticket so the worker executes
+            # the same owner-scoped, same-version component the door
+            # admitted. published_only keeps the run endpoints' default: an
+            # unpinned load takes the published version; a pinned version
+            # was already authorized (draft preview) at accept time.
+            # Registry-sourced tickets never take this path: a replica
+            # missing the registry entry must not run a db component that
+            # merely shares its id.
+            from agno.exceptions import ComponentRehydrationError
+            from agno.os.utils import get_agent_by_id_async, get_team_by_id_async, get_workflow_by_id_async
+
+            try:
+                if component_type == "agent":
+                    resolved = await get_agent_by_id_async(
+                        component_id,
+                        None,
+                        db=agent_os.db,
+                        registry=getattr(agent_os, "registry", None),
+                        version=scope.get("version"),
+                        create_fresh=True,
+                        user_id=scope.get("user_id"),
+                    )
+                elif component_type == "team":
+                    resolved = await get_team_by_id_async(
+                        component_id,
+                        None,
+                        db=agent_os.db,
+                        registry=getattr(agent_os, "registry", None),
+                        version=scope.get("version"),
+                        create_fresh=True,
+                        user_id=scope.get("user_id"),
+                    )
+                elif component_type == "workflow":
+                    resolved = await get_workflow_by_id_async(
+                        component_id,
+                        None,
+                        db=agent_os.db,
+                        registry=getattr(agent_os, "registry", None),
+                        version=scope.get("version"),
+                        create_fresh=True,
+                        user_id=scope.get("user_id"),
+                    )
+            except ComponentRehydrationError as e:
+                log_error(
+                    f"Job queue: {component_type}/{component_id} has a stored config that cannot be rehydrated "
+                    f"(scope={scope}); a redeploy will not fix it, the config must: {e}"
+                )
+                resolved = None
+            except Exception as e:
+                log_error(
+                    f"Job queue: could not rehydrate {component_type}/{component_id} from the db (scope={scope}): {e}"
+                )
+                resolved = None
+        if isinstance(resolved, Agent) and (resolved.filesystem or resolved.tools):
+            # Same isolation policy the HTTP door applies to every resolved
+            # agent: a rehydrated agent's unset filesystem would otherwise
+            # default to shared across users
+            from agno.agent import _init as agent_init
+
+            agent_init.apply_filesystem_user_isolation(
+                resolved, bool(getattr(app.state, "user_isolation_enabled", False))
+            )
+        if isinstance(resolved, Team):
+            # Mirror the HTTP path's per-request copy: member HITL continue
+            # reloads member tool state from the DB and depends on this - the
+            # registry instance carries the class default (False)
+            resolved.store_member_responses = True
+        return resolved
 
     worker = QueueWorker(
         store=store,

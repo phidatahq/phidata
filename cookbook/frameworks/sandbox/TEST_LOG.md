@@ -50,6 +50,16 @@
 
 ---
 
+### runtime control transport recovery
+
+**Status:** PASS
+
+**Description:** Runtime start/poll now use a restricted provider RPC operation. A lost control response leaves the session computer available to its current coordinator; arbitrary shell commands retain stop-on-failure behavior. A real-container regression discards a poll response, reconnects through another client and verifies exactly one fixture effect.
+
+**Result:** 74 sandbox unit tests passed on Python 3.12 and 3.9; all 17 real Docker provider/runtime/transfer cases passed. Required scripts passed. This fixes an integration risk where a stale polling request could stop compute during another coordinator's checkpoint. No live model or hosted-provider calls.
+
+---
+
 ### warm_reuse.py and pause/resume regressions
 
 **Status:** PASS

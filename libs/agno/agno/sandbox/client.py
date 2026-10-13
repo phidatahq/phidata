@@ -39,15 +39,7 @@ class SandboxRuntimeClient:
         payload = json.dumps(dict(request), allow_nan=False).encode()
         if len(payload) > 1024 * 1024:
             raise ValueError("Runtime request exceeds 1 MiB")
-        task = asyncio.create_task(
-            self.provider.aexec(
-                computer,
-                ["python", "-I", "-m", "agno.sandbox.runtime", operation],
-                stdin=payload,
-                timeout=15,
-                max_output_bytes=4 * 1024 * 1024,
-            )
-        )
+        task = asyncio.create_task(self.provider.arpc(computer, operation, payload))
         try:
             output = await asyncio.shield(task)
         except asyncio.CancelledError:

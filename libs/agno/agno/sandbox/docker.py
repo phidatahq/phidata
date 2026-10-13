@@ -289,6 +289,30 @@ class DockerSandbox(Sandbox):
         max_output_bytes: int = 1_048_576,
         stdin: bytes = b"",
     ) -> ExecResult:
+        return await self._aexec(handle, argv, timeout=timeout, max_output_bytes=max_output_bytes, stdin=stdin)
+
+    async def arpc(self, handle: SandboxHandle, operation: str, payload: bytes) -> ExecResult:
+        if operation not in ("start", "poll") or not isinstance(payload, bytes) or len(payload) > 1024 * 1024:
+            raise ValueError("Runtime RPC requires start/poll and a payload no larger than 1 MiB")
+        return await self._aexec(
+            handle,
+            ["python", "-I", "-m", "agno.sandbox.runtime", operation],
+            timeout=15,
+            max_output_bytes=4 * 1024 * 1024,
+            stdin=payload,
+            stop_on_failure=False,
+        )
+
+    async def _aexec(
+        self,
+        handle: SandboxHandle,
+        argv: Sequence[str],
+        *,
+        timeout: float = 60,
+        max_output_bytes: int = 1_048_576,
+        stdin: bytes = b"",
+        stop_on_failure: bool = True,
+    ) -> ExecResult:
         if isinstance(argv, (str, bytes)) or not argv or any(not isinstance(arg, str) or "\x00" in arg for arg in argv):
             raise ValueError("Commands must be a nonempty sequence of strings")
         if not math.isfinite(timeout) or timeout <= 0 or not 1 <= max_output_bytes <= 4 * 1024 * 1024:
@@ -324,18 +348,21 @@ class DockerSandbox(Sandbox):
         except (asyncio.CancelledError, asyncio.TimeoutError, SandboxError):
             # Killing the Docker client does not kill its remote command. Stop compute
             # to bound cancellation; checkpoint recovery belongs to the coordinator.
-            await asyncio.shield(self.astop(handle))
+            if stop_on_failure:
+                await asyncio.shield(self.astop(handle))
             raise
         if code:
-            await self.astop(handle)
+            if stop_on_failure:
+                await self.astop(handle)
             raise SandboxError("Sandbox command transport failed: " + err.decode(errors="replace")[:500])
         try:
             result = ExecResult(**json.loads(out))
-            if result.timed_out or result.output_limited:
+            if stop_on_failure and (result.timed_out or result.output_limited):
                 await self.astop(handle)
             return result
         except (TypeError, ValueError) as error:
-            await self.astop(handle)
+            if stop_on_failure:
+                await self.astop(handle)
             raise SandboxError("Sandbox returned an invalid command result") from error
 
     async def apause(self, handle: SandboxHandle) -> None:

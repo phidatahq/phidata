@@ -6,6 +6,7 @@ import asyncio
 from contextlib import suppress
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from uuid import uuid4
 
 from agno.exceptions import InputCheckError
 from agno.sandbox.artifacts import SandboxSessionNotFound
@@ -153,13 +154,15 @@ class SandboxLifecycle:
 
         return await self.store._transaction(begin)
 
-    def _owned_object(self, reference: CheckpointRef, identity: Dict[str, Any], claimed: List[str]) -> Optional[Path]:
+    def _owned_object(
+        self, reference: CheckpointRef, identity: Dict[str, Any], claimed: List[str], witness: Optional[str]
+    ) -> Optional[Path]:
         objects = self.coordinator.transfer.store
         try:
             path = objects.verify(reference)
         except FileNotFoundError:
-            # Missing proves deletion only for an object this cleanup verified and claimed before unlinking.
-            if reference.sha256 in claimed and objects.root.is_dir():
+            # Missing proves deletion only for a claimed object while its volume's witness file is still present.
+            if reference.sha256 in claimed and witness is not None and (objects.root / witness).is_file():
                 return None
             raise
         binding = CheckpointArchive().validate(path).get("binding") or {}
@@ -167,11 +170,18 @@ class SandboxLifecycle:
             raise SandboxError("Refusing to delete another session's checkpoint")
         return path
 
+    def _write_witness(self, witness: str, path: Path) -> None:
+        root = self.coordinator.transfer.store.root
+        (root / witness).touch(exist_ok=True)
+        _fsync_directory(root)
+        if (root / witness).stat().st_dev != path.stat().st_dev:
+            raise SandboxError("Checkpoint storage changed during recovery deletion")
+
     def _remove_object(self, path: Path) -> None:
-        path.unlink(missing_ok=True)
+        path.unlink()
         _fsync_directory(path.parent)
 
-    async def _claim_object(self, session_id: str, incarnation: Any, sha256: str) -> None:
+    async def _claim_object(self, session_id: str, incarnation: Any, sha256: str, witness: str) -> None:
         from sqlalchemy import select, update
 
         def claim(connection: Any) -> None:
@@ -183,6 +193,8 @@ class SandboxLifecycle:
             record = self.store._json(row["record"])
             if record["incarnation"] != incarnation or record["phase"] != "deleting":
                 raise SandboxError("Recovery deletion lost its session tombstone")
+            if record.setdefault("deletion_witness", witness) != witness:
+                raise SandboxError("Recovery deletion witness changed")
             claimed = record.setdefault("claimed_references", [])
             if sha256 not in claimed:
                 claimed.append(sha256)
@@ -199,13 +211,16 @@ class SandboxLifecycle:
         record = await self._begin_delete(agent_id, session_id, user_id)
         identity = dict(agent_id=agent_id, session_id=session_id, user_id=user_id, incarnation=record["incarnation"])
         claimed = list(record.get("claimed_references", []))
+        witness = record.get("deletion_witness")
         for value in record["deletion_references"]:
             reference = CheckpointRef(**value)
-            path = await _thread(self._owned_object, reference, identity, claimed)
+            path = await _thread(self._owned_object, reference, identity, claimed, witness)
             if path is None:
                 continue
             if reference.sha256 not in claimed:
-                await self._claim_object(session_id, record["incarnation"], reference.sha256)
+                witness = witness or ".recovery-delete-" + uuid4().hex
+                await _thread(self._write_witness, witness, path)
+                await self._claim_object(session_id, record["incarnation"], reference.sha256, witness)
             await _thread(self._remove_object, path)
 
         def finish(connection: Any) -> None:
@@ -269,6 +284,9 @@ class SandboxLifecycle:
             connection.execute(update(self.store.bindings).where(self.store._key(session_id)).values(record=current))
 
         await self.store._transaction(finish)
+        if witness is not None:
+            with suppress(FileNotFoundError):
+                (self.coordinator.transfer.store.root / witness).unlink()
         return {"session_id": session_id, "recovery_deleted": True, "conversation_retained": True}
 
     def delete_recovery(self, *, agent_id: str, session_id: str, user_id: Optional[str] = None) -> Dict[str, Any]:

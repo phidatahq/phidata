@@ -123,6 +123,34 @@ async def test_unmounted_storage_keeps_deletion_pending(system):
     assert not list(root.iterdir())
 
 
+async def test_claimed_object_on_unmounted_storage_keeps_deletion_pending(system, monkeypatch):
+    coordinator, spec, tmp_path = system
+    await run(coordinator, spec)
+    root = coordinator.transfer.store.root
+    lifecycle = SandboxLifecycle(coordinator)
+    original = lifecycle._remove_object
+
+    def crash(path):
+        raise OSError("crash before unlink")
+
+    monkeypatch.setattr(lifecycle, "_remove_object", crash)
+    with pytest.raises(OSError, match="crash"):
+        await lifecycle.adelete_recovery(agent_id="agent", session_id="session", user_id="user")
+    assert (await binding(coordinator))["record"]["claimed_references"]
+    monkeypatch.setattr(lifecycle, "_remove_object", original)
+    volume = tmp_path / "volume"
+    volume.mkdir()
+    for path in root.iterdir():
+        path.rename(volume / path.name)
+    with pytest.raises(FileNotFoundError):
+        await lifecycle.adelete_recovery(agent_id="agent", session_id="session", user_id="user")
+    assert (await binding(coordinator))["record"]["phase"] == "deleting"
+    for path in volume.iterdir():
+        path.rename(root / path.name)
+    await lifecycle.adelete_recovery(agent_id="agent", session_id="session", user_id="user")
+    assert not list(root.iterdir())
+
+
 async def test_retry_restores_marker_lost_to_stale_session_write(system):
     coordinator, spec, _ = system
     await run(coordinator, spec)

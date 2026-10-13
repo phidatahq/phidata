@@ -663,7 +663,9 @@ class AgentOS:
 
     def _owned_by_shell(self, component: Any) -> bool:
         """True for the shell's team and members; they are served but never enter the registry."""
-        return self.shell is not None and self.shell.owns(component)
+        return (getattr(component, "_registry_excluded", False) is True) or (
+            self.shell is not None and self.shell.owns(component)
+        )
 
     def _apply_shell_manifest(self) -> None:
         """Give the shell's components UI metadata unless the application's config names them."""
@@ -987,6 +989,14 @@ class AgentOS:
         Raises:
             ValueError: If duplicate IDs are found within the same entity type
         """
+        if self.shell is not None:
+            from agno.os.shell import _raise_if_reserved_ids
+
+            _raise_if_reserved_ids(
+                self.shell.config,
+                [*(self.agents or []), *(self.teams or []), *(self.workflows or [])],
+                owned=self.shell.components,
+            )
         duplicate_ids: List[str] = []
 
         for entities in [self.agents, self.teams, self.workflows]:
@@ -1144,6 +1154,8 @@ class AgentOS:
         """
         if self.registry is None:
             self.registry = Registry()
+        if self.shell is not None:
+            self.registry._exclude_components(self.shell.components)
 
         # Name the db behind the component catalog outright, including when
         # there is none. A Studio toolkit given no db of its own resolves this
@@ -1264,7 +1276,14 @@ class AgentOS:
         if self.registry is None:
             self.registry = Registry()
 
+        shell_owners: List[Union[Agent, Team]] = [*self._agents, *self._teams]
+        shell_knowledge = [owner.knowledge for owner in shell_owners if self._owned_by_shell(owner)]
         for kb in self.knowledge_instances or []:
+            # Serving the lead's knowledge does not make it a build resource.
+            # Explicit OS declarations below, or ordinary component discovery,
+            # still mirror the same instance when the application shares it.
+            if any(kb is private for private in shell_knowledge):
+                continue
             self.registry.add_knowledge(kb, mirrored=True)
         for kb in self.knowledge or []:
             self.registry.add_knowledge(kb, mirrored=True)
@@ -1396,6 +1415,8 @@ class AgentOS:
         }
 
         def _register(owner: Any, owner_type: str) -> None:
+            if registry._component_is_excluded(owner):
+                return
             owner_id = getattr(owner, "id", None)
 
             mm = getattr(owner, "memory_manager", None)

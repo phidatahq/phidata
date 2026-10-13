@@ -114,3 +114,21 @@ async def test_async_success_parity(name, content):
         ]
     else:
         assert sync == asynchronous
+
+
+@pytest.mark.parametrize(
+    "content", ['column\n"unterminated', "column\n" + "x" * 131073], ids=["malformed", "oversized"]
+)
+@pytest.mark.parametrize("use_async", [False, True])
+def test_csv_parse_failures_follow_the_error_content_contract(content, use_async):
+    import asyncio
+
+    step = StepInput(previous_step_content=content)
+    result = asyncio.run(functions.acsv_to_markdown_table(step)) if use_async else functions.csv_to_markdown_table(step)
+    assert result.startswith("Error: ")
+    assert functions.content_to_file(StepInput(previous_step_content=result)).files is None
+
+
+def test_csv_reports_errors_even_after_the_display_row_cap():
+    content = "column\n" + "value\n" * 51 + '"unterminated'
+    assert functions.csv_to_markdown_table(StepInput(previous_step_content=content)).startswith("Error: ")

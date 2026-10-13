@@ -1,6 +1,6 @@
 # Test log
 
-Executed 2026-10-13 with the development environment and this branch's `libs/agno` on `PYTHONPATH`.
+Executed 2026-10-13 after the review fixes, with `/Users/ab/code/agno/.venv/bin/python` and this branch's `libs/agno` on `PYTHONPATH`. Printed `agno.__file__` first and confirmed the shell worktree. Serving examples were imported from a temporary working directory; no server or live model conversation was started.
 
 ### shell_diagnostics.py
 
@@ -8,7 +8,7 @@ Executed 2026-10-13 with the development environment and this branch's `libs/agn
 
 **Description:** Constructs a shell with a workspace against a temporary SQLite database, prints the served and registry component lists, and runs the diagnostics. No model calls.
 
-**Result:** Served agents are platform-builder, platform-manager and platform-engineer; served team is agno; the registry's agent list is empty and its tool palette holds only the declared calculator. Diagnostics returned WARN with a live database PASS and an authorization WARN (disabled in this demo), as expected.
+**Result:** Served agents are platform-builder, platform-manager and platform-engineer; served team is agno; the registry's agent list is empty and its tool palette holds only the declared calculator. Diagnostics returned FAIL because `OPENAI_API_KEY` was absent, with a live database PASS and an authorization WARN (disabled in this demo). This is the expected report for this environment; no secret values or model calls were involved.
 
 ---
 
@@ -18,7 +18,7 @@ Executed 2026-10-13 with the development environment and this branch's `libs/agn
 
 **Description:** Imported the module to assemble the OS and its FastAPI app without starting the server or calling a model.
 
-**Result:** Two member agents and the agno team registered; registry agents empty. Serving and a live conversation need an OpenAI key and were not run.
+**Result:** Two member agents and the agno team registered; registry agents empty. The FastAPI app assembled successfully. A live conversation was not run.
 
 ---
 
@@ -28,6 +28,16 @@ Executed 2026-10-13 with the development environment and this branch's `libs/agn
 
 **Description:** Imported the module to assemble the OS with a notebook, knowledge, learning and a workspace attached to the shell.
 
-**Result:** Three member agents (engineer present because a workspace is configured) and the agno team registered; registry agents empty. Serving and a live conversation were not run.
+**Result:** Three member agents (engineer present because a workspace is configured) and the agno team registered; registry agents empty. The FastAPI app assembled successfully. A live conversation was not run.
+
+---
+
+### Review regressions
+
+**Status:** PASS
+
+**Description:** Deterministic model fixtures exercise the manager's diagnostics tool and the lead's bounded self-dispatch through both `run` and `arun`. Additional regressions cover Studio mirrors and composition, resync, copied shell members, knowledge declarations, reserved IDs, confined workspace providers, and malformed/oversized CSV input.
+
+**Result:** The focused shell, workflow-function, schedule-toggle and component-ID suites passed 99 tests. Expanded affected suites passed 7,447 tests with 24 skips; Telegram tests were excluded because the optional dependency is absent. Full formatting and validation passed in an isolated dev environment with SQLAlchemy 2.0.52. See the PR validation notes for reproducible commands and the baseline provider-SDK typing errors in the shared environment. These tests establish runtime/tool behavior without evaluating live-model answer quality.
 
 ---

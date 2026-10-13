@@ -330,7 +330,7 @@ class StudioTools(Toolkit):
         ):
             for component in source or []:
                 component_id = getattr(component, "id", None)
-                if not component_id:
+                if not component_id or registry._component_is_excluded(component):
                     continue
                 existing = next((entry for entry in bucket if getattr(entry, "id", None) == component_id), None)
                 if existing is None:
@@ -1374,6 +1374,9 @@ class StudioTools(Toolkit):
         return privileged
 
     def _check_member_policy(self, member_ids: List[str]) -> Optional[str]:
+        excluded = sorted(set(member_ids) & self.registry._excluded_component_ids)
+        if excluded:
+            return self._excluded_component_error(excluded)
         privileged = self._privileged_component_ids(only_ids=set(member_ids))
         blocked = sorted(m for m in member_ids if m in privileged and m not in self._allowed_tools)
         if blocked:
@@ -1421,6 +1424,25 @@ class StudioTools(Toolkit):
                 return True
         return False
 
+    @staticmethod
+    def _excluded_component_error(blocked: List[str]) -> str:
+        return error_result(
+            "tool_not_allowed",
+            f"Refusing to compose {blocked}: framework-owned shell components are not buildable.",
+            blocked=blocked,
+        )
+
+    def _contains_excluded_component(self, component: Any, seen: Optional[Set[int]] = None) -> bool:
+        seen = seen if seen is not None else set()
+        if id(component) in seen:
+            return False
+        seen.add(id(component))
+        if self.registry._component_is_excluded(component):
+            return True
+        return any(
+            self._contains_excluded_component(member, seen) for member in self._iterable_attr(component, "members")
+        )
+
     def _refuse_privileged_resolved(self, components: List[Any]) -> Optional[str]:
         """Post-resolution self-composition guard.
 
@@ -1428,6 +1450,13 @@ class StudioTools(Toolkit):
         teams that merely contain the builder, and stored components whose
         rehydrated tools carry the control plane are all covered - the raw
         identifier check alone sees none of those."""
+        excluded = sorted(
+            str(getattr(component, "id", None) or getattr(component, "name", ""))
+            for component in components
+            if self._contains_excluded_component(component)
+        )
+        if excluded:
+            return self._excluded_component_error(excluded)
         blocked = sorted(
             {
                 str(getattr(component, "id", None) or getattr(component, "name", ""))
@@ -4766,6 +4795,8 @@ class StudioTools(Toolkit):
         return component_id, None
 
     def _component_id_exists(self, component_id: str, db: "BaseDb") -> bool:
+        if component_id in self.registry._excluded_component_ids:
+            return True
         for component in [*self._iter_agents(), *self._iter_teams(), *self._iter_workflows()]:
             component_name = getattr(component, "name", None)
             if (

@@ -123,6 +123,32 @@ class Registry:
     component_db: Optional[BaseDb] = field(default=None, init=False, repr=False)
     component_db_declared: bool = field(default=False, init=False, repr=False)
 
+    # Served framework components may be runnable without being building blocks.
+    # IDs keep that boundary intact when a caller supplies a per-run copy.
+    _excluded_component_ids: Set[str] = field(default_factory=set, init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        self._exclude_components(
+            [
+                component
+                for component in [*self.agents, *self.teams, *self.workflows]
+                if self._component_is_excluded(component)
+            ]
+        )
+
+    def _component_is_excluded(self, component: Any) -> bool:
+        return (getattr(component, "_registry_excluded", False) is True) or getattr(
+            component, "id", None
+        ) in self._excluded_component_ids
+
+    def _exclude_components(self, components: List[Any]) -> None:
+        self._excluded_component_ids.update(component.id for component in components if component.id)
+        # Repair registry mirrors without mutating a served list the caller
+        # may have passed directly to the registry.
+        self.agents = [agent for agent in self.agents if not self._component_is_excluded(agent)]
+        self.teams = [team for team in self.teams if not self._component_is_excluded(team)]
+        self.workflows = [workflow for workflow in self.workflows if not self._component_is_excluded(workflow)]
+
     @cached_property
     def _entrypoint_lookup(self) -> Dict[EntrypointKey, EntrypointSource]:
         # Maps function name -> source: the Function that owns the entrypoint

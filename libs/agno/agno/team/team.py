@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -85,6 +85,9 @@ class Team:
     """
 
     members: Union[List[Union[Agent, "Team"]], Callable[..., List]]
+
+    # Framework-owned components remain runnable but are not registry building blocks.
+    _registry_excluded: bool = field(default=False, init=False, repr=False, compare=False)
 
     # Model for this Team
     model: Optional[Model] = None

@@ -39,3 +39,20 @@ export OPENAI_API_KEY=...
 ```
 
 Then open the AgentOS UI, pick the Agno team and ask what it can build.
+
+## Source access and build boundaries
+
+A workspace path gives Platform Engineer read-only file tools. A supplied
+`WorkspaceContextProvider` is copied into tools mode with the default exclusions
+retained; additional exclusions can narrow access. `allow_paths` and custom
+`!` exemptions are rejected because they could expose credential files. The
+provider's model, prompt and custom tool implementations are not adopted.
+
+Shell components remain ordinary served agents and a team, including when using
+MCP or an interface. Studio cannot compose them through explicit include lists
+or a second registry. Resources attached only to the lead stay outside the build
+palette; declare shared knowledge on `Registry(knowledge=[...])` explicitly.
+
+The shell reserves its team id and all three member ids, even when no workspace
+is configured. Choose different ids for application components. The lead can
+run itself once for a fresh context; a second nested dispatch is refused.

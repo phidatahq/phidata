@@ -49,8 +49,10 @@ class ShellConfig:
             They never enter the build palette by being here.
         knowledge: A knowledge base the lead searches.
         learning: A learning machine for the lead's memory of its users.
-        workspace: A directory, or a configured WorkspaceContextProvider, that the
-            engineer reads. Without it no engineer is built.
+        workspace: A directory, or a WorkspaceContextProvider, that the engineer
+            reads in tools mode. Provider exclusions may tighten the defaults;
+            custom exemptions and allow_paths are refused. Without it no engineer
+            is built.
         offload_tool_results: Offload large tool results for all four components.
         instructions: Appended to the lead's instructions.
         required_env: Environment variables whose presence the diagnostics report.
@@ -352,21 +354,63 @@ def _resolve_workspace(config: ShellConfig) -> Optional[Any]:
             root=config.workspace,
             mode=ContextMode.tools,
         )
-    return config.workspace
+    if not isinstance(config.workspace, WorkspaceContextProvider):
+        raise TypeError("ShellConfig.workspace must be a path or WorkspaceContextProvider")
+    from agno.tools.workspace import DEFAULT_EXCLUDE_PATTERNS
+
+    provider = config.workspace
+    if provider.allow_paths or any(
+        pattern.startswith("!") and pattern not in DEFAULT_EXCLUDE_PATTERNS for pattern in provider.exclude_patterns
+    ):
+        raise ValueError("ShellConfig.workspace cannot override exclusions with allow_paths or custom exemptions")
+    # Rebuild instead of mutating a provider the application may reuse. Its
+    # model, prompt and overridden get_tools cannot replace the engineer's tools.
+    return WorkspaceContextProvider(
+        id=provider.id,
+        name=provider.name,
+        root=provider.root,
+        mode=ContextMode.tools,
+        exclude_patterns=list(dict.fromkeys([*DEFAULT_EXCLUDE_PATTERNS, *provider.exclude_patterns])),
+        max_file_lines=provider.max_file_lines,
+        max_file_length=provider.max_file_length,
+    )
+
+
+def _raise_if_reserved_ids(config: ShellConfig, components: List[Any], owned: Sequence[Any] = ()) -> None:
+    reserved = RESERVED_MEMBER_IDS | {config.id}
+    collisions = sorted(
+        {
+            component.id
+            for component in components
+            if component.id in reserved and all(component is not c for c in owned)
+        }
+    )
+    if collisions:
+        raise ValueError(f"Duplicate IDs reserved for the shell: {', '.join(collisions)}")
 
 
 def _diagnostics_tool(agent_os: "AgentOS", required_env: Sequence[str]) -> Any:
-    async def run_diagnostics() -> str:
+    from agno.tools import Toolkit
+
+    def run_diagnostics() -> str:
         """Run the OS diagnostics now: database, authorization, component ids, registry names, interfaces,
         scheduler, MCP and required environment variables. Deterministic and free: no model calls.
 
         Returns JSON with an overall status (PASS, WARN, FAIL or SKIP) and one entry per check with its
         evidence kind: configuration (the OS object says so) or live (a read succeeded).
         """
-        report = await agent_os.arun_diagnostics(required_env=required_env)
-        return json.dumps(report.to_dict())
+        return json.dumps(agent_os.run_diagnostics(required_env=required_env).to_dict())
 
-    return run_diagnostics
+    async def arun_diagnostics() -> str:
+        """Async variant of run_diagnostics."""
+        return json.dumps((await agent_os.arun_diagnostics(required_env=required_env)).to_dict())
+
+    arun_diagnostics.__doc__ = run_diagnostics.__doc__
+    return Toolkit(
+        name="shell_diagnostics",
+        tools=[run_diagnostics],
+        async_tools=[(arun_diagnostics, "run_diagnostics")],
+    )
 
 
 def build_shell(agent_os: "AgentOS", config: ShellConfig) -> Shell:
@@ -377,7 +421,7 @@ def build_shell(agent_os: "AgentOS", config: ShellConfig) -> Shell:
     """
     from agno.db.base import AsyncBaseDb, BaseDb
     from agno.tools.agentos import AgentOSTools
-    from agno.tools.studio import StudioTools
+    from agno.tools.studio import StudioTools, _LiveComponentView
     from agno.tools.studio_runner import StudioRunnerTools
 
     db = agent_os.db
@@ -388,6 +432,17 @@ def build_shell(agent_os: "AgentOS", config: ShellConfig) -> Shell:
     registry = agent_os.registry
     if registry is None:
         raise ValueError("The shell needs the OS registry to be set before it is built")
+    _raise_if_reserved_ids(
+        config,
+        [
+            *(agent_os.agents or []),
+            *(agent_os.teams or []),
+            *(agent_os.workflows or []),
+            *registry.agents,
+            *registry.teams,
+            *registry.workflows,
+        ],
+    )
     model = _resolve_model(agent_os, config)
     workspace = _resolve_workspace(config)
 
@@ -463,7 +518,15 @@ def build_shell(agent_os: "AgentOS", config: ShellConfig) -> Shell:
         tools=[
             *config.tools,
             # The lead runs everything the OS serves, itself included one level deep.
-            StudioRunnerTools(registry=registry, db=db, include_all_components=True, self_dispatch="once"),
+            StudioRunnerTools(
+                registry=registry,
+                db=db,
+                include_agents=_LiveComponentView(lambda: agent_os._agents),
+                include_teams=_LiveComponentView(lambda: agent_os._teams),
+                include_workflows=_LiveComponentView(lambda: agent_os._workflows),
+                include_all_components=True,
+                self_dispatch="once",
+            ),
         ],
         members=members,
         instructions=instructions,
@@ -472,4 +535,9 @@ def build_shell(agent_os: "AgentOS", config: ShellConfig) -> Shell:
         add_history_to_context=True,
         num_history_runs=config.num_history_runs,
     )
+    team._registry_excluded = True
+    for member in members:
+        member._registry_excluded = True
+    registry._excluded_component_ids.update(RESERVED_MEMBER_IDS | {config.id})
+    registry._exclude_components([team, *members])
     return Shell(config=config, team=team, builder=builder, operator=operator, engineer=engineer)

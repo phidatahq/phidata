@@ -99,7 +99,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Literal, Optional, Set, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Literal, Optional, Sequence, Set, Tuple
 from uuid import uuid4
 
 from agno.db.schemas.scheduler import (
@@ -284,9 +284,9 @@ class StudioRunnerTools(Toolkit):
         self,
         registry: Optional["Registry"] = None,
         db: Optional["BaseDb"] = None,
-        include_agents: Optional[List["Agent"]] = None,
-        include_teams: Optional[List["Team"]] = None,
-        include_workflows: Optional[List["Workflow"]] = None,
+        include_agents: Optional[Sequence["Agent"]] = None,
+        include_teams: Optional[Sequence["Team"]] = None,
+        include_workflows: Optional[Sequence["Workflow"]] = None,
         run_agents: bool = True,
         run_teams: bool = True,
         run_workflows: bool = True,

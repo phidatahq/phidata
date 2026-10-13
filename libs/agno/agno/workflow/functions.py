@@ -157,18 +157,27 @@ def csv_to_markdown_table(step_input: StepInput) -> str:
     text = _step_text(step_input)
     if text.startswith(_ERROR_PREFIX):
         return text  # a failure upstream stays one failure, not two
-    rows = [row for row in csv.reader(io.StringIO(text)) if row]
-    if len(rows) < 2:
-        return _error("expected CSV with a header row and at least one data row")
 
     def line(cells: List[str]) -> str:
         return "| " + " | ".join(_table_cell(cell) for cell in cells) + " |"
 
-    header, data = rows[0], rows[1:]
-    lines = [line(header), "| " + " | ".join("---" for _ in header) + " |"]
-    lines += [line(row) for row in data[:_TABLE_ROW_CAP]]
-    if len(data) > _TABLE_ROW_CAP:
-        lines.append(f"... {len(data) - _TABLE_ROW_CAP} more rows")
+    try:
+        rows = (row for row in csv.reader(io.StringIO(text), strict=True) if row)
+        header = next(rows, None)
+        if header is None:
+            return _error("expected CSV with a header row and at least one data row")
+        lines = [line(header), "| " + " | ".join("---" for _ in header) + " |"]
+        count = 0
+        for row in rows:
+            count += 1
+            if count <= _TABLE_ROW_CAP:
+                lines.append(line(row))
+    except csv.Error:
+        return _error("invalid CSV or a field exceeds the CSV parser limit")
+    if count == 0:
+        return _error("expected CSV with a header row and at least one data row")
+    if count > _TABLE_ROW_CAP:
+        lines.append(f"... {count - _TABLE_ROW_CAP} more rows")
     return "\n".join(lines)
 
 

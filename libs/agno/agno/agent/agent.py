@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -77,6 +77,9 @@ from agno.utils.safe_formatter import SafeFormatter
 
 @dataclass(init=False)
 class Agent:
+    # Framework-owned components remain runnable but are not registry building blocks.
+    _registry_excluded: bool = field(default=False, init=False, repr=False, compare=False)
+
     # --- Agent settings ---
     # Model for this Agent
     model: Optional[Model] = None

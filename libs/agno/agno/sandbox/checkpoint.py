@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import errno
+import gzip
 import hashlib
 import io
 import json
@@ -17,16 +18,34 @@ import shutil
 import stat
 import tarfile
 import tempfile
-from contextlib import suppress
+import zlib
+from contextlib import contextmanager, nullcontext, suppress
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
-from typing import Any, BinaryIO, Callable, Dict, Mapping, Optional, Sequence, Tuple, TypeVar
+from typing import (
+    Any,
+    BinaryIO,
+    Callable,
+    ContextManager,
+    Dict,
+    Iterator,
+    Mapping,
+    Optional,
+    Sequence,
+    Tuple,
+    TypeVar,
+)
 
 from agno.sandbox.base import SandboxError
 
 _ROOTS = {"workspace", "native"}
 _MANIFEST = "manifest.json"
 _CHUNK = 1024 * 1024
+_GZIP_MAGIC = b"\x1f\x8b"
+# Level 4, not zlib's default 6: on a checkpoint of already-deflated package data plus a
+# source tree it reaches within 5% of 6's ratio for 44% of its time, and a capture runs
+# on every turn.
+_GZIP_LEVEL = 4
 _T = TypeVar("_T")
 
 
@@ -130,6 +149,61 @@ def _regular(path: Path) -> BinaryIO:
     return os.fdopen(fd, "rb")
 
 
+def _encoder(output: BinaryIO, compress: bool) -> ContextManager[Any]:
+    """Wrap a destination file in the configured encoder, for writers of either format.
+
+    The yielded sink is writable binary either way, but ``GzipFile`` and the plain file
+    share no stream supertype that typeshed declares, hence ``Any``.
+
+    No filename and no timestamp go in the header: the store deduplicates objects by
+    the digest of their stored bytes, and recording when a capture ran would give one
+    unchanged tree a different object every turn.
+    """
+    if not compress:
+        return nullcontext(output)
+    return gzip.GzipFile(filename="", mode="wb", compresslevel=_GZIP_LEVEL, fileobj=output, mtime=0)
+
+
+@contextmanager
+def _archive_bytes(source: Path, limits: CheckpointLimits) -> Iterator[BinaryIO]:
+    """Open a stored checkpoint object as a seekable stream of archive bytes.
+
+    Both stored representations are accepted, identified by the compressed one's two
+    magic bytes rather than by trying decoders in turn. Validation walks tar offsets, so
+    compressed bytes are expanded into a real descriptor before any of them is trusted.
+    The expansion is chunked and counted: a stored size bounds nothing once the bytes are
+    deflated, so the limit has to be applied as they are produced. The staging file is
+    unlinked as it is created, so an interrupted restore leaves nothing to clean up.
+    """
+    with _regular(source) as stored:
+        if os.fstat(stored.fileno()).st_size > limits.max_bytes:
+            raise SandboxError("Checkpoint archive exceeds its limit")
+        magic = stored.read(len(_GZIP_MAGIC))
+        stored.seek(0)
+        if magic != _GZIP_MAGIC:
+            yield stored
+            return
+        with tempfile.TemporaryFile() as expanded:
+            total = 0
+            with gzip.GzipFile(fileobj=stored, mode="rb") as decoder:
+                while True:
+                    # Only the decode is guarded. A write failure here is a real
+                    # filesystem error and has to reach the caller as one.
+                    try:
+                        chunk = decoder.read(_CHUNK)
+                    except (EOFError, zlib.error, gzip.BadGzipFile) as error:
+                        raise SandboxError("Invalid compressed checkpoint archive") from error
+                    if not chunk:
+                        break
+                    total += len(chunk)
+                    if total > limits.max_bytes:
+                        raise SandboxError("Checkpoint archive exceeds its limit")
+                    expanded.write(chunk)
+            expanded.flush()
+            expanded.seek(0)
+            yield expanded
+
+
 def _preflight(stream: BinaryIO, limits: CheckpointLimits) -> None:
     """Bound extension headers before tarfile allocates their payloads.
 
@@ -189,16 +263,19 @@ def _fsync_directory(path: Path) -> None:
 
 
 class CheckpointArchive:
-    """Uncompressed tar with exactly workspace/native roots and a JSON state manifest.
+    """Tar with exactly workspace/native roots and a JSON state manifest.
 
+    ``compress`` selects the representation this instance writes; reading accepts
+    either one, so an archive written before compression existed still restores.
     Native credentials must live outside the declared native root. Explicit
     exclusions are relative to either root, for example ``native/auth.json``.
     User workspace files, including ignored/untracked files, are otherwise kept.
     Restore rejects special files, hardlinks, escaping symlinks and duplicate paths.
     """
 
-    def __init__(self, limits: CheckpointLimits = CheckpointLimits()) -> None:
+    def __init__(self, limits: CheckpointLimits = CheckpointLimits(), *, compress: bool = True) -> None:
         self.limits = limits
+        self.compress = compress
 
     def capture(
         self, roots: Mapping[str, Path], destination: Path, *, state: Mapping[str, Any], exclude: Sequence[str] = ()
@@ -249,9 +326,12 @@ class CheckpointArchive:
                 collect(excluded, item)
         output_file = destination.open("xb")
         try:
+            # Closing order: the tar's end-of-archive marker is written first, then the
+            # encoder flushes, then the file closes.
             with (
                 output_file as output,
-                tarfile.open(fileobj=output, mode="w", format=tarfile.PAX_FORMAT) as archive,
+                _encoder(output, self.compress) as sink,
+                tarfile.open(fileobj=sink, mode="w", format=tarfile.PAX_FORMAT) as archive,
             ):
                 info = tarfile.TarInfo(_MANIFEST)
                 info.size = len(manifest)
@@ -343,9 +423,7 @@ class CheckpointArchive:
         # symlink anywhere in the parent's own path would otherwise fail every comparison.
         temporary = Path(tempfile.mkdtemp(prefix=".restore-", dir=destination.parent)).resolve()
         try:
-            with _regular(source) as stream:
-                if os.fstat(stream.fileno()).st_size > self.limits.max_bytes:
-                    raise SandboxError("Checkpoint archive exceeds its limit")
+            with _archive_bytes(source, self.limits) as stream:
                 _preflight(stream, self.limits)
                 with tarfile.open(fileobj=stream, mode="r:") as archive:
                     members: Dict[str, tarfile.TarInfo] = {}

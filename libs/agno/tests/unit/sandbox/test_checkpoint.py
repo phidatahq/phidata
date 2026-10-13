@@ -6,6 +6,7 @@ import io
 import json
 import os
 import tarfile
+import tempfile
 import threading
 import traceback
 from pathlib import Path
@@ -32,9 +33,12 @@ def roots(tmp_path):
     return paths
 
 
-def capture(tmp_path, roots):
+def capture(tmp_path, roots, *, compress=True):
+    # Created here so a test can capture the same roots twice into separate directories;
+    # capture refuses to overwrite a destination.
+    tmp_path.mkdir(parents=True, exist_ok=True)
     archive = tmp_path / "checkpoint.tar"
-    CheckpointArchive().capture(
+    CheckpointArchive(compress=compress).capture(
         roots, archive, state={"run_id": "r", "native_id": "n", "conversation": ["hello"]}, exclude=["native/auth.json"]
     )
     return archive
@@ -403,7 +407,7 @@ def test_archive_cut_after_the_roots_is_rejected(tmp_path, roots):
     """Cut the stream immediately after the ``workspace`` directory header: both roots
     are still declared, every workspace file is gone, and the stored digest matches
     those bytes, so nothing but the archive framing can reject it."""
-    source = capture(tmp_path, roots)
+    source = capture(tmp_path, roots, compress=False)
     with tarfile.open(source) as archive:
         cut = next(member.offset_data for member in archive if member.name == "workspace")
     truncated = tmp_path / "truncated.tar"
@@ -426,10 +430,7 @@ def unparsable_archive(tmp_path, roots, kind):
     if kind == "no tar header":
         path.write_bytes(b"x" * 4096)
         return path
-    source = capture(tmp_path, roots)
-    if kind == "compressed":
-        path.write_bytes(gzip.compress(source.read_bytes()))
-        return path
+    source = capture(tmp_path, roots, compress=False)
     if kind == "stream stops inside a header":
         with tarfile.open(source) as archive:
             inside = max(member.offset for member in archive) + 100
@@ -453,7 +454,6 @@ def unparsable_archive(tmp_path, roots, kind):
     "kind",
     [
         "no tar header",
-        "compressed",
         "stream stops inside a header",
         "long-name header with no member",
         "manifest is not json",
@@ -674,3 +674,160 @@ async def test_repeated_cancellation_keeps_the_write_failure_reachable(tmp_path,
     )
     assert not list(store.root.glob(".upload-*"))
     assert not list(store.root.iterdir())
+
+
+def test_capture_compresses_by_default_and_stores_plain_tar_when_disabled(tmp_path, roots):
+    compressed = capture(tmp_path, roots)
+    plain = capture(tmp_path / "plain", roots, compress=False)
+    assert compressed.read_bytes()[:2] == b"\x1f\x8b"
+    assert plain.read_bytes()[:2] != b"\x1f\x8b"
+    with tarfile.open(plain, mode="r:") as archive:
+        assert "manifest.json" in archive.getnames()
+    assert compressed.stat().st_size < plain.stat().st_size
+
+
+def test_the_stored_bytes_do_not_record_when_the_capture_ran(tmp_path, roots):
+    """One tree must have one digest, or the store stops deduplicating it."""
+    header = capture(tmp_path, roots).read_bytes()[:10]
+    assert header[:2] == b"\x1f\x8b"
+    assert header[3] & 0x08 == 0, "the header must not carry an original filename"
+    assert header[4:8] == b"\x00\x00\x00\x00", "the header must not carry a capture time"
+
+
+def test_two_captures_of_one_tree_dedup_to_a_single_object(tmp_path, roots):
+    store = FileCheckpointStore(tmp_path / "objects")
+    first = capture(tmp_path, roots)
+    second = tmp_path / "second.tar"
+    CheckpointArchive().capture(
+        roots, second, state={"run_id": "r", "native_id": "n", "conversation": ["hello"]}, exclude=["native/auth.json"]
+    )
+    assert first.read_bytes() == second.read_bytes()
+    assert store.put(first) == store.put(second)
+    assert len(list(store.root.iterdir())) == 1
+
+
+@pytest.mark.parametrize("compress", [True, False])
+def test_both_stored_representations_restore_the_same_tree(tmp_path, roots, compress):
+    source = tmp_path / "checkpoint.tar"
+    CheckpointArchive(compress=compress).capture(roots, source, state={"run_id": "r"}, exclude=["native/auth.json"])
+    store = FileCheckpointStore(tmp_path / "objects")
+    reference = store.put(source)
+    # Digest and size describe the stored object, whichever representation that is.
+    assert reference.size == source.stat().st_size
+    assert reference.sha256 == hashlib.sha256(source.read_bytes()).hexdigest()
+    destination = tmp_path / "restored"
+    assert store.restore(reference, destination) == {"run_id": "r"}
+    assert (destination / "workspace/untracked").read_bytes() == bytes(range(256))
+    assert (destination / "workspace/tracked.py").stat().st_mode & 0o777 == 0o751
+    assert os.readlink(destination / "workspace/link") == "tracked.py"
+    assert not (destination / "native/auth.json").exists()
+
+
+def test_a_reader_accepts_either_representation_whatever_its_own_setting(tmp_path, roots):
+    """The stored format is a property of the bytes, not of the reader's default."""
+    for writer, reader in ((True, False), (False, True)):
+        source = tmp_path / f"written-{writer}.tar"
+        CheckpointArchive(compress=writer).capture(roots, source, state={"run_id": "r"})
+        destination = tmp_path / f"restored-{writer}"
+        assert CheckpointArchive(compress=reader).restore(source, destination) == {"run_id": "r"}
+        assert (destination / "workspace/tracked.py").read_text() == "print('hello')"
+        assert (destination / "native/auth.json").read_text() == "credential"
+
+
+def broken_compressed(tmp_path, roots, kind):
+    path = tmp_path / "broken.tar"
+    if kind == "compressed non-archive":
+        path.write_bytes(gzip.compress(b"x" * 4096))
+        return path
+    if kind == "compressed cut archive":
+        plain = capture(tmp_path, roots, compress=False).read_bytes()
+        path.write_bytes(gzip.compress(plain[: len(plain) // 2]))
+        return path
+    data = capture(tmp_path, roots).read_bytes()
+    if kind == "truncated stream":
+        path.write_bytes(data[: len(data) // 2])
+    elif kind == "corrupt deflate":
+        middle = len(data) // 2
+        path.write_bytes(data[:middle] + bytes((data[middle] ^ 0xFF,)) + data[middle + 1 :])
+    else:
+        path.write_bytes(data[:-4] + b"\x00\x00\x00\x00")
+    return path
+
+
+@pytest.mark.parametrize(
+    "kind",
+    ["truncated stream", "corrupt deflate", "wrong trailer", "compressed non-archive", "compressed cut archive"],
+)
+def test_malformed_compressed_checkpoints_are_rejected_as_sandbox_errors(tmp_path, roots, kind):
+    source = broken_compressed(tmp_path, roots, kind)
+    before = sorted(path.name for path in tmp_path.iterdir())
+    with pytest.raises(SandboxError):
+        CheckpointArchive().restore(source, tmp_path / "restored")
+    assert not (tmp_path / "restored").exists()
+    assert not list(tmp_path.glob(".restore-*"))
+    # Expanding a compressed object must not leave a staging file behind either.
+    assert sorted(path.name for path in tmp_path.iterdir()) == before
+
+
+def test_expansion_stops_at_the_limit_before_the_whole_archive_is_written(tmp_path, roots, monkeypatch):
+    """A decompression bomb is bounded by expanded bytes; stored size bounds nothing."""
+    (roots["workspace"] / "compressible").write_bytes(bytes(8 * 1024 * 1024))
+    source = capture(tmp_path, roots)
+    limits = CheckpointLimits(max_bytes=2 * 1024 * 1024)
+    assert source.stat().st_size < limits.max_bytes, "the stored object must fit under the limit it expands past"
+
+    written = []
+    real = tempfile.TemporaryFile
+
+    def counted(*args, **kwargs):
+        handle = real(*args, **kwargs)
+        write = handle.write
+
+        def record(data):
+            written.append(len(data))
+            return write(data)
+
+        handle.write = record
+        return handle
+
+    monkeypatch.setattr(tempfile, "TemporaryFile", counted)
+    with pytest.raises(SandboxError, match="limit"):
+        CheckpointArchive(limits).restore(source, tmp_path / "restored")
+    assert not (tmp_path / "restored").exists()
+    assert not list(tmp_path.glob(".restore-*"))
+    assert sum(written) <= limits.max_bytes + 1024 * 1024, "expansion ran past the limit before stopping"
+
+
+@pytest.mark.parametrize(
+    ("members", "manifest", "message"),
+    [
+        ([("workspace/escape", tarfile.SYMTYPE, "../../escape")], None, "escapes"),
+        ([("workspace/hardlink", tarfile.LNKTYPE, "manifest.json")], None, "unsupported"),
+        ([("../escape", tarfile.REGTYPE, "")], None, "Unsafe"),
+        ([], b"{not json", "manifest"),
+    ],
+)
+def test_compressing_a_hostile_archive_does_not_get_it_past_validation(tmp_path, members, manifest, message):
+    plain = malicious_archive(tmp_path, members, manifest=manifest)
+    source = tmp_path / "hostile.tar"
+    source.write_bytes(gzip.compress(plain.read_bytes()))
+    with pytest.raises(SandboxError, match=message):
+        CheckpointArchive().restore(source, tmp_path / "restored")
+    assert not (tmp_path / "restored").exists()
+    assert not (tmp_path / "escape").exists()
+    assert not list(tmp_path.glob(".restore-*"))
+
+
+@pytest.mark.asyncio
+async def test_async_capture_and_restore_round_trip_compressed(tmp_path, roots):
+    archive = CheckpointArchive()
+    source = tmp_path / "checkpoint.tar"
+    await archive.acapture(roots, source, state={"run_id": "r"})
+    assert source.read_bytes()[:2] == b"\x1f\x8b"
+    store = FileCheckpointStore(tmp_path / "objects")
+    reference = await store.aput(source)
+    # Twice: the second restore reads an object the first one already read.
+    for index in range(2):
+        destination = tmp_path / f"restored{index}"
+        assert await store.arestore(reference, destination) == {"run_id": "r"}
+        assert (destination / "workspace/tracked.py").read_text() == "print('hello')"

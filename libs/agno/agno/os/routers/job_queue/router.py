@@ -6,7 +6,7 @@ queue depth - depth trending up is the early-warning signal the queue exists
 to provide.
 """
 
-from typing import TYPE_CHECKING, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
@@ -138,15 +138,22 @@ def get_queue_router(os: "AgentOS", settings: AgnoAPISettings = AgnoAPISettings(
         for s in status or []:
             if s not in JOB_STATUSES:
                 raise HTTPException(status_code=400, detail=f"Invalid status {s!r}; expected one of {JOB_STATUSES}")
+        if (session_id is not None and not all(session_id)) or user_id == "":
+            raise HTTPException(status_code=400, detail="session_id and user_id must not be empty")
         store = _get_store(request)
+        # Only pass filters that were asked for: custom stores on the older list_jobs signature keep working.
+        filters: Dict[str, Any] = {}
+        if session_id:
+            filters["session_id"] = session_id
+        if user_id:
+            filters["user_id"] = user_id
         jobs, total_count = await store.list_jobs(
             status=status or None,
-            session_id=session_id or None,
-            user_id=user_id,
             limit=limit,
             page=page,
             sort_by=sort_by,
             sort_order=sort_order.value,
+            **filters,
         )
         return PaginatedResponse(
             data=[QueueJobSchema(**job) for job in jobs],

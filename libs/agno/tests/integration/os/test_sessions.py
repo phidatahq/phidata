@@ -1,5 +1,6 @@
 """Integration tests for session and run endpoints in AgentOS."""
 
+import json
 import time
 from datetime import UTC, datetime
 
@@ -1156,3 +1157,50 @@ def test_get_session_runs_summary_mode_is_lightweight(mixed_status_session, shar
     assert entry["status"] == "COMPLETED"
     assert len(entry["content_preview"]) <= 280
     assert "messages" not in entry and "events" not in entry and "metrics" not in entry
+
+
+@pytest.fixture
+def team_session_with_structured_run(shared_db):
+    now = int(time.time())
+    run = TeamRunOutput(
+        run_id="team-run-1",
+        team_id="test-team-id",
+        user_id="test-user",
+        status=RunStatus.completed,
+        content={"answer": 42, "notes": "structured"},
+        messages=[],
+        created_at=now,
+    )
+    session = TeamSession(
+        session_id="team-structured-session",
+        team_id="test-team-id",
+        user_id="test-user",
+        session_data={"session_name": "Team"},
+        team_data={"name": "test-team", "team_id": "test-team-id"},
+        runs=[run],
+        created_at=now,
+        updated_at=now,
+    )
+    shared_db.upsert_session(session)
+    shared_db.upsert_run(run=run, session_id=session.session_id, user_id=session.user_id, run_index=0)
+    return session
+
+
+def test_get_session_runs_team_runs_carry_user_id(team_session_with_structured_run, shared_db):
+    client = _mixed_client(shared_db)
+    url = f"/sessions/{team_session_with_structured_run.session_id}/runs"
+    full = client.get(url, params={"session_type": "team"})
+    summary = client.get(url, params={"session_type": "team", "summary": "true"})
+    assert full.status_code == 200 and summary.status_code == 200
+    assert full.json()[0]["user_id"] == "test-user"
+    assert summary.json()[0]["user_id"] == "test-user"
+
+
+def test_get_session_runs_summary_previews_structured_content_as_json(team_session_with_structured_run, shared_db):
+    client = _mixed_client(shared_db)
+    response = client.get(
+        f"/sessions/{team_session_with_structured_run.session_id}/runs",
+        params={"session_type": "team", "summary": "true"},
+    )
+    assert response.status_code == 200
+    assert json.loads(response.json()[0]["content_preview"]) == {"answer": 42, "notes": "structured"}

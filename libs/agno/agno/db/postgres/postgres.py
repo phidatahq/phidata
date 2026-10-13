@@ -8020,12 +8020,13 @@ class PostgresDb(BaseDb):
     def list_jobs(
         self,
         status: Optional[Union[str, List[str]]] = None,
-        session_id: Optional[Union[str, List[str]]] = None,
-        user_id: Optional[str] = None,
         limit: int = 20,
         page: int = 1,
         sort_by: Optional[str] = "created_at",
         sort_order: Optional[str] = "desc",
+        *,
+        session_id: Optional[Union[str, List[str]]] = None,
+        user_id: Optional[str] = None,
     ) -> Tuple[List[Dict[str, Any]], int]:
         try:
             table = self._get_table(table_type="jobs")

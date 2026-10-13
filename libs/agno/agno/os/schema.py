@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, Generic, List, Literal, Optional, TypeVar, Union
@@ -825,7 +826,7 @@ class SessionRunSummarySchema(BaseModel):
     workflow_id: Optional[str] = Field(None, description="Workflow ID, when this is a workflow run")
     user_id: Optional[str] = Field(None, description="User ID associated with the run")
     status: Optional[str] = Field(
-        None, description="Run status (PENDING, RUNNING, PAUSED, COMPLETED, CANCELLED, ERROR)"
+        None, description="Run status (PENDING, RUNNING, PAUSED, COMPLETED, CANCELLED, ERROR, REGENERATED)"
     )
     run_input: Optional[str] = Field(None, description="Input preview, truncated")
     content_preview: Optional[str] = Field(None, description="Output content preview, truncated")
@@ -835,7 +836,8 @@ class SessionRunSummarySchema(BaseModel):
     def _preview(cls, value: Any) -> Optional[str]:
         if value is None:
             return None
-        text = value if isinstance(value, str) else str(value)
+        # Structured output (output_schema) previews as JSON, matching the full listing's content.
+        text = value if isinstance(value, str) else json.dumps(value, default=str)
         return text[:_RUN_PREVIEW_CHARS]
 
     @classmethod
@@ -858,6 +860,7 @@ class TeamRunSchema(BaseModel):
     run_id: str = Field(..., description="Unique identifier for the team run")
     parent_run_id: Optional[str] = Field(None, description="Parent run ID if this is a nested run")
     team_id: Optional[str] = Field(None, description="Team ID that executed this run")
+    user_id: Optional[str] = Field(None, description="User ID associated with the run")
     status: Optional[str] = Field(None, description="Run status (PENDING, RUNNING, COMPLETED, ERROR, etc.)")
     cancellation_stage: Optional[str] = Field(None, description=CANCELLATION_STAGE_DESCRIPTION)
     content: Optional[Union[str, dict]] = Field(None, description="Output content from the team run")
@@ -910,6 +913,7 @@ class TeamRunSchema(BaseModel):
             run_id=run_dict.get("run_id", ""),
             parent_run_id=run_dict.get("parent_run_id", ""),
             team_id=run_dict.get("team_id", ""),
+            user_id=run_dict.get("user_id"),
             status=run_dict.get("status"),
             cancellation_stage=run_dict.get("cancellation_stage"),
             run_input=run_input,

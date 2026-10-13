@@ -701,7 +701,7 @@ def attach_routes(
         status: Optional[List[str]] = Query(
             default=None,
             description="Status filter; repeatable to match any of several, case-insensitive "
-            "(PENDING, RUNNING, PAUSED, COMPLETED, CANCELLED, ERROR)",
+            "(PENDING, RUNNING, PAUSED, COMPLETED, CANCELLED, ERROR, REGENERATED)",
         ),
         summary: bool = Query(
             default=False,

@@ -39,3 +39,13 @@
 **Result:** The cookbook and all 54 checkpoint tests passed on Python 3.9 through 3.14. This layer's files are format- and lint-clean, and type checking reports no new findings. Actual filesystem operations were exercised; no Docker-to-checkpoint transport, live SDK, production shared filesystem or host-loss guarantee was tested by this layer.
 
 ---
+
+### checkpoint store protocol, compression and limit symmetry
+
+**Status:** PASS
+
+**Description:** `CheckpointStore` with `FileCheckpointStore` as its first implementation, managed read access through `open_archive`, and gzip-compressed archives by default. 106 checkpoint tests cover the earlier surface and, beyond it: both stored representations round-tripping, and either one read back whatever the reader's own setting is; stored bytes that do not record when a capture ran; two captures of one tree deduplicating to a single object; malformed and hostile compressed archives; expansion stopping at the limit before a whole archive is written; overlapping durable roots refused before anything is written; an absent object raising `CheckpointObjectNotFound` through every sync and async access, while permission, checksum, size and limit failures keep their own types; idempotent deletion; independent lifetimes for repeated and concurrent access, released after a consumer exception and under cancellation; a capture refused when its expanded archive would exceed the limit restore applies to it; an archive whose expanded stream exactly fits still captured and still restored; and an opened object staying readable while retention deletes it.
+
+**Result:** The cookbook and all 106 checkpoint tests passed on Python 3.9, 3.10, 3.11, 3.12, 3.13 and 3.14, with 36 provider tests alongside them. A capture of one unchanged tree produces identical object bytes in both representations on every one of those interpreters, but those bytes differ between 3.9 and 3.12 and later, so objects deduplicate within an interpreter version rather than across a mixed fleet. This layer's files are format- and lint-clean, and type checking reports no new findings. Actual filesystem operations were exercised; no Docker-to-checkpoint transport, live SDK, production shared filesystem or host-loss guarantee was tested by this layer.
+
+---

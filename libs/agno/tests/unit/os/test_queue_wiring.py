@@ -504,6 +504,15 @@ class TestQueuePerSessionMarking:
         assert accepted["job"]["payload"]["serialize_session"] is True
 
     @pytest.mark.asyncio
+    async def test_any_component_declaring_one_turn_per_session_is_marked(self):
+        class SingleTurnComponent:
+            one_turn_per_session = True
+
+        worker = self._worker(queue_per_session=False)
+        accepted = await aenqueue_ticket(worker, _ticket("r1"), SingleTurnComponent())
+        assert accepted["job"]["payload"]["serialize_session"] is True
+
+    @pytest.mark.asyncio
     async def test_enqueue_applies_the_depth_gate(self):
         worker = self._worker(max_queue_depth=1)
         assert (await aenqueue_ticket(worker, _ticket("r1")))["accepted"]

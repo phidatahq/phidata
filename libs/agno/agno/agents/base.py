@@ -244,6 +244,8 @@ class BaseExternalAgent:
 
     # Adapters that pass output_schema to their framework set this; others reject the option.
     _supports_output_schema: ClassVar[bool] = False
+    # A second concurrent turn on a session is refused, so the durable queue always serializes these.
+    one_turn_per_session: ClassVar[bool] = True
 
     def __post_init__(self) -> None:
         from agno.utils.string import generate_id_from_name

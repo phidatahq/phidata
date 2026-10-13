@@ -159,7 +159,8 @@ class QueueConfig:
     # cancelled, and a job pinned to a deployment_id with no live worker until
     # it is cancelled or requeued. Applies to tickets accepted while it is on,
     # at durable-queue claim time only; the in-process path is not gated.
-    # External agents are serialized regardless. Custom stores enforce it by
+    # Components that set one_turn_per_session (Claude, Codex and the other
+    # external agents) are serialized regardless. Custom stores enforce it by
     # setting serializes_sessions. (Appended last, see above.)
     queue_per_session: bool = True
 

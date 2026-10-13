@@ -303,12 +303,10 @@ def store_serializes_sessions(store: Any) -> bool:
 async def aenqueue_ticket(queue_worker: Any, job: Dict[str, Any], component: Any = None) -> Dict[str, Any]:
     """Accept a ticket, marking it for per-session order when queue_per_session is on.
 
-    External agents are always marked: a second concurrent turn on their session fails
-    instead of waiting, so their order cannot depend on the flag."""
-    from agno.agents.base import BaseExternalAgent
-
+    A component that sets one_turn_per_session is always marked: a second concurrent turn
+    on its session fails instead of waiting, so its order cannot depend on the flag."""
     config = queue_worker.config
-    if config.queue_per_session or isinstance(component, BaseExternalAgent):
+    if config.queue_per_session or getattr(component, "one_turn_per_session", False) is True:
         job = {**job, "payload": {**(job.get("payload") or {}), "serialize_session": True}}
     return await queue_worker.store.enqueue_job(job, max_depth=config.max_queue_depth)
 

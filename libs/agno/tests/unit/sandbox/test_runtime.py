@@ -132,8 +132,8 @@ class Provider:
         self.release = None
         self.entered = threading.Event()
 
-    async def aexec(self, computer, argv, **kwargs):
-        self.requests.append(json.loads(kwargs["stdin"]))
+    async def arpc(self, computer, operation, payload):
+        self.requests.append(json.loads(payload))
         self.entered.set()
         if self.release is not None:
             await self.release.wait()
@@ -144,7 +144,7 @@ class Provider:
 
 
 @pytest.mark.asyncio
-async def test_client_start_uses_transport_stdin_and_explicit_cancel():
+async def test_client_start_uses_rpc_transport_and_explicit_cancel():
     provider = Provider()
     client = SandboxRuntimeClient(provider)
     execution = await client.astart(HANDLE, execution_id="e", run_id="r", sdk="claude", input="secret prompt")
@@ -302,3 +302,140 @@ def test_completion_racing_poll_cannot_skip_final_events(dispatch, monkeypatch):
     second = runtime._poll(root, "e", first["cursor"])
     assert second["frames"][0]["event"]["content"] == "last"
     assert second["result"]["error"] == "finished"
+
+
+# ---------------------------------------------------------------------------
+# The runtime as an HTTP server inside the container
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def runtime_server(tmp_path, monkeypatch, request_data):
+    """The real server on a loopback port, with the fixture harness and a fake worker start."""
+    import threading
+
+    monkeypatch.setattr(runtime, "_process_start", lambda pid: "start")
+    calls = []
+    monkeypatch.setattr(runtime.subprocess, "Popen", lambda *a, **kw: calls.append((a, kw)))
+    server = runtime._serve(tmp_path, 0)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield f"http://127.0.0.1:{server.server_address[1]}", tmp_path, calls, request_data
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_server_health_start_and_poll_match_the_stdin_protocol(runtime_server):
+    import httpx
+
+    url, root, calls, request_data = runtime_server
+    assert httpx.get(url + "/health").json() == {"version": 1, "ok": True}
+    accepted = httpx.post(url + "/start", json=request_data)
+    assert accepted.status_code == 200 and accepted.json()["accepted"] is True
+    # The same request again attaches; a different one is refused with a conflict.
+    assert httpx.post(url + "/start", json=request_data).status_code == 200
+    assert len(calls) == 1
+    conflict = httpx.post(url + "/start", json={**request_data, "input": "other"})
+    assert conflict.status_code == 409 and "different input" in conflict.json()["error"]
+    page = httpx.post(url + "/poll", json={"execution_id": "e", "cursor": 0}).json()
+    assert page == {"version": 1, "execution_id": "e", "cursor": 0, "frames": [], "result": None}
+    assert httpx.post(url + "/poll", json={"execution_id": "e", "cursor": -1}).status_code == 400
+    assert httpx.post(url + "/nope", json={}).status_code == 404
+    assert httpx.get(url + "/poll").status_code == 404
+
+
+def test_server_long_poll_returns_as_soon_as_the_journal_grows(runtime_server):
+    import threading
+    import time
+
+    import httpx
+
+    url, root, calls, request_data = runtime_server
+    httpx.post(url + "/start", json=request_data)
+    directory = runtime._job(root, "e")
+
+    def append_later():
+        time.sleep(0.3)
+        runtime._append(directory, {"event": "RunContent", "content": "late"})
+
+    threading.Thread(target=append_later, daemon=True).start()
+    started = time.monotonic()
+    page = httpx.post(url + "/poll", json={"execution_id": "e", "cursor": 0, "wait": 5}, timeout=10).json()
+    elapsed = time.monotonic() - started
+    assert [frame["event"]["content"] for frame in page["frames"]] == ["late"]
+    assert 0.2 < elapsed < 3, "the poll should return when the event lands, not after the full wait"
+    # Nothing new: the wait runs out and an empty page comes back.
+    started = time.monotonic()
+    idle = httpx.post(url + "/poll", json={"execution_id": "e", "cursor": page["cursor"], "wait": 0.3}, timeout=10)
+    assert idle.json()["frames"] == [] and time.monotonic() - started >= 0.25
+
+
+def test_server_requires_its_token_when_one_is_configured(tmp_path, monkeypatch, request_data):
+    import threading
+
+    import httpx
+
+    monkeypatch.setattr(runtime, "_process_start", lambda pid: "start")
+    monkeypatch.setattr(runtime.subprocess, "Popen", lambda *a, **kw: None)
+    server = runtime._serve(tmp_path, 0, "secret-token")
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    url = f"http://127.0.0.1:{server.server_address[1]}"
+    try:
+        assert httpx.get(url + "/health").status_code == 401
+        assert httpx.post(url + "/start", json=request_data).status_code == 401
+        assert httpx.get(url + "/health", headers={"Authorization": "Bearer nope"}).status_code == 401
+        good = {"Authorization": "Bearer secret-token"}
+        assert httpx.get(url + "/health", headers=good).status_code == 200
+        assert httpx.post(url + "/start", json=request_data, headers=good).json()["accepted"] is True
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_server_rejects_oversized_and_malformed_requests(runtime_server):
+    import httpx
+
+    url, *_ = runtime_server
+    assert httpx.post(url + "/start", content=b"[]", headers={"Content-Type": "application/json"}).status_code == 400
+    assert httpx.post(url + "/start", content=b"{", headers={"Content-Type": "application/json"}).status_code == 400
+    assert httpx.post(url + "/start", content=b"", headers={"Content-Type": "application/json"}).status_code == 413
+
+
+def test_stdin_poll_honours_wait(dispatch, monkeypatch, capsys):
+    import sys
+    import time
+
+    root, calls, request_data = dispatch
+    runtime._start(root, request_data)
+    monkeypatch.setenv("AGNO_SANDBOX_RUNTIME_DIR", str(root))
+    from io import BytesIO
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(sys, "argv", ["runtime", "poll"])
+    monkeypatch.setattr(sys, "stdin", SimpleNamespace(buffer=BytesIO(b'{"execution_id":"e","cursor":0,"wait":0.3}')))
+    started = time.monotonic()
+    runtime.main()
+    assert time.monotonic() - started >= 0.25
+    assert json.loads(capsys.readouterr().out)["frames"] == []
+
+
+@pytest.mark.asyncio
+async def test_client_long_poll_does_not_sleep_between_pages():
+    """With wait, the container holds the request; the client must not add its own delay."""
+    provider = Provider()
+    client = SandboxRuntimeClient(provider)
+    execution = await client.astart(HANDLE, execution_id="e", run_id="r", sdk="claude", input="hello")
+    provider.response = {"version": 1, "execution_id": "e", "cursor": 0, "frames": [], "result": None}
+    pages = client.apages(execution, timeout=5, poll_interval=5, wait=0.2)
+    assert (await pages.__anext__()).events == []
+    provider.response = {
+        "version": 1,
+        "execution_id": "e",
+        "cursor": 0,
+        "frames": [],
+        "result": {"type": "execution_error", "error": "done"},
+    }
+    assert (await pages.__anext__()).result["error"] == "done"
+    assert [request.get("wait") for request in provider.requests[1:]] == [0.2, 0.2]

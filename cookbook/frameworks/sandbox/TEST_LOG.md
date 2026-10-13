@@ -70,3 +70,31 @@
 
 ---
 
+### Runtime served over HTTP, long-poll, and the transport load comparison
+
+**Status:** PASS
+
+**Description:** The runtime gains a `serve` operation, a stdlib threaded HTTP server run as the container entrypoint with `POST /start`, `POST /poll` and `GET /health` over the same JSON and journal, plus a `wait` long-poll on both transports. `DockerSandbox(runtime_port=...)` publishes the port on the host loopback, waits for `/health` on create, and routes `rpc` over a pooled `httpx` client with no daemon call per request; without a port, `rpc` falls back to spawning the runtime over exec. `SandboxHandle` carries `runtime_url`. The client goes through `rpc` and long-polls by default (10 s, cap 30 s). Two fixes found while measuring: the stdlib server's reverse DNS lookup on bind stalled five seconds per server (skipped), and headers and body written as two segments hit the delayed-ACK stall (TCP_NODELAY set).
+
+**Result:** 110 sandbox unit tests passed in 3 s, including an in-process runtime server (health, idempotent start, conflict, long-poll returning on journal growth, malformed and oversized requests), stdin long-poll, the Docker HTTP path over a mock transport (publish args, serve entrypoint, label, readiness, failures leaving compute alone, zero daemon calls per request, exec fallback) and configuration validation. Runtime integration cases run over both transports: 15 passed, 1 skipped (exec-only skip of the long-poll case). Docker provider cases: 7 passed. `runtime_journal.py`, `warm_reuse.py` and the live `claude_runtime.py` over HTTP passed. `runtime_transport_load.py` with 8 concurrent 3 s fixture turns on Docker Desktop for Mac:
+
+| transport | requests/turn | daemon calls/turn | idle poll p50 |
+|---|---|---|---|
+| exec, poll loop (previous behaviour) | 9.0 | 18.0 | 151 ms |
+| exec, long-poll | 2.0 | 4.0 | 138 ms |
+| http, long-poll | 2.0 | 0.0 | 1.7 ms |
+
+No model calls in the load run. Requests and daemon calls per turn are what scale with concurrent users; at 1,000 concurrent turns the poll loop would put thousands of exec spawns per second through one dockerd, while HTTP keeps the daemon off the hot path entirely.
+
+---
+
+### Runtime server token and advertised host
+
+**Status:** PASS
+
+**Description:** The HTTP transport assumed the daemon and the replica share a machine: the port was published and advertised on `127.0.0.1`, so a replica on another host sharing a remote daemon would never reach it and `create` would fail waiting for health. `DockerSandbox` gains `runtime_host` (published on and advertised as that address, part of the config digest) and every container a per-container bearer token: generated at create, passed through the private env file, read back from the container environment onto `SandboxHandle.runtime_token` (kept out of repr), sent on every request including the readiness check, and required by the server for every path. A user env entry with the token name is refused.
+
+**Result:** Unit cases cover token generation and read-back, requests carrying the header and a stale token refused, the server returning 401 without or with a wrong token and 200 with the right one, `runtime_host` publishing and advertising the daemon host's address, validation of bad hosts, and the three configurations yielding distinct digests. Integration: an anonymous request to a live container's server is refused with 401 and the owner's request answers 200; all runtime cases pass over both transports. No change to the load numbers.
+
+---
+

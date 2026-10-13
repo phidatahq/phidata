@@ -17,10 +17,14 @@ pytestmark = [
 ]
 
 
-@pytest_asyncio.fixture
-async def runtime_computer():
-    provider = DockerSandbox(IMAGE, namespace="runtime-test-" + uuid4().hex, memory_mb=512)
+@pytest_asyncio.fixture(params=["exec", "http"])
+async def runtime_computer(request):
+    """Every runtime case runs over both transports: the runtime spawned per request over
+    docker exec, and the runtime served over HTTP from a port published on loopback."""
+    options = {"network": "bridge", "runtime_port": 8765} if request.param == "http" else {}
+    provider = DockerSandbox(IMAGE, namespace="runtime-test-" + uuid4().hex, memory_mb=512, **options)
     handle = await provider.acreate("s", agent_id="a", env={"AGNO_SANDBOX_TEST_RUNTIME": "1"})
+    assert (handle.runtime_url is not None) == (request.param == "http")
     try:
         yield provider, handle, SandboxRuntimeClient(provider)
     finally:
@@ -32,7 +36,15 @@ async def test_reconnect_and_duplicate_dispatch_execute_only_once(runtime_comput
     execution = await first.astart(
         computer, execution_id="e", run_id="r", sdk="fixture", input="hello", config={"delay": 0.3}
     )
-    second = SandboxRuntimeClient(DockerSandbox(IMAGE, namespace=provider.namespace, memory_mb=512))
+    second = SandboxRuntimeClient(
+        DockerSandbox(
+            IMAGE,
+            namespace=provider.namespace,
+            memory_mb=512,
+            network=provider.network,
+            runtime_port=provider.runtime_port,
+        )
+    )
     assert (
         await second.astart(computer, execution_id="e", run_id="r", sdk="fixture", input="hello", config={"delay": 0.3})
         == execution
@@ -138,3 +150,38 @@ print('SDK construction passed without model calls')
     result = await provider.aexec(computer, ["python", "-c", script])
     assert result.exit_code == 0, result.stderr
     assert "SDK construction passed" in result.stdout
+
+
+async def test_http_transport_long_polls_and_streams_events_as_they_land(runtime_computer):
+    import time
+
+    provider, computer, client = runtime_computer
+    if computer.runtime_url is None:
+        pytest.skip("exec transport")
+    execution = await client.astart(
+        computer, execution_id="lp", run_id="r", sdk="fixture", input="late", config={"delay": 1.0}
+    )
+    started = time.monotonic()
+    first = await client.apoll(execution, wait=10)
+    waited = time.monotonic() - started
+    # The poll was held inside the container until the fixture journaled its event, well under the wait.
+    assert [event.get("content") for event in first.events] == ["late"] or first.result is not None
+    assert 0.5 < waited < 5
+    result = await client.await_result(execution, timeout=20)
+    assert result["run"]["content"] == "late"
+
+
+async def test_http_transport_refuses_requests_without_the_containers_token(runtime_computer):
+    import httpx
+
+    provider, computer, client = runtime_computer
+    if computer.runtime_url is None:
+        pytest.skip("exec transport")
+    assert computer.runtime_token
+    async with httpx.AsyncClient() as raw:
+        anonymous = await raw.get(computer.runtime_url + "/health")
+        assert anonymous.status_code == 401
+        owner = await raw.get(
+            computer.runtime_url + "/health", headers={"Authorization": "Bearer " + computer.runtime_token}
+        )
+        assert owner.status_code == 200

@@ -8,7 +8,7 @@ from dataclasses import replace
 import pytest
 
 from agno.sandbox._exec import _execute
-from agno.sandbox.base import SandboxError, SandboxHandle
+from agno.sandbox.base import ExecResult, SandboxError, SandboxHandle
 from agno.sandbox.docker import DockerSandbox
 
 
@@ -100,7 +100,7 @@ class FakeDocker(DockerSandbox):
             self.record = {
                 "Id": "container-id",
                 "Name": "/" + args[args.index("--name") + 1],
-                "Config": {"Labels": labels},
+                "Config": {"Labels": labels, "Env": [line for line in self.env_file.splitlines() if line]},
                 "State": {"Status": "created"},
             }
             if self.lose_create_response:
@@ -346,3 +346,180 @@ async def test_providers_without_a_native_pause_say_so():
         await ColdOnly().apause(handle)
     with pytest.raises(NotImplementedError, match="resuming"):
         await ColdOnly().aresume(handle)
+
+
+# ---------------------------------------------------------------------------
+# Runtime server transport: published loopback port, pooled HTTP, exec fallback
+# ---------------------------------------------------------------------------
+
+
+class ServedDocker(FakeDocker):
+    """A fake daemon that publishes the runtime port and a fake runtime server behind it."""
+
+    def __init__(self, **kwargs):
+        super().__init__(network="bridge", runtime_port=8765, **kwargs)
+        self.http_requests = []
+        self.http_status = 200
+        self.http_body = {"version": 1, "execution_id": "e", "accepted": True}
+        self.http_error = None
+
+    async def _docker(self, *args, **kwargs):
+        code, out, err = await super()._docker(*args, **kwargs)
+        if args[1] == "create":
+            self.record["NetworkSettings"] = {"Ports": {"8765/tcp": [{"HostIp": "127.0.0.1", "HostPort": "49152"}]}}
+        return code, out, err
+
+    def _http_client(self):
+        import httpx
+
+        async def handler(request):
+            self.http_requests.append((request.method, request.url.path, request.content))
+            if self.http_error is not None:
+                raise self.http_error
+            token = next(
+                line.split("=", 1)[1]
+                for line in self.env_file.splitlines()
+                if line.startswith("AGNO_SANDBOX_RUNTIME_TOKEN=")
+            )
+            if request.headers.get("Authorization") != "Bearer " + token:
+                return httpx.Response(401, json={"error": "wrong token"})
+            if request.url.path == "/health":
+                return httpx.Response(200, json={"version": 1, "ok": True})
+            return httpx.Response(self.http_status, json=self.http_body)
+
+        return httpx.AsyncClient(transport=httpx.MockTransport(handler))
+
+
+def _create_args(provider):
+    return next(call[0] for call in provider.calls if call[0][1] == "create")
+
+
+@pytest.mark.asyncio
+async def test_runtime_port_publishes_on_loopback_and_serves_the_runtime():
+    provider = ServedDocker()
+    handle = await provider.acreate("session", agent_id="coder")
+    args = _create_args(provider)
+    assert args[args.index("--publish") + 1] == "127.0.0.1::8765"
+    assert list(args[args.index("--entrypoint") :])[:7] == [
+        "--entrypoint",
+        "python",
+        "python:test",
+        "-I",
+        "-m",
+        "agno.sandbox.runtime",
+        "serve",
+    ]
+    assert "--label" in args and "io.agno.sandbox.runtime=8765" in args
+    assert handle.runtime_url == "http://127.0.0.1:49152"
+    # Creation waited for the server to answer before handing the sandbox out, with the token.
+    assert [path for _, path, _ in provider.http_requests] == ["/health"]
+    # A fresh token per container, delivered through the private env file, read back from the
+    # container's environment onto the handle, and never shown in the handle's repr.
+    token = next(line.split("=", 1)[1] for line in provider.env_file.splitlines() if line.startswith("AGNO_SANDBOX"))
+    assert len(token) >= 32 and handle.runtime_token == token
+    assert token not in repr(handle)
+    assert (await provider.aget(handle.provider_ref)).runtime_token == token
+
+
+@pytest.mark.asyncio
+async def test_rpc_goes_over_http_and_never_touches_compute_on_failure():
+    provider = ServedDocker()
+    handle = await provider.acreate("session")
+    result = await provider.arpc(handle, "start", b'{"execution_id": "e"}')
+    assert result.exit_code == 0 and json.loads(result.stdout)["accepted"] is True
+    assert provider.http_requests[-1] == ("POST", "/start", b'{"execution_id": "e"}')
+    provider.http_status, provider.http_body = 409, {"error": "already exists with different input"}
+    failed = await provider.arpc(handle, "start", b'{"execution_id": "e"}')
+    assert failed.exit_code == 1 and "different input" in failed.stderr
+    import httpx
+
+    provider.http_error = httpx.ConnectError("gone")
+    with pytest.raises(SandboxError, match="runtime request failed"):
+        await provider.arpc(handle, "poll", b'{"execution_id": "e", "cursor": 0}')
+    assert (await provider.aget(handle.provider_ref)).state == "running"
+    assert not any(call[0][1] in ("stop", "exec") for call in provider.calls)
+    with pytest.raises(ValueError, match="start/poll"):
+        await provider.arpc(handle, "shell", b"{}")
+
+
+@pytest.mark.asyncio
+async def test_rpc_over_http_makes_no_daemon_calls_and_falls_back_to_exec_without_a_port():
+    served = ServedDocker()
+    handle = await served.acreate("session")
+    before = len(served.calls)
+    for _ in range(3):
+        await served.arpc(handle, "poll", b'{"execution_id": "e", "cursor": 0}')
+    assert len(served.calls) == before, "the daemon is not on the per-request path"
+    plain = FakeDocker()
+    handle = await plain.acreate("session")
+    assert handle.runtime_url is None
+    seen = []
+
+    async def aexec(handle, argv, **kwargs):
+        seen.append((argv, kwargs))
+        return ExecResult(0, "{}", "")
+
+    plain.aexec = aexec  # type: ignore[method-assign]
+    await plain.arpc(handle, "poll", b'{"execution_id": "e", "cursor": 0, "wait": 5}')
+    argv, kwargs = seen[0]
+    assert argv == ["python", "-I", "-m", "agno.sandbox.runtime", "poll"]
+    assert kwargs["stdin"] == b'{"execution_id": "e", "cursor": 0, "wait": 5}' and kwargs["timeout"] == 20
+
+
+def test_runtime_port_requires_a_network_and_is_part_of_the_configuration():
+    with pytest.raises(ValueError, match="needs a network"):
+        DockerSandbox("python:test", runtime_port=8765)
+    with pytest.raises(ValueError, match="between 1 and 65535"):
+        DockerSandbox("python:test", network="bridge", runtime_port=0)
+    for host in ("", "-x", "10.0.0.5:80", "a b", "http://h"):
+        with pytest.raises(ValueError, match="bare IP address or host name"):
+            DockerSandbox("python:test", network="bridge", runtime_port=8765, runtime_host=host)
+    served = DockerSandbox("python:test", network="bridge", runtime_port=8765)
+    plain = DockerSandbox("python:test", network="bridge")
+    remote = DockerSandbox("python:test", network="bridge", runtime_port=8765, runtime_host="10.0.0.5")
+    digests = {p._digest("s", None, 1, {}) for p in (served, plain, remote)}
+    assert len(digests) == 3, "port and host are part of the generation's configuration"
+
+
+@pytest.mark.asyncio
+async def test_runtime_host_publishes_and_advertises_the_daemon_hosts_address():
+    """Replicas on other machines reach a shared daemon's containers through its address."""
+
+    class Remote(ServedDocker):
+        def __init__(self):
+            FakeDocker.__init__(self, network="bridge", runtime_port=8765, runtime_host="10.0.0.5")
+            self.http_requests, self.http_status, self.http_error = [], 200, None
+            self.http_body = {"version": 1, "execution_id": "e", "accepted": True}
+
+    provider = Remote()
+    handle = await provider.acreate("session")
+    args = _create_args(provider)
+    assert args[args.index("--publish") + 1] == "10.0.0.5::8765"
+    assert handle.runtime_url == "http://10.0.0.5:49152"
+
+
+@pytest.mark.asyncio
+async def test_requests_carry_the_token_and_a_user_cannot_supply_one():
+    provider = ServedDocker()
+    handle = await provider.acreate("session")
+    await provider.arpc(handle, "poll", b'{"execution_id": "e", "cursor": 0}')
+    # The fake server returned 200 only because the bearer header matched its token.
+    assert provider.http_requests[-1][1] == "/poll"
+    stale = SandboxHandle(**{**handle.__dict__, "runtime_token": "wrong"})
+    refused = await provider.arpc(stale, "poll", b'{"execution_id": "e", "cursor": 0}')
+    assert refused.exit_code == 1 and "wrong token" in refused.stderr
+    with pytest.raises(ValueError, match="generated per container"):
+        await ServedDocker().acreate("other", env={"AGNO_SANDBOX_RUNTIME_TOKEN": "mine"})
+
+
+@pytest.mark.asyncio
+async def test_create_fails_when_the_runtime_server_never_answers(monkeypatch):
+    import httpx
+
+    from agno.sandbox import docker as docker_module
+
+    monkeypatch.setattr(docker_module, "_RUNTIME_READY_SECONDS", 0.3)
+    provider = ServedDocker()
+    provider.http_error = httpx.ConnectError("not up")
+    with pytest.raises(SandboxError, match="did not become ready"):
+        await provider.acreate("session")

@@ -6,14 +6,19 @@ import hashlib
 import json
 import math
 import os
+import secrets
 import tempfile
 from contextlib import suppress
 from pathlib import Path
-from typing import Any, Mapping, Optional, Sequence
+from typing import Any, Dict, Mapping, Optional, Sequence
 
 from agno.sandbox.base import ExecResult, Sandbox, SandboxError, SandboxHandle, _identity
 
 _LABEL = "io.agno.sandbox."
+# Environment variable carrying the container's runtime bearer token.
+_TOKEN_ENV = "AGNO_SANDBOX_RUNTIME_TOKEN"
+# How long create waits for a freshly started runtime server to answer /health.
+_RUNTIME_READY_SECONDS = 15.0
 _RUNNER = Path(__file__).with_name("_exec.py").read_text()
 
 
@@ -36,6 +41,8 @@ class DockerSandbox(Sandbox):
         workspace_mb: int = 512,
         network: str = "none",
         docker_binary: str = "docker",
+        runtime_port: Optional[int] = None,
+        runtime_host: str = "127.0.0.1",
     ) -> None:
         for value in (image, namespace, network):
             if not isinstance(value, str) or not value or "\x00" in value:
@@ -46,6 +53,17 @@ class DockerSandbox(Sandbox):
             raise ValueError("Sandbox CPU limit must be a positive number")
         if any(type(value) is not int or value < 1 for value in (memory_mb, pids_limit, workspace_mb)):
             raise ValueError("Sandbox memory, process and workspace limits must be positive integers")
+        if runtime_port is not None and (type(runtime_port) is not int or not 1 <= runtime_port <= 65535):
+            raise ValueError("Sandbox runtime port must be between 1 and 65535")
+        if runtime_port is not None and network == "none":
+            raise ValueError("The runtime server needs a network to publish its port; use bridge or a managed network")
+        if (
+            not isinstance(runtime_host, str)
+            or not runtime_host
+            or runtime_host.startswith("-")
+            or any(char.isspace() or char in ":/\x00" for char in runtime_host)
+        ):
+            raise ValueError("Sandbox runtime host must be a bare IP address or host name")
         self.image = image
         self.namespace = namespace
         self.cpus = float(cpus)
@@ -54,6 +72,15 @@ class DockerSandbox(Sandbox):
         self.workspace_mb = workspace_mb
         self.network = network
         self.docker_binary = docker_binary
+        # The image runs the runtime as an HTTP server on this port, published on the host's
+        # loopback, so start/poll are pooled requests instead of a docker exec each. None keeps
+        # the sleep entrypoint and the exec transport, which any image with python supports.
+        self.runtime_port = runtime_port
+        # The address the port is published on and advertised as. Loopback reaches only this
+        # host's replicas; with a daemon shared across hosts, set the daemon host's address
+        # every replica can reach. Every request then needs the container's bearer token.
+        self.runtime_host = runtime_host
+        self._http: Dict[int, Any] = {}
 
     def _name(self, session_id: str, agent_id: Optional[str], generation: int) -> str:
         identity = json.dumps([self.namespace, agent_id, session_id, generation])
@@ -67,6 +94,8 @@ class DockerSandbox(Sandbox):
             "pids_limit": self.pids_limit,
             "workspace_mb": self.workspace_mb,
             "network": self.network,
+            "runtime_port": self.runtime_port,
+            "runtime_host": self.runtime_host if self.runtime_port is not None else None,
             "agent_id": agent_id,
             "session_id": session_id,
             "generation": generation,
@@ -158,9 +187,67 @@ class DockerSandbox(Sandbox):
                 generation=int(labels[_LABEL + "generation"]),
                 state=record["State"]["Status"],
                 config_digest=labels[_LABEL + "config"],
+                runtime_url=self._runtime_url(record, labels.get(_LABEL + "runtime")),
+                runtime_token=self._runtime_token(record),
             )
         except (KeyError, TypeError, ValueError) as error:
             raise SandboxError("Container has incomplete sandbox identity labels") from error
+
+    def _runtime_url(self, record: Dict[str, Any], port: Optional[str]) -> Optional[str]:
+        """The address of the container's runtime server, from its published port."""
+        if not port:
+            return None
+        bindings = ((record.get("NetworkSettings") or {}).get("Ports") or {}).get(port + "/tcp") or []
+        for binding in bindings:
+            host_port = (binding or {}).get("HostPort")
+            if host_port:
+                return f"http://{self.runtime_host}:{host_port}"
+        return None
+
+    @staticmethod
+    def _runtime_token(record: Dict[str, Any]) -> Optional[str]:
+        """The container's runtime credential, read back from its environment. Reading a
+        container's environment needs daemon access, which is trusted infrastructure here."""
+        for item in (record.get("Config") or {}).get("Env") or []:
+            if isinstance(item, str) and item.startswith(_TOKEN_ENV + "="):
+                return item[len(_TOKEN_ENV) + 1 :] or None
+        return None
+
+    @staticmethod
+    def _headers(handle: SandboxHandle) -> Dict[str, str]:
+        headers = {"Content-Type": "application/json"}
+        if handle.runtime_token:
+            headers["Authorization"] = "Bearer " + handle.runtime_token
+        return headers
+
+    def _http_client(self) -> Any:
+        """One pooled client per event loop; a client must not outlive the loop it was made on."""
+        import httpx
+
+        loop_id = id(asyncio.get_running_loop())
+        client = self._http.get(loop_id)
+        if client is None:
+            limits = httpx.Limits(max_connections=4096, max_keepalive_connections=1024)
+            client = self._http[loop_id] = httpx.AsyncClient(limits=limits, timeout=httpx.Timeout(15.0, read=60.0))
+        return client
+
+    async def _await_runtime(self, handle: SandboxHandle) -> None:
+        """Wait for the in-container server to answer /health before handing the sandbox out."""
+        assert handle.runtime_url is not None
+        import httpx
+
+        client = self._http_client()
+        deadline = asyncio.get_running_loop().time() + _RUNTIME_READY_SECONDS
+        while True:
+            try:
+                response = await client.get(handle.runtime_url + "/health", headers=self._headers(handle), timeout=2.0)
+                if response.status_code == 200:
+                    return
+            except httpx.HTTPError:
+                pass
+            if asyncio.get_running_loop().time() >= deadline:
+                raise SandboxError("Sandbox runtime server did not become ready")
+            await asyncio.sleep(0.1)
 
     async def _owned(self, handle: SandboxHandle) -> Optional[SandboxHandle]:
         current = await self.aget(handle.provider_ref)
@@ -194,6 +281,8 @@ class DockerSandbox(Sandbox):
                 "generation": str(generation),
                 "config": digest,
             }
+            if self.runtime_port is not None:
+                labels["runtime"] = str(self.runtime_port)
             args = [
                 "container",
                 "create",
@@ -229,9 +318,20 @@ class DockerSandbox(Sandbox):
             for key, value in labels.items():
                 args.extend(["--label", _LABEL + key + "=" + value])
             # Env values go through a private file so they never appear in the host process list.
-            env_file = self._write_env_file({"HOME": "/runtime", **values})
+            runtime_env: Dict[str, str] = {}
+            if self.runtime_port is not None:
+                if _TOKEN_ENV in values:
+                    raise ValueError("The runtime token is generated per container; do not set it in env")
+                runtime_env[_TOKEN_ENV] = secrets.token_urlsafe(32)
+            env_file = self._write_env_file({"HOME": "/runtime", **runtime_env, **values})
             args.extend(["--env-file", env_file])
-            args.extend(["--entrypoint", "python", self.image, "-I", "-c", "import time; time.sleep(2147483647)"])
+            if self.runtime_port is not None:
+                # Published on runtime_host only; loopback by default, so only this host reaches it.
+                args.extend(["--publish", f"{self.runtime_host}::{self.runtime_port}"])
+                args.extend(["--entrypoint", "python", self.image, "-I", "-m", "agno.sandbox.runtime", "serve"])
+                args.extend(["--port", str(self.runtime_port)])
+            else:
+                args.extend(["--entrypoint", "python", self.image, "-I", "-c", "import time; time.sleep(2147483647)"])
             try:
                 code, _, err = await self._docker(*args, timeout=120)
             except asyncio.TimeoutError:
@@ -259,7 +359,36 @@ class DockerSandbox(Sandbox):
                 raise SandboxError("Docker start failed: " + err.decode(errors="replace")[:500])
         if current is None or current.state != "running":
             raise SandboxError("Sandbox generation is not running; recovery requires a new generation")
+        if self.runtime_port is not None:
+            if current.runtime_url is None:
+                raise SandboxError("Sandbox generation does not publish its runtime port")
+            await self._await_runtime(current)
         return current
+
+    async def arpc(self, handle: SandboxHandle, operation: str, payload: bytes) -> ExecResult:
+        """Runtime start/poll over the container's HTTP server when it has one, else over exec.
+
+        A failed or lost reply never touches compute: the coordinator reconciles.
+        """
+        if operation not in ("start", "poll") or not isinstance(payload, bytes) or len(payload) > 1024 * 1024:
+            raise ValueError("Runtime RPC requires start/poll and a payload no larger than 1 MiB")
+        if handle.runtime_url is None:
+            return await super().arpc(handle, operation, payload)
+        import httpx
+
+        # No daemon call on this path: the published port belongs to this container alone, so a
+        # destroyed or replaced generation refuses the connection, and the caller that paused a
+        # generation does not poll it. That keeps dockerd out of the per-request hot path.
+        try:
+            response = await self._http_client().post(
+                handle.runtime_url + "/" + operation, content=payload, headers=self._headers(handle)
+            )
+        except httpx.HTTPError as error:
+            raise SandboxError(f"Sandbox runtime request failed: {error}") from error
+        body = response.text[: 4 * 1024 * 1024]
+        if response.status_code != 200:
+            return ExecResult(exit_code=1, stdout="", stderr=body)
+        return ExecResult(exit_code=0, stdout=body, stderr="")
 
     async def aexec(
         self,

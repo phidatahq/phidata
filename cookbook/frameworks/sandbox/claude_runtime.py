@@ -41,6 +41,9 @@ sandbox = DockerSandbox(
     namespace="claude-runtime-" + uuid4().hex,
     network="bridge",
     memory_mb=1024,
+    # The container serves the runtime over HTTP on a loopback-published port, so start and
+    # poll are pooled requests instead of a docker exec each.
+    runtime_port=8765,
 )
 identity = {"session_id": "example", "agent_id": "coder", "env": credentials}
 runtime_config = {

@@ -9,6 +9,10 @@ from typing import Any, AsyncIterator, Dict, Iterator, List, Mapping, Optional
 from agno.sandbox.base import Sandbox, SandboxError, SandboxHandle, _sync
 
 
+# Seconds a poll is held open inside the container when nothing has happened yet.
+_DEFAULT_WAIT = 10.0
+
+
 @dataclass(frozen=True)
 class RuntimeExecution:
     computer: SandboxHandle
@@ -39,15 +43,7 @@ class SandboxRuntimeClient:
         payload = json.dumps(dict(request), allow_nan=False).encode()
         if len(payload) > 1024 * 1024:
             raise ValueError("Runtime request exceeds 1 MiB")
-        task = asyncio.create_task(
-            self.provider.aexec(
-                computer,
-                ["python", "-I", "-m", "agno.sandbox.runtime", operation],
-                stdin=payload,
-                timeout=15,
-                max_output_bytes=4 * 1024 * 1024,
-            )
-        )
+        task = asyncio.create_task(self.provider.arpc(computer, operation, payload))
         try:
             output = await asyncio.shield(task)
         except asyncio.CancelledError:
@@ -124,12 +120,17 @@ class SandboxRuntimeClient:
             )
         )
 
-    async def apoll(self, execution: RuntimeExecution, *, cursor: int = 0) -> RuntimePage:
+    async def apoll(self, execution: RuntimeExecution, *, cursor: int = 0, wait: float = 0.0) -> RuntimePage:
+        """One page from the journal. ``wait`` long-polls inside the container for up to that
+        many seconds, returning as soon as there is something to read."""
         if type(cursor) is not int or cursor < 0:
             raise ValueError("Runtime cursor must be a nonnegative integer")
-        response = await self._rpc(
-            execution.computer, "poll", {"execution_id": execution.execution_id, "cursor": cursor}
-        )
+        if not isinstance(wait, (int, float)) or not math.isfinite(wait) or wait < 0:
+            raise ValueError("Runtime poll wait must be a nonnegative number")
+        request: Dict[str, Any] = {"execution_id": execution.execution_id, "cursor": cursor}
+        if wait:
+            request["wait"] = min(float(wait), 30.0)
+        response = await self._rpc(execution.computer, "poll", request)
         next_cursor, frames, result = response.get("cursor"), response.get("frames"), response.get("result")
         if type(next_cursor) is not int or next_cursor < cursor or not isinstance(frames, list):
             raise SandboxError("Runtime returned an invalid journal page")
@@ -168,54 +169,87 @@ class SandboxRuntimeClient:
                     raise SandboxError("Runtime result identity mismatch")
         return RuntimePage(next_cursor, events, result)
 
-    def poll(self, execution: RuntimeExecution, *, cursor: int = 0) -> RuntimePage:
-        return _sync(self.apoll(execution, cursor=cursor))
+    def poll(self, execution: RuntimeExecution, *, cursor: int = 0, wait: float = 0.0) -> RuntimePage:
+        return _sync(self.apoll(execution, cursor=cursor, wait=wait))
 
     async def await_result(
-        self, execution: RuntimeExecution, *, timeout: float = 900, poll_interval: float = 0.25
+        self,
+        execution: RuntimeExecution,
+        *,
+        timeout: float = 900,
+        poll_interval: float = 0.25,
+        wait: float = _DEFAULT_WAIT,
     ) -> Dict[str, Any]:
         """Wait without changing execution lifetime. Timeout detaches; cancel is explicit."""
-        async for page in self.apages(execution, timeout=timeout, poll_interval=poll_interval):
+        async for page in self.apages(execution, timeout=timeout, poll_interval=poll_interval, wait=wait):
             if page.result is not None:
                 return page.result
         raise SandboxError("Runtime ended without a result")
 
     def wait_result(
-        self, execution: RuntimeExecution, *, timeout: float = 900, poll_interval: float = 0.25
+        self,
+        execution: RuntimeExecution,
+        *,
+        timeout: float = 900,
+        poll_interval: float = 0.25,
+        wait: float = _DEFAULT_WAIT,
     ) -> Dict[str, Any]:
-        return _sync(self.await_result(execution, timeout=timeout, poll_interval=poll_interval))
+        return _sync(self.await_result(execution, timeout=timeout, poll_interval=poll_interval, wait=wait))
 
     async def apages(
-        self, execution: RuntimeExecution, *, cursor: int = 0, timeout: float = 900, poll_interval: float = 0.25
+        self,
+        execution: RuntimeExecution,
+        *,
+        cursor: int = 0,
+        timeout: float = 900,
+        poll_interval: float = 0.25,
+        wait: float = _DEFAULT_WAIT,
     ) -> AsyncIterator[RuntimePage]:
+        """Pages until the result. With ``wait`` the container holds each poll until there is
+        news, so an idle turn costs one request per ``wait`` seconds and events arrive as they
+        are journaled; ``wait=0`` falls back to sleeping ``poll_interval`` between requests."""
         if not math.isfinite(timeout) or timeout <= 0 or not math.isfinite(poll_interval) or poll_interval <= 0:
             raise ValueError("Runtime polling timeouts must be positive")
+        if not math.isfinite(wait) or wait < 0:
+            raise ValueError("Runtime poll wait must be a nonnegative number")
         deadline = asyncio.get_running_loop().time() + timeout
         while asyncio.get_running_loop().time() < deadline:
-            page = await self.apoll(execution, cursor=cursor)
+            page = await self.apoll(
+                execution, cursor=cursor, wait=min(wait, max(0, deadline - asyncio.get_running_loop().time()))
+            )
             cursor = page.cursor
             yield page
             if page.result is not None:
                 return
-            await asyncio.sleep(min(poll_interval, max(0, deadline - asyncio.get_running_loop().time())))
+            if not wait:
+                await asyncio.sleep(min(poll_interval, max(0, deadline - asyncio.get_running_loop().time())))
         raise TimeoutError("Detached from runtime after wait timeout; execution may still be running")
 
     def pages(
-        self, execution: RuntimeExecution, *, cursor: int = 0, timeout: float = 900, poll_interval: float = 0.25
+        self,
+        execution: RuntimeExecution,
+        *,
+        cursor: int = 0,
+        timeout: float = 900,
+        poll_interval: float = 0.25,
+        wait: float = _DEFAULT_WAIT,
     ) -> Iterator[RuntimePage]:
         # Reuse the tested sync poll transport; no hidden background execution.
         import time
 
         if not math.isfinite(timeout) or timeout <= 0 or not math.isfinite(poll_interval) or poll_interval <= 0:
             raise ValueError("Runtime polling timeouts must be positive")
+        if not math.isfinite(wait) or wait < 0:
+            raise ValueError("Runtime poll wait must be a nonnegative number")
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
-            page = self.poll(execution, cursor=cursor)
+            page = self.poll(execution, cursor=cursor, wait=min(wait, max(0, deadline - time.monotonic())))
             cursor = page.cursor
             yield page
             if page.result is not None:
                 return
-            time.sleep(min(poll_interval, max(0, deadline - time.monotonic())))
+            if not wait:
+                time.sleep(min(poll_interval, max(0, deadline - time.monotonic())))
         raise TimeoutError("Detached from runtime after wait timeout; execution may still be running")
 
     async def acancel(self, execution: RuntimeExecution) -> None:

@@ -38,6 +38,26 @@ The example runs two Claude turns on one session inside a container built from t
 
 Only the selected model credential is forwarded into the container environment. `runtime_config` holds the `ClaudeAgent` settings (model, permission mode, allowed tools, turn limit); the runtime adds the workspace, the local database and the strict settings itself. The execution result is output, not a completed run: the coordinator layer that checkpoints and commits it to the service database is a later PR, so this example writes nothing outside the container.
 
+## Runtime transport: exec or an in-container server
+
+The host reaches the runtime two ways. By default `DockerSandbox` starts the container with a sleep entrypoint and every runtime request spawns `python -m agno.sandbox.runtime` through `docker exec`: it works on any image that carries the package and needs no port, but each request is a process through the Docker daemon. With `runtime_port` set, the container's entrypoint is the runtime itself as a small HTTP server, Docker publishes that port on the host's loopback only, and `rpc` becomes a pooled connection: `POST /start`, `POST /poll`, `GET /health`. Same JSON, same journal, same locks; the daemon is used for create, pause, resume, stop and destroy and nothing else. `create` waits for `/health` before handing the sandbox out. The server needs a network, so `runtime_port` is refused with `network="none"`.
+
+```python
+sandbox = DockerSandbox("agno-sandbox:local", network="bridge", runtime_port=8765)
+# Replicas on other hosts sharing this daemon: advertise the daemon host's address instead.
+shared = DockerSandbox("agno-sandbox:local", network="bridge", runtime_port=8765, runtime_host="10.0.0.5")
+```
+
+Polls long-poll on both transports: the container holds a `poll` for up to `wait` seconds (default 10, cap 30) and answers as soon as the journal grows or the result lands, so an idle turn costs one request per `wait` and events arrive when they are written. `wait=0` restores the sleep-between-requests loop.
+
+```bash
+AGNO_SANDBOX_LOAD_SESSIONS=8 .venv/bin/python cookbook/frameworks/sandbox/runtime_transport_load.py
+```
+
+The example runs the same concurrent fixture turns three ways and prints requests per turn, Docker daemon calls per turn and the cost of an idle poll. Requests and daemon calls per turn are what grow with concurrent users; the idle poll is the per-request overhead of the transport. The exec transport with a poll loop is the pre-long-poll behaviour and the reference point.
+
+Every container gets its own bearer token, generated at create, delivered through the private env file and read back onto the handle as `runtime_token`, so any replica holding the handle can talk to the server and nothing else can. The port is published on `runtime_host`, `127.0.0.1` by default, which only this host's replicas reach. With one Docker daemon shared by replicas on several hosts, set `runtime_host` to the daemon host's address those replicas can reach; it is part of the generation's configuration, so every replica must use the same value. The agent inside the container can read its own token, but it can already write the journal directly, so the server gives it no new capability. Hosted providers implement `rpc` against the same server and the same token through whatever port exposure they offer.
+
 ## Boundaries
 
 - The image, Docker daemon and its administrator are trusted. This is not a hostile multitenant isolation service.

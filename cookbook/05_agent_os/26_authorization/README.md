@@ -38,7 +38,7 @@ it runs offline against a simulated issuer.
 | `13_idp_workos_auth0.py` | Let WorkOS, Auth0, or Okta own identity while you enforce what a role may do |
 | `14_custom_policy_engine.py` | `Authorization(engine=...)`: keep managed roles, the audit trail and the `/authz` admin API, but store policy and decide in your own `PolicyEngine` |
 | `15_fga_relationship_based.py` | Relationship-based access (ReBAC): "alice may run this because she owns its folder" |
-| `16_tenant_registry.py` | `AgentOS(tenant_claim=...)`: one Registry in code, with each tenant's view of it stored as data and edited through `/tenants/{id}/entitlements` |
+| `16_tenant_registry.py` | A tenant-scoped registry with no new concept: `roles_claim="org_id"` makes the tenant a role, and `registry:<entry>:read` scopes decide which catalog entries it lists |
 | `console.html` | A small browser console for driving the `/authz` admin API by hand |
 
 ## Start Here

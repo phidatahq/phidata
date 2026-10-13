@@ -329,19 +329,21 @@ relationship; bob and carol denied.
 
 **Status:** PASS
 
-**Test mode:** LIVE (in-memory entitlements, no database or model key)
+**Test mode:** LIVE (managed roles in SQLite under `tmp/`, no model key)
 
-**Description:** A proof of concept for a tenant-scoped registry. One `Registry`
-with three tools is defined in code, `AgentOS(tenant_claim="org_id")` reads the
-tenant from the JWT, and an operator sets each tenant's entitlements through
-`PUT /tenants/{id}/entitlements`. Run on 2026-10-13 with the demo venv against
-this branch's `libs/agno`.
+**Description:** A proof of concept for a tenant-scoped registry built on the
+existing roles. One `Registry` with three tools is defined in code,
+`Authorization(roles_claim="org_id")` makes the tenant on the JWT the caller's
+role, and `registry:<entry>:read` scopes decide which entries `GET /registry`
+lists. The operator changes a tenant's view and onboards a new tenant through
+`/authz/roles`. Run on 2026-10-13 with the demo venv against this branch's
+`libs/agno`.
 
-**Result:** Exit 0, no traceback. The operator sees all three tools. The acme
-user sees nothing before entitlement and `search, slack, sql` after. The globex
-user sees `search`, then `search, sql` after the operator adds it. A token with
-no `org_id` claim gets 403, and a tenant user gets 403 on the entitlements
-route. Entitlements are held in memory, so they do not survive a restart.
+**Result:** Exit 0, no traceback. acme (`registry:read`) lists all three tools
+and globex (`registry:search:read`) lists `search`. An unknown tenant and a
+token with no `org_id` claim list nothing. After `PUT /authz/roles/globex/scopes`
+globex lists `search, sql`. After `POST /authz/roles` and a scopes `PUT`, the
+new tenant initech lists `slack`. A globex user gets 403 on the roles API.
 
 ---
 

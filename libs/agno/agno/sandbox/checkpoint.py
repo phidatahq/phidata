@@ -7,6 +7,7 @@ Filesystem checkpoints do not capture processes or undo external side effects.
 from __future__ import annotations
 
 import asyncio
+import errno
 import hashlib
 import io
 import json
@@ -16,6 +17,7 @@ import shutil
 import stat
 import tarfile
 import tempfile
+from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any, BinaryIO, Callable, Dict, Mapping, Sequence, TypeVar
@@ -28,6 +30,23 @@ _CHUNK = 1024 * 1024
 _T = TypeVar("_T")
 
 
+async def _drain(task: asyncio.Task[Any]) -> None:
+    """Let a shielded operation finish, however often the caller is cancelled.
+
+    Shielding alone is not enough: a second cancellation interrupts the await that was
+    waiting for the work, and the caller returns while it is still running. ``wait``
+    reports completion without re-raising, so the operation's own failure cannot divert
+    the drain either.
+    """
+    while not task.done():
+        with suppress(asyncio.CancelledError):
+            await asyncio.wait({task})
+    if not task.cancelled():
+        # Cancellation stays the caller's outcome, so the operation's own failure is
+        # retrieved and dropped; unretrieved, it would surface as a stray task exception.
+        task.exception()
+
+
 async def _thread(function: Callable[..., _T], *args: Any, **kwargs: Any) -> _T:
     # Filesystem work cannot be stopped by cancelling its awaiter. Drain it so the
     # caller never races cleanup/retry against a still-writing background thread.
@@ -35,7 +54,7 @@ async def _thread(function: Callable[..., _T], *args: Any, **kwargs: Any) -> _T:
     try:
         return await asyncio.shield(task)
     except asyncio.CancelledError:
-        await task
+        await _drain(task)
         raise
 
 
@@ -81,10 +100,12 @@ def _name(name: str) -> PurePosixPath:
 
 def _link(name: str, target: str) -> None:
     if not target or target.startswith("/") or "\\" in target or "\x00" in target:
-        raise SandboxError("Unsafe checkpoint symlink")
+        raise SandboxError(f"Unsafe checkpoint symlink {name!r} -> {target!r}; exclude it before capture")
     resolved = posixpath.normpath(posixpath.join(posixpath.dirname(name), target))
     if PurePosixPath(resolved).parts[0] != PurePosixPath(name).parts[0]:
-        raise SandboxError("Checkpoint symlink escapes its durable root")
+        raise SandboxError(
+            f"Checkpoint symlink {name!r} -> {target!r} escapes its durable root; exclude it before capture"
+        )
 
 
 def _validate_link_graph(members: Mapping[str, tarfile.TarInfo]) -> None:
@@ -116,6 +137,20 @@ def _validate_link_graph(members: Mapping[str, tarfile.TarInfo]) -> None:
                 pending = target.linkname.split("/") + pending
 
 
+def _resolved(path: Path) -> Path:
+    """Resolve a symlink, rejecting a chain the kernel cannot follow.
+
+    Python 3.13 stopped raising from ``resolve()`` for symlink loops, so ask for ELOOP;
+    a dangling link reports ENOENT and keeps the unresolved path it points at.
+    """
+    try:
+        os.stat(path)
+    except OSError as error:
+        if error.errno == errno.ELOOP:
+            raise SandboxError("Checkpoint contains a symlink cycle or an unfollowable chain") from error
+    return path.resolve()
+
+
 def _regular(path: Path) -> BinaryIO:
     fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
     if not stat.S_ISREG(os.fstat(fd).st_mode):
@@ -125,15 +160,22 @@ def _regular(path: Path) -> BinaryIO:
 
 
 def _preflight(stream: BinaryIO, limits: CheckpointLimits) -> None:
-    """Bound extension headers before tarfile allocates their payloads."""
+    """Bound extension headers before tarfile allocates their payloads.
+
+    Also requires the stream to reach its end-of-archive marker.
+    """
     length = os.fstat(stream.fileno()).st_size
     offset, headers, extensions = 0, 0, 0
     while offset + 512 <= length:
         stream.seek(offset)
         header = stream.read(512)
         if header == b"\x00" * 512:
-            break
-        info = tarfile.TarInfo.frombuf(header, encoding="utf-8", errors="surrogateescape")
+            stream.seek(0)
+            return
+        try:
+            info = tarfile.TarInfo.frombuf(header, encoding="utf-8", errors="surrogateescape")
+        except tarfile.TarError as error:
+            raise SandboxError("Invalid checkpoint archive framing") from error
         headers += 1
         if info.size < 0 or offset + 512 + info.size > length or headers > limits.max_entries * 3:
             raise SandboxError("Invalid checkpoint archive framing")
@@ -142,7 +184,10 @@ def _preflight(stream: BinaryIO, limits: CheckpointLimits) -> None:
             if info.size > limits.max_manifest_bytes or extensions > limits.max_manifest_bytes * 16:
                 raise SandboxError("Checkpoint extension metadata exceeds its limit")
         offset += 512 + ((info.size + 511) // 512) * 512
-    stream.seek(0)
+    # Running out of bytes instead of reaching the end-of-archive marker means the stream
+    # stopped early. A cut on a member boundary otherwise reads as a whole archive that
+    # happens to hold fewer files, and its digest matches those bytes.
+    raise SandboxError("Checkpoint archive ends without its end-of-archive marker")
 
 
 def _fsync_directory(path: Path) -> None:
@@ -219,18 +264,17 @@ class CheckpointArchive:
                     elif stat.S_ISLNK(entry.st_mode):
                         info.type, info.linkname = tarfile.SYMTYPE, os.readlink(path)
                     else:
-                        raise SandboxError("Checkpoint contains an unsupported file type")
+                        raise SandboxError(
+                            f"Checkpoint contains an unsupported file type at {name!r}; exclude it before capture"
+                        )
                     if info.isdir():
                         archive.addfile(info)
                         for child in sorted(path.iterdir()):
                             add(child, name + "/" + child.name)
                     elif info.issym():
                         _link(name, info.linkname)
-                        try:
-                            resolved = path.resolve()
-                        except RuntimeError as error:
-                            raise SandboxError("Checkpoint contains a symlink cycle") from error
-                        if not resolved.is_relative_to(root_paths[PurePosixPath(name).parts[0]]):
+                        root = root_paths[PurePosixPath(name).parts[0]]
+                        if not _resolved(path).is_relative_to(root):
                             raise SandboxError("Checkpoint symlink chain escapes its durable root")
                         archive.addfile(info)
                     elif info.isfile():
@@ -280,7 +324,9 @@ class CheckpointArchive:
             if member.name in members:
                 raise SandboxError("Duplicate checkpoint path")
             if not (member.isdir() or member.isfile() or member.issym()) or member.sparse is not None:
-                raise SandboxError("Checkpoint contains an unsupported file type")
+                raise SandboxError(
+                    f"Checkpoint contains an unsupported file type at {member.name!r}; exclude it before capture"
+                )
             if member.size < 0 or (not member.isfile() and member.size != 0):
                 raise SandboxError("Invalid checkpoint member size")
             if member.issym():
@@ -300,7 +346,10 @@ class CheckpointArchive:
             raise SandboxError("Invalid checkpoint manifest")
         manifest_file = archive.extractfile(manifest_info)
         assert manifest_file is not None
-        manifest = json.load(manifest_file)
+        try:
+            manifest = json.load(manifest_file)
+        except (json.JSONDecodeError, UnicodeDecodeError) as error:
+            raise SandboxError("Invalid checkpoint manifest") from error
         if (
             not isinstance(manifest, dict)
             or manifest.get("version") != 1
@@ -332,7 +381,9 @@ class CheckpointArchive:
         source, destination = Path(source), Path(destination)
         if destination.exists() or destination.is_symlink():
             raise FileExistsError(destination)
-        temporary = Path(tempfile.mkdtemp(prefix=".restore-", dir=destination.parent))
+        # Resolved once: the symlink check below resolves each materialized link, so a
+        # symlink anywhere in the parent's own path would otherwise fail every comparison.
+        temporary = Path(tempfile.mkdtemp(prefix=".restore-", dir=destination.parent)).resolve()
         try:
             with _regular(source) as stream:
                 if os.fstat(stream.fileno()).st_size > self.limits.max_bytes:
@@ -359,11 +410,8 @@ class CheckpointArchive:
                             path.chmod(member.mode & 0o777)
                     for name, member in members.items():
                         if member.issym():
-                            try:
-                                resolved = (temporary / name).resolve()
-                            except RuntimeError as error:
-                                raise SandboxError("Checkpoint contains a symlink cycle") from error
-                            if not resolved.is_relative_to(temporary / PurePosixPath(name).parts[0]):
+                            root = temporary / PurePosixPath(name).parts[0]
+                            if not _resolved(temporary / name).is_relative_to(root):
                                 raise SandboxError("Checkpoint symlink chain escapes its durable root")
                     # Directories remain writable while children are materialized.
                     for name, member in sorted(members.items(), reverse=True):
@@ -371,6 +419,10 @@ class CheckpointArchive:
                             (temporary / name).chmod(member.mode & 0o777)
             os.rename(temporary, destination)
             return manifest["state"]
+        except tarfile.TarError as error:
+            # Scoped by type, not by block: only the tarfile calls above can raise it,
+            # namely opening the archive, walking members and reading a member's bytes.
+            raise SandboxError("Invalid checkpoint archive") from error
         finally:
             if temporary.exists():
                 shutil.rmtree(temporary)

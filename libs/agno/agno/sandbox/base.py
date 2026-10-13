@@ -1,58 +1,45 @@
-"""Small execution-provider contract; ownership and durable completion belong to AgentOS."""
+"""Small sandbox contract; ownership and durable completion belong to AgentOS."""
 
-import math
+import asyncio
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
-from types import MappingProxyType
-from typing import Any, Coroutine, Mapping, Optional, Sequence
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
+from typing import Any, Coroutine, Dict, Mapping, Optional, Sequence
 
 
 class SandboxError(RuntimeError):
     """A sandbox operation failed; callers must reconcile uncertain execution outcomes."""
 
 
-@dataclass(frozen=True)
-class SandboxSpec:
-    agent_id: str
-    session_id: str
-    generation: int
-    image: str
-    env: Mapping[str, str] = field(default_factory=dict, repr=False)
-    cpus: float = 2.0
-    memory_mb: int = 2048
-    pids_limit: int = 256
-    workspace_mb: int = 512
-    network: str = "none"
-
-    def __post_init__(self) -> None:
-        for value in (self.agent_id, self.session_id, self.image, self.network):
-            if not isinstance(value, str) or not value or "\x00" in value:
-                raise ValueError("Sandbox identity, image and network must be nonempty strings")
-        if self.image.startswith("-") or self.network == "host" or self.network.startswith("container:"):
-            raise ValueError("Option-like images and shared host/container networking are not supported")
-        if type(self.generation) is not int or self.generation < 1 or not math.isfinite(self.cpus) or self.cpus <= 0:
-            raise ValueError("Sandbox generation and CPU limit must be positive")
-        if any(type(value) is not int or value < 1 for value in (self.memory_mb, self.pids_limit, self.workspace_mb)):
-            raise ValueError("Sandbox memory, process and workspace limits must be positive")
-        values = dict(self.env)
-        for key, value in values.items():
-            if (
-                not isinstance(key, str)
-                or not key
-                or "=" in key
-                or "\x00" in key
-                or not isinstance(value, str)
-                or "\x00" in value
-            ):
-                raise ValueError("Sandbox environment must contain valid names and string values")
-        object.__setattr__(self, "env", MappingProxyType(values))
+def _identity(
+    session_id: str, agent_id: Optional[str], generation: int, env: Optional[Mapping[str, str]]
+) -> Dict[str, str]:
+    """Validate per-session create arguments and return a copy of env."""
+    if not isinstance(session_id, str) or not session_id or "\x00" in session_id:
+        raise ValueError("Sandbox session id must be a nonempty string")
+    if agent_id is not None and (not isinstance(agent_id, str) or not agent_id or "\x00" in agent_id):
+        raise ValueError("Sandbox agent id must be None or a nonempty string")
+    if type(generation) is not int or generation < 1:
+        raise ValueError("Sandbox generation must be a positive integer")
+    values = dict(env or {})
+    for key, value in values.items():
+        if (
+            not isinstance(key, str)
+            or not key
+            or "=" in key
+            or "\x00" in key
+            or not isinstance(value, str)
+            or "\x00" in value
+        ):
+            raise ValueError("Sandbox environment must contain valid names and string values")
+    return values
 
 
 @dataclass(frozen=True)
 class SandboxHandle:
     provider_ref: str
     name: str
-    agent_id: str
+    agent_id: Optional[str]
     session_id: str
     generation: int
     state: str
@@ -69,23 +56,46 @@ class ExecResult:
 
 
 def _sync(coro: Coroutine[Any, Any, Any]) -> Any:
-    from agno.agents.base import run_coroutine_sync
+    # Inside a running loop (notebook, async server) run on a worker thread with its own loop.
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(coro)
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        return pool.submit(asyncio.run, coro).result()
 
-    return run_coroutine_sync(coro)
 
-
-class SandboxProvider(ABC):
+class Sandbox(ABC):
     """A backend for compute, without queue ownership or checkpoint policy.
 
-    Implementations must not retry uncertain commands. Optional snapshot, pause,
-    preview and nested-container features are not implied by this interface.
+    Implementations must not retry uncertain commands. Pause and resume are the
+    optional warm path: a paused sandbox keeps its files and memory, and resume
+    brings the same generation back, so a later turn on the same session need not
+    restore a checkpoint. Create never resumes a paused generation; only the caller
+    that paused it knows it is whole. Stop and destroy remain the cold path, after
+    which recovery needs a new generation. Snapshot, preview and nested-container
+    features are not implied.
     """
 
     @abstractmethod
-    async def acreate(self, spec: SandboxSpec) -> SandboxHandle: ...
+    async def acreate(
+        self,
+        session_id: str,
+        *,
+        agent_id: Optional[str] = None,
+        generation: int = 1,
+        env: Optional[Mapping[str, str]] = None,
+    ) -> SandboxHandle: ...
 
-    def create(self, spec: SandboxSpec) -> SandboxHandle:
-        return _sync(self.acreate(spec))
+    def create(
+        self,
+        session_id: str,
+        *,
+        agent_id: Optional[str] = None,
+        generation: int = 1,
+        env: Optional[Mapping[str, str]] = None,
+    ) -> SandboxHandle:
+        return _sync(self.acreate(session_id, agent_id=agent_id, generation=generation, env=env))
 
     @abstractmethod
     async def aget(self, provider_ref: str) -> Optional[SandboxHandle]: ...
@@ -138,3 +148,27 @@ class SandboxProvider(ABC):
 
     def destroy(self, handle: SandboxHandle) -> None:
         _sync(self.adestroy(handle))
+
+    async def apause(self, handle: SandboxHandle) -> None:
+        """Freeze a running sandbox, keeping its files, memory and processes.
+
+        The warm path between turns: nothing is lost and nothing needs restoring.
+        Providers without a native pause leave this unimplemented; the caller then
+        keeps the sandbox running or takes the cold path.
+        """
+        raise NotImplementedError("This provider does not support pausing compute")
+
+    def pause(self, handle: SandboxHandle) -> None:
+        _sync(self.apause(handle))
+
+    async def aresume(self, handle: SandboxHandle) -> SandboxHandle:
+        """Unfreeze a paused sandbox and return its running handle.
+
+        The explicit warm step, taken by the caller that paused the sandbox and knows
+        its files are complete. Only a paused sandbox resumes. A stopped one has lost
+        its files and must be recovered into a new generation from a checkpoint.
+        """
+        raise NotImplementedError("This provider does not support resuming compute")
+
+    def resume(self, handle: SandboxHandle) -> SandboxHandle:
+        return _sync(self.aresume(handle))

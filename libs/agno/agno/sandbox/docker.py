@@ -5,18 +5,19 @@ import base64
 import hashlib
 import json
 import math
+import os
+import tempfile
 from contextlib import suppress
-from dataclasses import fields
 from pathlib import Path
-from typing import Any, Optional, Sequence
+from typing import Any, Dict, Mapping, Optional, Sequence
 
-from agno.sandbox.base import ExecResult, SandboxError, SandboxHandle, SandboxProvider, SandboxSpec
+from agno.sandbox.base import ExecResult, Sandbox, SandboxError, SandboxHandle, _identity
 
 _LABEL = "io.agno.sandbox."
 _RUNNER = Path(__file__).with_name("_exec.py").read_text()
 
 
-class DockerSandboxProvider(SandboxProvider):
+class DockerSandbox(Sandbox):
     """Linux/Python sandbox compute with explicit env and no host filesystem bind mounts.
 
     The Docker daemon is trusted infrastructure. Its socket is never mounted into
@@ -24,22 +25,67 @@ class DockerSandboxProvider(SandboxProvider):
     checkpoint for recovery. This class alone is not a durable session service.
     """
 
-    def __init__(self, namespace: str, *, docker_binary: str = "docker") -> None:
-        if not namespace or "\x00" in namespace:
-            raise ValueError("A nonempty deployment namespace is required")
+    def __init__(
+        self,
+        image: str,
+        *,
+        namespace: str = "default",
+        cpus: float = 2.0,
+        memory_mb: int = 2048,
+        pids_limit: int = 256,
+        workspace_mb: int = 512,
+        network: str = "none",
+        docker_binary: str = "docker",
+    ) -> None:
+        for value in (image, namespace, network):
+            if not isinstance(value, str) or not value or "\x00" in value:
+                raise ValueError("Sandbox image, namespace and network must be nonempty strings")
+        if image.startswith("-") or network == "host" or network.startswith("container:"):
+            raise ValueError("Option-like images and shared host/container networking are not supported")
+        if type(cpus) not in (int, float) or not math.isfinite(cpus) or cpus <= 0:
+            raise ValueError("Sandbox CPU limit must be a positive number")
+        if any(type(value) is not int or value < 1 for value in (memory_mb, pids_limit, workspace_mb)):
+            raise ValueError("Sandbox memory, process and workspace limits must be positive integers")
+        self.image = image
         self.namespace = namespace
+        self.cpus = float(cpus)
+        self.memory_mb = memory_mb
+        self.pids_limit = pids_limit
+        self.workspace_mb = workspace_mb
+        self.network = network
         self.docker_binary = docker_binary
 
-    def _name(self, spec: SandboxSpec) -> str:
-        identity = json.dumps([self.namespace, spec.agent_id, spec.session_id, spec.generation])
+    def _name(self, session_id: str, agent_id: Optional[str], generation: int) -> str:
+        identity = json.dumps([self.namespace, agent_id, session_id, generation])
         return "agno-" + hashlib.sha256(identity.encode()).hexdigest()[:40]
 
-    @staticmethod
-    def _digest(spec: SandboxSpec) -> str:
-        data = {item.name: getattr(spec, item.name) for item in fields(spec)}
-        data["env"] = dict(spec.env)
-        data["storage"] = "managed-tmpfs-v1"
+    def _digest(self, session_id: str, agent_id: Optional[str], generation: int, env: Mapping[str, str]) -> str:
+        data = {
+            "image": self.image,
+            "cpus": self.cpus,
+            "memory_mb": self.memory_mb,
+            "pids_limit": self.pids_limit,
+            "workspace_mb": self.workspace_mb,
+            "network": self.network,
+            "agent_id": agent_id,
+            "session_id": session_id,
+            "generation": generation,
+            "env": dict(env),
+            "storage": "managed-tmpfs-v1",
+        }
         return hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest()
+
+    @staticmethod
+    def _write_env_file(env: Mapping[str, str]) -> str:
+        for key, value in env.items():
+            if key[0] == "#" or any(char.isspace() for char in key) or "\n" in value or "\r" in value:
+                raise ValueError(
+                    "Docker sandbox env names cannot contain whitespace or start with '#'; values cannot contain newlines"
+                )
+        descriptor, path = tempfile.mkstemp(prefix="agno-sandbox-env-")
+        with os.fdopen(descriptor, "w", encoding="utf-8") as file:
+            file.writelines(key + "=" + value + "\n" for key, value in env.items())
+        return path
 
     async def _docker(
         self, *args: str, input_data: Optional[bytes] = None, timeout: float = 30
@@ -108,7 +154,7 @@ class DockerSandboxProvider(SandboxProvider):
             return SandboxHandle(
                 provider_ref=record["Id"],
                 name=record["Name"].lstrip("/"),
-                agent_id=labels[_LABEL + "agent"],
+                agent_id=labels[_LABEL + "agent"] or None,
                 session_id=labels[_LABEL + "session"],
                 generation=int(labels[_LABEL + "generation"]),
                 state=record["State"]["Status"],
@@ -130,19 +176,26 @@ class DockerSandboxProvider(SandboxProvider):
             raise SandboxError("Sandbox identity changed; refusing the operation")
         return current
 
-    async def acreate(self, spec: SandboxSpec) -> SandboxHandle:
-        name, digest = self._name(spec), self._digest(spec)
+    async def acreate(
+        self,
+        session_id: str,
+        *,
+        agent_id: Optional[str] = None,
+        generation: int = 1,
+        env: Optional[Mapping[str, str]] = None,
+    ) -> SandboxHandle:
+        values = _identity(session_id, agent_id, generation, env)
+        name = self._name(session_id, agent_id, generation)
+        digest = self._digest(session_id, agent_id, generation, values)
         current = await self.aget(name)
         if current is None:
             labels = {
                 "namespace": self.namespace,
-                "agent": spec.agent_id,
-                "session": spec.session_id,
-                "generation": str(spec.generation),
+                "agent": agent_id or "",
+                "session": session_id,
+                "generation": str(generation),
                 "config": digest,
             }
-            await self._ensure_volume(name + "-workspace", labels, "workspace", spec.workspace_mb)
-            await self._ensure_volume(name + "-runtime", labels, "runtime", 256)
             args = [
                 "container",
                 "create",
@@ -157,15 +210,15 @@ class DockerSandboxProvider(SandboxProvider):
                 "--security-opt",
                 "no-new-privileges",
                 "--network",
-                spec.network,
+                self.network,
                 "--memory",
-                f"{spec.memory_mb}m",
+                f"{self.memory_mb}m",
                 "--memory-swap",
-                f"{spec.memory_mb}m",
+                f"{self.memory_mb}m",
                 "--cpus",
-                str(spec.cpus),
+                str(self.cpus),
                 "--pids-limit",
-                str(spec.pids_limit),
+                str(self.pids_limit),
                 "--mount",
                 f"type=volume,source={name}-workspace,target=/workspace,volume-nocopy",
                 "--mount",
@@ -174,28 +227,54 @@ class DockerSandboxProvider(SandboxProvider):
                 "/tmp:rw,nosuid,nodev,uid=1000,gid=1000,mode=1777,size=128m",
                 "--workdir",
                 "/workspace",
-                "--env",
-                "HOME=/runtime",
             ]
             for key, value in labels.items():
                 args.extend(["--label", _LABEL + key + "=" + value])
-            for key, value in spec.env.items():
-                args.extend(["--env", key + "=" + value])
-            args.extend(["--entrypoint", "python", spec.image, "-I", "-c", "import time; time.sleep(2147483647)"])
+            # Env values go through a private file so they never appear in the host process list.
+            env_file = self._write_env_file({"HOME": "/runtime", **values})
+            args.extend(["--env-file", env_file])
+            args.extend(["--entrypoint", "python", self.image, "-I", "-c", "import time; time.sleep(2147483647)"])
             try:
-                code, _, err = await self._docker(*args, timeout=120)
-            except asyncio.TimeoutError:
-                code, err = 1, b"Creation response timed out"
-            # A concurrent creator or lost response is resolved by the deterministic name.
-            current = await self.aget(name)
-            if current is None:
-                raise SandboxError("Docker creation failed: " + err.decode(errors="replace")[:500])
+                await self._ensure_volume(
+                    name + "-workspace",
+                    self._volume_labels(session_id, agent_id, generation, digest, "workspace"),
+                    self.workspace_mb,
+                )
+                await self._ensure_volume(
+                    name + "-runtime", self._volume_labels(session_id, agent_id, generation, digest, "runtime"), 256
+                )
+                try:
+                    code, _, err = await self._docker(*args, timeout=120)
+                except asyncio.TimeoutError:
+                    code, err = 1, b"Creation response timed out"
+                # A concurrent creator or lost response is resolved by the deterministic name.
+                current = await self.aget(name)
+                if current is None:
+                    raise SandboxError("Docker creation failed: " + err.decode(errors="replace")[:500])
+            except Exception:
+                # Unmounted volumes would block a corrected configuration for this generation; Docker keeps in-use ones.
+                with suppress(Exception):
+                    await self._delete_volumes(name, session_id, agent_id, generation, digest)
+                raise
+            finally:
+                # The env file holds credentials, so remove it however volume setup or creation ends.
+                with suppress(FileNotFoundError):
+                    os.unlink(env_file)
         if current.config_digest != digest:
             raise SandboxError("Sandbox generation already exists with different configuration")
+        if current.state == "paused":
+            # Only the owner knows whether this is a warm pause or a restore that died halfway,
+            # so create never revives it: the owner calls resume, anyone else destroys.
+            raise SandboxError("Sandbox generation is paused; resume it or destroy it")
         if current.state == "created":
             code, _, err = await self._docker("container", "start", current.provider_ref)
             current = await self.aget(current.provider_ref)
             if code and (current is None or current.state != "running"):
+                # A container that never ran holds no files; remove it so the caller is not left an orphan.
+                if current is not None and current.state == "created":
+                    await self._docker("container", "rm", current.provider_ref)
+                    with suppress(Exception):
+                        await self._delete_volumes(name, session_id, agent_id, generation, digest)
                 raise SandboxError("Docker start failed: " + err.decode(errors="replace")[:500])
         if current is None or current.state != "running":
             raise SandboxError("Sandbox generation is not running; recovery requires a new generation")
@@ -241,6 +320,8 @@ class DockerSandboxProvider(SandboxProvider):
         if not isinstance(stdin, bytes) or len(stdin) > 8 * 1024 * 1024:
             raise ValueError("Command stdin must be bytes no larger than 8 MiB")
         current = await self._owned(handle)
+        if current is not None and current.state == "paused":
+            raise SandboxError("Sandbox is paused; resume it before running commands")
         if current is None or current.state != "running":
             raise SandboxError("Sandbox is not running")
         request = json.dumps(
@@ -284,6 +365,29 @@ class DockerSandboxProvider(SandboxProvider):
                 await self.astop(handle)
             raise SandboxError("Sandbox returned an invalid command result") from error
 
+    async def apause(self, handle: SandboxHandle) -> None:
+        current = await self._owned(handle)
+        if current is not None and current.state == "paused":
+            return
+        if current is None or current.state != "running":
+            raise SandboxError("Only a running sandbox can be paused")
+        # The cgroup freezer keeps memory, processes and tmpfs exactly as they are.
+        code, _, err = await self._docker("container", "pause", handle.provider_ref, timeout=15)
+        if code:
+            raise SandboxError("Docker pause failed: " + err.decode(errors="replace")[:500])
+
+    async def aresume(self, handle: SandboxHandle) -> SandboxHandle:
+        current = await self._owned(handle)
+        if current is not None and current.state == "running":
+            return current
+        if current is None or current.state != "paused":
+            raise SandboxError("Sandbox is not paused; recovery requires a new generation")
+        code, _, err = await self._docker("container", "unpause", handle.provider_ref, timeout=15)
+        current = await self._owned(handle)
+        if code or current is None or current.state != "running":
+            raise SandboxError("Docker unpause failed: " + err.decode(errors="replace")[:500])
+        return current
+
     async def astop(self, handle: SandboxHandle) -> None:
         current = await self._owned(handle)
         if current is None or current.state in ("exited", "dead", "created"):
@@ -304,13 +408,25 @@ class DockerSandboxProvider(SandboxProvider):
             raise SandboxError("Docker volume inspection failed: " + err.decode(errors="replace")[:500])
         return json.loads(out)[0]
 
-    async def _ensure_volume(self, name: str, labels: Any, role: str, size_mb: int) -> None:
+    def _volume_labels(
+        self, session_id: str, agent_id: Optional[str], generation: int, config: str, role: str
+    ) -> Dict[str, str]:
+        labels = {
+            "namespace": self.namespace,
+            "agent": agent_id or "",
+            "session": session_id,
+            "generation": str(generation),
+            "config": config,
+            "role": role,
+        }
+        return {_LABEL + key: value for key, value in labels.items()}
+
+    async def _ensure_volume(self, name: str, expected: Dict[str, str], size_mb: int) -> None:
         options = {
             "type": "tmpfs",
             "device": "tmpfs",
             "o": f"rw,nosuid,nodev,size={size_mb}m,uid=1000,gid=1000,mode=0700",
         }
-        expected = {_LABEL + key: value for key, value in {**labels, "role": role}.items()}
         current = await self._volume(name)
         if current is None:
             args = ["volume", "create", "--driver", "local"]
@@ -332,22 +448,17 @@ class DockerSandboxProvider(SandboxProvider):
         ):
             raise SandboxError("Docker volume identity or storage configuration mismatch")
 
-    async def _delete_volumes(self, handle: SandboxHandle) -> None:
+    async def _delete_volumes(
+        self, prefix: str, session_id: str, agent_id: Optional[str], generation: int, config: str
+    ) -> None:
         for role in ("workspace", "runtime"):
-            name = handle.name + "-" + role
+            name = prefix + "-" + role
             current = await self._volume(name)
             if current is None:
                 continue
             labels = current.get("Labels") or {}
-            expected = {
-                "namespace": self.namespace,
-                "agent": handle.agent_id,
-                "session": handle.session_id,
-                "generation": str(handle.generation),
-                "config": handle.config_digest,
-                "role": role,
-            }
-            if any(labels.get(_LABEL + key) != value for key, value in expected.items()):
+            expected = self._volume_labels(session_id, agent_id, generation, config, role)
+            if any(labels.get(key) != value for key, value in expected.items()):
                 raise SandboxError("Refusing to remove a volume with a different sandbox identity")
             code, _, err = await self._docker("volume", "rm", name)
             if code and await self._volume(name) is not None:
@@ -364,4 +475,6 @@ class DockerSandboxProvider(SandboxProvider):
             if code and await self._owned(handle) is not None:
                 raise SandboxError("Docker removal failed: " + err.decode(errors="replace")[:500])
         # Also reconcile a lost removal response after the container is already gone.
-        await self._delete_volumes(handle)
+        await self._delete_volumes(
+            handle.name, handle.session_id, handle.agent_id, handle.generation, handle.config_digest
+        )

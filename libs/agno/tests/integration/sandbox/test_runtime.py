@@ -7,9 +7,8 @@ from uuid import uuid4
 import pytest
 import pytest_asyncio
 
-from agno.sandbox import SandboxSpec
 from agno.sandbox.client import SandboxRuntimeClient
-from agno.sandbox.docker import DockerSandboxProvider
+from agno.sandbox.docker import DockerSandbox
 
 IMAGE = os.environ.get("AGNO_TEST_RUNTIME_IMAGE")
 pytestmark = [
@@ -20,10 +19,8 @@ pytestmark = [
 
 @pytest_asyncio.fixture
 async def runtime_computer():
-    provider = DockerSandboxProvider("runtime-test-" + uuid4().hex)
-    handle = await provider.acreate(
-        SandboxSpec("a", "s", 1, IMAGE, env={"AGNO_SANDBOX_TEST_RUNTIME": "1"}, memory_mb=512)
-    )
+    provider = DockerSandbox(IMAGE, namespace="runtime-test-" + uuid4().hex, memory_mb=512)
+    handle = await provider.acreate("s", agent_id="a", env={"AGNO_SANDBOX_TEST_RUNTIME": "1"})
     try:
         yield provider, handle, SandboxRuntimeClient(provider)
     finally:
@@ -35,7 +32,7 @@ async def test_reconnect_and_duplicate_dispatch_execute_only_once(runtime_comput
     execution = await first.astart(
         computer, execution_id="e", run_id="r", sdk="fixture", input="hello", config={"delay": 0.3}
     )
-    second = SandboxRuntimeClient(DockerSandboxProvider(provider.namespace))
+    second = SandboxRuntimeClient(DockerSandbox(IMAGE, namespace=provider.namespace, memory_mb=512))
     assert (
         await second.astart(computer, execution_id="e", run_id="r", sdk="fixture", input="hello", config={"delay": 0.3})
         == execution
@@ -166,6 +163,6 @@ async def test_lost_poll_response_keeps_execution_available_for_another_client(r
     with pytest.raises(TimeoutError, match="lost poll"):
         await first.apoll(execution)
     assert (await provider.aget(computer.provider_ref)).state == "running"
-    second = SandboxRuntimeClient(DockerSandboxProvider(provider.namespace))
+    second = SandboxRuntimeClient(DockerSandbox(IMAGE, namespace=provider.namespace, memory_mb=512))
     assert (await second.await_result(execution, timeout=20))["run"]["content"] == "survives"
     assert (await provider.aexec(computer, ["cat", "fixture-effects.txt"])).stdout == "r\n"

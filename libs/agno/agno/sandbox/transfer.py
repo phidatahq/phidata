@@ -11,8 +11,15 @@ from pathlib import Path
 from typing import Any, Mapping, Optional, Sequence
 
 from agno.sandbox.base import SandboxError, SandboxHandle, _sync
-from agno.sandbox.checkpoint import CheckpointArchive, CheckpointRef, FileCheckpointStore, _name, _preflight
-from agno.sandbox.docker import DockerSandboxProvider
+from agno.sandbox.checkpoint import (
+    CheckpointArchive,
+    CheckpointRef,
+    FileCheckpointStore,
+    _drain,
+    _name,
+    _preflight,
+)
+from agno.sandbox.docker import DockerSandbox
 
 DEFAULT_NATIVE_EXCLUSIONS = ("native/codex/auth.json", "native/.claude/.credentials.json")
 
@@ -27,7 +34,7 @@ class DockerCheckpointTransfer:
 
     def __init__(
         self,
-        provider: DockerSandboxProvider,
+        provider: DockerSandbox,
         store: FileCheckpointStore,
         *,
         archive: Optional[CheckpointArchive] = None,
@@ -111,6 +118,10 @@ class DockerCheckpointTransfer:
         self, exports: Mapping[str, Path], destination: Path, state: Mapping[str, Any], exclude: Sequence[str]
     ) -> None:
         exclusions = set(exclude)
+
+        def excluded(name: str) -> bool:
+            return any(name == value or name.startswith(value + "/") for value in exclusions)
+
         for value in exclusions:
             path = _name(value)
             if value == "manifest.json" or len(path.parts) == 1:
@@ -129,11 +140,22 @@ class DockerCheckpointTransfer:
                 with source.open("rb") as stream:
                     _preflight(stream, self.archive.limits)
                     with tarfile.open(fileobj=stream, mode="r:") as archive:
+                        # Hardlinks share bytes, so an excluded alias would leak through a retained one.
+                        seen = set()
+                        for member in archive.getmembers():
+                            if member.islnk():
+                                if member.linkname not in seen:
+                                    raise SandboxError("Docker export has a hardlink to a missing or later entry")
+                                if excluded(member.name) != excluded(member.linkname):
+                                    raise SandboxError(
+                                        "Excluded checkpoint path shares a hardlink with a retained path"
+                                    )
+                            seen.add(member.name)
                         for member in archive:
                             path = _name(member.name)
                             if path.parts[0] != root:
                                 raise SandboxError("Docker export escaped its declared root")
-                            if any(member.name == value or member.name.startswith(value + "/") for value in exclusions):
+                            if excluded(member.name):
                                 continue
                             info = copy.copy(member)
                             info.pax_headers = {}
@@ -173,17 +195,10 @@ class DockerCheckpointTransfer:
             ):
                 raise SandboxError("Computer does not have checkpointable managed volumes")
             volume = await self.provider._volume(handle.name + "-" + role)
-            expected = {
-                "namespace": self.provider.namespace,
-                "agent": handle.agent_id,
-                "session": handle.session_id,
-                "generation": str(handle.generation),
-                "config": handle.config_digest,
-                "role": role,
-            }
-            if volume is None or any(
-                (volume.get("Labels") or {}).get("io.agno.sandbox." + key) != value for key, value in expected.items()
-            ):
+            expected = self.provider._volume_labels(
+                handle.session_id, handle.agent_id, handle.generation, handle.config_digest, role
+            )
+            if volume is None or any((volume.get("Labels") or {}).get(key) != value for key, value in expected.items()):
                 raise SandboxError("Checkpoint volume identity mismatch")
             options = volume.get("Options") or {}
             if volume.get("Driver") != "local" or options.get("type") != "tmpfs" or options.get("device") != "tmpfs":
@@ -202,8 +217,7 @@ class DockerCheckpointTransfer:
                 if current is not None and current.state == "paused":
                     await self._unpause(handle)
 
-            cleanup = asyncio.create_task(reconcile_pause())
-            await asyncio.shield(cleanup)
+            await _drain(asyncio.create_task(reconcile_pause()))
             raise
         if code:
             raise SandboxError("Docker pause failed: " + err.decode(errors="replace")[-1000:])
@@ -229,16 +243,24 @@ class DockerCheckpointTransfer:
         with tempfile.TemporaryDirectory(prefix=".capture-", dir=self.store.root) as directory:
             root = Path(directory)
             await self._pause(handle)
+            cancelled = False
             try:
                 await self._copy(handle, handle.provider_ref + ":/workspace", "-", output=root / "workspace.tar")
                 await self._copy(handle, handle.provider_ref + ":/runtime/native", "-", output=root / "native.tar")
+            except asyncio.CancelledError:
+                cancelled = True
+                raise
             finally:
+                # Unpause always completes; once cancelled, cancellation stays the outcome even if it fails.
                 task = asyncio.create_task(self._unpause(handle))
-                try:
-                    await asyncio.shield(task)
-                except asyncio.CancelledError:
-                    await task
-                    raise
+                if cancelled:
+                    await _drain(task)
+                else:
+                    try:
+                        await asyncio.shield(task)
+                    except asyncio.CancelledError:
+                        await _drain(task)
+                        raise
             # Files no longer change after export. Validation and upload run outside
             # the pause, so storage latency does not freeze warm applications.
             from agno.sandbox.checkpoint import _thread
@@ -257,13 +279,16 @@ class DockerCheckpointTransfer:
     ) -> CheckpointRef:
         return _sync(self.acapture(handle, state=state, exclude=exclude))
 
-    def _export_root(self, checkpoint: Path, root: str, destination: Path) -> None:
+    def _export_root(self, checkpoint: Path, root: str, destination: Path) -> int:
+        mode = 0o700
         with (
             tarfile.open(checkpoint, "r:") as source,
             tarfile.open(destination, "w", format=tarfile.PAX_FORMAT) as target,
         ):
             for member in source:
-                if member.name.startswith(root + "/"):
+                if member.name == root:
+                    mode = member.mode & 0o777
+                elif member.name.startswith(root + "/"):
                     info = copy.copy(member)
                     info.pax_headers = {}
                     info.name = member.name[len(root) + 1 :]
@@ -271,6 +296,7 @@ class DockerCheckpointTransfer:
                     info.uid = info.gid = 1000
                     info.uname = info.gname = ""
                     target.addfile(info, source.extractfile(member) if member.isfile() else None)
+        return mode
 
     async def arestore(self, handle: SandboxHandle, reference: CheckpointRef) -> Mapping[str, Any]:
         from agno.sandbox.checkpoint import _thread
@@ -278,21 +304,24 @@ class DockerCheckpointTransfer:
         await self._check_mounts(handle)
         checkpoint = await self.store.averify(reference)
         state = await self.archive.avalidate(checkpoint)
-        check = await self.provider.aexec(
-            handle,
-            [
-                "python",
-                "-I",
-                "-c",
-                "from pathlib import Path; w=Path('/workspace'); n=Path('/runtime/native'); assert not any(w.iterdir()), 'workspace is not empty'; n.mkdir(exist_ok=True); assert not any(n.iterdir()), 'native state is not empty'",
-            ],
-        )
-        if check.exit_code:
-            raise SandboxError("Restore requires an empty, unused generation")
         with tempfile.TemporaryDirectory(prefix=".import-", dir=self.store.root) as directory:
             root = Path(directory)
             await _thread(self._export_root, checkpoint, "workspace", root / "workspace.tar")
-            await _thread(self._export_root, checkpoint, "native", root / "native.tar")
+            native_mode = await _thread(self._export_root, checkpoint, "native", root / "native.tar")
+            # The native directory is created here, so apply its captured mode rather than the umask.
+            check = await self.provider.aexec(
+                handle,
+                [
+                    "python",
+                    "-I",
+                    "-c",
+                    "from pathlib import Path; w=Path('/workspace'); n=Path('/runtime/native'); assert not any(w.iterdir()), 'workspace is not empty'; n.mkdir(exist_ok=True); assert not any(n.iterdir()), 'native state is not empty'; n.chmod("
+                    + oct(native_mode)
+                    + ")",
+                ],
+            )
+            if check.exit_code:
+                raise SandboxError("Restore requires an empty, unused generation")
             await self._pause(handle)
             try:
                 await self._copy(handle, "-", handle.provider_ref + ":/workspace", input_file=root / "workspace.tar")

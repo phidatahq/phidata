@@ -35,13 +35,12 @@ class Names(RootModel[List[str]]):
 workdir = tempfile.mkdtemp(prefix="agno-structured-tools-")
 agent = ClaudeAgent(
     name="Claude Disk Checker",
-    model="claude-sonnet-4-6",
+    model="claude-sonnet-5-5",
     cwd=workdir,
     db=SqliteDb(db_file=f"{workdir}/runs.db"),
     system_prompt=f"You work in {workdir}. Use Bash for measurements.",
     allowed_tools=["Bash"],
     permission_mode="bypassPermissions",
-    max_turns=4,
     output_schema=DiskUsage,
 )
 prompt = "Measure the size of the current directory with `du -sh .` and report it."

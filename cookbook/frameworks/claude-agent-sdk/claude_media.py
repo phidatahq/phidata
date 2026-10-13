@@ -53,13 +53,11 @@ def main():
     with tempfile.TemporaryDirectory(prefix="agno-media-") as workdir:
         agent = ClaudeAgent(
             id="media-demo",
-            model="claude-sonnet-4-6",
+            model="claude-sonnet-5-5",
             db=SqliteDb(db_file=str(Path(workdir) / "runs.db")),
             cwd=workdir,
             allowed_tools=["Read"],
             permission_mode="bypassPermissions",
-            max_turns=4,
-            max_budget_usd=0.5,
         )
 
         image = Image(content=solid_png(64, 64, (220, 40, 40)), format="png")
@@ -94,13 +92,11 @@ def main():
         other_workdir.mkdir()
         other = ClaudeAgent(
             id="media-demo",
-            model="claude-sonnet-4-6",
+            model="claude-sonnet-5-5",
             db=SqliteDb(db_file=str(Path(workdir) / "runs.db")),
             cwd=str(other_workdir),
             allowed_tools=["Read"],
             permission_mode="bypassPermissions",
-            max_turns=4,
-            max_budget_usd=0.5,
         )
         later = other.run(
             "Read the release notes file again with the Read tool and quote the owner line exactly.",

@@ -3,20 +3,16 @@
 import os
 from uuid import uuid4
 
-from agno.sandbox import SandboxSpec
 from agno.sandbox.client import SandboxRuntimeClient
-from agno.sandbox.docker import DockerSandboxProvider
+from agno.sandbox.docker import DockerSandbox
 
-provider = DockerSandboxProvider(namespace="runtime-cookbook-" + uuid4().hex)
+provider = DockerSandbox(
+    image=os.environ.get("AGNO_SANDBOX_IMAGE", "agno-sandbox:local"),
+    namespace="runtime-cookbook-" + uuid4().hex,
+    memory_mb=512,
+)
 computer = provider.create(
-    SandboxSpec(
-        agent_id="coder",
-        session_id="example",
-        generation=1,
-        image=os.environ.get("AGNO_SANDBOX_IMAGE", "agno-sandbox:local"),
-        env={"AGNO_SANDBOX_TEST_RUNTIME": "1"},
-        memory_mb=512,
-    )
+    session_id="example", agent_id="coder", env={"AGNO_SANDBOX_TEST_RUNTIME": "1"}
 )
 try:
     first = SandboxRuntimeClient(provider)
@@ -28,7 +24,9 @@ try:
         input="hello",
     )
     # A different client recovers a lost start acknowledgement using the same identity.
-    second = SandboxRuntimeClient(DockerSandboxProvider(provider.namespace))
+    second = SandboxRuntimeClient(
+        DockerSandbox(provider.image, namespace=provider.namespace, memory_mb=512)
+    )
     assert (
         second.start(
             computer,

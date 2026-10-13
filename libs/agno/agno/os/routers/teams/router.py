@@ -38,13 +38,17 @@ from agno.os.auth import (
 from agno.os.checkpoints import build_run_checkpoint_snapshot, list_run_checkpoints
 from agno.os.event_streams import get_event_stream
 from agno.os.job_queue import (
+    aattach_waiting_on,
     acontinue_via_queue,
+    aenqueue_ticket,
     aprepare_accepted_or_abort,
     araise_if_ticket_owns_continue,
     aticket_poll_fallback,
+    component_is_queueable,
     ensure_duplicate_matches_component,
     normalize_idempotency_key,
     payload_is_queueable,
+    resolve_queue_scope,
     ticket_status_to_api,
     validate_seam_input,
 )
@@ -809,17 +813,17 @@ def get_team_router(
                 # RUN (complete output guaranteed via the run row); the live
                 # stream is the best-effort view.
                 queue_worker = getattr(request.app.state, "queue_worker", None)
-                queued_stream_payload = {"input": message, "kwargs": kwargs, "stream": True}
+                queued_stream_payload = {
+                    "input": message,
+                    "kwargs": kwargs,
+                    "stream": True,
+                }
                 stream_queueable = (
                     queue_worker is not None
                     and getattr(team, "db", None) is not None
                     and payload_is_queueable(queued_stream_payload)
-                    and version is None
                     and not (base64_images or base64_audios or base64_videos or document_files)
-                    and any(
-                        getattr(candidate, "id", None) == team_id and not isinstance(candidate, TeamFactory)
-                        for candidate in (os.teams or [])
-                    )
+                    and component_is_queueable(team, team_id, os.teams, os.db)
                 )
                 if stream_queueable:
                     # 202/stream-accept must honor input_schema like the inline path (400)
@@ -827,6 +831,9 @@ def get_team_router(
                     assert queue_worker is not None  # narrowed by stream_queueable
                     queued_run_id = str(uuid4())
                     queued_session_id = session_id  # non-empty: defaulted at the top of the endpoint
+                    queued_stream_payload["scope"] = resolve_queue_scope(
+                        team_id, os.teams, os.db, scoped_user_id, version
+                    )
                     job = QueuedJob(
                         id=queued_run_id,
                         component_type="team",
@@ -838,9 +845,7 @@ def get_team_router(
                         deployment_id=queue_worker.config.deployment_id,
                         idempotency_key=normalize_idempotency_key(request.headers.get("idempotency-key")),
                     ).to_dict()
-                    enqueue_result = await queue_worker.store.enqueue_job(
-                        job, max_depth=queue_worker.config.max_queue_depth
-                    )
+                    enqueue_result = await aenqueue_ticket(queue_worker, job, team)
                     if enqueue_result["reason"] == "queue_full":
                         raise HTTPException(status_code=429, detail="Job queue is full")
                     if enqueue_result["reason"] == "duplicate":
@@ -850,7 +855,7 @@ def get_team_router(
                                 status_code=409,
                                 detail="Idempotency-Key was already used but the original run could not be retrieved",
                             )
-                        ensure_duplicate_matches_component(existing, "team", job["component_id"])
+                        ensure_duplicate_matches_component(existing, "team", job["component_id"], version=version)
                         if not (existing.get("payload") or {}).get("stream"):
                             # The key was used by a NON-stream submission: its
                             # run never registers in the event stream, so a
@@ -885,7 +890,7 @@ def get_team_router(
                 if queue_worker is not None:
                     log_warning(
                         "Streaming background run bypasses the durable queue (remote/factory/"
-                        "version-pinned/media submissions are not queueable): bounded and "
+                        "media submissions are not queueable): bounded and "
                         "observable, but NOT durable."
                     )
                 # background=True, stream=True: resumable SSE streaming
@@ -915,19 +920,18 @@ def get_team_router(
             # replica's worker claims the job executes it, surviving crashes
             # and deploys. Client contract identical: 202 + poll.
             queue_worker = getattr(request.app.state, "queue_worker", None)
-            # Queueable only if this is a plain registry instance: the worker
-            # resolves from the registry, so factory-backed or off-registry
-            # (db-resolved / version-pinned) components would be accepted here
-            # and then fail or run differently in the worker.
-            component_is_queueable = any(
-                getattr(candidate, "id", None) == team_id and not isinstance(candidate, TeamFactory)
-                for candidate in (os.teams or [])
-            )
-            queued_payload = {"input": message, "kwargs": kwargs}
+            # Queueable when the worker can re-resolve the team at claim
+            # time: a plain registry instance, or a db-backed (components API
+            # / version-pinned) team replayed from the scope on the ticket.
+            # Factory-backed teams need request context and never queue.
+            team_is_queueable = component_is_queueable(team, team_id, os.teams, os.db)
+            queued_payload = {
+                "input": message,
+                "kwargs": kwargs,
+            }
             if (
                 queue_worker is not None
-                and component_is_queueable
-                and version is None  # version-pinned resolution differs from the worker's registry instance
+                and team_is_queueable
                 and payload_is_queueable(queued_payload)
                 # Media cannot ride the queue payload yet: fall back to the
                 # bounded in-process path (parity with the stream seam)
@@ -937,6 +941,7 @@ def get_team_router(
                 validate_seam_input(team, message)
                 queued_run_id = str(uuid4())
                 queued_session_id = session_id  # non-empty: defaulted at the top of the endpoint
+                queued_payload["scope"] = resolve_queue_scope(team_id, os.teams, os.db, scoped_user_id, version)
                 job = QueuedJob(
                     id=queued_run_id,
                     component_type="team",
@@ -952,14 +957,12 @@ def get_team_router(
                 # Enqueue FIRST: the committed queue row is the acceptance.
                 # Rejected or duplicate submissions must leave no phantom
                 # PENDING run behind in the session.
-                enqueue_result = await queue_worker.store.enqueue_job(
-                    job, max_depth=queue_worker.config.max_queue_depth
-                )
+                enqueue_result = await aenqueue_ticket(queue_worker, job, team)
                 if enqueue_result["reason"] == "queue_full":
                     raise HTTPException(status_code=429, detail="Job queue is full")
                 if enqueue_result["reason"] == "duplicate" and enqueue_result["job"] is not None:
                     existing = enqueue_result["job"]
-                    ensure_duplicate_matches_component(existing, "team", job["component_id"])
+                    ensure_duplicate_matches_component(existing, "team", job["component_id"], version=version)
                     return JSONResponse(
                         status_code=202,
                         content={
@@ -1004,15 +1007,14 @@ def get_team_router(
                         "Executing on the accepting replica instead - bounded and observable, but NOT durable."
                     )
                 else:
-                    # Off-registry, factory-backed, or version-pinned: the
-                    # worker resolves from the registry, so these cannot ride
-                    # the queue - previously this dropped to the non-durable
-                    # path with no log line at all.
+                    # Remote or factory-backed: the worker cannot re-resolve
+                    # these at claim time (no request context), so they
+                    # cannot ride the queue - previously this dropped to the
+                    # non-durable path with no log line at all.
                     log_warning(
-                        "Background run bypasses the durable queue: the team is not a plain "
-                        "registry instance (remote, factory-backed, db-resolved, or version-pinned "
-                        "resolution differs from the worker's registry instance). Executing on the "
-                        "accepting replica instead - bounded and observable, but NOT durable."
+                        "Background run bypasses the durable queue: the team cannot be re-resolved "
+                        "by the queue worker (remote or factory-backed teams need request context). "
+                        "Executing on the accepting replica instead - bounded and observable, but NOT durable."
                     )
 
             # Same input-error contract as the inline path: schema violations
@@ -1555,10 +1557,7 @@ def get_team_router(
                 "continue_from": continue_from_value,
                 "kwargs": kwargs,
             }
-            team_is_queueable = any(
-                getattr(candidate, "id", None) == team_id and not isinstance(candidate, TeamFactory)
-                for candidate in (os.teams or [])
-            )
+            team_is_queueable = component_is_queueable(team, team_id, os.teams, os.db)
             if (
                 queue_worker is not None
                 # LIVE, unlike the submit gates' dead twin: the teams continue
@@ -2171,7 +2170,7 @@ def get_team_router(
         if not run_matches_component(run_output, "teams", team_id):
             raise HTTPException(status_code=404, detail="Run not found")
 
-        return run_output.to_dict()
+        return await aattach_waiting_on(getattr(request.app.state, "queue_worker", None), run_id, run_output.to_dict())
 
     @router.get(
         "/teams/{team_id}/runs/{run_id}/checkpoints",

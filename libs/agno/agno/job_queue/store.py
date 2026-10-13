@@ -19,7 +19,7 @@ import asyncio
 import time
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from agno.job_queue.session import is_serialized, next_session_seq, session_blocked, with_session_seq
+from agno.job_queue.session import is_serialized, next_session_seq, session_blocked, session_blocker, with_session_seq
 
 
 class InMemoryQueueStore:
@@ -250,6 +250,14 @@ class InMemoryQueueStore:
             job = self._jobs.get(job_id)
             return dict(job) if job is not None else None
 
+    async def session_blocker(self, job_id: str) -> Optional[str]:
+        """The id of the ticket a queued serialized job waits behind, or None."""
+        async with self._lock:
+            job = self._jobs.get(job_id)
+            if job is None or job["status"] != "queued":
+                return None
+            return session_blocker(job, self._jobs.values())
+
     async def count_queued_jobs(self) -> int:
         async with self._lock:
             return sum(1 for j in self._jobs.values() if j["status"] == "queued")
@@ -336,8 +344,6 @@ class InMemoryQueueStore:
             now = int(time.time())
             payload = dict(job.get("payload") or {})
             payload["continue"] = dict(continue_payload)
-            if is_serialized(job):
-                payload["session_seq"] = next_session_seq(job, self._jobs.values())
             job.update(
                 status="queued",
                 payload=payload,

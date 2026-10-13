@@ -7991,6 +7991,20 @@ class PostgresDb(BaseDb):
             log_warning(f"Job queue store: get_job failed for job {job_id}: {e}")
             return None
 
+    def session_blocker(self, job_id: str) -> Optional[str]:
+        """The id of the ticket a queued serialized job waits behind, or None."""
+        from agno.job_queue.session import is_serialized, live_session_jobs_query, session_blocker
+
+        job = self.get_job(job_id)
+        if job is None or job["status"] != "queued" or not is_serialized(job):
+            return None
+        table = self._get_table(table_type="jobs")
+        if table is None:
+            return None
+        with self.Session() as sess:
+            rows = sess.execute(live_session_jobs_query(table, job)).mappings().all()
+        return session_blocker(job, [dict(row) for row in rows])
+
     def count_queued_jobs(self) -> int:
         try:
             table = self._get_table(table_type="jobs")
@@ -8093,14 +8107,11 @@ class PostgresDb(BaseDb):
         requeue_job): this CAS is the durable acceptance of the continue, and
         a DB failure must surface as a 500, never masquerade as "conflict".
         """
-        from agno.job_queue.session import is_serialized
-
         table = self._get_table(table_type="jobs")
         if table is None:
             raise RuntimeError("Job queue table not found")
         now = _db_epoch()
         with self.Session() as sess, sess.begin():
-            sess.connection(execution_options={"isolation_level": "READ COMMITTED"})
             row = sess.execute(select(table).where(table.c.id == job_id).with_for_update()).fetchone()
             if row is None:
                 return {"outcome": "conflict", "job": None}
@@ -8111,9 +8122,6 @@ class PostgresDb(BaseDb):
                 return {"outcome": "attach", "job": job}
             payload = dict(job.get("payload") or {})
             payload["continue"] = dict(continue_payload)
-            if is_serialized(job):
-                # A continued ticket rejoins its session behind every live turn.
-                payload["session_seq"] = self._q_next_session_seq(sess, table, job)
             values: Dict[str, Any] = {
                 "status": "queued",
                 "payload": payload,

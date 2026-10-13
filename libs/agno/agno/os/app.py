@@ -3,7 +3,7 @@ import contextlib
 from contextlib import asynccontextmanager
 from functools import partial
 from os import getenv
-from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Literal, Optional, Set, Union
+from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Literal, Optional, Sequence, Set, Union
 from uuid import uuid4
 
 from fastapi import APIRouter, FastAPI, HTTPException
@@ -104,7 +104,9 @@ if TYPE_CHECKING:
     from agno.os.authz.authorization import Authorization
     from agno.os.authz.provider import AuthorizationProvider
     from agno.os.authz.user_directory import UserDirectory
+    from agno.os.diagnostics import DiagnosticReport
     from agno.os.schema import FileSystemConfig
+    from agno.os.shell import Shell, ShellConfig
 
 
 @asynccontextmanager
@@ -327,6 +329,7 @@ class AgentOS:
         scheduler_base_url: Optional[str] = None,
         internal_service_token: Optional[str] = None,
         public: Optional[Any] = None,
+        shell: Optional[Union[bool, "ShellConfig"]] = None,
     ):
         """Initialize AgentOS.
 
@@ -345,6 +348,10 @@ class AgentOS:
             workflows: List of workflows to include in the OS
             knowledge: List of knowledge bases to include in the OS
             interfaces: List of interfaces to include in the OS
+            shell: The conversational entry point to this OS: a framework-owned team (the lead)
+                with Platform Builder, Platform Manager and, with a workspace, Platform Engineer as
+                members, served as ordinary components. ``True`` takes the registry's first model;
+                ``ShellConfig`` sets the name, model, id and attached resources.
             a2a_interface: Whether to expose the OS agents and teams in an A2A server
             config: Configuration file path or AgentOSConfig instance
             settings: API settings for the OS
@@ -609,6 +616,22 @@ class AgentOS:
         # the caller's app in place, so preparing twice would double routes/lifespans).
         self._base_app_prepared: bool = False
 
+        # The shell is built against this OS's registry and db and then served like any
+        # other component, so it goes through the same initialization below. It is kept
+        # out of the registry population: its platform toolkits and members are not
+        # building blocks for runtime-built components.
+        self.shell: Optional["Shell"] = None
+        if shell:
+            from agno.os.shell import ShellConfig, build_shell
+
+            shell_config = shell if isinstance(shell, ShellConfig) else ShellConfig()
+            if self.registry is None:
+                self.registry = Registry()
+            self.shell = build_shell(self, shell_config)
+            self.agents = [*(self.agents or []), *self.shell.agents]
+            self.teams = [*(self.teams or []), self.shell.team]
+            self._apply_shell_manifest()
+
         self._initialize_agents()
         self._initialize_teams()
         self._initialize_workflows()
@@ -637,6 +660,58 @@ class AgentOS:
 
         if self.tracing:
             self._setup_tracing()
+
+    def _owned_by_shell(self, component: Any) -> bool:
+        """True for the shell's team and members; they are served but never enter the registry."""
+        return self.shell is not None and self.shell.owns(component)
+
+    def _apply_shell_manifest(self) -> None:
+        """Give the shell's components UI metadata unless the application's config names them."""
+        from agno.os.config import AgentOSConfig
+
+        if self.shell is None:
+            return
+        if self.config is None:
+            self.config = AgentOSConfig()
+        manifest = dict(self.config.manifest or {})
+        for component_id, entry in self.shell.manifest().items():
+            manifest.setdefault(component_id, entry)
+        self.config.manifest = manifest
+
+    def run_diagnostics(
+        self,
+        *,
+        required_env: Optional[Sequence[str]] = None,
+        network_probe: bool = False,
+        public_url: Optional[str] = None,
+    ) -> "DiagnosticReport":
+        """Run the model-free diagnostics: database, authorization, component ids, registry names,
+        interfaces, scheduler, MCP and required environment variables. ``required_env`` defaults to the
+        shell's configuration when a shell exists."""
+        from agno.os.diagnostics import run_diagnostics
+
+        return run_diagnostics(
+            self, required_env=self._diagnostics_env(required_env), network_probe=network_probe, public_url=public_url
+        )
+
+    async def arun_diagnostics(
+        self,
+        *,
+        required_env: Optional[Sequence[str]] = None,
+        network_probe: bool = False,
+        public_url: Optional[str] = None,
+    ) -> "DiagnosticReport":
+        """Async variant of run_diagnostics."""
+        from agno.os.diagnostics import arun_diagnostics
+
+        return await arun_diagnostics(
+            self, required_env=self._diagnostics_env(required_env), network_probe=network_probe, public_url=public_url
+        )
+
+    def _diagnostics_env(self, required_env: Optional[Sequence[str]]) -> Sequence[str]:
+        if required_env is not None:
+            return required_env
+        return self.shell.config.required_env if self.shell is not None else ()
 
     @property
     def mcp(self) -> bool:
@@ -1118,7 +1193,7 @@ class AgentOS:
             existing_agents = {aid: a for a in self.registry.agents if (aid := getattr(a, "id", None)) is not None}
             for agent in self._agents:
                 agent_id = getattr(agent, "id", None)
-                if agent_id is None:
+                if agent_id is None or self._owned_by_shell(agent):
                     continue
                 existing_agent = existing_agents.get(agent_id)
                 if existing_agent is not None:
@@ -1138,7 +1213,7 @@ class AgentOS:
             existing_teams = {tid: t for t in self.registry.teams if (tid := getattr(t, "id", None)) is not None}
             for team in self._teams:
                 team_id = getattr(team, "id", None)
-                if team_id is None:
+                if team_id is None or self._owned_by_shell(team):
                     continue
                 existing_team = existing_teams.get(team_id)
                 if existing_team is not None:
@@ -1383,7 +1458,12 @@ class AgentOS:
             self.registry = Registry()
 
         try:
-            collect_components_from_os(self._agents, self._teams, self._workflows, self.registry)
+            collect_components_from_os(
+                [a for a in self._agents if not self._owned_by_shell(a)],
+                [t for t in self._teams if not self._owned_by_shell(t)],
+                self._workflows,
+                self.registry,
+            )
         except Exception as e:
             log_debug(f"Registry auto-population skipped: {e}")
 

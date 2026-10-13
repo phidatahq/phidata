@@ -1056,3 +1056,94 @@ async def test_cancelling_an_async_access_drains_its_verification(tmp_path, root
         await task
     assert await asyncio.to_thread(settled.wait, 5)
     assert (store.root / reference.sha256).exists()
+
+
+# A synthetic stand-in for a credential; never a real one.
+SECRET = b"synthetic-not-a-real-credential-8f21\n"
+
+
+def overlapping(tmp_path, shape):
+    """Roots that resolve onto one another, with the exclusion that should hide SECRET."""
+    if shape == "the same directory":
+        shared = tmp_path / "both"
+        shared.mkdir()
+        (shared / "auth.json").write_bytes(SECRET)
+        return {"workspace": shared, "native": shared}, "native/auth.json"
+    if shape == "native inside workspace":
+        workspace = tmp_path / "ws"
+        workspace.mkdir()
+        native = workspace / "native"
+        native.mkdir()
+        (native / "auth.json").write_bytes(SECRET)
+        return {"workspace": workspace, "native": native}, "native/auth.json"
+    native = tmp_path / "nat"
+    native.mkdir()
+    workspace = native / "workspace"
+    workspace.mkdir()
+    (workspace / "token.json").write_bytes(SECRET)
+    return {"workspace": workspace, "native": native}, "workspace/token.json"
+
+
+@pytest.mark.parametrize("compress", [True, False])
+@pytest.mark.parametrize("shape", ["the same directory", "native inside workspace", "workspace inside native"])
+def test_overlapping_durable_roots_are_refused_before_anything_is_written(tmp_path, shape, compress):
+    """An exclusion names one archive prefix, so an overlap smuggles the bytes under the other.
+
+    Excluding native/auth.json hides that name while the same file is archived as
+    workspace/native/auth.json, and the symmetric case puts an excluded workspace path
+    under native/. Both orderings and both stored representations are covered here.
+    """
+    roots, exclusion = overlapping(tmp_path, shape)
+    destination = tmp_path / "checkpoint.tar"
+    with pytest.raises(SandboxError, match="overlap"):
+        CheckpointArchive(compress=compress).capture(roots, destination, state={"run_id": "r"}, exclude=[exclusion])
+    assert not destination.exists(), "the destination was created before the roots were validated"
+
+
+def test_an_ancestor_alias_cannot_disguise_overlapping_roots(tmp_path):
+    """Neither root is itself a link, so the existing symlink check does not see this."""
+    workspace = tmp_path / "real" / "ws"
+    workspace.mkdir(parents=True)
+    native = workspace / "native"
+    native.mkdir()
+    (native / "auth.json").write_bytes(SECRET)
+    (tmp_path / "alias").symlink_to(tmp_path / "real")
+    aliased = tmp_path / "alias" / "ws" / "native"
+    assert not aliased.is_symlink() and not workspace.is_symlink()
+    with pytest.raises(SandboxError, match="overlap"):
+        CheckpointArchive().capture(
+            {"workspace": workspace, "native": aliased},
+            tmp_path / "checkpoint.tar",
+            state={},
+            exclude=["native/auth.json"],
+        )
+    assert not (tmp_path / "checkpoint.tar").exists()
+
+
+@pytest.mark.parametrize("compress", [True, False])
+def test_disjoint_sibling_roots_still_capture_and_exclude(tmp_path, roots, compress):
+    source = capture(tmp_path / f"ok{compress}", roots, compress=compress)
+    store = FileCheckpointStore(tmp_path / "objects")
+    destination = tmp_path / f"restored{compress}"
+    assert store.restore(store.put(source), destination) == {
+        "run_id": "r",
+        "native_id": "n",
+        "conversation": ["hello"],
+    }
+    assert (destination / "workspace/tracked.py").read_text() == "print('hello')"
+    assert (destination / "native/transcript.jsonl").exists()
+    assert not (destination / "native/auth.json").exists()
+
+
+def test_roots_that_merely_share_a_name_prefix_are_not_overlapping(tmp_path):
+    """work and workspace-two share a prefix as strings but neither contains the other."""
+    first, second = tmp_path / "work", tmp_path / "workspace-two"
+    for path in (first, second):
+        path.mkdir()
+    (first / "app.py").write_text("print(1)")
+    (second / "thread.jsonl").write_text("{}\n")
+    destination = tmp_path / "checkpoint.tar"
+    CheckpointArchive().capture({"workspace": first, "native": second}, destination, state={"run_id": "r"})
+    assert CheckpointArchive().restore(destination, tmp_path / "restored") == {"run_id": "r"}
+    assert (tmp_path / "restored/workspace/app.py").read_text() == "print(1)"
+    assert (tmp_path / "restored/native/thread.jsonl").read_text() == "{}\n"

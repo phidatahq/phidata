@@ -305,6 +305,13 @@ class CheckpointArchive:
                 raise SandboxError("Durable roots must be real directories")
             if destination.resolve().is_relative_to(root_paths[name]):
                 raise SandboxError("Checkpoint destination cannot be inside a captured root")
+        # An exclusion names one archive prefix, so a root that contains the other would
+        # carry an excluded file in under that other prefix. Compared resolved: neither
+        # root has to be a link for an ancestor of one to be an alias of the other.
+        if root_paths["workspace"].is_relative_to(root_paths["native"]) or root_paths["native"].is_relative_to(
+            root_paths["workspace"]
+        ):
+            raise SandboxError("Durable roots must not overlap")
         # An exclusion names a path, but a hardlink is a second name for the same bytes.
         # Collect the inodes behind each exclusion so an alias cannot smuggle them in.
         # Only possible while the excluded path exists: once its original is unlinked, a

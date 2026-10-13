@@ -3,7 +3,7 @@
 Compare technologies using Google Search, URL context, and structured output.
 
 Run `uv pip install -U google-genai agno` to install dependencies.
-Export `GOOGLE_API_KEY` with access to `gemini-4-argon-eap` before running.
+Export `GOOGLE_API_KEY` with access to `gemini-4-argon` before running.
 """
 
 from typing import List
@@ -29,7 +29,7 @@ class TechnologyBrief(BaseModel):
 # ---------------------------------------------------------------------------
 
 agent = Agent(
-    model=Gemini(id="gemini-4-argon-eap", search=True, url_context=True),
+    model=Gemini(id="gemini-4-argon", search=True, url_context=True),
     output_schema=TechnologyBrief,
     instructions=[
         "Search for current official documentation and read the relevant pages.",

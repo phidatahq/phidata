@@ -2,7 +2,7 @@
 Gemini 4 Argon
 ==============
 
-Use `gemini-4-argon-eap` with web search tools in sync, async, and streaming modes.
+Use `gemini-4-argon` with web search tools in sync, async, and streaming modes.
 
 Run `uv pip install -U google-genai ddgs agno` to install dependencies.
 Export `GOOGLE_API_KEY` before running.
@@ -19,7 +19,7 @@ from agno.tools.websearch import WebSearchTools
 # ---------------------------------------------------------------------------
 
 agent = Agent(
-    model=Gemini(id="gemini-4-argon-eap"),
+    model=Gemini(id="gemini-4-argon"),
     tools=[WebSearchTools()],
     markdown=True,
 )

@@ -791,6 +791,25 @@ async def aget_accessible_resources(request: Request, resource_type: str) -> Set
     return await provider.aaccessible_resource_ids(ctx)
 
 
+def accessible_ids_from_provider(request: Request, resource_type: str, action: str = "read") -> Set[str]:
+    """Ids of ``resource_type`` the caller may access, asked of the provider directly.
+
+    :func:`get_accessible_resources` answers from the id set the route gate cached, and that
+    set describes the route's own resource type. A route that also needs the caller's access
+    to a second resource type (the registry listing asking about catalogs) uses this.
+    """
+    provider = _provider_for(request)
+    ctx = _authorization_context(request, resource_type=resource_type, action=action)
+    return provider.accessible_resource_ids(ctx)
+
+
+async def aaccessible_ids_from_provider(request: Request, resource_type: str, action: str = "read") -> Set[str]:
+    """Async twin of :func:`accessible_ids_from_provider`."""
+    provider = _provider_for(request)
+    ctx = _authorization_context(request, resource_type=resource_type, action=action)
+    return await provider.aaccessible_resource_ids(ctx)
+
+
 def filter_resources_by_access(request: Request, resources: List, resource_type: str) -> List:
     """
     Filter a list of resources based on user's access permissions.

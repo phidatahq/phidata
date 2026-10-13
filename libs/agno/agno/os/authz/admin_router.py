@@ -73,7 +73,7 @@ from pydantic import BaseModel, Field
 from agno.os.authz._role_store import RoleChangeRefused
 from agno.os.authz.audit import AUDIT_SORT_FIELDS, DEFAULT_AUDIT_SORT_FIELD
 from agno.os.authz.user_directory import DEFAULT_USER_SORT_FIELD, USER_SORT_FIELDS
-from agno.os.schema import PaginatedResponse, PaginationInfo, SortOrder
+from agno.os.schema import PaginatedResponse, PaginationInfo, RegistryResourceType, SortOrder
 from agno.os.scopes import AgentOSScope
 
 if TYPE_CHECKING:
@@ -223,6 +223,43 @@ class PatchScopesRequest(BaseModel):
 
     upsert: List[Union[str, ScopeItem]] = Field(default_factory=list, description="Scopes to add or flip")
     remove: List[Union[str, ScopeItem]] = Field(default_factory=list, description="Scopes to remove (effect ignored)")
+
+
+class CatalogEntry(BaseModel):
+    """One registry entry in a catalog."""
+
+    type: RegistryResourceType = Field(..., description="Registry resource type, e.g. 'tool' or 'model'")
+    name: str = Field(..., min_length=1, description="The registry entry's name or id")
+
+
+class SetCatalogRequest(BaseModel):
+    """Create or replace a catalog (PUT /catalogs/{slug})."""
+
+    name: Optional[str] = Field(None, description="Display name (defaults to slug)")
+    description: Optional[str] = Field(None, description="Catalog description")
+    entries: List[CatalogEntry] = Field(..., description="The registry entries this catalog holds")
+
+
+class CatalogSchema(BaseModel):
+    slug: str
+    name: Optional[str] = None
+    description: Optional[str] = None
+    entries: List[CatalogEntry]
+    scope: str = Field(..., description="The scope that grants this catalog")
+    created_at: Optional[int] = None
+    updated_at: Optional[int] = None
+
+    @classmethod
+    def from_record(cls, rec: dict) -> "CatalogSchema":
+        return cls(
+            slug=rec["slug"],
+            name=rec.get("name"),
+            description=rec.get("description"),
+            entries=[CatalogEntry(**entry) for entry in rec.get("entries") or []],
+            scope=f"catalogs:{rec['slug']}:read",
+            created_at=rec.get("created_at"),
+            updated_at=rec.get("updated_at"),
+        )
 
 
 class AssignRoleRequest(BaseModel):
@@ -442,6 +479,46 @@ def get_roles_router(
             await store.aremove_role(slug, actor=actor)
         except RoleChangeRefused as e:
             raise _refused(e)
+        return {"slug": slug, "deleted": True}
+
+    # ---- catalogs --------------------------------------------------------
+    # A catalog is a named set of registry entries. A role (or a token) is granted one with
+    # the scope catalogs:<slug>:read, and GET /registry lists the entries of every catalog
+    # the caller holds.
+    @router.get("/catalogs", response_model=PaginatedResponse[CatalogSchema])
+    async def list_catalogs(
+        limit: int = Query(default=20, ge=1, le=100, description="Items per page"),
+        page: int = Query(default=1, ge=1, description="Page number (1-indexed)"),
+    ):
+        catalogs = [CatalogSchema.from_record(r) for r in await store.alist_catalogs()]
+        return _page(catalogs, page, limit)
+
+    @router.get("/catalogs/{slug}", response_model=CatalogSchema)
+    async def get_catalog(slug: str):
+        rec = await store.aget_catalog(slug)
+        if rec is None:
+            raise HTTPException(status_code=404, detail=f"Catalog {slug!r} not found")
+        return CatalogSchema.from_record(rec)
+
+    @router.put("/catalogs/{slug}", response_model=CatalogSchema)
+    async def set_catalog(slug: str, body: SetCatalogRequest, actor: str = Depends(require_admin)):
+        """Create a catalog, or replace its entries, name and description."""
+        try:
+            rec = await store.aset_catalog(
+                slug,
+                [{"type": entry.type.value, "name": entry.name} for entry in body.entries],
+                name=body.name,
+                description=body.description,
+                actor=actor,
+            )
+        except ValueError as e:
+            raise HTTPException(status_code=422, detail=str(e))
+        return CatalogSchema.from_record(rec)
+
+    @router.delete("/catalogs/{slug}")
+    async def delete_catalog(slug: str, actor: str = Depends(require_admin)) -> dict:
+        if not await store.aremove_catalog(slug, actor=actor):
+            raise HTTPException(status_code=404, detail=f"Catalog {slug!r} not found")
         return {"slug": slug, "deleted": True}
 
     # ---- role scopes (subresource) -------------------------------------

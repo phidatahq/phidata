@@ -36,6 +36,7 @@ Example::
 """
 
 import asyncio
+import json
 import time
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple, Union
 
@@ -104,6 +105,46 @@ def _check_removable(role: str, scope: str) -> None:
             f"{exc} A stored entry that the parser no longer accepts cannot be removed by name; replace "
             f"the role's scopes without it via PUT /authz/roles/{role}/scopes."
         ) from None
+
+
+def _validate_catalog_slug(slug: str) -> None:
+    """A catalog slug names a REST route (``/authz/catalogs/{slug}``) and the middle segment of
+    the scope that grants it (``catalogs:<slug>:read``), so it cannot hold whitespace, ``/`` or
+    ``:``, and it cannot be the wildcard."""
+    if not isinstance(slug, str) or not slug:
+        raise ValueError("A catalog slug must be a non-empty string.")
+    if slug == "*":
+        raise ValueError("'*' is the wildcard in catalogs:*:read and cannot name a catalog.")
+    if any(char.isspace() or char in "/:" for char in slug):
+        raise ValueError(f"Catalog slug {slug!r} contains whitespace, '/' or ':'; use '-' or '_' between words.")
+
+
+def _normalize_catalog_entries(entries: List[Dict[str, Any]]) -> List[Dict[str, str]]:
+    """Validate catalog entries and drop duplicates, keeping their order.
+
+    An entry names one registry entry by resource type and by name or id. The type is part
+    of the entry so a tool and a function that share a name stay distinct.
+    """
+    from agno.os.schema import RegistryResourceType
+
+    valid_types = {resource_type.value for resource_type in RegistryResourceType}
+    normalized: List[Dict[str, str]] = []
+    for entry in entries:
+        entry_type = entry.get("type")
+        entry_type = getattr(entry_type, "value", entry_type)
+        name = entry.get("name")
+        if entry_type not in valid_types:
+            raise ValueError(f"Unknown registry resource type {entry_type!r}. Expected one of: {sorted(valid_types)}")
+        if not isinstance(name, str) or not name:
+            raise ValueError("A catalog entry needs a non-empty name: the registry entry's name or id.")
+        item = {"type": entry_type, "name": name}
+        if item not in normalized:
+            normalized.append(item)
+    return normalized
+
+
+def _catalog_record(row: Dict[str, Any]) -> Dict[str, Any]:
+    return {**row, "entries": json.loads(row.get("entries") or "[]")}
 
 
 def _validate_role_slug(slug: str) -> None:
@@ -607,6 +648,95 @@ class RoleStore:
             return None
         defaults = sorted(slug for slug, row in self._meta_get_all().items() if row.get("is_default"))
         return defaults[0] if defaults else None
+
+    # ---------------------------------------------------------------- catalogs
+    # A catalog is a named set of registry entries. A scope (catalogs:<slug>:read) grants
+    # it, so roles point at catalogs through their scopes: one role can hold several and
+    # several roles can share one.
+    def _catalog_values(
+        self, slug: str, entries: List[Dict[str, Any]], name: Optional[str], description: Optional[str]
+    ) -> Dict[str, Any]:
+        self._require_meta()
+        _validate_catalog_slug(slug)
+        now = int(time.time())
+        return {
+            "name": name or slug,
+            "description": description,
+            "entries": json.dumps(_normalize_catalog_entries(entries)),
+            "created_at": now,
+            "updated_at": now,
+        }
+
+    def set_catalog(
+        self,
+        slug: str,
+        entries: List[Dict[str, Any]],
+        name: Optional[str] = None,
+        description: Optional[str] = None,
+        actor: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Create a catalog, or replace its entries, name and description."""
+        values = self._catalog_values(slug, entries, name, description)
+        before = self.get_catalog(slug)
+        self._meta_db.upsert_authz_catalog(slug, values)
+        after = _catalog_record({"slug": slug, **values})
+        self._emit("catalog.set", slug, before["entries"] if before else None, after["entries"], actor)
+        return self.get_catalog(slug) or after
+
+    def get_catalog(self, slug: str) -> Optional[Dict[str, Any]]:
+        """A catalog with its entries, or None."""
+        self._require_meta()
+        row = self._meta_db.get_authz_catalog(slug)
+        return _catalog_record(row) if row is not None else None
+
+    def list_catalogs(self) -> List[Dict[str, Any]]:
+        """Every catalog with its entries, ordered by slug."""
+        self._require_meta()
+        return [_catalog_record(row) for row in self._meta_db.list_authz_catalogs()]
+
+    def remove_catalog(self, slug: str, actor: Optional[str] = None) -> bool:
+        """Delete a catalog. Returns False when there was none. Scopes that grant it are left
+        in place and grant nothing until a catalog with that slug exists again."""
+        before = self.get_catalog(slug)
+        if before is None:
+            return False
+        self._meta_db.delete_authz_catalog(slug)
+        self._emit("catalog.removed", slug, before["entries"], None, actor)
+        return True
+
+    async def aset_catalog(
+        self,
+        slug: str,
+        entries: List[Dict[str, Any]],
+        name: Optional[str] = None,
+        description: Optional[str] = None,
+        actor: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Async twin of :meth:`set_catalog`."""
+        values = self._catalog_values(slug, entries, name, description)
+        before = await self.aget_catalog(slug)
+        await self._ameta_call("upsert_authz_catalog", slug, values)
+        after = _catalog_record({"slug": slug, **values})
+        await self._aemit("catalog.set", slug, before["entries"] if before else None, after["entries"], actor)
+        return await self.aget_catalog(slug) or after
+
+    async def aget_catalog(self, slug: str) -> Optional[Dict[str, Any]]:
+        """Async twin of :meth:`get_catalog`."""
+        row = await self._ameta_call("get_authz_catalog", slug)
+        return _catalog_record(row) if row is not None else None
+
+    async def alist_catalogs(self) -> List[Dict[str, Any]]:
+        """Async twin of :meth:`list_catalogs`."""
+        return [_catalog_record(row) for row in await self._ameta_call("list_authz_catalogs")]
+
+    async def aremove_catalog(self, slug: str, actor: Optional[str] = None) -> bool:
+        """Async twin of :meth:`remove_catalog`."""
+        before = await self.aget_catalog(slug)
+        if before is None:
+            return False
+        await self._ameta_call("delete_authz_catalog", slug)
+        await self._aemit("catalog.removed", slug, before["entries"], None, actor)
+        return True
 
     # ------------------------------------------------------------- assignments
     @staticmethod

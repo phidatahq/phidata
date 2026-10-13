@@ -304,6 +304,32 @@ def delete_role_meta(engine: Engine, table: Any, slug: str) -> None:
         conn.execute(delete(table).where(table.c.slug == slug))
 
 
+# ==================== Catalogs ====================
+
+
+def get_catalog(engine: Engine, table: Any, slug: str) -> Optional[Dict[str, Any]]:
+    with engine.connect() as conn:
+        row = conn.execute(select(table).where(table.c.slug == slug)).mappings().first()
+    return dict(row) if row is not None else None
+
+
+def list_catalogs(engine: Engine, table: Any) -> List[Dict[str, Any]]:
+    with engine.connect() as conn:
+        return [dict(r) for r in conn.execute(select(table).order_by(table.c.slug)).mappings()]
+
+
+def upsert_catalog(engine: Engine, table: Any, slug: str, values: Dict[str, Any]) -> None:
+    # created_at is written on insert only, so replacing a catalog keeps its creation time.
+    update_cols = [column for column in values if column != "created_at"]
+    with engine.begin() as conn:
+        _upsert(conn, table, {"slug": slug, **values}, ["slug"], update_cols)
+
+
+def delete_catalog(engine: Engine, table: Any, slug: str) -> None:
+    with engine.begin() as conn:
+        conn.execute(delete(table).where(table.c.slug == slug))
+
+
 # ==================== User directory ====================
 
 

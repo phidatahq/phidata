@@ -39,6 +39,7 @@ it runs offline against a simulated issuer.
 | `14_custom_policy_engine.py` | `Authorization(engine=...)`: keep managed roles, the audit trail and the `/authz` admin API, but store policy and decide in your own `PolicyEngine` |
 | `15_fga_relationship_based.py` | Relationship-based access (ReBAC): "alice may run this because she owns its folder" |
 | `16_tenant_registry.py` | A tenant-scoped registry with no new concept: `roles_claim="org_id"` makes the tenant a role, and `registry:<entry>:read` scopes decide which catalog entries it lists |
+| `17_registry_catalogs.py` | Catalogs: named sets of registry entries stored in your database, built through `/authz/catalogs` and granted with `catalogs:<slug>:read`, so tenants can share one or hold several |
 | `console.html` | A small browser console for driving the `/authz` admin API by hand |
 
 ## Start Here
@@ -77,6 +78,7 @@ block: each serves an AgentOS on port 7777 so you can drive the admin API (or
 | Audit events that belong in your SIEM or log pipeline | `11_custom_audit_sink.py` |
 | Permissions that depend on relationships, not roles | `15_fga_relationship_based.py` |
 | One catalog of tools and models, with a different view per tenant | `16_tenant_registry.py` |
+| Views of the registry that tenants share, or several views per tenant | `17_registry_catalogs.py` |
 | An authorization service of your own | `12_custom_authorization_provider.py` |
 
 Providers compose: pass a list to run several planes at once (for example token

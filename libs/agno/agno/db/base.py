@@ -374,6 +374,7 @@ class BaseDb(ABC):
         self.authz_users_table_name = "agno_authz_users"
         self.authz_audit_table_name = "agno_authz_audit"
         self.authz_decisions_table_name = "agno_authz_decisions"
+        self.authz_catalogs_table_name = "agno_authz_catalogs"
 
         # Avoids re-running the existence check and schema validation on
         # every query; see TableResolutionCache.
@@ -2180,6 +2181,23 @@ class BaseDb(ABC):
         """Delete a role's metadata row."""
         raise NotImplementedError
 
+    # catalogs: named sets of registry entries a scope can grant
+    def get_authz_catalog(self, slug: str) -> Optional[Dict[str, Any]]:
+        """A catalog row, or None."""
+        raise NotImplementedError
+
+    def list_authz_catalogs(self) -> List[Dict[str, Any]]:
+        """Every catalog row."""
+        raise NotImplementedError
+
+    def upsert_authz_catalog(self, slug: str, values: Dict[str, Any]) -> None:
+        """Create or update a catalog."""
+        raise NotImplementedError
+
+    def delete_authz_catalog(self, slug: str) -> None:
+        """Delete a catalog."""
+        raise NotImplementedError
+
     # user directory: identity is asserted by the JWT; no credentials are stored here
     def get_authz_user(self, user_id: str) -> Optional[Dict[str, Any]]:
         """A directory row, or None."""
@@ -2415,6 +2433,7 @@ class AsyncBaseDb(ABC):
         self.authz_users_table_name = "agno_authz_users"
         self.authz_audit_table_name = "agno_authz_audit"
         self.authz_decisions_table_name = "agno_authz_decisions"
+        self.authz_catalogs_table_name = "agno_authz_catalogs"
 
         # Async adapters cannot create component config/link tables yet, but
         # the FK dependency map needs their configured names.
@@ -3736,6 +3755,22 @@ class AsyncBaseDb(ABC):
 
     async def delete_authz_role_meta(self, slug: str) -> None:
         """Delete a role metadata row."""
+        raise NotImplementedError
+
+    async def get_authz_catalog(self, slug: str) -> Optional[Dict[str, Any]]:
+        """A catalog row, or None."""
+        raise NotImplementedError
+
+    async def list_authz_catalogs(self) -> List[Dict[str, Any]]:
+        """Every catalog row."""
+        raise NotImplementedError
+
+    async def upsert_authz_catalog(self, slug: str, values: Dict[str, Any]) -> None:
+        """Create or update a catalog."""
+        raise NotImplementedError
+
+    async def delete_authz_catalog(self, slug: str) -> None:
+        """Delete a catalog."""
         raise NotImplementedError
 
     async def get_authz_user(self, user_id: str) -> Optional[Dict[str, Any]]:

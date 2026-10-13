@@ -199,6 +199,45 @@ def test_unsafe_archives_never_expose_partial_restore(tmp_path, members):
     assert not (tmp_path / "escape").exists()
 
 
+def test_a_failed_rename_surfaces_its_cause_and_leaves_no_temporary_tree(tmp_path, roots, monkeypatch):
+    locked = roots["workspace"] / "locked"
+    locked.mkdir()
+    (locked / "data.txt").write_text("payload")
+    locked.chmod(0o500)
+    source = capture(tmp_path, roots)
+    locked.chmod(0o700)
+
+    def refuse(*args, **kwargs):
+        raise OSError(errno.ENOTEMPTY, "destination not empty")
+
+    monkeypatch.setattr(os, "rename", refuse)
+    with pytest.raises(OSError, match="destination not empty"):
+        CheckpointArchive().restore(source, tmp_path / "restored")
+    assert not list(tmp_path.glob(".restore-*"))
+
+
+def test_a_rejected_restore_never_chmods_outside_its_own_tree(tmp_path):
+    sentinel = tmp_path / "sentinel"
+    sentinel.mkdir()
+    sentinel.chmod(0o755)
+    # Every target normalizes back inside workspace, so these pass the per-link check and
+    # only chain resolution rejects them. Cleanup then walks links that resolve above the
+    # staged tree, and must not follow them.
+    path = malicious_archive(
+        tmp_path,
+        [
+            ("workspace/a", tarfile.SYMTYPE, "."),
+            ("workspace/b", tarfile.SYMTYPE, "a/.."),
+            ("workspace/c", tarfile.SYMTYPE, "b/.."),
+            ("workspace/d", tarfile.SYMTYPE, "c/sentinel"),
+        ],
+    )
+    with pytest.raises(SandboxError):
+        CheckpointArchive().restore(path, tmp_path / "destination")
+    assert sentinel.stat().st_mode & 0o777 == 0o755
+    assert not list(tmp_path.glob(".restore-*"))
+
+
 def test_restore_never_overwrites_current_workspace(tmp_path, roots):
     source = capture(tmp_path, roots)
     with pytest.raises(FileExistsError):

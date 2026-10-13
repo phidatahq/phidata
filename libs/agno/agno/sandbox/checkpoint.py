@@ -161,6 +161,25 @@ def _preflight(stream: BinaryIO, limits: CheckpointLimits) -> None:
     raise SandboxError("Checkpoint archive ends without its end-of-archive marker")
 
 
+def _discard(path: Path) -> None:
+    """Remove a partial restore tree without masking the failure that caused it.
+
+    A restored directory can be read-only, which stops its children being unlinked,
+    so modes are reopened top down and each directory is writable before it is
+    entered. Nothing here may raise: this runs while another exception is in flight.
+    """
+    for parent, directories, _ in os.walk(path):
+        for directory in directories:
+            child = os.path.join(parent, directory)
+            # A symlink to a directory is listed here and chmod would follow it, so an
+            # archive's link could retarget this outside the tree. Links need no mode:
+            # removal unlinks them, and the walk does not descend through them.
+            if not os.path.islink(child):
+                with suppress(OSError):
+                    os.chmod(child, 0o700)
+    shutil.rmtree(path, ignore_errors=True)
+
+
 def _fsync_directory(path: Path) -> None:
     fd = os.open(path, os.O_RDONLY)
     try:
@@ -403,8 +422,7 @@ class CheckpointArchive:
             # namely opening the archive, walking members and reading a member's bytes.
             raise SandboxError("Invalid checkpoint archive") from error
         finally:
-            if temporary.exists():
-                shutil.rmtree(temporary)
+            _discard(temporary)
 
     async def arestore(self, source: Path, destination: Path) -> Dict[str, Any]:
         return await _thread(self.restore, source, destination)

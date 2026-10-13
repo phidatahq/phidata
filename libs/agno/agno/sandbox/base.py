@@ -68,8 +68,13 @@ def _sync(coro: Coroutine[Any, Any, Any]) -> Any:
 class Sandbox(ABC):
     """A backend for compute, without queue ownership or checkpoint policy.
 
-    Implementations must not retry uncertain commands. Optional snapshot, pause,
-    preview and nested-container features are not implied by this interface.
+    Implementations must not retry uncertain commands. Pause and resume are the
+    optional warm path: a paused sandbox keeps its files and memory, and resume
+    brings the same generation back, so a later turn on the same session need not
+    restore a checkpoint. Create never resumes a paused generation; only the caller
+    that paused it knows it is whole. Stop and destroy remain the cold path, after
+    which recovery needs a new generation. Snapshot, preview and nested-container
+    features are not implied.
     """
 
     @abstractmethod
@@ -119,3 +124,27 @@ class Sandbox(ABC):
 
     def destroy(self, handle: SandboxHandle) -> None:
         _sync(self.adestroy(handle))
+
+    async def apause(self, handle: SandboxHandle) -> None:
+        """Freeze a running sandbox, keeping its files, memory and processes.
+
+        The warm path between turns: nothing is lost and nothing needs restoring.
+        Providers without a native pause leave this unimplemented; the caller then
+        keeps the sandbox running or takes the cold path.
+        """
+        raise NotImplementedError("This provider does not support pausing compute")
+
+    def pause(self, handle: SandboxHandle) -> None:
+        _sync(self.apause(handle))
+
+    async def aresume(self, handle: SandboxHandle) -> SandboxHandle:
+        """Unfreeze a paused sandbox and return its running handle.
+
+        The explicit warm step, taken by the caller that paused the sandbox and knows
+        its files are complete. Only a paused sandbox resumes. A stopped one has lost
+        its files and must be recovered into a new generation from a checkpoint.
+        """
+        raise NotImplementedError("This provider does not support resuming compute")
+
+    def resume(self, handle: SandboxHandle) -> SandboxHandle:
+        return _sync(self.aresume(handle))

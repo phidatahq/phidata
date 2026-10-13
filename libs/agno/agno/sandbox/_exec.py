@@ -17,7 +17,7 @@ def _execute(request: Dict[str, Any]) -> Dict[str, Any]:
     timed_out = False
     output_limited = False
     # Output goes to bounded-monitor temporary files so pipe buffers cannot deadlock
-    # execution. The provider also limits the container's /tmp filesystem.
+    # execution. The sandbox also limits the container's /tmp filesystem.
     with tempfile.TemporaryFile() as stdout, tempfile.TemporaryFile() as stderr, tempfile.TemporaryFile() as stdin:
         stdin.write(base64.b64decode(request.get("stdin", ""), validate=True))
         stdin.seek(0)

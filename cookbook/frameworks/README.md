@@ -4,6 +4,29 @@ Run a coding harness through Agno, inspect its tools, then serve it through
 AgentOS. Start with one provider: [Claude](claude-agent-sdk/README.md) or
 [Codex](codex/README.md). Both review the same small [shipping project](sample_project/README.md).
 
+Session APIs identify external agents with the same `metadata.sdk` value as the
+agents API. For example, a Codex session or run includes:
+
+```json
+{"metadata": {"sdk": "codex"}}
+```
+
+This appears on each item in `GET /sessions`, on `GET /sessions/{session_id}`,
+and on each run in `GET /sessions/{session_id}/runs` (also on single-run reads).
+Claude uses `"claude-agent-sdk"`. Other metadata keys are retained. The value
+comes from stored `agent_data.sdk`, falling back to the older `agent_data.framework`
+field, so existing labelled sessions need no migration or active agent instance.
+Native sessions and older records without an adapter identifier receive no added
+SDK label; absence alone cannot distinguish native sessions from unlabelled history.
+
+For example, after running either AgentOS cookbook:
+
+```bash
+curl 'http://localhost:7777/sessions?type=agent&page=1&limit=25'
+curl 'http://localhost:7777/sessions/SESSION_ID?type=agent'
+curl 'http://localhost:7777/sessions/SESSION_ID/runs?type=agent'
+```
+
 The harness owns its agent loop, tool execution and native context management.
 Agno adapts its output to runs and events. AgentOS adds the HTTP API and run
 storage used in this first exercise.

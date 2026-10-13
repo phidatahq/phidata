@@ -5,18 +5,19 @@ import base64
 import hashlib
 import json
 import math
+import os
+import tempfile
 from contextlib import suppress
-from dataclasses import fields
 from pathlib import Path
-from typing import Any, Optional, Sequence
+from typing import Any, Mapping, Optional, Sequence
 
-from agno.sandbox.base import ExecResult, SandboxError, SandboxHandle, SandboxProvider, SandboxSpec
+from agno.sandbox.base import ExecResult, Sandbox, SandboxError, SandboxHandle, _identity
 
 _LABEL = "io.agno.sandbox."
 _RUNNER = Path(__file__).with_name("_exec.py").read_text()
 
 
-class DockerSandboxProvider(SandboxProvider):
+class DockerSandbox(Sandbox):
     """Linux/Python sandbox compute with explicit env and no host filesystem mounts.
 
     The Docker daemon is trusted infrastructure. Its socket is never mounted into
@@ -24,21 +25,66 @@ class DockerSandboxProvider(SandboxProvider):
     checkpoint for recovery. This class alone is not a durable session service.
     """
 
-    def __init__(self, namespace: str, *, docker_binary: str = "docker") -> None:
-        if not namespace or "\x00" in namespace:
-            raise ValueError("A nonempty deployment namespace is required")
+    def __init__(
+        self,
+        image: str,
+        *,
+        namespace: str = "default",
+        cpus: float = 2.0,
+        memory_mb: int = 2048,
+        pids_limit: int = 256,
+        workspace_mb: int = 512,
+        network: str = "none",
+        docker_binary: str = "docker",
+    ) -> None:
+        for value in (image, namespace, network):
+            if not isinstance(value, str) or not value or "\x00" in value:
+                raise ValueError("Sandbox image, namespace and network must be nonempty strings")
+        if image.startswith("-") or network == "host" or network.startswith("container:"):
+            raise ValueError("Option-like images and shared host/container networking are not supported")
+        if type(cpus) not in (int, float) or not math.isfinite(cpus) or cpus <= 0:
+            raise ValueError("Sandbox CPU limit must be a positive number")
+        if any(type(value) is not int or value < 1 for value in (memory_mb, pids_limit, workspace_mb)):
+            raise ValueError("Sandbox memory, process and workspace limits must be positive integers")
+        self.image = image
         self.namespace = namespace
+        self.cpus = float(cpus)
+        self.memory_mb = memory_mb
+        self.pids_limit = pids_limit
+        self.workspace_mb = workspace_mb
+        self.network = network
         self.docker_binary = docker_binary
 
-    def _name(self, spec: SandboxSpec) -> str:
-        identity = json.dumps([self.namespace, spec.agent_id, spec.session_id, spec.generation])
+    def _name(self, session_id: str, agent_id: Optional[str], generation: int) -> str:
+        identity = json.dumps([self.namespace, agent_id, session_id, generation])
         return "agno-" + hashlib.sha256(identity.encode()).hexdigest()[:40]
 
-    @staticmethod
-    def _digest(spec: SandboxSpec) -> str:
-        data = {item.name: getattr(spec, item.name) for item in fields(spec)}
-        data["env"] = dict(spec.env)
+    def _digest(self, session_id: str, agent_id: Optional[str], generation: int, env: Mapping[str, str]) -> str:
+        data = {
+            "image": self.image,
+            "cpus": self.cpus,
+            "memory_mb": self.memory_mb,
+            "pids_limit": self.pids_limit,
+            "workspace_mb": self.workspace_mb,
+            "network": self.network,
+            "agent_id": agent_id,
+            "session_id": session_id,
+            "generation": generation,
+            "env": dict(env),
+        }
         return hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest()
+
+    @staticmethod
+    def _write_env_file(env: Mapping[str, str]) -> str:
+        for key, value in env.items():
+            if key[0] == "#" or any(char.isspace() for char in key) or "\n" in value or "\r" in value:
+                raise ValueError(
+                    "Docker sandbox env names cannot contain whitespace or start with '#'; values cannot contain newlines"
+                )
+        descriptor, path = tempfile.mkstemp(prefix="agno-sandbox-env-")
+        with os.fdopen(descriptor, "w", encoding="utf-8") as file:
+            file.writelines(key + "=" + value + "\n" for key, value in env.items())
+        return path
 
     async def _docker(
         self, *args: str, input_data: Optional[bytes] = None, timeout: float = 30
@@ -107,7 +153,7 @@ class DockerSandboxProvider(SandboxProvider):
             return SandboxHandle(
                 provider_ref=record["Id"],
                 name=record["Name"].lstrip("/"),
-                agent_id=labels[_LABEL + "agent"],
+                agent_id=labels[_LABEL + "agent"] or None,
                 session_id=labels[_LABEL + "session"],
                 generation=int(labels[_LABEL + "generation"]),
                 state=record["State"]["Status"],
@@ -128,15 +174,24 @@ class DockerSandboxProvider(SandboxProvider):
             raise SandboxError("Sandbox identity changed; refusing the operation")
         return current
 
-    async def acreate(self, spec: SandboxSpec) -> SandboxHandle:
-        name, digest = self._name(spec), self._digest(spec)
+    async def acreate(
+        self,
+        session_id: str,
+        *,
+        agent_id: Optional[str] = None,
+        generation: int = 1,
+        env: Optional[Mapping[str, str]] = None,
+    ) -> SandboxHandle:
+        values = _identity(session_id, agent_id, generation, env)
+        name = self._name(session_id, agent_id, generation)
+        digest = self._digest(session_id, agent_id, generation, values)
         current = await self.aget(name)
         if current is None:
             labels = {
                 "namespace": self.namespace,
-                "agent": spec.agent_id,
-                "session": spec.session_id,
-                "generation": str(spec.generation),
+                "agent": agent_id or "",
+                "session": session_id,
+                "generation": str(generation),
                 "config": digest,
             }
             args = [
@@ -153,35 +208,37 @@ class DockerSandboxProvider(SandboxProvider):
                 "--security-opt",
                 "no-new-privileges",
                 "--network",
-                spec.network,
+                self.network,
                 "--memory",
-                f"{spec.memory_mb}m",
+                f"{self.memory_mb}m",
                 "--memory-swap",
-                f"{spec.memory_mb}m",
+                f"{self.memory_mb}m",
                 "--cpus",
-                str(spec.cpus),
+                str(self.cpus),
                 "--pids-limit",
-                str(spec.pids_limit),
+                str(self.pids_limit),
                 "--tmpfs",
-                f"/workspace:rw,nosuid,nodev,uid=1000,gid=1000,mode=0700,size={spec.workspace_mb}m",
+                f"/workspace:rw,nosuid,nodev,uid=1000,gid=1000,mode=0700,size={self.workspace_mb}m",
                 "--tmpfs",
                 "/runtime:rw,nosuid,nodev,uid=1000,gid=1000,mode=0700,size=256m",
                 "--tmpfs",
                 "/tmp:rw,nosuid,nodev,uid=1000,gid=1000,mode=1777,size=128m",
                 "--workdir",
                 "/workspace",
-                "--env",
-                "HOME=/runtime",
             ]
             for key, value in labels.items():
                 args.extend(["--label", _LABEL + key + "=" + value])
-            for key, value in spec.env.items():
-                args.extend(["--env", key + "=" + value])
-            args.extend(["--entrypoint", "python", spec.image, "-I", "-c", "import time; time.sleep(2147483647)"])
+            # Env values go through a private file so they never appear in the host process list.
+            env_file = self._write_env_file({"HOME": "/runtime", **values})
+            args.extend(["--env-file", env_file])
+            args.extend(["--entrypoint", "python", self.image, "-I", "-c", "import time; time.sleep(2147483647)"])
             try:
                 code, _, err = await self._docker(*args, timeout=120)
             except asyncio.TimeoutError:
                 code, err = 1, b"Creation response timed out"
+            finally:
+                with suppress(FileNotFoundError):
+                    os.unlink(env_file)
             # A concurrent creator or lost response is resolved by the deterministic name.
             current = await self.aget(name)
             if current is None:
@@ -192,6 +249,9 @@ class DockerSandboxProvider(SandboxProvider):
             code, _, err = await self._docker("container", "start", current.provider_ref)
             current = await self.aget(current.provider_ref)
             if code and (current is None or current.state != "running"):
+                # A container that never ran holds no files; remove it so the caller is not left an orphan.
+                if current is not None and current.state == "created":
+                    await self._docker("container", "rm", current.provider_ref)
                 raise SandboxError("Docker start failed: " + err.decode(errors="replace")[:500])
         if current is None or current.state != "running":
             raise SandboxError("Sandbox generation is not running; recovery requires a new generation")

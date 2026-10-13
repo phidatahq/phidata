@@ -185,3 +185,56 @@ async def test_http_transport_refuses_requests_without_the_containers_token(runt
             computer.runtime_url + "/health", headers={"Authorization": "Bearer " + computer.runtime_token}
         )
         assert owner.status_code == 200
+
+
+_KILL_SERVER = (
+    "import os, signal\n"
+    "for pid in os.listdir('/proc'):\n"
+    "    if not pid.isdigit() or int(pid) == os.getpid():\n"
+    "        continue\n"
+    "    try:\n"
+    "        cmd = open(f'/proc/{pid}/cmdline', 'rb').read().replace(b'\\0', b' ')\n"
+    "    except OSError:\n"
+    "        continue\n"
+    "    if b'agno.sandbox.runtime serve' in cmd:\n"
+    "        os.kill(int(pid), signal.SIGKILL)\n"
+    "        print(pid)\n"
+)
+
+
+async def test_the_turn_never_sees_the_control_token(runtime_computer):
+    provider, computer, client = runtime_computer
+    execution = await client.astart(computer, execution_id="env", run_id="r", sdk="fixture", input="x")
+    await client.await_result(execution, timeout=20)
+    seen = (await provider.aexec(computer, ["cat", "fixture-env.txt"])).stdout.split()
+    assert "AGNO_SANDBOX_TEST_RUNTIME" in seen, "the fixture reports the variables it can see"
+    assert "AGNO_SANDBOX_RUNTIME_TOKEN" not in seen, "the token never reaches the worker's environment"
+
+
+async def test_server_crash_mid_turn_is_survived_by_the_turn_and_healed_by_the_supervisor(runtime_computer):
+    import asyncio
+
+    import httpx
+
+    provider, computer, client = runtime_computer
+    if computer.runtime_url is None:
+        pytest.skip("exec transport")
+    execution = await client.astart(
+        computer, execution_id="crash", run_id="r", sdk="fixture", input="still here", config={"delay": 3.0}
+    )
+    killed = await provider.aexec(computer, ["python", "-c", _KILL_SERVER])
+    assert killed.exit_code == 0 and killed.stdout.strip(), "the server process was found and killed"
+    headers = {"Authorization": "Bearer " + computer.runtime_token}
+    async with httpx.AsyncClient() as http:
+        for _ in range(50):
+            try:
+                if (await http.get(computer.runtime_url + "/health", headers=headers, timeout=1)).status_code == 200:
+                    break
+            except httpx.HTTPError:
+                pass
+            await asyncio.sleep(0.1)
+        else:
+            pytest.fail("the runtime server did not come back")
+    result = await client.await_result(execution, timeout=20)
+    assert result["type"] == "execution_finished" and result["run"]["content"] == "still here"
+    assert (await provider.aexec(computer, ["cat", "fixture-effects.txt"])).stdout == "r\n", "ran exactly once"

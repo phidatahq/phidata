@@ -33,14 +33,15 @@ def _execute(request: Dict[str, Any]) -> Dict[str, Any]:
                 timed_out = time.monotonic() >= deadline
                 output_limited = os.fstat(stdout.fileno()).st_size + os.fstat(stderr.fileno()).st_size > limit
                 if timed_out or output_limited:
-                    with suppress(ProcessLookupError):
+                    # EPERM: on macOS the group leader is already a zombie; the group is gone either way.
+                    with suppress(ProcessLookupError, PermissionError):
                         os.killpg(process.pid, signal.SIGKILL)
                     break
                 time.sleep(0.02)
             process.wait()
         finally:
             if process.poll() is None:
-                with suppress(ProcessLookupError):
+                with suppress(ProcessLookupError, PermissionError):
                     os.killpg(process.pid, signal.SIGKILL)
                 process.wait()
         total = os.fstat(stdout.fileno()).st_size + os.fstat(stderr.fileno()).st_size

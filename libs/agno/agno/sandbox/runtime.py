@@ -23,6 +23,9 @@ from typing import Any, Dict, Iterator, Optional
 from agno.sandbox.base import SandboxError
 
 _VERSION = 1
+# The bearer token the host must present to this container's server. The server reads it
+# once and drops it from its environment; workers are spawned without it.
+_TOKEN_ENV = "AGNO_SANDBOX_RUNTIME_TOKEN"
 _MAX_REQUEST = 1024 * 1024
 _MAX_FRAME = 256 * 1024
 _MAX_RESULT = 1024 * 1024
@@ -122,11 +125,17 @@ def _start(root: Path, request: Dict[str, Any]) -> Dict[str, Any]:
                 stderr=subprocess.DEVNULL,
                 start_new_session=True,
                 close_fds=True,
+                env=_worker_env(),
             )
         except Exception as error:
             _atomic(directory / "result.json", _encode({"type": "execution_error", "error": str(error)}))
             raise
     return {"version": _VERSION, "execution_id": request["execution_id"], "accepted": True}
+
+
+def _worker_env() -> Dict[str, str]:
+    """The worker's environment: everything the container has, minus the control token."""
+    return {key: value for key, value in os.environ.items() if key != _TOKEN_ENV}
 
 
 def _append(directory: Path, event: Dict[str, Any]) -> None:
@@ -146,15 +155,18 @@ async def _fixture(directory: Path, request: Dict[str, Any]) -> Dict[str, Any]:
     workspace.mkdir(exist_ok=True)
     with (workspace / "fixture-effects.txt").open("a") as stream:
         stream.write(request["run_id"] + "\n")
-    await asyncio.sleep(float(request.get("config", {}).get("delay", 0)))
-    event = {
-        "event": "RunContent",
-        "content": request["input"],
-        "run_id": request["run_id"],
-        "session_id": request["session_id"],
-        "agent_id": request["agent_id"],
-    }
-    _append(directory, event)
+    # What the agent's tools would see: the names of our own variables in this environment.
+    (workspace / "fixture-env.txt").write_text("\n".join(sorted(k for k in os.environ if k.startswith("AGNO_SANDBOX"))))
+    config = request.get("config", {})
+    delay, steps = float(config.get("delay", 0)), int(config.get("steps", 1))
+    identity = {"run_id": request["run_id"], "session_id": request["session_id"], "agent_id": request["agent_id"]}
+    # With steps, the turn streams: one event per step spaced over the delay, then the final
+    # content. With the default of one step it is a single event after the delay.
+    for step in range(1, steps):
+        await asyncio.sleep(delay / steps)
+        _append(directory, {"event": "RunContent", "content": f"step {step} of {steps}", **identity})
+    await asyncio.sleep(delay / steps)
+    _append(directory, {"event": "RunContent", "content": request["input"], **identity})
     return {
         "type": "execution_finished",
         "run": {
@@ -411,9 +423,55 @@ def _serve(root: Path, port: int, token: Optional[str] = None) -> Any:
     return Server(("0.0.0.0", port), Handler)
 
 
+def _supervise(port: int) -> None:
+    """Keep the runtime server alive as a child; the container's main process.
+
+    The server is the least important process in the container and the turn's worker the
+    most. If the server were the main process, its crash would stop the container and kill
+    the turn. As a child of this loop it is restarted with backoff, workers are untouched
+    (they run detached, reparented to init), and the host sees a short gap that the
+    cursor-based reconnect absorbs. SIGTERM, which Docker sends on stop, ends the server
+    and this loop; Docker then ends whatever else is running.
+    """
+    import signal
+
+    stopping = False
+    child: Optional[subprocess.Popen[bytes]] = None
+
+    def stop(signum: int, frame: Any) -> None:
+        nonlocal stopping
+        stopping = True
+        if child is not None and child.poll() is None:
+            child.terminate()
+
+    signal.signal(signal.SIGTERM, stop)
+    signal.signal(signal.SIGINT, stop)
+    delay = 0.2
+    while not stopping:
+        started = time.monotonic()
+        child = subprocess.Popen([sys.executable, "-I", "-m", "agno.sandbox.runtime", "serve", "--port", str(port)])
+        code = child.wait()
+        if stopping:
+            break
+        # A server that ran for a while gets a fresh backoff; a crash loop backs off up to 5 s.
+        delay = 0.2 if time.monotonic() - started > 10 else min(delay * 2, 5.0)
+        print(f"sandbox runtime server exited with {code}; restarting in {delay:.1f}s", file=sys.stderr, flush=True)
+        time.sleep(delay)
+
+
+def _take_token() -> Optional[str]:
+    """Read the control token and remove it from this process's environment, so nothing this
+    process spawns inherits it. Comes from the environment, never the command line."""
+    token = os.environ.pop(_TOKEN_ENV, None) or None
+    if token is None:
+        # Acceptable only when the port is unreachable beyond the host's loopback.
+        print("sandbox runtime server has no token: every reachable caller is accepted", file=sys.stderr, flush=True)
+    return token
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Sandbox runtime protocol")
-    parser.add_argument("operation", choices=("start", "poll", "worker", "serve"))
+    parser.add_argument("operation", choices=("start", "poll", "worker", "serve", "supervise"))
     parser.add_argument("directory", nargs="?")
     parser.add_argument("--port", type=int, default=int(os.environ.get("AGNO_SANDBOX_RUNTIME_PORT", "8765")))
     args = parser.parse_args()
@@ -421,9 +479,11 @@ def main() -> None:
     if args.operation == "worker":
         _worker(Path(args.directory))
         return
+    if args.operation == "supervise":
+        _supervise(args.port)
+        return
     if args.operation == "serve":
-        # The token comes from the environment, never the command line, so it stays out of ps.
-        _serve(root, args.port, os.environ.get("AGNO_SANDBOX_RUNTIME_TOKEN") or None).serve_forever()
+        _serve(root, args.port, _take_token()).serve_forever()
         return
     request = json.loads(sys.stdin.buffer.read(_MAX_REQUEST + 1))
     result = _start(root, request) if args.operation == "start" else _poll_wait(root, request)

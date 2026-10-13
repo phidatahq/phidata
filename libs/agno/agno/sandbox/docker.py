@@ -328,7 +328,7 @@ class DockerSandbox(Sandbox):
             if self.runtime_port is not None:
                 # Published on runtime_host only; loopback by default, so only this host reaches it.
                 args.extend(["--publish", f"{self.runtime_host}::{self.runtime_port}"])
-                args.extend(["--entrypoint", "python", self.image, "-I", "-m", "agno.sandbox.runtime", "serve"])
+                args.extend(["--entrypoint", "python", self.image, "-I", "-m", "agno.sandbox.runtime", "supervise"])
                 args.extend(["--port", str(self.runtime_port)])
             else:
                 args.extend(["--entrypoint", "python", self.image, "-I", "-c", "import time; time.sleep(2147483647)"])
@@ -373,7 +373,20 @@ class DockerSandbox(Sandbox):
         if operation not in ("start", "poll") or not isinstance(payload, bytes) or len(payload) > 1024 * 1024:
             raise ValueError("Runtime RPC requires start/poll and a payload no larger than 1 MiB")
         if handle.runtime_url is None:
-            return await super().arpc(handle, operation, payload)
+            # Exec fallback: fixed runtime argv, bounded, and never stopping compute on a failed or
+            # lost reply. A control request is not a command that could run forever.
+            try:
+                wait = float(json.loads(payload).get("wait", 0) or 0)
+            except (ValueError, AttributeError):
+                wait = 0.0
+            return await self._aexec(
+                handle,
+                ["python", "-I", "-m", "agno.sandbox.runtime", operation],
+                timeout=15 + min(max(wait, 0.0), 30.0),
+                max_output_bytes=4 * 1024 * 1024,
+                stdin=payload,
+                stop_on_failure=False,
+            )
         import httpx
 
         # No daemon call on this path: the published port belongs to this container alone, so a
@@ -384,7 +397,8 @@ class DockerSandbox(Sandbox):
                 handle.runtime_url + "/" + operation, content=payload, headers=self._headers(handle)
             )
         except httpx.HTTPError as error:
-            raise SandboxError(f"Sandbox runtime request failed: {error}") from error
+            # httpx connection errors often carry no text; name the error class so the message says something.
+            raise SandboxError(f"Sandbox runtime request failed: {str(error) or type(error).__name__}") from error
         body = response.text[: 4 * 1024 * 1024]
         if response.status_code != 200:
             return ExecResult(exit_code=1, stdout="", stderr=body)
@@ -399,6 +413,22 @@ class DockerSandbox(Sandbox):
         max_output_bytes: int = 1_048_576,
         stdin: bytes = b"",
     ) -> ExecResult:
+        return await self._aexec(handle, argv, timeout=timeout, max_output_bytes=max_output_bytes, stdin=stdin)
+
+    async def _aexec(
+        self,
+        handle: SandboxHandle,
+        argv: Sequence[str],
+        *,
+        timeout: float = 60,
+        max_output_bytes: int = 1_048_576,
+        stdin: bytes = b"",
+        stop_on_failure: bool = True,
+    ) -> ExecResult:
+        """Run a command. With ``stop_on_failure`` an uncertain transport outcome stops the
+        container, since killing the Docker client does not kill the remote command; runtime
+        control requests pass False because they exit on their own and leaving compute alone is
+        the safe outcome for them."""
         if isinstance(argv, (str, bytes)) or not argv or any(not isinstance(arg, str) or "\x00" in arg for arg in argv):
             raise ValueError("Commands must be a nonempty sequence of strings")
         if not math.isfinite(timeout) or timeout <= 0 or not 1 <= max_output_bytes <= 4 * 1024 * 1024:
@@ -434,18 +464,21 @@ class DockerSandbox(Sandbox):
         except (asyncio.CancelledError, asyncio.TimeoutError, SandboxError):
             # Killing the Docker client does not kill its remote command. Stop compute
             # to bound cancellation; checkpoint recovery belongs to the coordinator.
-            await asyncio.shield(self.astop(handle))
+            if stop_on_failure:
+                await asyncio.shield(self.astop(handle))
             raise
         if code:
-            await self.astop(handle)
+            if stop_on_failure:
+                await self.astop(handle)
             raise SandboxError("Sandbox command transport failed: " + err.decode(errors="replace")[:500])
         try:
             result = ExecResult(**json.loads(out))
-            if result.timed_out or result.output_limited:
+            if stop_on_failure and (result.timed_out or result.output_limited):
                 await self.astop(handle)
             return result
         except (TypeError, ValueError) as error:
-            await self.astop(handle)
+            if stop_on_failure:
+                await self.astop(handle)
             raise SandboxError("Sandbox returned an invalid command result") from error
 
     async def apause(self, handle: SandboxHandle) -> None:

@@ -407,7 +407,7 @@ async def test_runtime_port_publishes_on_loopback_and_serves_the_runtime():
         "-I",
         "-m",
         "agno.sandbox.runtime",
-        "serve",
+        "supervise",
     ]
     assert "--label" in args and "io.agno.sandbox.runtime=8765" in args
     assert handle.runtime_url == "http://127.0.0.1:49152"
@@ -455,15 +455,16 @@ async def test_rpc_over_http_makes_no_daemon_calls_and_falls_back_to_exec_withou
     assert handle.runtime_url is None
     seen = []
 
-    async def aexec(handle, argv, **kwargs):
+    async def _aexec(handle, argv, **kwargs):
         seen.append((argv, kwargs))
         return ExecResult(0, "{}", "")
 
-    plain.aexec = aexec  # type: ignore[method-assign]
+    plain._aexec = _aexec  # type: ignore[method-assign]
     await plain.arpc(handle, "poll", b'{"execution_id": "e", "cursor": 0, "wait": 5}')
     argv, kwargs = seen[0]
     assert argv == ["python", "-I", "-m", "agno.sandbox.runtime", "poll"]
     assert kwargs["stdin"] == b'{"execution_id": "e", "cursor": 0, "wait": 5}' and kwargs["timeout"] == 20
+    assert kwargs["stop_on_failure"] is False, "a control request never stops compute"
 
 
 def test_runtime_port_requires_a_network_and_is_part_of_the_configuration():
@@ -523,3 +524,27 @@ async def test_create_fails_when_the_runtime_server_never_answers(monkeypatch):
     provider.http_error = httpx.ConnectError("not up")
     with pytest.raises(SandboxError, match="did not become ready"):
         await provider.acreate("session")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure", [asyncio.TimeoutError(), SandboxError("lost control transport")])
+async def test_exec_fallback_control_failure_never_stops_compute(failure):
+    """Without a runtime server, rpc goes over exec but keeps the no-stop rule of a control request."""
+
+    class LostControl(FakeDocker):
+        async def _docker(self, *args, **kwargs):
+            if args[:2] == ("container", "exec"):
+                raise failure
+            return await super()._docker(*args, **kwargs)
+
+    provider = LostControl()
+    handle = await provider.acreate("session")
+    assert handle.runtime_url is None
+    with pytest.raises(type(failure)):
+        await provider.arpc(handle, "poll", b'{"execution_id": "e", "cursor": 0}')
+    assert (await provider.aget(handle.provider_ref)).state == "running"
+    assert not any(call[0][:2] == ("container", "stop") for call in provider.calls)
+    # Arbitrary commands keep the stop rule.
+    with pytest.raises(type(failure)):
+        await provider.aexec(handle, ["sleep", "1"])
+    assert any(call[0][:2] == ("container", "stop") for call in provider.calls)

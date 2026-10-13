@@ -98,3 +98,23 @@ No model calls in the load run. Requests and daemon calls per turn are what scal
 
 ---
 
+
+### Token scope, server supervisor, and the no-stop exec fallback
+
+**Status:** PASS
+
+**Description:** Three updates from the review of #11034. The control token used to sit in the container environment, where every worker and therefore every tool the agent runs inherited it; the server now reads it once and removes it from its own environment, and workers are spawned without it. The HTTP server used to be the container's main process, so a server crash would have stopped the container mid-turn; the main process is now `python -m agno.sandbox.runtime supervise`, which runs the server as a child, restarts it with backoff, and stops on `SIGTERM` while workers run detached. The exec fallback for `rpc` used to go through plain `aexec`, which stops the container on a timed-out or lost reply; it now runs the fixed runtime argv through the shared executor with stopping disabled, so a lost control reply leaves compute alone on both transports, while arbitrary `exec` keeps the stop rule. README documents the token's real scope (same-UID caveat, separate UID as follow-up), the supervisor, the fallback rule, and that `runtime_port`/`runtime_host` are in the config digest, so flipping a default is a migration.
+
+**Result:** Unit: the worker is spawned with an env lacking the token and keeping everything else; `_take_token` returns the token, removes it, and warns when absent; the supervisor restarts a crashed child once with a 0.4 s backoff and terminates the running child on `SIGTERM`; the Docker entrypoint is `supervise`; the fallback passes `stop_on_failure=False`; a timeout or `SandboxError` on an exec-path `rpc` never calls `stop`, while the same failure on `exec` does. 118 sandbox unit tests pass. Integration against the rebuilt `agno-sandbox:local`: the fixture writes the `AGNO_SANDBOX*` names it sees into the workspace and the token is absent on both transports; killing the server process mid-turn with `SIGKILL` leaves the turn running, the supervisor brings the server back, and the turn finishes exactly once (HTTP transport; skipped on exec). 19 passed, 3 skipped.
+
+---
+
+### runtime_resilience.py
+
+**Status:** PASS
+
+**Description:** Live demonstration of the three boundaries above on `agno-sandbox:local`, printing each event with its cursor and elapsed time. A fixture turn reports the `AGNO_SANDBOX*` variables it can see; a turn streaming eight events over four seconds (the fixture now takes a `steps` option) has the runtime server killed with `SIGKILL` after its second event; a control request on the exec transport is forced to time out. Failure messages that used to end in an empty string now name the cause (`Server disconnected`, `ConnectError`, `timed out`).
+
+**Result:** The turn saw `AGNO_SANDBOX_TEST_RUNTIME` only, no token. After the kill, four polls failed over about 0.4 s while the supervisor restarted the server, then events 3 through 8 arrived from cursor 270 onward; all eight arrived exactly once and the effects file lists each run once. The timed-out control request raised `SandboxError`, the container stayed `running`, and the same turn then streamed its event and finished.
+
+---

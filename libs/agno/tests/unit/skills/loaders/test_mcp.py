@@ -53,6 +53,8 @@ class SkillsServerState:
         self.unlisted: Dict[str, Dict[str, Any]] = {}
         self.page_size: Optional[int] = None
         self.reads: List[str] = []
+        self.gets: List[str] = []
+        self.lists = 0
 
     def entry(self, uri: str, name: str, description: str, **frontmatter: Any) -> Dict[str, Any]:
         return {
@@ -83,6 +85,7 @@ def _build_server(state: SkillsServerState, declare_extension: bool = True) -> M
 
         def methods(self):
             async def list_skills(ctx, params: PaginatedRequestParams):
+                state.lists += 1
                 start = int(params.cursor) if params.cursor else 0
                 end = len(state.entries) if state.page_size is None else start + state.page_size
                 result: Dict[str, Any] = {
@@ -96,6 +99,7 @@ def _build_server(state: SkillsServerState, declare_extension: bool = True) -> M
                 return result
 
             async def get_skill(ctx, params: GetSkillParams):
+                state.gets.append(params.uri)
                 known = {e["uri"]: e for e in state.entries} | state.unlisted
                 if params.uri not in known:
                     from mcp.shared.exceptions import MCPError
@@ -246,10 +250,22 @@ async def test_aload_gets_unlisted_skill_uris(state: SkillsServerState) -> None:
         ),
         pytest.param(lambda e: e["resources"][0].update(size=17 * 1024 * 1024), id="over-size-limit"),
         pytest.param(lambda e: e.update(uri="skill://greeter/README.md"), id="uri-not-skill-md"),
+        pytest.param(lambda e: e["frontmatter"].update(description=""), id="empty-description"),
+        pytest.param(lambda e: e["frontmatter"].update(description="x" * 1025), id="description-over-1024"),
     ],
 )
 async def test_aload_skips_invalid_entries(state: SkillsServerState, mutate) -> None:
     mutate(state.entries[0])
+    async with serving(state) as make:
+        assert await make().aload() == []
+
+
+@pytest.mark.parametrize("name", ["Greeter", "a--b", "-greeter", "x" * 65])
+async def test_aload_skips_names_that_break_agent_skills_rules(state: SkillsServerState, name: str) -> None:
+    # A self-consistent entry, so only the name rule can reject it.
+    uri = f"skill://{name}/SKILL.md"
+    state.files = {uri: f"---\nname: {name}\ndescription: A skill\n---\n\nBody.\n"}
+    state.entries = [state.entry(uri, name, "A skill")]
     async with serving(state) as make:
         assert await make().aload() == []
 
@@ -300,17 +316,38 @@ async def test_tampered_content_is_rejected(state: SkillsServerState) -> None:
             await loader.aread_file("docs/greeter", "references/style.md")
 
 
-async def test_stale_entry_is_refreshed_with_skills_get(state: SkillsServerState) -> None:
+async def test_changed_skill_is_not_mixed_into_loaded_instructions(state: SkillsServerState) -> None:
     async with serving(state) as make:
         loader = make()
         skill = (await loader.aload())[0]
-        # The server updates a file and its published entry after the host listed it.
+        await loader.aread_instructions("docs/greeter")
+
+        # The server swaps a file and adds one after the instructions are in context.
         state.files["skill://greeter/references/style.md"] = "Say hello warmly.\n"
         state.files["skill://greeter/references/extra.md"] = "Extra.\n"
         state.entries[0] = state.entry("skill://greeter/SKILL.md", "greeter", "Greet people politely")
 
+        with pytest.raises(SkillVerificationError, match="changed on the MCP server"):
+            await loader.aread_file("docs/greeter", "references/style.md")
+        reads_before = list(state.reads)
+        with pytest.raises(SkillVerificationError, match="changed on the MCP server"):
+            await loader.aread_file("docs/greeter", "references/extra.md")
+        assert state.reads == reads_before
+
+        # Loading the instructions again acts on the new entry.
+        await loader.aread_instructions("docs/greeter")
         assert await loader.aread_file("docs/greeter", "references/style.md") == "Say hello warmly.\n"
         assert skill.references == ["references/extra.md", "references/style.md"]
+
+
+async def test_changed_skill_md_is_refreshed_when_instructions_load(state: SkillsServerState) -> None:
+    async with serving(state) as make:
+        loader = make()
+        await loader.aload()
+        state.files["skill://greeter/SKILL.md"] = GREETER_MD + "Wave too.\n"
+        state.entries[0] = state.entry("skill://greeter/SKILL.md", "greeter", "Greet people politely")
+        assert (await loader.aread_instructions("docs/greeter")).endswith("Wave too.")
+    assert state.gets == ["skill://greeter/SKILL.md"]
 
 
 async def test_unlisted_file_is_rejected(state: SkillsServerState) -> None:
@@ -322,6 +359,8 @@ async def test_unlisted_file_is_rejected(state: SkillsServerState) -> None:
         with pytest.raises(SkillVerificationError, match="not a file of skill"):
             await loader.aread_file("docs/greeter", "references/secret.md")
     assert "skill://greeter/references/secret.md" not in state.reads
+    # An unlisted path is not a reason to switch to a newer entry.
+    assert state.gets == []
 
 
 @pytest.mark.parametrize("path", ["../refunds/SKILL.md", "/etc/passwd", "references/../../x", "SKILL.md", "", "a://b"])
@@ -370,13 +409,51 @@ async def test_skills_retries_a_loader_that_failed(state: SkillsServerState) -> 
     await skills.aclose()
 
 
-async def test_concurrent_aload_registers_each_skill_once(state: SkillsServerState) -> None:
+async def test_concurrent_first_runs_list_each_loader_once(state: SkillsServerState) -> None:
     async with serving(state) as make:
-        skills = Skills(loaders=[make()])
+        loader = make()
+        skills = Skills(loaders=[loader])
         with patch("agno.skills.agent_skills.log_warning") as warn:
             await asyncio.gather(skills.aload(), skills.aload())
-    assert skills.get_skill_names() == ["docs/greeter"]
+        assert state.lists == 1
+        assert skills.get_skill_names() == ["docs/greeter"]
+        # The registry holds the loader's objects, so a stale-entry refresh updates what the prompt shows.
+        assert skills.get_skill("docs/greeter") is loader._skills["docs/greeter"]
     warn.assert_not_called()
+
+
+async def test_run_ending_keeps_the_connection_for_other_runs(state: SkillsServerState) -> None:
+    loader = make_loader(state)
+    skills = Skills(loaders=[loader])
+    a_loaded, a_closed, b_done = asyncio.Event(), asyncio.Event(), asyncio.Event()
+
+    async def run_a() -> None:
+        await skills.aload()
+        a_loaded.set()
+        await skills.aclose()
+        a_closed.set()
+
+    async def run_b() -> None:
+        await skills.aload()
+        await a_closed.wait()
+        # Run A has ended; this run's read still uses the open connection.
+        await skills._aget_skill_instructions("docs/greeter")
+        assert loader._client.connects == 1
+        await skills.aclose()
+        b_done.set()
+
+    await asyncio.gather(run_b(), run_a())
+    assert b_done.is_set()
+    assert loader._client._client is None
+
+
+async def test_retried_run_start_still_closes_at_run_end(state: SkillsServerState) -> None:
+    loader = make_loader(state)
+    skills = Skills(loaders=[loader])
+    await skills.aload()
+    await skills.aload()
+    await skills.aclose()
+    assert loader._client._client is None
 
 
 def test_sync_get_tools_warns_when_mcp_skills_are_pending() -> None:

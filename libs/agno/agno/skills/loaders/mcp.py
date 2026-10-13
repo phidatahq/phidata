@@ -12,8 +12,8 @@ import yaml
 from agno.skills.errors import SkillError
 from agno.skills.loaders.base import SkillLoader
 from agno.skills.skill import Skill
+from agno.skills.validator import _validate_description, _validate_name
 from agno.utils.log import log_debug, log_warning
-from agno.utils.mcp import get_default_toolkit_name
 
 SKILLS_EXTENSION = "io.modelcontextprotocol/skills"
 
@@ -29,6 +29,12 @@ _FRONTMATTER_PATTERN = re.compile(r"^---\s*\n(.*?)\n---\s*\n?(.*)$", re.DOTALL)
 
 class SkillVerificationError(SkillError):
     """Raised when MCP-served skill content does not match the entry the server published."""
+
+    pass
+
+
+class _ContentMismatch(SkillVerificationError):
+    """A listed file's bytes do not match its digest or size."""
 
     pass
 
@@ -89,14 +95,16 @@ class MCPSkills(SkillLoader):
         server_params: Optional[Any] = None,
         env: Optional[Dict[str, str]] = None,
         headers: Optional[Dict[str, Any]] = None,
-        timeout_seconds: int = 10,
+        timeout_seconds: float = 10,
         label: Optional[str] = None,
         skill_uris: Optional[List[str]] = None,
         allow_dynamic: bool = False,
     ):
         if not (command or url or server_params):
             raise ValueError("MCPSkills needs a command, url or server_params")
+        # Imported here: `agno.skills` is imported by every Agent, and these modules require the `mcp` extra.
         from agno.tools.mcp.mcp import create_mcp_client
+        from agno.utils.mcp import get_default_toolkit_name
 
         # The Skills extension is only advertised on protocol revision 2026-07-28, which "auto" negotiates.
         self._client: Any = create_mcp_client(
@@ -123,6 +131,8 @@ class MCPSkills(SkillLoader):
         self._entries: Dict[str, _HeldEntry] = {}
         self._skills: Dict[str, Skill] = {}
         self._cache: Dict[Tuple[str, str], bytes] = {}
+        # Skills whose server copy changed after their instructions were loaded.
+        self._changed: set = set()
 
     def __repr__(self) -> str:
         return f"MCPSkills(label={self.label!r})"
@@ -162,6 +172,7 @@ class MCPSkills(SkillLoader):
         self._entries.clear()
         self._skills.clear()
         self._cache.clear()
+        self._changed.clear()
         for raw in raw_entries:
             try:
                 entry = _parse_entry(raw)
@@ -186,9 +197,19 @@ class MCPSkills(SkillLoader):
         return list(self._skills.values())
 
     async def aread_instructions(self, skill_name: str) -> str:
-        """Read a skill's `SKILL.md`, verify it, and return the instructions body."""
+        """Read a skill's `SKILL.md`, verify it, and return the instructions body.
+
+        Loading instructions starts acting on the skill afresh, so a skill that changed
+        on the server is refreshed with `skills/get` and read under its new entry.
+        """
         entry = self._held_entry(skill_name)
-        content = (await self._read_verified(skill_name, entry.uri)).decode("utf-8")
+        try:
+            data = await self._read_against(entry, entry.uri)
+        except _ContentMismatch:
+            entry = await self._refresh(skill_name)
+            data = await self._read_against(entry, entry.uri)
+
+        content = data.decode("utf-8")
         match = _FRONTMATTER_PATTERN.match(content)
         if match is None:
             raise SkillVerificationError(f"SKILL.md for '{skill_name}' has no YAML frontmatter")
@@ -196,19 +217,37 @@ class MCPSkills(SkillLoader):
             frontmatter = yaml.safe_load(match.group(1)) or {}
         except yaml.YAMLError as e:
             raise SkillVerificationError(f"SKILL.md frontmatter for '{skill_name}' is not valid YAML: {e}") from e
-        # Re-read the entry: a stale-digest refresh may have replaced it.
-        if _normalize(frontmatter) != _normalize(self._held_entry(skill_name).frontmatter):
+        if _normalize(frontmatter) != _normalize(entry.frontmatter):
             raise SkillVerificationError(f"SKILL.md frontmatter for '{skill_name}' does not match the skill entry")
+        self._changed.discard(skill_name)
         return match.group(2).strip()
 
     async def aread_file(self, skill_name: str, relative_path: str) -> str:
-        """Read a supporting file by its path relative to the skill root."""
+        """Read a supporting file by its path relative to the skill root.
+
+        Reads stay bound to the entry the instructions were loaded under. If the server
+        changed the skill since, the read fails until the instructions are loaded again,
+        so old instructions are never paired with new files.
+        """
         entry = self._held_entry(skill_name)
         # Checked before normalizing: normpath folds "a://b" into "a:/b".
         normalized = posixpath.normpath(relative_path) if relative_path and ":" not in relative_path else ""
         if not normalized or normalized in (".", "..", _SKILL_MD) or normalized.startswith(("/", "../")):
             raise SkillVerificationError(f"Invalid path '{relative_path}' for skill '{skill_name}'")
-        data = await self._read_verified(skill_name, entry.root + normalized)
+        if skill_name in self._changed:
+            raise SkillVerificationError(_changed_message(skill_name))
+        try:
+            data = await self._read_against(entry, entry.root + normalized)
+        except _ContentMismatch:
+            if entry.resources is None:
+                raise
+            # Refresh so the next instructions load sees the new entry; a server that still
+            # publishes the same files is serving content that does not match them.
+            refreshed = await self._refresh(skill_name)
+            if refreshed.resources == entry.resources:
+                raise
+            self._changed.add(skill_name)
+            raise SkillVerificationError(_changed_message(skill_name)) from None
         return data.decode("utf-8", errors="replace")
 
     async def aclose(self) -> None:
@@ -272,30 +311,25 @@ class MCPSkills(SkillLoader):
             raise SkillError(f"Skill '{skill_name}' is not served by MCP server '{self.label}'")
         return entry
 
-    async def _read_verified(self, skill_name: str, uri: str) -> bytes:
+    async def _refresh(self, skill_name: str) -> _HeldEntry:
+        """Replace the held entry with the server's current one from `skills/get`."""
         entry = self._held_entry(skill_name)
+        log_debug(f"Refreshing skill '{skill_name}' from MCP server '{self.label}'")
         try:
-            return await self._read_against(entry, uri)
-        except SkillVerificationError as first_error:
-            if entry.resources is None:
-                raise
-            # The skill may have changed since it was listed: refresh the entry once and retry.
-            log_debug(f"Refreshing skill '{skill_name}' after a failed verification: {first_error}")
-            try:
-                refreshed = _parse_entry(await self._get_entry(entry.uri))
-            except Exception as e:
-                raise SkillVerificationError(f"{first_error}; refreshing the skill entry failed: {e}") from e
-            if refreshed.resources is None and not self.allow_dynamic:
-                raise SkillVerificationError(f"Skill '{skill_name}' is now dynamic and cannot be verified")
-            self._entries[skill_name] = refreshed
-            # Update in place: `Skills` holds this object in its registry.
-            current, rebuilt = self._skills[skill_name], self._build_skill(skill_name, refreshed)
-            current.description, current.scripts, current.references = (
-                rebuilt.description,
-                rebuilt.scripts,
-                rebuilt.references,
-            )
-            return await self._read_against(refreshed, uri)
+            refreshed = _parse_entry(await self._get_entry(entry.uri))
+        except Exception as e:
+            raise SkillVerificationError(f"Refreshing skill '{skill_name}' failed: {e}") from e
+        if refreshed.resources is None and not self.allow_dynamic:
+            raise SkillVerificationError(f"Skill '{skill_name}' is now dynamic and cannot be verified")
+        self._entries[skill_name] = refreshed
+        # Update in place: `Skills` holds this object in its registry.
+        current, rebuilt = self._skills[skill_name], self._build_skill(skill_name, refreshed)
+        current.description, current.scripts, current.references = (
+            rebuilt.description,
+            rebuilt.scripts,
+            rebuilt.references,
+        )
+        return refreshed
 
     async def _read_against(self, entry: _HeldEntry, uri: str) -> bytes:
         if entry.resources is None:
@@ -314,7 +348,7 @@ class MCPSkills(SkillLoader):
             return cached
         data = await self._fetch(uri)
         if len(data) != size or "sha256:" + hashlib.sha256(data).hexdigest() != digest:
-            raise SkillVerificationError(f"Content of '{uri}' does not match the skill entry digest")
+            raise _ContentMismatch(f"Content of '{uri}' does not match the skill entry digest")
         self._cache[(uri, digest)] = data
         return data
 
@@ -381,6 +415,10 @@ def _parse_entry(raw: Any) -> _HeldEntry:
     name, description = frontmatter.get("name"), frontmatter.get("description")
     if not isinstance(name, str) or not isinstance(description, str):
         raise ValueError(f"{uri}: frontmatter needs string 'name' and 'description'")
+    # The Agent Skills limits also bound what a server can put in every system prompt.
+    errors = _validate_name(name) + _validate_description(description)
+    if errors:
+        raise ValueError(f"{uri}: {'; '.join(errors)}")
     if skill_path.rsplit("/", 1)[-1] != name:
         raise ValueError(f"{uri}: final path segment does not equal frontmatter name {name!r}")
 
@@ -418,6 +456,13 @@ def _parse_resources(uri: str, resources: Sequence[Any]) -> Dict[str, Tuple[str,
     if total > MAX_SKILL_BYTES:
         raise ValueError(f"{uri}: {total} bytes exceeds the {MAX_SKILL_BYTES}-byte limit")
     return parsed
+
+
+def _changed_message(skill_name: str) -> str:
+    return (
+        f"Skill '{skill_name}' changed on the MCP server after its instructions were loaded. "
+        "Load its instructions again before reading its files."
+    )
 
 
 def _normalize(value: Union[Dict[str, Any], Any]) -> Any:

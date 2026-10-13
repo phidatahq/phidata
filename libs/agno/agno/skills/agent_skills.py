@@ -2,6 +2,7 @@ import asyncio
 import html
 import json
 import subprocess
+import weakref
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -42,6 +43,9 @@ class Skills:
         self._skills: Dict[str, Skill] = {}
         self._mcp_sources: Dict[str, MCPSkills] = {}
         self._loaded_async_loaders: List[SkillLoader] = []
+        self._load_lock: Optional[asyncio.Lock] = None
+        # Tasks (runs) that loaded skills and have not called aclose() yet.
+        self._active_tasks: "weakref.WeakSet[asyncio.Task]" = weakref.WeakSet()
         self._load_skills()
 
     def _load_skills(self) -> None:
@@ -67,33 +71,51 @@ class Skills:
         """Load skills from loaders that need async I/O, such as MCPSkills.
 
         Each loader is loaded once; a loader that fails is retried on the next call.
+        The calling task is marked as using loader connections until it calls `aclose()`.
 
         Raises:
             SkillValidationError: If any skill fails validation.
         """
-        for loader in self.loaders:
-            if not loader.requires_async or loader in self._loaded_async_loaders:
-                continue
-            try:
-                skills = await loader.aload()
-            except SkillValidationError:
-                raise
-            except Exception as e:
-                log_warning(f"Error loading skills from {loader}: {str(e)}")
-                continue
-            if loader in self._loaded_async_loaders:
-                continue  # A concurrent run loaded it while this one awaited.
-            for skill in skills:
-                self._register(skill, loader)
-            self._loaded_async_loaders.append(loader)
+        task = asyncio.current_task()
+        if task is not None:
+            self._active_tasks.add(task)
+        if not self._pending_async_loaders():
+            return
+        if self._load_lock is None:
+            # Created lazily so the lock binds to the running event loop.
+            self._load_lock = asyncio.Lock()
+        async with self._load_lock:
+            for loader in self._pending_async_loaders():
+                try:
+                    skills = await loader.aload()
+                except SkillValidationError:
+                    raise
+                except Exception as e:
+                    log_warning(f"Error loading skills from {loader}: {str(e)}")
+                    continue
+                for skill in skills:
+                    self._register(skill, loader)
+                self._loaded_async_loaders.append(loader)
 
     async def aclose(self) -> None:
-        """Close connections opened by loaders, such as MCPSkills. Loaders reconnect on demand."""
+        """Release the calling task's use of loader connections, such as MCPSkills clients.
+
+        Connections close once no task that called `aload()` is still running, so a run
+        that ends never closes a connection another run is reading from. Loaders reconnect on demand.
+        """
+        task = asyncio.current_task()
+        if task is not None:
+            self._active_tasks.discard(task)
+        if any(not active.done() for active in self._active_tasks):
+            return
         for loader in self.loaders:
             try:
                 await loader.aclose()
             except Exception as e:
                 log_warning(f"Error closing {loader}: {str(e)}")
+
+    def _pending_async_loaders(self) -> List[SkillLoader]:
+        return [loader for loader in self.loaders if loader.requires_async and loader not in self._loaded_async_loaders]
 
     def _register(self, skill: Skill, loader: SkillLoader) -> None:
         existing = self._skills.get(skill.name)

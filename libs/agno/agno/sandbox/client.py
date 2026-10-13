@@ -6,7 +6,7 @@ import math
 from dataclasses import dataclass
 from typing import Any, AsyncIterator, Dict, Iterator, List, Mapping, Optional
 
-from agno.sandbox.base import SandboxError, SandboxHandle, SandboxProvider, _sync
+from agno.sandbox.base import Sandbox, SandboxError, SandboxHandle, _sync
 
 
 @dataclass(frozen=True)
@@ -32,7 +32,7 @@ class SandboxRuntimeClient:
     completion. The coordinator must separately commit a recovery checkpoint.
     """
 
-    def __init__(self, provider: SandboxProvider) -> None:
+    def __init__(self, provider: Sandbox) -> None:
         self.provider = provider
 
     async def _rpc(self, computer: SandboxHandle, operation: str, request: Mapping[str, Any]) -> Dict[str, Any]:

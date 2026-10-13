@@ -1,3 +1,4 @@
+import asyncio
 import io
 import json
 import tarfile
@@ -9,7 +10,7 @@ import pytest
 
 from agno.sandbox import SandboxError, SandboxHandle
 from agno.sandbox.checkpoint import CheckpointArchive, FileCheckpointStore
-from agno.sandbox.docker import DockerSandboxProvider
+from agno.sandbox.docker import DockerSandbox
 from agno.sandbox.transfer import DEFAULT_NATIVE_EXCLUSIONS, DockerCheckpointTransfer
 
 
@@ -46,7 +47,9 @@ def test_combine_converts_hardlinks_and_excludes_native_credentials(tmp_path):
             ("native/codex/thread", tarfile.REGTYPE, b"state"),
         ],
     )
-    transfer = DockerCheckpointTransfer(DockerSandboxProvider("test"), FileCheckpointStore(tmp_path / "objects"))
+    transfer = DockerCheckpointTransfer(
+        DockerSandbox("python:test", namespace="test"), FileCheckpointStore(tmp_path / "objects")
+    )
     transfer._combine(
         {"workspace": tmp_path / "workspace.tar", "native": tmp_path / "native.tar"},
         tmp_path / "result.tar",
@@ -79,7 +82,9 @@ def test_combine_converts_hardlinks_and_excludes_native_credentials(tmp_path):
 def test_combine_rejects_hardlinks_between_excluded_and_retained_paths(tmp_path, entries):
     exported(tmp_path / "workspace.tar", "workspace", [])
     exported(tmp_path / "native.tar", "native", [("native/codex", tarfile.DIRTYPE, ""), *entries])
-    transfer = DockerCheckpointTransfer(DockerSandboxProvider("test"), FileCheckpointStore(tmp_path / "objects"))
+    transfer = DockerCheckpointTransfer(
+        DockerSandbox("python:test", namespace="test"), FileCheckpointStore(tmp_path / "objects")
+    )
     with pytest.raises(SandboxError, match="shares a hardlink"):
         transfer._combine(
             {"workspace": tmp_path / "workspace.tar", "native": tmp_path / "native.tar"},
@@ -101,7 +106,9 @@ def test_combine_names_absolute_virtualenv_link_and_accepts_its_exclusion(tmp_pa
             ("workspace/app.py", tarfile.REGTYPE, b"print(1)"),
         ],
     )
-    transfer = DockerCheckpointTransfer(DockerSandboxProvider("test"), FileCheckpointStore(tmp_path / "objects"))
+    transfer = DockerCheckpointTransfer(
+        DockerSandbox("python:test", namespace="test"), FileCheckpointStore(tmp_path / "objects")
+    )
     exports = {"workspace": tmp_path / "workspace.tar", "native": tmp_path / "native.tar"}
     with pytest.raises(SandboxError, match="workspace/.venv/bin/python"):
         transfer._combine(exports, tmp_path / "rejected.tar", {}, DEFAULT_NATIVE_EXCLUSIONS)
@@ -121,7 +128,9 @@ def test_combine_names_absolute_virtualenv_link_and_accepts_its_exclusion(tmp_pa
 def test_combine_rejects_hardlinks_to_missing_or_later_entries(tmp_path, entries):
     exported(tmp_path / "workspace.tar", "workspace", entries)
     exported(tmp_path / "native.tar", "native", [])
-    transfer = DockerCheckpointTransfer(DockerSandboxProvider("test"), FileCheckpointStore(tmp_path / "objects"))
+    transfer = DockerCheckpointTransfer(
+        DockerSandbox("python:test", namespace="test"), FileCheckpointStore(tmp_path / "objects")
+    )
     with pytest.raises(SandboxError, match="missing or later entry"):
         transfer._combine(
             {"workspace": tmp_path / "workspace.tar", "native": tmp_path / "native.tar"},
@@ -135,7 +144,7 @@ def test_combine_rejects_hardlinks_to_missing_or_later_entries(tmp_path, entries
 async def test_restore_applies_the_captured_native_root_mode(tmp_path):
     exported(tmp_path / "workspace.tar", "workspace", [])
     exported(tmp_path / "native.tar", "native", [])
-    provider = DockerSandboxProvider("test")
+    provider = DockerSandbox("python:test", namespace="test")
     provider.aexec = AsyncMock(return_value=SimpleNamespace(exit_code=1))
     transfer = DockerCheckpointTransfer(provider, FileCheckpointStore(tmp_path / "objects"))
     transfer._combine(
@@ -151,7 +160,9 @@ async def test_restore_applies_the_captured_native_root_mode(tmp_path):
 
 def test_capture_combine_rejects_wrong_export_root(tmp_path):
     exported(tmp_path / "workspace.tar", "other", [])
-    transfer = DockerCheckpointTransfer(DockerSandboxProvider("test"), FileCheckpointStore(tmp_path / "objects"))
+    transfer = DockerCheckpointTransfer(
+        DockerSandbox("python:test", namespace="test"), FileCheckpointStore(tmp_path / "objects")
+    )
     with pytest.raises(SandboxError):
         transfer._combine({"workspace": tmp_path / "workspace.tar"}, tmp_path / "result.tar", {}, [])
 
@@ -178,7 +189,7 @@ def test_validate_checks_composed_links_without_creating_files(tmp_path, monkeyp
 
 @pytest.mark.asyncio
 async def test_namespace_tmpfs_is_rejected_before_capture(tmp_path):
-    provider = DockerSandboxProvider("test")
+    provider = DockerSandbox("python:test", namespace="test")
     handle = SandboxHandle("id", "name", "a", "s", 1, "running", "digest")
     provider._owned = AsyncMock(return_value=handle)
     provider._docker = AsyncMock(return_value=(0, json.dumps([{"Mounts": []}]).encode(), b""))
@@ -190,7 +201,7 @@ async def test_namespace_tmpfs_is_rejected_before_capture(tmp_path):
 
 @pytest.mark.asyncio
 async def test_lost_pause_response_resumes_before_reporting_failure(tmp_path):
-    provider = DockerSandboxProvider("test")
+    provider = DockerSandbox("python:test", namespace="test")
     running = SandboxHandle("id", "name", "a", "s", 1, "running", "digest")
     paused = SandboxHandle("id", "name", "a", "s", 1, "paused", "digest")
     provider._owned = AsyncMock(side_effect=[running, paused, running])
@@ -199,3 +210,58 @@ async def test_lost_pause_response_resumes_before_reporting_failure(tmp_path):
     with pytest.raises(TimeoutError, match="lost pause"):
         await transfer._pause(running)
     assert provider._docker.call_args.args == ("container", "unpause", "id")
+
+
+def _paused_capture(tmp_path, unpause):
+    transfer = DockerCheckpointTransfer(
+        DockerSandbox("python:test", namespace="test"), FileCheckpointStore(tmp_path / "objects")
+    )
+    transfer._check_mounts = AsyncMock()
+    transfer.provider.aexec = AsyncMock(return_value=SimpleNamespace(exit_code=0))
+    transfer._pause = AsyncMock()
+    copying = asyncio.Event()
+
+    async def copy(*args, **kwargs):
+        copying.set()
+        await asyncio.Event().wait()
+
+    transfer._copy = copy
+    transfer._unpause = unpause
+    handle = SandboxHandle("id", "name", "a", "s", 1, "running", "digest")
+    return asyncio.create_task(transfer.acapture(handle, state={})), copying
+
+
+@pytest.mark.asyncio
+async def test_capture_waits_for_unpause_under_repeated_cancellation(tmp_path):
+    unpausing, release, finished = asyncio.Event(), asyncio.Event(), []
+
+    async def unpause(handle):
+        unpausing.set()
+        await release.wait()
+        finished.append(True)
+
+    task, copying = _paused_capture(tmp_path, unpause)
+    await copying.wait()
+    task.cancel()
+    await unpausing.wait()
+    for _ in range(2):
+        task.cancel()
+        await asyncio.sleep(0)
+    assert not task.done()
+    release.set()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert finished == [True]
+
+
+@pytest.mark.asyncio
+async def test_capture_cancellation_survives_a_failed_unpause(tmp_path):
+    async def unpause(handle):
+        await asyncio.sleep(0)
+        raise SandboxError("unpause failed")
+
+    task, copying = _paused_capture(tmp_path, unpause)
+    await copying.wait()
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task

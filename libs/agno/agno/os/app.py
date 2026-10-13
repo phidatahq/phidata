@@ -20,6 +20,7 @@ from agno.agent import Agent, AgentFactory, RemoteAgent
 from agno.agent.protocol import AgentProtocol
 from agno.agents.base import BaseExternalAgent
 from agno.db.base import AsyncBaseDb, BaseDb
+from agno.exceptions import AgnoError, SessionBusyError
 from agno.job_queue import QueueConfig
 from agno.knowledge.knowledge import Knowledge
 from agno.media.storage.base import AsyncMediaStorage, MediaStorage
@@ -1626,6 +1627,18 @@ class AgentOS:
         # Mount MCP if needed
         if self.mcp:
             self._mount_mcp_app(fastapi_app)
+
+        # Install on both owned and caller-supplied apps, unless a typed handler
+        # already handles this conflict. A catch-all Exception handler remains the
+        # server-error fallback; it should not turn routine conflicts into errors.
+        if not any(error_type in fastapi_app.exception_handlers for error_type in (SessionBusyError, AgnoError)):
+
+            @fastapi_app.exception_handler(SessionBusyError)
+            async def session_busy_handler(_: Request, exc: SessionBusyError) -> JSONResponse:
+                # Handle this expected conflict without the catch-all handler's re-raise,
+                # which makes Uvicorn close the connection serving the request.
+                log_warning(f"{type(exc).__name__}: {exc.status_code} {exc}")
+                return JSONResponse(status_code=exc.status_code, content=_error_body(str(exc), exc))
 
         if not self._app_set:
 

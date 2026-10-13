@@ -3,22 +3,17 @@
 import os
 from uuid import uuid4
 
-from agno.sandbox import SandboxSpec
-from agno.sandbox.docker import DockerSandboxProvider
+from agno.sandbox.docker import DockerSandbox
 
-provider = DockerSandboxProvider(namespace="cookbook-" + uuid4().hex)
-computer = provider.create(
-    SandboxSpec(
-        agent_id="coder",
-        session_id="example",
-        generation=1,
-        image=os.environ.get("AGNO_SANDBOX_IMAGE", "python:3.12-slim"),
-        memory_mb=256,
-    )
+sandbox = DockerSandbox(
+    image=os.environ.get("AGNO_SANDBOX_IMAGE", "python:3.12-slim"),
+    namespace="cookbook-" + uuid4().hex,
+    memory_mb=256,
 )
+handle = sandbox.create(session_id="example")
 try:
-    result = provider.exec(
-        computer,
+    result = sandbox.exec(
+        handle,
         [
             "python",
             "-c",
@@ -26,20 +21,10 @@ try:
         ],
     )
     assert result.exit_code == 0, result.stderr
-    result = provider.exec(computer, ["cat", "hello.txt"])
+    result = sandbox.exec(handle, ["cat", "hello.txt"])
     assert result.stdout == "hello"
-    assert (
-        provider.create(
-            SandboxSpec(
-                "coder",
-                "example",
-                1,
-                os.environ.get("AGNO_SANDBOX_IMAGE", "python:3.12-slim"),
-                memory_mb=256,
-            )
-        ).provider_ref
-        == computer.provider_ref
-    )
+    # Creating the same session again returns the running container instead of a new one.
+    assert sandbox.create(session_id="example").provider_ref == handle.provider_ref
     print("Created and reused a sandbox, wrote and read a workspace file.")
 finally:
-    provider.destroy(computer)
+    sandbox.destroy(handle)

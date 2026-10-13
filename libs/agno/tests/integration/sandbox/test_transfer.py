@@ -1,14 +1,13 @@
 """Real Docker destruction/replacement recovery, without model credentials."""
 
 import os
-from dataclasses import replace
 from uuid import uuid4
 
 import pytest
 
-from agno.sandbox import SandboxError, SandboxSpec
+from agno.sandbox import SandboxError
 from agno.sandbox.checkpoint import FileCheckpointStore
-from agno.sandbox.docker import DockerSandboxProvider
+from agno.sandbox.docker import DockerSandbox
 from agno.sandbox.transfer import DockerCheckpointTransfer
 
 IMAGE = os.environ.get("AGNO_TEST_DOCKER_IMAGE")
@@ -19,9 +18,8 @@ pytestmark = [
 
 
 async def test_destroy_and_restore_all_declared_files(tmp_path):
-    provider = DockerSandboxProvider("transfer-" + uuid4().hex)
-    spec = SandboxSpec("coder", "session", 1, IMAGE, memory_mb=512, workspace_mb=32)
-    first = await provider.acreate(spec)
+    provider = DockerSandbox(IMAGE, namespace="transfer-" + uuid4().hex, memory_mb=512, workspace_mb=32)
+    first = await provider.acreate("session", agent_id="coder")
     second = None
     transfer = DockerCheckpointTransfer(provider, FileCheckpointStore(tmp_path / "objects"))
     try:
@@ -48,7 +46,7 @@ with sqlite3.connect('app.db') as db:
         assert (await provider.aget(first.provider_ref)).state == "running"
         await provider.adestroy(first)
         assert await provider.aget(first.provider_ref) is None
-        second = await provider.acreate(replace(spec, generation=2))
+        second = await provider.acreate("session", agent_id="coder", generation=2)
         state = await DockerCheckpointTransfer(provider, FileCheckpointStore(tmp_path / "objects")).arestore(
             second, reference
         )
@@ -80,8 +78,8 @@ Path('app.py').write_text(Path('app.py').read_text() + '# writable after restore
 
 
 async def test_failed_capture_resumes_compute_and_preserves_previous_checkpoint(tmp_path, monkeypatch):
-    provider = DockerSandboxProvider("transfer-failure-" + uuid4().hex)
-    handle = await provider.acreate(SandboxSpec("a", "s", 1, IMAGE, memory_mb=256))
+    provider = DockerSandbox(IMAGE, namespace="transfer-failure-" + uuid4().hex, memory_mb=256)
+    handle = await provider.acreate("s", agent_id="a")
     store = FileCheckpointStore(tmp_path / "objects")
     transfer = DockerCheckpointTransfer(provider, store)
     try:
@@ -102,14 +100,13 @@ async def test_failed_capture_resumes_compute_and_preserves_previous_checkpoint(
 
 
 async def test_partial_restore_is_stopped(tmp_path, monkeypatch):
-    provider = DockerSandboxProvider("restore-failure-" + uuid4().hex)
-    spec = SandboxSpec("a", "s", 1, IMAGE, memory_mb=256)
-    first = await provider.acreate(spec)
+    provider = DockerSandbox(IMAGE, namespace="restore-failure-" + uuid4().hex, memory_mb=256)
+    first = await provider.acreate("s", agent_id="a")
     second = None
     transfer = DockerCheckpointTransfer(provider, FileCheckpointStore(tmp_path / "objects"))
     try:
         reference = await transfer.acapture(first, state={})
-        second = await provider.acreate(replace(spec, generation=2))
+        second = await provider.acreate("s", agent_id="a", generation=2)
         original = transfer._copy
         calls = []
 
@@ -130,8 +127,8 @@ async def test_partial_restore_is_stopped(tmp_path, monkeypatch):
 
 
 async def test_archive_transfer_exceeds_command_output_limit_without_buffering_whole_object(tmp_path):
-    provider = DockerSandboxProvider("large-transfer-" + uuid4().hex)
-    handle = await provider.acreate(SandboxSpec("a", "s", 1, IMAGE, memory_mb=256, workspace_mb=64))
+    provider = DockerSandbox(IMAGE, namespace="large-transfer-" + uuid4().hex, memory_mb=256, workspace_mb=64)
+    handle = await provider.acreate("s", agent_id="a")
     transfer = DockerCheckpointTransfer(provider, FileCheckpointStore(tmp_path / "objects"))
     try:
         result = await provider.aexec(

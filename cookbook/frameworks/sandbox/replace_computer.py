@@ -1,25 +1,20 @@
 """Clone/edit/test, checkpoint, destroy compute and restore without model calls."""
 
 import os
-from dataclasses import replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from uuid import uuid4
 
-from agno.sandbox import SandboxSpec
 from agno.sandbox.checkpoint import FileCheckpointStore
-from agno.sandbox.docker import DockerSandboxProvider
+from agno.sandbox.docker import DockerSandbox
 from agno.sandbox.transfer import DockerCheckpointTransfer
 
-provider = DockerSandboxProvider(namespace="recovery-cookbook-" + uuid4().hex)
-spec = SandboxSpec(
-    "coder",
-    "example",
-    1,
+sandbox = DockerSandbox(
     os.environ.get("AGNO_SANDBOX_IMAGE", "agno-sandbox:local"),
+    namespace="recovery-cookbook-" + uuid4().hex,
     memory_mb=512,
 )
-first = provider.create(spec)
+first = sandbox.create("example", agent_id="coder")
 second = None
 try:
     setup = """
@@ -44,48 +39,48 @@ native.mkdir(parents=True)
 (native / 'thread.jsonl').write_text('{"fact":"remember this"}\\n')
 (native / 'auth.json').write_text('excluded fixture credential')
 """
-    result = provider.exec(first, ["python", "-c", setup])
+    result = sandbox.exec(first, ["python", "-c", setup])
     assert result.exit_code == 0, result.stderr
-    result = provider.exec(
+    result = sandbox.exec(
         first, ["python", "-m", "unittest", "discover", "-s", "project", "-v"]
     )
     assert result.exit_code == 0, result.stderr
 
     with TemporaryDirectory(prefix="agno-recovery-demo-") as directory:
         store = FileCheckpointStore(Path(directory) / "objects")
-        transfer = DockerCheckpointTransfer(provider, store)
+        transfer = DockerCheckpointTransfer(sandbox, store)
         reference = transfer.capture(
             first, state={"run_id": "example", "conversation": ["remember this"]}
         )
-        provider.destroy(first)
-        second = provider.create(replace(spec, generation=2))
+        sandbox.destroy(first)
+        second = sandbox.create("example", agent_id="coder", generation=2)
         state = transfer.restore(second, reference)
         assert state["conversation"] == ["remember this"]
-        result = provider.exec(
+        result = sandbox.exec(
             second, ["python", "-m", "unittest", "discover", "-s", "project", "-v"]
         )
         assert result.exit_code == 0, result.stderr
         assert (
-            provider.exec(second, ["cat", "project/ignored.txt"]).stdout
+            sandbox.exec(second, ["cat", "project/ignored.txt"]).stdout
             == "keep ignored data"
         )
         assert (
-            provider.exec(second, ["cat", "project/notes.txt"]).stdout
+            sandbox.exec(second, ["cat", "project/notes.txt"]).stdout
             == "keep untracked data"
         )
         assert (
-            provider.exec(
+            sandbox.exec(
                 second, ["test", "-f", "/runtime/native/codex/auth.json"]
             ).exit_code
             != 0
         )
         assert (
             "M app.py"
-            in provider.exec(
+            in sandbox.exec(
                 second, ["git", "-C", "project", "status", "--short"]
             ).stdout
         )
-        provider.destroy(second)
+        sandbox.destroy(second)
         # Artifacts remain retrievable from the checkpoint after all compute is gone.
         store.restore(reference, Path(directory) / "offline")
         assert (
@@ -95,6 +90,6 @@ native.mkdir(parents=True)
             "Cloned, edited and tested a repository; destroyed compute; restored files and native state; reran tests."
         )
 finally:
-    provider.destroy(first)
+    sandbox.destroy(first)
     if second is not None:
-        provider.destroy(second)
+        sandbox.destroy(second)

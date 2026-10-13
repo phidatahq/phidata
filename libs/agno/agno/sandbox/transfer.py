@@ -11,8 +11,15 @@ from pathlib import Path
 from typing import Any, Mapping, Optional, Sequence
 
 from agno.sandbox.base import SandboxError, SandboxHandle, _sync
-from agno.sandbox.checkpoint import CheckpointArchive, CheckpointRef, FileCheckpointStore, _name, _preflight
-from agno.sandbox.docker import DockerSandboxProvider
+from agno.sandbox.checkpoint import (
+    CheckpointArchive,
+    CheckpointRef,
+    FileCheckpointStore,
+    _drain,
+    _name,
+    _preflight,
+)
+from agno.sandbox.docker import DockerSandbox
 
 DEFAULT_NATIVE_EXCLUSIONS = ("native/codex/auth.json", "native/.claude/.credentials.json")
 
@@ -27,7 +34,7 @@ class DockerCheckpointTransfer:
 
     def __init__(
         self,
-        provider: DockerSandboxProvider,
+        provider: DockerSandbox,
         store: FileCheckpointStore,
         *,
         archive: Optional[CheckpointArchive] = None,
@@ -188,7 +195,9 @@ class DockerCheckpointTransfer:
             ):
                 raise SandboxError("Computer does not have checkpointable managed volumes")
             volume = await self.provider._volume(handle.name + "-" + role)
-            expected = self.provider._volume_labels(handle, handle.config_digest, role)
+            expected = self.provider._volume_labels(
+                handle.session_id, handle.agent_id, handle.generation, handle.config_digest, role
+            )
             if volume is None or any((volume.get("Labels") or {}).get(key) != value for key, value in expected.items()):
                 raise SandboxError("Checkpoint volume identity mismatch")
             options = volume.get("Options") or {}
@@ -208,8 +217,7 @@ class DockerCheckpointTransfer:
                 if current is not None and current.state == "paused":
                     await self._unpause(handle)
 
-            cleanup = asyncio.create_task(reconcile_pause())
-            await asyncio.shield(cleanup)
+            await _drain(asyncio.create_task(reconcile_pause()))
             raise
         if code:
             raise SandboxError("Docker pause failed: " + err.decode(errors="replace")[-1000:])
@@ -235,16 +243,24 @@ class DockerCheckpointTransfer:
         with tempfile.TemporaryDirectory(prefix=".capture-", dir=self.store.root) as directory:
             root = Path(directory)
             await self._pause(handle)
+            cancelled = False
             try:
                 await self._copy(handle, handle.provider_ref + ":/workspace", "-", output=root / "workspace.tar")
                 await self._copy(handle, handle.provider_ref + ":/runtime/native", "-", output=root / "native.tar")
+            except asyncio.CancelledError:
+                cancelled = True
+                raise
             finally:
+                # Unpause always completes; once cancelled, cancellation stays the outcome even if it fails.
                 task = asyncio.create_task(self._unpause(handle))
-                try:
-                    await asyncio.shield(task)
-                except asyncio.CancelledError:
-                    await task
-                    raise
+                if cancelled:
+                    await _drain(task)
+                else:
+                    try:
+                        await asyncio.shield(task)
+                    except asyncio.CancelledError:
+                        await _drain(task)
+                        raise
             # Files no longer change after export. Validation and upload run outside
             # the pause, so storage latency does not freeze warm applications.
             from agno.sandbox.checkpoint import _thread

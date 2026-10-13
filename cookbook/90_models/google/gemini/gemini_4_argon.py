@@ -2,7 +2,7 @@
 Gemini 4 Argon
 ==============
 
-Use `gemini-4-argon` with web search tools in sync, async, and streaming modes.
+Use `gemini-4-argon-eap` with web search tools in sync, async, and streaming modes.
 
 Run `uv pip install -U google-genai ddgs agno` to install dependencies.
 Export `GOOGLE_API_KEY` before running.
@@ -32,7 +32,14 @@ if __name__ == "__main__":
         "Search for the latest developments in AI agents and summarize the top three."
     )
 
+    # --- Sync ---
+    agent.print_response(prompt)
+
+    # --- Sync + Streaming ---
+    agent.print_response(prompt, stream=True)
 
     # --- Async ---
     asyncio.run(agent.aprint_response(prompt))
 
+    # --- Async + Streaming ---
+    asyncio.run(agent.aprint_response(prompt, stream=True))

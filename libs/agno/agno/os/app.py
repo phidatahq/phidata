@@ -74,6 +74,7 @@ from agno.os.routers.teams import get_team_router
 from agno.os.routers.traces import get_traces_router
 from agno.os.routers.workflows import get_workflow_router
 from agno.os.settings import AgnoAPISettings
+from agno.os.tenancy import TenantEntitlements, get_tenant_router
 from agno.os.utils import (
     _generate_knowledge_id,
     _is_cors_middleware,
@@ -322,6 +323,8 @@ class AgentOS:
         event_stream: Optional[BaseEventStream] = None,
         telemetry: bool = True,
         registry: Optional[Registry] = None,
+        tenant_claim: Optional[str] = None,
+        tenant_entitlements: Optional[TenantEntitlements] = None,
         scheduler: bool = False,
         scheduler_poll_interval: int = 15,
         scheduler_base_url: Optional[str] = None,
@@ -413,6 +416,11 @@ class AgentOS:
                 in-memory stream when neither is set.
             telemetry: Whether to enable telemetry
             registry: Optional registry to use for the AgentOS
+            tenant_claim: JWT claim that names the caller's tenant (e.g. "org_id"). When set,
+                GET /registry lists only the entries that tenant is entitled to, and the
+                /tenants/{tenant_id}/entitlements routes are served. Needs verified JWTs.
+            tenant_entitlements: Which registry entries each tenant may see. Defaults to an
+                empty in-memory store, so a tenant sees nothing until it is given entries.
             scheduler: Whether to enable the cron scheduler
             scheduler_poll_interval: Seconds between scheduler poll cycles (default: 15)
             scheduler_base_url: Base URL for scheduler HTTP calls (default: http://127.0.0.1:7777)
@@ -474,6 +482,12 @@ class AgentOS:
         self.lifespan = lifespan
 
         self.registry = registry
+        if tenant_entitlements is not None and not tenant_claim:
+            raise ValueError("AgentOS(tenant_entitlements=...) requires tenant_claim: the JWT claim naming the tenant.")
+        self.tenant_claim = tenant_claim
+        self.tenant_entitlements = tenant_entitlements
+        if tenant_claim and self.tenant_entitlements is None:
+            self.tenant_entitlements = TenantEntitlements()
         # Knowledge mirrored into the registry by a sync (component-owned
         # instances collected for name resolution) is not a knowledge-route
         # source; anything else on the registry list the user put there -- at
@@ -830,9 +844,17 @@ class AgentOS:
                 updated_routers.append(_get_disabled_feature_router(prefix, tag, "db"))
         # Registry router
         if self.registry is not None:
-            updated_routers.append(get_registry_router(registry=self.registry))
+            updated_routers.append(
+                get_registry_router(
+                    registry=self.registry,
+                    tenant_claim=self.tenant_claim,
+                    tenant_entitlements=self.tenant_entitlements,
+                )
+            )
         else:
             updated_routers.append(_get_disabled_feature_router("/registry", "Registry", "registry"))
+        if self.tenant_entitlements is not None:
+            updated_routers.append(get_tenant_router(self.tenant_entitlements))
 
         # Clear all previously existing routes
         app.router.routes = [
@@ -1609,10 +1631,18 @@ class AgentOS:
 
         # Registry router
         if self.registry is not None:
-            routers.append(get_registry_router(registry=self.registry))
+            routers.append(
+                get_registry_router(
+                    registry=self.registry,
+                    tenant_claim=self.tenant_claim,
+                    tenant_entitlements=self.tenant_entitlements,
+                )
+            )
         else:
             log_debug("Registry router not enabled: requires a registry to be provided to AgentOS")
             routers.append(_get_disabled_feature_router("/registry", "Registry", "registry"))
+        if self.tenant_entitlements is not None:
+            routers.append(get_tenant_router(self.tenant_entitlements))
 
         # Roles admin API (/authz, from an Authorization object) and the user directory API (/users,
         # from a top-level user_directory; open on a no-auth OS). Registered HERE, with the other

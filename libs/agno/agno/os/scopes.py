@@ -48,6 +48,8 @@ class AgentOSScope(str, Enum):
     - config:read - OS configuration and model information (legacy alias: system:read)
     - config:write - Administrative writes such as database migrations (legacy alias: system:write)
     - registry:read - Read the code-defined registry (tools, models, databases, etc.)
+    - tenants:read - Read which registry entries a tenant may see
+    - tenants:write - Change which registry entries a tenant may see
     - agents:read - List all agents
     - teams:read - List all teams
     - workflows:read - List all workflows
@@ -541,6 +543,9 @@ def get_default_scope_mappings() -> Dict[str, List[str]]:
         "GET /filesystem/*": ["filesystem:read"],
         # Registry (read-only)
         "GET /registry": ["registry:read"],
+        # Tenant entitlements: which registry entries each tenant may see
+        "GET /tenants/*/entitlements": ["tenants:read"],
+        "PUT /tenants/*/entitlements": ["tenants:write"],
         # Component endpoints (Studio)
         "GET /components": ["components:read"],
         "GET /components/*": ["components:read"],

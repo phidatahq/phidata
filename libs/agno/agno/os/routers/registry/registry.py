@@ -2,7 +2,7 @@ import inspect
 import time
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from agno.os.auth import get_authentication_dependency
 from agno.os.routers.registry.utils import (
@@ -30,13 +30,19 @@ from agno.os.schema import (
     VectorDbMetadata,
 )
 from agno.os.settings import AgnoAPISettings
+from agno.os.tenancy import TenantEntitlements, is_entitled, resolve_registry_tenant
 from agno.registry import Registry
 from agno.tools.function import Function
 from agno.tools.toolkit import Toolkit
 from agno.utils.log import log_error
 
 
-def get_registry_router(registry: Registry, settings: AgnoAPISettings = AgnoAPISettings()) -> APIRouter:
+def get_registry_router(
+    registry: Registry,
+    settings: AgnoAPISettings = AgnoAPISettings(),
+    tenant_claim: Optional[str] = None,
+    tenant_entitlements: Optional[TenantEntitlements] = None,
+) -> APIRouter:
     router = APIRouter(
         dependencies=[Depends(get_authentication_dependency(settings))],
         tags=["Registry"],
@@ -48,10 +54,17 @@ def get_registry_router(registry: Registry, settings: AgnoAPISettings = AgnoAPIS
             500: {"description": "Internal Server Error", "model": InternalServerErrorResponse},
         },
     )
-    return attach_routes(router=router, registry=registry)
+    return attach_routes(
+        router=router, registry=registry, tenant_claim=tenant_claim, tenant_entitlements=tenant_entitlements
+    )
 
 
-def attach_routes(router: APIRouter, registry: Registry) -> APIRouter:
+def attach_routes(
+    router: APIRouter,
+    registry: Registry,
+    tenant_claim: Optional[str] = None,
+    tenant_entitlements: Optional[TenantEntitlements] = None,
+) -> APIRouter:
     def _safe_str(v: Any) -> Optional[str]:
         if v is None:
             return None
@@ -556,14 +569,22 @@ def attach_routes(router: APIRouter, registry: Registry) -> APIRouter:
         description="List all resources in the registry with optional filtering.",
     )
     async def list_registry(
+        request: Request,
         resource_type: Optional[RegistryResourceType] = Query(None, description="Filter by resource type"),
         name: Optional[str] = Query(None, description="Filter by name (partial match)"),
         page: int = Query(1, ge=1, description="Page number"),
         limit: int = Query(20, ge=1, le=100, description="Items per page"),
     ) -> PaginatedResponse[RegistryContentResponse]:
+        # Resolved outside the try below, which turns every exception into a 500:
+        # a caller without the tenant claim must get the 403, not an internal error.
+        tenant_id = resolve_registry_tenant(request, tenant_claim) if tenant_claim else None
         try:
             start_time_ms = time.time() * 1000
             resources = _get_resources(resource_type)
+
+            if tenant_id is not None:
+                entitlements = await tenant_entitlements.aget(tenant_id) if tenant_entitlements else {}
+                resources = [r for r in resources if is_entitled(entitlements, r.type.value, r.name, r.id)]
 
             if name:
                 needle = name.lower().strip()

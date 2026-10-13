@@ -832,7 +832,15 @@ def get_team_router(
                     queued_run_id = str(uuid4())
                     queued_session_id = session_id  # non-empty: defaulted at the top of the endpoint
                     queued_stream_payload["scope"] = resolve_queue_scope(
-                        team_id, os.teams, os.db, scoped_user_id, version
+                        team_id,
+                        os.teams,
+                        os.db,
+                        scoped_user_id,
+                        version,
+                        state=request.state,
+                        context_user_id=user_id,
+                        session_id=queued_session_id,
+                        factory_input=factory_input,
                     )
                     job = QueuedJob(
                         id=queued_run_id,
@@ -941,7 +949,17 @@ def get_team_router(
                 validate_seam_input(team, message)
                 queued_run_id = str(uuid4())
                 queued_session_id = session_id  # non-empty: defaulted at the top of the endpoint
-                queued_payload["scope"] = resolve_queue_scope(team_id, os.teams, os.db, scoped_user_id, version)
+                queued_payload["scope"] = resolve_queue_scope(
+                    team_id,
+                    os.teams,
+                    os.db,
+                    scoped_user_id,
+                    version,
+                    state=request.state,
+                    context_user_id=user_id,
+                    session_id=queued_session_id,
+                    factory_input=factory_input,
+                )
                 job = QueuedJob(
                     id=queued_run_id,
                     component_type="team",
@@ -2099,6 +2117,7 @@ def get_team_router(
                 team_id,
                 os.teams,
                 factory.db,
+                request=request,
                 session_id=session_id,
                 published_only=False,
             )
@@ -2200,6 +2219,7 @@ def get_team_router(
                 team_id,
                 os.teams,
                 factory.db,
+                request=request,
                 session_id=session_id,
                 published_only=False,
             )
@@ -2271,6 +2291,7 @@ def get_team_router(
                 team_id,
                 os.teams,
                 factory.db,
+                request=request,
                 session_id=session_id,
                 published_only=False,
             )
@@ -2342,6 +2363,7 @@ def get_team_router(
                 team_id,
                 os.teams,
                 factory.db,
+                request=request,
                 session_id=session_id,
                 published_only=False,
             )

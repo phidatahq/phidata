@@ -3,6 +3,7 @@ import contextlib
 import json
 import weakref
 from dataclasses import dataclass
+from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, AsyncGenerator, Dict, List, Optional, Union
 from uuid import uuid4
 
@@ -377,7 +378,23 @@ async def handle_workflow_via_websocket(
                 return
             assert queue_worker is not None  # narrowed by ws_submit_queueable
             queued_run_id = str(uuid4())
-            queued_ws_payload["scope"] = resolve_queue_scope(workflow_id, os.workflows, os.db, scoped_user_id, version)
+            # The WebSocket has no request.state: hand the scope the same claims
+            # and scopes the factory branch above built its TrustedContext from
+            ws_trusted_state = SimpleNamespace(
+                claims=(ws_user_context or {}).get("payload", {}),
+                scopes=(ws_user_context or {}).get("scopes", frozenset()),
+            )
+            queued_ws_payload["scope"] = resolve_queue_scope(
+                workflow_id,
+                os.workflows,
+                os.db,
+                scoped_user_id,
+                version,
+                state=ws_trusted_state,
+                context_user_id=user_id,
+                session_id=session_id,
+                factory_input=factory_input,
+            )
             job = QueuedJob(
                 id=queued_run_id,
                 component_type="workflow",
@@ -1839,7 +1856,15 @@ def get_workflow_router(
                     queued_run_id = str(uuid4())
                     queued_session_id = session_id  # non-empty: defaulted at the top of the endpoint
                     queued_stream_payload["scope"] = resolve_queue_scope(
-                        workflow_id, os.workflows, os.db, scoped_user_id, version
+                        workflow_id,
+                        os.workflows,
+                        os.db,
+                        scoped_user_id,
+                        version,
+                        state=request.state,
+                        context_user_id=user_id,
+                        session_id=queued_session_id,
+                        factory_input=factory_input,
                     )
                     job = QueuedJob(
                         id=queued_run_id,
@@ -1939,7 +1964,17 @@ def get_workflow_router(
                 validate_seam_input(workflow, message)
                 queued_run_id = str(uuid4())
                 queued_session_id = session_id  # non-empty: defaulted at the top of the endpoint
-                queued_payload["scope"] = resolve_queue_scope(workflow_id, os.workflows, os.db, scoped_user_id, version)
+                queued_payload["scope"] = resolve_queue_scope(
+                    workflow_id,
+                    os.workflows,
+                    os.db,
+                    scoped_user_id,
+                    version,
+                    state=request.state,
+                    context_user_id=user_id,
+                    session_id=queued_session_id,
+                    factory_input=factory_input,
+                )
                 job = QueuedJob(
                     id=queued_run_id,
                     component_type="workflow",

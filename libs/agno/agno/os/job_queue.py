@@ -342,10 +342,12 @@ def component_is_queueable(
 ) -> bool:
     """True when the durable worker can re-resolve ``component`` at claim time.
 
-    Two sources exist, mirroring the HTTP resolution order:
-    - a code-registered instance resolves from the registry. Factory entries
-      are never queueable: they need the request context to build the
-      component, which the worker does not have.
+    Three sources exist, mirroring the HTTP resolution order:
+    - a code-registered instance resolves from the registry.
+    - a code-registered factory is invoked again by the worker from the
+      request context the door stamps on the ticket (``factory_queue_scope``):
+      user, session, validated input and trusted claims. The raw request
+      object is the only part of the context that does not ride the ticket.
     - an off-registry component (created through the components API, or a
       version-pinned load) was rehydrated from the AgentOS db at accept
       time. The worker replays that load from the scope stamped on the
@@ -356,7 +358,7 @@ def component_is_queueable(
         return False
     for candidate in registry or []:
         if getattr(candidate, "id", None) == component_id:
-            return not _is_component_factory(candidate)
+            return True
     from agno.db.base import BaseDb
 
     # The db loaders rehydrate only from a sync BaseDb
@@ -367,12 +369,54 @@ def queue_scope(
     user_id: Optional[str], version: Optional[int], pinned: Optional[int] = None, source: str = "db"
 ) -> Dict[str, Any]:
     """The resolution scope a ticket carries so the worker resolves the SAME
-    component the accepting endpoint did: where it came from (``registry`` or
-    ``db``), the owner scope that gated a db-backed component, the version it
-    executes, and the version the caller explicitly pinned (None when
-    unpinned). Authorization (ownership, draft preview) happened at the door;
-    the worker only replays the resolution, never re-decides it."""
+    component the accepting endpoint did: where it came from (``registry``,
+    ``factory`` or ``db``), the owner scope that gated a db-backed component,
+    the version it executes, and the version the caller explicitly pinned
+    (None when unpinned). Authorization (ownership, draft preview) happened at
+    the door; the worker only replays the resolution, never re-decides it."""
     return {"user_id": user_id, "version": version, "pinned": pinned, "source": source}
+
+
+def factory_queue_scope(
+    state: Any,
+    user_id: Optional[str],
+    session_id: Optional[str],
+    factory_input: Any,
+    pinned: Optional[int] = None,
+) -> Dict[str, Any]:
+    """The scope a factory-backed submission carries: the request context the
+    door handed the factory, minus the raw request object, so the worker can
+    invoke the factory again at claim time and build the same component.
+
+    ``state`` is the request state the auth middleware populated, or any
+    object exposing ``claims`` and ``scopes`` the same way (the WebSocket door
+    builds one from its connection context). Claims and scopes are copied from
+    there, never from the client frame, so the rebuilt ``TrustedContext``
+    holds exactly what the door's did. ``factory_input`` is the raw JSON
+    string the door already parsed and validated, or the parsed object
+    itself; an unparsable value is carried as None rather than refusing a
+    submission the door accepted. The context is round-tripped through JSON
+    so every queue store can hold it."""
+    import json as _json
+
+    parsed_input: Any = factory_input
+    if isinstance(factory_input, str):
+        try:
+            parsed_input = _json.loads(factory_input)
+        except (TypeError, ValueError):
+            parsed_input = None
+    claims = getattr(state, "claims", None) or {}
+    scopes = getattr(state, "scopes", None) or ()
+    context = {
+        "user_id": user_id,
+        "session_id": session_id,
+        "input": parsed_input if isinstance(parsed_input, dict) else None,
+        "claims": claims if isinstance(claims, dict) else dict(claims),
+        "scopes": sorted(str(s) for s in scopes),
+    }
+    scope = queue_scope(user_id, None, pinned=pinned, source="factory")
+    scope["context"] = _json.loads(_json.dumps(context, default=str, allow_nan=False))
+    return scope
 
 
 def resolve_queue_scope(
@@ -381,6 +425,11 @@ def resolve_queue_scope(
     db: Optional[Union["BaseDb", "AsyncBaseDb"]],
     user_id: Optional[str],
     version: Optional[int],
+    *,
+    state: Any = None,
+    context_user_id: Optional[str] = None,
+    session_id: Optional[str] = None,
+    factory_input: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Build the ticket scope with a CONCRETE version for db-backed components.
 
@@ -392,11 +441,21 @@ def resolve_queue_scope(
     ``None`` (the worker then resolves current, the pre-existing behaviour)
     rather than refusing the submission.
 
+    A factory entry stamps the request context instead (``state``,
+    ``context_user_id``, ``session_id``, ``factory_input``): the worker
+    rebuilds it and invokes the factory again. ``context_user_id`` is the
+    user the door passed to the factory, which may differ from the owner
+    ``user_id`` that scopes db reads.
+
     Call it only on the durable branch, right before the enqueue: it reads the
     component row, and the closer that read is to the door's own resolution,
     the smaller the window for a publish to land between them.
     """
-    if any(getattr(c, "id", None) == component_id for c in registry or []):
+    for candidate in registry or []:
+        if getattr(candidate, "id", None) != component_id:
+            continue
+        if _is_component_factory(candidate):
+            return factory_queue_scope(state, context_user_id, session_id, factory_input, pinned=version)
         return queue_scope(user_id, version, pinned=version, source="registry")
     effective = version
     if effective is None and db is not None:
@@ -411,6 +470,45 @@ def resolve_queue_scope(
             except Exception as e:
                 log_debug(f"Could not pin the current version of {component_id} on the queue ticket: {e}")
     return queue_scope(user_id, effective, pinned=version, source="db")
+
+
+async def aresolve_factory_from_scope(
+    factory: Any, component_type: str, context: Optional[Dict[str, Any]]
+) -> Optional["QueueableComponent"]:
+    """Invoke a registered factory with the request context a ticket carries.
+
+    Mirrors the HTTP door: the factory sees the same user, session, validated
+    input and trusted claims, with ``request`` set to None because no request
+    exists at claim time. A factory that reads ``ctx.request`` must therefore
+    tolerate None to be queueable. Any factory error leaves the claim
+    unresolved, logged with the reason, rather than executing a component the
+    door never validated."""
+    if not isinstance(context, dict):
+        log_error(f"Job queue: factory ticket for {component_type}/{factory.id} carries no request context")
+        return None
+    from agno.agent import Agent
+    from agno.factory import FactoryError, RequestContext, TrustedContext
+    from agno.team import Team
+    from agno.workflow import Workflow
+
+    expected = {"agent": Agent, "team": Team, "workflow": Workflow}.get(component_type)
+    if expected is None:
+        return None
+    claims = context.get("claims") or {}
+    ctx = RequestContext(
+        user_id=context.get("user_id"),
+        session_id=context.get("session_id"),
+        request=None,
+        input=context.get("input"),
+        trusted=TrustedContext(claims=claims, scopes=frozenset(context.get("scopes") or ())),
+    )
+    try:
+        return await factory.resolve_async(ctx, expected_type=expected)
+    except FactoryError as e:
+        log_error(f"Job queue: factory {component_type}/{factory.id} refused the queued request context: {e}")
+    except Exception as e:
+        log_error(f"Job queue: factory {component_type}/{factory.id} failed at claim time: {e}")
+    return None
 
 
 def resolve_queue_store(config: QueueConfig, default_db: Any) -> Any:
@@ -2784,20 +2882,27 @@ async def queue_lifespan(app: Any, agent_os: Any):
         from agno.workflow import Workflow, WorkflowFactory
 
         scope = scope or {}
-        # The ticket's source is authoritative in both directions: a
+        # The ticket's source is authoritative in every direction: a
         # db-sourced ticket must not run a registry component that a newer
-        # deploy registered under the same id, and vice versa below
+        # deploy registered under the same id, a factory-sourced ticket runs
+        # only through a factory, and vice versa below
         from_db = scope.get("source") == "db"
+        from_factory = scope.get("source") == "factory"
         for candidate in [] if from_db else registry or []:
             if getattr(candidate, "id", None) != component_id:
                 continue
-            if isinstance(candidate, (AgentFactory, TeamFactory, WorkflowFactory)):
-                # Factory-backed components are rejected at submit time (they
-                # need request context). Return, never fall through: the db
+            is_factory = isinstance(candidate, (AgentFactory, TeamFactory, WorkflowFactory))
+            if is_factory != from_factory:
+                # A factory needs the request context the door stamped; a
+                # ticket without one (registry-sourced, pre-scope) cannot
+                # build the component. Return, never fall through: the db
                 # block below would otherwise execute a db component that
                 # merely shares the factory's id (the HTTP loader has the
                 # same shape and never reaches its db block on a factory hit)
                 return None
+            if is_factory:
+                resolved = await aresolve_factory_from_scope(candidate, component_type, scope.get("context"))
+                break
             if isinstance(candidate, (Agent, Team, Workflow)):
                 # Fresh copy per execution, mirroring the HTTP path: queued
                 # runs must not share mutable state with concurrent runs on

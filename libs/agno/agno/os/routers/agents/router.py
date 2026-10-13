@@ -906,7 +906,15 @@ def get_agent_router(
                     queued_run_id = str(uuid4())
                     queued_session_id = session_id  # non-empty: defaulted at the top of the endpoint
                     queued_stream_payload["scope"] = resolve_queue_scope(
-                        agent_id, os.agents, os.db, scoped_user_id, version
+                        agent_id,
+                        os.agents,
+                        os.db,
+                        scoped_user_id,
+                        version,
+                        state=request.state,
+                        context_user_id=user_id,
+                        session_id=queued_session_id,
+                        factory_input=factory_input,
                     )
                     job = QueuedJob(
                         id=queued_run_id,
@@ -1019,7 +1027,17 @@ def get_agent_router(
                 validate_seam_input(agent, message)
                 queued_run_id = str(uuid4())
                 queued_session_id = session_id  # non-empty: defaulted at the top of the endpoint
-                queued_payload["scope"] = resolve_queue_scope(agent_id, os.agents, os.db, scoped_user_id, version)
+                queued_payload["scope"] = resolve_queue_scope(
+                    agent_id,
+                    os.agents,
+                    os.db,
+                    scoped_user_id,
+                    version,
+                    state=request.state,
+                    context_user_id=user_id,
+                    session_id=queued_session_id,
+                    factory_input=factory_input,
+                )
                 job = QueuedJob(
                     id=queued_run_id,
                     component_type="agent",
@@ -2192,6 +2210,7 @@ def get_agent_router(
                 agent_id,
                 os.agents,
                 factory.db,
+                request=request,
                 session_id=session_id,
                 published_only=False,
             )
@@ -2296,6 +2315,7 @@ def get_agent_router(
                 agent_id,
                 os.agents,
                 factory.db,
+                request=request,
                 session_id=session_id,
                 published_only=False,
             )
@@ -2367,6 +2387,7 @@ def get_agent_router(
                 agent_id,
                 os.agents,
                 factory.db,
+                request=request,
                 session_id=session_id,
                 published_only=False,
             )
@@ -2560,6 +2581,7 @@ def get_agent_router(
                 agent_id,
                 os.agents,
                 factory.db,
+                request=request,
                 session_id=session_id,
                 published_only=False,
             )

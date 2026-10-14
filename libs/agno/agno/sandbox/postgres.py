@@ -446,6 +446,9 @@ class _SandboxStore:
             active = record["phase"] != "idle"
             if not active and str(run["status"]).upper() in _FINISHED:
                 raise SandboxRunFinished(dict(run["run_data"]))
+            if not active and str(run["status"]).upper() == "PAUSED":
+                # A paused run waits for its continuation; executing it again would discard that state.
+                raise SandboxError("A paused run must be continued, not started again in a sandbox")
             if not active:
                 # Starting a turn on an idle session, first or later: another run that is running or
                 # paused outside the sandbox would execute alongside it. Queued (PENDING) runs wait for

@@ -994,3 +994,12 @@ async def test_later_claim_waits_for_a_run_outside_the_sandbox(store):
     with pytest.raises(SandboxSessionBusy) as caught:
         await claim(store, run_id="second")
     assert caught.value.run_id == "outside"
+
+
+async def test_paused_run_is_not_restarted_in_a_sandbox(store):
+    await seed(store)
+    # Paused for a continuation: running it again would discard the pending requirements.
+    await store._transaction(lambda c: c.execute(update(store.runs).values(status="PAUSED")))
+    with pytest.raises(SandboxError, match="paused"):
+        await claim(store)
+    assert await store._transaction(lambda c: c.execute(select(store.bindings)).first()) is None

@@ -7,9 +7,11 @@ import hashlib
 import json
 from contextlib import suppress
 from copy import deepcopy
-from dataclasses import asdict, replace
-from typing import Any, AsyncIterator, Dict, Optional
+from dataclasses import asdict
+from typing import Any, AsyncIterator, Dict, Mapping, Optional, Union
 from uuid import uuid4
+
+from agno.db.postgres import AsyncPostgresDb, PostgresDb
 
 from agno.run.agent import (
     RunCancelledEvent,
@@ -20,57 +22,62 @@ from agno.run.agent import (
     run_output_event_from_dict,
 )
 from agno.run.base import RunStatus
-from agno.sandbox.base import SandboxError, SandboxHandle, SandboxProvider, SandboxSpec
+from agno.sandbox.base import Sandbox, SandboxError, SandboxHandle
 from agno.sandbox.checkpoint import CheckpointRef
 from agno.sandbox.client import RuntimeExecution, SandboxRuntimeClient
-from agno.sandbox.postgres import PostgresSandboxStore, SandboxLease, SandboxLeaseLost, SandboxRunFinished
-from agno.sandbox.transfer import DockerCheckpointTransfer
+from agno.sandbox.postgres import SandboxLease, SandboxLeaseLost, SandboxRunFinished, _SandboxStore
+from agno.sandbox.transfer import CheckpointTransfer
 
 
 class SandboxCoordinator:
     """Restore, execute, checkpoint and atomically complete one logical session turn.
 
-    Setup the Postgres store before accepting traffic. All replicas need the same
-    provider namespace and durable checkpoint storage. This initial version retires
+    Leases and recovery state live in ``db``, the same PostgresDb as the agent's
+    sessions and runs. All replicas need the same provider namespace and durable
+    checkpoint storage. This initial version retires
     each computer after a turn. Files/native history survive; processes restart.
     Losing a caller detaches it; explicit cancellation retires the computer.
     """
 
     def __init__(
         self,
-        store: PostgresSandboxStore,
-        provider: SandboxProvider,
-        transfer: DockerCheckpointTransfer,
+        db: Union[PostgresDb, AsyncPostgresDb],
+        provider: Sandbox,
+        transfer: CheckpointTransfer,
         *,
         lease_seconds: float = 600,
         poll_interval: float = 0.25,
     ) -> None:
         if not 30 <= lease_seconds <= 3600 or not 0.01 <= poll_interval <= 30:
             raise ValueError("Use a 30-3600 second lease and a 0.01-30 second polling interval")
-        self.store, self.provider, self.transfer = store, provider, transfer
+        self.store, self.provider, self.transfer = _SandboxStore(db), provider, transfer
         self.client = SandboxRuntimeClient(provider)
         self.lease_seconds, self.poll_interval = lease_seconds, poll_interval
 
     async def arun(
         self,
-        spec: SandboxSpec,
+        session_id: str,
         *,
+        agent_id: str,
         run_id: str,
         input: str,
         sdk: str,
         user_id: Optional[str] = None,
         config: Optional[Dict[str, Any]] = None,
+        env: Optional[Mapping[str, str]] = None,
         queue_attempt: Optional[int] = None,
         execution_timeout: float = 900,
     ) -> RunOutput:
         result = None
         async for value in self._astream(
-            spec,
+            session_id,
+            agent_id=agent_id,
             run_id=run_id,
             input=input,
             sdk=sdk,
             user_id=user_id,
             config=config,
+            env=env,
             queue_attempt=queue_attempt,
             execution_timeout=execution_timeout,
         ):
@@ -82,24 +89,28 @@ class SandboxCoordinator:
 
     def run(
         self,
-        spec: SandboxSpec,
+        session_id: str,
         *,
+        agent_id: str,
         run_id: str,
         input: str,
         sdk: str,
         user_id: Optional[str] = None,
         config: Optional[Dict[str, Any]] = None,
+        env: Optional[Mapping[str, str]] = None,
         queue_attempt: Optional[int] = None,
         execution_timeout: float = 900,
     ) -> RunOutput:
         return self.store._sync(
             self.arun,
-            spec,
+            session_id,
+            agent_id=agent_id,
             run_id=run_id,
             input=input,
             sdk=sdk,
             user_id=user_id,
             config=config,
+            env=env,
             queue_attempt=queue_attempt,
             execution_timeout=execution_timeout,
         )
@@ -118,13 +129,15 @@ class SandboxCoordinator:
 
     async def _astream(
         self,
-        template: SandboxSpec,
+        session_id: str,
         *,
+        agent_id: str,
         run_id: str,
         input: str,
         sdk: str,
         user_id: Optional[str] = None,
         config: Optional[Dict[str, Any]] = None,
+        env: Optional[Mapping[str, str]] = None,
         queue_attempt: Optional[int] = None,
         execution_timeout: float = 900,
     ) -> AsyncIterator[Any]:
@@ -137,8 +150,8 @@ class SandboxCoordinator:
             version=1,
             execution_id="validate",
             run_id=run_id,
-            agent_id=template.agent_id,
-            session_id=template.session_id,
+            agent_id=agent_id,
+            session_id=session_id,
             user_id=user_id,
             input=input,
             sdk=sdk,
@@ -154,8 +167,8 @@ class SandboxCoordinator:
             raise ValueError("Runtime request exceeds 1 MiB")
         run = RunOutput(
             run_id=run_id,
-            agent_id=template.agent_id,
-            session_id=template.session_id,
+            agent_id=agent_id,
+            session_id=session_id,
             user_id=user_id,
             input=RunInput(input_content=input),
             status=RunStatus.running,
@@ -164,8 +177,8 @@ class SandboxCoordinator:
         prepared["queue_attempt"] = queue_attempt
         claim_task = asyncio.create_task(
             self.store.aclaim(
-                agent_id=template.agent_id,
-                session_id=template.session_id,
+                agent_id=agent_id,
+                session_id=session_id,
                 user_id=user_id,
                 run_id=run_id,
                 owner=uuid4().hex,
@@ -203,22 +216,10 @@ class SandboxCoordinator:
 
         heart = asyncio.create_task(heartbeat())
         try:
-            spec = replace(template, generation=state.record["generation"])
+            # Image and resource limits belong to the provider; afind refuses a generation created with others.
+            allocation: Dict[str, Any] = dict(agent_id=agent_id, generation=state.record["generation"], env=env)
             fingerprint = hashlib.sha256(
-                json.dumps(
-                    {
-                        "request": request,
-                        "image": spec.image,
-                        "env": dict(spec.env),
-                        "cpus": spec.cpus,
-                        "memory": spec.memory_mb,
-                        "pids": spec.pids_limit,
-                        "workspace": spec.workspace_mb,
-                        "network": spec.network,
-                    },
-                    sort_keys=True,
-                    allow_nan=False,
-                ).encode()
+                json.dumps({"request": request, "env": dict(env or {})}, sort_keys=True, allow_nan=False).encode()
             ).hexdigest()
 
             async def provision(record: Dict[str, Any]) -> Dict[str, Any]:
@@ -226,7 +227,7 @@ class SandboxCoordinator:
 
                 if await ais_cancelled(run_id):
                     if record.get("computer") is None and record["phase"] == "executing":
-                        orphan = await self.provider.afind(spec)
+                        orphan = await self.provider.afind(session_id, **allocation)
                         if orphan is not None:
                             record["computer"] = asdict(orphan)
                     record.update(
@@ -246,10 +247,10 @@ class SandboxCoordinator:
                 # No SDK execution can start before this binding commits. An
                 # unbound allocation is a crashed provisioning attempt: replace
                 # it before retrying restore, never restore over uncertain files.
-                orphan = await self.provider.afind(spec)
+                orphan = await self.provider.afind(session_id, **allocation)
                 if orphan is not None:
                     await self.provider.adestroy(orphan)
-                handle = await self.provider.acreate(spec)
+                handle = await self.provider.acreate(session_id, **allocation)
                 try:
                     if record.get("checkpoint"):
                         restored = await self.transfer.arestore(handle, CheckpointRef(**record["checkpoint"]))

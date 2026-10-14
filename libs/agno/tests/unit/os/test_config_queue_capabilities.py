@@ -16,11 +16,14 @@ from agno.job_queue.store import InMemoryQueueStore
 from agno.os import AgentOS
 
 
-def _queue_block(tmp_path, queue=None):
+def _queue_block(tmp_path, queue=None, lifespan=False):
     agent = Agent(id="cfg-agent", name="Cfg Agent", db=SqliteDb(db_file=str(tmp_path / "t.db")))
     app = AgentOS(agents=[agent], queue=queue, telemetry=False).get_app()
-    client = TestClient(app, raise_server_exceptions=False)
-    resp = client.get("/config")
+    if lifespan:
+        with TestClient(app, raise_server_exceptions=False) as client:
+            resp = client.get("/config")
+    else:
+        resp = TestClient(app, raise_server_exceptions=False).get("/config")
     assert resp.status_code == 200, resp.text
     return resp.json()["queue"]
 
@@ -44,3 +47,14 @@ class TestQueueCapabilities:
     def test_serialize_flag_without_durable_reports_false(self, tmp_path):
         block = _queue_block(tmp_path, QueueConfig(max_concurrency=2, queue_per_session=True))
         assert block == {"durable": False, "queue_per_session": False}
+
+    def test_running_worker_reports_the_gate_it_enforces(self, tmp_path):
+        block = _queue_block(tmp_path, QueueConfig(durable=True, db=InMemoryQueueStore()), lifespan=True)
+        assert block == {"durable": True, "queue_per_session": True}
+
+    def test_store_that_cannot_serialize_sessions_reports_false(self, tmp_path):
+        class UnorderedStore(InMemoryQueueStore):
+            serializes_sessions = False
+
+        block = _queue_block(tmp_path, QueueConfig(durable=True, db=UnorderedStore()), lifespan=True)
+        assert block == {"durable": True, "queue_per_session": False}

@@ -38,7 +38,9 @@ from agno.os.auth import (
 from agno.os.checkpoints import build_run_checkpoint_snapshot, list_run_checkpoints
 from agno.os.event_streams import get_event_stream
 from agno.os.job_queue import (
+    aattach_waiting_on,
     acontinue_via_queue,
+    aenqueue_ticket,
     aprepare_accepted_or_abort,
     araise_if_ticket_owns_continue,
     aticket_poll_fallback,
@@ -843,9 +845,7 @@ def get_team_router(
                         deployment_id=queue_worker.config.deployment_id,
                         idempotency_key=normalize_idempotency_key(request.headers.get("idempotency-key")),
                     ).to_dict()
-                    enqueue_result = await queue_worker.store.enqueue_job(
-                        job, max_depth=queue_worker.config.max_queue_depth
-                    )
+                    enqueue_result = await aenqueue_ticket(queue_worker, job, team)
                     if enqueue_result["reason"] == "queue_full":
                         raise HTTPException(status_code=429, detail="Job queue is full")
                     if enqueue_result["reason"] == "duplicate":
@@ -957,9 +957,7 @@ def get_team_router(
                 # Enqueue FIRST: the committed queue row is the acceptance.
                 # Rejected or duplicate submissions must leave no phantom
                 # PENDING run behind in the session.
-                enqueue_result = await queue_worker.store.enqueue_job(
-                    job, max_depth=queue_worker.config.max_queue_depth
-                )
+                enqueue_result = await aenqueue_ticket(queue_worker, job, team)
                 if enqueue_result["reason"] == "queue_full":
                     raise HTTPException(status_code=429, detail="Job queue is full")
                 if enqueue_result["reason"] == "duplicate" and enqueue_result["job"] is not None:
@@ -2172,7 +2170,7 @@ def get_team_router(
         if not run_matches_component(run_output, "teams", team_id):
             raise HTTPException(status_code=404, detail="Run not found")
 
-        return run_output.to_dict()
+        return await aattach_waiting_on(getattr(request.app.state, "queue_worker", None), run_id, run_output.to_dict())
 
     @router.get(
         "/teams/{team_id}/runs/{run_id}/checkpoints",

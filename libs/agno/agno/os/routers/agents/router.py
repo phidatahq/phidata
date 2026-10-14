@@ -42,7 +42,9 @@ from agno.os.auth import (
 from agno.os.checkpoints import build_run_checkpoint_snapshot, list_run_checkpoints
 from agno.os.event_streams import get_event_stream
 from agno.os.job_queue import (
+    aattach_waiting_on,
     acontinue_via_queue,
+    aenqueue_ticket,
     aprepare_accepted_or_abort,
     araise_if_ticket_owns_continue,
     aticket_poll_fallback,
@@ -886,14 +888,7 @@ def get_agent_router(
                 # RUN (complete output guaranteed via the run row); the live
                 # stream is the best-effort view.
                 queue_worker = getattr(request.app.state, "queue_worker", None)
-                from agno.agents.base import BaseExternalAgent
-
-                queued_stream_payload = {
-                    "input": message,
-                    "kwargs": kwargs,
-                    "stream": True,
-                    "serialize_session": isinstance(agent, BaseExternalAgent),
-                }
+                queued_stream_payload = {"input": message, "kwargs": kwargs, "stream": True}
                 stream_queueable = (
                     queue_worker is not None
                     and getattr(agent, "db", None) is not None
@@ -924,9 +919,7 @@ def get_agent_router(
                         deployment_id=queue_worker.config.deployment_id,
                         idempotency_key=normalize_idempotency_key(request.headers.get("idempotency-key")),
                     ).to_dict()
-                    enqueue_result = await queue_worker.store.enqueue_job(
-                        job, max_depth=queue_worker.config.max_queue_depth
-                    )
+                    enqueue_result = await aenqueue_ticket(queue_worker, job, agent)
                     if enqueue_result["reason"] == "queue_full":
                         raise HTTPException(status_code=429, detail="Job queue is full")
                     if enqueue_result["reason"] == "duplicate":
@@ -1012,13 +1005,7 @@ def get_agent_router(
             # / version-pinned) agent replayed from the scope on the ticket.
             # Factory-backed agents need request context and never queue.
             agent_is_queueable = component_is_queueable(agent, agent_id, os.agents, os.db)
-            from agno.agents.base import BaseExternalAgent
-
-            queued_payload = {
-                "input": message,
-                "kwargs": kwargs,
-                "serialize_session": isinstance(agent, BaseExternalAgent),
-            }
+            queued_payload = {"input": message, "kwargs": kwargs}
             if (
                 queue_worker is not None
                 and agent_is_queueable
@@ -1048,9 +1035,7 @@ def get_agent_router(
                 # Enqueue FIRST: the committed queue row is the acceptance.
                 # Rejected or duplicate submissions must leave no phantom
                 # PENDING run behind in the session.
-                enqueue_result = await queue_worker.store.enqueue_job(
-                    job, max_depth=queue_worker.config.max_queue_depth
-                )
+                enqueue_result = await aenqueue_ticket(queue_worker, job, agent)
                 if enqueue_result["reason"] == "queue_full":
                     raise HTTPException(status_code=429, detail="Job queue is full")
                 if enqueue_result["reason"] == "duplicate" and enqueue_result["job"] is not None:
@@ -2281,7 +2266,7 @@ def get_agent_router(
         if not run_matches_component(run_output, "agents", agent_id):
             raise HTTPException(status_code=404, detail="Run not found")
 
-        return run_output.to_dict()
+        return await aattach_waiting_on(getattr(request.app.state, "queue_worker", None), run_id, run_output.to_dict())
 
     @router.get(
         "/agents/{agent_id}/runs/{run_id}/checkpoints",

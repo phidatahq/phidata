@@ -21,6 +21,7 @@ SDK), so the names from the other branch always look undefined or redefined.
 """
 
 import importlib.metadata
+from typing import TYPE_CHECKING
 
 _genai_available = False
 _genai_version: tuple = (0, 0)
@@ -34,57 +35,55 @@ except importlib.metadata.PackageNotFoundError:
     pass
 
 
-if _genai_available:
-    if _genai_version >= (2, 9):
-        # google-genai >= 2.9.0: delta types live at the top level of
-        # `interactions`, renamed `<X>Delta`.
-        from google.genai.interactions import ArgumentsDelta as DeltaArgumentsDelta
-        from google.genai.interactions import CodeExecutionCallDelta as DeltaCodeExecutionCall
-        from google.genai.interactions import CodeExecutionResultDelta as DeltaCodeExecutionResult
-        from google.genai.interactions import FileSearchCallDelta as DeltaFileSearchCall
-        from google.genai.interactions import FileSearchResultDelta as DeltaFileSearchResult
-        from google.genai.interactions import FunctionResultDelta as DeltaFunctionResult
-        from google.genai.interactions import GoogleMapsCallDelta as DeltaGoogleMapsCall
-        from google.genai.interactions import GoogleMapsResultDelta as DeltaGoogleMapsResult
-        from google.genai.interactions import GoogleSearchCallDelta as DeltaGoogleSearchCall
-        from google.genai.interactions import GoogleSearchResultDelta as DeltaGoogleSearchResult
-        from google.genai.interactions import ImageDelta as DeltaImage
-        from google.genai.interactions import MCPServerToolCallDelta as DeltaMCPServerToolCall
-        from google.genai.interactions import MCPServerToolResultDelta as DeltaMCPServerToolResult
-        from google.genai.interactions import TextDelta as DeltaText
-        from google.genai.interactions import ThoughtSignatureDelta as DeltaThoughtSignature
-        from google.genai.interactions import ThoughtSummaryDelta as DeltaThoughtSummary
-        from google.genai.interactions import URLContextCallDelta as DeltaURLContextCall
-        from google.genai.interactions import URLContextResultDelta as DeltaURLContextResult
-    else:
-        # google-genai < 2.9.0: delta types live under the `step_delta` submodule,
-        # exposed as a submodule attribute (not a sub-package), so the Delta* types
-        # need attribute access rather than a direct import.
-        from google.genai.interactions import step_delta
+if TYPE_CHECKING or (_genai_available and _genai_version >= (2, 9)):
+    # google-genai >= 2.9.0: delta types live at the top level of
+    # `interactions`, renamed `<X>Delta`.
+    from google.genai.interactions import ArgumentsDelta as DeltaArgumentsDelta
+    from google.genai.interactions import CodeExecutionCallDelta as DeltaCodeExecutionCall
+    from google.genai.interactions import CodeExecutionResultDelta as DeltaCodeExecutionResult
+    from google.genai.interactions import FileSearchCallDelta as DeltaFileSearchCall
+    from google.genai.interactions import FileSearchResultDelta as DeltaFileSearchResult
+    from google.genai.interactions import FunctionResultDelta as DeltaFunctionResult
+    from google.genai.interactions import GoogleMapsCallDelta as DeltaGoogleMapsCall
+    from google.genai.interactions import GoogleMapsResultDelta as DeltaGoogleMapsResult
+    from google.genai.interactions import GoogleSearchCallDelta as DeltaGoogleSearchCall
+    from google.genai.interactions import GoogleSearchResultDelta as DeltaGoogleSearchResult
+    from google.genai.interactions import ImageDelta as DeltaImage
+    from google.genai.interactions import MCPServerToolCallDelta as DeltaMCPServerToolCall
+    from google.genai.interactions import MCPServerToolResultDelta as DeltaMCPServerToolResult
+    from google.genai.interactions import TextDelta as DeltaText
+    from google.genai.interactions import ThoughtSignatureDelta as DeltaThoughtSignature
+    from google.genai.interactions import ThoughtSummaryDelta as DeltaThoughtSummary
+    from google.genai.interactions import URLContextCallDelta as DeltaURLContextCall
+    from google.genai.interactions import URLContextResultDelta as DeltaURLContextResult
+elif _genai_available:
+    # google-genai < 2.9.0: delta types live under the `step_delta` submodule,
+    # exposed as a submodule attribute (not a sub-package), so the Delta* types
+    # need attribute access rather than a direct import.
+    from google.genai.interactions import step_delta
 
-        DeltaArgumentsDelta = step_delta.DeltaArgumentsDelta
-        DeltaImage = step_delta.DeltaImage
-        DeltaText = step_delta.DeltaText
-        DeltaThoughtSignature = step_delta.DeltaThoughtSignature
-        DeltaThoughtSummary = step_delta.DeltaThoughtSummary
-        # Typed call deltas. Non-function call families stream their typed
-        # Arguments object here (DeltaArgumentsDelta only fires for functions).
-        DeltaCodeExecutionCall = step_delta.DeltaCodeExecutionCall
-        DeltaFileSearchCall = step_delta.DeltaFileSearchCall
-        DeltaGoogleMapsCall = step_delta.DeltaGoogleMapsCall
-        DeltaGoogleSearchCall = step_delta.DeltaGoogleSearchCall
-        DeltaMCPServerToolCall = step_delta.DeltaMCPServerToolCall
-        DeltaURLContextCall = step_delta.DeltaURLContextCall
-        # Result deltas. Every *ResultStep arrives empty at StepStart and its
-        # actual payload streams here (one or more deltas, then StepStop).
-        DeltaCodeExecutionResult = step_delta.DeltaCodeExecutionResult
-        DeltaFileSearchResult = step_delta.DeltaFileSearchResult
-        DeltaFunctionResult = step_delta.DeltaFunctionResult
-        DeltaGoogleMapsResult = step_delta.DeltaGoogleMapsResult
-        DeltaGoogleSearchResult = step_delta.DeltaGoogleSearchResult
-        DeltaMCPServerToolResult = step_delta.DeltaMCPServerToolResult
-        DeltaURLContextResult = step_delta.DeltaURLContextResult
-
+    DeltaArgumentsDelta = step_delta.DeltaArgumentsDelta
+    DeltaImage = step_delta.DeltaImage
+    DeltaText = step_delta.DeltaText
+    DeltaThoughtSignature = step_delta.DeltaThoughtSignature
+    DeltaThoughtSummary = step_delta.DeltaThoughtSummary
+    # Typed call deltas. Non-function call families stream their typed
+    # Arguments object here (DeltaArgumentsDelta only fires for functions).
+    DeltaCodeExecutionCall = step_delta.DeltaCodeExecutionCall
+    DeltaFileSearchCall = step_delta.DeltaFileSearchCall
+    DeltaGoogleMapsCall = step_delta.DeltaGoogleMapsCall
+    DeltaGoogleSearchCall = step_delta.DeltaGoogleSearchCall
+    DeltaMCPServerToolCall = step_delta.DeltaMCPServerToolCall
+    DeltaURLContextCall = step_delta.DeltaURLContextCall
+    # Result deltas. Every *ResultStep arrives empty at StepStart and its
+    # actual payload streams here (one or more deltas, then StepStop).
+    DeltaCodeExecutionResult = step_delta.DeltaCodeExecutionResult
+    DeltaFileSearchResult = step_delta.DeltaFileSearchResult
+    DeltaFunctionResult = step_delta.DeltaFunctionResult
+    DeltaGoogleMapsResult = step_delta.DeltaGoogleMapsResult
+    DeltaGoogleSearchResult = step_delta.DeltaGoogleSearchResult
+    DeltaMCPServerToolResult = step_delta.DeltaMCPServerToolResult
+    DeltaURLContextResult = step_delta.DeltaURLContextResult
 
 GENAI_SDK_VERSION = _genai_version
 

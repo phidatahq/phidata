@@ -657,7 +657,9 @@ def _import(request: Dict[str, Any]) -> Dict[str, Any]:
                 source.unlink(missing_ok=True)
                 raise ValueError("Restore requires an empty, unused generation")
             _mark(_RESTORING)
-        _state["importing"] = True
+            # Set under the same lock: a repeated claim treats a restoring marker
+            # without a running import as an interrupted restore and fails the computer.
+            _state["importing"] = True
         stopped: List[int] = []
         try:
             stopped = _freeze()

@@ -262,6 +262,16 @@ Local container checks of `agentcore_server`: the guard refuses commands before 
 
 ---
 
+### Review fixes: restore race and one fewer call per command
+
+**Status:** PASS
+
+**Description:** Two findings from reviewing the whole PR. A restore set its importing flag after releasing the lifecycle lock. A repeated create arriving in that gap took the restoring marker for an interrupted restore and marked the computer failed. The restore then completed, but every later turn was refused. The flag is now set under the same lock. Separately, `aexec` looked the computer up with `describe` before staging its input. Staging already names the handle's incarnation and the server refuses a mismatch, so that lookup cost one invocation per command for nothing. It is gone.
+
+**Result:** 307 sandbox unit tests pass. A new test runs a repeated claim at the moment the import releases the lock, and fails when the flag is set after the lock again. Twenty-one mutations that invert the provider's and server's safety checks all fail at least one test. On staging the hardening checks passed, and `agentcore_session.py --replace` recalled the codeword with Codex and Claude and passed with the fixture harness.
+
+---
+
 ### One package per provider
 
 **Status:** PASS

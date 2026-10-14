@@ -9,6 +9,7 @@ import signal
 import subprocess
 import sys
 import threading
+from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from types import SimpleNamespace
@@ -179,7 +180,8 @@ async def test_a_handle_never_runs_on_a_later_claim_of_its_session():
     handle = await value.acreate("s")
     # The microVM ended and another create claimed a fresh one for the same session.
     value._data.incarnations[handle.provider_ref] = "later"
-    with pytest.raises(SandboxError, match="identity changed"):
+    # The computer refuses the staging upload, which names the handle's incarnation.
+    with pytest.raises(SandboxError, match="identity mismatch"):
         await value.aexec(handle, ["true"])
     with pytest.raises(SandboxError, match="identity mismatch"):
         await value.arpc(handle, "poll", b"{}")
@@ -758,3 +760,31 @@ def test_the_server_runs_as_a_module_without_loading_the_provider():
         [sys.executable, "-W", "error", "-m", "agno.sandbox.agentcore.server"], capture_output=True, text=True, env=env
     )
     assert usage.returncode == 1 and usage.stderr.startswith("usage: ")
+
+
+@pytest.mark.asyncio
+async def test_a_repeated_claim_racing_a_restore_never_fails_the_computer(computer, tmp_path, monkeypatch):
+    handle = await computer.sandbox.acreate("s")
+    computer.native.mkdir(mode=0o700)
+    (computer.native / "transcript.jsonl").write_text('{"turn": 1}\n')
+    transfer = AgentCoreCheckpointTransfer(computer.sandbox, FileCheckpointStore(tmp_path / "store"))
+    reference = await transfer.acapture(handle, state={"turn": 1})
+    computer.replace()
+    replacement = await computer.sandbox.acreate("s", generation=2)
+
+    # A repeated create lands the moment the import releases the lifecycle lock,
+    # after it marked the computer restoring.
+    lifecycle, raced = server._lifecycle, []
+
+    @contextmanager
+    def racing():
+        with lifecycle():
+            yield
+        if server._marked(server._RESTORING) and not raced:
+            raced.append(True)
+            claim = server._load_claim()
+            server._claim({"metadata": claim["metadata"], "env": claim["env"], "lifetime": 600})
+
+    monkeypatch.setattr(server, "_lifecycle", racing)
+    assert await transfer.arestore(replacement, reference) == {"turn": 1}
+    assert raced and not server._marked(server._FAILED)

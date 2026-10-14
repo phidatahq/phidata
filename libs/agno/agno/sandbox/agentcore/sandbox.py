@@ -377,9 +377,10 @@ class AgentCoreSandbox(Sandbox):
         )
         if len(command.encode()) > _MAX_COMMAND:
             raise SandboxError("AgentCore command exceeds 64 KiB")
-        await self._owned(handle)
         # Nothing runs until the command is sent, so a failed upload leaves compute
         # as it is. A staged file whose upload reply was lost is never executed.
+        # Staging names the handle's incarnation, so it also refuses a computer the
+        # handle does not own, with no separate lookup first.
         await self._invoke_for(handle, "stage", name=name, data=base64.b64encode(request).decode("ascii"))
         try:
             code, out, err, timed_out = await _thread(self._command, handle.provider_ref, command, timeout + 15)

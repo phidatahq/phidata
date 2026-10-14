@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any, Mapping, Optional, Sequence, Set
 from uuid import uuid4
 
+from agno.sandbox.agentcore_server import _MAX_STAGED
 from agno.sandbox.base import ExecResult, Sandbox, SandboxError, SandboxHandle, _identity
 from agno.sandbox.checkpoint import CheckpointArchive, CheckpointRef, CheckpointStore
 from agno.sandbox.transfer import DEFAULT_NATIVE_EXCLUSIONS, _ArchiveTransfer
@@ -259,7 +260,6 @@ class AgentCoreSandbox(Sandbox):
             raise ValueError("AgentCore commands run for at most an hour")
         if not isinstance(stdin, bytes) or len(stdin) > 8 * 1024 * 1024:
             raise ValueError("Command stdin must be bytes no larger than 8 MiB")
-        await self._owned(handle)
         request = json.dumps(
             {
                 "argv": list(argv),
@@ -268,6 +268,10 @@ class AgentCoreSandbox(Sandbox):
                 "stdin": base64.b64encode(stdin).decode("ascii"),
             }
         ).encode()
+        # Checked before anything is sent: the server applies the same limit, and a
+        # request it refuses must not cost the computer.
+        if len(request) > _MAX_STAGED:
+            raise ValueError("Command argv and stdin exceed the 12 MiB staged request limit once encoded")
         # The command API has no stdin, so the runner's request is staged first and
         # handed to the command by the guard, which deletes it.
         name = uuid4().hex
@@ -277,8 +281,13 @@ class AgentCoreSandbox(Sandbox):
         )
         if len(command.encode()) > _MAX_COMMAND:
             raise SandboxError("AgentCore command exceeds 64 KiB")
+        await self._owned(handle)
+        # Nothing runs until the command is sent, so a failed upload leaves compute
+        # as it is. A staged file whose upload reply was lost is never executed.
+        await _thread(
+            self._invoke, handle.provider_ref, "stage", name=name, data=base64.b64encode(request).decode("ascii")
+        )
         try:
-            await _thread(self._invoke, handle.provider_ref, "stage", name=name, data=request.hex())
             code, out, err, timed_out = await _thread(self._command, handle.provider_ref, command, timeout + 15)
         except BaseException:
             # The command may still be running remotely. Stop compute to bound it;

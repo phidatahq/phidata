@@ -1,5 +1,6 @@
 """AgentCore sandbox contracts against a fake data-plane client; no account access."""
 
+import base64
 import io
 import json
 import os
@@ -51,7 +52,7 @@ class Data:
             claim = self.claims.get(session)
             reply["value"] = {"claimed": claim is not None, **({"metadata": claim} if claim else {})}
         elif operation == "stage":
-            self.staged[request["name"]] = bytes.fromhex(request["data"])
+            self.staged[request["name"]] = base64.b64decode(request["data"])
             reply["value"] = {}
         elif operation == "rpc":
             reply["value"] = self.rpc_reply
@@ -228,7 +229,7 @@ def computer(tmp_path, monkeypatch):
     fake = value._invoke
 
     def invoke(reference, operation, **payload):
-        if operation not in ("export", "get", "put", "import", "remove"):
+        if operation not in ("stage", "export", "get", "put", "import", "remove"):
             return fake(reference, operation, **payload)
         try:
             return server._OPERATIONS[operation](payload)
@@ -279,3 +280,98 @@ async def test_restore_into_a_used_computer_stops_it(computer, tmp_path):
     with pytest.raises(SandboxError, match="empty, unused"):
         await transfer.arestore(handle, reference)
     assert computer.sandbox._data.stops == [handle.provider_ref]
+
+
+@pytest.mark.asyncio
+async def test_largest_allowed_stdin_is_accepted_by_the_server(computer):
+    from agno.sandbox.agentcore_server import _MAX_STAGED
+
+    handle = await computer.sandbox.acreate("s")
+    stdin = os.urandom(8 * 1024 * 1024)
+    result = await computer.sandbox.aexec(handle, ["cat"], stdin=stdin)
+    assert result.exit_code == 0
+    (staged,) = computer.control.glob("*.stdin")
+    assert 8 * 1024 * 1024 < staged.stat().st_size <= _MAX_STAGED
+    assert base64.b64decode(json.loads(staged.read_bytes())["stdin"]) == stdin
+    assert computer.sandbox._data.stops == []
+
+
+@pytest.mark.asyncio
+async def test_oversized_command_input_is_refused_before_anything_is_sent():
+    value = sandbox()
+    handle = await value.acreate("s")
+    sent = len(value._data.invokes)
+    with pytest.raises(ValueError, match="staged request limit"):
+        await value.aexec(handle, ["echo", "x" * (12 * 1024 * 1024)])
+    assert len(value._data.invokes) == sent and value._data.commands == [] and value._data.stops == []
+
+
+@pytest.mark.asyncio
+async def test_failed_staging_leaves_compute_running():
+    value = sandbox()
+    handle = await value.acreate("s")
+    invoke = value._invoke
+
+    def refuse_stage(reference, operation, **payload):
+        if operation == "stage":
+            raise SandboxError("AgentCore sandbox refused stage: upload failed")
+        return invoke(reference, operation, **payload)
+
+    value._invoke = refuse_stage
+    with pytest.raises(SandboxError, match="upload failed"):
+        await value.aexec(handle, ["true"])
+    assert value._data.commands == [] and value._data.stops == []
+
+
+@pytest.fixture
+def claiming(tmp_path, monkeypatch):
+    """The server's claim with the runtime start replaced, on temporary directories."""
+    from agno.sandbox import agentcore_server as server
+
+    control = tmp_path / "control"
+    control.mkdir()
+    for name, value in (
+        ("_CONTROL", control),
+        ("_CLAIM", control / "claim.json"),
+        ("_WORKSPACE", tmp_path / "workspace"),
+        ("_RUNTIME", tmp_path / "runtime"),
+        ("_USER", os.getuid()),
+        ("_GROUP", os.getgid()),
+        ("_state", {"token": None, "supervisor": None}),
+    ):
+        monkeypatch.setattr(server, name, value)
+    state = SimpleNamespace(fail=False, healthy=True, starts=0, stops=0)
+
+    def start(claim):
+        state.starts += 1
+        if state.fail:
+            raise RuntimeError("The sandbox runtime server did not become ready")
+
+    def stop():
+        state.stops += 1
+
+    monkeypatch.setattr(server, "_control_dir", lambda: None)
+    monkeypatch.setattr(server, "_expire", lambda deadline: None)
+    monkeypatch.setattr(server, "_start_runtime", start)
+    monkeypatch.setattr(server, "_stop_runtime", stop)
+    monkeypatch.setattr(server, "_runtime_healthy", lambda: state.healthy)
+    state.claim = lambda: server._claim({"metadata": {"config": "c"}, "env": {}, "lifetime": 600})
+    state.path = control / "claim.json"
+    return state
+
+
+def test_a_runtime_that_never_starts_leaves_the_computer_unclaimed(claiming):
+    claiming.fail = True
+    with pytest.raises(RuntimeError, match="did not become ready"):
+        claiming.claim()
+    assert not claiming.path.exists() and claiming.stops == 1
+    claiming.fail = False
+    assert claiming.claim()["created"] is True
+    assert claiming.path.exists() and claiming.starts == 2
+
+
+def test_a_repeated_claim_restarts_an_unhealthy_runtime(claiming):
+    assert claiming.claim()["created"] is True
+    assert claiming.claim()["created"] is False and claiming.starts == 1
+    claiming.healthy = False
+    assert claiming.claim()["created"] is False and claiming.starts == 2 and claiming.stops == 1

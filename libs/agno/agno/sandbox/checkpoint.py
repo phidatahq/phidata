@@ -486,7 +486,7 @@ class CheckpointArchive:
                     assert manifest_file is not None
                     try:
                         manifest = json.load(manifest_file)
-                    except (json.JSONDecodeError, UnicodeDecodeError) as error:
+                    except (ValueError, RecursionError) as error:
                         raise SandboxError("Invalid checkpoint manifest") from error
                     if (
                         not isinstance(manifest, dict)
@@ -650,9 +650,11 @@ class FileCheckpointStore:
         return await _thread(self.put, source)
 
     def verify(self, reference: CheckpointRef) -> None:
+        self._verify(self.root / reference.sha256, reference)
+
+    def _verify(self, path: Path, reference: CheckpointRef) -> None:
         if reference.size > self.max_bytes:
             raise SandboxError("Checkpoint object exceeds its limit")
-        path = self.root / reference.sha256
         digest, size = hashlib.sha256(), 0
         try:
             stream = _regular(path)
@@ -692,21 +694,21 @@ class FileCheckpointStore:
 
     @contextmanager
     def open_archive(self, reference: CheckpointRef) -> Iterator[Path]:
-        """Lease the object, verify it, and yield the leased name.
+        """Lease the object, verify the leased file, and yield it.
 
-        Verifying the canonical name verifies the lease with it: a name here is created
-        once, from content that already matched the digest it is named after.
+        The file handed out is the file that was checked, and retention removing the
+        canonical name after the lease exists cannot fail the check.
         """
         with self._lease(reference) as lease:
-            self.verify(reference)
+            self._verify(lease, reference)
             yield lease
 
     @asynccontextmanager
     async def aopen_archive(self, reference: CheckpointRef) -> AsyncIterator[Path]:
-        # Two filesystem calls, taken and released without awaiting: the lease has to
-        # outlive cancellation of the verification it is holding the object for.
         with self._lease(reference) as lease:
-            await self.averify(reference)
+            # _thread drains the verification before a cancellation propagates, so the
+            # lease is released only once nothing is still reading it.
+            await _thread(self._verify, lease, reference)
             yield lease
 
     def delete(self, reference: CheckpointRef) -> None:

@@ -6,6 +6,7 @@ import hashlib
 import io
 import json
 import os
+import sys
 import tarfile
 import tempfile
 import threading
@@ -15,6 +16,7 @@ from pathlib import Path
 import pytest
 
 from agno.sandbox import SandboxError
+from agno.sandbox import checkpoint as checkpoint_module
 from agno.sandbox.checkpoint import (
     CheckpointArchive,
     CheckpointLimits,
@@ -435,6 +437,15 @@ def unparsable_archive(tmp_path, roots, kind):
         return malicious_archive(tmp_path, [], manifest=b"{not json")
     if kind == "manifest is not utf-8":
         return malicious_archive(tmp_path, [], manifest='{"state": "caf\xe9"}'.encode("latin-1"))
+    if kind == "manifest integer past the digit limit":
+        limit = getattr(sys, "get_int_max_str_digits", lambda: 0)()
+        if not limit:
+            pytest.skip("this interpreter does not limit the digits of an integer")
+        return malicious_archive(tmp_path, [], manifest=b'{"version": 1, "state": {"n": ' + b"9" * (limit + 1) + b"}}")
+    if kind == "manifest nested past the recursion limit":
+        return malicious_archive(
+            tmp_path, [], manifest=b'{"version": 1, "state": ' + b"[" * 100_000 + b"]" * 100_000 + b"}"
+        )
     path = tmp_path / "unparsable.tar"
     if kind == "no tar header":
         path.write_bytes(b"x" * 4096)
@@ -467,6 +478,8 @@ def unparsable_archive(tmp_path, roots, kind):
         "long-name header with no member",
         "manifest is not json",
         "manifest is not utf-8",
+        "manifest integer past the digit limit",
+        "manifest nested past the recursion limit",
     ],
 )
 def test_unparsable_archives_are_rejected_as_sandbox_errors(tmp_path, roots, kind):
@@ -988,20 +1001,20 @@ def test_delete_removes_the_object_and_is_idempotent(tmp_path, roots):
 def test_restore_verifies_the_object_once_for_one_access(tmp_path, roots, monkeypatch):
     store = FileCheckpointStore(tmp_path / "objects")
     reference = store.put(capture(tmp_path, roots))
-    calls = []
-    real = store.verify
+    hashed = []
+    real = hashlib.sha256
 
-    def counted(value):
-        calls.append(value)
-        return real(value)
+    def counted(*args, **kwargs):
+        hashed.append(args)
+        return real(*args, **kwargs)
 
-    monkeypatch.setattr(store, "verify", counted)
+    monkeypatch.setattr(hashlib, "sha256", counted)
     assert store.restore(reference, tmp_path / "restored") == {
         "run_id": "r",
         "native_id": "n",
         "conversation": ["hello"],
     }
-    assert calls == [reference]
+    assert len(hashed) == 1, "one access hashes the object once"
 
 
 @pytest.mark.asyncio
@@ -1034,17 +1047,17 @@ async def test_cancelling_an_async_access_drains_its_verification(tmp_path, root
     store = FileCheckpointStore(tmp_path / "objects")
     reference = await store.aput(capture(tmp_path, roots))
     entered, release, settled = threading.Event(), threading.Event(), threading.Event()
-    real = store.verify
+    real = checkpoint_module._regular
 
-    def gate(value):
+    def gate(path):
         entered.set()
         assert release.wait(10), "the verification gate was never released"
         try:
-            return real(value)
+            return real(path)
         finally:
             settled.set()
 
-    monkeypatch.setattr(store, "verify", gate)
+    monkeypatch.setattr(checkpoint_module, "_regular", gate)
 
     async def access():
         async with store.aopen_archive(reference) as source:
@@ -1320,3 +1333,236 @@ def test_a_restore_survives_retention_deleting_the_object_after_verification(tmp
     monkeypatch.setattr(CheckpointArchive, "restore", delete_first)
     assert store.restore(reference, tmp_path / "restored")["run_id"] == "r"
     assert list(store.root.iterdir()) == []
+
+
+@contextlib.contextmanager
+def after_lease(step):
+    """Run ``step(leased_path)`` at the one point an access holds its lease and has done nothing else.
+
+    Scoped to the access: ``put`` links its upload into place as well, and must not trigger it.
+    """
+    real = os.link
+
+    def link(source, target, *args, **kwargs):
+        real(source, target, *args, **kwargs)
+        step(Path(target))
+
+    with pytest.MonkeyPatch.context() as patched:
+        patched.setattr(os, "link", link)
+        yield
+
+
+def deleted_when_leased(store, reference):
+    return after_lease(lambda leased: store.delete(reference))
+
+
+def test_an_access_survives_retention_deleting_the_object_the_moment_it_is_leased(tmp_path, roots):
+    source = capture(tmp_path, roots)
+    store = FileCheckpointStore(tmp_path / "objects")
+    # Twice, because the second pass starts from what the first one left behind.
+    for index in range(2):
+        reference = store.put(source)
+        with deleted_when_leased(store, reference), store.open_archive(reference) as path:
+            assert hashlib.sha256(path.read_bytes()).hexdigest() == reference.sha256
+            assert CheckpointArchive().restore(path, tmp_path / f"restored{index}")["run_id"] == "r"
+        assert list(store.root.iterdir()) == []
+
+
+@pytest.mark.asyncio
+async def test_an_async_access_survives_retention_deleting_the_object_the_moment_it_is_leased(tmp_path, roots):
+    source = capture(tmp_path, roots)
+    store = FileCheckpointStore(tmp_path / "objects")
+    for index in range(2):
+        reference = await store.aput(source)
+        with deleted_when_leased(store, reference):
+            async with store.aopen_archive(reference) as path:
+                assert hashlib.sha256(path.read_bytes()).hexdigest() == reference.sha256
+                assert (await CheckpointArchive().arestore(path, tmp_path / f"restored{index}"))["run_id"] == "r"
+        assert list(store.root.iterdir()) == []
+
+
+# The tests below split the canonical name from the leased one. Retention and a store are not
+# expected to rewrite an immutable object, so these are mechanism tests: they show which file
+# an access verifies and hands out, not that a replacement race occurs in production.
+
+
+def replace_canonical(store, reference, content):
+    """Give the canonical name different bytes under a new inode; any lease keeps the old one."""
+    canonical = store.root / reference.sha256
+    canonical.unlink()
+    canonical.write_bytes(content)
+
+
+def corrupt_in_place(path):
+    with path.open("r+b") as stream:
+        first = stream.read(1)
+        stream.seek(0)
+        stream.write(bytes([first[0] ^ 0xFF]))
+
+
+def test_an_access_verifies_the_file_it_yields_not_the_canonical_name(tmp_path, roots, monkeypatch):
+    store = FileCheckpointStore(tmp_path / "objects")
+    reference = store.put(capture(tmp_path, roots))
+    opened, real = [], checkpoint_module._regular
+
+    def spy(path):
+        opened.append(Path(path))
+        return real(path)
+
+    monkeypatch.setattr(checkpoint_module, "_regular", spy)
+    with store.open_archive(reference) as path:
+        assert path != store.root / reference.sha256
+        assert opened == [path], "the only file opened to verify is the one handed out"
+
+
+@pytest.mark.asyncio
+async def test_an_async_access_verifies_the_file_it_yields_not_the_canonical_name(tmp_path, roots, monkeypatch):
+    store = FileCheckpointStore(tmp_path / "objects")
+    reference = await store.aput(capture(tmp_path, roots))
+    opened, real = [], checkpoint_module._regular
+
+    def spy(path):
+        opened.append(Path(path))
+        return real(path)
+
+    monkeypatch.setattr(checkpoint_module, "_regular", spy)
+    async with store.aopen_archive(reference) as path:
+        assert path != store.root / reference.sha256
+        assert opened == [path]
+
+
+def test_a_leased_object_whose_bytes_changed_is_refused_and_its_lease_released(tmp_path, roots):
+    source = capture(tmp_path, roots)
+    store = FileCheckpointStore(tmp_path / "objects")
+    reference = store.put(source)
+    good = (store.root / reference.sha256).read_bytes()
+
+    def damage(leased):
+        replace_canonical(store, reference, good)  # the canonical name is intact, the lease is not
+        corrupt_in_place(leased)
+
+    entered = False
+    with after_lease(damage):
+        with pytest.raises(SandboxError, match="checksum"):
+            with store.open_archive(reference):
+                entered = True
+    assert not entered, "a failed verification never yields a path"
+    assert [path.name for path in store.root.iterdir()] == [reference.sha256]
+    # Repeated use of the same store: the failure left nothing that blocks the next access.
+    with store.open_archive(reference) as path:
+        assert hashlib.sha256(path.read_bytes()).hexdigest() == reference.sha256
+    assert [path.name for path in store.root.iterdir()] == [reference.sha256]
+
+
+@pytest.mark.asyncio
+async def test_a_leased_async_object_whose_bytes_changed_is_refused_and_its_lease_released(tmp_path, roots):
+    source = capture(tmp_path, roots)
+    store = FileCheckpointStore(tmp_path / "objects")
+    reference = await store.aput(source)
+    good = (store.root / reference.sha256).read_bytes()
+
+    def damage(leased):
+        replace_canonical(store, reference, good)
+        corrupt_in_place(leased)
+
+    entered = False
+    with after_lease(damage):
+        with pytest.raises(SandboxError, match="checksum"):
+            async with store.aopen_archive(reference):
+                entered = True
+    assert not entered
+    assert [path.name for path in store.root.iterdir()] == [reference.sha256]
+    async with store.aopen_archive(reference) as path:
+        assert hashlib.sha256(path.read_bytes()).hexdigest() == reference.sha256
+    assert [path.name for path in store.root.iterdir()] == [reference.sha256]
+
+
+def test_an_intact_lease_is_accepted_whatever_the_canonical_name_now_holds(tmp_path, roots):
+    store = FileCheckpointStore(tmp_path / "objects")
+    reference = store.put(capture(tmp_path, roots))
+    with after_lease(lambda leased: replace_canonical(store, reference, b"not the checkpoint")):
+        with store.open_archive(reference) as path:
+            assert hashlib.sha256(path.read_bytes()).hexdigest() == reference.sha256
+    assert [path.name for path in store.root.iterdir()] == [reference.sha256]
+
+
+@pytest.mark.asyncio
+async def test_an_intact_async_lease_is_accepted_whatever_the_canonical_name_now_holds(tmp_path, roots):
+    store = FileCheckpointStore(tmp_path / "objects")
+    reference = await store.aput(capture(tmp_path, roots))
+    with after_lease(lambda leased: replace_canonical(store, reference, b"not the checkpoint")):
+        async with store.aopen_archive(reference) as path:
+            assert hashlib.sha256(path.read_bytes()).hexdigest() == reference.sha256
+    assert [path.name for path in store.root.iterdir()] == [reference.sha256]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("cancels", [1, 3])
+async def test_a_cancelled_async_access_holds_its_lease_until_verification_has_drained(
+    tmp_path, roots, monkeypatch, cancels
+):
+    store = FileCheckpointStore(tmp_path / "objects")
+    reference = await store.aput(capture(tmp_path, roots))
+    entered, release = threading.Event(), threading.Event()
+    real = checkpoint_module._regular
+
+    def gate(path):
+        entered.set()
+        assert release.wait(10), "the verification gate was never released"
+        return real(path)
+
+    monkeypatch.setattr(checkpoint_module, "_regular", gate)
+
+    async def access():
+        async with store.aopen_archive(reference) as source:
+            return source
+
+    task = asyncio.create_task(access())
+    try:
+        assert await asyncio.to_thread(entered.wait, 5)
+        await deliver(task, cancels)
+        assert not task.done(), "the verification must not be abandoned mid-read"
+        held = [path.name for path in store.root.iterdir() if path.name != reference.sha256]
+        assert len(held) == 1, "the lease is still held while the verification thread still uses it"
+    finally:
+        release.set()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert [path.name for path in store.root.iterdir()] == [reference.sha256]
+    async with store.aopen_archive(reference) as path:  # the cancelled access left the store usable
+        assert path.exists()
+
+
+@pytest.mark.asyncio
+async def test_a_cancelled_async_access_keeps_the_verification_failure_reachable(tmp_path, roots, monkeypatch):
+    store = FileCheckpointStore(tmp_path / "objects")
+    reference = await store.aput(capture(tmp_path, roots))
+    corrupt_in_place(store.root / reference.sha256)
+    entered, release = threading.Event(), threading.Event()
+    real = checkpoint_module._regular
+
+    def gate(path):
+        entered.set()
+        assert release.wait(10), "the verification gate was never released"
+        return real(path)
+
+    monkeypatch.setattr(checkpoint_module, "_regular", gate)
+    reached = False
+
+    async def access():
+        nonlocal reached
+        async with store.aopen_archive(reference):
+            reached = True
+
+    task = asyncio.create_task(access())
+    try:
+        assert await asyncio.to_thread(entered.wait, 5)
+        await deliver(task, 1)
+    finally:
+        release.set()
+    with pytest.raises(asyncio.CancelledError) as error:
+        await task
+    assert not reached
+    failures = [item for item in chained(error.value) if isinstance(item, SandboxError)]
+    assert failures and "checksum" in str(failures[0]), "the failure that died under the cancellation stays reachable"
+    assert [path.name for path in store.root.iterdir()] == [reference.sha256]

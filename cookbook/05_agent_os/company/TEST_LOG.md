@@ -2,7 +2,7 @@
 
 ## Completion checks — 14 October 2026
 
-**Status:** PASS for local backend checks; live provider pilot pending approval.
+**Status:** PASS for local backend checks and the two-run live Codex pilot.
 
 - Required `scripts/format.sh` and `scripts/validate.sh`: PASS. The previous 26 model
   typing failures were resolved in a separate prerequisite commit. Related Google
@@ -22,9 +22,32 @@
 - The prepared two-run operator script passed with a fixture SDK, including an actual
   disposable worktree, independent command checks, restart, revision and acceptance.
   Those edits were scripted fixtures; this is not live coding evidence. The Company
-  suite is also wired into the existing PostgreSQL CI job; hosted execution is pending.
-- No frontend changes or Manager PR edits. Real coding quality, automatic per-Task
-  workspace allocation and multi-replica deployment are not established by these tests.
+  suite is also wired into the existing PostgreSQL CI job; hosted Company tests passed.
+- No frontend changes or Manager PR edits. Automatic per-Task workspace allocation
+  and multi-replica deployment are not established by these tests.
+
+### Live Codex operator pilot
+
+**Status:** PASS — two live runs out of ten authorized, using the configured Codex account.
+
+**Description:** At runtime source `9530220fc71c902df0dbe335c97cbfde4f9da78b`, created
+a disposable repository/worktree and a dedicated PostgreSQL database. Company HTTP
+routes dispatched a registered CodexAgent through the durable queue. Run one fixed
+the README command. After AgentOS reconstruction, run two revised the CLI to accept
+either a positional name or --name and added three unittest cases. Reported model:
+`gpt-5.6-luna`. Both runs retained the same Company session and native Codex thread.
+
+**Result:** Independent checks passed: three unit tests, documented command, both CLI
+forms, rejection of conflicting inputs and unchanged guide checker. Duplicate dispatch
+requests created no extra runs. Each result stopped at In review; explicit acceptance
+by the fixture reviewer moved the Task to Done and derived Project completion. The
+source repository remained clean. No push, merge or deployment occurred in the pilot.
+
+AgentOS was reconstructed within one process; this does not prove host/crash recovery.
+The fixture reviewer is not an actual human PR merge. Live Manager Team planning,
+automatic Ready pickup and verified human-merge completion were not exercised.
+
+---
 
 The entries below retain earlier test history; their failures and counts are superseded
 by the completion checks above.

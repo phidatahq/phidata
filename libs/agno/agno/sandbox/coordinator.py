@@ -392,9 +392,11 @@ class SandboxCoordinator:
                     execution_id=record["execution_id"],
                     generation=record["generation"],
                 )
-                reference = await self.transfer.acapture(
-                    handle, state={"binding": identity, "result": record["result"]}
-                )
+                # A digest, not the result: the manifest is capped at the runtime's own result limit.
+                digest = hashlib.sha256(
+                    json.dumps(record["result"], sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
+                ).hexdigest()
+                reference = await self.transfer.acapture(handle, state={"binding": identity, "result_sha256": digest})
                 await self.transfer.store.averify(reference)
                 record.update(staged_checkpoint=asdict(reference), staged_identity=identity)
             await self.transfer.store.averify(CheckpointRef(**record["staged_checkpoint"]))

@@ -1,6 +1,7 @@
 """Full Docker + Postgres recovery boundary, using a credential-free runtime."""
 
 import asyncio
+import json
 import os
 from dataclasses import dataclass, field, replace
 from typing import Dict
@@ -532,3 +533,25 @@ async def test_repeated_cancellation_during_admission_does_not_strand_its_lease(
     # An unreleased lease would refuse this re-claim as busy for the whole lease.
     assert (await run(coordinator, spec)).status == RunStatus.completed
     assert await recovered_effects(coordinator, root) == ["first"]
+
+
+async def test_large_structured_result_still_checkpoints(system, monkeypatch):
+    coordinator, spec, root = system
+    poll = coordinator.client.apoll
+
+    async def large(*args, **kwargs):
+        page = await poll(*args, **kwargs)
+        if page.result is not None and page.result["type"] == "execution_finished":
+            # Structure-heavy, like messages and tool calls: under the runtime's 1 MiB limit as compact
+            # JSON, but about a quarter larger with the default separators the manifest is written with.
+            page.result["run"]["metadata"] = {"items": [{"k": 1}] * 110_000}
+            assert len(json.dumps(page.result, separators=(",", ":")).encode()) < 1024 * 1024
+        return page
+
+    monkeypatch.setattr(coordinator.client, "apoll", large)
+    output = await run(coordinator, spec)
+    assert output.status == RunStatus.completed
+    record = (await binding(coordinator))["record"]
+    target = root / uuid4().hex
+    state = await coordinator.transfer.store.arestore(CheckpointRef(**record["checkpoint"]), target)
+    assert "result" not in state and len(state["result_sha256"]) == 64

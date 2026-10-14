@@ -657,6 +657,28 @@ async def test_admission_takes_the_core_run_index_lock(store):
         await asyncio.sleep(0.5)
         # Core run saves hold this lock while picking the next index; admission must wait for it too.
         assert not admission.done()
+
+        # Core takes the lock before writing the run row. Admission must not hold that row while it waits,
+        # or a core save of the same run waits on admission while holding the lock admission needs.
+        def core_save_of_the_same_run():
+            with engine.connect() as connection:
+                transaction = connection.begin()
+                connection.exec_driver_sql("SET LOCAL lock_timeout = '500ms'")
+                connection.execute(
+                    store.runs.insert().values(
+                        run_id="queued",
+                        session_id="session",
+                        run_type="agent",
+                        agent_id="agent",
+                        user_id="user",
+                        status="PENDING",
+                        created_at=1,
+                        run_data=value,
+                    )
+                )
+                transaction.rollback()
+
+        await asyncio.to_thread(core_save_of_the_same_run)
     finally:
         await asyncio.to_thread(
             lambda: holder.exec_driver_sql("SELECT pg_advisory_unlock(hashtext('agno_run_index'), hashtext('session'))")

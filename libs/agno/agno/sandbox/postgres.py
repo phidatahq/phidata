@@ -744,6 +744,12 @@ class _SandboxStore:
         for key in ("run_id", "session_id", "agent_id"):
             if not isinstance(value.get(key), str) or not value[key] or len(value[key]) > 256:
                 raise ValueError("Sandbox runs require bounded service identities")
+        # The lock core run saves take, so a concurrent save cannot pick the same index. Taken before the
+        # run row, in core's order: holding the row while waiting for it would deadlock a core save.
+        connection.execute(
+            text("SELECT pg_advisory_xact_lock(hashtext('agno_run_index'), hashtext(:sid))"),
+            {"sid": value["session_id"]},
+        )
         self._insert_session(connection, value)
         connection.execute(
             insert(self.runs)
@@ -772,11 +778,6 @@ class _SandboxStore:
         if row["run_data"].get("input") != value.get("input"):
             raise SandboxError("Run identity already exists with different input")
         if row["run_index"] is None:
-            # The lock core run saves take, so a concurrent save cannot pick the same index.
-            connection.execute(
-                text("SELECT pg_advisory_xact_lock(hashtext('agno_run_index'), hashtext(:sid))"),
-                {"sid": value["session_id"]},
-            )
             index = connection.execute(
                 select(func.coalesce(func.max(self.runs.c.run_index), -1) + 1).where(
                     self.runs.c.session_id == value["session_id"]

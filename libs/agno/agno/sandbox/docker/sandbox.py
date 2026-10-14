@@ -31,7 +31,7 @@ _ICC_OPTION = "com.docker.network.bridge.enable_icc"
 _TOKEN_ENV = "AGNO_SANDBOX_RUNTIME_TOKEN"
 # How long create waits for a freshly started runtime server to answer /health.
 _RUNTIME_READY_SECONDS = 15.0
-_RUNNER = Path(__file__).with_name("_exec.py").read_text()
+_RUNNER = (Path(__file__).parent.parent / "_exec.py").read_text()
 
 
 class DockerSandbox(Sandbox):

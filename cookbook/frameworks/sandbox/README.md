@@ -17,6 +17,15 @@ The example creates a sandbox container, writes and reads a file, reuses that co
 
 `DockerSandbox` offers `create/get/exec/stop/destroy` and their asynchronous `acreate/aget/aexec/astop/adestroy` counterparts. Command arguments are passed as a sequence; explicitly use `sh -c` when shell syntax is intended. Nonzero command exits are returned as `ExecResult`; infrastructure failures raise `SandboxError`. Uncertain commands are never retried automatically.
 
+The code is in `agno.sandbox`. `base.py` and `transfer.py` hold the protocols every provider implements: `Sandbox` for compute and `CheckpointTransfer` for moving checkpoints. Each provider is a package with one module per protocol:
+
+| Package | Modules |
+|---|---|
+| `agno.sandbox.docker` | `sandbox.py` (`DockerSandbox`), `transfer.py` (`DockerCheckpointTransfer`) |
+| `agno.sandbox.agentcore` | `sandbox.py` (`AgentCoreSandbox`), `transfer.py` (`AgentCoreCheckpointTransfer`), `server.py` (runs inside the microVM) |
+
+Import the classes from the package, for example `from agno.sandbox.docker import DockerSandbox`. The checkpoint archive and stores in `checkpoint.py` and the runtime in `runtime.py` and `client.py` are shared by every provider.
+
 ## Warm reuse between turns
 
 ```bash
@@ -98,7 +107,7 @@ The image's entrypoint is the AgentCore server, since AgentCore cannot override 
 
 `AgentCoreSandbox(runtime_arn, namespace=...)` implements the same `Sandbox` contract as `DockerSandbox`. Each generation is the AgentCore runtime session named after its namespace, agent, session and generation, so `create` is idempotent and finds a computer again after a lost reply. Every session is a Firecracker microVM with 2 vCPU and 8 GiB.
 
-The image's entrypoint, `agno.sandbox.agentcore_server`, runs as root and answers AgentCore on port 8080. `create` claims the microVM: the server records the identity, environment and a lifetime deadline where the agent cannot read them, creates `/workspace` and `/runtime` for UID 1000, and starts the runtime server as UID 1000 with a token only it holds. `rpc` reaches that server through `InvokeAgentRuntime`, so long polls work without publishing a port. Commands go through `InvokeAgentRuntimeCommand` behind a guard that refuses an unclaimed microVM, applies the claimed environment and drops to UID 1000 in `/workspace`.
+The image's entrypoint, `agno.sandbox.agentcore.server`, runs as root and answers AgentCore on port 8080. `create` claims the microVM: the server records the identity, environment and a lifetime deadline where the agent cannot read them, creates `/workspace` and `/runtime` for UID 1000, and starts the runtime server as UID 1000 with a token only it holds. `rpc` reaches that server through `InvokeAgentRuntime`, so long polls work without publishing a port. Commands go through `InvokeAgentRuntimeCommand` behind a guard that refuses an unclaimed microVM, applies the claimed environment and drops to UID 1000 in `/workspace`.
 
 The example runs two turns of one session. By default turn 2 calls `create` again, as a new request would, gets the same microVM, and the harness resumes its native session with nothing to restore. `--replace` takes the cold path instead: it captures a checkpoint after turn 1, destroys the microVM, creates generation 2 and restores into it, so turn 2 runs on a fresh microVM. With a real harness, turn 2 must recall a codeword that only the conversation from turn 1 holds.
 

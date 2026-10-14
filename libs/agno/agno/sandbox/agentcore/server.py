@@ -570,7 +570,7 @@ def _export(request: Dict[str, Any]) -> Dict[str, Any]:
             descriptor = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
             try:
                 child = _as_agent(
-                    [*_PYTHON, "-m", "agno.sandbox.agentcore_server", "checkpoint-capture"],
+                    [*_PYTHON, "-m", "agno.sandbox.agentcore.server", "checkpoint-capture"],
                     stdin=subprocess.PIPE,
                     stdout=descriptor,
                     stderr=subprocess.PIPE,
@@ -664,7 +664,7 @@ def _import(request: Dict[str, Any]) -> Dict[str, Any]:
             descriptor = os.open(source, os.O_RDONLY | os.O_NOFOLLOW)
             try:
                 child = _as_agent(
-                    [*_PYTHON, "-m", "agno.sandbox.agentcore_server", "checkpoint-restore", job],
+                    [*_PYTHON, "-m", "agno.sandbox.agentcore.server", "checkpoint-restore", job],
                     stdin=descriptor,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
@@ -1020,7 +1020,7 @@ def main() -> None:
     elif command == ["checkpoint-restore"] and len(sys.argv) == 3:
         _checkpoint_restore(sys.argv[2])
     else:
-        sys.exit("usage: python -I -m agno.sandbox.agentcore_server serve | exec [--stdin NAME] -- ARGV...")
+        sys.exit("usage: python -I -m agno.sandbox.agentcore.server serve | exec [--stdin NAME] -- ARGV...")
 
 
 if __name__ == "__main__":

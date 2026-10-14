@@ -262,6 +262,16 @@ Local container checks of `agentcore_server`: the guard refuses commands before 
 
 ---
 
+### One package per provider
+
+**Status:** PASS
+
+**Description:** Kaustubh asked to separate the protocols from their implementations. `transfer.py` now holds only the `CheckpointTransfer` protocol and `DEFAULT_NATIVE_EXCLUSIONS`. Docker moved to `agno.sandbox.docker` with `sandbox.py` and `transfer.py`. AgentCore moved to `agno.sandbox.agentcore` with `sandbox.py`, `transfer.py` and `server.py`. Imports from the packages are unchanged except `DockerCheckpointTransfer`, which now comes from `agno.sandbox.docker`. The image entrypoint is now `python -I -m agno.sandbox.agentcore.server serve`. The AgentCore package loads its classes on first use, so starting the server does not import the provider and does not trigger the double-import warning from `-m`.
+
+**Result:** 306 sandbox unit tests pass, including a new test that runs the server with `-W error` and checks that importing the package leaves the provider unloaded. The Docker integration suite passed on the rebuilt image, with 34 passed and 5 skipped for the other transport. On staging the hardening checks passed, and `agentcore_session.py --replace` recalled the codeword with Codex and Claude and passed with the fixture harness.
+
+---
+
 ### AgentCore deploy flags and one image
 
 **Status:** PASS

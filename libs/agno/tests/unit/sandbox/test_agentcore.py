@@ -19,7 +19,7 @@ pytest.importorskip("boto3")
 
 from botocore.exceptions import ClientError, EndpointConnectionError
 
-from agno.sandbox import agentcore_server as server
+from agno.sandbox.agentcore import server
 from agno.sandbox.agentcore import AgentCoreCheckpointTransfer, AgentCoreSandbox
 from agno.sandbox.base import SandboxError
 from agno.sandbox.checkpoint import FileCheckpointStore
@@ -32,7 +32,7 @@ def client_error(code):
 
 
 class Data:
-    """Answers like the bedrock-agentcore data plane in front of agentcore_server."""
+    """Answers like the bedrock-agentcore data plane in front of the AgentCore server."""
 
     def __init__(self):
         self.claims, self.incarnations = {}, {}
@@ -117,7 +117,7 @@ def sandbox():
 
 @pytest.fixture
 def no_sleep(monkeypatch):
-    monkeypatch.setattr("agno.sandbox.agentcore.time.sleep", lambda seconds: None)
+    monkeypatch.setattr("agno.sandbox.agentcore.sandbox.time.sleep", lambda seconds: None)
 
 
 # Provider
@@ -195,7 +195,7 @@ async def test_exec_stages_stdin_for_the_named_computer_and_runs_through_the_gua
     command = value._data.commands[0]["body"]["command"]
     expect = value._expect(handle)
     assert command.startswith(
-        f"python -I -m agno.sandbox.agentcore_server exec --expect {expect['config']}:{expect['incarnation']} --stdin "
+        f"python -I -m agno.sandbox.agentcore.server exec --expect {expect['config']}:{expect['incarnation']} --stdin "
     )
     # The guard starts the runner itself, so the command names no other program.
     assert command.split()[-2] == "--stdin"
@@ -386,7 +386,7 @@ def computer(tmp_path, monkeypatch):
     ):
         monkeypatch.setattr(server, name, value)
     # Children start in / and must import this checkout, not an installed agno.
-    monkeypatch.setenv("PYTHONPATH", str(Path(server.__file__).resolve().parents[2]))
+    monkeypatch.setenv("PYTHONPATH", str(Path(server.__file__).resolve().parents[3]))
     # Freezing this user's processes would stop the test runner itself.
     monkeypatch.setattr(server, "_freeze", lambda: [])
     monkeypatch.setattr(server, "_control_dir", lambda: None)
@@ -429,7 +429,7 @@ async def test_largest_allowed_stdin_is_accepted_by_the_server(computer):
 
 @pytest.mark.asyncio
 async def test_checkpoint_round_trip_into_a_replacement_microvm(computer, tmp_path, monkeypatch):
-    monkeypatch.setattr("agno.sandbox.agentcore._CHUNK", 4096)
+    monkeypatch.setattr("agno.sandbox.agentcore.transfer._CHUNK", 4096)
     handle = await computer.sandbox.acreate("s")
     (computer.workspace / "src").mkdir()
     (computer.workspace / "src" / "app.py").write_text("print('hi')\n" * 4000)
@@ -744,3 +744,17 @@ async def test_a_stale_handle_restoring_never_stops_the_current_computer(tmp_pat
     with pytest.raises(SandboxError):
         await transfer.arestore(handle, "missing")
     assert value._data.stops == []
+
+
+def test_the_server_runs_as_a_module_without_loading_the_provider():
+    # The image starts the server with -m, which imports its package first. The
+    # package must not import the provider, or the server would load twice and
+    # warn on every guarded command.
+    env = dict(os.environ, PYTHONPATH=str(Path(server.__file__).resolve().parents[3]))
+    code = "import sys, agno.sandbox.agentcore; print('agno.sandbox.agentcore.sandbox' in sys.modules)"
+    imported = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, env=env, check=True)
+    assert imported.stdout == "False\n"
+    usage = subprocess.run(
+        [sys.executable, "-W", "error", "-m", "agno.sandbox.agentcore.server"], capture_output=True, text=True, env=env
+    )
+    assert usage.returncode == 1 and usage.stderr.startswith("usage: ")

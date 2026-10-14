@@ -175,11 +175,17 @@ class Registry:
             if hasattr(component, "_registry_excluded"):
                 component._registry_excluded = True
         self.reserve_component_ids(component.id for component in components if getattr(component, "id", None))
-        # Repair registry mirrors without mutating a served list the caller
-        # may have passed directly to the registry.
-        self.agents = [agent for agent in self.agents if not self.is_component_excluded(agent)]
-        self.teams = [team for team in self.teams if not self.is_component_excluded(team)]
-        self.workflows = [workflow for workflow in self.workflows if not self.is_component_excluded(workflow)]
+        # Keep supplied lists live unless an exclusion requires a filtered copy.
+        # Never remove components from a served list supplied by the caller.
+        agents = [agent for agent in self.agents if not self.is_component_excluded(agent)]
+        if len(agents) != len(self.agents):
+            self.agents = agents
+        teams = [team for team in self.teams if not self.is_component_excluded(team)]
+        if len(teams) != len(self.teams):
+            self.teams = teams
+        workflows = [workflow for workflow in self.workflows if not self.is_component_excluded(workflow)]
+        if len(workflows) != len(self.workflows):
+            self.workflows = workflows
 
     @cached_property
     def _entrypoint_lookup(self) -> Dict[EntrypointKey, EntrypointSource]:

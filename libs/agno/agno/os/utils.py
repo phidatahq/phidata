@@ -2428,7 +2428,7 @@ def collect_components_from_agent(agent: Any, registry: Registry, visited: Set[i
     ``visited`` tracks already-walked agents/teams/workflows (by object id) to
     avoid redundant work and infinite recursion on cyclic composition graphs.
     """
-    if id(agent) in visited or registry._component_is_excluded(agent):
+    if id(agent) in visited or registry.is_component_excluded(agent):
         return
     visited.add(id(agent))
 
@@ -2459,7 +2459,7 @@ def collect_components_from_agent(agent: Any, registry: Registry, visited: Set[i
 
 def collect_components_from_team(team: Any, registry: Registry, visited: Set[int]) -> None:
     """Add a team's components to the registry, recursing into all of its members."""
-    if id(team) in visited or registry._component_is_excluded(team):
+    if id(team) in visited or registry.is_component_excluded(team):
         return
     visited.add(id(team))
 
@@ -2491,7 +2491,7 @@ def collect_components_from_team(team: Any, registry: Registry, visited: Set[int
 
 def collect_components_from_workflow(workflow: Any, registry: Registry, visited: Set[int]) -> None:
     """Add a workflow's components (coordinator agent and step tree) to the registry."""
-    if id(workflow) in visited or registry._component_is_excluded(workflow):
+    if id(workflow) in visited or registry.is_component_excluded(workflow):
         return
     visited.add(id(workflow))
 

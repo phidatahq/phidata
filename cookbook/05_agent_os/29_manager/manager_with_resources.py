@@ -57,7 +57,6 @@ agent_os = AgentOS(
     db=db,
     registry=registry,
     manager=ManagerConfig(
-        name="Agno",
         model=model,
         tools=[notes.tools()],
         knowledge=product_knowledge,

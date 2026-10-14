@@ -1162,7 +1162,7 @@ class AgentOS:
         if self.registry is None:
             self.registry = Registry()
         if self._manager is not None:
-            self.registry._exclude_components(self._manager.components)
+            self.registry.exclude_components(self._manager.components)
 
         # Name the db behind the component catalog outright, including when
         # there is none. A Studio toolkit given no db of its own resolves this
@@ -1422,7 +1422,7 @@ class AgentOS:
         }
 
         def _register(owner: Any, owner_type: str) -> None:
-            if registry._component_is_excluded(owner):
+            if registry.is_component_excluded(owner):
                 return
             owner_id = getattr(owner, "id", None)
 

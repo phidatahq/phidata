@@ -1,8 +1,8 @@
 """The AgentOS manager: the conversational entry point to the OS.
 
-``AgentOS(manager=ManagerConfig(...))`` builds one team and its three member
-agents, all framework-owned, and serves them as ordinary components. The lead
-delegates; Platform Builder composes components from the declared registry
+``AgentOS(manager=ManagerConfig(...))`` builds OS Manager, a team with two or
+three member agents, all framework-owned, and serves them as ordinary components.
+The lead delegates; Platform Builder composes components from the declared registry
 through the Studio tools; Platform Manager reads the runtime through the
 AgentOS tools and the native diagnostics; Platform Engineer reads the source
 through a workspace provider when one is configured.
@@ -27,12 +27,13 @@ from agno.team import Team
 if TYPE_CHECKING:
     from agno.os.app import AgentOS
 
-MANAGER_TEAM_ID = "agno"
+MANAGER_TEAM_ID = "os-manager"
+MANAGER_TEAM_NAME = "OS Manager"
 BUILDER_ID = "platform-builder"
 OPERATOR_ID = "platform-manager"
 ENGINEER_ID = "platform-engineer"
-# Member ids are fixed. The team id is the application's to choose, defaulting to
-# the one the reference template has always used so existing sessions keep resolving.
+# Member ids are fixed. The team id is the application's to choose: an application
+# that already serves its own platform team can keep that team's id, and its sessions.
 RESERVED_MEMBER_IDS = frozenset({BUILDER_ID, OPERATOR_ID, ENGINEER_ID})
 
 
@@ -53,13 +54,13 @@ class ManagerConfig:
             reads in tools mode. Provider exclusions may tighten the defaults;
             custom exemptions and allow_paths are refused. Without it no engineer
             is built.
-        offload_tool_results: Offload large tool results for all four components.
+        offload_tool_results: Offload large tool results for the lead and every member.
         instructions: Appended to the lead's instructions.
         required_env: Environment variables whose presence the diagnostics report.
         num_history_runs: Conversation history the lead keeps in context.
     """
 
-    name: str = "Agno"
+    name: str = MANAGER_TEAM_NAME
     model: Optional[Any] = None
     id: str = MANAGER_TEAM_ID
     tools: List[Any] = field(default_factory=list)
@@ -84,7 +85,7 @@ class ManagerConfig:
 
 @dataclass
 class _Manager:
-    """The built manager: the lead team and its members."""
+    """The built manager: the OS Manager team and its members."""
 
     config: ManagerConfig
     team: Team
@@ -421,8 +422,9 @@ def _build_manager(agent_os: "AgentOS", config: ManagerConfig) -> _Manager:
     """
     from agno.db.base import AsyncBaseDb, BaseDb
     from agno.tools.agentos import AgentOSTools
-    from agno.tools.studio import StudioTools, _LiveComponentView
+    from agno.tools.studio import StudioTools
     from agno.tools.studio_runner import StudioRunnerTools
+    from agno.utils.live_sequence import LiveSequence
 
     db = agent_os.db
     if db is None:
@@ -521,9 +523,9 @@ def _build_manager(agent_os: "AgentOS", config: ManagerConfig) -> _Manager:
             StudioRunnerTools(
                 registry=registry,
                 db=db,
-                include_agents=_LiveComponentView(lambda: agent_os._agents),
-                include_teams=_LiveComponentView(lambda: agent_os._teams),
-                include_workflows=_LiveComponentView(lambda: agent_os._workflows),
+                include_agents=LiveSequence(lambda: agent_os._agents),
+                include_teams=LiveSequence(lambda: agent_os._teams),
+                include_workflows=LiveSequence(lambda: agent_os._workflows),
                 include_all_components=True,
                 self_dispatch="once",
             ),
@@ -535,9 +537,8 @@ def _build_manager(agent_os: "AgentOS", config: ManagerConfig) -> _Manager:
         add_history_to_context=True,
         num_history_runs=config.num_history_runs,
     )
-    team._registry_excluded = True
-    for member in members:
-        member._registry_excluded = True
-    registry._excluded_component_ids.update(RESERVED_MEMBER_IDS | {config.id})
-    registry._exclude_components([team, *members])
+    # The engineer's id is reserved even when no engineer is built, so the id stays
+    # unavailable to applications whether or not a workspace is configured later.
+    registry.reserve_component_ids(RESERVED_MEMBER_IDS | {config.id})
+    registry.exclude_components([team, *members])
     return _Manager(config=config, team=team, builder=builder, operator=operator, engineer=engineer)

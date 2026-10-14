@@ -8,14 +8,15 @@ chooses the name, the model and the resources it attaches.
 ```python
 from agno.os import AgentOS, ManagerConfig
 
-agent_os = AgentOS(db=db, registry=registry, manager=ManagerConfig(name="Agno", model=model))
+agent_os = AgentOS(db=db, registry=registry, manager=ManagerConfig(model=model))
 ```
 
-`manager=True` takes the registry's first model. The result is one team with id
-`agno` (configurable) and members with fixed ids: `platform-builder`,
+`manager=True` takes the registry's first model. The result is one team, OS
+Manager, with id `os-manager`, and members with fixed ids: `platform-builder`,
 `platform-manager` and, when a workspace is configured, `platform-engineer`.
-All four are served as ordinary components, so the UI, REST, MCP, interfaces
-and scopes work unchanged. They never enter the registry: a component built by
+`ManagerConfig(name=..., id=...)` renames the team; the member ids stay fixed.
+The team and its members are served as ordinary components, so the UI, REST,
+MCP, interfaces and scopes work unchanged. They never enter the registry: a component built by
 Platform Builder cannot acquire the manager's toolkits.
 
 ## Files
@@ -40,7 +41,7 @@ export OPENAI_API_KEY=...
 .venvs/demo/bin/python cookbook/05_agent_os/29_manager/basic_manager.py
 ```
 
-Then open the AgentOS UI, pick the Agno team and ask what it can build.
+Then open the AgentOS UI, pick the OS Manager team and ask what it can build.
 
 ## Source access and build boundaries
 
@@ -78,7 +79,7 @@ server are mounted by `get_app()`. Bind them in between:
 ```python
 agent_os = AgentOS(db=db, registry=registry, manager=ManagerConfig(model=model), mcp=True)
 agent_os.interfaces.append(Slack(team=agent_os.manager, token=token, signing_secret=secret))
-agent_os.mcp = MCPConfig(default_tools=True, tools=[agent_os.manager.as_tool(name="agno")])
+agent_os.mcp = MCPConfig(default_tools=True, tools=[agent_os.manager.as_tool(name="os_manager")])
 app = agent_os.get_app()
 ```
 

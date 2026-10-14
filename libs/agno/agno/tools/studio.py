@@ -76,7 +76,7 @@ import asyncio
 import inspect
 import json
 import threading
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Literal, Optional, Sequence, Set, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Literal, Optional, Set, Union
 
 from agno.exceptions import SchemaMismatchError
 from agno.run import RunContext
@@ -84,6 +84,7 @@ from agno.tools.function import Function
 from agno.tools.studio_runner import AmbiguousComponentNameError, StudioRunnerError, StudioRunnerTools, _slugify
 from agno.tools.studio_schema import WorkflowStepSpec, error_result, ok_result
 from agno.tools.toolkit import Toolkit
+from agno.utils.live_sequence import LiveSequence
 from agno.utils.log import log_debug, log_warning, logger
 from agno.utils.string import generate_component_id_from_name, validate_component_id
 
@@ -202,28 +203,6 @@ class _ToolsNotFoundError(ValueError):
     from tool_not_allowed, which is a palette refusal for a name that exists)."""
 
 
-class _LiveComponentView(Sequence[Any]):
-    """A sequence view over a component resolver, read at access time.
-
-    SchedulerTools' code-defined probe reads its include_* sequences on every
-    call; handing it these views keeps the probe aligned with the run tools'
-    resolution (explicit lists, else the registry) even when the registry is
-    populated after the toolkit is built.
-    """
-
-    def __init__(self, resolve: Callable[[], List[Any]]):
-        self._resolve = resolve
-
-    def __getitem__(self, index):  # type: ignore[no-untyped-def]
-        return self._resolve()[index]
-
-    def __iter__(self):
-        return iter(self._resolve())
-
-    def __len__(self) -> int:
-        return len(self._resolve())
-
-
 class StudioTools(Toolkit):
     """Toolkit that lets an agent compose agents, teams, and workflows.
 
@@ -330,7 +309,7 @@ class StudioTools(Toolkit):
         ):
             for component in source or []:
                 component_id = getattr(component, "id", None)
-                if not component_id or registry._component_is_excluded(component):
+                if not component_id or registry.is_component_excluded(component):
                     continue
                 existing = next((entry for entry in bucket if getattr(entry, "id", None) == component_id), None)
                 if existing is None:
@@ -400,9 +379,9 @@ class StudioTools(Toolkit):
                 # probe must see the same set the run tools resolve from
                 # (explicit lists, else the registry) - or enable_schedule
                 # refuses a target create_schedule just allowed.
-                include_agents=_LiveComponentView(self._runner_tools._iter_agents),
-                include_teams=_LiveComponentView(self._runner_tools._iter_teams),
-                include_workflows=_LiveComponentView(self._runner_tools._iter_workflows),
+                include_agents=LiveSequence(self._runner_tools._iter_agents),
+                include_teams=LiveSequence(self._runner_tools._iter_teams),
+                include_workflows=LiveSequence(self._runner_tools._iter_workflows),
             )
 
         tools: List[Callable] = [
@@ -1374,7 +1353,7 @@ class StudioTools(Toolkit):
         return privileged
 
     def _check_member_policy(self, member_ids: List[str]) -> Optional[str]:
-        excluded = sorted(set(member_ids) & self.registry._excluded_component_ids)
+        excluded = sorted(set(member_ids) & self.registry.excluded_component_ids)
         if excluded:
             return self._excluded_component_error(excluded)
         privileged = self._privileged_component_ids(only_ids=set(member_ids))
@@ -1437,7 +1416,7 @@ class StudioTools(Toolkit):
         if id(component) in seen:
             return False
         seen.add(id(component))
-        if self.registry._component_is_excluded(component):
+        if self.registry.is_component_excluded(component):
             return True
         return any(
             self._contains_excluded_component(member, seen) for member in self._iterable_attr(component, "members")
@@ -4795,7 +4774,7 @@ class StudioTools(Toolkit):
         return component_id, None
 
     def _component_id_exists(self, component_id: str, db: "BaseDb") -> bool:
-        if component_id in self.registry._excluded_component_ids:
+        if component_id in self.registry.excluded_component_ids:
             return True
         for component in [*self._iter_agents(), *self._iter_teams(), *self._iter_workflows()]:
             component_name = getattr(component, "name", None)

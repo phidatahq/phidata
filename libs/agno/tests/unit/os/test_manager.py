@@ -13,7 +13,7 @@ from agno.models.message import MessageMetrics
 from agno.models.response import ModelResponse
 from agno.os import AgentOS, ManagerConfig
 from agno.os.config import AgentOSConfig, Manifest
-from agno.os.platform import BUILDER_ID, ENGINEER_ID, MANAGER_TEAM_ID, OPERATOR_ID
+from agno.os.platform import BUILDER_ID, ENGINEER_ID, MANAGER_TEAM_ID, MANAGER_TEAM_NAME, OPERATOR_ID
 from agno.registry import Registry
 from agno.tools.agentos import AgentOSTools
 from agno.tools.studio import StudioTools
@@ -71,7 +71,8 @@ def test_manager_true_uses_the_registry_model_and_serves_four_components(db, wor
     # No workspace: no engineer.
     assert [a.id for a in os.agents] == [BUILDER_ID, OPERATOR_ID]
     assert [t.id for t in os.teams] == [MANAGER_TEAM_ID]
-    assert os.manager is not None and os.manager.name == "Agno"
+    assert os.manager is not None and os.manager.name == MANAGER_TEAM_NAME == "OS Manager"
+    assert os.manager.id == MANAGER_TEAM_ID == "os-manager"
     assert os.manager.model is model and manager_member(os, BUILDER_ID).model is model
     assert manager_member(os, ENGINEER_ID) is None
 
@@ -633,3 +634,26 @@ def test_mcp_probe_distinguishes_reachable_from_healthy(db, monkeypatch, status_
     report = os.run_diagnostics(required_env=(), network_probe=True, public_url="https://os.example.test/")
     mcp = next(c for c in report.checks if c.name == "mcp")
     assert mcp.status == expected and mcp.evidence == "live" and str(status_code) in mcp.detail
+
+
+def test_registry_exclusion_surface_is_public_and_read_only():
+    registry = Registry()
+    registry.reserve_component_ids(["reserved-id", ""])
+    assert registry.excluded_component_ids == frozenset({"reserved-id"})
+    with pytest.raises(AttributeError):
+        registry.excluded_component_ids.add("other")  # type: ignore[attr-defined]
+    agent = Agent(id="served", model=OfflineModel())
+    registry.agents.append(agent)
+    registry.exclude_components([agent])
+    assert registry.agents == []
+    assert registry.is_component_excluded(agent) and registry.is_component_excluded(agent.deep_copy())
+    assert registry.is_component_excluded(Agent(id="reserved-id", model=OfflineModel()))
+    assert not registry.is_component_excluded(Agent(id="free", model=OfflineModel()))
+
+
+def test_an_existing_platform_team_keeps_its_id_and_name(db):
+    os = AgentOS(db=db, manager=ManagerConfig(id="agno", name="Agno", model=OfflineModel()), telemetry=False)
+    assert os.manager.id == "agno" and os.manager.name == "Agno"
+    assert "agno" in os.registry.excluded_component_ids and MANAGER_TEAM_ID not in os.registry.excluded_component_ids
+    run = TestClient(os.get_app()).post("/teams/agno/runs", data={"message": "hello", "stream": "false"})
+    assert run.status_code == 200 and run.json()["team_name"] == "Agno"

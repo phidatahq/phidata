@@ -1,6 +1,6 @@
 # Test log
 
-Executed 2026-10-14 after the manager rename and review fixes, with `/Users/ab/code/agno/.venv/bin/python` and this branch's `libs/agno` on `PYTHONPATH`. Printed `agno.__file__` first and confirmed the manager worktree. Serving examples were imported from a temporary working directory; no server or live model conversation was started.
+Executed 2026-10-14 with `/Users/ab/code/agno/.venv/bin/python` and this branch's `libs/agno` on `PYTHONPATH`, after printing `agno.__file__` to confirm the branch source. Serving examples were imported from a temporary working directory; no server or live model conversation was started by these runs.
 
 ### manager_diagnostics.py
 
@@ -8,7 +8,7 @@ Executed 2026-10-14 after the manager rename and review fixes, with `/Users/ab/c
 
 **Description:** Constructs a manager with a workspace against a temporary SQLite database, prints the served and registry component lists, and runs the diagnostics. No model calls.
 
-**Result:** Served agents are platform-builder, platform-manager and platform-engineer; served team is agno; the registry's agent list is empty and its tool palette holds only the declared calculator. Diagnostics returned FAIL because `OPENAI_API_KEY` was absent, with a live database PASS and an authorization WARN (disabled in this demo). This is the expected report for this environment; no secret values or model calls were involved.
+**Result:** Served agents are platform-builder, platform-manager and platform-engineer; served team is os-manager. The registry's agent list is empty and its tool palette holds only the declared calculator. Diagnostics returned WARN: live database PASS, authorization WARN because it is disabled in this demo.
 
 ---
 
@@ -18,7 +18,7 @@ Executed 2026-10-14 after the manager rename and review fixes, with `/Users/ab/c
 
 **Description:** Imported the module to assemble the OS and its FastAPI app without starting the server or calling a model.
 
-**Result:** Two member agents and the agno team registered; registry agents empty. The FastAPI app assembled successfully. A live conversation was not run.
+**Result:** OS Manager (os-manager) with two members, Platform Builder and Platform Manager; registry agents empty; the FastAPI app assembled. A live conversation was not run.
 
 ---
 
@@ -28,16 +28,16 @@ Executed 2026-10-14 after the manager rename and review fixes, with `/Users/ab/c
 
 **Description:** Imported the module to assemble the OS with a notebook, knowledge, learning and a workspace attached to the manager.
 
-**Result:** Three member agents (engineer present because a workspace is configured) and the agno team registered; registry agents empty. The FastAPI app assembled successfully. A live conversation was not run.
+**Result:** OS Manager with three members, Platform Engineer included because a workspace is configured; registry agents empty; the FastAPI app assembled. A live conversation was not run.
 
 ---
 
-### Review regressions
+### End-to-end over HTTP
 
-**Status:** PASS
+**Status:** PASS (28/28)
 
-**Description:** Deterministic model fixtures exercise the manager's diagnostics tool and the lead's bounded self-dispatch through both `run` and `arun`. Rename regressions cover direct Team access, disabled/invalid configuration, fixed members, regular routes and sync/async session persistence. Additional regressions cover Studio mirrors and composition, resync, copied manager members, knowledge declarations, reserved IDs, confined workspace providers, and malformed/oversized CSV input.
+**Description:** A scripted model drives a server on a throwaway PostgreSQL database with JWT authorization, user isolation, MCP and the scheduler enabled. Checks cover token refusal and scoping on `teams:os-manager:run`, session isolation for list, read and continue, SSE streaming, delegation from OS Manager to Platform Manager's diagnostics, Platform Builder publishing a palette component that then runs, Platform Builder refusing to compose a manager member, MCP over streamable HTTP, sixteen concurrent runs, resync identity, reserved-id refusal from a second OS on the same database, a Slack interface and an MCP tool bound to `agent_os.manager` after construction, and refusal of an async database.
 
-**Result:** The focused manager, workflow-function, schedule-toggle and component-ID suites passed 109 tests. Expanded affected suites passed 7,457 tests with 24 skips; Telegram tests were excluded because the optional dependency is absent. Full formatting and validation passed in an isolated dev environment with SQLAlchemy 2.0.52. See the PR validation notes for reproducible commands and the baseline provider-SDK typing errors in the shared environment. These tests establish runtime/tool behavior without evaluating live-model answer quality.
+**Result:** All 28 checks passed. This establishes runtime and tool behaviour, not live-model answer quality.
 
 ---

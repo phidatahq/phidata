@@ -808,7 +808,7 @@ def attach_routes(
                 if problem is not None:
                     raise HTTPException(status_code=400, detail=problem)
 
-            if registry is not None and component_id in registry._excluded_component_ids:
+            if registry is not None and component_id in registry.excluded_component_ids:
                 raise HTTPException(
                     status_code=409, detail=f"Component id '{component_id}' is reserved for the manager"
                 )

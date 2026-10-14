@@ -28,7 +28,6 @@ def main() -> None:
             db=db,
             registry=registry,
             manager=ManagerConfig(
-                name="Agno",
                 required_env=("OPENAI_API_KEY",),
                 workspace=Path(__file__).parent,
             ),

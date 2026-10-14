@@ -3,7 +3,21 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum
 from functools import cached_property
-from typing import TYPE_CHECKING, Any, Callable, Dict, Iterator, List, Optional, Set, Tuple, Type, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Dict,
+    FrozenSet,
+    Iterable,
+    Iterator,
+    List,
+    Optional,
+    Set,
+    Tuple,
+    Type,
+    Union,
+)
 from uuid import uuid4
 
 from pydantic import BaseModel, ValidationError
@@ -128,26 +142,44 @@ class Registry:
     _excluded_component_ids: Set[str] = field(default_factory=set, init=False, repr=False)
 
     def __post_init__(self) -> None:
-        self._exclude_components(
+        self.exclude_components(
             [
                 component
                 for component in [*self.agents, *self.teams, *self.workflows]
-                if self._component_is_excluded(component)
+                if self.is_component_excluded(component)
             ]
         )
 
-    def _component_is_excluded(self, component: Any) -> bool:
+    @property
+    def excluded_component_ids(self) -> FrozenSet[str]:
+        """Ids that are served but are never building blocks, and cannot be minted by Studio."""
+        return frozenset(self._excluded_component_ids)
+
+    def is_component_excluded(self, component: Any) -> bool:
+        """True for a component marked excluded, or one carrying an excluded id (a per-run copy included)."""
         return (getattr(component, "_registry_excluded", False) is True) or getattr(
             component, "id", None
         ) in self._excluded_component_ids
 
-    def _exclude_components(self, components: List[Any]) -> None:
-        self._excluded_component_ids.update(component.id for component in components if component.id)
+    def reserve_component_ids(self, component_ids: Iterable[str]) -> None:
+        """Exclude ids before any component carries them, so they cannot be minted or composed."""
+        self._excluded_component_ids.update(component_id for component_id in component_ids if component_id)
+
+    def exclude_components(self, components: Iterable[Any]) -> None:
+        """Mark components as served but not buildable, and drop any mirror of them from this registry.
+
+        The mark travels with deep copies, so a per-run copy stays excluded too.
+        """
+        components = list(components)
+        for component in components:
+            if hasattr(component, "_registry_excluded"):
+                component._registry_excluded = True
+        self.reserve_component_ids(component.id for component in components if getattr(component, "id", None))
         # Repair registry mirrors without mutating a served list the caller
         # may have passed directly to the registry.
-        self.agents = [agent for agent in self.agents if not self._component_is_excluded(agent)]
-        self.teams = [team for team in self.teams if not self._component_is_excluded(team)]
-        self.workflows = [workflow for workflow in self.workflows if not self._component_is_excluded(workflow)]
+        self.agents = [agent for agent in self.agents if not self.is_component_excluded(agent)]
+        self.teams = [team for team in self.teams if not self.is_component_excluded(team)]
+        self.workflows = [workflow for workflow in self.workflows if not self.is_component_excluded(workflow)]
 
     @cached_property
     def _entrypoint_lookup(self) -> Dict[EntrypointKey, EntrypointSource]:

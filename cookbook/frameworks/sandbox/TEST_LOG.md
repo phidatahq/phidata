@@ -259,6 +259,18 @@ Local container checks of `agentcore_server`: the guard refuses commands before 
 
 ---
 
+### agentcore_session.py --replace
+
+**Status:** PASS (fixture, codex, claude)
+
+**Description:** The cold path on AgentCore in the staging account after rebasing onto #10979. Turn 1 runs on generation 1; `AgentCoreCheckpointTransfer` captures it to a `FileCheckpointStore`; the microVM is destroyed; generation 2 is created on a fresh microVM and restored; turn 2 runs there. Real harnesses must recall a codeword from turn 1 that was never written to a file.
+
+**Result:** On 14 October 2026 all three passed. Fixture: 458 byte checkpoint, both turns completed. Codex: 375,193 byte checkpoint with the plugin cache excluded; turn 2 on the restored microVM answered "The codeword was `BLUE-HERON`" and added a passing `test_primes.py` next to the restored `primes.py`. Claude through Bedrock: 62,007 byte checkpoint; turn 2 answered "The codeword you asked me to remember is BLUE-HERON" and its five new tests passed.
+
+Unit: a round trip through the real server operations on temporary directories, with 1,000 byte chunks, restores files and a relative symlink, leaves `auth.json` and the Codex `.tmp` cache behind, and leaves no transfer objects; restoring into a used computer is refused and stops it. 261 sandbox unit tests pass, including the 14 Docker transfer tests after the shared host-side code moved into a base class.
+
+---
+
 ### agentcore_load.py
 
 **Status:** PASS with documented throttling
@@ -277,6 +289,8 @@ Local container checks of `agentcore_server`: the guard refuses commands before 
 | 500, 10 attempts | 497 | 39.2 s / 41.1 s | 5.40 s | 0.87 s | 0.21 s | 70 s |
 
 Only creation slows with load: 500 sessions came up at about 13 per second, under the default quota of 25 new sessions per second. Turns, commands and destroys stayed flat at every size. The first runs failed creates with `ThrottlingException` and one poll and one stop with HTTP 502. The provider now retries throttling for every call with jittered backoff, and retries server errors for invocations and stops, which are idempotent; it never retries a command after a server error. The remaining failures at 500 are creates that stayed throttled for all attempts, so bursts above a few hundred need paced creates or a quota increase. The 100-session run also had one client-side TLS error from opening about a hundred connections at once from one laptop.
+
+Paced at 20 creates per second with two-minute turns: 1,000 of 1,000 sessions completed with all 1,000 alive at once (create p50 32.7 s, turn p50 120.5 s, command p50 0.88 s, destroy p50 0.22 s). At 2,000, all sessions were created and alive at once, then from about two minutes in most calls failed with HTTP 403. The response came from `server: awselb/2.0` with an HTML body and no AWS request ID, and AgentCore's own metrics recorded no errors, so a load balancer in front of the service rejected traffic from the one client IP. A second 2,000 run reproduced it. The 1,782 and 1,818 sessions left undestroyed ended on their own about 15 minutes after their claims, as `ActiveSessionCount` showed.
 
 ---
 

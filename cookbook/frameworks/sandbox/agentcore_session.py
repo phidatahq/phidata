@@ -1,4 +1,4 @@
-"""Two turns of one session on an AgentCore microVM. This creates billable compute.
+"""Two turns of one session on AgentCore microVMs. This creates billable compute.
 
 Deploy a runtime with agentcore_setup.py, then set AGENTCORE_RUNTIME_ARN to the
 ARN it printed. The default fixture harness makes no model calls.
@@ -8,17 +8,42 @@ Bedrock through the runtime's execution role, so it needs model access in that
 account but no API key. Both real harnesses check that turn 2 recalls a codeword
 that only the conversation from turn 1 holds.
 
-Turn 2 looks the sandbox up again with create, as a new request would: the same
-session and generation name the same microVM, so the harness resumes its native
-session with nothing to restore.
+By default turn 2 looks the sandbox up again with create, as a new request would:
+the same session and generation name the same microVM, so the harness resumes
+with nothing to restore. --replace checkpoints the computer after turn 1,
+destroys it and restores generation 2 on a fresh microVM, the path a session
+takes after its microVM ends.
 """
 
 import argparse
 import os
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from uuid import uuid4
 
-from agno.sandbox.agentcore import AgentCoreSandbox
+from agno.sandbox.agentcore import AgentCoreCheckpointTransfer, AgentCoreSandbox
+from agno.sandbox.checkpoint import FileCheckpointStore
 from agno.sandbox.client import SandboxRuntimeClient
+
+
+def run_turn(client, computer, number, harness, prompt, config):
+    execution = client.start(
+        computer,
+        execution_id=f"turn-{number}",
+        run_id=f"turn-{number}",
+        sdk=harness,
+        input=prompt,
+        config=config,
+        execution_timeout=600,
+    )
+    result = None
+    for page in client.pages(execution, timeout=900):
+        result = page.result
+    assert result is not None and result["type"] == "execution_finished", result
+    content = str(result["run"].get("content"))
+    print(f"Turn {number}: {result['run']['status']}")
+    print(content[:800])
+    return content
 
 
 def main() -> None:
@@ -28,6 +53,11 @@ def main() -> None:
     )
     parser.add_argument(
         "--model", help="Bedrock model for claude, OpenAI model for codex"
+    )
+    parser.add_argument(
+        "--replace",
+        action="store_true",
+        help="Run turn 2 on a new microVM restored from a checkpoint",
     )
     args = parser.parse_args()
 
@@ -68,36 +98,37 @@ def main() -> None:
     )
     client = SandboxRuntimeClient(sandbox)
     identity = {"session_id": "example", "agent_id": "coder", "env": env}
-    handle = sandbox.create(**identity)
+    handles = [sandbox.create(**identity)]
     try:
-        for number, prompt in enumerate(turns, start=1):
-            # A later request finds the same computer by its session and generation.
-            current = sandbox.create(**identity)
-            assert current.provider_ref == handle.provider_ref
-            execution = client.start(
-                current,
-                execution_id=f"turn-{number}",
-                run_id=f"turn-{number}",
-                sdk=args.harness,
-                input=prompt,
-                config=config,
-                execution_timeout=600,
+        with TemporaryDirectory() as directory:
+            transfer = AgentCoreCheckpointTransfer(
+                sandbox, FileCheckpointStore(Path(directory) / "objects")
             )
-            result = None
-            for page in client.pages(execution, timeout=900):
-                result = page.result
-            assert result is not None and result["type"] == "execution_finished", result
-            content = str(result["run"].get("content"))
-            print(f"Turn {number}: {result['run']['status']}")
-            print(content[:800])
-        listing = sandbox.exec(handle, ["ls", "-1"]).stdout.split()
+            run_turn(client, handles[0], 1, args.harness, turns[0], config)
+            if args.replace:
+                reference = transfer.capture(handles[0], state={"turn": 1})
+                print(f"Checkpoint {reference.sha256[:12]}, {reference.size} bytes")
+                sandbox.destroy(handles[0])
+                handles.append(sandbox.create(**identity, generation=2))
+                assert handles[1].provider_ref != handles[0].provider_ref
+                assert transfer.restore(handles[1], reference) == {"turn": 1}
+                print("Restored generation 2 on", handles[1].provider_ref)
+            else:
+                # A later request finds the same computer by its session and generation.
+                assert (
+                    sandbox.create(**identity).provider_ref == handles[0].provider_ref
+                )
+            content = run_turn(client, handles[-1], 2, args.harness, turns[1], config)
+        listing = sandbox.exec(handles[-1], ["ls", "-1"]).stdout.split()
         print("Workspace after both turns:", listing)
         if args.harness != "fixture":
             assert "BLUE-HERON" in content, "Turn 2 lost the conversation"
-            print("Turn 2 recalled the codeword from the same native session.")
+            place = "a restored microVM" if args.replace else "the same microVM"
+            print(f"Turn 2 recalled the codeword on {place}.")
     finally:
-        sandbox.destroy(handle)
-        print("Destroyed", handle.provider_ref)
+        for handle in handles:
+            sandbox.destroy(handle)
+            print("Destroyed", handle.provider_ref)
 
 
 if __name__ == "__main__":

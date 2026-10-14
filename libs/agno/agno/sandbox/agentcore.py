@@ -7,12 +7,15 @@ import json
 import math
 import random
 import shlex
+import tempfile
 import time
 from pathlib import Path
 from typing import Any, Mapping, Optional, Sequence, Set
 from uuid import uuid4
 
 from agno.sandbox.base import ExecResult, Sandbox, SandboxError, SandboxHandle, _identity
+from agno.sandbox.checkpoint import CheckpointArchive, CheckpointRef, CheckpointStore
+from agno.sandbox.transfer import DEFAULT_NATIVE_EXCLUSIONS, _ArchiveTransfer
 
 _GUARD_EXIT = 125
 # AgentCore rejects these before anything runs, so a retry cannot repeat work.
@@ -25,6 +28,9 @@ _RETRYABLE = ("RetryableConflictException", "ThrottlingException", "ThrottledExc
 _SERVER_ERRORS = ("500", "502", "503", "504", "InternalServerException", "ServiceException")
 _ATTEMPTS = 10
 _MAX_COMMAND = 64 * 1024
+# Checkpoint bytes per invocation. Base64 makes the payload a third larger, well
+# under AgentCore's 100 MB request and response limit.
+_CHUNK = 8 * 1024 * 1024
 _RUNNER = Path(__file__).with_name("_exec.py").read_text()
 
 
@@ -338,3 +344,111 @@ class AgentCoreSandbox(Sandbox):
     async def adestroy(self, handle: SandboxHandle) -> None:
         # A stopped AgentCore session keeps nothing, so destroy and stop are the same.
         await self._stop(handle.provider_ref)
+
+
+class AgentCoreCheckpointTransfer(_ArchiveTransfer):
+    """Move checkpoints in and out of AgentCore microVMs through invocations.
+
+    The in-computer server stops the agent's processes, archives /workspace and
+    /runtime/native without excluded paths, and resumes them. The archives come
+    out in chunks of at most 8 MiB and are validated and repacked here with the
+    same code as Docker checkpoints. Restore fills an empty, unused generation and
+    stops the computer if anything fails, so a partial restore never runs a turn.
+    ``scratch`` holds unencrypted archives in transit and must be coordinator-private.
+    """
+
+    def __init__(
+        self,
+        provider: AgentCoreSandbox,
+        store: CheckpointStore,
+        *,
+        archive: Optional[CheckpointArchive] = None,
+        scratch: Optional[Path] = None,
+    ) -> None:
+        super().__init__(store, archive=archive, scratch=scratch)
+        self.provider = provider
+
+    async def _pull(self, handle: SandboxHandle, name: str, root: str, size: int, destination: Path) -> None:
+        with destination.open("xb") as output:
+            offset = 0
+            while offset < size:
+                reply = await _thread(
+                    self.provider._invoke,
+                    handle.provider_ref,
+                    "get",
+                    name=name,
+                    root=root,
+                    offset=offset,
+                    length=_CHUNK,
+                )
+                data = base64.b64decode(reply["data"], validate=True)
+                if not data:
+                    raise SandboxError("Checkpoint export ended before its reported size")
+                await _thread(output.write, data)
+                offset += len(data)
+        if offset != size:
+            raise SandboxError("Checkpoint export changed size while it was read")
+
+    async def _push(self, handle: SandboxHandle, name: str, root: str, source: Path) -> None:
+        with source.open("rb") as stream:
+            offset = 0
+            while True:
+                data = await _thread(stream.read, _CHUNK)
+                if not data and offset:
+                    return
+                reply = await _thread(
+                    self.provider._invoke,
+                    handle.provider_ref,
+                    "put",
+                    name=name,
+                    root=root,
+                    offset=offset,
+                    data=base64.b64encode(data).decode(),
+                )
+                offset += len(data)
+                if reply["size"] != offset:
+                    raise SandboxError("Checkpoint import size mismatch")
+                if not data:
+                    return
+
+    async def acapture(
+        self, handle: SandboxHandle, *, state: Mapping[str, Any], exclude: Sequence[str] = DEFAULT_NATIVE_EXCLUSIONS
+    ) -> CheckpointRef:
+        await self.provider._owned(handle)
+        name = uuid4().hex
+        exported = await _thread(
+            self.provider._invoke,
+            handle.provider_ref,
+            "export",
+            name=name,
+            exclude=list(exclude),
+            max_bytes=self.archive.limits.max_bytes,
+        )
+        try:
+            with tempfile.TemporaryDirectory(prefix=".capture-", dir=self.scratch) as directory:
+                root = Path(directory)
+                exports = {}
+                for part, size in exported["sizes"].items():
+                    exports[part] = root / (part + ".tar")
+                    await self._pull(handle, name, part, int(size), exports[part])
+                await _thread(self._combine, exports, root / "checkpoint.tar", state, exclude)
+                return await self.store.aput(root / "checkpoint.tar")
+        finally:
+            await asyncio.shield(_thread(self.provider._invoke, handle.provider_ref, "remove", name=name))
+
+    async def arestore(self, handle: SandboxHandle, reference: CheckpointRef) -> Mapping[str, Any]:
+        await self.provider._owned(handle)
+        name = uuid4().hex
+        with tempfile.TemporaryDirectory(prefix=".import-", dir=self.scratch) as directory:
+            root = Path(directory)
+            async with self.store.aopen_archive(reference) as checkpoint:
+                state, native_mode = await _thread(self._split, checkpoint, root)
+            try:
+                for part in ("workspace", "native"):
+                    await self._push(handle, name, part, root / (part + ".tar"))
+                await _thread(self.provider._invoke, handle.provider_ref, "import", name=name, native_mode=native_mode)
+            except BaseException:
+                # A partially restored computer must never execute another turn.
+                await asyncio.shield(self.provider.astop(handle))
+                raise
+        return state

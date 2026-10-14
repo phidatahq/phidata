@@ -88,6 +88,7 @@ export AGENTCORE_RUNTIME_ARN=arn:aws:bedrock-agentcore:...:runtime/agno_sandbox-
 .venv/bin/python cookbook/frameworks/sandbox/agentcore_session.py                    # fixture, no model calls
 .venv/bin/python cookbook/frameworks/sandbox/agentcore_session.py --harness codex    # forwards OPENAI_API_KEY
 .venv/bin/python cookbook/frameworks/sandbox/agentcore_session.py --harness claude   # Bedrock via the execution role
+.venv/bin/python cookbook/frameworks/sandbox/agentcore_session.py --harness codex --replace  # turn 2 on a restored microVM
 .venv/bin/python cookbook/frameworks/sandbox/agentcore_setup.py teardown --name agno-sandbox
 ```
 
@@ -97,18 +98,20 @@ These create AWS resources and billable compute. Install `agno[agentcore-sandbox
 
 The image's entrypoint, `agno.sandbox.agentcore_server`, runs as root and answers AgentCore on port 8080. `create` claims the microVM: the server records the identity, environment and a lifetime deadline where the agent cannot read them, creates `/workspace` and `/runtime` for UID 1000, and starts the runtime server as UID 1000 with a token only it holds. `rpc` reaches that server through `InvokeAgentRuntime`, so long polls work without publishing a port. Commands go through `InvokeAgentRuntimeCommand` behind a guard that refuses an unclaimed microVM, applies the claimed environment and drops to UID 1000 in `/workspace`.
 
-The example runs two turns on one generation. Turn 2 calls `create` again, as a new request would, gets the same microVM, and the harness resumes its native session with nothing to restore. With a real harness, turn 2 must recall a codeword that only the conversation from turn 1 holds.
+The example runs two turns of one session. By default turn 2 calls `create` again, as a new request would, gets the same microVM, and the harness resumes its native session with nothing to restore. `--replace` takes the cold path instead: it captures a checkpoint after turn 1, destroys the microVM, creates generation 2 and restores into it, so turn 2 runs on a fresh microVM. With a real harness, turn 2 must recall a codeword that only the conversation from turn 1 holds.
+
+`AgentCoreCheckpointTransfer` implements the same `CheckpointTransfer` protocol as `DockerCheckpointTransfer` and shares its host-side validation and repacking. The server inside the microVM stops UID 1000 processes, archives `/workspace` and `/runtime/native` without excluded paths, and resumes them; there is no microVM pause. The archives come out through `InvokeAgentRuntime` in chunks of at most 8 MiB. Restore requires an empty, unused generation, pushes one prepared tar per root, extracts them with Python's `data` filter and gives them to UID 1000; any failure stops that generation. The default exclusions now also drop `native/codex/.tmp`, a plugin marketplace of about 100 MiB that Codex clones on start.
 
 Differences from Docker:
 
 | Behavior | AgentCore |
 |---|---|
-| Stopped generation | AgentCore starts a fresh microVM when a stopped session is called again. The provider treats an unclaimed microVM as gone and stops it; recovery takes a new generation. |
+| Stopped generation | AgentCore starts a fresh microVM when a stopped session is called again. The provider treats an unclaimed microVM as gone and stops it; recovery takes a new generation restored with `AgentCoreCheckpointTransfer`. |
 | Pause | Not supported. Keep the generation running between turns; the runtime's idle timeout and maximum lifetime bound it. |
 | Files | On the microVM's disk. AgentCore session storage is NFS, where SQLite cannot open a database and POSIX locks fail, so it is not used. |
 | Credentials | Code in the sandbox can use the runtime's IAM role through the metadata service. Give the role only the model access the harness needs. |
 | Limits | Commands run for at most an hour and must fit in 64 KiB, with input staged separately. The provider exits the entrypoint at the claimed lifetime. |
-| Bursts | The default quota is 25 new sessions per second per account. The provider retries throttled calls with jitter; `agentcore_load.py` completed 497 of 500 simultaneous sessions, so pace larger bursts or raise the quota. Set `max_connections` to the number of sessions one process serves at once. |
+| Bursts | The default quota is 25 new sessions per second per account. The provider retries throttled calls with jitter; `agentcore_load.py` completed 497 of 500 simultaneous sessions, so pace larger bursts or raise the quota. Set `max_connections` to the number of sessions one process serves at once. With 1,000 sessions alive at once from one host every call succeeded; at 2,000, AWS's load balancer in front of AgentCore answered most calls with an HTML 403 before they reached the service, so spread that many sessions across hosts. |
 
 ## Boundaries
 
@@ -188,7 +191,7 @@ Plain container tmpfs is rejected by the transport: Docker can return a successf
 
 The caller must hold exclusive generation ownership and finish/drain the SDK before capture. Applications requiring logical database backups need an explicit quiesce/backup procedure; pausing processes only establishes a filesystem capture boundary. No nested-container or anonymous-volume data is included. Current capture uses local staging space for raw and combined archives in the coordinator's object directory; provision several times the checkpoint byte limit per concurrent capture. A transfer is bounded to 120 seconds per root. These limits intentionally fail finalization rather than publish an incomplete recovery point.
 
-The known Codex `auth.json` and Claude `.credentials.json` paths are excluded by default. These defaults are not a secret scanner: use explicit exclusions or keep other credentials outside durable roots. Passing `exclude` replaces the default list. Keep native credentials provisioned separately for restored compute. Atomic run/conversation/checkpoint publication still belongs to the following AgentOS coordinator layer.
+The known Codex `auth.json` and Claude `.credentials.json` paths, and the Codex `.tmp` plugin cache, are excluded by default. These defaults are not a secret scanner: use explicit exclusions or keep other credentials outside durable roots. Passing `exclude` replaces the default list. Keep native credentials provisioned separately for restored compute. Atomic run/conversation/checkpoint publication still belongs to the following AgentOS coordinator layer.
 
 Archive validation stays strict: absolute or root-escaping symlinks and special files such as FIFOs fail capture, and the error names the offending path. Virtual environments usually link `bin/python` to the image interpreter by absolute path, so exclude them and recreate them after restore from the project's lock file:
 

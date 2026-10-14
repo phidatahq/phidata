@@ -528,6 +528,43 @@ async def test_regenerated_run_is_not_reopened(store):
         await claim(store)
 
 
+async def test_cancelled_claim_releases_the_session(store):
+    await seed(store)
+    await store._ensure_tables()
+    task = asyncio.create_task(claim(store))
+    await asyncio.sleep(0)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    # The claim committed, but its caller never saw the lease: the turn it opened is undone.
+    _, _, binding = await rows(store)
+    assert binding["owner"] is None and binding["run_id"] is None and binding["expires_at"] is None
+    assert binding["record"]["phase"] == "idle"
+    state = await claim(store, owner="other")
+    assert state.record["phase"] == "executing"
+
+
+async def test_cancelled_reclaim_keeps_the_run(store):
+    lease = await staged(store)
+    await store._transaction(
+        lambda c: c.execute(update(store.bindings).values(expires_at=func.clock_timestamp() - timedelta(seconds=1)))
+    )
+    task = asyncio.create_task(claim(store, owner="other"))
+    await asyncio.sleep(0)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    # A re-claimed turn already ran: only the lease is released, the run stays with the session.
+    _, _, binding = await rows(store)
+    assert binding["owner"] is None and binding["expires_at"] is None and binding["run_id"] == "run"
+    assert binding["record"]["phase"] == "finalizing" and binding["record"]["result"] is not None
+    await seed(store, run_id="other-run")
+    with pytest.raises(SandboxSessionBusy):
+        await claim(store, run_id="other-run", owner="other")
+    state = await claim(store, owner="other")
+    assert state.lease.epoch > lease.epoch and state.record["result"] is not None
+
+
 async def test_repeated_cancellation_still_waits_for_its_sync_transaction(store):
     if isinstance(store.db, AsyncPostgresDb):
         pytest.skip("AsyncPostgresDb runs the transaction on the event loop and rolls it back on cancellation")
@@ -551,11 +588,12 @@ async def test_repeated_cancellation_still_waits_for_its_sync_transaction(store)
 async def test_deleting_a_run_under_an_active_turn_is_refused(store):
     lease = await staged(store)
     delete = store.db.delete_run
-    with pytest.raises(Exception):
-        if isinstance(store.db, AsyncPostgresDb):
-            await delete("run")
-        else:
-            await asyncio.to_thread(delete, "run")
+    if isinstance(store.db, AsyncPostgresDb):
+        assert await delete("run") is False
+        assert await store.db.delete_runs(["run"]) is None
+    else:
+        assert await asyncio.to_thread(delete, "run") is False
+        assert await asyncio.to_thread(store.db.delete_runs, ["run"]) is None
     run, _, binding = await rows(store)
     assert run["run_id"] == "run" and binding["run_id"] == "run"
     await store.astage_checkpoint(lease, REF)

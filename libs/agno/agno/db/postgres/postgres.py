@@ -28,6 +28,7 @@ from agno.db.postgres.engine import _engine_options
 from agno.db.postgres.schemas import default_sandbox_table_name, get_table_schema_definition
 from agno.db.postgres.utils import (
     apply_sorting,
+    is_foreign_key_violation,
     bulk_upsert_metrics,
     calculate_date_metrics,
     create_schema,
@@ -1278,6 +1279,11 @@ class PostgresDb(BaseDb):
             return deleted
 
         except Exception as e:
+            if is_foreign_key_violation(e):
+                # The sandbox bindings table references the run a turn holds; the run stays
+                # until that turn ends, or until its session is deleted.
+                log_warning(f"Run {run_id} was not deleted: an active sandbox turn still holds it")
+                return False
             log_error(f"Error deleting run: {str(e)}")
             raise e
 
@@ -1299,6 +1305,10 @@ class PostgresDb(BaseDb):
             log_debug(f"Successfully deleted {result.rowcount} runs")
 
         except Exception as e:
+            if is_foreign_key_violation(e):
+                # One statement, so none of the runs were deleted.
+                log_warning("Runs were not deleted: an active sandbox turn still holds one of them")
+                return
             log_error(f"Error deleting runs: {str(e)}")
             raise e
 

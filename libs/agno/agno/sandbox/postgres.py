@@ -18,6 +18,7 @@ from uuid import uuid4
 from agno.db.postgres import AsyncPostgresDb, PostgresDb
 from agno.sandbox.base import SandboxError, SandboxHandle, _sync
 from agno.sandbox.checkpoint import CheckpointRef
+from agno.utils.log import log_warning
 from agno.utils.string import sanitize_postgres_strings
 
 try:
@@ -76,13 +77,23 @@ async def _drain(task: "asyncio.Future[Any]") -> None:
         task.exception()  # Retrieved: the caller is raising CancelledError instead.
 
 
-async def _settled(awaitable: Awaitable[_T]) -> _T:
-    """Await work that keeps running when cancelled, such as a worker thread, before cancellation propagates."""
+async def _settled(awaitable: Awaitable[_T], undo: Optional[Callable[[_T], Awaitable[None]]] = None) -> _T:
+    """Await work that keeps running when cancelled, such as a worker thread, before cancellation propagates.
+
+    The work may still complete after the cancellation request, and its result is then
+    lost to the caller. ``undo`` reverses that completed result before the cancellation
+    propagates, so a cancelled caller never leaves behind state it does not know about.
+    """
     task = asyncio.ensure_future(awaitable)
     try:
         return await asyncio.shield(task)
     except asyncio.CancelledError:
         await _drain(task)
+        if undo is not None and not task.cancelled() and task.exception() is None:
+            reversal = asyncio.ensure_future(undo(task.result()))
+            await _drain(reversal)
+            if not reversal.cancelled() and reversal.exception() is not None:
+                log_warning(f"Could not undo a cancelled sandbox store operation: {reversal.exception()}")
         raise
 
 
@@ -186,19 +197,27 @@ class _SandboxStore:
             raise SandboxError(f"Sandbox table {self.bindings.name} does not reference run table {self.runs.name}")
         self._tables_ready = True
 
-    async def _transaction(self, operation: Callable[[Connection], _T]) -> _T:
+    async def _transaction(
+        self, operation: Callable[[Connection], _T], undo: Optional[Callable[[_T], Awaitable[None]]] = None
+    ) -> _T:
+        """Run ``operation`` in one transaction; ``undo`` reverses a commit the cancelled caller never saw."""
         await self._ensure_tables()
-        if isinstance(self.db, AsyncPostgresDb):
-            async with self.db.db_engine.begin() as connection:
-                return await connection.run_sync(operation)
         db = self.db
+        if isinstance(db, AsyncPostgresDb):
+
+            async def transact_async() -> _T:
+                async with db.db_engine.begin() as connection:
+                    return await connection.run_sync(operation)
+
+            # A cancellation that lands while the commit is in flight would hide whether it happened.
+            return await _settled(transact_async(), undo)
 
         def transact() -> _T:
             with db.db_engine.begin() as connection:
                 return operation(connection)
 
         # Cancelling to_thread leaves the thread running; wait so a cancelled call never commits later.
-        return await _settled(asyncio.to_thread(transact))
+        return await _settled(asyncio.to_thread(transact), undo)
 
     @staticmethod
     def _json(value: Any) -> Any:
@@ -314,7 +333,10 @@ class _SandboxStore:
         if not math.isfinite(lease_seconds) or not 0 < lease_seconds <= 3600:
             raise ValueError("Lease duration must be between 0 and 3600 seconds")
 
+        opened_turn = False
+
         def claim(connection: Connection) -> SandboxState:
+            nonlocal opened_turn
             self._hold_session(connection, session_id)
             try:
                 connection.execute(
@@ -363,6 +385,7 @@ class _SandboxStore:
             if active and lease_alive and not same_owner and not newer_attempt:
                 raise SandboxSessionBusy(row["run_id"])
             epoch = row["epoch"] if active and same_owner and lease_alive else row["epoch"] + 1
+            opened_turn = not active
             if not active:
                 record.update(
                     phase="executing",
@@ -395,7 +418,34 @@ class _SandboxStore:
             )
             return self._state(updated)
 
-        return await self._transaction(claim)
+        async def abandon(state: SandboxState) -> None:
+            # The caller was cancelled after the claim committed, so nobody holds the lease it
+            # returned. Release it now instead of leaving the session busy until it expires. A
+            # turn this claim opened goes back to idle, since nothing ran; a re-claimed turn keeps
+            # its run, so the abandoned-run rule still applies to it.
+            def release(connection: Connection) -> None:
+                try:
+                    row = self._locked(connection, state.lease)
+                except SandboxLeaseLost:
+                    return
+                record = dict(row["record"])
+                if opened_turn:
+                    record.update(phase="idle", result=None, staged_checkpoint=None)
+                connection.execute(
+                    update(self.bindings)
+                    .where(self._key(session_id))
+                    .values(
+                        owner=None,
+                        run_id=None if opened_turn else row["run_id"],
+                        queue_attempt=None,
+                        expires_at=None,
+                        record=record,
+                    )
+                )
+
+            await self._transaction(release)
+
+        return await self._transaction(claim, undo=abandon)
 
     def claim(self, **kwargs: Any) -> SandboxState:
         return self._sync(self.aclaim, **kwargs)

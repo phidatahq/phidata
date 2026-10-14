@@ -591,3 +591,57 @@ def _worker_os_for(db, factory, store):
         teams=[],
         workflows=[],
     )
+
+
+class TestQueuedFactoryRunsEndToEnd:
+    """Accept on the HTTP door, claim and execute on the real queue worker,
+    poll the result: the whole path a factory run takes on the durable queue."""
+
+    @pytest.fixture()
+    def live(self, db):
+        built: list = []
+
+        def build_agent(ctx):
+            built.append(ctx)
+            return Agent(model=_ScriptedModel(), instructions=f"persona={ctx.input.persona}")
+
+        def build_team(ctx):
+            built.append(ctx)
+            return Team(model=_ScriptedModel(), members=[Agent(id="e2e-member", model=_ScriptedModel())])
+
+        store = InMemoryQueueStore()
+        app = AgentOS(
+            agents=[AgentFactory(id="e2e-agent", db=db, factory=build_agent, input_schema=Persona)],
+            teams=[TeamFactory(id="e2e-team", db=db, factory=build_team)],
+            db=db,
+            queue=QueueConfig(durable=True, db=store, poll_interval=0.05),
+            telemetry=False,
+        ).get_app()
+        app.add_middleware(_TrustedStateMiddleware)
+        return SimpleNamespace(app=app, store=store, built=built)
+
+    @pytest.mark.parametrize(
+        "route, extra",
+        [("agents/e2e-agent", {"factory_input": json.dumps({"persona": "pirate"})}), ("teams/e2e-team", {})],
+    )
+    def test_factory_run_completes_on_the_worker(self, live, route, extra):
+        with TestClient(live.app) as client:
+            resp = client.post(
+                f"/{route}/runs",
+                data={"message": "hi", "background": "true", "stream": "false", "user_id": "alice", **extra},
+            )
+            assert resp.status_code == 202, resp.text
+            run_id, session_id = resp.json()["run_id"], resp.json()["session_id"]
+            assert _wait_for(lambda: live.store._jobs[run_id]["status"] == "completed")
+            poll = client.get(f"/{route}/runs/{run_id}", params={"session_id": session_id})
+        assert poll.status_code == 200, poll.text
+        assert poll.json()["status"] == "COMPLETED"
+        assert poll.json()["content"] == "scripted answer"
+        on_worker = [ctx for ctx in live.built if isinstance(ctx.request, QueuedRequest)]
+        assert on_worker, "the worker rebuilt the component from the ticket"
+        assert on_worker[0].user_id == "alice"
+        assert on_worker[0].session_id == session_id
+        assert dict(on_worker[0].trusted.claims) == {"sub": "alice", "org": "acme"}
+        assert on_worker[0].trusted.scopes == frozenset({"runs:write", "agents:read"})
+        if extra:
+            assert on_worker[0].input == Persona(persona="pirate")

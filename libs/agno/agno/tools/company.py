@@ -253,7 +253,7 @@ class CompanyTools(Toolkit):
     def run_task(
         self, task_id: str, version: int, request_key: str, agent: Any, _agno_run_context: Optional[RunContext] = None
     ) -> Dict[str, Any]:
-        """Run work using its human-configured worker. Project work must already be Ready."""
+        """Run work using its human-configured worker. Project work must be Ready or awaiting an explicit retry or revision."""
         service, principal = self._context(agent, _agno_run_context)
         return service.run_task(
             task_id=task_id, version=version, idempotency_key=request_key, principal=principal, trigger="agent"

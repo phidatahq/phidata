@@ -140,7 +140,7 @@ the versions of all unarchived Project Tasks; stale source sets fail with 412.
 Version 3 combines prior purpose/outcome/description and acceptance text into
 instructions, retains legacy lifecycle values, maps cancellation to archive and
 removes board stages from direct work. IDs, comments and activity survive.
-Version 4 adds run associations and schedule references. No migration runs on startup.
+The current initializer includes run associations and schedule references. No migration runs on startup.
 Back up Company and runtime databases before deployment. Restore both for run history.
 
 Separate Company and runtime databases are supported without a distributed
@@ -155,7 +155,8 @@ operation and automatic workspace provisioning require separate deployment valid
 Cancellation covers queued and executing work. Cancellation before queue acceptance
 is durable and prevents startup recovery or a request retry from dispatching that run.
 While an executing worker stops, its status may remain running; poll until terminal.
-Cancelling a run does not mark its Project Task Done. Migration v5 preserves previous records and adds cancellation intent. Apply v6 before
-starting this release; it adds Ready authority and review fields without enrolling
-existing Ready Tasks. Reaccept those Tasks after returning to Backlog. Legacy In-review
-Tasks remain manually acceptable; a fresh review is needed for automatic PR completion.
+Cancelling a run does not mark its Project Task Done. Apply the migration command
+before starting this release. A fresh database uses the current initializer; version-5
+pilot databases receive the Ready/review upgrade without enrolling existing Ready
+Tasks. Reaccept those Tasks after returning to Backlog. Legacy In-review Tasks remain
+manually acceptable; a fresh review is needed for automatic PR completion.

@@ -6,8 +6,6 @@ Credential checks report whether a value is set. Errors include the exception
 type but omit the message, which could contain credentials.
 """
 
-from __future__ import annotations
-
 import asyncio
 import inspect
 import os

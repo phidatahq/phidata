@@ -10,8 +10,6 @@ a file produced inside a condition, loop or parallel step is dropped while the
 content still flows.
 """
 
-from __future__ import annotations
-
 import csv
 import io
 import json

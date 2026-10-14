@@ -348,10 +348,7 @@ class AgentOS:
             workflows: List of workflows to include in the OS
             knowledge: List of knowledge bases to include in the OS
             interfaces: List of interfaces to include in the OS
-            manager: Add an OS Manager team to build, run and inspect components. Its members are
-                Platform Builder, Platform Manager and, when a workspace is set, Platform Engineer.
-                ``True`` uses the registry's first model. ``ManagerConfig`` sets the name, model, id
-                and resources. The team and its members use the usual component routes.
+            manager: Adds an OS Manager team to the OS.
             a2a_interface: Whether to expose the OS agents and teams in an A2A server
             config: Configuration file path or AgentOSConfig instance
             settings: API settings for the OS

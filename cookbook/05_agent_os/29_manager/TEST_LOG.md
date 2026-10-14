@@ -1,5 +1,35 @@
 # Test log
 
+## Diagnostics regression validation, 2026-10-14
+
+### manager_diagnostics.py
+
+**Status:** PASS
+
+**Description:** Executed with the development environment against the updated
+branch after pulling `ad76cf015a`. Deliberately unset `OPENAI_API_KEY`; no model
+calls were made.
+
+**Result:** SQL connectivity passed without provisioning session tables. The
+overall report correctly returned FAIL for the missing required environment
+variable, and WARN for disabled authorization. Manager wiring and sync/async
+session persistence also passed a separate scripted-model smoke check.
+
+### Diagnostics regression tests
+
+**Status:** PASS
+
+**Description:** Covered broken and empty SQL databases with sync and async
+adapters, schedules beyond page one, incomplete scans, later-page errors, and
+real in-process MCP initialization at default, custom and host-root endpoints.
+Also checked a proxy path prefix.
+
+**Result:** All 16 new cases passed; 11 fail against the pre-fix diagnostics
+implementation. The combined manager, diagnostics, scheduler and queue suites
+passed 369 tests. No external model calls or live PostgreSQL checks were made.
+
+---
+
 Executed 2026-10-14 with `/Users/ab/code/agno/.venv/bin/python` and this branch's `libs/agno` on `PYTHONPATH`, after printing `agno.__file__` to confirm the branch source. Serving examples were imported from a temporary working directory; no server or live model conversation was started by these runs.
 
 ### manager_diagnostics.py

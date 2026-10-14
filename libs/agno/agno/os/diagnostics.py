@@ -15,6 +15,7 @@ import os
 import time
 from dataclasses import asdict, dataclass, field
 from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Sequence
+from urllib.parse import urlsplit
 from uuid import uuid4
 
 if TYPE_CHECKING:
@@ -27,6 +28,8 @@ CHECKS: Sequence[str] = ("database", "authorization", "components", "registry", 
 
 # Worst status wins for the report as a whole.
 _SEVERITY = {"FAIL": 3, "WARN": 2, "PASS": 1, "SKIP": 0}
+_SCHEDULE_PAGE_SIZE = 100
+_SCHEDULE_MAX_PAGES = 100
 
 
 @dataclass
@@ -60,6 +63,27 @@ async def _call_db(db: Any, method_name: str, *args: Any, **kwargs: Any) -> Any:
     return await asyncio.to_thread(fn, *args, **kwargs)
 
 
+async def _probe_sql_connection(db: Any) -> None:
+    # SQL table discovery can suppress connection errors and make a failed session
+    # read look empty. Probe the connection without requiring or creating tables.
+    engine = getattr(db, "db_engine", None)
+    if engine is None:
+        return
+    from sqlalchemy import Engine, text
+    from sqlalchemy.ext.asyncio import AsyncEngine
+
+    if isinstance(engine, AsyncEngine):
+        async with engine.connect() as connection:
+            await connection.execute(text("SELECT 1"))
+    elif isinstance(engine, Engine):
+
+        def probe() -> None:
+            with engine.connect() as connection:
+                connection.execute(text("SELECT 1"))
+
+        await asyncio.to_thread(probe)
+
+
 async def arun_diagnostics(
     agent_os: "AgentOS",
     *,
@@ -75,7 +99,9 @@ async def arun_diagnostics(
             presence is reported, never the value.
         network_probe: Also POST an MCP initialize to ``public_url`` and report the
             HTTP status. Off by default: it needs the public address and a network.
-        public_url: The address the probe targets. Required when ``network_probe`` is on.
+        public_url: The public OS base URL, including any proxy path prefix. The probe
+            appends the configured MCP path, or uses the root for the configured MCP
+            root host. Required when ``network_probe`` is on.
     """
     if network_probe and not public_url:
         raise ValueError("network_probe requires public_url")
@@ -122,8 +148,9 @@ async def _check(agent_os: "AgentOS", name: str, *, network_probe: bool, public_
     if name == "database":
         if agent_os.db is None:
             return CheckResult(name, "SKIP", "No OS database configured")
-        # One bounded read proves the adapter and the connection. Runs are not attached
-        # and rows are not deserialized: a long conversation must not make this slow.
+        await _probe_sql_connection(agent_os.db)
+        # Also exercise session reads. Runs are not attached and rows are not
+        # deserialized: a long conversation must not make this slow.
         await _call_db(agent_os.db, "get_sessions", limit=1, page=1, deserialize=False, include_runs=False)
         return CheckResult(name, "PASS", "Session read succeeded", evidence="live")
 
@@ -169,19 +196,30 @@ async def _check(agent_os: "AgentOS", name: str, *, network_probe: bool, public_
             return CheckResult(name, "FAIL", "Scheduler enabled without a database")
         # raise_on_error: adapters otherwise answer an unreadable table with an empty list,
         # which would read as "no overdue schedules".
-        rows = await _call_db(agent_os.db, "get_schedules", enabled=True, limit=100, page=1, raise_on_error=True)
-        if isinstance(rows, tuple):
-            rows = rows[0]
         now = int(time.time())
-        overdue = [
-            row
-            for row in rows or []
-            if (row.get("next_run_at") or now) < now - 900
-            and not (row.get("locked_by") and (row.get("locked_at") or 0) > now - 300)
-        ]
-        if overdue:
-            return CheckResult(name, "WARN", f"{len(overdue)} enabled schedules are overdue by 15 minutes", "live")
-        return CheckResult(name, "PASS", "No overdue schedules; poller liveness not proven", evidence="live")
+        scanned = 0
+        for page in range(1, _SCHEDULE_MAX_PAGES + 1):
+            result = await _call_db(
+                agent_os.db, "get_schedules", enabled=True, limit=_SCHEDULE_PAGE_SIZE, page=page, raise_on_error=True
+            )
+            rows, total = result if isinstance(result, tuple) else (result, None)
+            rows = rows or []
+            scanned += len(rows)
+            overdue = [
+                row
+                for row in rows
+                if (row.get("next_run_at") or now) < now - 900
+                and not (row.get("locked_by") and (row.get("locked_at") or 0) > now - 300)
+            ]
+            if overdue:
+                return CheckResult(
+                    name, "WARN", f"At least {len(overdue)} enabled schedules are overdue by 15 minutes", "live"
+                )
+            if (total is not None and scanned >= total) or (total is None and len(rows) < _SCHEDULE_PAGE_SIZE):
+                return CheckResult(name, "PASS", "No overdue schedules; poller liveness not proven", evidence="live")
+            if not rows:
+                break  # The catalog changed or the adapter could not supply the remaining rows.
+        return CheckResult(name, "WARN", f"Schedule scan incomplete after {scanned} rows; health not proven", "live")
 
     if name == "mcp":
         if not agent_os.mcp:
@@ -191,9 +229,13 @@ async def _check(agent_os: "AgentOS", name: str, *, network_probe: bool, public_
         import httpx
 
         assert public_url is not None
+        config = agent_os.mcp_config
+        path = config.path if config is not None else "/mcp"
+        if config is not None and config.root_host == urlsplit(public_url).hostname:
+            path = "/"
         async with httpx.AsyncClient(timeout=5, follow_redirects=False) as client:
             response = await client.post(
-                public_url.rstrip("/") + "/mcp",
+                public_url.rstrip("/") + path,
                 headers={"Accept": "application/json, text/event-stream"},
                 json={
                     "jsonrpc": "2.0",

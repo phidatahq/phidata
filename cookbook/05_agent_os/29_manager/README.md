@@ -86,3 +86,14 @@ app = agent_os.get_app()
 The manager needs a synchronous OS database for Studio catalog operations.
 Both synchronous and asynchronous Team runs are supported. Missing models or
 incompatible databases fail at construction with an actionable message.
+
+## Diagnostics
+
+`agent_os.run_diagnostics()` and `await agent_os.arun_diagnostics()` make no model
+calls. SQL diagnostics probe the connection before reading sessions, including
+when the database has no tables yet. Scheduler checks scan up to 10,000 enabled
+schedules and report WARN if the scan is incomplete or an overdue schedule is found.
+
+To probe MCP, pass `network_probe=True, public_url="https://your-os.example"`.
+Use the OS base URL, including any proxy path prefix; the probe appends the
+configured MCP path or uses `/` on the configured MCP root host.

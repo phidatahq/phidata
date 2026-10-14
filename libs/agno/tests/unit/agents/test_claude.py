@@ -1919,3 +1919,24 @@ def test_metrics_page_counts_runs_per_model(fake_sdk, tmp_db):
     today = days[-1]
     assert today["agent_runs_count"] == 2
     assert today["model_metrics"] == [{"model_id": "claude-sonnet-4-6", "model_provider": "Anthropic", "count": 2}]
+
+
+@pytest.mark.parametrize("stream", [False, True])
+def test_strict_native_resume_never_reconstructs_history(fake_sdk, tmp_db, monkeypatch, stream):
+    agent = ClaudeAgent(id="claude", db=tmp_db, require_native_resume=True)
+    agent.run("first", session_id="s1")
+    resumes = []
+
+    async def missing(prompt, options):
+        resumes.append(options.resume)
+        raise ResultError("No conversation found with session ID: sdk-1")
+        yield  # pragma: no cover
+
+    monkeypatch.setattr(claude_module._sdk(), "query", missing)
+    if stream:
+        events = list(agent.run("second", session_id="s1", stream=True, yield_run_output=True))
+        assert events[-1].status == RunStatus.error
+    else:
+        assert agent.run("second", session_id="s1").status == RunStatus.error
+    assert resumes == ["sdk-1"]
+    assert agent.read_or_create_session("s1").session_data["claude_sdk_session_id"] == "sdk-1"

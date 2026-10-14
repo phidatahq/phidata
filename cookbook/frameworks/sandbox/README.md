@@ -158,3 +158,13 @@ sandbox.exec(new_handle, ["sh", "-c", "cd /workspace && python -m venv .venv && 
 ```
 
 Reinstalling needs network access or a local package source, since sandbox networking defaults to `none`. Exclusions are never inferred, so dependencies are not dropped silently.
+
+## Native recovery: the sandbox never runs a turn on state it cannot verify
+
+```bash
+.venv/bin/python cookbook/frameworks/sandbox/native_recovery.py
+```
+
+A harness turn continues its own native conversation from files under `/runtime/native`. After a cold replacement those files come back from a checkpoint, and three guards make sure a restore that did not land whole cannot pass as a finished turn. First, the caller passes the native id it committed for the session as `expected_native` on `start`; before the model runs, the runtime checks that the local database records exactly that conversation and otherwise reports an execution error with reason `native_state_missing`. This is the only check that catches a lost database, since without a session row the adapter would treat the turn as a new conversation. Second, the runtime constructs the adapters with `require_native_resume=True`, so when the SDK cannot resume the recorded native session the turn errors and the stored id is kept, instead of the laptop fallback of starting a new conversation with the chat history pasted into the prompt. Third, `strict_persistence=True` makes a failed local write fail the turn, and the runtime reads its own run row back before returning a result. Ordinary SDK users keep the fallback defaults unless they enable these options.
+
+The example runs a Claude turn, continues it with the expectation set, deletes the local database, and then shows both outcomes: a turn without an expectation starts a new native session and reports COMPLETED with no memory, which is what a coordinator must never checkpoint; a turn with the committed id is refused before the model runs with `native_state_missing`, so the caller retries the restore. A coordinator derives the expectation from the native id it published with the last committed checkpoint and leaves it unset for a session's first turn.

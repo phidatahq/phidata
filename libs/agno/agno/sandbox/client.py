@@ -75,7 +75,12 @@ class SandboxRuntimeClient:
         config: Optional[Mapping[str, Any]] = None,
         user_id: Optional[str] = None,
         execution_timeout: float = 900,
+        expected_native: Optional[str] = None,
     ) -> RuntimeExecution:
+        """Start a turn. ``expected_native`` is the native conversation id the caller committed
+        for this session, when it has one: the runtime refuses to run, without calling the
+        model, unless the sandbox holds exactly that conversation. Leave it None for a
+        session's first turn."""
         response = await self._rpc(
             computer,
             "start",
@@ -90,6 +95,7 @@ class SandboxRuntimeClient:
                 "config": dict(config or {}),
                 "user_id": user_id,
                 "execution_timeout": execution_timeout,
+                "expected_native": expected_native,
             },
         )
         if response.get("accepted") is not True:
@@ -107,6 +113,7 @@ class SandboxRuntimeClient:
         config: Optional[Mapping[str, Any]] = None,
         user_id: Optional[str] = None,
         execution_timeout: float = 900,
+        expected_native: Optional[str] = None,
     ) -> RuntimeExecution:
         return _sync(
             self.astart(
@@ -118,6 +125,7 @@ class SandboxRuntimeClient:
                 config=config,
                 user_id=user_id,
                 execution_timeout=execution_timeout,
+                expected_native=expected_native,
             )
         )
 

@@ -221,12 +221,14 @@ def test_sync_client_wrappers():
 
 
 @pytest.mark.asyncio
-async def test_sdk_adapter_terminal_event_is_only_an_execution_result(tmp_path, monkeypatch):
+@pytest.mark.parametrize("retained", [True, False])
+async def test_sdk_adapter_terminal_event_is_only_an_execution_result(tmp_path, monkeypatch, retained):
     from agno.run.agent import RunCompletedEvent, RunContentEvent, RunOutput
     from agno.run.base import RunStatus
     from agno.session import AgentSession
 
     disposed = []
+    output = RunOutput(run_id="r", session_id="s", agent_id="a", content="hello", status=RunStatus.completed)
 
     class Engine:
         def dispose(self):
@@ -235,13 +237,16 @@ async def test_sdk_adapter_terminal_event_is_only_an_execution_result(tmp_path, 
     class Db:
         db_engine = Engine()
 
+        def get_run(self, run_id):
+            return output if retained else None
+
     class Agent:
         db = Db()
 
         async def arun(self, prompt, **kwargs):
             yield RunContentEvent(run_id="r", session_id="s", agent_id="a", content="hello")
             yield RunCompletedEvent(run_id="r", session_id="s", agent_id="a", content="hello")
-            yield RunOutput(run_id="r", session_id="s", agent_id="a", content="hello", status=RunStatus.completed)
+            yield output
 
         def get_session(self, *args, **kwargs):
             return AgentSession(session_id="s", agent_id="a", session_data={"native_id": "n"})
@@ -251,6 +256,11 @@ async def test_sdk_adapter_terminal_event_is_only_an_execution_result(tmp_path, 
     monkeypatch.setattr(runtime, "_agent", lambda *args: Agent())
     directory = tmp_path / "jobs/e"
     directory.mkdir(parents=True)
+    if not retained:
+        with pytest.raises(SandboxError, match="durably retain"):
+            await runtime._execute(directory, {"sdk": "claude", "run_id": "r", "session_id": "s", "input": "hello"})
+        assert disposed == [True]
+        return
     result = await runtime._execute(directory, {"sdk": "claude", "run_id": "r", "session_id": "s", "input": "hello"})
     assert result["type"] == "execution_finished"
     frames = [json.loads(line) for line in (directory / "events.jsonl").read_text().splitlines()]
@@ -567,3 +577,125 @@ def test_supervisor_passes_the_token_on_stdin_and_not_in_the_environment(monkeyp
     assert "AGNO_SANDBOX_RUNTIME_TOKEN" not in kwargs["env"], "the server is spawned without the token in its env"
     assert child.stdin.data == b"secret\n", "the token travels on the server's stdin"
     assert "AGNO_SANDBOX_RUNTIME_TOKEN" not in __import__("os").environ, "the supervisor drops its own copy"
+
+
+@pytest.mark.asyncio
+async def test_runtime_validates_real_sqlite_result_before_checkpoint(tmp_path, monkeypatch):
+    from dataclasses import dataclass
+
+    from agno.agents.base import BaseExternalAgent
+    from agno.db.sqlite import SqliteDb
+    from agno.run.agent import RunContentEvent
+
+    @dataclass
+    class Echo(BaseExternalAgent):
+        async def _arun_adapter_stream(self, input, **kwargs):
+            yield RunContentEvent(content="durable", run_id=kwargs["run_id"])
+
+    def make_agent(request, native):
+        return Echo(id="a", db=SqliteDb(db_file=str(native / "history.db")), strict_persistence=True)
+
+    monkeypatch.setenv("HOME", os.environ.get("HOME", ""))
+    monkeypatch.setenv("CODEX_HOME", "unused")
+    monkeypatch.setattr(runtime, "_agent", make_agent)
+    directory = tmp_path / "jobs/e"
+    directory.mkdir(parents=True)
+    output = await runtime._execute(directory, {"sdk": "claude", "run_id": "r", "session_id": "s", "input": "hello"})
+    assert output["run"]["content"] == "durable"
+    assert (tmp_path / "native/history.db").exists()
+
+
+# ---------------------------------------------------------------------------
+# The caller's expectation of native state is checked before the model runs
+# ---------------------------------------------------------------------------
+
+
+def _expecting_agent(native_id, calls):
+    from agno.run.agent import RunOutput
+    from agno.run.base import RunStatus
+    from agno.session import AgentSession
+
+    output = RunOutput(run_id="r", session_id="s", agent_id="a", content="hello", status=RunStatus.completed)
+
+    class Engine:
+        def dispose(self):
+            pass
+
+    class Db:
+        db_engine = Engine()
+
+        def get_run(self, run_id):
+            return output
+
+    class Agent:
+        db = Db()
+
+        async def arun(self, prompt, **kwargs):
+            calls.append("model")
+            yield output
+
+        def get_session(self, *args, **kwargs):
+            # A first turn has no session row until the model has run and the adapter stored one.
+            if native_id is None:
+                return AgentSession(session_id="s", agent_id="a", session_data={}) if "model" in calls else None
+            return AgentSession(session_id="s", agent_id="a", session_data={"claude_sdk_session_id": native_id})
+
+    return Agent()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "stored, expected, outcome",
+    [
+        ("native-1", "native-1", "runs"),
+        (None, None, "runs"),
+        ("native-1", None, "runs"),
+        (None, "native-1", "refused"),
+        ("native-2", "native-1", "refused"),
+    ],
+)
+async def test_expected_native_is_checked_before_the_model_runs(tmp_path, monkeypatch, stored, expected, outcome):
+    calls = []
+    monkeypatch.setattr(runtime, "_agent", lambda *args: _expecting_agent(stored, calls))
+    monkeypatch.setenv("HOME", str(tmp_path))
+    directory = tmp_path / "jobs/e"
+    directory.mkdir(parents=True)
+    request = {"sdk": "claude", "run_id": "r", "session_id": "s", "input": "hello", "expected_native": expected}
+    if outcome == "runs":
+        result = await runtime._execute(directory, request)
+        assert result["type"] == "execution_finished" and calls == ["model"]
+    else:
+        with pytest.raises(runtime.NativeStateMissing, match="does not match the session"):
+            await runtime._execute(directory, request)
+        assert calls == [], "the model is never invoked on mismatched state"
+
+
+def test_worker_reports_missing_native_state_with_a_reason(tmp_path, monkeypatch):
+    monkeypatch.setattr(runtime, "_process_start", lambda pid: "start")
+    monkeypatch.setattr(runtime, "_agent", lambda *args: _expecting_agent(None, []))
+    monkeypatch.setenv("AGNO_SANDBOX_TEST_RUNTIME", "1")
+    directory = tmp_path / "jobs" / "e"
+    directory.mkdir(parents=True)
+    request = {
+        "version": 1,
+        "execution_id": "e",
+        "run_id": "r",
+        "session_id": "s",
+        "agent_id": "a",
+        "sdk": "claude",
+        "input": "x",
+        "expected_native": "native-1",
+    }
+    (directory / "request.json").write_bytes(runtime._encode(request))
+    runtime._worker(directory)
+    result = json.loads((directory / "result.json").read_bytes())
+    assert result["type"] == "execution_error" and result["reason"] == "native_state_missing"
+    assert "expected the native conversation native-1, found none" in result["error"]
+
+
+def test_expected_native_is_validated_and_optional(request_data):
+    runtime._validate({**request_data, "expected_native": None})
+    runtime._validate({**request_data, "expected_native": "abc"})
+    for bad in ("", 5, "x" * 257):
+        with pytest.raises(ValueError, match="expected_native"):
+            runtime._validate({**request_data, "expected_native": bad})

@@ -229,3 +229,23 @@ No model calls in the load run. Requests and daemon calls per turn are what scal
 
 ---
 
+
+### Strict native recovery and local persistence
+
+**Status:** PASS
+
+**Description:** Missing Claude/Codex native state fails without starting another conversation; new sessions still start normally. Failed local writes cannot emit terminal success. Runtime readback checks include a real SQLite round trip, with empty-event normalization handled by the RunOutput serializer.
+
+**Result:** 575 combined external-agent/sandbox unit cases passed on Python 3.12; 8 real Docker runtime cases passed with the rebuilt image, including installed SDK construction with both strict flags. No authenticated model calls. The combined suite emitted an aiosqlite background-thread teardown warning from an existing async test environment; the focused runtime tests passed without it. Required scripts passed.
+
+---
+
+### native_recovery.py and the expectation check
+
+**Status:** PASS
+
+**Description:** The strict native recovery change ported onto the base branch, plus the missing guard: `expected_native` on `start`, checked by the runtime against the local database before the model runs and reported as `execution_error` with reason `native_state_missing`. Without it a lost local database was indistinguishable from a new session and produced a completed turn on a fresh conversation, measured live earlier with both SDKs.
+
+**Result:** Unit: agent and sandbox suites 795 passed, including the expectation matrix (match runs, null runs, missing or different native id refused without a model call), the worker's reason field, and request validation. Live on the branch image with real Claude: continuity with the expectation set; a wrong expectation refused in 0.4 s; the database deleted then refused in 0.4 s with the committed id; a fresh turn without an expectation allowed; a read-only database refused before the model. Real Codex: thread files deleted with the database kept ends the run with status ERROR and the stored thread id intact; the database deleted with the committed id is refused with `native_state_missing`. `native_recovery.py` shows the with and without outcomes in one container.
+
+---

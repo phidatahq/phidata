@@ -77,9 +77,6 @@ from agno.utils.safe_formatter import SafeFormatter
 
 @dataclass(init=False)
 class Agent:
-    # Framework-owned components remain runnable but are not registry building blocks.
-    _registry_excluded: bool = field(default=False, init=False, repr=False, compare=False)
-
     # --- Agent settings ---
     # Model for this Agent
     model: Optional[Model] = None
@@ -406,6 +403,9 @@ class Agent:
     callable_tools_cache_key: Optional[Callable[..., Optional[str]]] = None
     # Custom cache key function for knowledge callable factory
     callable_knowledge_cache_key: Optional[Callable[..., Optional[str]]] = None
+
+    # Keep this agent out of the registry while allowing it to run.
+    _registry_excluded: bool = field(default=False, init=False, repr=False, compare=False)
 
     def __init__(
         self,

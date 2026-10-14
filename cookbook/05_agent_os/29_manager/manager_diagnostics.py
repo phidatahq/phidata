@@ -1,7 +1,8 @@
 """Run diagnostics for an AgentOS with an OS manager. No model calls.
 
-Prints the OS agents and teams, the registry contents, and the diagnostics
-report that Platform Manager can read through its run_diagnostics tool.
+Prints the report that Platform Manager reads through its run_diagnostics
+tool. A missing OPENAI_API_KEY is reported as a failure, but does not stop
+the checks from running.
 
 Run:
     .venvs/demo/bin/python cookbook/05_agent_os/29_manager/manager_diagnostics.py
@@ -14,35 +15,18 @@ from tempfile import TemporaryDirectory
 from agno.db.sqlite import SqliteDb
 from agno.models.openai import OpenAIResponses
 from agno.os import AgentOS, ManagerConfig
-from agno.registry import Registry
-from agno.tools.calculator import CalculatorTools
 
 
 def main() -> None:
     with TemporaryDirectory() as directory:
         db = SqliteDb(db_file=str(Path(directory) / "os.db"))
-        registry = Registry(
-            models=[OpenAIResponses(id="gpt-5.6-luna")], tools=[CalculatorTools()]
-        )
         agent_os = AgentOS(
             db=db,
-            registry=registry,
             manager=ManagerConfig(
                 required_env=("OPENAI_API_KEY",),
-                workspace=Path(__file__).parent,
+                model=OpenAIResponses(id="gpt-5.6-luna"),
             ),
             telemetry=False,
-        )
-
-        print("Served agents:", [agent.id for agent in agent_os.agents])
-        print("Served teams:", [team.id for team in agent_os.teams])
-        print(
-            "Registry agents:",
-            [agent.id for agent in registry.agents],
-        )
-        print(
-            "Registry tools:",
-            [getattr(tool, "name", type(tool).__name__) for tool in registry.tools],
         )
 
         report = agent_os.run_diagnostics()

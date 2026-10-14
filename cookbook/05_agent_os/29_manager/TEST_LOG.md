@@ -1,5 +1,72 @@
 # Test log
 
+## Revised manager examples, 2026-10-14
+
+Used `.venv/bin/python` with this checkout's `libs/agno` on `PYTHONPATH`.
+Serving examples were loaded from a temporary working directory. Model calls
+were blocked in the smoke check; no live conversations or servers were started.
+
+### basic_manager.py
+
+**Status:** PASS
+
+**Description:** Constructed the OS and FastAPI app without an explicit registry.
+
+**Result:** OS Manager has two members and uses the revised instructions. No
+manager models, tools or components entered the build registry.
+
+---
+
+### manager_builds_agents.py
+
+**Status:** PASS
+
+**Description:** Constructed the app and called the builder's create tool directly
+to publish Budget Helper with calculator tools.
+
+**Result:** Publishing succeeded using the declared model and calculator. The
+registry contains the three JSON/CSV functions and excludes manager components.
+The README's live conversation and arithmetic response have not been tested.
+
+---
+
+### manager_with_resources.py
+
+**Status:** PASS
+
+**Description:** Constructed the app with three manager members, a notebook and
+learning. Called the manager's notebook tools to write and read `project.md`.
+
+**Result:** The saved note was returned. Learning is attached to the manager,
+and manager resources remain excluded from the build registry. Cross-session
+memory and source explanation through a live model have not been tested.
+
+---
+
+### manager_diagnostics.py
+
+**Status:** PASS
+
+**Description:** Executed with `OPENAI_API_KEY` unset and model calls blocked.
+
+**Result:** Completed the report and correctly reported the missing required key
+as FAIL. No registry setup or source workspace was needed.
+
+---
+
+### Manager and diagnostics unit tests
+
+**Status:** PASS
+
+**Description:** Ran `test_manager.py` and `test_diagnostics.py` against the revised
+prompt, field placement and component exclusion message.
+
+**Result:** 87 passed. Two existing duplicate OpenAPI operation-id warnings were
+reported. Targeted Ruff formatting and lint checks also passed. These checks do
+not establish live-model prompt quality.
+
+---
+
 ## Diagnostics regression validation, 2026-10-14
 
 ### manager_diagnostics.py

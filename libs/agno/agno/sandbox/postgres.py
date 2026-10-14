@@ -30,6 +30,10 @@ except ImportError:
 
 _T = TypeVar("_T")
 
+# Service run statuses no sandbox turn may reopen or overwrite. REGENERATED marks a
+# completed run superseded by /continue?regenerate=true.
+_FINISHED = ("COMPLETED", "CANCELLED", "ERROR", "REGENERATED")
+
 # Fields the runtime produces; service-owned identity, input and lineage stay as stored.
 _RUNTIME_RUN_FIELDS = frozenset(
     (
@@ -59,6 +63,17 @@ _RUNTIME_RUN_FIELDS = frozenset(
         "last_checkpoint_at_message_index",
     )
 )
+
+
+async def _drain(task: "asyncio.Future[Any]") -> None:
+    """Wait for a shielded task through any further cancellation, so it cannot finish after the caller left."""
+    while not task.done():
+        try:
+            await asyncio.wait([task])
+        except asyncio.CancelledError:
+            continue
+    if not task.cancelled():
+        task.exception()  # Retrieved: the caller is raising CancelledError instead.
 
 
 class SandboxLeaseLost(SandboxError):
@@ -175,7 +190,7 @@ class _SandboxStore:
         try:
             return await asyncio.shield(task)
         except asyncio.CancelledError:
-            await asyncio.wait([task])
+            await _drain(task)
             raise
 
     @staticmethod
@@ -318,7 +333,7 @@ class _SandboxStore:
             record = dict(row["record"])
             now = connection.execute(select(func.clock_timestamp())).scalar_one()
             active = record["phase"] != "idle"
-            if not active and str(run["status"]).upper() in ("COMPLETED", "CANCELLED", "ERROR"):
+            if not active and str(run["status"]).upper() in _FINISHED:
                 raise SandboxRunFinished(dict(run["run_data"]))
             if active and row["run_id"] != run_id:
                 raise SandboxSessionBusy(row["run_id"])
@@ -499,7 +514,7 @@ class _SandboxStore:
             ):
                 raise SandboxError("Durable completion requires staged recovery bytes and confirmed compute cleanup")
             previous_run, session = self._service_run(connection, lease)
-            if str(previous_run["status"]).upper() in ("COMPLETED", "CANCELLED", "ERROR"):
+            if str(previous_run["status"]).upper() in _FINISHED:
                 raise SandboxRunFinished(dict(previous_run["run_data"]))
             result = record["result"]
             run = dict(previous_run["run_data"])
@@ -574,7 +589,10 @@ class _SandboxStore:
         return self._sync(self.abegin_stop, lease, status=status, reason=reason)
 
     async def afinish_stop(self, lease: SandboxLease) -> Dict[str, Any]:
-        """Retain the previous recovery boundary after confirmed cleanup of a failed turn."""
+        """Release the session after confirmed cleanup, keeping the previous recovery boundary.
+
+        Records the stop on the run unless another writer already finished it.
+        """
 
         def finish(connection: Connection) -> Dict[str, Any]:
             record = dict(self._locked(connection, lease)["record"])
@@ -582,9 +600,9 @@ class _SandboxStore:
                 raise SandboxError("Stop completion requires confirmed compute cleanup")
             previous_run, _ = self._service_run(connection, lease)
             run = dict(previous_run["run_data"])
-            if str(previous_run["status"]).upper() == "COMPLETED":
-                raise SandboxRunFinished(run)
-            if str(previous_run["status"]).upper() not in ("ERROR", "CANCELLED"):
+            # A run another writer already finished keeps its stored outcome; the binding is still
+            # released so the session is not left busy. The previous checkpoint stays the recovery point.
+            if str(previous_run["status"]).upper() not in _FINISHED:
                 run["status"] = record["stop_status"]
                 # Like core run termination: the reason fills content only when there is none.
                 if not run.get("content"):

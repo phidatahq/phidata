@@ -464,3 +464,67 @@ async def test_sync_api_contract(store):
         await asyncio.to_thread(store.begin_stop, state.lease, status="ERROR", reason="no compute")
         stopped = await asyncio.to_thread(store.finish_stop, state.lease)
         assert stopped["status"] == "ERROR" and stopped["content"] == "no compute"
+
+
+async def finish_elsewhere(store, status, content="finished elsewhere"):
+    run_data = (await rows(store))[0]["run_data"]
+    await store._transaction(
+        lambda c: c.execute(
+            update(store.runs).values(status=status, run_data={**run_data, "status": status, "content": content})
+        )
+    )
+
+
+async def test_stop_after_external_completion_releases_the_session(store):
+    lease = await staged(store)
+    await store.astage_checkpoint(lease, REF)
+    await finish_elsewhere(store, "COMPLETED")
+    await store.abegin_stop(lease, status="ERROR", reason="Service run was finished elsewhere")
+    await store.aconfirm_stopped(lease, "ref")
+    run = await store.afinish_stop(lease)
+    # The stored completion stands; the staged checkpoint is not promoted, since nothing ties it to that result.
+    assert run["status"] == "COMPLETED" and run["content"] == "finished elsewhere"
+    binding = (await rows(store))[2]
+    assert binding["record"]["phase"] == "idle" and binding["record"]["checkpoint"] is None
+    await seed(store, run_id="second")
+    assert (await claim(store, run_id="second")).record["phase"] == "executing"
+
+
+async def test_regenerated_run_counts_as_finished(store):
+    lease = await staged(store)
+    await store.astage_checkpoint(lease, REF)
+    await store.aconfirm_stopped(lease, "ref")
+    await finish_elsewhere(store, "REGENERATED")
+    with pytest.raises(SandboxRunFinished):
+        await store.acommit(lease)
+    assert (await rows(store))[0]["status"] == "REGENERATED"
+
+
+async def test_regenerated_run_is_not_reopened(store):
+    lease = await staged(store)
+    await store.astage_checkpoint(lease, REF)
+    await store.aconfirm_stopped(lease, "ref")
+    await store.acommit(lease)
+    await finish_elsewhere(store, "REGENERATED")
+    with pytest.raises(SandboxRunFinished):
+        await claim(store)
+
+
+async def test_repeated_cancellation_still_waits_for_its_sync_transaction(store):
+    if isinstance(store.db, AsyncPostgresDb):
+        pytest.skip("AsyncPostgresDb runs the transaction on the event loop and rolls it back on cancellation")
+    finished = []
+
+    def slow(connection):
+        time.sleep(0.6)
+        finished.append(True)
+
+    await store._ensure_tables()
+    task = asyncio.create_task(store._transaction(slow))
+    await asyncio.sleep(0.1)
+    task.cancel()
+    await asyncio.sleep(0.1)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert finished

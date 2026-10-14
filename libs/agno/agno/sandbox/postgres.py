@@ -191,6 +191,9 @@ class _SandboxStore:
             raise SandboxError(
                 f"Sandbox table {self.bindings.name} does not reference run table {qualified(self.runs)}"
             )
+        # The claim's ON CONFLICT relies on this key; without it two first claims could both own a session.
+        if {column.name for column in self.bindings.primary_key.columns} != {"namespace", "session_id"}:
+            raise SandboxError(f"Sandbox table {self.bindings.name} must have the primary key (namespace, session_id)")
         self._tables_ready = True
 
     async def _transaction(self, operation: Callable[[Connection], _T]) -> _T:

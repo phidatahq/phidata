@@ -676,3 +676,28 @@ async def test_bindings_table_in_another_schema_is_refused(store):
         # The fixture's teardown recreates a correct bindings table and drops it.
         store.db._invalidate_table_cache(b)
         other.db_engine.dispose()
+
+
+async def test_bindings_table_without_its_key_is_refused(store):
+    if isinstance(store.db, AsyncPostgresDb):
+        pytest.skip("Table setup uses the sync engine")
+    sessions = await store._table("sessions", store.db.session_table_name)
+    runs = await store._table("runs", store.db.runs_table_name)
+    b, home = store.db.sandbox_table_name, store.db.db_schema
+    # Right columns and foreign keys, but nothing that makes (namespace, session_id) unique.
+    with store.db.db_engine.begin() as connection:
+        connection.execute(
+            text(
+                f'CREATE TABLE "{home}"."{b}" (namespace varchar NOT NULL, session_id varchar NOT NULL '
+                f'REFERENCES "{home}"."{sessions.name}" (session_id) ON DELETE CASCADE, agent_id varchar NOT NULL, '
+                f'user_id varchar, epoch bigint NOT NULL, owner varchar, run_id varchar REFERENCES "{home}"."{runs.name}" '
+                "(run_id), queue_attempt bigint, expires_at timestamptz, record jsonb NOT NULL)"
+            )
+        )
+    try:
+        with pytest.raises(SandboxError, match="key"):
+            await store._ensure_tables()
+    finally:
+        with store.db.db_engine.begin() as connection:
+            connection.execute(text(f'DROP TABLE "{home}"."{b}"'))
+        store.db._invalidate_table_cache(b)

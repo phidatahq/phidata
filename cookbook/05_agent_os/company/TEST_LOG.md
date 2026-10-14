@@ -49,8 +49,8 @@ Unrelated baseline formatting was restored after the scripts ran.
 
 ## Boundaries
 
-The base checks above cover explicit execution and human acceptance. The Ready/review
-checks below extend that contract. The built-in Product Manager is a separate slice.
+The base checks above cover explicit execution and human acceptance. The follow-up
+checks below cover Ready/review automation and the built-in Product Manager.
 The local tests above do not establish hosted deployment, frontend behavior or coding
 workspace isolation. Company uses each configured worker's workspace; operators must
 provide an appropriate isolated worker when needed.
@@ -72,3 +72,39 @@ overlap within a poller, and shutdown cancels the check. A full evidence list no
 blocks verified completion; the merge proof remains in the audit event. Version-5
 upgrade preserves work without enrolling legacy Ready Tasks. GitHub responses are
 fixtures here; account type is not proof of physical human interaction.
+
+## Built-in Product Manager review — 14 October 2026
+
+**Status:** PASS
+
+**Description:** Full Company integration with scheduler and queue regression tests:
+**388 passed, 2 Manager-only skips**. The four built-in tests also passed in the
+isolated dependency environment. Full format and validation scripts passed.
+
+**Result:** One framework Agent is reused across Products and resync, manual Company
+creates no agent, duplicate IDs fail clearly, and HTTP plus durable task execution
+retain the initiating user's Product access. Tests exercise real PostgreSQL and
+AgentOS transport with a deterministic model; no paid provider calls.
+
+### with_agents.py
+
+**Status:** PASS
+
+**Description:** Constructed the cookbook app with and without the separate Manager
+implementation. The combined configuration includes Platform Manager, Platform
+Builder, Platform Engineer and Product Manager. Repeated resync retains one Product
+Manager. Construction checks made no model calls.
+
+### Manager compatibility
+
+**Status:** PASS
+
+**Description:** Composed the full Company stack with Manager PR #11036 at
+`01a202354a7e5f5bd7fd0b61f60dc0a7bb7b24d3` in a disposable checkout. Company integration
+and Manager unit tests: **209 passed**, with no skipped Company composition tests.
+
+**Result:** Verified Manager delegation with caller identity, automatic Ready pickup,
+human review boundaries and repeated resync. Composition required retaining both
+additive exports/constructor fields in `os/__init__.py` and `os/app.py`. Neither the
+Manager PR nor the concurrent primary checkout was changed. Future Manager changes
+need another compatibility run.

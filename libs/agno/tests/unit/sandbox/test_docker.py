@@ -78,6 +78,7 @@ class FakeDocker(DockerSandbox):
     def __init__(self, **kwargs):
         super().__init__("python:test", namespace="test", **kwargs)
         self.record = None
+        self.volumes = {}
         self.calls = []
         self.lose_create_response = False
         self.env_file = None
@@ -119,6 +120,22 @@ class FakeDocker(DockerSandbox):
             if operation == "rm":
                 self.networks.pop(name, None)
                 return 0, b"", b""
+        if args[0] == "volume":
+            name = args[-1]
+            if operation == "inspect":
+                return (
+                    (0, json.dumps([self.volumes[name]]).encode(), b"")
+                    if name in self.volumes
+                    else (1, b"", b"no such volume")
+                )
+            if operation == "create":
+                fields = {}
+                for flag, field in (("--opt", "Options"), ("--label", "Labels")):
+                    fields[field] = dict(args[i + 1].split("=", 1) for i, arg in enumerate(args) if arg == flag)
+                self.volumes[name] = {"Name": name, "Driver": "local", **fields}
+            elif operation == "rm":
+                self.volumes.pop(name, None)
+            return 0, b"", b""
         if operation == "inspect":
             if self.record is None:
                 return 1, b"", b"No such container"
@@ -160,7 +177,7 @@ async def test_create_is_idempotent_and_hardened(monkeypatch):
     first = await sandbox.acreate("s", agent_id="coder", env={"MODEL_TOKEN": "explicit"})
     second = await sandbox.acreate("s", agent_id="coder", env={"MODEL_TOKEN": "explicit"})
     assert first == second
-    creates = [call for call in sandbox.calls if call[0][1] == "create"]
+    creates = [call for call in sandbox.calls if call[0][:2] == ("container", "create")]
     assert len(creates) == 1
     argv = creates[0][0]
     assert "--read-only" in argv and "--cap-drop" in argv and "1000:1000" in argv
@@ -176,7 +193,7 @@ async def test_lost_create_response_reconciles_the_same_generation():
     sandbox.lose_create_response = True
     handle = await sandbox.acreate("s", agent_id="coder")
     assert handle.state == "running"
-    assert len([call for call in sandbox.calls if call[0][1] == "create"]) == 1
+    assert len([call for call in sandbox.calls if call[0][:2] == ("container", "create")]) == 1
 
 
 @pytest.mark.asyncio
@@ -300,6 +317,98 @@ async def test_agent_id_is_optional():
     assert await sandbox.acreate("s") == handle
 
 
+@pytest.mark.asyncio
+async def test_owned_volumes_are_bounded_and_removed_after_lost_container_delete():
+    sandbox = FakeDocker(workspace_mb=32)
+    handle = await sandbox.acreate("s", agent_id="coder")
+    assert len(sandbox.volumes) == 2
+    volume = sandbox.volumes[handle.name + "-workspace"]
+    assert volume["Options"]["type"] == "tmpfs"
+    assert "size=32m" in volume["Options"]["o"]
+    sandbox.record = None  # Container removal succeeded, but its response was lost.
+    await sandbox.adestroy(handle)
+    assert sandbox.volumes == {}
+
+
+@pytest.mark.asyncio
+async def test_foreign_orphan_volume_is_not_removed():
+    sandbox = FakeDocker()
+    handle = await sandbox.acreate("s", agent_id="coder")
+    sandbox.record = None
+    sandbox.volumes[handle.name + "-workspace"]["Labels"]["io.agno.sandbox.namespace"] = "other"
+    with pytest.raises(SandboxError, match="different sandbox identity"):
+        await sandbox.adestroy(handle)
+    assert len(sandbox.volumes) == 2
+
+
+@pytest.mark.asyncio
+async def test_failed_container_create_removes_its_volumes_so_a_corrected_configuration_can_retry():
+    class FailedCreate(FakeDocker):
+        fail = True
+
+        async def _docker(self, *args, **kwargs):
+            if args[:2] == ("container", "create") and self.fail:
+                self.calls.append((args, kwargs))
+                return 1, b"", b"No such image"
+            return await super()._docker(*args, **kwargs)
+
+    sandbox = FailedCreate()
+    with pytest.raises(SandboxError, match="No such image"):
+        await sandbox.acreate("s", agent_id="coder", env={"A": "1"})
+    assert sandbox.volumes == {}
+    sandbox.fail = False
+    assert (await sandbox.acreate("s", agent_id="coder", env={"A": "2"})).state == "running"
+
+
+@pytest.mark.asyncio
+async def test_failed_start_also_removes_the_never_started_volumes():
+    class FailedStart(FakeDocker):
+        async def _docker(self, *args, **kwargs):
+            if args[1] == "start":
+                return 1, b"", b"network Host not found"
+            return await super()._docker(*args, **kwargs)
+
+    sandbox = FailedStart()
+    with pytest.raises(SandboxError, match="start failed"):
+        await sandbox.acreate("s", agent_id="coder")
+    assert sandbox.record is None and sandbox.volumes == {}
+
+
+@pytest.mark.asyncio
+async def test_stop_unpauses_before_stopping():
+    class Pausable(FakeDocker):
+        async def _docker(self, *args, **kwargs):
+            if args[1] == "unpause":
+                self.calls.append((args, kwargs))
+                self.record["State"]["Status"] = "running"
+                return 0, b"", b""
+            return await super()._docker(*args, **kwargs)
+
+    sandbox = Pausable()
+    handle = await sandbox.acreate("s", agent_id="coder")
+    sandbox.record["State"]["Status"] = "paused"
+    await sandbox.astop(handle)
+    operations = [call[0][1] for call in sandbox.calls if call[0][0] == "container"]
+    assert operations[-2:] == ["unpause", "stop"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure", [SandboxError("Docker volume identity mismatch"), asyncio.CancelledError()])
+async def test_env_file_is_removed_when_volume_preparation_fails(failure):
+    class FailedVolume(FakeDocker):
+        async def _ensure_volume(self, *args, **kwargs):
+            raise failure
+
+        def _write_env_file(self, env):
+            self.env_path = DockerSandbox._write_env_file(env)
+            return self.env_path
+
+    sandbox = FailedVolume()
+    with pytest.raises(type(failure)):
+        await sandbox.acreate("s", agent_id="coder", env={"MODEL_TOKEN": "secret"})
+    assert not os.path.exists(sandbox.env_path)
+
+
 # ---------------------------------------------------------------------------
 # Warm path: pause and resume keep the generation
 # ---------------------------------------------------------------------------
@@ -321,7 +430,11 @@ async def test_pause_keeps_the_generation_and_only_resume_revives_it():
     # The owner, who paused it, resumes it explicitly.
     resumed = await sandbox.aresume(handle)
     assert resumed.provider_ref == handle.provider_ref and resumed.state == "running"
-    assert [call[0][1] for call in sandbox.calls if call[0][1] in ("pause", "unpause", "create")] == [
+    assert [
+        call[0][1]
+        for call in sandbox.calls
+        if call[0][0] == "container" and call[0][1] in ("pause", "unpause", "create")
+    ] == [
         "create",
         "pause",
         "unpause",
@@ -399,7 +512,7 @@ class ServedDocker(FakeDocker):
 
     async def _docker(self, *args, **kwargs):
         code, out, err = await super()._docker(*args, **kwargs)
-        if args[1] == "create":
+        if args[:2] == ("container", "create"):
             self.record["NetworkSettings"] = {"Ports": {"8765/tcp": [{"HostIp": "127.0.0.1", "HostPort": "49152"}]}}
         return code, out, err
 
@@ -425,7 +538,7 @@ class ServedDocker(FakeDocker):
 
 
 def _create_args(provider):
-    return next(call[0] for call in provider.calls if call[0][1] == "create")
+    return next(call[0] for call in provider.calls if call[0][:2] == ("container", "create"))
 
 
 @pytest.mark.asyncio
@@ -745,3 +858,28 @@ async def test_exec_blanks_the_runtime_token_only_when_a_server_is_configured():
             assert argv[5] == handle.provider_ref
         else:
             assert argv[3] == handle.provider_ref and "--env" not in argv
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure", [TimeoutError("lost control response"), SandboxError("lost control transport")])
+async def test_runtime_control_failure_never_stops_session_compute(failure):
+    class LostControl(FakeDocker):
+        async def _docker(self, *args, **kwargs):
+            if args[:2] == ("container", "exec"):
+                raise failure
+            return await super()._docker(*args, **kwargs)
+
+    provider = LostControl()
+    handle = await provider.acreate("s", agent_id="coder")
+    with pytest.raises(type(failure)):
+        await provider.arpc(handle, "poll", b"{}")
+    assert (await provider.aget(handle.provider_ref)).state == "running"
+    assert not any(call[0][:2] == ("container", "stop") for call in provider.calls)
+
+
+@pytest.mark.asyncio
+async def test_runtime_rpc_rejects_arbitrary_commands():
+    provider = FakeDocker()
+    handle = await provider.acreate("s", agent_id="coder")
+    with pytest.raises(ValueError, match="start/poll"):
+        await provider.arpc(handle, "shell", b"{}")

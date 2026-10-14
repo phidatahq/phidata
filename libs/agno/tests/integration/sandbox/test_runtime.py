@@ -304,3 +304,33 @@ async def test_host_exec_and_the_serving_process_do_not_carry_the_token(runtime_
     assert server.stdout.strip() == "server clean", "the serving process has no token in its environ"
     execution = await client.astart(computer, execution_id="t", run_id="r", sdk="fixture", input="works")
     assert (await client.await_result(execution, timeout=20))["run"]["content"] == "works", "the token still works"
+
+
+async def test_lost_poll_response_keeps_execution_available_for_another_client(runtime_computer, monkeypatch):
+    import json
+
+    provider, computer, first = runtime_computer
+    if computer.runtime_url is not None:
+        pytest.skip("Injects a lost reply on the exec transport")
+    execution = await first.astart(
+        computer, execution_id="e", run_id="r", sdk="fixture", input="survives", config={"delay": 1}
+    )
+    original = provider._docker
+    lost = []
+
+    async def lose_response(*args, **kwargs):
+        response = await original(*args, **kwargs)
+        if args[:2] == ("container", "exec") and kwargs.get("input_data"):
+            command = json.loads(kwargs["input_data"])
+            if command["argv"][-1] == "poll" and not lost:
+                lost.append(True)
+                raise TimeoutError("injected lost poll response")
+        return response
+
+    monkeypatch.setattr(provider, "_docker", lose_response)
+    with pytest.raises(TimeoutError, match="lost poll"):
+        await first.apoll(execution)
+    assert (await provider.aget(computer.provider_ref)).state == "running"
+    second = SandboxRuntimeClient(DockerSandbox(IMAGE, namespace=provider.namespace, memory_mb=512))
+    assert (await second.await_result(execution, timeout=20))["run"]["content"] == "survives"
+    assert (await provider.aexec(computer, ["cat", "fixture-effects.txt"])).stdout == "r\n"

@@ -650,6 +650,7 @@ class Parallel:
 
         # Create aggregated result from all step outputs
         aggregated_result = self._aggregate_results(flattened_step_results)
+        aggregated_result.step_id = parallel_step_id
 
         # Yield the final aggregated StepOutput
         yield aggregated_result
@@ -1003,6 +1004,7 @@ class Parallel:
 
         # Create aggregated result from all step outputs
         aggregated_result = self._aggregate_results(flattened_step_results)
+        aggregated_result.step_id = parallel_step_id
 
         # Yield the final aggregated StepOutput
         yield aggregated_result

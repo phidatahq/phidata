@@ -2,6 +2,9 @@
 
 import io
 import json
+import os
+import shutil
+from types import SimpleNamespace
 
 import pytest
 
@@ -9,8 +12,9 @@ pytest.importorskip("boto3")
 
 from botocore.exceptions import ClientError
 
-from agno.sandbox.agentcore import AgentCoreSandbox
+from agno.sandbox.agentcore import AgentCoreCheckpointTransfer, AgentCoreSandbox
 from agno.sandbox.base import SandboxError
+from agno.sandbox.checkpoint import FileCheckpointStore
 
 ARN = "arn:aws:bedrock-agentcore:us-east-1:123456789012:runtime/agno_sandbox-abc123"
 
@@ -203,3 +207,75 @@ async def test_pause_is_not_supported():
     handle = await value.acreate("s")
     with pytest.raises(NotImplementedError):
         await value.apause(handle)
+
+
+@pytest.fixture
+def computer(tmp_path, monkeypatch):
+    """The in-computer server's checkpoint operations, on temporary directories."""
+    from agno.sandbox import agentcore_server as server
+
+    workspace, runtime, control = tmp_path / "workspace", tmp_path / "runtime", tmp_path / "control"
+    for path in (workspace, runtime, control):
+        path.mkdir()
+    monkeypatch.setattr(server, "_CONTROL", control)
+    monkeypatch.setattr(server, "_ROOTS", {"workspace": workspace, "native": runtime / "native"})
+    monkeypatch.setattr(server, "_USER", os.getuid())
+    monkeypatch.setattr(server, "_GROUP", os.getgid())
+    monkeypatch.setattr(server, "_load_claim", lambda: {"metadata": {}, "env": {}})
+    # Freezing this UID's processes would stop the test runner itself.
+    monkeypatch.setattr(server, "_freeze", lambda: [])
+    value = sandbox()
+    fake = value._invoke
+
+    def invoke(reference, operation, **payload):
+        if operation not in ("export", "get", "put", "import", "remove"):
+            return fake(reference, operation, **payload)
+        try:
+            return server._OPERATIONS[operation](payload)
+        except Exception as error:
+            # The real server answers errors in the body, which _invoke raises as SandboxError.
+            raise SandboxError(f"AgentCore sandbox refused {operation}: {type(error).__name__}: {error}") from error
+
+    value._invoke = invoke
+    return SimpleNamespace(sandbox=value, workspace=workspace, native=runtime / "native", control=control)
+
+
+@pytest.mark.asyncio
+async def test_checkpoint_round_trip_moves_files_in_chunks_and_keeps_exclusions_inside(computer, tmp_path, monkeypatch):
+    monkeypatch.setattr("agno.sandbox.agentcore._CHUNK", 1000)
+    handle = await computer.sandbox.acreate("s")
+    (computer.workspace / "src").mkdir()
+    (computer.workspace / "src" / "app.py").write_text("print('hi')\n" * 400)
+    (computer.workspace / "link").symlink_to("src/app.py")
+    computer.native.mkdir(mode=0o700)
+    (computer.native / "transcript.jsonl").write_text('{"turn": 1}\n')
+    (computer.native / "codex" / ".tmp").mkdir(parents=True)
+    (computer.native / "codex" / ".tmp" / "plugins.bin").write_bytes(b"x" * 5000)
+    (computer.native / "codex" / "auth.json").write_text("secret")
+
+    transfer = AgentCoreCheckpointTransfer(computer.sandbox, FileCheckpointStore(tmp_path / "store"))
+    reference = await transfer.acapture(handle, state={"turn": 1})
+    assert list(computer.control.iterdir()) == []
+
+    for path in (computer.workspace, computer.native):
+        shutil.rmtree(path)
+    computer.workspace.mkdir()
+    replacement = await computer.sandbox.acreate("s", generation=2)
+    assert await transfer.arestore(replacement, reference) == {"turn": 1}
+    assert (computer.workspace / "src" / "app.py").read_text() == "print('hi')\n" * 400
+    assert os.readlink(computer.workspace / "link") == "src/app.py"
+    assert (computer.native / "transcript.jsonl").read_text() == '{"turn": 1}\n'
+    assert not (computer.native / "codex" / "auth.json").exists()
+    assert not (computer.native / "codex" / ".tmp").exists()
+    assert list(computer.control.iterdir()) == []
+
+
+@pytest.mark.asyncio
+async def test_restore_into_a_used_computer_stops_it(computer, tmp_path):
+    handle = await computer.sandbox.acreate("s")
+    transfer = AgentCoreCheckpointTransfer(computer.sandbox, FileCheckpointStore(tmp_path / "store"))
+    reference = await transfer.acapture(handle, state={})
+    (computer.workspace / "left-over").write_text("x")
+    with pytest.raises(SandboxError, match="empty, unused"):
+        await transfer.arestore(handle, reference)
+    assert computer.sandbox._data.stops == [handle.provider_ref]

@@ -3,7 +3,8 @@
 ``serve`` is the container entrypoint and runs as root. It answers the AgentCore
 HTTP contract on port 8080: GET /ping and POST /invocations. An invocation can
 claim this microVM for one sandbox generation, describe the claim, forward a
-runtime start or poll to the local runtime server, or stage command input.
+runtime start or poll to the local runtime server, stage command input, or move
+checkpoint exports and imports through the root-only control directory.
 
 ``exec`` wraps every provider command. It refuses an unclaimed microVM, applies
 the claimed environment and drops to UID/GID 1000 in /workspace, the same user
@@ -15,14 +16,17 @@ microVM's own disk and dies with it. An unclaimed microVM is a replacement and
 must not run work for the generation that preceded it.
 """
 
+import base64
 import ctypes
 import json
 import os
 import re
 import secrets
+import signal
 import stat
 import subprocess
 import sys
+import tarfile
 import threading
 import time
 import urllib.error
@@ -39,7 +43,10 @@ _RUNTIME_PORT = 8765
 _TOKEN_ENV = "AGNO_SANDBOX_RUNTIME_TOKEN"
 _GUARD_EXIT = 125
 _MAX_INPUT = 8 * 1024 * 1024
+_MAX_CHUNK = 8 * 1024 * 1024
 _USER = 1000
+_GROUP = 1000
+_ROOTS = {"workspace": _WORKSPACE, "native": _RUNTIME / "native"}
 
 _lock = threading.Lock()
 _state: Dict[str, Any] = {"token": None, "supervisor": None}
@@ -74,7 +81,7 @@ def _load_claim() -> Optional[Dict[str, Any]]:
 
 def _drop_privileges() -> None:
     os.setgroups([])
-    os.setgid(_USER)
+    os.setgid(_GROUP)
     os.setuid(_USER)
     # PR_SET_NO_NEW_PRIVS: setuid binaries cannot take a command back to root.
     if ctypes.CDLL(None, use_errno=True).prctl(38, 1, 0, 0, 0) != 0:
@@ -138,7 +145,7 @@ def _claim(request: Dict[str, Any]) -> Dict[str, Any]:
             return {"metadata": existing["metadata"], "created": False}
         for path in (_WORKSPACE, _RUNTIME):
             path.mkdir(mode=0o700, exist_ok=True)
-            os.chown(path, _USER, _USER)
+            os.chown(path, _USER, _GROUP)
             path.chmod(0o700)
         claim = {"metadata": metadata, "env": env, "deadline": time.time() + lifetime}
         _write_private(_CLAIM, json.dumps(claim).encode())
@@ -194,6 +201,140 @@ def _stage(request: Dict[str, Any]) -> Dict[str, Any]:
     return {"size": len(data)}
 
 
+def _transfer_path(name: str, root: str) -> Path:
+    if not re.fullmatch(r"[a-f0-9]{32}", name) or root not in _ROOTS:
+        raise ValueError("Invalid checkpoint transfer object")
+    return _CONTROL / f"{name}-{root}.tar"
+
+
+def _freeze() -> List[int]:
+    """Stop every UID 1000 process so files hold still while they are archived.
+
+    There is no microVM pause; this is the equivalent of Docker's cgroup freeze
+    for the agent's processes. The caller resumes them with ``_thaw``.
+    """
+    stopped = []
+    for _ in range(3):
+        for entry in Path("/proc").iterdir():
+            if not entry.name.isdigit() or int(entry.name) in stopped:
+                continue
+            try:
+                if entry.stat().st_uid == _USER:
+                    os.kill(int(entry.name), signal.SIGSTOP)
+                    stopped.append(int(entry.name))
+            except (FileNotFoundError, ProcessLookupError):
+                continue
+    return stopped
+
+
+def _thaw(stopped: List[int]) -> None:
+    for pid in stopped:
+        try:
+            os.kill(pid, signal.SIGCONT)
+        except ProcessLookupError:
+            pass
+
+
+def _export(request: Dict[str, Any]) -> Dict[str, Any]:
+    """Archive each managed root to its own tar, entries named from the root down.
+
+    The layout matches ``docker container cp`` output, so the host repacks both
+    providers' exports with the same code. Excluded paths are skipped here to keep
+    them inside the computer, and the host checks the exclusions again.
+    """
+    if _load_claim() is None:
+        raise PermissionError("Unclaimed computer")
+    name, exclude, limit = request["name"], set(request.get("exclude", [])), int(request["max_bytes"])
+    _ROOTS["native"].mkdir(mode=0o700, exist_ok=True)
+    os.chown(_ROOTS["native"], _USER, _GROUP)
+
+    def keep(info: tarfile.TarInfo) -> Optional[tarfile.TarInfo]:
+        if any(info.name == item or info.name.startswith(item + "/") for item in exclude):
+            return None
+        if not (info.isfile() or info.isdir() or info.issym() or info.islnk()):
+            raise ValueError("Checkpoint contains an unsupported file type: " + info.name)
+        return info
+
+    sizes = {}
+    stopped = _freeze()
+    try:
+        for root, path in _ROOTS.items():
+            target = _transfer_path(name, root)
+            with tarfile.open(target, "w", format=tarfile.PAX_FORMAT) as archive:
+                archive.add(path, arcname=root, filter=keep)
+            sizes[root] = target.stat().st_size
+            if sum(sizes.values()) > limit:
+                raise ValueError("Checkpoint export exceeds its byte limit")
+    except BaseException:
+        for root in _ROOTS:
+            _transfer_path(name, root).unlink(missing_ok=True)
+        raise
+    finally:
+        _thaw(stopped)
+    return {"sizes": sizes}
+
+
+def _get(request: Dict[str, Any]) -> Dict[str, Any]:
+    path = _transfer_path(request["name"], request["root"])
+    offset, length = int(request["offset"]), min(int(request["length"]), _MAX_CHUNK)
+    with path.open("rb") as stream:
+        stream.seek(offset)
+        data = stream.read(length)
+    return {"data": base64.b64encode(data).decode()}
+
+
+def _put(request: Dict[str, Any]) -> Dict[str, Any]:
+    if _load_claim() is None:
+        raise PermissionError("Unclaimed computer")
+    path = _transfer_path(request["name"], request["root"])
+    data = base64.b64decode(request["data"], validate=True)
+    if len(data) > _MAX_CHUNK:
+        raise ValueError("Checkpoint chunk exceeds its limit")
+    offset = int(request["offset"])
+    if offset == 0:
+        path.unlink(missing_ok=True)
+    elif not path.exists() or path.stat().st_size != offset:
+        raise ValueError("Checkpoint chunks must arrive in order")
+    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_APPEND | os.O_NOFOLLOW, 0o600)
+    try:
+        os.write(descriptor, data)
+    finally:
+        os.close(descriptor)
+    return {"size": path.stat().st_size}
+
+
+def _import(request: Dict[str, Any]) -> Dict[str, Any]:
+    """Extract one prepared tar per root into an empty, unused generation."""
+    if _load_claim() is None:
+        raise PermissionError("Unclaimed computer")
+    name, mode = request["name"], int(request["native_mode"])
+    _ROOTS["native"].mkdir(mode=0o700, exist_ok=True)
+    for path in _ROOTS.values():
+        if any(path.iterdir()):
+            raise ValueError("Restore requires an empty, unused generation")
+    try:
+        for root, path in _ROOTS.items():
+            with tarfile.open(_transfer_path(name, root)) as archive:
+                # The data filter refuses absolute paths, links out of the root and
+                # device files, on top of the host's own validation.
+                archive.extractall(path, filter="data")
+            for directory, directories, files in os.walk(path):
+                os.chown(directory, _USER, _GROUP)
+                for entry in directories + files:
+                    os.chown(os.path.join(directory, entry), _USER, _GROUP, follow_symlinks=False)
+        _ROOTS["native"].chmod(mode)
+    finally:
+        for root in _ROOTS:
+            _transfer_path(name, root).unlink(missing_ok=True)
+    return {}
+
+
+def _remove(request: Dict[str, Any]) -> Dict[str, Any]:
+    for root in _ROOTS:
+        _transfer_path(request["name"], root).unlink(missing_ok=True)
+    return {}
+
+
 def _busy() -> bool:
     """A runtime worker is alive for an unfinished job. A job orphaned by a lost
     process must not keep the session awake, so a status file alone does not count."""
@@ -221,7 +362,17 @@ def _ping_reply() -> Dict[str, Any]:
     return {"status": status, "time_of_last_update": _ping["since"]}
 
 
-_OPERATIONS = {"claim": _claim, "describe": _describe, "rpc": _rpc, "stage": _stage}
+_OPERATIONS = {
+    "claim": _claim,
+    "describe": _describe,
+    "rpc": _rpc,
+    "stage": _stage,
+    "export": _export,
+    "get": _get,
+    "put": _put,
+    "import": _import,
+    "remove": _remove,
+}
 
 
 class _Handler(BaseHTTPRequestHandler):

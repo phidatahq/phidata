@@ -7,6 +7,7 @@ credentials. Its journal reports execution finished, not durable run completion.
 from __future__ import annotations
 
 import argparse
+from contextlib import suppress
 import asyncio
 import fcntl
 import hashlib
@@ -18,11 +19,14 @@ import sys
 import time
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Dict, Iterator
+from typing import Any, Dict, Iterator, Optional
 
 from agno.sandbox.base import SandboxError
 
 _VERSION = 1
+# The bearer token the host must present to this container's server. The server reads it
+# once and drops it from its environment; workers are spawned without it.
+_TOKEN_ENV = "AGNO_SANDBOX_RUNTIME_TOKEN"
 _MAX_REQUEST = 1024 * 1024
 _MAX_FRAME = 256 * 1024
 _MAX_RESULT = 1024 * 1024
@@ -122,11 +126,17 @@ def _start(root: Path, request: Dict[str, Any]) -> Dict[str, Any]:
                 stderr=subprocess.DEVNULL,
                 start_new_session=True,
                 close_fds=True,
+                env=_worker_env(),
             )
         except Exception as error:
             _atomic(directory / "result.json", _encode({"type": "execution_error", "error": str(error)}))
             raise
     return {"version": _VERSION, "execution_id": request["execution_id"], "accepted": True}
+
+
+def _worker_env() -> Dict[str, str]:
+    """The worker's environment: everything the container has, minus the control token."""
+    return {key: value for key, value in os.environ.items() if key != _TOKEN_ENV}
 
 
 def _append(directory: Path, event: Dict[str, Any]) -> None:
@@ -146,15 +156,18 @@ async def _fixture(directory: Path, request: Dict[str, Any]) -> Dict[str, Any]:
     workspace.mkdir(exist_ok=True)
     with (workspace / "fixture-effects.txt").open("a") as stream:
         stream.write(request["run_id"] + "\n")
-    await asyncio.sleep(float(request.get("config", {}).get("delay", 0)))
-    event = {
-        "event": "RunContent",
-        "content": request["input"],
-        "run_id": request["run_id"],
-        "session_id": request["session_id"],
-        "agent_id": request["agent_id"],
-    }
-    _append(directory, event)
+    # What the agent's tools would see: the names of our own variables in this environment.
+    (workspace / "fixture-env.txt").write_text("\n".join(sorted(k for k in os.environ if k.startswith("AGNO_SANDBOX"))))
+    config = request.get("config", {})
+    delay, steps = float(config.get("delay", 0)), int(config.get("steps", 1))
+    identity = {"run_id": request["run_id"], "session_id": request["session_id"], "agent_id": request["agent_id"]}
+    # With steps, the turn streams: one event per step spaced over the delay, then the final
+    # content. With the default of one step it is a single event after the delay.
+    for step in range(1, steps):
+        await asyncio.sleep(delay / steps)
+        _append(directory, {"event": "RunContent", "content": f"step {step} of {steps}", **identity})
+    await asyncio.sleep(delay / steps)
+    _append(directory, {"event": "RunContent", "content": request["input"], **identity})
     return {
         "type": "execution_finished",
         "run": {
@@ -298,19 +311,201 @@ def _poll(root: Path, execution_id: str, cursor: int) -> Dict[str, Any]:
     return {"version": _VERSION, "execution_id": execution_id, "cursor": cursor, "frames": frames, "result": result}
 
 
+_MAX_WAIT = 30.0
+
+
+def _poll_wait(root: Path, request: Dict[str, Any]) -> Dict[str, Any]:
+    """Poll, holding the request open until there is something to return.
+
+    ``wait`` seconds of long-polling inside the container replaces a tight loop of
+    requests from the host: the reply goes out as soon as new journal bytes or the
+    result exist, and an idle page costs one request per ``wait`` instead of many.
+    """
+    wait = request.get("wait", 0)
+    if not isinstance(wait, (int, float)) or not math.isfinite(wait) or wait < 0:
+        raise ValueError("Runtime poll wait must be a nonnegative number of seconds")
+    deadline = time.monotonic() + min(float(wait), _MAX_WAIT)
+    while True:
+        page = _poll(root, request["execution_id"], request["cursor"])
+        if page["frames"] or page["result"] is not None or time.monotonic() >= deadline:
+            return page
+        time.sleep(0.05)
+
+
+def _serve(root: Path, port: int, token: Optional[str] = None) -> Any:
+    """The runtime as a small HTTP server, run as the container's entrypoint.
+
+    POST /start and POST /poll take the same JSON as the stdin operations and return
+    the same JSON; GET /health answers once the server is up. The journal, locks and
+    worker are unchanged: this only replaces a process spawn per request with a
+    pooled connection, which is what keeps the Docker daemon out of the hot path.
+
+    With a token, every request must carry it as a bearer credential. The provider
+    generates one per container and hands it to the coordinator with the handle, so
+    a port reachable beyond the host's loopback (a shared daemon, a hosted provider)
+    answers only its owner. The agent inside the container can already write the
+    journal, so the server grants it nothing new either way.
+    """
+    import hmac
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    expected = ("Bearer " + token).encode() if token else None
+
+    class Handler(BaseHTTPRequestHandler):
+        protocol_version = "HTTP/1.1"
+        # Headers and body go out as two small writes; without TCP_NODELAY the second waits on
+        # the peer's delayed ACK, which turns a millisecond poll into a forty millisecond one.
+        disable_nagle_algorithm = True
+
+        def log_message(self, *args: Any) -> None:
+            return
+
+        def _authorized(self) -> bool:
+            if expected is None:
+                return True
+            presented = (self.headers.get("Authorization") or "").encode()
+            if hmac.compare_digest(presented, expected):
+                return True
+            self._reply(401, {"error": "Runtime request is missing or carries the wrong token"})
+            return False
+
+        def _reply(self, status: int, body: Dict[str, Any]) -> None:
+            payload = _encode(body)
+            self.send_response(status)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+
+        def do_GET(self) -> None:
+            if not self._authorized():
+                return
+            if self.path == "/health":
+                self._reply(200, {"version": _VERSION, "ok": True})
+            else:
+                self._reply(404, {"error": "Unknown runtime operation"})
+
+        def do_POST(self) -> None:
+            if not self._authorized():
+                return
+            if self.path not in ("/start", "/poll"):
+                self._reply(404, {"error": "Unknown runtime operation"})
+                return
+            length = int(self.headers.get("Content-Length") or 0)
+            if length <= 0 or length > _MAX_REQUEST:
+                self._reply(413, {"error": "Runtime request exceeds its limit"})
+                return
+            try:
+                request = json.loads(self.rfile.read(length))
+                if not isinstance(request, dict):
+                    raise ValueError("Runtime request must be a JSON object")
+                result = _start(root, request) if self.path == "/start" else _poll_wait(root, request)
+            except (ValueError, KeyError, TypeError) as error:
+                self._reply(400, {"error": str(error) or type(error).__name__})
+            except SandboxError as error:
+                self._reply(409, {"error": str(error)})
+            except Exception as error:
+                self._reply(500, {"error": (str(error) or type(error).__name__)[:2000]})
+            else:
+                self._reply(200, result)
+
+    class Server(ThreadingHTTPServer):
+        daemon_threads = True
+
+        def server_bind(self) -> None:
+            # The stdlib resolves the bind address's FQDN here, a reverse DNS lookup that can
+            # stall for seconds in a container with no resolver. The name is never used.
+            import socketserver
+
+            socketserver.TCPServer.server_bind(self)
+            self.server_name = "sandbox-runtime"
+            self.server_port = self.server_address[1]
+
+    return Server(("0.0.0.0", port), Handler)
+
+
+def _supervise(port: int) -> None:
+    """Keep the runtime server alive as a child; the container's main process.
+
+    The server is the least important process in the container and the turn's worker the
+    most. If the server were the main process, its crash would stop the container and kill
+    the turn. As a child of this loop it is restarted with backoff, workers are untouched
+    (they run detached, reparented to init), and the host sees a short gap that the
+    cursor-based reconnect absorbs. SIGTERM, which Docker sends on stop, ends the server
+    and this loop; Docker then ends whatever else is running.
+    """
+    import signal
+
+    stopping = False
+    child: Optional[subprocess.Popen[bytes]] = None
+
+    def stop(signum: int, frame: Any) -> None:
+        nonlocal stopping
+        stopping = True
+        if child is not None and child.poll() is None:
+            child.terminate()
+
+    signal.signal(signal.SIGTERM, stop)
+    signal.signal(signal.SIGINT, stop)
+    # The token is handed to the server on stdin, not in its environment, so the serving
+    # process never carries it in /proc/<pid>/environ. This process's own exec-time
+    # environment still shows it, as does PID 1's; only a separate UID hides those.
+    token = os.environ.pop(_TOKEN_ENV, None) or None
+    argv = [sys.executable, "-I", "-m", "agno.sandbox.runtime", "serve", "--port", str(port)]
+    if token is not None:
+        argv.append("--token-stdin")
+    delay = 0.2
+    while not stopping:
+        started = time.monotonic()
+        child = subprocess.Popen(
+            argv, stdin=subprocess.PIPE if token is not None else subprocess.DEVNULL, env=dict(os.environ)
+        )
+        if token is not None and child.stdin is not None:
+            with suppress(BrokenPipeError, OSError):
+                child.stdin.write((token + "\n").encode())
+                child.stdin.close()
+        code = child.wait()
+        if stopping:
+            break
+        # A server that ran for a while gets a fresh backoff; a crash loop backs off up to 5 s.
+        delay = 0.2 if time.monotonic() - started > 10 else min(delay * 2, 5.0)
+        print(f"sandbox runtime server exited with {code}; restarting in {delay:.1f}s", file=sys.stderr, flush=True)
+        time.sleep(delay)
+
+
+def _take_token(from_stdin: bool = False) -> Optional[str]:
+    """Read the control token: one line on stdin when the supervisor hands it over, otherwise
+    the environment, which is then cleared so nothing spawned later inherits it. Never the
+    command line, which is visible in ps."""
+    if from_stdin:
+        token = sys.stdin.readline().strip() or None
+    else:
+        token = os.environ.pop(_TOKEN_ENV, None) or None
+    if token is None:
+        # Acceptable only when the port is unreachable beyond the host's loopback.
+        print("sandbox runtime server has no token: every reachable caller is accepted", file=sys.stderr, flush=True)
+    return token
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Sandbox runtime protocol")
-    parser.add_argument("operation", choices=("start", "poll", "worker"))
+    parser.add_argument("operation", choices=("start", "poll", "worker", "serve", "supervise"))
     parser.add_argument("directory", nargs="?")
+    parser.add_argument("--port", type=int, default=int(os.environ.get("AGNO_SANDBOX_RUNTIME_PORT", "8765")))
+    parser.add_argument("--token-stdin", action="store_true", help="read the control token from the first stdin line")
     args = parser.parse_args()
+    root = Path(os.environ.get("AGNO_SANDBOX_RUNTIME_DIR", "/runtime"))
     if args.operation == "worker":
         _worker(Path(args.directory))
         return
+    if args.operation == "supervise":
+        _supervise(args.port)
+        return
+    if args.operation == "serve":
+        _serve(root, args.port, _take_token(from_stdin=args.token_stdin)).serve_forever()
+        return
     request = json.loads(sys.stdin.buffer.read(_MAX_REQUEST + 1))
-    root = Path(os.environ.get("AGNO_SANDBOX_RUNTIME_DIR", "/runtime"))
-    result = (
-        _start(root, request) if args.operation == "start" else _poll(root, request["execution_id"], request["cursor"])
-    )
+    result = _start(root, request) if args.operation == "start" else _poll_wait(root, request)
     print(_encode(result).decode())
 
 

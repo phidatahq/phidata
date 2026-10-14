@@ -83,6 +83,8 @@ class RequestContext:
         user_id: From form field or request.state (same precedence as today).
         session_id: From form field or request.state.
         request: Raw FastAPI Request — escape hatch for anything not plumbed through.
+            A QueuedRequest (falsy, raises on attribute reads) when the factory
+            runs on the durable queue worker, where no HTTP request exists.
         input: Validated factory_input (pydantic model if input_schema was set, else dict).
         trusted: Populated by verified middleware only (request.state.*).
     """

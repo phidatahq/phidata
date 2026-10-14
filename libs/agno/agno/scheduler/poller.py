@@ -36,6 +36,7 @@ class SchedulePoller:
         self.stop_timeout = stop_timeout
         self._task: Optional[asyncio.Task] = None  # type: ignore[type-arg]
         self._running = False
+        self._company_task: Optional[asyncio.Task] = None  # type: ignore[type-arg]
         self._in_flight: Set[asyncio.Task] = set()  # type: ignore[type-arg]
 
     async def start(self) -> None:
@@ -56,6 +57,13 @@ class SchedulePoller:
             except (asyncio.CancelledError, asyncio.TimeoutError):
                 pass
             self._task = None
+        if self._company_task is not None:
+            self._company_task.cancel()
+            try:
+                await asyncio.wait_for(self._company_task, timeout=self.stop_timeout)
+            except (asyncio.CancelledError, asyncio.TimeoutError):
+                pass
+            self._company_task = None
         # Cancel and await all in-flight execution tasks
         for task in list(self._in_flight):
             task.cancel()
@@ -93,11 +101,9 @@ class SchedulePoller:
     async def _poll_once(self) -> None:
         """Claim all due schedules in a tight loop and fire them off."""
         company = getattr(self.executor, "_company", None)
-        if company is not None:
-            try:
-                await company._tick()
-            except Exception:
-                log_warning("Company automation tick failed; work will be checked on the next scheduler tick")
+        if company is not None and (self._company_task is None or self._company_task.done()):
+            # Slow external review checks must not delay ordinary schedule claims.
+            self._company_task = asyncio.create_task(self._company_tick(company))
         while self._running:
             # Enforce concurrency limit
             self._in_flight -= {t for t in self._in_flight if t.done()}
@@ -122,6 +128,12 @@ class SchedulePoller:
             except Exception as exc:
                 log_error(f"Error claiming schedule: {exc}")
                 break
+
+    async def _company_tick(self, company: Any) -> None:
+        try:
+            await company._tick()
+        except Exception:
+            log_warning("Company automation tick failed; work will be checked on the next scheduler tick")
 
     async def _execute_safe(self, schedule: Union[Schedule, Dict[str, Any]]) -> None:
         """Execute a schedule, catching all errors."""

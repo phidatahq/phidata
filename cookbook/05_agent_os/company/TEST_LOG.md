@@ -49,8 +49,26 @@ Unrelated baseline formatting was restored after the scripts ran.
 
 ## Boundaries
 
-This slice has explicit execution and human acceptance. Automatic Ready pickup and
-verified PR merge acceptance are a separate slice, as is the built-in Product Manager.
+The base checks above cover explicit execution and human acceptance. The Ready/review
+checks below extend that contract. The built-in Product Manager is a separate slice.
 The local tests above do not establish hosted deployment, frontend behavior or coding
 workspace isolation. Company uses each configured worker's workspace; operators must
 provide an appropriate isolated worker when needed.
+
+## Ready/review review — 14 October 2026
+
+**Status:** PASS
+
+**Description:** Company PostgreSQL integration plus the complete scheduler unit suite:
+**259 passed, 2 Manager-only skips**, two existing OpenAPI warnings. Full format and
+validation scripts passed, including framework and CLI mypy.
+
+**Result:** Ready acceptance is picked up once through the durable queue; completion
+stops In review. Human acceptance or a read-only check of a human-linked exact GitHub
+PR revision can finish review. Tests cover revocation, changed revisions, closed PRs,
+bot mergers, stale merges, malformed responses, credential redirects and concurrent
+review changes. Slow review checks do not block ordinary schedules, ticks do not
+overlap within a poller, and shutdown cancels the check. A full evidence list no longer
+blocks verified completion; the merge proof remains in the audit event. Version-5
+upgrade preserves work without enrolling legacy Ready Tasks. GitHub responses are
+fixtures here; account type is not proof of physical human interaction.

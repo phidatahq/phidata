@@ -153,11 +153,12 @@ python -c 'import agno; print(agno.__file__)'
 python -m agno.os.company.migrations
 ```
 
-The initializer creates the current schema directly (version 5). Re-running it
-leaves an existing version-5 pilot database intact. Older prototype schemas are
-rejected without changes: migrate them with the tooling from their original
-revision, or use a fresh development database. Never reset a database containing
-work you need to keep.
+The migration command uses one base initializer and one Ready/review upgrade
+(version 6). It preserves version-5 pilot records and does not automatically enroll
+existing Ready Tasks; return them to Backlog and accept Ready again. Re-running the
+command is safe. Older prototypes are rejected without changes: migrate them with
+the tooling from their original revision, or use a fresh development database.
+Never reset a database containing work you need to keep.
 
 Configure `JWT_VERIFY_KEY`, `JWT_ALGORITHM` and `AGENT_OS_ID` for your identity
 provider. Provision known humans through UserDirectory. Clients use their normal

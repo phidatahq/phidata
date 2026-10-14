@@ -12,7 +12,6 @@ def migrate(db: Any) -> None:
     """Apply pending versions with an exclusive database migration lock."""
     from agno.os.company.config import CompanyConfig
     from agno.os.company.migrations.initial import SQL as INITIAL_SQL
-
     from agno.os.company.migrations.v006 import SQL as AUTOMATION_SQL
 
     CompanyConfig(db=db)

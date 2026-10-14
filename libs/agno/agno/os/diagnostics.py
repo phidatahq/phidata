@@ -50,6 +50,11 @@ class DiagnosticReport:
 
 async def _call_db(db: Any, method_name: str, *args: Any, **kwargs: Any) -> Any:
     fn = getattr(db, method_name)
+    # Adapters differ in which optional arguments they accept; pass only the ones a
+    # given adapter declares, so a check is never refused for asking too politely.
+    parameters = inspect.signature(fn).parameters
+    if not any(p.kind is inspect.Parameter.VAR_KEYWORD for p in parameters.values()):
+        kwargs = {key: value for key, value in kwargs.items() if key in parameters}
     if inspect.iscoroutinefunction(fn):
         return await fn(*args, **kwargs)
     return await asyncio.to_thread(fn, *args, **kwargs)
@@ -117,8 +122,9 @@ async def _check(agent_os: "AgentOS", name: str, *, network_probe: bool, public_
     if name == "database":
         if agent_os.db is None:
             return CheckResult(name, "SKIP", "No OS database configured")
-        # One bounded read proves the adapter and the connection without returning user rows.
-        await _call_db(agent_os.db, "get_sessions", limit=1, page=1)
+        # One bounded read proves the adapter and the connection. Runs are not attached
+        # and rows are not deserialized: a long conversation must not make this slow.
+        await _call_db(agent_os.db, "get_sessions", limit=1, page=1, deserialize=False, include_runs=False)
         return CheckResult(name, "PASS", "Session read succeeded", evidence="live")
 
     if name == "authorization":
@@ -161,7 +167,9 @@ async def _check(agent_os: "AgentOS", name: str, *, network_probe: bool, public_
             return CheckResult(name, "SKIP", "Scheduler disabled")
         if agent_os.db is None:
             return CheckResult(name, "FAIL", "Scheduler enabled without a database")
-        rows = await _call_db(agent_os.db, "get_schedules", enabled=True, limit=100, page=1)
+        # raise_on_error: adapters otherwise answer an unreadable table with an empty list,
+        # which would read as "no overdue schedules".
+        rows = await _call_db(agent_os.db, "get_schedules", enabled=True, limit=100, page=1, raise_on_error=True)
         if isinstance(rows, tuple):
             rows = rows[0]
         now = int(time.time())
@@ -198,10 +206,14 @@ async def _check(agent_os: "AgentOS", name: str, *, network_probe: bool, public_
                     },
                 },
             )
-        if response.status_code == 404:
-            return CheckResult(name, "FAIL", "MCP endpoint returned HTTP 404", evidence="live")
-        return CheckResult(
-            name, "PASS", f"MCP endpoint reachable (HTTP {response.status_code}); tool execution not tested", "live"
-        )
+        code = response.status_code
+        if 200 <= code < 300:
+            return CheckResult(name, "PASS", f"MCP initialize answered HTTP {code}; tool execution not tested", "live")
+        if code in (401, 403):
+            # A gated server refusing an anonymous probe is the healthy answer.
+            return CheckResult(name, "PASS", f"MCP endpoint requires authentication (HTTP {code})", "live")
+        if code == 404 or code >= 500:
+            return CheckResult(name, "FAIL", f"MCP endpoint returned HTTP {code}", evidence="live")
+        return CheckResult(name, "WARN", f"MCP endpoint returned unexpected HTTP {code}", evidence="live")
 
     raise ValueError(f"Unknown diagnostic check: {name}")

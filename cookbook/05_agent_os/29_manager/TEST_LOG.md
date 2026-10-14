@@ -36,7 +36,7 @@ Executed 2026-10-14 after the manager rename and review fixes, with `/Users/ab/c
 
 **Status:** PASS
 
-**Description:** Deterministic model fixtures exercise the manager's diagnostics tool and the lead's bounded self-dispatch through both `run` and `arun`. Rename regressions cover direct Team access, disabled/invalid configuration, removed shell keyword, fixed members, regular routes and sync/async session persistence. Additional regressions cover Studio mirrors and composition, resync, copied manager members, knowledge declarations, reserved IDs, confined workspace providers, and malformed/oversized CSV input.
+**Description:** Deterministic model fixtures exercise the manager's diagnostics tool and the lead's bounded self-dispatch through both `run` and `arun`. Rename regressions cover direct Team access, disabled/invalid configuration, fixed members, regular routes and sync/async session persistence. Additional regressions cover Studio mirrors and composition, resync, copied manager members, knowledge declarations, reserved IDs, confined workspace providers, and malformed/oversized CSV input.
 
 **Result:** The focused manager, workflow-function, schedule-toggle and component-ID suites passed 109 tests. Expanded affected suites passed 7,457 tests with 24 skips; Telegram tests were excluded because the optional dependency is absent. Full formatting and validation passed in an isolated dev environment with SQLAlchemy 2.0.52. See the PR validation notes for reproducible commands and the baseline provider-SDK typing errors in the shared environment. These tests establish runtime/tool behavior without evaluating live-model answer quality.
 

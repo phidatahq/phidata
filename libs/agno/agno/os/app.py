@@ -105,7 +105,7 @@ if TYPE_CHECKING:
     from agno.os.authz.provider import AuthorizationProvider
     from agno.os.authz.user_directory import UserDirectory
     from agno.os.diagnostics import DiagnosticReport
-    from agno.os.manager import ManagerConfig, _Manager
+    from agno.os.platform import ManagerConfig, _Manager
     from agno.os.schema import FileSystemConfig
 
 
@@ -620,7 +620,7 @@ class AgentOS:
         # other component, so it goes through the same initialization below. It is kept
         # out of the registry population: its platform toolkits and members are not
         # building blocks for runtime-built components.
-        from agno.os.manager import ManagerConfig, _build_manager
+        from agno.os.platform import ManagerConfig, _build_manager
 
         self._manager: Optional["_Manager"] = None
         if manager is not None and not isinstance(manager, (bool, ManagerConfig)):
@@ -997,7 +997,7 @@ class AgentOS:
             ValueError: If duplicate IDs are found within the same entity type
         """
         if self._manager is not None:
-            from agno.os.manager import _raise_if_reserved_ids
+            from agno.os.platform import _raise_if_reserved_ids
 
             _raise_if_reserved_ids(
                 self._manager.config,

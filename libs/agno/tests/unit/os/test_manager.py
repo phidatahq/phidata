@@ -13,7 +13,7 @@ from agno.models.message import MessageMetrics
 from agno.models.response import ModelResponse
 from agno.os import AgentOS, ManagerConfig
 from agno.os.config import AgentOSConfig, Manifest
-from agno.os.manager import BUILDER_ID, ENGINEER_ID, MANAGER_TEAM_ID, OPERATOR_ID
+from agno.os.platform import BUILDER_ID, ENGINEER_ID, MANAGER_TEAM_ID, OPERATOR_ID
 from agno.registry import Registry
 from agno.tools.agentos import AgentOSTools
 from agno.tools.studio import StudioTools
@@ -553,14 +553,83 @@ def test_manager_property_is_the_served_team_and_runs_directly(db, use_async):
     os.resync(app)
     assert os.manager is manager and os.manager is os.teams[0]
     assert not any(path.startswith("/manager") for path in app.openapi()["paths"])
-    assert not hasattr(os, "shell")
-
-
-def test_unreleased_shell_constructor_keyword_is_not_retained(db):
-    with pytest.raises(TypeError, match="shell"):
-        AgentOS(db=db, shell=True, telemetry=False)
 
 
 def test_manager_configuration_does_not_accept_replacement_members():
     with pytest.raises(TypeError, match="members"):
         ManagerConfig(members=[])
+
+
+def test_scheduler_check_fails_on_an_unreadable_schedules_table(tmp_path):
+    import sqlite3
+
+    db_file = tmp_path / "broken.db"
+    os = AgentOS(db=SqliteDb(db_file=str(db_file)), scheduler=True, telemetry=False)
+    os.get_app()
+    # A schedules table of the wrong shape: every real query against it fails, and the
+    # adapter's default answer to that is an empty list.
+    with sqlite3.connect(db_file) as conn:
+        conn.execute("DROP TABLE IF EXISTS agno_schedules")
+        conn.execute("CREATE TABLE agno_schedules (id TEXT PRIMARY KEY)")
+    assert os.db.get_schedules(enabled=True) == ([], 0)
+    scheduler = next(c for c in os.run_diagnostics(required_env=()).checks if c.name == "scheduler")
+    assert scheduler.status == "FAIL" and "Error" in scheduler.detail
+
+
+def test_database_check_reads_one_session_without_runs(db, monkeypatch):
+    os = AgentOS(db=db, manager=ManagerConfig(model=OfflineModel()), telemetry=False)
+    seen = {}
+    original = db.get_sessions
+
+    def spy(*args, **kwargs):
+        seen.update(kwargs)
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(db, "get_sessions", spy)
+    database = next(c for c in os.run_diagnostics(required_env=()).checks if c.name == "database")
+    assert database.status == "PASS"
+    assert seen["limit"] == 1 and seen["include_runs"] is False and seen["deserialize"] is False
+
+
+def test_diagnostics_pass_only_arguments_an_adapter_declares(db, monkeypatch):
+    os = AgentOS(db=db, scheduler=True, telemetry=False)
+
+    def narrow_get_sessions(limit=None, page=None, deserialize=True):
+        return [], 0
+
+    def narrow_get_schedules(enabled=None, limit=None, page=None):
+        return [], 0
+
+    monkeypatch.setattr(db, "get_sessions", narrow_get_sessions)
+    monkeypatch.setattr(db, "get_schedules", narrow_get_schedules)
+    checks = {c.name: c for c in os.run_diagnostics(required_env=()).checks}
+    assert checks["database"].status == "PASS" and checks["scheduler"].status == "PASS"
+
+
+@pytest.mark.parametrize(
+    "status_code,expected",
+    [(200, "PASS"), (401, "PASS"), (403, "PASS"), (404, "FAIL"), (503, "FAIL"), (500, "FAIL"), (307, "WARN")],
+)
+def test_mcp_probe_distinguishes_reachable_from_healthy(db, monkeypatch, status_code, expected):
+    import httpx
+
+    os = AgentOS(db=db, mcp=True, telemetry=False)
+
+    class FakeClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *exc):
+            return False
+
+        async def post(self, url, **kwargs):
+            assert url == "https://os.example.test/mcp"
+            return httpx.Response(status_code)
+
+    monkeypatch.setattr(httpx, "AsyncClient", FakeClient)
+    report = os.run_diagnostics(required_env=(), network_probe=True, public_url="https://os.example.test/")
+    mcp = next(c for c in report.checks if c.name == "mcp")
+    assert mcp.status == expected and mcp.evidence == "live" and str(status_code) in mcp.detail

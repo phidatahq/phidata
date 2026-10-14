@@ -70,15 +70,18 @@ result = await agent_os.manager.arun("Check the platform", user_id="alice")
 members = agent_os.manager.members
 ```
 
+## Interfaces and MCP
+
+The manager exists once `AgentOS` is constructed, and interfaces and the MCP
+server are mounted by `get_app()`. Bind them in between:
+
+```python
+agent_os = AgentOS(db=db, registry=registry, manager=ManagerConfig(model=model), mcp=True)
+agent_os.interfaces.append(Slack(team=agent_os.manager, token=token, signing_secret=secret))
+agent_os.mcp = MCPConfig(default_tools=True, tools=[agent_os.manager.as_tool(name="agno")])
+app = agent_os.get_app()
+```
+
 The manager needs a synchronous OS database for Studio catalog operations.
 Both synchronous and asynchronous Team runs are supported. Missing models or
 incompatible databases fail at construction with an actionable message.
-
-## Migration from the unreleased shell API
-
-Use `ManagerConfig` from `agno.os`, pass `manager=` to `AgentOS`, and replace
-`agent_os.shell.team` with `agent_os.manager`. The default team id is still
-`agno`, so runs continue at `/teams/agno/runs` with scope `teams:agno:run`.
-The old `shell=` keyword and `ShellConfig` import are not retained as aliases.
-Optional source access remains `ManagerConfig(workspace=...)`; a broader
-OS `root` API and Products/Projects are separate design work.

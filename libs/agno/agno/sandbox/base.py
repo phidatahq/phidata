@@ -1,9 +1,10 @@
 """Small sandbox contract; ownership and durable completion belong to AgentOS."""
 
 import asyncio
+import json
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Coroutine, Dict, Mapping, Optional, Sequence
 
 
@@ -44,6 +45,10 @@ class SandboxHandle:
     generation: int
     state: str
     config_digest: str
+    # Where the in-container runtime server answers, when the provider exposes one, and the
+    # per-container credential it requires. Kept out of repr so handles can be logged.
+    runtime_url: Optional[str] = None
+    runtime_token: Optional[str] = field(default=None, repr=False)
 
 
 @dataclass(frozen=True)
@@ -105,13 +110,25 @@ class Sandbox(ABC):
 
     @abstractmethod
     async def aexec(
-        self, handle: SandboxHandle, argv: Sequence[str], *, timeout: float = 60, max_output_bytes: int = 1_048_576
+        self,
+        handle: SandboxHandle,
+        argv: Sequence[str],
+        *,
+        timeout: float = 60,
+        max_output_bytes: int = 1_048_576,
+        stdin: bytes = b"",
     ) -> ExecResult: ...
 
     def exec(
-        self, handle: SandboxHandle, argv: Sequence[str], *, timeout: float = 60, max_output_bytes: int = 1_048_576
+        self,
+        handle: SandboxHandle,
+        argv: Sequence[str],
+        *,
+        timeout: float = 60,
+        max_output_bytes: int = 1_048_576,
+        stdin: bytes = b"",
     ) -> ExecResult:
-        return _sync(self.aexec(handle, argv, timeout=timeout, max_output_bytes=max_output_bytes))
+        return _sync(self.aexec(handle, argv, timeout=timeout, max_output_bytes=max_output_bytes, stdin=stdin))
 
     @abstractmethod
     async def astop(self, handle: SandboxHandle) -> None: ...
@@ -124,6 +141,31 @@ class Sandbox(ABC):
 
     def destroy(self, handle: SandboxHandle) -> None:
         _sync(self.adestroy(handle))
+
+    async def arpc(self, handle: SandboxHandle, operation: str, payload: bytes) -> ExecResult:
+        """Send one runtime start or poll request and return its JSON reply as stdout.
+
+        A control request, not a command: a lost reply must leave compute as it is.
+        Providers with an in-container runtime server override this with a pooled
+        connection; the default spawns the runtime over exec, which works on any
+        image carrying the package but costs a process per request.
+        """
+        if operation not in ("start", "poll") or not isinstance(payload, bytes) or len(payload) > 1024 * 1024:
+            raise ValueError("Runtime RPC requires start/poll and a payload no larger than 1 MiB")
+        try:
+            wait = float(json.loads(payload).get("wait", 0) or 0)
+        except (ValueError, AttributeError):
+            wait = 0.0
+        return await self.aexec(
+            handle,
+            ["python", "-I", "-m", "agno.sandbox.runtime", operation],
+            stdin=payload,
+            timeout=15 + min(max(wait, 0.0), 30.0),
+            max_output_bytes=4 * 1024 * 1024,
+        )
+
+    def rpc(self, handle: SandboxHandle, operation: str, payload: bytes) -> ExecResult:
+        return _sync(self.arpc(handle, operation, payload))
 
     async def apause(self, handle: SandboxHandle) -> None:
         """Freeze a running sandbox, keeping its files, memory and processes.

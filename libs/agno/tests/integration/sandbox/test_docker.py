@@ -53,6 +53,7 @@ async def test_real_files_isolation_and_reuse(container, monkeypatch):
     _, out, _ = await sandbox._docker("container", "inspect", handle.provider_ref)
     config = json.loads(out)[0]["HostConfig"]
     assert config["NetworkMode"] == "none"
+    assert config["Init"] is True
     assert config["ReadonlyRootfs"] and not config["Privileged"] and not config["Binds"]
     assert config["CapDrop"] == ["ALL"] and config["Memory"] == 256 * 1024**2
     assert "no-new-privileges" in config["SecurityOpt"]

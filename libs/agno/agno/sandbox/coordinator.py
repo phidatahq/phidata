@@ -330,6 +330,7 @@ class SandboxCoordinator:
                             break
                         await asyncio.sleep(self.poll_interval)
                 result = state.record["result"]["run"]
+                native_id = (state.record["result"]["session"].get("session_data") or {}).get(NATIVE_SESSION_KEYS[sdk])
                 native_failed = any(
                     isinstance(warning, dict) and warning.get("type") == "transcript_persistence_failed"
                     for warning in (result.get("metadata") or {}).get("warnings", [])
@@ -339,6 +340,13 @@ class SandboxCoordinator:
                         lease,
                         status="ERROR",
                         reason="Native transcript persistence failed; cannot publish recoverable completion",
+                    )
+                elif result["status"] == "COMPLETED" and not native_id:
+                    # Publishing it would leave the next turn no conversation to require.
+                    committed = await self._stop(
+                        lease,
+                        status="ERROR",
+                        reason="Completed turn reported no native conversation; cannot publish recoverable completion",
                     )
                 elif state.record["result"]["run"]["status"] != "COMPLETED":
                     result = state.record["result"]["run"]

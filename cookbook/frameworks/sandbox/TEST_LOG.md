@@ -128,3 +128,23 @@ No model calls in the load run. Requests and daemon calls per turn are what scal
 **Result:** Unit: network created once per namespace and joined by the container, kept on destroy, creation race treated as success, foreign network refused for create and remove, remove touches only the namespace bridge, `isolated` and `bridge` yield distinct digests, unsafe namespaces hash the network name. 122 sandbox unit tests pass. Integration on `agno-sandbox:local`: all runtime cases pass over HTTP on the isolated network; two sandboxes in one namespace cannot open each other's runtime port on `isolated` while the same connection succeeds on `bridge`, and the host still reaches both through loopback. 21 passed, 3 skipped. `runtime_resilience.py` runs end to end on the isolated network and removes it.
 
 ---
+
+### Token exposure inside the container, re-measured
+
+**Status:** PASS
+
+**Description:** Review of #11040 pointed out that popping the token in the server and withholding it from workers still left it readable: `docker exec` inherits the container environment, the supervisor and PID 1 keep it, and `/proc/<pid>/environ` shows a process's exec-time environment regardless of later `os.environ` changes. Measured live before the change: present in a host-run shell, in PID 1, in the supervisor, and in the serving process's environ. Changes: the supervisor pops the token and hands it to the server on stdin with `--token-stdin`, spawning it with an environment that lacks the variable; every `docker exec` from the host passes `--env AGNO_SANDBOX_RUNTIME_TOKEN=` so host-run commands see it blank. README now states exactly where the token remains: PID 1 and the supervisor's exec-time environment, same-UID readable, closed only by a separate UID for the server.
+
+**Result:** Measured after the change, per process in a served container: PID 1 token, supervisor token, server clean, host-run shell sees the variable empty. Unit: the server reads the token from stdin; the supervisor spawns the server with the token on stdin and not in its env and drops its own copy; `exec` blanks the variable only when a server is configured. Integration on the rebuilt image: a host-run shell sees the variable absent, the serving process's environ is clean, and the token still authorises a turn. 125 unit, 22 integration passed, 4 skipped.
+
+---
+
+### Isolated network reworked: one per host, pinned subnet
+
+**Status:** PASS
+
+**Description:** Review of the per-namespace network pointed out that unpinned bridges draw from Docker's default address pools, which run out at a few dozen networks per host, and that with inter-container traffic off a shared network isolates just as well. The provider now creates one network per host, `agno-sandbox`, labelled as Agno-managed, with `--subnet` pinned to `DockerSandbox(subnet=...)`, default `172.30.0.0/22`. A subnet overlap from the daemon, a subnet different from the existing network's, and a same-named network without the label each raise a `SandboxError` naming the fix. `remove_network` returns whether it removed the network and leaves it when sandboxes are attached. A container create that fails because the network was removed behind the provider recreates it and retries once. Cookbooks no longer remove the network, since it is host infrastructure shared with anything else running sandboxes.
+
+**Result:** Unit: one network created and shared by two namespaces with the subnet, ICC option and label on the create call and no namespace label; creation race resolved on the name; foreign network refused for create and remove; subnet mismatch and overlap raise clear errors; a network removed behind the provider is recreated with one retry; removal returns False when in use or absent and True when removed; subnet validation rejects non-CIDR, host bits set, IPv6 and smaller than /30. 127 sandbox unit tests pass. Live on this host, which already has twelve default-pool networks: a subnet inside docker0's range is refused with the overlap message; two namespaces attach to the one `agno-sandbox` network at `172.30.0.0/22` with ICC off; removal while in use returns False; a provider configured for `10.77.0.0/22` is refused with the mismatch message; removal when empty returns True and leaves nothing. Integration: 22 passed, 4 skipped, with sandbox addresses asserted to come from the pinned subnet and the sandbox-to-sandbox block still holding.
+
+---

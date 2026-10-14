@@ -7,6 +7,7 @@ credentials. Its journal reports execution finished, not durable run completion.
 from __future__ import annotations
 
 import argparse
+from contextlib import suppress
 import asyncio
 import fcntl
 import hashlib
@@ -446,10 +447,23 @@ def _supervise(port: int) -> None:
 
     signal.signal(signal.SIGTERM, stop)
     signal.signal(signal.SIGINT, stop)
+    # The token is handed to the server on stdin, not in its environment, so the serving
+    # process never carries it in /proc/<pid>/environ. This process's own exec-time
+    # environment still shows it, as does PID 1's; only a separate UID hides those.
+    token = os.environ.pop(_TOKEN_ENV, None) or None
+    argv = [sys.executable, "-I", "-m", "agno.sandbox.runtime", "serve", "--port", str(port)]
+    if token is not None:
+        argv.append("--token-stdin")
     delay = 0.2
     while not stopping:
         started = time.monotonic()
-        child = subprocess.Popen([sys.executable, "-I", "-m", "agno.sandbox.runtime", "serve", "--port", str(port)])
+        child = subprocess.Popen(
+            argv, stdin=subprocess.PIPE if token is not None else subprocess.DEVNULL, env=dict(os.environ)
+        )
+        if token is not None and child.stdin is not None:
+            with suppress(BrokenPipeError, OSError):
+                child.stdin.write((token + "\n").encode())
+                child.stdin.close()
         code = child.wait()
         if stopping:
             break
@@ -459,10 +473,14 @@ def _supervise(port: int) -> None:
         time.sleep(delay)
 
 
-def _take_token() -> Optional[str]:
-    """Read the control token and remove it from this process's environment, so nothing this
-    process spawns inherits it. Comes from the environment, never the command line."""
-    token = os.environ.pop(_TOKEN_ENV, None) or None
+def _take_token(from_stdin: bool = False) -> Optional[str]:
+    """Read the control token: one line on stdin when the supervisor hands it over, otherwise
+    the environment, which is then cleared so nothing spawned later inherits it. Never the
+    command line, which is visible in ps."""
+    if from_stdin:
+        token = sys.stdin.readline().strip() or None
+    else:
+        token = os.environ.pop(_TOKEN_ENV, None) or None
     if token is None:
         # Acceptable only when the port is unreachable beyond the host's loopback.
         print("sandbox runtime server has no token: every reachable caller is accepted", file=sys.stderr, flush=True)
@@ -474,6 +492,7 @@ def main() -> None:
     parser.add_argument("operation", choices=("start", "poll", "worker", "serve", "supervise"))
     parser.add_argument("directory", nargs="?")
     parser.add_argument("--port", type=int, default=int(os.environ.get("AGNO_SANDBOX_RUNTIME_PORT", "8765")))
+    parser.add_argument("--token-stdin", action="store_true", help="read the control token from the first stdin line")
     args = parser.parse_args()
     root = Path(os.environ.get("AGNO_SANDBOX_RUNTIME_DIR", "/runtime"))
     if args.operation == "worker":
@@ -483,7 +502,7 @@ def main() -> None:
         _supervise(args.port)
         return
     if args.operation == "serve":
-        _serve(root, args.port, _take_token()).serve_forever()
+        _serve(root, args.port, _take_token(from_stdin=args.token_stdin)).serve_forever()
         return
     request = json.loads(sys.stdin.buffer.read(_MAX_REQUEST + 1))
     result = _start(root, request) if args.operation == "start" else _poll_wait(root, request)

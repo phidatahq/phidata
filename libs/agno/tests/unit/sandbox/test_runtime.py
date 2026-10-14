@@ -512,3 +512,58 @@ def test_supervisor_restarts_a_crashed_server_and_stops_on_sigterm(monkeypatch):
     assert len(spawned) == 2, "the crashed server was restarted once, then the stop signal ended the loop"
     assert sleeps == [0.4], "a crash backs off before the restart"
     assert spawned[1].terminated, "SIGTERM terminates the running server child"
+
+
+def test_server_reads_the_token_from_stdin_when_the_supervisor_hands_it_over(monkeypatch):
+    import io
+
+    monkeypatch.setattr("sys.stdin", io.StringIO("secret\n"))
+    assert runtime._take_token(from_stdin=True) == "secret"
+    monkeypatch.setattr("sys.stdin", io.StringIO(""))
+    assert runtime._take_token(from_stdin=True) is None
+
+
+def test_supervisor_passes_the_token_on_stdin_and_not_in_the_environment(monkeypatch):
+    import signal
+
+    monkeypatch.setenv("AGNO_SANDBOX_RUNTIME_TOKEN", "secret")
+    spawned = []
+
+    class Stdin:
+        def __init__(self):
+            self.data = b""
+
+        def write(self, data):
+            self.data += data
+
+        def close(self):
+            pass
+
+    class Child:
+        def __init__(self):
+            self.stdin = Stdin()
+
+        def poll(self):
+            return 0
+
+        def wait(self):
+            handlers[signal.SIGTERM](signal.SIGTERM, None)
+            return 0
+
+        def terminate(self):
+            pass
+
+    def popen(args, **kwargs):
+        child = Child()
+        spawned.append((args, kwargs, child))
+        return child
+
+    handlers = {}
+    monkeypatch.setattr(runtime.subprocess, "Popen", popen)
+    monkeypatch.setattr(signal, "signal", lambda s, h: handlers.__setitem__(s, h))
+    runtime._supervise(8765)
+    [(args, kwargs, child)] = spawned
+    assert args[-4:] == ["serve", "--port", "8765", "--token-stdin"]
+    assert "AGNO_SANDBOX_RUNTIME_TOKEN" not in kwargs["env"], "the server is spawned without the token in its env"
+    assert child.stdin.data == b"secret\n", "the token travels on the server's stdin"
+    assert "AGNO_SANDBOX_RUNTIME_TOKEN" not in __import__("os").environ, "the supervisor drops its own copy"

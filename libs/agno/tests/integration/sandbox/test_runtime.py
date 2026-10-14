@@ -29,7 +29,7 @@ async def runtime_computer(request):
         yield provider, handle, SandboxRuntimeClient(provider)
     finally:
         await provider.adestroy(handle)
-        await provider.aremove_network()
+        await provider.aremove_network()  # best effort: left in place while other sandboxes use it
 
 
 async def test_reconnect_and_duplicate_dispatch_execute_only_once(runtime_computer):
@@ -260,6 +260,12 @@ async def test_sandboxes_cannot_reach_each_other_on_the_isolated_network(network
         )
         ip = out.decode().strip()
         assert code == 0 and ip, "b has an address on the network"
+        if network == "isolated":
+            import ipaddress
+
+            assert ipaddress.ip_address(ip) in ipaddress.ip_network(provider.subnet), (
+                "addresses come from the pinned subnet"
+            )
         result = await provider.aexec(a, ["python", "-c", _CONNECT, ip], timeout=10)
         if network == "isolated":
             assert result.exit_code != 0 and "reached" not in result.stdout, "a cannot open b's runtime port"
@@ -268,4 +274,33 @@ async def test_sandboxes_cannot_reach_each_other_on_the_isolated_network(network
     finally:
         await provider.adestroy(a)
         await provider.adestroy(b)
-        await provider.aremove_network()
+        await provider.aremove_network()  # best effort: left in place while other sandboxes use it
+
+
+_SERVER_ENVIRON = (
+    "import os\n"
+    "for pid in os.listdir('/proc'):\n"
+    "    if not pid.isdigit():\n"
+    "        continue\n"
+    "    try:\n"
+    "        cmd = open(f'/proc/{pid}/cmdline', 'rb').read()\n"
+    "        env = open(f'/proc/{pid}/environ', 'rb').read()\n"
+    "    except OSError:\n"
+    "        continue\n"
+    "    if b'agno.sandbox.runtime' in cmd and b'serve' in cmd and b'supervise' not in cmd:\n"
+    "        print('server', 'token' if b'AGNO_SANDBOX_RUNTIME_TOKEN=' in env else 'clean')\n"
+)
+
+
+async def test_host_exec_and_the_serving_process_do_not_carry_the_token(runtime_computer):
+    """What stays: PID 1 and the supervisor keep the token in their exec-time environment, readable by
+    the same UID. Only a separate UID for the runtime server removes that."""
+    provider, computer, client = runtime_computer
+    if computer.runtime_url is None:
+        pytest.skip("exec transport")
+    shell = await provider.aexec(computer, ["sh", "-c", 'echo "${AGNO_SANDBOX_RUNTIME_TOKEN:-absent}"'])
+    assert shell.stdout.strip() == "absent", "a host-run command sees the variable blanked"
+    server = await provider.aexec(computer, ["python", "-c", _SERVER_ENVIRON])
+    assert server.stdout.strip() == "server clean", "the serving process has no token in its environ"
+    execution = await client.astart(computer, execution_id="t", run_id="r", sdk="fixture", input="works")
+    assert (await client.await_result(execution, timeout=20))["run"]["content"] == "works", "the token still works"

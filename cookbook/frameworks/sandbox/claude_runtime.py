@@ -125,5 +125,3 @@ try:
     print("Turn 2 resumed native session", native_session)
 finally:
     sandbox.destroy(computer)
-    # This example's namespace is throwaway, so remove its network too; a deployment keeps its own.
-    sandbox.remove_network()

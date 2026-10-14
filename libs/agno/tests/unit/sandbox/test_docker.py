@@ -1,6 +1,5 @@
 import asyncio
 import json
-import re
 import os
 import subprocess
 import sys
@@ -109,7 +108,13 @@ class FakeDocker(DockerSandbox):
                     if arg == "--opt":
                         key, value = args[i + 1].split("=", 1)
                         options[key] = value
-                self.networks[name] = {"Name": name, "Labels": labels, "Options": options}
+                subnet = args[args.index("--subnet") + 1] if "--subnet" in args else None
+                self.networks[name] = {
+                    "Name": name,
+                    "Labels": labels,
+                    "Options": options,
+                    "IPAM": {"Config": [{"Subnet": subnet}] if subnet else []},
+                }
                 return 0, name.encode(), b""
             if operation == "rm":
                 self.networks.pop(name, None)
@@ -580,41 +585,45 @@ async def test_exec_fallback_control_failure_never_stops_compute(failure):
 
 
 # ---------------------------------------------------------------------------
-# The isolated network: one provider-owned bridge per namespace, inter-container traffic off
+# The isolated network: one Agno-owned bridge per host with a pinned subnet, ICC off
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_isolated_network_is_created_once_per_namespace_and_joined():
+async def test_isolated_network_is_one_per_host_with_a_pinned_subnet():
     sandbox = FakeDocker(network="isolated")
-    assert sandbox.network_name == "agno-test"
+    assert sandbox.network_name == "agno-sandbox" and sandbox.subnet == "172.30.0.0/22"
     first = await sandbox.acreate("s1")
     await sandbox.adestroy(first)
-    assert "agno-test" in sandbox.networks, "destroying a sandbox keeps the shared network"
+    assert "agno-sandbox" in sandbox.networks, "destroying a sandbox keeps the shared network"
     assert not any(call[0][:2] == ("network", "rm") for call in sandbox.calls)
-    await sandbox.acreate("s2")
-    creates = [call[0] for call in sandbox.calls if call[0][:2] == ("network", "create")]
-    assert len(creates) == 1, "the next sandbox reuses the namespace's network"
+    other = FakeDocker(network="isolated")
+    other.namespace = "another-tenant"
+    other.networks = sandbox.networks
+    await other.acreate("s2")
+    creates = [call[0] for call in sandbox.calls + other.calls if call[0][:2] == ("network", "create")]
+    assert len(creates) == 1, "every namespace on the host shares the one network"
     argv = creates[0]
+    assert argv[argv.index("--subnet") + 1] == "172.30.0.0/22"
     assert argv[argv.index("--opt") + 1] == "com.docker.network.bridge.enable_icc=false"
-    assert "io.agno.sandbox.namespace=test" in argv and argv[-1] == "agno-test"
+    assert "io.agno.sandbox.network=isolated" in argv and argv[-1] == "agno-sandbox"
+    assert not any(arg.startswith("io.agno.sandbox.namespace") for arg in argv), "the network is not per namespace"
     container = [call[0] for call in sandbox.calls if call[0][:2] == ("container", "create")][0]
-    assert container[container.index("--network") + 1] == "agno-test"
-    assert "isolated" not in container, "containers join the real network, not the sentinel"
+    assert container[container.index("--network") + 1] == "agno-sandbox"
 
 
 @pytest.mark.asyncio
-async def test_isolated_network_creation_race_and_foreign_network():
+async def test_isolated_network_creation_race_foreign_network_and_subnet_mismatch():
     racing = FakeDocker(network="isolated")
     racing.network_create_says_exists = True
-    racing.networks["agno-test"] = {
-        "Name": "agno-test",
-        "Labels": {"io.agno.sandbox.namespace": "test"},
+    racing.networks["agno-sandbox"] = {
+        "Name": "agno-sandbox",
+        "Labels": {"io.agno.sandbox.network": "isolated"},
         "Options": {"com.docker.network.bridge.enable_icc": "false"},
+        "IPAM": {"Config": [{"Subnet": "172.30.0.0/22"}]},
     }
 
     async def inspect_then_appear(*args, **kwargs):
-        # First inspect misses, create says it exists, the second inspect finds it.
         if args[:2] == ("network", "inspect") and not any(c[0][:2] == ("network", "create") for c in racing.calls):
             racing.calls.append((args, kwargs))
             return 1, b"", b"No such network"
@@ -625,33 +634,114 @@ async def test_isolated_network_creation_race_and_foreign_network():
     assert racing._network_ready
 
     foreign = FakeDocker(network="isolated")
-    foreign.networks["agno-test"] = {"Name": "agno-test", "Labels": {}, "Options": {}}
-    with pytest.raises(SandboxError, match="not this namespace's isolated bridge"):
+    foreign.networks["agno-sandbox"] = {"Name": "agno-sandbox", "Labels": {}, "Options": {}}
+    with pytest.raises(SandboxError, match="not Agno's isolated bridge"):
         await foreign.acreate("s")
     with pytest.raises(SandboxError, match="refusing to remove"):
         await foreign.aremove_network()
-    assert "agno-test" in foreign.networks
+    assert "agno-sandbox" in foreign.networks
+
+    mismatched = FakeDocker(network="isolated", subnet="10.99.0.0/22")
+    mismatched.networks["agno-sandbox"] = dict(racing.networks["agno-sandbox"])
+    with pytest.raises(
+        SandboxError, match="uses subnet 172.30.0.0/22 but this provider is configured for 10.99.0.0/22"
+    ):
+        await mismatched.acreate("s")
 
 
 @pytest.mark.asyncio
-async def test_remove_network_removes_only_the_namespace_bridge():
+async def test_isolated_network_subnet_overlap_is_a_clear_error():
     sandbox = FakeDocker(network="isolated")
-    await sandbox.aremove_network()
-    assert not any(call[0][:2] == ("network", "rm") for call in sandbox.calls), "nothing to remove"
+    original = sandbox._docker
+
+    async def overlapping(*args, **kwargs):
+        if args[:2] == ("network", "create"):
+            return 1, b"", b"Error response from daemon: Pool overlaps with other one on this address space"
+        return await original(*args, **kwargs)
+
+    sandbox._docker = overlapping  # type: ignore[method-assign]
+    with pytest.raises(SandboxError, match=r"overlaps an existing network.*subnet="):
+        await sandbox.acreate("s")
+
+
+@pytest.mark.asyncio
+async def test_create_recreates_an_isolated_network_removed_behind_the_provider():
+    sandbox = FakeDocker(network="isolated")
+    handle = await sandbox.acreate("s1")
+    await sandbox.adestroy(handle)
+    sandbox.networks.clear()  # removed outside the provider; the cached readiness is now stale
+    original = sandbox._docker
+    attempts = []
+
+    async def missing_network_once(*args, **kwargs):
+        if args[:2] == ("container", "create"):
+            attempts.append(args)
+            if args[args.index("--network") + 1] not in sandbox.networks:
+                return 1, b"", b"Error response from daemon: network agno-sandbox not found"
+        return await original(*args, **kwargs)
+
+    sandbox._docker = missing_network_once  # type: ignore[method-assign]
+    await sandbox.acreate("s2")
+    assert len(attempts) == 2 and "agno-sandbox" in sandbox.networks, "the network was recreated and create retried"
+
+
+@pytest.mark.asyncio
+async def test_remove_network_only_when_unused_and_only_ours():
+    sandbox = FakeDocker(network="isolated")
+    assert await sandbox.aremove_network() is False, "nothing to remove"
     handle = await sandbox.acreate("s")
     await sandbox.adestroy(handle)
-    await sandbox.aremove_network()
-    assert "agno-test" not in sandbox.networks and not sandbox._network_ready
+    assert await sandbox.aremove_network() is True
+    assert "agno-sandbox" not in sandbox.networks and not sandbox._network_ready
+    busy = FakeDocker(network="isolated")
+    await busy.acreate("s")
+    original = busy._docker
+
+    async def in_use(*args, **kwargs):
+        if args[:2] == ("network", "rm"):
+            return 1, b"", b"Error response from daemon: network agno-sandbox has active endpoints"
+        return await original(*args, **kwargs)
+
+    busy._docker = in_use  # type: ignore[method-assign]
+    assert await busy.aremove_network() is False, "a network with sandboxes attached is left alone"
     plain = FakeDocker(network="bridge")
-    await plain.aremove_network()
-    assert not plain.calls, "an operator-named network is never touched"
+    assert await plain.aremove_network() is False and not plain.calls, "an operator-named network is never touched"
 
 
-def test_network_choice_is_part_of_the_configuration_and_names_are_safe():
+def test_network_choice_and_subnet_validation():
     isolated = DockerSandbox("python:test", network="isolated")
     bridge = DockerSandbox("python:test", network="bridge")
     assert isolated._digest("s", None, 1, {}) != bridge._digest("s", None, 1, {})
-    odd = DockerSandbox("python:test", namespace="tenant one/with spaces", network="isolated")
-    assert re.fullmatch(r"agno-[0-9a-f]{40}", odd.network_name)
+    assert DockerSandbox("python:test", subnet="10.8.0.0/24").subnet == "10.8.0.0/24"
+    for bad in ("not-a-subnet", "172.30.0.1/22", "fd00::/64", "10.0.0.0/31", ""):
+        with pytest.raises(ValueError, match="subnet"):
+            DockerSandbox("python:test", subnet=bad)
     with pytest.raises(ValueError, match="'isolated', 'bridge' or a managed network"):
         DockerSandbox("python:test", runtime_port=8765)
+
+
+@pytest.mark.asyncio
+async def test_exec_blanks_the_runtime_token_only_when_a_server_is_configured():
+    """docker exec inherits the container environment, so every host-run command gets the token
+    variable blanked; without a runtime server there is no token and nothing to blank."""
+    seen = []
+
+    for provider in (ServedDocker(), FakeDocker()):
+        handle = await provider.acreate("session")
+        original = provider._docker
+
+        async def capture(*args, _original=original, **kwargs):
+            if args[:2] != ("container", "exec"):
+                return await _original(*args, **kwargs)
+            seen.append(args)
+            return 0, json.dumps(ExecResult(0, "", "").__dict__).encode(), b""
+
+        provider._docker = capture  # type: ignore[method-assign]
+        await provider.aexec(handle, ["true"])
+        argv = seen[-1]
+        assert argv[:3] == ("container", "exec", "-i")
+        if provider.runtime_port is not None:
+            assert argv[3:5] == ("--env", "AGNO_SANDBOX_RUNTIME_TOKEN="), "served sandboxes blank the token"
+            assert argv[5] == handle.provider_ref
+        else:
+            assert argv[3] == handle.provider_ref and "--env" not in argv

@@ -3,10 +3,10 @@
 import asyncio
 import base64
 import hashlib
+import ipaddress
 import json
 import math
 import os
-import re
 import secrets
 import tempfile
 from contextlib import suppress
@@ -16,9 +16,12 @@ from typing import Any, Dict, Mapping, Optional, Sequence
 from agno.sandbox.base import ExecResult, Sandbox, SandboxError, SandboxHandle, _identity, _sync
 
 _LABEL = "io.agno.sandbox."
-# A provider-owned bridge per namespace with inter-container traffic off: sandboxes reach the
-# internet and the host's published ports but not each other.
+# One provider-owned bridge per host with inter-container traffic off: sandboxes reach the
+# internet and the host's published ports but not each other. Its subnet is pinned so it never
+# draws from Docker's default address pools, which are small and shared with everything else.
 _ISOLATED = "isolated"
+_ISOLATED_NETWORK = "agno-sandbox"
+_DEFAULT_SUBNET = "172.30.0.0/22"
 _ICC_OPTION = "com.docker.network.bridge.enable_icc"
 # Environment variable carrying the container's runtime bearer token.
 _TOKEN_ENV = "AGNO_SANDBOX_RUNTIME_TOKEN"
@@ -48,6 +51,7 @@ class DockerSandbox(Sandbox):
         docker_binary: str = "docker",
         runtime_port: Optional[int] = None,
         runtime_host: str = "127.0.0.1",
+        subnet: str = _DEFAULT_SUBNET,
     ) -> None:
         for value in (image, namespace, network):
             if not isinstance(value, str) or not value or "\x00" in value:
@@ -87,24 +91,30 @@ class DockerSandbox(Sandbox):
         # host's replicas; with a daemon shared across hosts, set the daemon host's address
         # every replica can reach. Every request then needs the container's bearer token.
         self.runtime_host = runtime_host
+        # The isolated network's address range. An explicit subnet never draws from Docker's
+        # default pools; a /22 stays under the roughly 1000 interfaces one bridge can carry.
+        try:
+            parsed = ipaddress.ip_network(subnet, strict=True)
+        except (ValueError, TypeError) as error:
+            raise ValueError("Sandbox subnet must be an IPv4 network in CIDR form, such as 172.30.0.0/22") from error
+        if parsed.version != 4 or parsed.prefixlen > 30:
+            raise ValueError("Sandbox subnet must be an IPv4 network no smaller than a /30")
+        self.subnet = str(parsed)
         self._http: Dict[int, Any] = {}
         self._network_ready = False
 
     @property
     def network_name(self) -> str:
-        """The Docker network containers join: the namespace's own bridge for 'isolated'."""
-        if self.network != _ISOLATED:
-            return self.network
-        if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,58}", self.namespace):
-            return "agno-" + self.namespace
-        return "agno-" + hashlib.sha256(self.namespace.encode()).hexdigest()[:40]
+        """The Docker network containers join: the host's one Agno-managed bridge for 'isolated'."""
+        return _ISOLATED_NETWORK if self.network == _ISOLATED else self.network
 
     async def _anetwork(self) -> str:
-        """Ensure the namespace's isolated bridge exists and is ours, once per provider.
+        """Ensure the host's isolated bridge exists with our subnet and label, once per provider.
 
-        The network is shared by every generation in the namespace and is never removed with a
-        container; ``aremove_network`` deletes it on purpose. Creation races with another replica
-        resolve on the deterministic name: exists is success, as long as it carries our label.
+        One network per host serves every namespace: with inter-container traffic off, sharing it
+        adds no reach between sandboxes, and a pinned subnet keeps it out of Docker's default
+        address pools. It is never removed with a container; ``aremove_network`` deletes it on
+        purpose. Creation races resolve on the fixed name: exists is success, as long as it is ours.
         """
         name = self.network_name
         if self.network != _ISOLATED or self._network_ready:
@@ -116,15 +126,20 @@ class DockerSandbox(Sandbox):
                 "create",
                 "--driver",
                 "bridge",
+                "--subnet",
+                self.subnet,
                 "--opt",
                 _ICC_OPTION + "=false",
-                "--label",
-                _LABEL + "namespace=" + self.namespace,
                 "--label",
                 _LABEL + "network=" + _ISOLATED,
                 name,
             )
             if code and b"already exists" not in err:
+                if b"overlaps" in err:
+                    raise SandboxError(
+                        f"Docker subnet {self.subnet} overlaps an existing network on this host; "
+                        "set DockerSandbox(subnet=...) to a free range"
+                    )
                 raise SandboxError("Docker network creation failed: " + err.decode(errors="replace")[:500])
             code, out, err = await self._docker("network", "inspect", name)
             if code:
@@ -134,37 +149,44 @@ class DockerSandbox(Sandbox):
         except (ValueError, IndexError, TypeError) as error:
             raise SandboxError("Docker returned an invalid network record") from error
         labels = record.get("Labels") or {}
-        if (
-            labels.get(_LABEL + "namespace") != self.namespace
-            or (record.get("Options") or {}).get(_ICC_OPTION) != "false"
-        ):
+        if labels.get(_LABEL + "network") != _ISOLATED or (record.get("Options") or {}).get(_ICC_OPTION) != "false":
+            raise SandboxError(f"Docker network {name} exists but is not Agno's isolated bridge; rename or remove it")
+        subnets = [entry.get("Subnet") for entry in ((record.get("IPAM") or {}).get("Config") or [])]
+        if subnets and self.subnet not in subnets:
             raise SandboxError(
-                f"Docker network {name} exists but is not this namespace's isolated bridge; rename the namespace or remove it"
+                f"Docker network {name} uses subnet {subnets[0]} but this provider is configured for {self.subnet}; "
+                "use the same subnet on every replica, or remove the network while nothing is attached"
             )
         self._network_ready = True
         return name
 
-    async def aremove_network(self) -> None:
-        """Remove the namespace's isolated bridge. Fails while any container is still attached."""
+    async def aremove_network(self) -> bool:
+        """Remove the host's isolated bridge when nothing is attached. Returns False when it is
+        still in use or absent; raises when the network with that name is not ours."""
         if self.network != _ISOLATED:
-            return
+            return False
         name = self.network_name
         code, out, _ = await self._docker("network", "inspect", name)
         if code:
-            return
+            return False
         try:
             labels = json.loads(out)[0].get("Labels") or {}
         except (ValueError, IndexError, TypeError, AttributeError):
             labels = {}
-        if labels.get(_LABEL + "namespace") != self.namespace:
-            raise SandboxError(f"Docker network {name} is not this namespace's isolated bridge; refusing to remove it")
+        if labels.get(_LABEL + "network") != _ISOLATED:
+            raise SandboxError(f"Docker network {name} is not Agno's isolated bridge; refusing to remove it")
         code, _, err = await self._docker("network", "rm", name)
-        if code and b"not found" not in err and b"No such network" not in err:
-            raise SandboxError("Docker network removal failed: " + err.decode(errors="replace")[:500])
         self._network_ready = False
+        if code:
+            if b"active endpoints" in err or b"has active" in err:
+                return False
+            if b"not found" in err or b"No such network" in err:
+                return False
+            raise SandboxError("Docker network removal failed: " + err.decode(errors="replace")[:500])
+        return True
 
-    def remove_network(self) -> None:
-        _sync(self.aremove_network())
+    def remove_network(self) -> bool:
+        return _sync(self.aremove_network())
 
     def _name(self, session_id: str, agent_id: Optional[str], generation: int) -> str:
         identity = json.dumps([self.namespace, agent_id, session_id, generation])
@@ -419,6 +441,11 @@ class DockerSandbox(Sandbox):
                 args.extend(["--entrypoint", "python", self.image, "-I", "-c", "import time; time.sleep(2147483647)"])
             try:
                 code, _, err = await self._docker(*args, timeout=120)
+                if code and self.network == _ISOLATED and b"network" in err and b"not found" in err:
+                    # The bridge was removed outside this provider; recreate it and try once more.
+                    self._network_ready = False
+                    await self._anetwork()
+                    code, _, err = await self._docker(*args, timeout=120)
             except asyncio.TimeoutError:
                 code, err = 1, b"Creation response timed out"
             finally:
@@ -533,11 +560,15 @@ class DockerSandbox(Sandbox):
                 "stdin": base64.b64encode(stdin).decode("ascii"),
             }
         ).encode()
+        # docker exec inherits the container's environment, token included; blank it for every
+        # command run from the host. Docker cannot unset a variable, so it becomes empty.
+        scrub = ["--env", _TOKEN_ENV + "="] if self.runtime_port is not None else []
         try:
             code, out, err = await self._docker(
                 "container",
                 "exec",
                 "-i",
+                *scrub,
                 handle.provider_ref,
                 "python",
                 "-I",

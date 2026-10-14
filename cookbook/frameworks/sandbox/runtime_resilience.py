@@ -164,8 +164,7 @@ try:
     say("server healthy again; effects file lists each run once, so nothing was re-run")
 finally:
     served.destroy(computer)
-    served.remove_network()
-    say("destroyed the served sandbox and its namespace network")
+    say("destroyed the served sandbox")
 
 section("3. Exec transport: a lost control reply leaves the container running")
 plain = DockerSandbox(

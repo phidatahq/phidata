@@ -31,6 +31,7 @@ from agno.run import RunContext
 from agno.run.agent import RunOutput, RunOutputEvent
 from agno.run.messages import RunMessages
 from agno.session import AgentSession
+from agno.skills.agent_skills import gate_execution_tools
 from agno.tools import Toolkit
 from agno.tools.function import Function, entrypoint_accepts_media
 from agno.tools.toolkit import (
@@ -692,8 +693,7 @@ def determine_tools_for_model(
                 func._audios = joint_audios
                 func._videos = joint_videos
 
-    if agent.skills is not None:
-        agent.skills.gate_execution_tools(processed_tools or [], _functions, run_context, run_response)
+    gate_execution_tools(agent.skills, processed_tools or [], _functions, run_context, run_response)
 
     return _functions
 

@@ -63,13 +63,25 @@ COMPONENT_VERSION_METADATA_KEY = "agno_component_version"
 DISPATCH_CHAIN_METADATA_KEY = "agno_dispatch_chain"
 DISPATCH_DEPTH_METADATA_KEY = "agno_dispatch_depth"
 
+# Run-metadata key marking a run that acts on a skill served by an MCP server,
+# with the gate config ({"gate_all_tools": bool, "gated_tools": [names]}) its
+# code-execution tools inherit. Written by the run that loads the skill and
+# carried into delegated member runs. Runtime-owned: a resume keeps the paused
+# run's value, so a caller can never lift the gate by omitting it.
+MCP_SKILL_GATE_METADATA_KEY = "agno_mcp_skill_gate"
+
 # Every run-metadata key the runtime owns. Component metadata is merged OVER
 # call-site metadata, so a stored config carrying one of these would overwrite
 # the value the runtime just wrote: a forged version stamp would continue a
 # paused run on the wrong version, and a forged (or emptied) dispatch lineage
 # would reset the cycle guard on every hop and re-open unbounded self-dispatch.
 RESERVED_RUN_METADATA_KEYS = frozenset(
-    {COMPONENT_VERSION_METADATA_KEY, DISPATCH_CHAIN_METADATA_KEY, DISPATCH_DEPTH_METADATA_KEY}
+    {
+        COMPONENT_VERSION_METADATA_KEY,
+        DISPATCH_CHAIN_METADATA_KEY,
+        DISPATCH_DEPTH_METADATA_KEY,
+        MCP_SKILL_GATE_METADATA_KEY,
+    }
 )
 
 

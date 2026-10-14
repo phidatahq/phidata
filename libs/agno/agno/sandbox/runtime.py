@@ -7,7 +7,6 @@ credentials. Its journal reports execution finished, not durable run completion.
 from __future__ import annotations
 
 import argparse
-from contextlib import suppress
 import asyncio
 import fcntl
 import hashlib
@@ -17,7 +16,7 @@ import os
 import subprocess
 import sys
 import time
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from pathlib import Path
 from typing import Any, Dict, Iterator, Optional
 
@@ -246,6 +245,8 @@ async def _execute(directory: Path, request: Dict[str, Any]) -> Dict[str, Any]:
 
     native = directory.parent.parent / "native"
     native.mkdir(exist_ok=True)
+    # The Codex CLI refuses to start when CODEX_HOME names a missing directory.
+    (native / "codex").mkdir(exist_ok=True)
     os.environ["HOME"] = str(native)
     os.environ["CODEX_HOME"] = str(native / "codex")
     agent = _agent(request, native)
@@ -254,6 +255,11 @@ async def _execute(directory: Path, request: Dict[str, Any]) -> Dict[str, Any]:
         # Before anything reaches the model: the state on disk must be the state the caller
         # restored. A mismatch is a restore problem and is reported as one.
         _check_expected_native(agent, request)
+        # The Codex app server reads a stored login, not OPENAI_API_KEY. A computer
+        # restored from a checkpoint has no auth.json, so it logs in again here.
+        api_key = os.environ.get("OPENAI_API_KEY")
+        if request["sdk"] == "codex" and api_key and not (native / "codex" / "auth.json").exists():
+            await agent.alogin_api_key(api_key)
         async for event in agent.arun(
             request["input"],
             run_id=request["run_id"],

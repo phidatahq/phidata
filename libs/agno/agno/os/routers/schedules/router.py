@@ -19,6 +19,7 @@ from agno.os.routers.schedules.schema import (
 )
 from agno.os.schema import PaginatedResponse, PaginationInfo
 from agno.os.scopes import AgentOSScope, has_required_scopes
+from agno.run.authorization import stamp_authorization
 from agno.utils.log import log_info
 
 # Valid DB method names that _db_call can invoke
@@ -87,15 +88,13 @@ def get_schedule_router(
 
         match = RUN_ENDPOINT_RE.match(endpoint) if method.upper() == "POST" else None
 
-        manager_components = getattr(request.app.state, "manager_components", ())
-        if not caller_scopes_are_authoritative(request) or (
-            match is not None and (match.group(1), match.group(2)) in manager_components
-        ):
-            # Managed policies and the manager's additional admin requirement must
-            # decide the target just as its run route does. The executor uses an
-            # internal credential, so ordinary schedule/run grants cannot substitute
-            # for the caller's permission to execute the manager.
-            from agno.os.auth import _provider_for
+        if not caller_scopes_are_authoritative(request):
+            # The token's scopes are NOT the authority here (a managed-roles/ReBAC/custom
+            # plane governs access, and ignores them). Decide the target the same way its
+            # own route gate would -- through the configured provider -- so `schedules:write`
+            # cannot schedule a run of a component the caller may not run themselves (the
+            # executor fires it with the full-scope internal token).
+            from agno.os.auth import resolve_authorization_provider
             from agno.os.authz.provider import AuthorizationContext
 
             if match is None:
@@ -107,7 +106,7 @@ def get_schedule_router(
                     detail="Scheduling a non-run endpoint requires a scope-based authorization plane",
                 )
             resource_type, resource_id = match.group(1), match.group(2)
-            provider = _provider_for(request)
+            provider = resolve_authorization_provider(request)
             ctx = AuthorizationContext(
                 principal_id=getattr(request.state, "user_id", None),
                 scopes=list(caller_scopes),
@@ -260,7 +259,7 @@ def get_schedule_router(
             "description": body.description,
             "method": body.method,
             "endpoint": body.endpoint,
-            "payload": body.payload,
+            "payload": stamp_authorization(body.payload),
             "cron_expr": body.cron_expr,
             "timezone": body.timezone,
             "timeout_seconds": body.timeout_seconds,
@@ -317,7 +316,7 @@ def get_schedule_router(
 
         # Re-check when the target changes, so a schedule can't be repointed at a component
         # the caller may not run.
-        if "endpoint" in updates or "method" in updates:
+        if "endpoint" in updates or "method" in updates or "payload" in updates:
             _require_endpoint_permission(
                 request,
                 updates.get("endpoint", existing["endpoint"]),
@@ -372,6 +371,7 @@ def get_schedule_router(
             if dup is not None:
                 raise HTTPException(status_code=409, detail=f"Schedule with name '{updates['name']}' already exists")
 
+        updates["payload"] = stamp_authorization(updates.get("payload", existing.get("payload")))
         try:
             result = await _db_call("update_schedule", schedule_id, user_id=scoped_user_id, **updates)
         except Exception as e:

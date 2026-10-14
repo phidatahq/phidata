@@ -33,13 +33,7 @@ from starlette.concurrency import run_in_threadpool
 
 from agno.db.base import AsyncBaseDb, BaseDb
 from agno.db.schemas.service_accounts import SERVICE_ACCOUNT_PRINCIPAL_PREFIX, ServiceAccount
-from agno.os.scopes import (
-    AgentOSScope,
-    check_route_scopes,
-    get_resource_context_from_path,
-    has_required_scopes,
-    parse_scope,
-)
+from agno.os.scopes import AgentOSScope, check_route_scopes, parse_scope
 from agno.utils.log import log_debug, log_error, log_warning
 from agno.utils.string import hash_string_sha256
 
@@ -400,18 +394,6 @@ async def authenticate_service_account_request(
         request.state.accessible_resource_ids = scope_check.accessible_resource_ids
     if not scope_check.allowed:
         return 403, "Insufficient permissions", scope_check.required_scopes
-
-    # Some component transports rely on the route gate alone. Enforce the
-    # manager boundary here too, before a PAT can reach one of those handlers.
-    app = getattr(request, "app", None)
-    manager_components = getattr(getattr(app, "state", None), "manager_components", ())
-    resource = get_resource_context_from_path(get_route_path(request.scope))
-    if resource in manager_components and any(
-        scope.rsplit(":", 1)[-1] != "read" for scope in scope_check.required_scopes
-    ):
-        required = [admin_scope or AgentOSScope.ADMIN.value]
-        if not has_required_scopes(list(account.scopes), required, admin_scope=admin_scope):
-            return 403, "Manager execution requires administrator authority", required
 
     log_debug(f"Service account authenticated: {account.principal}")
     return None

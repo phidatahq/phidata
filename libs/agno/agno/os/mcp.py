@@ -2288,6 +2288,33 @@ def build_mcp_server(
         version=server_version,
         auth=os._get_mcp_auth_provider(),
     )
+    from fastmcp.server.middleware import Middleware
+
+    from agno.os.authz.run_context import request_authorization
+    from agno.run.authorization import authorization_scope
+
+    class CallerAuthorizationMiddleware(Middleware):
+        async def on_call_tool(self, context: Any, call_next: Any) -> Any:
+            from fastmcp.server.dependencies import get_http_request
+
+            try:
+                request = get_http_request()
+            except RuntimeError:
+                request = None
+            # FastMCP can execute a tool on a task created outside the ASGI
+            # request. Bind from its own verified request context for each call.
+            if (
+                request is not None
+                and _mcp_auth_enabled(request)
+                and not getattr(request.state, "authenticated", False)
+            ):
+                raise PermissionError(_MISSING_BRIDGE_DETAIL)
+            authority = request_authorization(request) if request is not None else None
+            with authorization_scope(lambda: authority):
+                return await call_next(context)
+
+    mcp.add_middleware(CallerAuthorizationMiddleware())
+
     if _server_card_enabled(mcp_config):
         # allowed_hosts is the operator declaring the hostnames this deployment answers to; a
         # forwarded host is advertised only if it appears in that list.

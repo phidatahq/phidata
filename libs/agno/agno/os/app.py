@@ -848,7 +848,7 @@ class AgentOS:
         parent = getattr(app, "state", None)
         if parent is None:
             return
-        for attr in ("authorization_provider", "authz_audit", "manager_components"):
+        for attr in ("authorization_provider", "authz_audit"):
             value = getattr(parent, attr, None)
             if value is not None:
                 setattr(self._mcp_app.state, attr, value)
@@ -940,11 +940,6 @@ class AgentOS:
 
     def _add_built_in_routes(self, app: FastAPI) -> None:
         """Add all AgentOS built-in routes to the given app."""
-        if self._manager is not None:
-            app.state.manager_components = {
-                ("teams", self._manager.team.id),
-                *(("agents", agent.id) for agent in self._manager.agents),
-            }
         # Always add the home router: explicit routes win over the root MCP Mount, and
         # without it GET / falls through to the MCP app's plain-text 404.
         self._add_router(app, get_home_router(self))
@@ -1909,6 +1904,10 @@ class AgentOS:
         # agno cannot amend. Fail fast (with the exact paths) rather than 401 connector
         # discovery. (Only agno's own AuthMiddleware is inspected; see the method docstring.)
         self._check_mcp_auth_middleware_composition(fastapi_app)
+
+        from agno.os.authz.run_context import RunAuthorizationMiddleware
+
+        fastapi_app.add_middleware(RunAuthorizationMiddleware, authorization_app=fastapi_app)
 
         # Add trailing slash normalization middleware
         from agno.os.middleware.trailing_slash import TrailingSlashMiddleware

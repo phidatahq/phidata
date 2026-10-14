@@ -33,6 +33,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple, Union
 
 from agno.exceptions import PathSecurityError
+from agno.run.authorization import requires_permission
 from agno.tools import Toolkit
 from agno.tools._local_file_utils import DEFAULT_EXCLUDE_PATTERNS, EXEMPT_PREFIX, compile_exclude_patterns
 from agno.utils.log import log_debug, log_error, log_info, log_warning
@@ -641,6 +642,7 @@ class Workspace(Toolkit):
     # Read operations (auto-pass by default)
     # ------------------------------------------------------------------
 
+    @requires_permission("filesystem", "read")
     def read_file(
         self,
         path: str,
@@ -698,6 +700,7 @@ class Workspace(Toolkit):
             log_error(f"read_file failed: {e}")
             return f"Error reading file: {e}"
 
+    @requires_permission("filesystem", "read")
     def list_files(
         self,
         directory: str = ".",
@@ -788,6 +791,7 @@ class Workspace(Toolkit):
             log_error(f"list_files failed: {e}")
             return f"Error listing files: {e}"
 
+    @requires_permission("filesystem", "read")
     def search_content(self, query: str, directory: str = ".", limit: int = 10) -> str:
         """Recursive case-insensitive content grep across text files in the workspace.
 
@@ -1053,6 +1057,7 @@ class Workspace(Toolkit):
     # Async siblings
     # ------------------------------------------------------------------
 
+    @requires_permission("filesystem", "read")
     async def aread_file(
         self,
         path: str,
@@ -1063,6 +1068,7 @@ class Workspace(Toolkit):
         """Async variant of ``read_file``."""
         return await asyncio.to_thread(self.read_file, path, start_line, end_line, encoding)
 
+    @requires_permission("filesystem", "read")
     async def alist_files(
         self,
         directory: str = ".",
@@ -1073,6 +1079,7 @@ class Workspace(Toolkit):
         """Async variant of ``list_files``."""
         return await asyncio.to_thread(self.list_files, directory, pattern, recursive, max_depth)
 
+    @requires_permission("filesystem", "read")
     async def asearch_content(self, query: str, directory: str = ".", limit: int = 10) -> str:
         """Async variant of ``search_content``."""
         return await asyncio.to_thread(self.search_content, query, directory, limit)

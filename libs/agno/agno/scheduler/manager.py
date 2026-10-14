@@ -7,6 +7,12 @@ from typing import Any, Dict, List, Literal, Optional
 from uuid import uuid4
 
 from agno.db.schemas.scheduler import INTERNAL_SCHEDULER_USER_ID, Schedule, ScheduleRun
+from agno.run.authorization import (
+    arequire_schedule_target,
+    current_authorization,
+    require_schedule_target,
+    stamp_authorization,
+)
 from agno.utils.log import log_debug, log_warning
 
 # Valid DB method names for the scheduler
@@ -150,6 +156,8 @@ class ScheduleManager:
         """
         from agno.scheduler.cron import compute_next_run, validate_cron_expr, validate_timezone
 
+        require_schedule_target(endpoint, method)
+
         if if_exists not in ("raise", "skip", "update"):
             raise ValueError(f"if_exists must be 'raise', 'skip', or 'update', got '{if_exists}'")
 
@@ -185,7 +193,7 @@ class ScheduleManager:
                         endpoint=endpoint,
                         method=method.upper(),
                         description=description,
-                        payload=payload,
+                        payload=stamp_authorization(payload),
                         timezone=timezone,
                         timeout_seconds=timeout_seconds,
                         max_retries=max_retries,
@@ -206,7 +214,7 @@ class ScheduleManager:
             description=description,
             method=method.upper(),
             endpoint=endpoint,
-            payload=payload,
+            payload=stamp_authorization(payload),
             cron_expr=cron,
             timezone=timezone,
             timeout_seconds=timeout_seconds,
@@ -289,6 +297,13 @@ class ScheduleManager:
 
     def update(self, schedule_id: str, user_id: Optional[str] = None, **kwargs: Any) -> Optional[Schedule]:
         """Update a schedule. ``user_id`` filters the row, it does not reassign the owner."""
+        if current_authorization() is None and "payload" not in kwargs:
+            return self._to_schedule(self._call("update_schedule", schedule_id, user_id=user_id, **kwargs))
+        existing = self.get(schedule_id, user_id=user_id)
+        if existing is None:
+            return None
+        require_schedule_target(kwargs.get("endpoint", existing.endpoint), kwargs.get("method", existing.method))
+        kwargs["payload"] = stamp_authorization(kwargs.get("payload", existing.payload))
         return self._to_schedule(self._call("update_schedule", schedule_id, user_id=user_id, **kwargs))
 
     def delete(self, schedule_id: str, user_id: Optional[str] = None) -> bool:
@@ -369,6 +384,8 @@ class ScheduleManager:
         """
         from agno.scheduler.cron import compute_next_run, validate_cron_expr, validate_timezone
 
+        await arequire_schedule_target(endpoint, method)
+
         if if_exists not in ("raise", "skip", "update"):
             raise ValueError(f"if_exists must be 'raise', 'skip', or 'update', got '{if_exists}'")
 
@@ -404,7 +421,7 @@ class ScheduleManager:
                         endpoint=endpoint,
                         method=method.upper(),
                         description=description,
-                        payload=payload,
+                        payload=stamp_authorization(payload),
                         timezone=timezone,
                         timeout_seconds=timeout_seconds,
                         max_retries=max_retries,
@@ -425,7 +442,7 @@ class ScheduleManager:
             description=description,
             method=method.upper(),
             endpoint=endpoint,
-            payload=payload,
+            payload=stamp_authorization(payload),
             cron_expr=cron,
             timezone=timezone,
             timeout_seconds=timeout_seconds,
@@ -508,6 +525,13 @@ class ScheduleManager:
 
     async def aupdate(self, schedule_id: str, user_id: Optional[str] = None, **kwargs: Any) -> Optional[Schedule]:
         """Async update a schedule. ``user_id`` filters the row, it does not reassign the owner."""
+        if current_authorization() is None and "payload" not in kwargs:
+            return self._to_schedule(await self._acall("update_schedule", schedule_id, user_id=user_id, **kwargs))
+        existing = await self.aget(schedule_id, user_id=user_id)
+        if existing is None:
+            return None
+        await arequire_schedule_target(kwargs.get("endpoint", existing.endpoint), kwargs.get("method", existing.method))
+        kwargs["payload"] = stamp_authorization(kwargs.get("payload", existing.payload))
         return self._to_schedule(await self._acall("update_schedule", schedule_id, user_id=user_id, **kwargs))
 
     async def adelete(self, schedule_id: str, user_id: Optional[str] = None) -> bool:

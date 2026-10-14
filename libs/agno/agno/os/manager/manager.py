@@ -13,6 +13,7 @@ from agno.os.manager.prompts import (
     MANAGER_INSTRUCTIONS,
     OPERATOR_INSTRUCTIONS,
 )
+from agno.run.authorization import requires_permission
 from agno.team import Team
 
 if TYPE_CHECKING:
@@ -142,6 +143,7 @@ def _raise_if_reserved_ids(config: ManagerConfig, components: List[Any], owned: 
 def _diagnostics_tool(agent_os: "AgentOS", required_env: Sequence[str]) -> Any:
     from agno.tools import Toolkit
 
+    @requires_permission("config", "read")
     def run_diagnostics() -> str:
         """Run the OS diagnostics now: database, authorization, component ids, registry names, interfaces,
         scheduler, MCP and required environment variables. Makes no model calls.
@@ -151,6 +153,7 @@ def _diagnostics_tool(agent_os: "AgentOS", required_env: Sequence[str]) -> Any:
         """
         return json.dumps(agent_os.run_diagnostics(required_env=required_env).to_dict())
 
+    @requires_permission("config", "read")
     async def arun_diagnostics() -> str:
         """Async variant of run_diagnostics."""
         return json.dumps((await agent_os.arun_diagnostics(required_env=required_env)).to_dict())

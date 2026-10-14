@@ -47,6 +47,7 @@ Conversations use the configured model and incur provider charges.
 | File | Ask OS Manager | What to expect |
 |---|---|---|
 | `basic_manager.py` | “Run diagnostics and explain any issues.” | A report from Platform Manager, including the authorization warning. No tools or models have been supplied for building new agents. |
+| `manager_user_access.py` | As Alice, ask “Run math-helper: what is 6 * 7?” Then ask to publish a new agent. | The permitted run succeeds; publishing is refused. Configure `JWT_VERIFICATION_KEY` and a JWT with `sub=alice`, `aud=manager-access-demo`. |
 | `manager_builds_agents.py` | “Create a calculator agent named Budget Helper.” Then: “Run Budget Helper: what is 15% of 240?” | Platform Builder publishes the agent. The second request runs it and should return 36. |
 | `manager_with_resources.py` | “Save a note in project.md: the demo is on Friday.” Then: “Read project.md.” | The shared notebook stores and retrieves the note. |
 | `manager_with_resources.py` | “Remember that I prefer short answers.” Then ask about your preference in a new session with the same user id. | The manager can save and retrieve a user preference across sessions. |
@@ -91,19 +92,47 @@ The default team name is **OS Manager**, with id `os-manager`. Set
 - **Platform Manager** (`platform-manager`): checks activity and runs diagnostics.
 - **Platform Engineer** (`platform-engineer`): reads source when a workspace is configured.
 
-The team and its members use the normal UI, REST and MCP routes. When authorization
-is enforced, running or continuing them requires administrator authority
-(`agent_os:admin` by default), in addition to the normal component permission.
-Ordinary `agents:run`, `teams:run` and per-component run grants are insufficient:
-the manager can run other components and its specialists have platform-wide tools.
-Managed roles and custom authorization providers decide administrator authority
-through the configured provider; a token's admin scope cannot override their policy.
-Service-account tokens need the same admin authority, and scheduling manager runs
-checks it before saving the schedule. Read access retains normal component scopes.
+The team and its members use the normal UI, REST and MCP routes. Ordinary run
+grants, including `teams:os-manager:run`, let a user talk to the manager. Access
+to the manager does not grant its tools additional permissions:
+
+- Running another component requires its agent, team or workflow `run` permission.
+- Discovery filters components by their `read` permission. Registry discovery
+  requires `registry:read`; catalog inspection requires `components:read`.
+- Creating, editing and publishing components requires `components:write`.
+  Archiving, restoring and deleting versions requires `components:delete`.
+- Schedule tools require the corresponding `schedules:read`, `schedules:write`
+  or `schedules:delete` permission. Creating or editing a schedule also checks
+  permission to run its target.
+- Diagnostics requires `config:read`; workspace reads require `filesystem:read`.
+- Platform-wide operational aggregates remain administrator-only because these
+  queries do not provide a per-user view.
+
+These checks also apply when the protected built-in toolkits are attached to
+other authenticated agents. Existing callers with only an agent's run grant need
+the corresponding tool permissions; ordinary agent runs without these tools keep
+their existing permission requirements.
+
+These decisions use the configured authorization provider, including managed
+roles and custom policies. JWT claims cannot override those policies. Service
+accounts retain their own token ACL. Authority follows specialist delegation,
+MCP calls and queued execution; a continuation uses its current caller's authority.
+Permission-sensitive tools recheck access rather than serving cached results.
+
+Schedules created or edited under authorization retain the caller's permission
+snapshot. The executor uses that snapshot for the target and its tools, rather
+than its internal transport credential. Managed policies are consulted when the
+schedule runs. Token-scope grants are captured when the schedule is saved; edit
+or delete the schedule to change them. Existing schedules without a snapshot
+cannot use platform tools on an authenticated deployment; recreate or edit them
+as an authorized caller.
 
 Direct Python calls, security-key access, unauthenticated deployments and interfaces
 bound directly to the team are trusted application entry points. Expose those only
-to trusted operators; binding Slack does not enforce REST user roles.
+to trusted operators; binding Slack does not enforce REST user roles. Custom tools
+supplied through `ManagerConfig.tools` remain application-defined capabilities:
+use `RunContext.authorization` or `requires_permission` from
+`agno.run.authorization` when they need caller authorization.
 
 Their ids are reserved, including the engineer id when no workspace is
 configured. The manager can run itself once with a fresh context; it cannot start

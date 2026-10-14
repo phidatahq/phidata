@@ -27,7 +27,7 @@ from agno.tools.studio_runner import StudioRunnerTools
 @pytest.mark.parametrize("identity", ["jwt", "managed_role", "service_account", "service_account_open"])
 @pytest.mark.parametrize("admin", [False, True])
 @pytest.mark.parametrize("target", ["custom-manager", BUILDER_ID, OPERATOR_ID, ENGINEER_ID])
-def test_manager_execution_requires_admin(db, workspace, identity, admin, target):
+def test_manager_execution_accepts_ordinary_run_grants(db, workspace, identity, admin, target):
     import jwt
 
     from agno.db.schemas.service_accounts import ServiceAccount
@@ -78,15 +78,7 @@ def test_manager_execution_requires_admin(db, workspace, identity, admin, target
     family = "teams" if target == "custom-manager" else "agents"
     client = TestClient(os.get_app())
     response = client.post(f"/{family}/{target}/runs", headers=headers, data={"message": "hello", "stream": "false"})
-    assert response.status_code == (200 if admin else 403), response.text
-    if not admin:
-        continuation = client.post(
-            f"/{family}/{target}/runs/missing/continue", headers=headers, data={"stream": "false"}
-        )
-        assert continuation.status_code == 403, continuation.text
-        if identity != "service_account_open":
-            a2a = client.post(f"/a2a/{family}/{target}/v1/message:send", headers=headers, json={})
-            assert a2a.status_code == 403, a2a.text
+    assert response.status_code == 200, response.text
     ordinary = client.post("/agents/ordinary/runs", headers=headers, data={"message": "hello", "stream": "false"})
     assert ordinary.status_code == 200, ordinary.text
     scheduled = client.post(
@@ -99,7 +91,7 @@ def test_manager_execution_requires_admin(db, workspace, identity, admin, target
             "payload": {"message": "hello"},
         },
     )
-    assert scheduled.status_code == (201 if admin else 403), scheduled.text
+    assert scheduled.status_code == 201, scheduled.text
 
 
 def test_manager_cannot_dispatch_for_a_caller_with_only_its_run_scope(db):
@@ -127,16 +119,19 @@ def test_manager_cannot_dispatch_for_a_caller_with_only_its_run_scope(db):
     )
     client = TestClient(os.get_app())
     headers = {"Authorization": f"Bearer {token}"}
-    for path in ("/agents/restricted/runs", "/teams/os-manager/runs"):
-        response = client.post(path, headers=headers, data={"message": "test", "stream": "false"})
-        assert response.status_code == 403, response.text
-    assert model.calls == 0
+    denied = client.post("/agents/restricted/runs", headers=headers, data={"message": "test", "stream": "false"})
+    assert denied.status_code == 403
+    response = client.post("/teams/os-manager/runs", headers=headers, data={"message": "test", "stream": "false"})
+    assert response.status_code == 200, response.text
+    assert "Permission required: agents:restricted:run" in response.text
+    assert model.calls > 0
+    assert all(getattr(session, "agent_id", None) != "restricted" for session in db.get_sessions())
 
 
 @pytest.mark.parametrize("service_account", [False, True])
 @pytest.mark.parametrize("admin", [False, True])
 @pytest.mark.parametrize("path", ["/teams/os-manager/runs", "/agents/platform-builder/runs"])
-async def test_manager_mcp_requires_admin(db, monkeypatch, service_account, admin, path):
+async def test_manager_mcp_accepts_ordinary_run_grants(db, monkeypatch, service_account, admin, path):
     from types import SimpleNamespace
 
     from fastmcp.server import dependencies
@@ -144,8 +139,7 @@ async def test_manager_mcp_requires_admin(db, monkeypatch, service_account, admi
     from agno.os.mcp import _require_tool_scopes
 
     os = AgentOS(db=db, manager=ManagerConfig(model=OfflineModel()), mcp=True, telemetry=False)
-    app = os.get_app()
-    assert os._mcp_app.state.manager_components == app.state.manager_components
+    os.get_app()
     request = SimpleNamespace(
         app=os._mcp_app,
         headers={},
@@ -159,11 +153,7 @@ async def test_manager_mcp_requires_admin(db, monkeypatch, service_account, admi
         ),
     )
     monkeypatch.setattr(dependencies, "get_http_request", lambda: request)
-    if admin:
-        await _require_tool_scopes("POST", path)
-    else:
-        with pytest.raises(Exception, match="[Pp]ermission"):
-            await _require_tool_scopes("POST", path)
+    await _require_tool_scopes("POST", path)
 
 
 class OfflineModel(Model):

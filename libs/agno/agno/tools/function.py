@@ -2606,6 +2606,12 @@ class FunctionCall(BaseModel):
         # Check cache if enabled and not a generator function
         cached_result = None
         cacheable = self.function.cache_results and not isgeneratorfunction(self.function.entrypoint)
+        if cacheable and getattr(self.function.entrypoint, "_agno_authorization_sensitive", False):
+            from agno.run.authorization import authorization_for
+
+            # Re-decide permission before serving a result after grants change.
+            # An entrypoint cache hit would otherwise skip its authorization check.
+            cacheable = authorization_for(self.function._run_context) is None
         if cacheable and _has_injected_media(entrypoint_args):
             log_debug(f"Skipping cache for {self.function.name}: the call carries attached media")
             cacheable = False
@@ -2870,6 +2876,12 @@ class FunctionCall(BaseModel):
         cacheable = self.function.cache_results and not (
             isasyncgenfunction(self.function.entrypoint) or isgeneratorfunction(self.function.entrypoint)
         )
+        if cacheable and getattr(self.function.entrypoint, "_agno_authorization_sensitive", False):
+            from agno.run.authorization import authorization_for
+
+            # Re-decide permission before serving a result after grants change.
+            # An entrypoint cache hit would otherwise skip its authorization check.
+            cacheable = authorization_for(self.function._run_context) is None
         if cacheable and _has_injected_media(entrypoint_args):
             log_debug(f"Skipping cache for {self.function.name}: the call carries attached media")
             cacheable = False

@@ -221,3 +221,44 @@ Executed 2026-10-14 with `/Users/ab/code/agno/.venv/bin/python` and this branch'
 **Result:** Selected regression cases were also run against the reviewed commit: 19 failed and 22 passed, confirming the tests detect the original issues. The final authorization, service-account and diagnostics selection passed 297 tests. Full formatting and validation passed with isolated validation dependencies. No paid model calls or live Slack delivery checks were performed.
 
 ---
+
+## Caller permissions — 2026-10-14
+
+This supersedes the admin-only manager policy recorded above. Ordinary component
+run grants now admit the conversation; protected tools authorize each operation.
+
+### manager_user_access.py
+
+**Status:** PASS (construction only)
+
+**Description:** Loaded the example with a temporary verification key and working
+directory. The managed role grants Alice manager access, math-helper access and
+diagnostics, without component publishing or schedule creation.
+
+**Result:** The AgentOS app constructed successfully. No model calls or live JWT
+issuer integration were performed. The diagnostics cookbook was also rerun and
+completed; its missing `OPENAI_API_KEY` check still reports the expected FAIL.
+
+---
+
+### Caller authorization regressions and validation
+
+**Status:** PASS
+
+**Description:** Added 36 offline regressions covering allowed and denied target
+runs, direct and delegated builder writes, JWT/role/service-account decisions,
+MCP calls, durable jobs, queued continuation authority, scheduled execution,
+concurrent callers, parallel synchronous delegation, cached results, forged
+snapshots and preservation of the parent policy through mounted applications.
+The existing manager tests now verify ordinary run grants can reach the manager.
+
+**Result:** The broad affected run passed 6,375 tests with 24 skips. Its one failing
+assertion expected the old queued-continuation payload; it was updated for the
+persisted authority and passes in the 77-test targeted rerun. Final selections
+passed 674 MCP/authorization/continuation tests, 86 provider/service-account tests,
+and 278 workspace/authorization tests (one skip). Formatting and full validation
+passed with the isolated validation dependencies. An attempted all-tools run
+could not collect unrelated optional integrations; the affected selection excludes
+three Telegram files whose optional dependency is unavailable.
+
+---

@@ -78,6 +78,126 @@ def test_hardlinked_source_files_are_copied_as_regular_bytes(tmp_path, roots):
     assert (tmp_path / "restored/workspace/hardlink").read_text() == "print('hello')"
 
 
+@pytest.mark.parametrize("compress", [True, False])
+@pytest.mark.asyncio
+async def test_missing_nofollow_fails_clearly_and_cleans_up(tmp_path, roots, monkeypatch, compress):
+    source = capture(tmp_path / "source", roots, compress=compress)
+    store = FileCheckpointStore(tmp_path / "objects")
+    reference = store.put(source)
+    archive = CheckpointArchive(compress=compress)
+    monkeypatch.delattr(os, "O_NOFOLLOW")
+    for _ in range(2):
+        with pytest.raises(SandboxError, match="requires.*O_NOFOLLOW"):
+            await archive.acapture(roots, tmp_path / "rejected.tar", state={})
+        with pytest.raises(SandboxError, match="requires.*O_NOFOLLOW"):
+            await store.aput(source)
+        with pytest.raises(SandboxError, match="requires.*O_NOFOLLOW"):
+            store.verify(reference)
+        with pytest.raises(SandboxError, match="requires.*O_NOFOLLOW"):
+            await archive.arestore(source, tmp_path / "restored")
+        with pytest.raises(SandboxError, match="requires.*O_NOFOLLOW"):
+            async with store.aopen_archive(reference):
+                pytest.fail("unsupported archive access must not yield")
+        assert not (tmp_path / "rejected.tar").exists()
+        assert not (tmp_path / "restored").exists()
+        assert not list(tmp_path.glob(".restore-*"))
+        assert list(store.root.iterdir()) == [store.root / reference.sha256]
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        NotImplementedError(),
+        OSError(errno.ENOSYS, "unavailable"),
+        OSError(errno.ENOTSUP, "unsupported"),
+        OSError(errno.EOPNOTSUPP, "unsupported"),
+        PermissionError(errno.EACCES, "denied"),
+        OSError(errno.ENOSPC, "full"),
+        OSError(errno.EIO, "I/O failure"),
+    ],
+)
+@pytest.mark.asyncio
+async def test_hardlink_capability_errors_preserve_other_failures(tmp_path, roots, monkeypatch, failure):
+    source = capture(tmp_path, roots)
+    store = FileCheckpointStore(tmp_path / "objects")
+    reference = store.put(source)
+
+    def unavailable(*args, **kwargs):
+        raise failure
+
+    unsupported = isinstance(failure, NotImplementedError) or failure.errno in (
+        errno.ENOSYS,
+        errno.ENOTSUP,
+        errno.EOPNOTSUPP,
+    )
+    monkeypatch.setattr(os, "link", unavailable)
+    for _ in range(2):
+        with pytest.raises(SandboxError if unsupported else OSError) as caught:
+            await store.aput(source)
+        if unsupported:
+            assert "requires filesystem hard links" in str(caught.value)
+            assert caught.value.__cause__ is failure
+        else:
+            assert caught.value is failure
+        with pytest.raises(SandboxError if unsupported else OSError) as caught:
+            async with store.aopen_archive(reference):
+                pytest.fail("failed lease must not yield")
+        if unsupported:
+            assert "requires filesystem hard links" in str(caught.value)
+            assert caught.value.__cause__ is failure
+        else:
+            assert caught.value is failure
+        assert list(store.root.iterdir()) == [store.root / reference.sha256]
+
+
+@pytest.mark.parametrize("stage", ["open", "fsync"])
+@pytest.mark.parametrize(
+    "failure",
+    [
+        NotImplementedError(),
+        OSError(errno.ENOSYS, "unavailable"),
+        OSError(errno.ENOTSUP, "unsupported"),
+        OSError(errno.EOPNOTSUPP, "unsupported"),
+        PermissionError(errno.EACCES, "denied"),
+        OSError(errno.ENOSPC, "full"),
+        OSError(errno.EIO, "I/O failure"),
+    ],
+)
+def test_directory_sync_capability_errors_preserve_other_failures(tmp_path, monkeypatch, stage, failure):
+    descriptors = []
+    real_open = os.open
+
+    def open_directory(*args, **kwargs):
+        if stage == "open":
+            raise failure
+        descriptor = real_open(*args, **kwargs)
+        descriptors.append(descriptor)
+        return descriptor
+
+    def unavailable(*args, **kwargs):
+        raise failure
+
+    unsupported = isinstance(failure, NotImplementedError) or failure.errno in (
+        errno.ENOSYS,
+        errno.ENOTSUP,
+        errno.EOPNOTSUPP,
+    )
+    monkeypatch.setattr(os, "open", open_directory)
+    monkeypatch.setattr(os, "fsync", unavailable)
+    for _ in range(2):
+        with pytest.raises(SandboxError if unsupported else OSError) as caught:
+            checkpoint_module._fsync_directory(tmp_path)
+        if unsupported:
+            assert "requires directory fsync" in str(caught.value)
+            assert caught.value.__cause__ is failure
+        else:
+            assert caught.value is failure
+        for descriptor in descriptors:
+            with pytest.raises(OSError) as closed:
+                os.fstat(descriptor)
+            assert closed.value.errno == errno.EBADF
+
+
 def test_a_hardlink_cannot_carry_out_an_excluded_credential(tmp_path, roots):
     os.link(roots["native"] / "auth.json", roots["native"] / "session-cache")
     with pytest.raises(SandboxError, match="hardlink to excluded"):

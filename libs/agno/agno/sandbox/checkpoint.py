@@ -155,6 +155,8 @@ def _resolved(path: Path) -> Path:
 
 
 def _regular(path: Path) -> BinaryIO:
+    if not hasattr(os, "O_NOFOLLOW"):
+        raise SandboxError("Checkpoint file access requires os.O_NOFOLLOW; use a host with no-follow file opens")
     fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
     if not stat.S_ISREG(os.fstat(fd).st_mode):
         os.close(fd)
@@ -268,11 +270,16 @@ def _discard(path: Path) -> None:
 
 
 def _fsync_directory(path: Path) -> None:
-    fd = os.open(path, os.O_RDONLY)
     try:
-        os.fsync(fd)
-    finally:
-        os.close(fd)
+        fd = os.open(path, os.O_RDONLY)
+        try:
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+    except (NotImplementedError, OSError) as error:
+        if isinstance(error, OSError) and error.errno not in (errno.ENOSYS, errno.ENOTSUP, errno.EOPNOTSUPP):
+            raise
+        raise SandboxError("Checkpoint storage requires directory fsync; use a filesystem that supports it") from error
 
 
 class CheckpointArchive:
@@ -559,7 +566,9 @@ class CheckpointStore(Protocol):
     Reading an object that is absent raises ``CheckpointObjectNotFound``; one that is
     oversized, or that does not match its reference, raises ``SandboxError``. ``delete``
     is the exception, because removing an object that is already gone succeeds. Every
-    other filesystem or transport failure is passed through unchanged.
+    other filesystem or transport failure is passed through unchanged, except that
+    an unavailable required filesystem primitive raises ``SandboxError`` with its
+    original failure as the cause when available.
     """
 
     def put(self, source: Path) -> CheckpointRef:
@@ -641,6 +650,10 @@ class FileCheckpointStore:
                 os.link(temporary, target)
             except FileExistsError:
                 self.verify(reference)
+            except (NotImplementedError, OSError) as error:
+                if isinstance(error, OSError) and error.errno not in (errno.ENOSYS, errno.ENOTSUP, errno.EOPNOTSUPP):
+                    raise
+                raise SandboxError("Checkpoint storage requires filesystem hard links for publication") from error
             _fsync_directory(self.root)
             return reference
         finally:
@@ -687,6 +700,10 @@ class FileCheckpointStore:
             os.link(self.root / reference.sha256, lease)
         except FileNotFoundError as error:
             raise CheckpointObjectNotFound("Checkpoint object is missing") from error
+        except (NotImplementedError, OSError) as error:
+            if isinstance(error, OSError) and error.errno not in (errno.ENOSYS, errno.ENOTSUP, errno.EOPNOTSUPP):
+                raise
+            raise SandboxError("Checkpoint storage requires filesystem hard links for archive leases") from error
         try:
             yield lease
         finally:

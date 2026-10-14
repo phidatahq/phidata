@@ -1,10 +1,9 @@
-"""Serve an AgentOS with its manager: one team you talk to, built by the framework.
+"""Serve an AgentOS with an OS manager.
 
-OS Manager is the conversational entry point to the OS. It delegates to
-Platform Builder (composes agents, teams and workflows from the registry),
-Platform Manager (reads the runtime and runs diagnostics) and, when a workspace
-is configured, Platform Engineer (reads the source). The team and its members
-are served as ordinary components: open the AgentOS UI and chat with OS Manager.
+Chat with OS Manager to build and run agents, teams and workflows.
+Platform Builder creates them using the registry. Platform Manager checks
+activity and runs diagnostics. Add a workspace to enable Platform Engineer
+to read source code. Open the AgentOS UI and select OS Manager to try it.
 
 Run:
     .venvs/demo/bin/python cookbook/05_agent_os/29_manager/basic_manager.py
@@ -12,15 +11,14 @@ Run:
 
 from agno.db.sqlite import SqliteDb
 from agno.models.openai import OpenAIResponses
-from agno.os import AgentOS, ManagerConfig
+from agno.os import AgentOS
 from agno.registry import Registry
 from agno.tools.calculator import CalculatorTools
 from agno.workflow.functions import csv_to_markdown_table, extract_json, json_to_csv
 
 db = SqliteDb(db_file="tmp/manager.db")
 
-# The registry is the build palette: what Platform Builder may compose from.
-# The manager's own toolkits never enter it.
+# The registry contains a set of components the Platform Builder may compose from.
 registry = Registry(
     models=[OpenAIResponses(id="gpt-5.6-luna")],
     tools=[CalculatorTools()],
@@ -31,9 +29,7 @@ agent_os = AgentOS(
     name="Manager demo",
     db=db,
     registry=registry,
-    # manager=True would take the registry's first model. ManagerConfig(name=..., id=...)
-    # renames the team; the default is OS Manager, id os-manager.
-    manager=ManagerConfig(model=OpenAIResponses(id="gpt-5.6-luna")),
+    manager=True,
 )
 app = agent_os.get_app()
 

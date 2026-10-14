@@ -348,10 +348,10 @@ class AgentOS:
             workflows: List of workflows to include in the OS
             knowledge: List of knowledge bases to include in the OS
             interfaces: List of interfaces to include in the OS
-            manager: The conversational entry point to this OS: a framework-owned team (the lead)
-                with Platform Builder, Platform Manager and, with a workspace, Platform Engineer as
-                members, served as ordinary components. ``True`` takes the registry's first model;
-                ``ManagerConfig`` sets the name, model, id and attached resources.
+            manager: Add an OS Manager team to build, run and inspect components. Its members are
+                Platform Builder, Platform Manager and, when a workspace is set, Platform Engineer.
+                ``True`` uses the registry's first model. ``ManagerConfig`` sets the name, model, id
+                and resources. The team and its members use the usual component routes.
             a2a_interface: Whether to expose the OS agents and teams in an A2A server
             config: Configuration file path or AgentOSConfig instance
             settings: API settings for the OS
@@ -616,10 +616,9 @@ class AgentOS:
         # the caller's app in place, so preparing twice would double routes/lifespans).
         self._base_app_prepared: bool = False
 
-        # The manager is built against this OS's registry and db and then served like any
-        # other component, so it goes through the same initialization below. It is kept
-        # out of the registry population: its platform toolkits and members are not
-        # building blocks for runtime-built components.
+        # Create the manager using this OS's registry and database, then initialize
+        # it with the other components. Keep its members and tools out of the registry
+        # so Studio cannot add them to new components.
         from agno.os.platform import ManagerConfig, _build_manager
 
         self._manager: Optional["_Manager"] = None
@@ -665,7 +664,7 @@ class AgentOS:
 
     @property
     def manager(self) -> Optional[Team]:
-        """The regular manager Team, or None when disabled. Supports run() and arun()."""
+        """The OS Manager team, or None when disabled. Supports run() and arun()."""
         return self._manager.team if self._manager is not None else None
 
     def _owned_by_manager(self, component: Any) -> bool:
@@ -675,7 +674,7 @@ class AgentOS:
         )
 
     def _apply_manager_manifest(self) -> None:
-        """Give the manager's components UI metadata unless the application's config names them."""
+        """Set default UI descriptions and prompts without replacing application settings."""
         from agno.os.config import AgentOSConfig
 
         if self._manager is None:
@@ -1286,9 +1285,8 @@ class AgentOS:
         manager_owners: List[Union[Agent, Team]] = [*self._agents, *self._teams]
         manager_knowledge = [owner.knowledge for owner in manager_owners if self._owned_by_manager(owner)]
         for kb in self.knowledge_instances or []:
-            # Serving the lead's knowledge does not make it a build resource.
-            # Explicit OS declarations below, or ordinary component discovery,
-            # still mirror the same instance when the application shares it.
+            # Keep manager-only knowledge out of the registry. Knowledge declared
+            # on the OS or another component is still shared with the registry.
             if any(kb is private for private in manager_knowledge):
                 continue
             self.registry.add_knowledge(kb, mirrored=True)

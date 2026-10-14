@@ -1,7 +1,7 @@
-"""Construct a manager and run the OS diagnostics. No model calls.
+"""Run diagnostics for an AgentOS with an OS manager. No model calls.
 
-Shows what the OS registers, what stays out of the build palette, and the
-structured report the operator agent reads through its run_diagnostics tool.
+Prints the OS agents and teams, the registry contents, and the diagnostics
+report that Platform Manager can read through its run_diagnostics tool.
 
 Run:
     .venvs/demo/bin/python cookbook/05_agent_os/29_manager/manager_diagnostics.py
@@ -37,7 +37,7 @@ def main() -> None:
         print("Served agents:", [agent.id for agent in agent_os.agents])
         print("Served teams:", [team.id for team in agent_os.teams])
         print(
-            "Registry agents (the build palette):",
+            "Registry agents:",
             [agent.id for agent in registry.agents],
         )
         print(

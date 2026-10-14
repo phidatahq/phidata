@@ -1,8 +1,7 @@
-"""Attach application resources to the manager: a notebook, knowledge, learning and the source.
+"""Serve an AgentOS with an OS manager, a notebook, knowledge, learning and source access.
 
-Resources attached here ride the lead team. They do not enter the registry, so a
-component built by Platform Builder cannot pick them up unless the application
-also declares them on the registry.
+These resources are available to OS Manager. Platform Builder can use them in
+new components only when they are also declared in the registry.
 
 Run:
     .venvs/demo/bin/python cookbook/05_agent_os/29_manager/manager_with_resources.py
@@ -26,11 +25,11 @@ from agno.registry import Registry
 db = SqliteDb(db_file="tmp/manager_resources.db")
 model = OpenAIResponses(id="gpt-5.6-luna")
 
-# A shared notebook for the platform. The manager gets the full toolkit; the registry
-# gets an append-only view for built components.
+# The manager gets all notebook tools. The registry gets read and append tools
+# for use in new components.
 notes = FileSystem(db, namespace="shared-notes", user_scoped=False)
 
-# Per-user memory for the lead.
+# The manager remembers each user separately.
 memory = LearningMachine(
     name="manager-memory",
     db=db,

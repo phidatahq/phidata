@@ -1,10 +1,9 @@
-"""Model-free diagnostics over an AgentOS: what is configured, and what is live.
+"""Check AgentOS settings, database access and service status without model calls.
 
-Every check is deterministic and free. A check reports whether its evidence is
-``configuration`` (the OS object says so) or ``live`` (a read against the
-database or the network succeeded). The report never carries secret values:
-credential checks say present or absent, and a failing check names the
-exception type, not its message.
+Each check reports whether it inspected settings (``configuration``) or made a
+database or network request (``live``). Reports do not include secret values.
+Credential checks report whether a value is set. Errors include the exception
+type but omit the message, which could contain credentials.
 """
 
 from __future__ import annotations
@@ -53,8 +52,7 @@ class DiagnosticReport:
 
 async def _call_db(db: Any, method_name: str, *args: Any, **kwargs: Any) -> Any:
     fn = getattr(db, method_name)
-    # Adapters differ in which optional arguments they accept; pass only the ones a
-    # given adapter declares, so a check is never refused for asking too politely.
+    # Pass only the optional arguments this database adapter supports.
     parameters = inspect.signature(fn).parameters
     if not any(p.kind is inspect.Parameter.VAR_KEYWORD for p in parameters.values()):
         kwargs = {key: value for key, value in kwargs.items() if key in parameters}

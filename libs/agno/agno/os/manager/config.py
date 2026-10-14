@@ -20,6 +20,10 @@ RESERVED_MEMBER_IDS = frozenset({BUILDER_ID, OPERATOR_ID, ENGINEER_ID})
 class ManagerConfig:
     """Configure the OS manager and its resources.
 
+    When authorization is enforced, execution requires administrator authority;
+    ordinary component run grants do not grant the manager's platform capabilities.
+    Direct Python calls and bound interfaces are trusted application entry points.
+
     Args:
         name: The manager team's display name.
         model: Model for the manager and its members. Uses the registry's first

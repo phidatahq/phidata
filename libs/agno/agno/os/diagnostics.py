@@ -157,12 +157,13 @@ async def _check(agent_os: "AgentOS", name: str, *, network_probe: bool, public_
 
     if name == "components":
         entries = [*(agent_os.agents or []), *(agent_os.teams or []), *(agent_os.workflows or [])]
-        ids = [getattr(entry, "id", None) for entry in entries]
-        if not all(ids):
+        if any(not getattr(entry, "id", None) for entry in entries):
             return CheckResult(name, "FAIL", "A registered component has no id")
-        if len(ids) != len(set(ids)):
-            return CheckResult(name, "FAIL", "Duplicate component ids")
-        return CheckResult(name, "PASS", f"{len(entries)} components registered with unique ids")
+        for components in (agent_os.agents, agent_os.teams, agent_os.workflows):
+            ids = [entry.id for entry in components or []]
+            if len(ids) != len(set(ids)):
+                return CheckResult(name, "FAIL", "Duplicate component ids within a component type")
+        return CheckResult(name, "PASS", f"{len(entries)} components registered with unique ids within each type")
 
     if name == "registry":
         registry = agent_os.registry
@@ -175,11 +176,22 @@ async def _check(agent_os: "AgentOS", name: str, *, network_probe: bool, public_
         return CheckResult(name, "PASS", "Declared knowledge and learning names are unique")
 
     if name == "interfaces":
+
+        def credentials_present(interface: Any) -> bool:
+            # Match SlackTools' token fallback and the signature verifier's
+            # explicit-secret precedence (an empty explicit secret stays empty).
+            from agno.os.interfaces.slack.security import SLACK_SIGNING_SECRET
+
+            token = getattr(interface, "token", None) or os.getenv("SLACK_TOKEN")
+            secret = getattr(interface, "signing_secret", None)
+            if secret is None:
+                secret = SLACK_SIGNING_SECRET
+            return bool(token and secret)
+
         missing = [
             interface
             for interface in agent_os.interfaces
-            if getattr(interface, "type", None) == "slack"
-            and not (getattr(interface, "token", None) and getattr(interface, "signing_secret", None))
+            if getattr(interface, "type", None) == "slack" and not credentials_present(interface)
         ]
         if missing:
             return CheckResult(name, "FAIL", "A Slack interface is missing its token or signing secret")

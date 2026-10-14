@@ -87,13 +87,15 @@ def get_schedule_router(
 
         match = RUN_ENDPOINT_RE.match(endpoint) if method.upper() == "POST" else None
 
-        if not caller_scopes_are_authoritative(request):
-            # The token's scopes are NOT the authority here (a managed-roles/ReBAC/custom
-            # plane governs access, and ignores them). Decide the target the same way its
-            # own route gate would -- through the configured provider -- so `schedules:write`
-            # cannot schedule a run of a component the caller may not run themselves (the
-            # executor fires it with the full-scope internal token).
-            from agno.os.auth import resolve_authorization_provider
+        manager_components = getattr(request.app.state, "manager_components", ())
+        if not caller_scopes_are_authoritative(request) or (
+            match is not None and (match.group(1), match.group(2)) in manager_components
+        ):
+            # Managed policies and the manager's additional admin requirement must
+            # decide the target just as its run route does. The executor uses an
+            # internal credential, so ordinary schedule/run grants cannot substitute
+            # for the caller's permission to execute the manager.
+            from agno.os.auth import _provider_for
             from agno.os.authz.provider import AuthorizationContext
 
             if match is None:
@@ -105,7 +107,7 @@ def get_schedule_router(
                     detail="Scheduling a non-run endpoint requires a scope-based authorization plane",
                 )
             resource_type, resource_id = match.group(1), match.group(2)
-            provider = resolve_authorization_provider(request)
+            provider = _provider_for(request)
             ctx = AuthorizationContext(
                 principal_id=getattr(request.state, "user_id", None),
                 scopes=list(caller_scopes),

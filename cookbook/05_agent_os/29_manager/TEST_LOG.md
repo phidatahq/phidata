@@ -200,3 +200,24 @@ Executed 2026-10-14 with `/Users/ab/code/agno/.venv/bin/python` and this branch'
 **Result:** All 28 checks passed. This establishes runtime and tool behaviour, not live-model answer quality.
 
 ---
+## Review corrections — 2026-10-14
+
+### manager_diagnostics.py
+
+**Status:** PASS
+
+**Description:** Ran the model-free diagnostics cookbook after correcting Slack credential resolution and component ID checks. Database, components, registry and interfaces passed. Authorization reported WARN, and the absent `OPENAI_API_KEY` correctly reported FAIL.
+
+**Result:** The script completed successfully without model calls. The report's overall FAIL reflects the missing required environment variable, not a script failure.
+
+---
+
+### Manager authorization and diagnostics regressions
+
+**Status:** PASS
+
+**Description:** 168 manager and diagnostics tests passed, including 57 new cases. Coverage includes the manager and every specialist, JWT and managed-role authority, service-account tokens with and without JWT authorization, continuation refusal, schedule target checks, MCP and default A2A gates, Slack environment/explicit credentials, and component ID namespaces. Existing ordinary agents remain runnable by ordinary grants.
+
+**Result:** Selected regression cases were also run against the reviewed commit: 19 failed and 22 passed, confirming the tests detect the original issues. The final authorization, service-account and diagnostics selection passed 297 tests. Full formatting and validation passed with isolated validation dependencies. No paid model calls or live Slack delivery checks were performed.
+
+---

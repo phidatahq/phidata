@@ -93,9 +93,16 @@ def resolve_authorization_provider(app_or_request: Any) -> AuthorizationProvider
     """
     app = getattr(app_or_request, "app", app_or_request)
     provider = getattr(getattr(app, "state", None), "authorization_provider", None)
-    if provider is not None:
-        return provider
-    return _default_authorization_provider()
+    return _with_manager_authorization(app, provider if provider is not None else _default_authorization_provider())
+
+
+def _with_manager_authorization(app: Any, provider: AuthorizationProvider) -> AuthorizationProvider:
+    components = getattr(getattr(app, "state", None), "manager_components", None)
+    if isinstance(components, set) and components:
+        from agno.os.manager.authorization import ManagerAuthorizationProvider
+
+        return ManagerAuthorizationProvider(provider, components)
+    return provider
 
 
 def _store_default_role(role_store: Any) -> Optional[str]:
@@ -381,7 +388,7 @@ def _provider_for(request: Any) -> AuthorizationProvider:
     scope provider, exactly as they were before the provider seam existed.
     """
     if getattr(request.state, "service_account_name", None) is not None:
-        return _default_authorization_provider()
+        return _with_manager_authorization(getattr(request, "app", None), _default_authorization_provider())
     return resolve_authorization_provider(request)
 
 

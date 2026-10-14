@@ -91,8 +91,21 @@ The default team name is **OS Manager**, with id `os-manager`. Set
 - **Platform Manager** (`platform-manager`): checks activity and runs diagnostics.
 - **Platform Engineer** (`platform-engineer`): reads source when a workspace is configured.
 
-The team and its members use the normal UI, REST, MCP and interface routes and
-scopes. Their ids are reserved, including the engineer id when no workspace is
+The team and its members use the normal UI, REST and MCP routes. When authorization
+is enforced, running or continuing them requires administrator authority
+(`agent_os:admin` by default), in addition to the normal component permission.
+Ordinary `agents:run`, `teams:run` and per-component run grants are insufficient:
+the manager can run other components and its specialists have platform-wide tools.
+Managed roles and custom authorization providers decide administrator authority
+through the configured provider; a token's admin scope cannot override their policy.
+Service-account tokens need the same admin authority, and scheduling manager runs
+checks it before saving the schedule. Read access retains normal component scopes.
+
+Direct Python calls, security-key access, unauthenticated deployments and interfaces
+bound directly to the team are trusted application entry points. Expose those only
+to trusted operators; binding Slack does not enforce REST user roles.
+
+Their ids are reserved, including the engineer id when no workspace is
 configured. The manager can run itself once with a fresh context; it cannot start
 another self-run from that run.
 

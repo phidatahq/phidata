@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import time
 
 import pytest
 from fastapi.testclient import TestClient
@@ -21,6 +22,148 @@ from agno.run import RunContext
 from agno.tools.agentos import AgentOSTools
 from agno.tools.studio import StudioTools
 from agno.tools.studio_runner import StudioRunnerTools
+
+
+@pytest.mark.parametrize("identity", ["jwt", "managed_role", "service_account", "service_account_open"])
+@pytest.mark.parametrize("admin", [False, True])
+@pytest.mark.parametrize("target", ["custom-manager", BUILDER_ID, OPERATOR_ID, ENGINEER_ID])
+def test_manager_execution_requires_admin(db, workspace, identity, admin, target):
+    import jwt
+
+    from agno.db.schemas.service_accounts import ServiceAccount
+    from agno.os import Authorization
+    from agno.os.service_accounts import generate_token
+
+    secret = "manager-test-signing-key-at-least-32-characters"
+    # Broad pre-existing grants must not expose newly enabled manager capabilities.
+    scopes = ["agent_os:admin"] if admin else ["agents:run", "teams:run", "schedules:write"]
+    auth = Authorization(verification_keys=[secret], algorithm="HS256", audience="manager-test")
+    if identity == "managed_role":
+        auth.define_role("caller", scopes)
+        auth.assign("alice", "caller")
+    os = AgentOS(
+        id="manager-test",
+        db=db,
+        telemetry=False,
+        authorization=False if identity == "service_account_open" else auth,
+        a2a_interface=True,
+        user_isolation=True,
+        agents=[Agent(id="ordinary", model=OfflineModel())],
+        manager=ManagerConfig(id="custom-manager", model=OfflineModel(), workspace=workspace),
+    )
+    if identity.startswith("service_account"):
+        token, token_hash, token_prefix = generate_token()
+        db.create_service_account(
+            ServiceAccount(
+                id="caller",
+                name="caller",
+                token_hash=token_hash,
+                token_prefix=token_prefix,
+                scopes=scopes,
+            ).to_dict()
+        )
+    else:
+        # A token's admin claim must not override a managed role's ordinary grants.
+        token = jwt.encode(
+            {
+                "sub": "alice",
+                "aud": "manager-test",
+                "exp": int(time.time()) + 300,
+                "scopes": ["agent_os:admin"] if identity == "managed_role" else scopes,
+            },
+            secret,
+            algorithm="HS256",
+        )
+    headers = {"Authorization": f"Bearer {token}"}
+    family = "teams" if target == "custom-manager" else "agents"
+    client = TestClient(os.get_app())
+    response = client.post(f"/{family}/{target}/runs", headers=headers, data={"message": "hello", "stream": "false"})
+    assert response.status_code == (200 if admin else 403), response.text
+    if not admin:
+        continuation = client.post(
+            f"/{family}/{target}/runs/missing/continue", headers=headers, data={"stream": "false"}
+        )
+        assert continuation.status_code == 403, continuation.text
+        if identity != "service_account_open":
+            a2a = client.post(f"/a2a/{family}/{target}/v1/message:send", headers=headers, json={})
+            assert a2a.status_code == 403, a2a.text
+    ordinary = client.post("/agents/ordinary/runs", headers=headers, data={"message": "hello", "stream": "false"})
+    assert ordinary.status_code == 200, ordinary.text
+    scheduled = client.post(
+        "/schedules",
+        headers=headers,
+        json={
+            "name": "manager-job",
+            "cron_expr": "0 0 * * *",
+            "endpoint": f"/{family}/{target}/runs",
+            "payload": {"message": "hello"},
+        },
+    )
+    assert scheduled.status_code == (201 if admin else 403), scheduled.text
+
+
+def test_manager_cannot_dispatch_for_a_caller_with_only_its_run_scope(db):
+    import jwt
+
+    from agno.os import Authorization
+
+    secret = "manager-test-signing-key-at-least-32-characters"
+    restricted = Agent(id="restricted", model=ManagerAnswerModel("restricted ran"), db=db)
+    os = AgentOS(
+        id="manager-test",
+        db=db,
+        agents=[restricted],
+        telemetry=False,
+        user_isolation=True,
+        authorization=Authorization(verification_keys=[secret], algorithm="HS256", audience="manager-test"),
+        manager=ManagerConfig(model=OfflineModel()),
+    )
+    model = ManagerToolModel("run_agent", {"agent_id": "restricted", "message": "test"})
+    os.manager.model = model
+    token = jwt.encode(
+        {"sub": "alice", "aud": "manager-test", "scopes": ["teams:os-manager:run"], "exp": int(time.time()) + 300},
+        secret,
+        algorithm="HS256",
+    )
+    client = TestClient(os.get_app())
+    headers = {"Authorization": f"Bearer {token}"}
+    for path in ("/agents/restricted/runs", "/teams/os-manager/runs"):
+        response = client.post(path, headers=headers, data={"message": "test", "stream": "false"})
+        assert response.status_code == 403, response.text
+    assert model.calls == 0
+
+
+@pytest.mark.parametrize("service_account", [False, True])
+@pytest.mark.parametrize("admin", [False, True])
+@pytest.mark.parametrize("path", ["/teams/os-manager/runs", "/agents/platform-builder/runs"])
+async def test_manager_mcp_requires_admin(db, monkeypatch, service_account, admin, path):
+    from types import SimpleNamespace
+
+    from fastmcp.server import dependencies
+
+    from agno.os.mcp import _require_tool_scopes
+
+    os = AgentOS(db=db, manager=ManagerConfig(model=OfflineModel()), mcp=True, telemetry=False)
+    app = os.get_app()
+    assert os._mcp_app.state.manager_components == app.state.manager_components
+    request = SimpleNamespace(
+        app=os._mcp_app,
+        headers={},
+        state=SimpleNamespace(
+            authorization_enabled=True,
+            user_id="alice",
+            claims={},
+            scopes=["agent_os:admin"] if admin else ["agents:run", "teams:run"],
+            service_account_name="caller" if service_account else None,
+            admin_scope="agent_os:admin",
+        ),
+    )
+    monkeypatch.setattr(dependencies, "get_http_request", lambda: request)
+    if admin:
+        await _require_tool_scopes("POST", path)
+    else:
+        with pytest.raises(Exception, match="[Pp]ermission"):
+            await _require_tool_scopes("POST", path)
 
 
 class OfflineModel(Model):

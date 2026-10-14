@@ -896,9 +896,8 @@ async def _require_tool_scopes(method: str, path: str) -> None:
     from fastmcp.server.dependencies import get_http_request
 
     from agno.os.auth import (
-        _default_authorization_provider,
+        _provider_for,
         build_insufficient_permissions_detail,
-        resolve_authorization_provider,
     )
     from agno.os.authz.provider import AuthorizationContext
     from agno.os.scopes import get_required_scopes_for_route, get_resource_context_from_path
@@ -945,7 +944,7 @@ async def _require_tool_scopes(method: str, path: str) -> None:
     # a managed store, so it is evaluated by the scope provider here too -- mirroring the
     # REST per-resource gate. Routing PATs through a configured provider would deny every
     # MCP tool call for a caller the transport already authenticated on scope math.
-    provider = _default_authorization_provider() if is_service_account else resolve_authorization_provider(request)
+    provider = _provider_for(request)
     ctx = AuthorizationContext(
         principal_id=getattr(state, "user_id", None),
         scopes=list(getattr(state, "scopes", None) or []),

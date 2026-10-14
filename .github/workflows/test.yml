@@ -270,3 +270,12 @@ jobs:
           source .venv/bin/activate
           uv pip install "psycopg[binary]" --quiet
           python -m pytest -rs libs/agno/tests/integration/db/test_queue_store_parity.py
+
+      - name: Run Company backend integration tests
+        working-directory: .
+        env:
+          AGNO_TELEMETRY: false
+          COMPANY_TEST_DATABASE_URL: postgresql+psycopg://ai:ai@localhost:5532/ai
+        run: |
+          source .venv/bin/activate
+          python -m pytest -rs libs/agno/tests/integration/company

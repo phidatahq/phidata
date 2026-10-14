@@ -442,8 +442,17 @@ class QueueCapabilities(BaseModel):
     )
 
 
+class CompanyCapabilities(BaseModel):
+    api_version: str = "1"
+    api_base_path: str = "/company/v1"
+    renderer_version: str = "company.v1"
+    label: str = "Company"
+
+
 class ConfigResponse(BaseModel):
     """Response schema for the general config endpoint"""
+
+    company: Optional[CompanyCapabilities] = None
 
     os_id: str = Field(..., description="Unique identifier for the OS instance")
     name: Optional[str] = Field(None, description="Name of the OS instance")

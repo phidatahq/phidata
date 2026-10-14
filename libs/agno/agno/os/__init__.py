@@ -7,10 +7,12 @@ from agno.os.authz import Authorization, UserDirectory
 from agno.os.config import MCP_BUILTIN_TAGS, CORSConfig, MCPBuiltinTag, MCPConfig, MCPServerConfig
 
 if TYPE_CHECKING:
+    from agno.os.company.config import CompanyConfig
     from agno.os.mcp_auth_builtin import AgentOSBuiltinAuth
 
 __all__ = [
     "AgentOS",
+    "CompanyConfig",
     "Authorization",  # verification + roles + audit + the /authz admin API, wired into AgentOS
     "UserDirectory",  # the credential-less roster, AgentOS(user_directory=...)
     "CORSConfig",
@@ -27,6 +29,10 @@ __all__ = [
 def __getattr__(name: str) -> Any:
     # Lazy so importing agno.os does not require the `mcp` extra (fastmcp); the built-in
     # MCP OAuth server is only pulled in when a deployment actually uses it.
+    if name == "CompanyConfig":
+        from agno.os.company.config import CompanyConfig
+
+        return CompanyConfig
     if name == "AgentOSBuiltinAuth":
         from agno.os.mcp_auth_builtin import AgentOSBuiltinAuth
 

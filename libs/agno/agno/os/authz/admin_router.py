@@ -478,7 +478,7 @@ def get_roles_router(
 
     # ---- scope catalog --------------------------------------------------
     @router.get("/scopes", response_model=List[AvailableScopeItem], response_model_exclude_none=True)
-    async def list_scopes() -> List[AvailableScopeItem]:
+    async def list_scopes(request: Request) -> List[AvailableScopeItem]:
         """All scopes this AgentOS understands, as a flat list.
 
         Derived from the OS's own route→scope map (so it always matches what the OS
@@ -490,6 +490,16 @@ def get_roles_router(
 
         raws = {scope for required in get_default_scope_mappings().values() for scope in required}
         raws.add("agent_os:admin")
+        if getattr(request.app.state, "company_enabled", False):
+            raws.update(
+                {
+                    "company:manage",
+                    "company_products:read",
+                    "company_products:write",
+                    "company_products:review",
+                    "company_products:manage",
+                }
+            )
         return [AvailableScopeItem.from_raw(r) for r in sorted(raws)]
 
     # ---- audit ----------------------------------------------------------

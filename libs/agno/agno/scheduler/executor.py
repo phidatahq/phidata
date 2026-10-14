@@ -53,10 +53,12 @@ class ScheduleExecutor:
         internal_service_token: str,
         timeout: int = 3600,
         poll_interval: int = _DEFAULT_POLL_INTERVAL,
+        company: Any = None,
     ) -> None:
         if httpx is None:
             raise ImportError("`httpx` not installed. Please install it using `pip install httpx`")
         self.base_url = base_url.rstrip("/")
+        self._company = company
         self.internal_service_token = internal_service_token
         self.timeout = timeout
         self.poll_interval = poll_interval
@@ -116,7 +118,9 @@ class ScheduleExecutor:
             # is recorded as a failed run and the schedule is disabled with a
             # reason instead of silently re-arming on every tick.
             if sched.managed_by is not None and sched.target_type and sched.target_id:
-                if not match_run_endpoint(sched.endpoint, sched.target_type, sched.target_id):
+                if not (
+                    sched.managed_by == "company" and self._company is not None and sched.target_type == "task"
+                ) and not match_run_endpoint(sched.endpoint, sched.target_type, sched.target_id):
                     last_error = (
                         f"Schedule {sched.id} endpoint {sched.endpoint!r} does not match its "
                         f"provenance target {sched.target_type}:{sched.target_id}; refusing to execute"
@@ -314,6 +318,10 @@ class ScheduleExecutor:
     # ------------------------------------------------------------------
     async def _call_endpoint(self, schedule: Schedule) -> Dict[str, Any]:
         """Make the HTTP call to the schedule's endpoint."""
+        if schedule.managed_by == "company":
+            if self._company is None:
+                return {"status": "failed", "error": "Company schedule adapter is unavailable"}
+            return await self._company._execute_schedule(schedule)
         method = (schedule.method or "POST").upper()
         endpoint = schedule.endpoint
         payload = schedule.payload or {}

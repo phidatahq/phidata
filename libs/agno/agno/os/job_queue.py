@@ -305,6 +305,9 @@ async def aenqueue_ticket(queue_worker: Any, job: Dict[str, Any], component: Any
 
     A component that sets one_turn_per_session is always marked: a second concurrent turn
     on its session fails instead of waiting, so its order cannot depend on the flag."""
+    company = getattr(queue_worker, "_company", None)
+    if company is not None:
+        job = company._stamp_caller(job)
     config = queue_worker.config
     if config.queue_per_session or getattr(component, "one_turn_per_session", False) is True:
         job = {**job, "payload": {**(job.get("payload") or {}), "serialize_session": True}}
@@ -515,6 +518,7 @@ class QueueWorker:
         self.worker_id = worker_id or f"worker-{uuid4().hex[:8]}"
         self.stop_timeout = stop_timeout
         self.auto_provision = auto_provision
+        self._company: Any = None
         # Effective per-session order: a custom store without serializes_sessions claims
         # marked tickets concurrently, and /config reports the gate as off.
         self.queue_per_session = config.queue_per_session and store_serializes_sessions(store)
@@ -1746,7 +1750,10 @@ class QueueWorker:
                 (job.get("payload") or {}).get("serialize_session") is True and store_serializes_sessions(self.store)
             ),
         ) as ownership:
-            await self._execute_claimed_inner(job, ownership)
+            if self._company is not None:
+                await self._company._execute(self, job, ownership)
+            else:
+                await self._execute_claimed_inner(job, ownership)
 
     async def _await_with_timeout(self, execution: Any, ownership: Any) -> Any:
         """asyncio.wait_for with cause attribution: the cancellation cause is
@@ -2888,6 +2895,9 @@ async def queue_lifespan(app: Any, agent_os: Any):
         stop_timeout=resolve_stop_timeout(config),
         auto_provision=getattr(agent_os, "auto_provision_dbs", True),
     )
+    if getattr(agent_os, "company", None) is not None:
+        worker._company = agent_os.company._runtime
+        worker._company.worker = worker
     app.state.queue_worker = worker
     set_active_queue_worker(worker)
     try:
@@ -2899,6 +2909,8 @@ async def queue_lifespan(app: Any, agent_os: Any):
         # inline-door admission gate then consulted a dead worker's store
         # forever.
         await worker.start()
+        if worker._company is not None:
+            await worker._company._recover()
         yield
     finally:
         set_active_queue_worker(None)

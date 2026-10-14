@@ -200,7 +200,22 @@ def get_base_router(
                 detail=f"Failed to fetch config from remote AgentOS: {e}",
             )
 
+        company = None
+        if os.company is not None:
+            from agno.os.company.policy import CompanyError
+            from agno.os.company.router import principal_from_request
+            from agno.os.schema import CompanyCapabilities
+
+            try:
+                caller = await os.company.aget_me(principal=principal_from_request(request))
+                if caller["company_access"]:
+                    company = CompanyCapabilities()
+            except CompanyError as exc:
+                if exc.status >= 500:
+                    raise HTTPException(status_code=exc.status, detail=exc.message) from exc
+
         return ConfigResponse(
+            company=company,
             os_id=os.id or "Unnamed OS",
             description=os.description,
             available_models=_collect_unique_models(os),

@@ -427,6 +427,11 @@ def get_default_scope_mappings() -> Dict[str, List[str]]:
     Format: "METHOD /path/pattern": ["resource:action"]
     """
     mappings: Dict[str, List[str]] = {
+        # Company authenticates here and authorizes operations against authoritative
+        # Product parents in its shared service (including cross-Product listings).
+        "GET /company/v1/*": [],
+        "POST /company/v1/*": [],
+        "PATCH /company/v1/*": [],
         # Config endpoints (legacy scope: system:read)
         "GET /config": ["config:read"],
         "GET /models": ["config:read"],

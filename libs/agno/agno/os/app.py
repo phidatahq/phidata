@@ -104,6 +104,8 @@ if TYPE_CHECKING:
     from agno.os.authz.authorization import Authorization
     from agno.os.authz.provider import AuthorizationProvider
     from agno.os.authz.user_directory import UserDirectory
+    from agno.os.company.config import CompanyConfig
+    from agno.os.company.service import CompanyService
     from agno.os.schema import FileSystemConfig
 
 
@@ -222,6 +224,7 @@ async def scheduler_lifespan(app: FastAPI, agent_os: "AgentOS"):
     executor = ScheduleExecutor(
         base_url=base_url,
         internal_service_token=internal_token,
+        company=agent_os.company._runtime if agent_os.company is not None else None,
     )
     poller = SchedulePoller(
         db=agent_os.db,
@@ -327,6 +330,7 @@ class AgentOS:
         scheduler_base_url: Optional[str] = None,
         internal_service_token: Optional[str] = None,
         public: Optional[Any] = None,
+        company: Optional["CompanyConfig"] = None,
     ):
         """Initialize AgentOS.
 
@@ -372,6 +376,8 @@ class AgentOS:
             base_app: Optional base FastAPI app to use for the AgentOS. All routes and middleware will be added to this app.
             on_route_conflict: What to do when a route conflict is detected in case a custom base_app is provided.
             auto_provision_dbs: Whether to automatically provision databases
+            company: Optional Company records with an explicit PostgreSQL database.
+                Requires verified JWT authorization; migrations are an explicit operator step.
             authorization: The authorization setup. Prefer ``Authorization(...)`` -- one object for
                 verification, roles, the user directory, audit, and the admin API (see
                 ``agno.os.authz.Authorization``). ``True`` keeps today's scope RBAC from token
@@ -418,7 +424,7 @@ class AgentOS:
             scheduler_base_url: Base URL for scheduler HTTP calls (default: http://127.0.0.1:7777)
             internal_service_token: Token for scheduler-to-OS auth (auto-generated if not provided)
         """
-        if not agents and not workflows and not teams and not knowledge and not db:
+        if not agents and not workflows and not teams and not knowledge and not db and company is None:
             raise ValueError("Either agents, teams, workflows, knowledge bases or a database must be provided.")
 
         self.config = load_yaml_config(config) if isinstance(config, str) else config
@@ -549,6 +555,19 @@ class AgentOS:
         # the disabled kill-switch). ``user_directory=True`` is a shorthand: AgentOS builds the
         # UserDirectory on its own db, so callers avoid the manual wiring.
         self.user_directory = self._resolve_user_directory(user_directory)
+        self.company: Optional["CompanyService"] = None
+        if company is not None:
+            from agno.os.company.config import CompanyConfig
+            from agno.os.company.service import CompanyService
+
+            if not isinstance(company, CompanyConfig):
+                raise ValueError("company must be CompanyConfig(db=...) or None")
+            if not self.authorization:
+                raise ValueError("Company requires AgentOS authorization with verified JWT identities")
+            self.company = CompanyService(company, user_directory=self.user_directory)
+            from agno.os.company.runtime import CompanyRuntime
+
+            self.company._runtime = CompanyRuntime(self.company, self)
         # The /users directory API is served whenever a directory is configured. It is admin-gated
         # whenever an auth middleware runs (so callers have a verified identity to gate on) and
         # open only on a no-auth OS, where every route is open. See _admin_api_routers, which
@@ -833,6 +852,12 @@ class AgentOS:
             updated_routers.append(get_registry_router(registry=self.registry))
         else:
             updated_routers.append(_get_disabled_feature_router("/registry", "Registry", "registry"))
+
+        if self.company is not None:
+            from agno.os.company.router import get_company_router
+
+            updated_routers.append(get_company_router(self.company))
+        app.openapi_schema = None
 
         # Clear all previously existing routes
         app.router.routes = [
@@ -1484,12 +1509,14 @@ class AgentOS:
             # The async database lifespan
             lifespans.append(partial(db_lifespan, agent_os=self))
 
-            # The scheduler lifespan (after db so tables exist)
+            # Company recovers pending dispatch before the scheduler can claim overdue Tasks.
+            if self.company is not None and self.queue is not None and self.queue.durable:
+                lifespans.append(partial(queue_lifespan, agent_os=self))
+
             if self._scheduler_enabled and self.db is not None:
                 lifespans.append(partial(scheduler_lifespan, agent_os=self))
 
-            # The durable job queue worker (after db so tables exist)
-            if self.queue is not None and self.queue.durable:
+            if self.company is None and self.queue is not None and self.queue.durable:
                 lifespans.append(partial(queue_lifespan, agent_os=self))
 
             # Launch telemetry starts here, after any pre-fork application
@@ -1533,12 +1560,14 @@ class AgentOS:
             # Async database initialization lifespan
             lifespans.append(partial(db_lifespan, agent_os=self))  # type: ignore
 
-            # The scheduler lifespan (after db so tables exist)
+            # Company recovers pending dispatch before the scheduler can claim overdue Tasks.
+            if self.company is not None and self.queue is not None and self.queue.durable:
+                lifespans.append(partial(queue_lifespan, agent_os=self))
+
             if self._scheduler_enabled and self.db is not None:
                 lifespans.append(partial(scheduler_lifespan, agent_os=self))
 
-            # The durable job queue worker (after db so tables exist)
-            if self.queue is not None and self.queue.durable:
+            if self.company is None and self.queue is not None and self.queue.durable:
                 lifespans.append(partial(queue_lifespan, agent_os=self))
 
             # Launch telemetry starts here, after any pre-fork application
@@ -1620,6 +1649,11 @@ class AgentOS:
         # included after get_app() returns sits behind that mount and 404s on any OS with
         # mcp_server=True.
         routers.extend(self._admin_api_routers())
+
+        if self.company is not None:
+            from agno.os.company.router import get_company_router
+
+            routers.append(get_company_router(self.company))
 
         for router in routers:
             self._add_router(fastapi_app, router)
@@ -1773,6 +1807,12 @@ class AgentOS:
                 origin_policy=origin_policy,
             )
 
+        if self.company is not None:
+            from agno.os.company.context import CompanyContextMiddleware
+
+            self.company._runtime.app = fastapi_app
+            fastapi_app.add_middleware(CompanyContextMiddleware, service=self.company)
+
         auth_configured = self._auth_configured()
         if auth_configured:
             # In JWT mode the security key is ignored (JWT takes precedence), matching
@@ -1818,6 +1858,12 @@ class AgentOS:
                 )
             validate_mcp_routes(fastapi_app, routing_config, self._mcp_app)
             fastapi_app.add_middleware(MCPRoutingMiddleware, config=routing_config)
+
+        if self.company is not None:
+            from agno.os.company.middleware import CompanyProtocolMiddleware
+
+            fastapi_app.add_middleware(CompanyProtocolMiddleware)
+            fastapi_app.state.company_enabled = True
 
         # Preflights and auth/admission failures use the same configured CORS policy.
         cors = [middleware for middleware in fastapi_app.user_middleware if _is_cors_middleware(middleware)]

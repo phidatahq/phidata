@@ -12,7 +12,7 @@ import math
 import time
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta
-from typing import Any, Callable, Dict, Optional, TypeVar, Union
+from typing import Any, Callable, Dict, Optional, Tuple, TypeVar, Union
 from uuid import uuid4
 
 from agno.db.postgres import AsyncPostgresDb, PostgresDb
@@ -504,7 +504,14 @@ class _SandboxStore:
         return self._sync(self.aconfirm_stopped, lease, provider_ref)
 
     async def acommit(self, lease: SandboxLease) -> Dict[str, Any]:
-        def commit(connection: Connection) -> Dict[str, Any]:
+        """Publish the staged result and checkpoint with the run, atomically.
+
+        Raises SandboxRunFinished if another writer finished the run first. Cleanup is
+        already confirmed by then, so the session is released before raising: the stored
+        outcome stands and the previous checkpoint stays the recovery point.
+        """
+
+        def commit(connection: Connection) -> Tuple[bool, Dict[str, Any]]:
             row = self._locked(connection, lease)
             record = dict(row["record"])
             if (
@@ -515,7 +522,13 @@ class _SandboxStore:
                 raise SandboxError("Durable completion requires staged recovery bytes and confirmed compute cleanup")
             previous_run, session = self._service_run(connection, lease)
             if str(previous_run["status"]).upper() in _FINISHED:
-                raise SandboxRunFinished(dict(previous_run["run_data"]))
+                record.update(phase="idle", result=None, staged_checkpoint=None)
+                connection.execute(
+                    update(self.bindings)
+                    .where(self._key(lease.session_id))
+                    .values(owner=None, run_id=None, queue_attempt=None, expires_at=None, record=record)
+                )
+                return False, dict(previous_run["run_data"])
             result = record["result"]
             run = dict(previous_run["run_data"])
             run.update({key: value for key, value in result["run"].items() if key in _RUNTIME_RUN_FIELDS})
@@ -559,9 +572,13 @@ class _SandboxStore:
                 .where(self._key(lease.session_id))
                 .values(owner=None, run_id=None, queue_attempt=None, expires_at=None, record=record)
             )
-            return run
+            return True, run
 
-        return await self._transaction(commit)
+        # Raised outside the transaction, so the release above commits.
+        published, run = await self._transaction(commit)
+        if not published:
+            raise SandboxRunFinished(run)
+        return run
 
     def commit(self, lease: SandboxLease) -> Dict[str, Any]:
         return self._sync(self.acommit, lease)

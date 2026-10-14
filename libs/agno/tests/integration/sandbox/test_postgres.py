@@ -364,13 +364,30 @@ async def test_external_cancellation_wins_over_staged_success(store):
             update(store.runs).values(status="CANCELLED", run_data={**result(lease)["run"], "status": "CANCELLED"})
         )
     )
-    with pytest.raises(SandboxRunFinished):
+    with pytest.raises(SandboxRunFinished) as caught:
         await store.acommit(lease)
-    # Recovery may take over a terminal service run solely to finish cleanup.
-    state = await claim(store)
-    await store.abegin_stop(state.lease, status="ERROR", reason="must preserve cancellation")
-    assert (await store.afinish_stop(state.lease))["status"] == "CANCELLED"
-    assert (await rows(store))[2]["record"]["checkpoint"] is None
+    assert caught.value.run["status"] == "CANCELLED"
+    # Cleanup was already confirmed, so the commit itself released the session.
+    run, _, binding = await rows(store)
+    assert run["status"] == "CANCELLED" and binding["record"]["phase"] == "idle" and binding["owner"] is None
+    assert binding["record"]["checkpoint"] is None
+    with pytest.raises(SandboxRunFinished):
+        await claim(store)
+
+
+async def test_commit_after_external_completion_releases_the_session(store):
+    lease = await staged(store)
+    await store.astage_checkpoint(lease, REF)
+    await store.aconfirm_stopped(lease, "ref")
+    await finish_elsewhere(store, "COMPLETED")
+    with pytest.raises(SandboxRunFinished) as caught:
+        await store.acommit(lease)
+    # The stored completion stands, and the staged checkpoint is not promoted.
+    assert caught.value.run["content"] == "finished elsewhere"
+    binding = (await rows(store))[2]
+    assert binding["record"]["phase"] == "idle" and binding["record"]["checkpoint"] is None
+    await seed(store, run_id="second")
+    assert (await claim(store, run_id="second")).record["phase"] == "executing"
 
 
 async def test_staged_result_is_immutable_and_identity_bound(store):

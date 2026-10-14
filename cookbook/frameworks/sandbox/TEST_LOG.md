@@ -247,6 +247,9 @@ No model calls in the load run. Requests and daemon calls per turn are what scal
 **Description:** The strict native recovery change ported onto the base branch, plus the missing guard: `expected_native` on `start`, checked by the runtime against the local database before the model runs and reported as `execution_error` with reason `native_state_missing`. Without it a lost local database was indistinguishable from a new session and produced a completed turn on a fresh conversation, measured live earlier with both SDKs.
 
 **Result:** Unit: agent and sandbox suites 795 passed, including the expectation matrix (match runs, null runs, missing or different native id refused without a model call), the worker's reason field, and request validation. Live on the branch image with real Claude: continuity with the expectation set; a wrong expectation refused in 0.4 s; the database deleted then refused in 0.4 s with the committed id; a fresh turn without an expectation allowed; a read-only database refused before the model. Real Codex: thread files deleted with the database kept ends the run with status ERROR and the stored thread id intact; the database deleted with the committed id is refused with `native_state_missing`. `native_recovery.py` walks five generations of one session: checkpoint and destroy, a restore that lands and recalls the word, a skipped restore answering NONE as COMPLETED without an expectation, the same skipped restore refused with `native_state_missing` when the committed id is passed, and the retry that restores the same checkpoint into a fresh generation and recalls the word again. 21 s end to end with real Claude.
+
+---
+
 ### agentcore_session.py
 
 **Status:** PASS (fixture, codex, claude)
@@ -256,6 +259,25 @@ No model calls in the load run. Requests and daemon calls per turn are what scal
 **Result:** On 14 October 2026 the fixture run completed both turns on the same microVM and left `fixture-effects.txt` and `fixture-env.txt` in the workspace. The Codex run completed both turns: turn 2 answered "The codeword was `BLUE-HERON`" and added `test_primes.py`, whose two tests passed against the `primes.py` from turn 1. Live runs on an earlier version found that Codex fails without `CODEX_HOME` and ignores `OPENAI_API_KEY` without a stored login; the runtime now creates the directory and logs in. The Claude run used Bedrock through the runtime's execution role with no API key, model `us.anthropic.claude-sonnet-5`. It first failed with an AWS Marketplace subscription error until the account's Anthropic use case form was submitted. After that both turns completed: turn 2 answered "The codeword is BLUE-HERON" and added `test_primes.py`, whose five tests passed.
 
 Local container checks of `agentcore_server`: the guard refuses commands before a claim with exit code 125, a second claim with different identity is refused, start and a long poll reach the runtime server, the long poll returned when the 2 second fixture finished, commands run as UID 1000 in `/workspace` with staged stdin and `HOME=/runtime`, the staged input is deleted, and the agent cannot read the claim.
+
+---
+
+### AgentCore adversarial review fixes
+
+**Status:** PASS
+
+**Description:** Three review cycles over the whole provider, the third with Codex as a second model. Fixes from the last cycle:
+- A handle that reaches an unclaimed replacement microVM retires it, so a racing create cannot claim it. A handle that arrives during a first claim gets "busy" instead.
+- A repeated create no longer waits on the server lock. It skips the runtime health check during a capture or restore, and restarts the runtime only after three misses.
+- Transfer children are killed after 840 seconds. Export and import use the long-timeout client.
+- The freeze leaves processes the agent stopped itself alone.
+- `_remove` works on a failed computer.
+- Runtime replies are never followed through a redirect or a proxy, and are read only up to 4 MiB.
+- A stale handle that fails `arestore` no longer stops the computer that now holds the session.
+- The provider refuses checkpoint limits above 2 GiB.
+- Codex logs in only when no stored login matches the key.
+
+**Result:** After rebasing onto #10975 with #11053, 305 sandbox unit tests pass with this branch on `PYTHONPATH`. After redeploying the staging runtime, the live checks passed. The agent gets `Forbidden` on port 8080 and cannot read the control directory. 8 MiB of stdin arrived intact. A 150-second command finished and the computer stayed claimed. `agentcore_session.py --replace` recalled the codeword on a restored microVM with Codex and Claude, and the fixture harness passed.
 
 ---
 

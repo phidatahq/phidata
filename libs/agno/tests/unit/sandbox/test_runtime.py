@@ -699,3 +699,50 @@ def test_expected_native_is_validated_and_optional(request_data):
     for bad in ("", 5, "x" * 257):
         with pytest.raises(ValueError, match="expected_native"):
             runtime._validate({**request_data, "expected_native": bad})
+
+
+def test_codex_home_must_be_a_directory(tmp_path):
+    asyncio.run(runtime._prepare_codex(tmp_path))
+    assert (tmp_path / "codex").is_dir()
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "codex").write_text("notes the agent saved")
+    with pytest.raises(SandboxError, match="must be a directory"):
+        asyncio.run(runtime._prepare_codex(other))
+
+
+def test_codex_login_never_reports_the_key():
+    calls = []
+
+    class Agent:
+        async def alogin_api_key(self, key):
+            calls.append(key)
+
+    asyncio.run(runtime._login_codex(Agent(), "sk-secret"))
+    asyncio.run(runtime._login_codex(Agent(), "sk-secret"))
+    assert calls == ["sk-secret", "sk-secret"]
+
+    class Failing:
+        async def alogin_api_key(self, key):
+            raise RuntimeError("login rejected for key " + key)
+
+    with pytest.raises(SandboxError) as raised:
+        asyncio.run(runtime._login_codex(Failing(), "sk-secret"))
+    assert "sk-secret" not in str(raised.value) and "[redacted]" in str(raised.value)
+
+
+def test_codex_logs_in_only_when_no_stored_login_matches_the_key(tmp_path):
+    home = tmp_path / "codex"
+    home.mkdir()
+    auth = home / "auth.json"
+    # A restored computer has no auth.json, since checkpoints exclude it.
+    assert runtime._codex_login_needed(tmp_path, "sk-new")
+    auth.write_text("not json")
+    assert runtime._codex_login_needed(tmp_path, "sk-new")
+    auth.write_text(json.dumps({"OPENAI_API_KEY": "sk-old"}))
+    assert runtime._codex_login_needed(tmp_path, "sk-new")
+    auth.write_text(json.dumps({"OPENAI_API_KEY": "sk-new"}))
+    assert not runtime._codex_login_needed(tmp_path, "sk-new")
+    # A ChatGPT login the user set up is kept.
+    auth.write_text(json.dumps({"OPENAI_API_KEY": None, "tokens": {"id_token": "x"}}))
+    assert not runtime._codex_login_needed(tmp_path, "sk-new")

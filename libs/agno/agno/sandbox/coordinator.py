@@ -47,13 +47,15 @@ class SandboxCoordinator:
         transfer: CheckpointTransfer,
         *,
         lease_seconds: float = 600,
-        poll_interval: float = 0.25,
+        poll_wait: float = 5,
     ) -> None:
-        if not 30 <= lease_seconds <= 3600 or not 0.01 <= poll_interval <= 30:
-            raise ValueError("Use a 30-3600 second lease and a 0.01-30 second polling interval")
+        # poll_wait is how long one poll waits inside the container for new events; it also
+        # bounds how long a cancellation can go unnoticed while a turn emits nothing.
+        if not 30 <= lease_seconds <= 3600 or not 0 < poll_wait <= 30:
+            raise ValueError("Use a 30-3600 second lease and a poll wait of up to 30 seconds")
         self.store, self.provider, self.transfer = _SandboxStore(db), provider, transfer
         self.client = SandboxRuntimeClient(provider)
-        self.lease_seconds, self.poll_interval = lease_seconds, poll_interval
+        self.lease_seconds, self.poll_wait = lease_seconds, poll_wait
 
     async def arun(
         self,
@@ -238,10 +240,12 @@ class SandboxCoordinator:
                         computer_stopped=record.get("computer") is None,
                     )
                     return record
-                if record["phase"] != "executing":
-                    return record
+                # Checked before any early return: a retry must not finalize a staged result
+                # under a different SDK or configuration.
                 if record.get("request_hash") not in (None, fingerprint):
                     raise SandboxError("Active run configuration changed; reconnect with the original configuration")
+                if record["phase"] != "executing":
+                    return record
                 record["request_hash"] = fingerprint
                 if record.get("computer") is not None:
                     return record
@@ -300,7 +304,6 @@ class SandboxCoordinator:
                     while True:
                         if heartbeat_error:
                             raise heartbeat_error[0]
-                        await self.store.aget(lease)
                         from agno.run.cancel import ais_cancelled
 
                         if await ais_cancelled(run_id):
@@ -308,10 +311,11 @@ class SandboxCoordinator:
                             yield self._terminal(committed)
                             yield RunOutput.from_dict(committed)
                             return
-                        page = await self.client.apoll(execution, cursor=cursor)
+                        page = await self.client.apoll(execution, cursor=cursor, wait=self.poll_wait)
                         cursor = page.cursor
-                        # A resumed caller may receive provisional events again.
-                        # Queue/event transport supplies its own attempt fencing.
+                        # One lease check per page, before its events are published; the heartbeat
+                        # keeps the lease alive. A resumed caller may receive provisional events
+                        # again; queue/event transport supplies its own attempt fencing.
                         await self.store.aget(lease)
                         for event in page.events:
                             yield run_output_event_from_dict(event)
@@ -321,14 +325,14 @@ class SandboxCoordinator:
                                     lease,
                                     status="ERROR",
                                     reason=str(page.result.get("error", "Runtime outcome is unknown"))[:8192],
-                                    retryable=True,
+                                    # Any other failure may have run tools with side effects; never replay it.
+                                    retryable=page.result.get("reason") == "native_state_missing",
                                 )
                                 yield self._terminal(committed)
                                 yield RunOutput.from_dict(committed)
                                 return
                             state = await self.store.astage_result(lease, page.result)
                             break
-                        await asyncio.sleep(self.poll_interval)
                 result = state.record["result"]["run"]
                 native_id = (state.record["result"]["session"].get("session_data") or {}).get(NATIVE_SESSION_KEYS[sdk])
                 native_failed = any(
@@ -409,11 +413,11 @@ class SandboxCoordinator:
             await self.store.aconfirm_stopped(lease, handle.provider_ref)
         try:
             return await self.store.acommit(lease)
-        except SandboxRunFinished as finished:
-            if finished.run.get("status") == "COMPLETED":
-                return finished.run
+        except SandboxRunFinished:
+            # Another writer finished the run. The stop keeps its stored outcome and releases the
+            # session; the status passed here only applies to a run nobody has finished.
             return await self._stop(
-                lease, status=finished.run["status"], reason="Service run was terminated during finalization"
+                lease, status="ERROR", reason="Service run was finished elsewhere during finalization"
             )
 
     @staticmethod

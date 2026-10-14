@@ -8,11 +8,9 @@ Set GITHUB_TOKEN for read-only verification of private reviewer-linked PRs.
 
 from os import environ
 
-from agno.agent import Agent
 from agno.db.postgres import PostgresDb
 from agno.models.openai import OpenAIResponses
 from agno.os import AgentOS, Authorization, CompanyConfig, QueueConfig, UserDirectory
-from agno.tools.company import CompanyTools
 from pydantic import BaseModel
 
 
@@ -24,23 +22,7 @@ class WorkResult(BaseModel):
 
 db = PostgresDb(db_url=environ["COMPANY_DATABASE_URL"])
 model = OpenAIResponses(id="gpt-5.6-luna")
-product_manager = Agent(
-    id="product-manager",
-    name="Product Manager",
-    role="Manage Company Products, Projects and Tasks",
-    model=model,
-    db=db,
-    tools=[CompanyTools()],
-    instructions=[
-        "Read current Company records before planning or changing work.",
-        "Use one clear Task unless a larger outcome needs a Project.",
-        "Identify existing findings before creating draft work. Reuse its record and request key.",
-        "Update generated summaries from current Task versions; preserve human instructions.",
-        "Describe only checks you actually performed. Ask the human to accept completed work.",
-    ],
-    output_schema=WorkResult,
-)
-agents = [product_manager]
+agents = []
 workspace = environ.get("CODING_WORKSPACE")
 if workspace:
     from agno.agents.codex import CodexAgent
@@ -71,7 +53,7 @@ agent_os = AgentOS(
     id=environ.get("AGENT_OS_ID", "company"),
     db=db,
     agents=agents,
-    company=CompanyConfig(db=db, github_token=environ.get("GITHUB_TOKEN")),
+    company=CompanyConfig(db=db, model=model, github_token=environ.get("GITHUB_TOKEN")),
     authorization=Authorization(
         verification_keys=[environ["JWT_VERIFY_KEY"]],
         algorithm=environ.get("JWT_ALGORITHM", "RS256"),
@@ -82,9 +64,6 @@ agent_os = AgentOS(
     scheduler=True,
     **options,
 )
-if options.get("manager"):
-    # Product Manager is an ordinary member beside the platform specialists.
-    agent_os.manager.members.append(product_manager)
 app = agent_os.get_app()
 
 if __name__ == "__main__":

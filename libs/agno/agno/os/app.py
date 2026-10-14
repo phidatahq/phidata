@@ -984,6 +984,11 @@ class AgentOS:
 
     def _initialize_agents(self) -> None:
         """Initialize and configure all agents for AgentOS usage."""
+        if self.company is not None and self.company._config.model is not None:
+            from agno.os.company.manager import _initialize_product_manager
+
+            _initialize_product_manager(self)
+
         # Inject db into external framework agents (not covered by self._agents)
         for entry in self.agents or []:
             if isinstance(entry, BaseExternalAgent):

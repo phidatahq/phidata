@@ -427,24 +427,17 @@ def test_manager_team_delegates_company_tools_with_verified_identity(setup, tmp_
 
     db, users, service = setup
     service.create_product(data=ProductCreate(name="Documentation"), **mutation())
-    product_manager = Agent(
-        id="product-manager",
-        name="Product Manager",
-        role="Manage Company Products, Projects and Tasks",
-        model=DelegateModel(),
-        tools=[CompanyTools()],
-    )
     os = AgentOS(
         id="company-test",
-        agents=[product_manager],
         db=db,
-        company=CompanyConfig(db=db),
+        company=CompanyConfig(db=db, model=DelegateModel()),
         user_directory=users,
         authorization=Authorization(verification_keys=[KEY], algorithm="HS256", audience="company-test"),
         manager=manager_config(model=DelegateModel(), workspace=str(tmp_path)),
         queue=QueueConfig(durable=True, poll_interval=0.02),
     )
-    os.manager.members.append(product_manager)
+    product_manager = os.company.product_manager
+    assert product_manager is not None
     assert {m.id for m in os.manager.members} == {
         "platform-manager",
         "platform-builder",
@@ -453,6 +446,12 @@ def test_manager_team_delegates_company_tools_with_verified_identity(setup, tmp_
     }
     assert all(t.name == "company" for t in product_manager.tools)
     with TestClient(os.get_app()) as client:
+        client.headers["Authorization"] = "Bearer " + token(scopes=(*SCOPES, "agents:run"))
+        direct = client.post(
+            "/agents/product-manager/runs", data={"message": "List the Company Products", "stream": "false"}
+        )
+        assert direct.status_code == 200, direct.text
+        assert "Documentation" in direct.json()["content"]
         client.headers["Authorization"] = "Bearer " + token(
             scopes=(*SCOPES, "teams:run", "agents:run", "agent_os:admin")
         )

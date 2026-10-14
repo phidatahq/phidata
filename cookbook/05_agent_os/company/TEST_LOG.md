@@ -1,5 +1,39 @@
 # Company manual slice validation
 
+## Built-in Product Manager — 14 October 2026
+
+**Status:** PASS for behavior checks; full validation retains seven inherited typing errors.
+
+**Description:** `CompanyConfig(db=db, model=model)` constructs the framework's reusable
+Product Manager with CompanyTools and maintained instructions. It is served as an
+ordinary agent and automatically joins an enabled OS Manager. No application-defined
+Product Manager or explicit member append is needed. Model-free Company use is preserved.
+
+**Results:**
+- Focused built-in tests: **4 passed**. Verified per-instance reuse across Products and
+  resync, unmodified caller lists, manual opt-out, conflicting-ID rejection, normal HTTP
+  execution, caller-isolated Company reads and durable Task execution with stored results.
+- Backend Company/queue/scheduler/configuration/authorization suite: **386 passed,
+  2 expected Manager-only skips**, two existing OpenAPI warnings.
+- Disposable composition with Manager at
+  `01a202354a7e5f5bd7fd0b61f60dc0a7bb7b24d3`: **328 passed**, four existing OpenAPI
+  warnings. Includes automatic membership, ordinary-user direct Product Manager calls,
+  administrator Team delegation inline and queued, and Ready/review progression.
+- Explicit repeated Manager resync and Ready-execution follow-up: **1 passed**. Agent
+  and Team member identity are preserved and no duplicate member is added.
+- `with_agents.py` construction passed both with and without OS Manager enabled.
+  OpenAPI construction and resync only; no lifespan execution or live model calls.
+- Required formatting and lint/pattern checks: PASS. Full validation: FAIL with the
+  same seven inherited mypy errors in public limits and database adapters; no new errors.
+
+**Limits:** No live Product Manager model-quality evaluation. One reusable built-in
+serves authorized Products, rather than creating an agent per Product. Product/Task
+worker assignment remains explicit. Human review and platform permissions are unchanged.
+This is a separate local commit; the Manager PR is untouched and publication remains
+blocked by the repository's full-validation requirement.
+
+---
+
 ## Ready pickup and review gates — 14 October 2026
 
 **Status:** PASS for behavior checks; full validation remains blocked by seven inherited typing errors.

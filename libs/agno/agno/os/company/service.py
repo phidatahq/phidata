@@ -6,7 +6,7 @@ import hashlib
 import json
 from contextlib import contextmanager
 from datetime import datetime, timezone
-from typing import Any, Dict, Iterator, Optional
+from typing import TYPE_CHECKING, Any, Dict, Iterator, Optional
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel
@@ -36,6 +36,10 @@ _TABLES = {"product": "products", "project": "projects", "task": "tasks"}
 _ROLES = {"reader": 0, "contributor": 1, "owner": 2}
 
 
+if TYPE_CHECKING:
+    from agno.agent import Agent
+
+
 def _json(value: Any) -> str:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), default=str)
 
@@ -52,6 +56,7 @@ def _row(conn: Any, sql: str, **params: Any) -> Optional[Dict[str, Any]]:
 class CompanyService:
     def __init__(self, config: CompanyConfig, user_directory: Any = None):
         self._config = config
+        self.product_manager: Optional["Agent"] = None
         self._engine = config.db.db_engine
         self._users = user_directory
         self._runtime: Any = None

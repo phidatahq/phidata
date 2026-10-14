@@ -449,16 +449,12 @@ def test_ready_progression_composes_with_manager(setup, tmp_path):
         pytest.skip("Combine with Manager to test composition")
     from test_execution import LocalModel
 
-    from agno.agent import Agent
-    from agno.tools.company import CompanyTools
-
     original, worker = runtime_os(setup)
-    product_manager = Agent(id="product-manager", model=LocalModel(), db=original.db, tools=[CompanyTools()])
     os = AgentOS(
         id="company-test",
         db=original.db,
-        agents=[worker, product_manager],
-        company=CompanyConfig(db=setup[0]),
+        agents=[worker],
+        company=CompanyConfig(db=setup[0], model=LocalModel()),
         user_directory=setup[1],
         authorization=Authorization(verification_keys=[KEY], algorithm="HS256", audience="company-test"),
         manager=manager_config(model=LocalModel(), workspace=str(tmp_path)),
@@ -466,14 +462,20 @@ def test_ready_progression_composes_with_manager(setup, tmp_path):
         scheduler=True,
         scheduler_poll_interval=1,
     )
-    os.manager.members.append(product_manager)
+    product_manager = os.company.product_manager
+    assert product_manager is not None
     assert {m.id for m in os.manager.members} == {
         "platform-manager",
         "platform-builder",
         "platform-engineer",
         "product-manager",
     }
-    with TestClient(os.get_app()):
+    app = os.get_app()
+    os.resync(app)
+    os.resync(app)
+    assert sum(member is product_manager for member in os.manager.members) == 1
+    assert sum(agent is product_manager for agent in os.agents) == 1
+    with TestClient(app):
         _, task = make_work(os.company, project=True)
         accept_ready(os.company, task)
         task = wait_status(os.company, task, "in_review")

@@ -30,48 +30,54 @@ capability disabled, including its routes, descriptor and background work. Manua
 Company records need no model, manager or runtime database. The explicit Company
 database may differ from AgentOS's runtime database.
 
-## Add reusable workers
+## Enable the built-in Product Manager
 
 ```python
-from agno.agent import Agent
-from agno.os import QueueConfig
-from agno.tools.company import CompanyTools
+from agno.models.openai import OpenAIResponses
+from agno.os import AgentOS, CompanyConfig, QueueConfig
 
-product_manager = Agent(
-    id="product-manager",
-    name="Product Manager",
-    model=model,
-    db=db,
-    tools=[CompanyTools()],
-)
+model = OpenAIResponses(id="gpt-5.6-luna")
 agent_os = AgentOS(
     db=db,
-    agents=[product_manager],
     authorization=authorization,
-    company=CompanyConfig(db=db),
+    company=CompanyConfig(db=db, model=model),
     queue=QueueConfig(durable=True),
     scheduler=True,
 )
 ```
 
-The same Product Manager can manage every Product the caller may access. Creating a
-Product creates no agent. Choose a Product's default `agent_id`; a Task can override
-it. Execution requires permission to run that agent as well as Product membership.
+AgentOS builds and serves `product-manager` with its Company tools and instructions.
+It is available at the ordinary `/agents/product-manager/runs` endpoint and as
+`agent_os.company.product_manager`, an ordinary Agent with `run` and `arun`. Direct
+Python Company tool calls still require trusted execution context; use AgentOS routes
+for authenticated Company work. No custom agent definition is needed.
 
-With the AgentOS Manager feature installed, configure its normal `manager=` option
-and add this ordinary agent to `agent_os.manager.members`. It sits beside Platform
-Manager, Platform Builder and, when configured, Platform Engineer. Product Manager
-gets CompanyTools, without platform toolkits. This composition is exercised by the
-manager compatibility test; it does not require changes to the manager implementation.
-The OS Manager requires platform administrator authority. Ordinary Company users can
-use Product Manager directly with their Product and agent-run permissions; adding it
-to the OS Manager does not grant them access to platform administration.
+One reusable Product Manager handles the Products the caller may access. Creating a
+Product creates no agent. Omit `CompanyConfig.model` for model-free manual use; the
+`product_manager` property is then None. There is no implicit model selection or call
+at construction. The built-in uses the AgentOS database, falling back to the explicit
+Company database when no runtime database is configured. Durable execution still needs
+`AgentOS(db=...)` and its durable queue.
 
-CompanyTools receives verified identity inside AgentOS, including Team delegation
-and durable queue execution. It can read work, create drafts, group draft Tasks,
-comment, refresh summaries and dispatch configured work. It cannot accept work,
-create Products, change membership or select new execution authority. Standalone
-Python tool calls without trusted execution context fail closed.
+Choose a Product's default `agent_id`; a Task can override it. Select `product-manager`
+for housekeeping or add a coding worker through `agents=[...]` for implementation work.
+Execution requires permission to run that agent as well as Product membership. Enabling
+the built-in does not assign it to existing Products or Tasks. An existing custom agent
+named `product-manager` must be renamed or removed when enabling the built-in.
+
+With the AgentOS Manager feature installed, configure its normal `manager=` option.
+The built-in Product Manager automatically joins the Team beside Platform Manager,
+Platform Builder and, when configured, Platform Engineer. Resync reuses the same agent
+and membership. No manual `members.append(...)` is needed. The OS Manager requires
+platform administrator authority; ordinary Company users can call Product Manager
+directly with their Product and agent-run permissions.
+
+The built-in gets CompanyTools, without platform toolkits. CompanyTools receives
+verified identity inside AgentOS, including Team delegation and durable queue execution.
+It can read work, create drafts, group draft Tasks, comment, refresh summaries and
+dispatch configured work. It cannot accept work, create Products, change membership,
+configure schedules, set PR approval conditions or select new execution authority.
+CompanyTools remains available for custom agents with distinct IDs.
 
 ## Minimal API journey
 
@@ -159,7 +165,7 @@ login; they do not construct Company identities.
 
 - `app.py`: model-free server for manual work.
 - `manual.py`: repeatable local operator exercise for human review.
-- `with_agents.py`: Product Manager, durable queue and scheduler; optional OS Manager
+- `with_agents.py`: built-in Product Manager, durable queue and scheduler; optional OS Manager
   and Codex worker. Set `PLATFORM_WORKSPACE` to the source directory for Platform
   Engineer. With existing accepted Ready or due recurring Tasks, starting the server
   can dispatch work and make model calls.

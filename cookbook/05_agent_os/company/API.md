@@ -123,6 +123,13 @@ Product and review accepted work. Company uses `company:manage` and per-Product
 Worker dispatch additionally checks `agents:{id}:run` or the provider's equivalent.
 Company access grants no platform or builder access.
 
+Set `CompanyConfig(db=db, model=model)` to register the framework Product Manager as
+`product-manager`. It uses the existing agent list/detail/run APIs and automatically
+joins an enabled OS Manager Team. It is reusable across Products; membership checks
+remain per caller and Product. Omit `model` to keep Company manual and model-free.
+The OS Manager requires platform administration; direct Product Manager execution
+requires ordinary agent-run and Company permissions.
+
 HTTP principals come from verified AgentOS context. CompanyTools inherits that
 context through inline and queued Team delegation. It rechecks current membership,
 the active human and provider policy; prompts and model arguments cannot select a

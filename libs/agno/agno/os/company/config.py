@@ -13,6 +13,8 @@ class CompanyConfig:
     db: Any
     # Optional read-only GitHub credential for private pull requests and API rate limits.
     github_token: Optional[str] = field(default=None, repr=False)
+    # Configure a model to enable the built-in Product Manager. Omit for manual use.
+    model: Optional[Any] = None
 
     def __post_init__(self) -> None:
         from agno.db.postgres import PostgresDb

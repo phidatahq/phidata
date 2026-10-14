@@ -79,7 +79,7 @@ async def measure(label: str, runtime_port, wait: float) -> None:
     provider = DockerSandbox(
         IMAGE,
         namespace="load-" + uuid4().hex[:8],
-        network="bridge",
+        network="isolated",
         memory_mb=256,
         runtime_port=runtime_port,
     )

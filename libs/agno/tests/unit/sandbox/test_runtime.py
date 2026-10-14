@@ -439,3 +439,131 @@ async def test_client_long_poll_does_not_sleep_between_pages():
     }
     assert (await pages.__anext__()).result["error"] == "done"
     assert [request.get("wait") for request in provider.requests[1:]] == [0.2, 0.2]
+
+
+# ---------------------------------------------------------------------------
+# The control token stays with the server; the supervisor keeps the server a child
+# ---------------------------------------------------------------------------
+
+
+def test_worker_is_spawned_without_the_control_token(dispatch, monkeypatch):
+    root, calls, request_data = dispatch
+    monkeypatch.setenv("AGNO_SANDBOX_RUNTIME_TOKEN", "secret")
+    monkeypatch.setenv("AGNO_SANDBOX_OTHER", "kept")
+    runtime._start(root, request_data)
+    [(args, kwargs)] = calls
+    assert args[0][-3:-1] == ["agno.sandbox.runtime", "worker"]
+    assert "AGNO_SANDBOX_RUNTIME_TOKEN" not in kwargs["env"]
+    assert kwargs["env"]["AGNO_SANDBOX_OTHER"] == "kept", "only the token is withheld"
+
+
+def test_server_takes_the_token_out_of_its_own_environment(monkeypatch, capsys):
+    monkeypatch.setenv("AGNO_SANDBOX_RUNTIME_TOKEN", "secret")
+    assert runtime._take_token() == "secret"
+    assert "AGNO_SANDBOX_RUNTIME_TOKEN" not in __import__("os").environ
+    assert runtime._take_token() is None
+    assert "no token" in capsys.readouterr().err
+
+
+def test_supervisor_restarts_a_crashed_server_and_stops_on_sigterm(monkeypatch):
+    import signal
+    import threading
+
+    spawned = []
+
+    class Child:
+        def __init__(self, code):
+            self.code, self._done, self.terminated = code, threading.Event(), False
+
+        def poll(self):
+            return self.code if self._done.is_set() else None
+
+        def wait(self):
+            self._done.wait()
+            return self.code
+
+        def terminate(self):
+            self.terminated = True
+            self._done.set()
+
+    plan = [Child(1), Child(0)]  # the first server crashes at once; the second runs until stopped
+
+    def popen(args, **kwargs):
+        assert args[-3:] == ["serve", "--port", "8765"]
+        child = plan[len(spawned)]
+        spawned.append(child)
+        if child.code == 1:
+            child._done.set()
+        return child
+
+    handlers = {}
+    monkeypatch.setattr(runtime.subprocess, "Popen", popen)
+    monkeypatch.setattr(signal, "signal", lambda s, h: handlers.__setitem__(s, h))
+    sleeps = []
+    monkeypatch.setattr(runtime.time, "sleep", lambda s: sleeps.append(s))
+
+    def stop_soon():
+        while len(spawned) < 2:
+            pass
+        handlers[signal.SIGTERM](signal.SIGTERM, None)
+
+    threading.Thread(target=stop_soon, daemon=True).start()
+    runtime._supervise(8765)
+    assert len(spawned) == 2, "the crashed server was restarted once, then the stop signal ended the loop"
+    assert sleeps == [0.4], "a crash backs off before the restart"
+    assert spawned[1].terminated, "SIGTERM terminates the running server child"
+
+
+def test_server_reads_the_token_from_stdin_when_the_supervisor_hands_it_over(monkeypatch):
+    import io
+
+    monkeypatch.setattr("sys.stdin", io.StringIO("secret\n"))
+    assert runtime._take_token(from_stdin=True) == "secret"
+    monkeypatch.setattr("sys.stdin", io.StringIO(""))
+    assert runtime._take_token(from_stdin=True) is None
+
+
+def test_supervisor_passes_the_token_on_stdin_and_not_in_the_environment(monkeypatch):
+    import signal
+
+    monkeypatch.setenv("AGNO_SANDBOX_RUNTIME_TOKEN", "secret")
+    spawned = []
+
+    class Stdin:
+        def __init__(self):
+            self.data = b""
+
+        def write(self, data):
+            self.data += data
+
+        def close(self):
+            pass
+
+    class Child:
+        def __init__(self):
+            self.stdin = Stdin()
+
+        def poll(self):
+            return 0
+
+        def wait(self):
+            handlers[signal.SIGTERM](signal.SIGTERM, None)
+            return 0
+
+        def terminate(self):
+            pass
+
+    def popen(args, **kwargs):
+        child = Child()
+        spawned.append((args, kwargs, child))
+        return child
+
+    handlers = {}
+    monkeypatch.setattr(runtime.subprocess, "Popen", popen)
+    monkeypatch.setattr(signal, "signal", lambda s, h: handlers.__setitem__(s, h))
+    runtime._supervise(8765)
+    [(args, kwargs, child)] = spawned
+    assert args[-4:] == ["serve", "--port", "8765", "--token-stdin"]
+    assert "AGNO_SANDBOX_RUNTIME_TOKEN" not in kwargs["env"], "the server is spawned without the token in its env"
+    assert child.stdin.data == b"secret\n", "the token travels on the server's stdin"
+    assert "AGNO_SANDBOX_RUNTIME_TOKEN" not in __import__("os").environ, "the supervisor drops its own copy"

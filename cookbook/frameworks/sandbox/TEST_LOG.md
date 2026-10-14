@@ -98,3 +98,53 @@ No model calls in the load run. Requests and daemon calls per turn are what scal
 
 ---
 
+
+### Token scope, server supervisor, and the no-stop exec fallback
+
+**Status:** PASS
+
+**Description:** Three updates from the review of #11034. The control token used to sit in the container environment, where every worker and therefore every tool the agent runs inherited it; the server now reads it once and removes it from its own environment, and workers are spawned without it. The HTTP server used to be the container's main process, so a server crash would have stopped the container mid-turn; the main process is now `python -m agno.sandbox.runtime supervise`, which runs the server as a child, restarts it with backoff, and stops on `SIGTERM` while workers run detached. The exec fallback for `rpc` used to go through plain `aexec`, which stops the container on a timed-out or lost reply; it now runs the fixed runtime argv through the shared executor with stopping disabled, so a lost control reply leaves compute alone on both transports, while arbitrary `exec` keeps the stop rule. README documents the token's real scope (same-UID caveat, separate UID as follow-up), the supervisor, the fallback rule, and that `runtime_port`/`runtime_host` are in the config digest, so flipping a default is a migration.
+
+**Result:** Unit: the worker is spawned with an env lacking the token and keeping everything else; `_take_token` returns the token, removes it, and warns when absent; the supervisor restarts a crashed child once with a 0.4 s backoff and terminates the running child on `SIGTERM`; the Docker entrypoint is `supervise`; the fallback passes `stop_on_failure=False`; a timeout or `SandboxError` on an exec-path `rpc` never calls `stop`, while the same failure on `exec` does. 118 sandbox unit tests pass. Integration against the rebuilt `agno-sandbox:local`: the fixture writes the `AGNO_SANDBOX*` names it sees into the workspace and the token is absent on both transports; killing the server process mid-turn with `SIGKILL` leaves the turn running, the supervisor brings the server back, and the turn finishes exactly once (HTTP transport; skipped on exec). 19 passed, 3 skipped.
+
+---
+
+### runtime_resilience.py
+
+**Status:** PASS
+
+**Description:** Live demonstration of the three boundaries above on `agno-sandbox:local`, printing each event with its cursor and elapsed time. A fixture turn reports the `AGNO_SANDBOX*` variables it can see; a turn streaming eight events over four seconds (the fixture now takes a `steps` option) has the runtime server killed with `SIGKILL` after its second event; a control request on the exec transport is forced to time out. Failure messages that used to end in an empty string now name the cause (`Server disconnected`, `ConnectError`, `timed out`).
+
+**Result:** The turn saw `AGNO_SANDBOX_TEST_RUNTIME` only, no token. After the kill, four polls failed over about 0.4 s while the supervisor restarted the server, then events 3 through 8 arrived from cursor 270 onward; all eight arrived exactly once and the effects file lists each run once. The timed-out control request raised `SandboxError`, the container stayed `running`, and the same turn then streamed its event and finished.
+
+---
+
+### Isolated network per namespace
+
+**Status:** PASS
+
+**Description:** `network="isolated"` makes the provider create and own one bridge per namespace, `agno-<namespace>`, with `com.docker.network.bridge.enable_icc=false`, labelled with the namespace. Containers join it; `destroy` leaves it; `remove_network` deletes it; a same-named network without the label is refused; a creation race resolves on the name. The harness cookbooks and the HTTP-transport live fixture moved from Docker's default `bridge` to it. README documents the host-services and address-pool caveats.
+
+**Result:** Unit: network created once per namespace and joined by the container, kept on destroy, creation race treated as success, foreign network refused for create and remove, remove touches only the namespace bridge, `isolated` and `bridge` yield distinct digests, unsafe namespaces hash the network name. 122 sandbox unit tests pass. Integration on `agno-sandbox:local`: all runtime cases pass over HTTP on the isolated network; two sandboxes in one namespace cannot open each other's runtime port on `isolated` while the same connection succeeds on `bridge`, and the host still reaches both through loopback. 21 passed, 3 skipped. `runtime_resilience.py` runs end to end on the isolated network and removes it.
+
+---
+
+### Token exposure inside the container, re-measured
+
+**Status:** PASS
+
+**Description:** Review of #11040 pointed out that popping the token in the server and withholding it from workers still left it readable: `docker exec` inherits the container environment, the supervisor and PID 1 keep it, and `/proc/<pid>/environ` shows a process's exec-time environment regardless of later `os.environ` changes. Measured live before the change: present in a host-run shell, in PID 1, in the supervisor, and in the serving process's environ. Changes: the supervisor pops the token and hands it to the server on stdin with `--token-stdin`, spawning it with an environment that lacks the variable; every `docker exec` from the host passes `--env AGNO_SANDBOX_RUNTIME_TOKEN=` so host-run commands see it blank. README now states exactly where the token remains: PID 1 and the supervisor's exec-time environment, same-UID readable, closed only by a separate UID for the server.
+
+**Result:** Measured after the change, per process in a served container: PID 1 token, supervisor token, server clean, host-run shell sees the variable empty. Unit: the server reads the token from stdin; the supervisor spawns the server with the token on stdin and not in its env and drops its own copy; `exec` blanks the variable only when a server is configured. Integration on the rebuilt image: a host-run shell sees the variable absent, the serving process's environ is clean, and the token still authorises a turn. 125 unit, 22 integration passed, 4 skipped.
+
+---
+
+### Isolated network reworked: one per host, pinned subnet
+
+**Status:** PASS
+
+**Description:** Review of the per-namespace network pointed out that unpinned bridges draw from Docker's default address pools, which run out at a few dozen networks per host, and that with inter-container traffic off a shared network isolates just as well. The provider now creates one network per host, `agno-sandbox`, labelled as Agno-managed, with `--subnet` pinned to `DockerSandbox(subnet=...)`, default `172.30.0.0/22`. A subnet overlap from the daemon, a subnet different from the existing network's, and a same-named network without the label each raise a `SandboxError` naming the fix. `remove_network` returns whether it removed the network and leaves it when sandboxes are attached. A container create that fails because the network was removed behind the provider recreates it and retries once. Cookbooks no longer remove the network, since it is host infrastructure shared with anything else running sandboxes.
+
+**Result:** Unit: one network created and shared by two namespaces with the subnet, ICC option and label on the create call and no namespace label; creation race resolved on the name; foreign network refused for create and remove; subnet mismatch and overlap raise clear errors; a network removed behind the provider is recreated with one retry; removal returns False when in use or absent and True when removed; subnet validation rejects non-CIDR, host bits set, IPv6 and smaller than /30. 127 sandbox unit tests pass. Live on this host, which already has twelve default-pool networks: a subnet inside docker0's range is refused with the overlap message; two namespaces attach to the one `agno-sandbox` network at `172.30.0.0/22` with ICC off; removal while in use returns False; a provider configured for `10.77.0.0/22` is refused with the mismatch message; removal when empty returns True and leaves nothing. Integration: 22 passed, 4 skipped, with sandbox addresses asserted to come from the pinned subnet and the sandbox-to-sandbox block still holding.
+
+---

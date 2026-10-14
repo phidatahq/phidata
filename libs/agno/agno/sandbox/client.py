@@ -52,7 +52,8 @@ class SandboxRuntimeClient:
             await task
             raise
         if output.exit_code or output.timed_out or output.output_limited:
-            raise SandboxError("Runtime RPC failed: " + output.stderr[-2000:])
+            reason = output.stderr[-2000:] or ("timed out" if output.timed_out else "no reply")
+            raise SandboxError("Runtime RPC failed: " + reason)
         try:
             response = json.loads(output.stdout)
         except ValueError as error:

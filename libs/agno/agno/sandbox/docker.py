@@ -3,6 +3,7 @@
 import asyncio
 import base64
 import hashlib
+import ipaddress
 import json
 import math
 import os
@@ -12,9 +13,16 @@ from contextlib import suppress
 from pathlib import Path
 from typing import Any, Dict, Mapping, Optional, Sequence
 
-from agno.sandbox.base import ExecResult, Sandbox, SandboxError, SandboxHandle, _identity
+from agno.sandbox.base import ExecResult, Sandbox, SandboxError, SandboxHandle, _identity, _sync
 
 _LABEL = "io.agno.sandbox."
+# One provider-owned bridge per host with inter-container traffic off: sandboxes reach the
+# internet and the host's published ports but not each other. Its subnet is pinned so it never
+# draws from Docker's default address pools, which are small and shared with everything else.
+_ISOLATED = "isolated"
+_ISOLATED_NETWORK = "agno-sandbox"
+_DEFAULT_SUBNET = "172.30.0.0/22"
+_ICC_OPTION = "com.docker.network.bridge.enable_icc"
 # Environment variable carrying the container's runtime bearer token.
 _TOKEN_ENV = "AGNO_SANDBOX_RUNTIME_TOKEN"
 # How long create waits for a freshly started runtime server to answer /health.
@@ -43,6 +51,7 @@ class DockerSandbox(Sandbox):
         docker_binary: str = "docker",
         runtime_port: Optional[int] = None,
         runtime_host: str = "127.0.0.1",
+        subnet: str = _DEFAULT_SUBNET,
     ) -> None:
         for value in (image, namespace, network):
             if not isinstance(value, str) or not value or "\x00" in value:
@@ -56,7 +65,9 @@ class DockerSandbox(Sandbox):
         if runtime_port is not None and (type(runtime_port) is not int or not 1 <= runtime_port <= 65535):
             raise ValueError("Sandbox runtime port must be between 1 and 65535")
         if runtime_port is not None and network == "none":
-            raise ValueError("The runtime server needs a network to publish its port; use bridge or a managed network")
+            raise ValueError(
+                "The runtime server needs a network to publish its port; use 'isolated', 'bridge' or a managed network"
+            )
         if (
             not isinstance(runtime_host, str)
             or not runtime_host
@@ -80,7 +91,102 @@ class DockerSandbox(Sandbox):
         # host's replicas; with a daemon shared across hosts, set the daemon host's address
         # every replica can reach. Every request then needs the container's bearer token.
         self.runtime_host = runtime_host
+        # The isolated network's address range. An explicit subnet never draws from Docker's
+        # default pools; a /22 stays under the roughly 1000 interfaces one bridge can carry.
+        try:
+            parsed = ipaddress.ip_network(subnet, strict=True)
+        except (ValueError, TypeError) as error:
+            raise ValueError("Sandbox subnet must be an IPv4 network in CIDR form, such as 172.30.0.0/22") from error
+        if parsed.version != 4 or parsed.prefixlen > 30:
+            raise ValueError("Sandbox subnet must be an IPv4 network no smaller than a /30")
+        self.subnet = str(parsed)
         self._http: Dict[int, Any] = {}
+        self._network_ready = False
+
+    @property
+    def network_name(self) -> str:
+        """The Docker network containers join: the host's one Agno-managed bridge for 'isolated'."""
+        return _ISOLATED_NETWORK if self.network == _ISOLATED else self.network
+
+    async def _anetwork(self) -> str:
+        """Ensure the host's isolated bridge exists with our subnet and label, once per provider.
+
+        One network per host serves every namespace: with inter-container traffic off, sharing it
+        adds no reach between sandboxes, and a pinned subnet keeps it out of Docker's default
+        address pools. It is never removed with a container; ``aremove_network`` deletes it on
+        purpose. Creation races resolve on the fixed name: exists is success, as long as it is ours.
+        """
+        name = self.network_name
+        if self.network != _ISOLATED or self._network_ready:
+            return name
+        code, out, _ = await self._docker("network", "inspect", name)
+        if code:
+            code, _, err = await self._docker(
+                "network",
+                "create",
+                "--driver",
+                "bridge",
+                "--subnet",
+                self.subnet,
+                "--opt",
+                _ICC_OPTION + "=false",
+                "--label",
+                _LABEL + "network=" + _ISOLATED,
+                name,
+            )
+            if code and b"already exists" not in err:
+                if b"overlaps" in err:
+                    raise SandboxError(
+                        f"Docker subnet {self.subnet} overlaps an existing network on this host; "
+                        "set DockerSandbox(subnet=...) to a free range"
+                    )
+                raise SandboxError("Docker network creation failed: " + err.decode(errors="replace")[:500])
+            code, out, err = await self._docker("network", "inspect", name)
+            if code:
+                raise SandboxError("Docker network is missing after creation: " + err.decode(errors="replace")[:500])
+        try:
+            record = json.loads(out)[0]
+        except (ValueError, IndexError, TypeError) as error:
+            raise SandboxError("Docker returned an invalid network record") from error
+        labels = record.get("Labels") or {}
+        if labels.get(_LABEL + "network") != _ISOLATED or (record.get("Options") or {}).get(_ICC_OPTION) != "false":
+            raise SandboxError(f"Docker network {name} exists but is not Agno's isolated bridge; rename or remove it")
+        subnets = [entry.get("Subnet") for entry in ((record.get("IPAM") or {}).get("Config") or [])]
+        if subnets and self.subnet not in subnets:
+            raise SandboxError(
+                f"Docker network {name} uses subnet {subnets[0]} but this provider is configured for {self.subnet}; "
+                "use the same subnet on every replica, or remove the network while nothing is attached"
+            )
+        self._network_ready = True
+        return name
+
+    async def aremove_network(self) -> bool:
+        """Remove the host's isolated bridge when nothing is attached. Returns False when it is
+        still in use or absent; raises when the network with that name is not ours."""
+        if self.network != _ISOLATED:
+            return False
+        name = self.network_name
+        code, out, _ = await self._docker("network", "inspect", name)
+        if code:
+            return False
+        try:
+            labels = json.loads(out)[0].get("Labels") or {}
+        except (ValueError, IndexError, TypeError, AttributeError):
+            labels = {}
+        if labels.get(_LABEL + "network") != _ISOLATED:
+            raise SandboxError(f"Docker network {name} is not Agno's isolated bridge; refusing to remove it")
+        code, _, err = await self._docker("network", "rm", name)
+        self._network_ready = False
+        if code:
+            if b"active endpoints" in err or b"has active" in err:
+                return False
+            if b"not found" in err or b"No such network" in err:
+                return False
+            raise SandboxError("Docker network removal failed: " + err.decode(errors="replace")[:500])
+        return True
+
+    def remove_network(self) -> bool:
+        return _sync(self.aremove_network())
 
     def _name(self, session_id: str, agent_id: Optional[str], generation: int) -> str:
         identity = json.dumps([self.namespace, agent_id, session_id, generation])
@@ -274,6 +380,7 @@ class DockerSandbox(Sandbox):
         digest = self._digest(session_id, agent_id, generation, values)
         current = await self.aget(name)
         if current is None:
+            network = await self._anetwork()
             labels = {
                 "namespace": self.namespace,
                 "agent": agent_id or "",
@@ -297,7 +404,7 @@ class DockerSandbox(Sandbox):
                 "--security-opt",
                 "no-new-privileges",
                 "--network",
-                self.network,
+                network,
                 "--memory",
                 f"{self.memory_mb}m",
                 "--memory-swap",
@@ -328,12 +435,17 @@ class DockerSandbox(Sandbox):
             if self.runtime_port is not None:
                 # Published on runtime_host only; loopback by default, so only this host reaches it.
                 args.extend(["--publish", f"{self.runtime_host}::{self.runtime_port}"])
-                args.extend(["--entrypoint", "python", self.image, "-I", "-m", "agno.sandbox.runtime", "serve"])
+                args.extend(["--entrypoint", "python", self.image, "-I", "-m", "agno.sandbox.runtime", "supervise"])
                 args.extend(["--port", str(self.runtime_port)])
             else:
                 args.extend(["--entrypoint", "python", self.image, "-I", "-c", "import time; time.sleep(2147483647)"])
             try:
                 code, _, err = await self._docker(*args, timeout=120)
+                if code and self.network == _ISOLATED and b"network" in err and b"not found" in err:
+                    # The bridge was removed outside this provider; recreate it and try once more.
+                    self._network_ready = False
+                    await self._anetwork()
+                    code, _, err = await self._docker(*args, timeout=120)
             except asyncio.TimeoutError:
                 code, err = 1, b"Creation response timed out"
             finally:
@@ -373,7 +485,20 @@ class DockerSandbox(Sandbox):
         if operation not in ("start", "poll") or not isinstance(payload, bytes) or len(payload) > 1024 * 1024:
             raise ValueError("Runtime RPC requires start/poll and a payload no larger than 1 MiB")
         if handle.runtime_url is None:
-            return await super().arpc(handle, operation, payload)
+            # Exec fallback: fixed runtime argv, bounded, and never stopping compute on a failed or
+            # lost reply. A control request is not a command that could run forever.
+            try:
+                wait = float(json.loads(payload).get("wait", 0) or 0)
+            except (ValueError, AttributeError):
+                wait = 0.0
+            return await self._aexec(
+                handle,
+                ["python", "-I", "-m", "agno.sandbox.runtime", operation],
+                timeout=15 + min(max(wait, 0.0), 30.0),
+                max_output_bytes=4 * 1024 * 1024,
+                stdin=payload,
+                stop_on_failure=False,
+            )
         import httpx
 
         # No daemon call on this path: the published port belongs to this container alone, so a
@@ -384,7 +509,8 @@ class DockerSandbox(Sandbox):
                 handle.runtime_url + "/" + operation, content=payload, headers=self._headers(handle)
             )
         except httpx.HTTPError as error:
-            raise SandboxError(f"Sandbox runtime request failed: {error}") from error
+            # httpx connection errors often carry no text; name the error class so the message says something.
+            raise SandboxError(f"Sandbox runtime request failed: {str(error) or type(error).__name__}") from error
         body = response.text[: 4 * 1024 * 1024]
         if response.status_code != 200:
             return ExecResult(exit_code=1, stdout="", stderr=body)
@@ -399,6 +525,22 @@ class DockerSandbox(Sandbox):
         max_output_bytes: int = 1_048_576,
         stdin: bytes = b"",
     ) -> ExecResult:
+        return await self._aexec(handle, argv, timeout=timeout, max_output_bytes=max_output_bytes, stdin=stdin)
+
+    async def _aexec(
+        self,
+        handle: SandboxHandle,
+        argv: Sequence[str],
+        *,
+        timeout: float = 60,
+        max_output_bytes: int = 1_048_576,
+        stdin: bytes = b"",
+        stop_on_failure: bool = True,
+    ) -> ExecResult:
+        """Run a command. With ``stop_on_failure`` an uncertain transport outcome stops the
+        container, since killing the Docker client does not kill the remote command; runtime
+        control requests pass False because they exit on their own and leaving compute alone is
+        the safe outcome for them."""
         if isinstance(argv, (str, bytes)) or not argv or any(not isinstance(arg, str) or "\x00" in arg for arg in argv):
             raise ValueError("Commands must be a nonempty sequence of strings")
         if not math.isfinite(timeout) or timeout <= 0 or not 1 <= max_output_bytes <= 4 * 1024 * 1024:
@@ -418,11 +560,15 @@ class DockerSandbox(Sandbox):
                 "stdin": base64.b64encode(stdin).decode("ascii"),
             }
         ).encode()
+        # docker exec inherits the container's environment, token included; blank it for every
+        # command run from the host. Docker cannot unset a variable, so it becomes empty.
+        scrub = ["--env", _TOKEN_ENV + "="] if self.runtime_port is not None else []
         try:
             code, out, err = await self._docker(
                 "container",
                 "exec",
                 "-i",
+                *scrub,
                 handle.provider_ref,
                 "python",
                 "-I",
@@ -434,18 +580,21 @@ class DockerSandbox(Sandbox):
         except (asyncio.CancelledError, asyncio.TimeoutError, SandboxError):
             # Killing the Docker client does not kill its remote command. Stop compute
             # to bound cancellation; checkpoint recovery belongs to the coordinator.
-            await asyncio.shield(self.astop(handle))
+            if stop_on_failure:
+                await asyncio.shield(self.astop(handle))
             raise
         if code:
-            await self.astop(handle)
+            if stop_on_failure:
+                await self.astop(handle)
             raise SandboxError("Sandbox command transport failed: " + err.decode(errors="replace")[:500])
         try:
             result = ExecResult(**json.loads(out))
-            if result.timed_out or result.output_limited:
+            if stop_on_failure and (result.timed_out or result.output_limited):
                 await self.astop(handle)
             return result
         except (TypeError, ValueError) as error:
-            await self.astop(handle)
+            if stop_on_failure:
+                await self.astop(handle)
             raise SandboxError("Sandbox returned an invalid command result") from error
 
     async def apause(self, handle: SandboxHandle) -> None:

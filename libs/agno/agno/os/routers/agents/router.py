@@ -85,6 +85,7 @@ from agno.os.utils import (
     allow_draft_preview,
     amark_continue_stream_running,
     classify_upload_file,
+    factory_row_handle,
     find_factory_by_id,
     format_sse_event,
     get_agent_by_id,
@@ -2206,14 +2207,7 @@ def get_agent_router(
         # Factory agents: resolve to get a real agent for session lookup
         factory = find_factory_by_id(agent_id, os.agents)
         if factory:
-            agent = await resolve_agent(  # type: ignore[assignment]
-                agent_id,
-                os.agents,
-                factory.db,
-                request=request,
-                session_id=session_id,
-                published_only=False,
-            )
+            agent = factory_row_handle(factory)  # type: ignore[assignment]
         else:
             try:
                 agent = get_agent_by_id(
@@ -2311,14 +2305,7 @@ def get_agent_router(
     ):
         factory = find_factory_by_id(agent_id, os.agents)
         if factory:
-            agent = await resolve_agent(  # type: ignore[assignment]
-                agent_id,
-                os.agents,
-                factory.db,
-                request=request,
-                session_id=session_id,
-                published_only=False,
-            )
+            agent = factory_row_handle(factory)  # type: ignore[assignment]
         else:
             try:
                 agent = get_agent_by_id(
@@ -2383,14 +2370,7 @@ def get_agent_router(
     ):
         factory = find_factory_by_id(agent_id, os.agents)
         if factory:
-            agent = await resolve_agent(  # type: ignore[assignment]
-                agent_id,
-                os.agents,
-                factory.db,
-                request=request,
-                session_id=session_id,
-                published_only=False,
-            )
+            agent = factory_row_handle(factory)  # type: ignore[assignment]
         else:
             try:
                 agent = get_agent_by_id(
@@ -2577,14 +2557,7 @@ def get_agent_router(
         # Factory agents: resolve to get a real agent for session lookup
         factory = find_factory_by_id(agent_id, os.agents)
         if factory:
-            agent = await resolve_agent(  # type: ignore[assignment]
-                agent_id,
-                os.agents,
-                factory.db,
-                request=request,
-                session_id=session_id,
-                published_only=False,
-            )
+            agent = factory_row_handle(factory)  # type: ignore[assignment]
         else:
             try:
                 agent = get_agent_by_id(

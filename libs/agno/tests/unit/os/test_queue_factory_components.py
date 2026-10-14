@@ -25,6 +25,9 @@ from agno.db.sqlite import SqliteDb
 from agno.factory import FactoryValidationError
 from agno.job_queue.config import QueueConfig
 from agno.job_queue.store import InMemoryQueueStore
+from agno.models.base import Model
+from agno.models.message import MessageMetrics
+from agno.models.response import ModelResponse
 from agno.os import AgentOS
 from agno.os.job_queue import (
     aresolve_factory_from_scope,
@@ -298,29 +301,96 @@ class TestWorkerInvokesTheFactoryAgain:
         assert await aresolve_factory_from_scope(agent_factory, "team", context) is None
 
 
-class TestFactoryReadRoutesCarryTheRequest:
-    """The run read routes resolved a factory agent without the request and
-    always answered 400, so a factory run could not be polled at all."""
+class _ScriptedModel(Model):
+    def __init__(self):
+        super().__init__(id="scripted", name="scripted", provider="test")
+
+    def invoke(self, *args, **kwargs):
+        return ModelResponse(role="assistant", content="scripted answer", response_usage=MessageMetrics())
+
+    async def ainvoke(self, *args, **kwargs):
+        return self.invoke(*args, **kwargs)
+
+    def invoke_stream(self, *args, **kwargs):
+        yield self.invoke(*args, **kwargs)
+
+    async def ainvoke_stream(self, *args, **kwargs):
+        yield self.invoke(*args, **kwargs)
+
+    def _parse_provider_response(self, response, **kwargs):
+        return response
+
+    def _parse_provider_response_delta(self, response):
+        return response
+
+
+class Required(BaseModel):
+    tenant: str
+
+
+class TestFactoryReadRoutesNeverInvokeTheFactory:
+    """Reads only need the run rows in the factory's db. Invoking the factory
+    on every poll rebuilt a component per GET, and a factory whose
+    input_schema has required fields answered 400 (a GET carries no
+    factory_input)."""
+
+    @pytest.fixture()
+    def reads(self, db):
+        from agno.workflow import Step, Workflow
+        from agno.workflow.factory import WorkflowFactory
+
+        invoked: list = []
+
+        def refuse(ctx):
+            invoked.append(ctx)
+            raise AssertionError("a read must not invoke the factory")
+
+        agent = Agent(id="rx-agent", db=db, model=_ScriptedModel())
+        team = Team(
+            id="rx-team", db=db, model=_ScriptedModel(), members=[Agent(id="rx-member", model=_ScriptedModel())]
+        )
+        workflow = Workflow(id="rx-wf", db=db, steps=[Step(name="s", executor=lambda step_input: "step done")])
+        runs = {
+            "agents/rx-agent": agent.run("hi", session_id="sa").run_id,
+            "teams/rx-team": team.run("hi", session_id="st").run_id,
+            "workflows/rx-wf": workflow.run("hi", session_id="sw").run_id,
+        }
+        app = AgentOS(
+            agents=[AgentFactory(id="rx-agent", db=db, factory=refuse, input_schema=Required)],
+            teams=[TeamFactory(id="rx-team", db=db, factory=refuse, input_schema=Required)],
+            workflows=[WorkflowFactory(id="rx-wf", db=db, factory=refuse, input_schema=Required)],
+            db=db,
+            telemetry=False,
+        ).get_app()
+        return SimpleNamespace(client=TestClient(app), runs=runs, invoked=invoked)
 
     @pytest.mark.parametrize(
         "path",
         [
-            "/agents/fx-agent/runs?session_id=s-1",
-            "/agents/fx-agent/runs/run-1?session_id=s-1",
-            "/agents/fx-agent/runs/run-1/checkpoints?session_id=s-1",
-            "/agents/fx-agent/runs/run-1/checkpoints/0?session_id=s-1",
-            "/teams/fx-team/runs?session_id=t-1",
-            "/teams/fx-team/runs/run-1?session_id=t-1",
-            "/teams/fx-team/runs/run-1/checkpoints?session_id=t-1",
-            "/teams/fx-team/runs/run-1/checkpoints/0?session_id=t-1",
+            "/agents/rx-agent/runs?session_id=sa",
+            "/agents/rx-agent/runs/{run}?session_id=sa",
+            "/agents/rx-agent/runs/{run}/checkpoints?session_id=sa",
+            "/teams/rx-team/runs?session_id=st",
+            "/teams/rx-team/runs/{run}?session_id=st",
+            "/teams/rx-team/runs/{run}/checkpoints?session_id=st",
+            "/workflows/rx-wf/runs/{run}?session_id=sw",
         ],
     )
-    def test_read_routes_no_longer_400_for_factories(self, harness, path, seen):
-        resp = harness.client.get(path)
-        assert resp.status_code != 400, resp.text
-        assert "Request context is required" not in resp.text
-        # The factory ran with the request's context
-        assert seen and seen[-1].request is not None
+    def test_read_routes_answer_from_the_run_rows(self, reads, path):
+        component = "/".join(path.split("/")[1:3])
+        run_id = reads.runs[component]
+        resp = reads.client.get(path.format(run=run_id))
+        assert resp.status_code == 200, resp.text
+        assert run_id in resp.text
+        assert reads.invoked == []
+
+    @pytest.mark.parametrize("component", ["agents/rx-agent", "teams/rx-team"])
+    def test_checkpoint_snapshot_reads_without_the_factory(self, reads, component):
+        session = "sa" if component.startswith("agents") else "st"
+        run_id = reads.runs[component]
+        resp = reads.client.get(f"/{component}/runs/{run_id}/checkpoints/0", params={"session_id": session})
+        assert resp.status_code == 200, resp.text
+        assert reads.invoked == []
 
 
 class TestQueueSurfaceRedactsClaims:

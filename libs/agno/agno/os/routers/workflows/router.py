@@ -84,6 +84,7 @@ from agno.os.utils import (
     afinalize_continue_stream,
     allow_draft_preview,
     amark_continue_stream_running,
+    factory_row_handle,
     find_factory_by_id,
     format_sse_event,
     get_request_kwargs,
@@ -2696,10 +2697,9 @@ def get_workflow_router(
         session_id: str = Query(..., description="Session ID for the run"),
         factory_input: Optional[str] = Query(
             None,
-            description="JSON object with factory-specific parameters for dynamic workflow reconstruction",
+            description="Ignored; kept for compatibility. Reading a run no longer invokes the factory",
         ),
     ):
-        user_id = getattr(request.state, "user_id", None)
         if hasattr(request.state, "session_id") and request.state.session_id is not None:
             if session_id and session_id != request.state.session_id:
                 log_warning("Session ID parameter passed in both request state and query params, using request state")
@@ -2708,16 +2708,7 @@ def get_workflow_router(
         # Factory workflows: resolve to get a real workflow for session lookup
         factory = find_factory_by_id(workflow_id, os.workflows)
         if factory:
-            workflow = await resolve_workflow(  # type: ignore[assignment]
-                workflow_id,
-                os.workflows,
-                factory.db,
-                request=request,
-                user_id=user_id,
-                session_id=session_id,
-                factory_input=factory_input,
-                published_only=False,
-            )
+            workflow = factory_row_handle(factory)  # type: ignore[assignment]
         else:
             try:
                 workflow = get_workflow_by_id(

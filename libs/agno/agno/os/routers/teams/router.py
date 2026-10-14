@@ -79,6 +79,7 @@ from agno.os.utils import (
     allow_draft_preview,
     amark_continue_stream_running,
     classify_upload_file,
+    factory_row_handle,
     find_factory_by_id,
     format_sse_event,
     get_request_kwargs,
@@ -2113,14 +2114,7 @@ def get_team_router(
         # Factory teams
         factory = find_factory_by_id(team_id, os.teams)
         if factory:
-            team = await resolve_team(  # type: ignore[assignment]
-                team_id,
-                os.teams,
-                factory.db,
-                request=request,
-                session_id=session_id,
-                published_only=False,
-            )
+            team = factory_row_handle(factory)  # type: ignore[assignment]
         else:
             try:
                 team = get_team_by_id(
@@ -2215,14 +2209,7 @@ def get_team_router(
     ):
         factory = find_factory_by_id(team_id, os.teams)
         if factory:
-            team = await resolve_team(  # type: ignore[assignment]
-                team_id,
-                os.teams,
-                factory.db,
-                request=request,
-                session_id=session_id,
-                published_only=False,
-            )
+            team = factory_row_handle(factory)  # type: ignore[assignment]
         else:
             try:
                 team = get_team_by_id(
@@ -2287,14 +2274,7 @@ def get_team_router(
     ):
         factory = find_factory_by_id(team_id, os.teams)
         if factory:
-            team = await resolve_team(  # type: ignore[assignment]
-                team_id,
-                os.teams,
-                factory.db,
-                request=request,
-                session_id=session_id,
-                published_only=False,
-            )
+            team = factory_row_handle(factory)  # type: ignore[assignment]
         else:
             try:
                 team = get_team_by_id(
@@ -2359,14 +2339,7 @@ def get_team_router(
         # Factory teams
         factory = find_factory_by_id(team_id, os.teams)
         if factory:
-            team = await resolve_team(  # type: ignore[assignment]
-                team_id,
-                os.teams,
-                factory.db,
-                request=request,
-                session_id=session_id,
-                published_only=False,
-            )
+            team = factory_row_handle(factory)  # type: ignore[assignment]
         else:
             try:
                 team = get_team_by_id(

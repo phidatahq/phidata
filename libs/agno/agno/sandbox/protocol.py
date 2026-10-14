@@ -7,6 +7,8 @@ from typing import Any, Dict
 
 _VERSION = 1
 _MAX_REQUEST = 1024 * 1024
+# Where each runtime records its own conversation id in the session data it returns.
+NATIVE_SESSION_KEYS = {"claude": "claude_sdk_session_id", "codex": "codex_thread_id", "fixture": "fixture_session_id"}
 
 
 def validate_request(request: Dict[str, Any]) -> None:

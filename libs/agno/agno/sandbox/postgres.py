@@ -19,6 +19,7 @@ from agno.db.postgres import AsyncPostgresDb, PostgresDb
 from agno.exceptions import SessionBusyError
 from agno.sandbox.base import SandboxError, SandboxHandle, _sync
 from agno.sandbox.checkpoint import CheckpointRef
+from agno.sandbox.protocol import NATIVE_SESSION_KEYS
 from agno.utils.string import sanitize_postgres_strings
 
 try:
@@ -609,9 +610,12 @@ class _SandboxStore:
                 .where(self.sessions.c.session_id == lease.session_id)
                 .values(session_data=self._json(session_data), updated_at=int(time.time()))
             )
+            native = result["session"].get("session_data") or {}
             record.update(
                 phase="idle",
                 checkpoint=record["staged_checkpoint"],
+                # Native conversation ids the checkpoint holds; the next turn requires exactly these.
+                native={key: native[key] for key in NATIVE_SESSION_KEYS.values() if native.get(key)},
                 checkpoint_identity=record.get("staged_identity"),
                 last_run_id=lease.run_id,
                 result=None,

@@ -26,6 +26,7 @@ from agno.sandbox.base import Sandbox, SandboxError, SandboxHandle
 from agno.sandbox.checkpoint import CheckpointRef
 from agno.sandbox.client import RuntimeExecution, SandboxRuntimeClient
 from agno.sandbox.postgres import SandboxLease, SandboxLeaseLost, SandboxRunFinished, _SandboxStore
+from agno.sandbox.protocol import NATIVE_SESSION_KEYS
 from agno.sandbox.transfer import CheckpointTransfer
 
 
@@ -292,6 +293,8 @@ class SandboxCoordinator:
                         user_id=user_id,
                         config=config,
                         execution_timeout=execution_timeout,
+                        # The conversation the restored checkpoint must hold; None on a session's first turn.
+                        native_session_id=(state.record.get("native") or {}).get(NATIVE_SESSION_KEYS[sdk]),
                     )
                     cursor = 0
                     while True:

@@ -1,4 +1,4 @@
-"""The shell is served as ordinary components and never enters the build palette."""
+"""The manager is served as ordinary components and never enters the build palette."""
 
 import asyncio
 import json
@@ -11,9 +11,9 @@ from agno.db.sqlite import AsyncSqliteDb, SqliteDb
 from agno.models.base import Model
 from agno.models.message import MessageMetrics
 from agno.models.response import ModelResponse
-from agno.os import AgentOS, ShellConfig
+from agno.os import AgentOS, ManagerConfig
 from agno.os.config import AgentOSConfig, Manifest
-from agno.os.shell import BUILDER_ID, ENGINEER_ID, OPERATOR_ID, SHELL_TEAM_ID
+from agno.os.manager import BUILDER_ID, ENGINEER_ID, MANAGER_TEAM_ID, OPERATOR_ID
 from agno.registry import Registry
 from agno.tools.agentos import AgentOSTools
 from agno.tools.studio import StudioTools
@@ -46,6 +46,10 @@ class OfflineModel(Model):
         return response
 
 
+def manager_member(os, component_id):
+    return next((member for member in os.manager.members if member.id == component_id), None)
+
+
 @pytest.fixture
 def db(tmp_path):
     return SqliteDb(db_file=str(tmp_path / "os.db"))
@@ -61,47 +65,51 @@ def workspace(tmp_path):
     return root
 
 
-def test_shell_true_uses_the_registry_model_and_serves_four_components(db, workspace):
+def test_manager_true_uses_the_registry_model_and_serves_four_components(db, workspace):
     model = OfflineModel()
-    os = AgentOS(db=db, registry=Registry(models=[model]), shell=True, telemetry=False)
+    os = AgentOS(db=db, registry=Registry(models=[model]), manager=True, telemetry=False)
     # No workspace: no engineer.
     assert [a.id for a in os.agents] == [BUILDER_ID, OPERATOR_ID]
-    assert [t.id for t in os.teams] == [SHELL_TEAM_ID]
-    assert os.shell is not None and os.shell.team.name == "Agno"
-    assert os.shell.team.model is model and os.shell.builder.model is model
-    assert os.shell.engineer is None
+    assert [t.id for t in os.teams] == [MANAGER_TEAM_ID]
+    assert os.manager is not None and os.manager.name == "Agno"
+    assert os.manager.model is model and manager_member(os, BUILDER_ID).model is model
+    assert manager_member(os, ENGINEER_ID) is None
 
-    os = AgentOS(db=db, shell=ShellConfig(model=model, workspace=workspace), telemetry=False)
+    os = AgentOS(db=db, manager=ManagerConfig(model=model, workspace=workspace), telemetry=False)
     assert [a.id for a in os.agents] == [BUILDER_ID, OPERATOR_ID, ENGINEER_ID]
-    assert os.shell.engineer is not None
+    assert manager_member(os, ENGINEER_ID) is not None
 
 
-def test_shell_needs_a_model_and_a_sync_db(db, tmp_path):
+def test_manager_needs_a_model_and_a_sync_db(db, tmp_path):
     with pytest.raises(ValueError, match="needs a model"):
-        AgentOS(db=db, shell=True, telemetry=False)
+        AgentOS(db=db, manager=True, telemetry=False)
     with pytest.raises(ValueError, match="needs AgentOS\\(db="):
         AgentOS(
-            agents=[Agent(id="app", model=OfflineModel())], shell=ShellConfig(model=OfflineModel()), telemetry=False
+            agents=[Agent(id="app", model=OfflineModel())], manager=ManagerConfig(model=OfflineModel()), telemetry=False
         )
     with pytest.raises(ValueError, match="synchronous"):
         AgentOS(
-            db=AsyncSqliteDb(db_file=str(tmp_path / "a.db")), shell=ShellConfig(model=OfflineModel()), telemetry=False
+            db=AsyncSqliteDb(db_file=str(tmp_path / "a.db")),
+            manager=ManagerConfig(model=OfflineModel()),
+            telemetry=False,
         )
 
 
-def test_shell_config_validates_name_id_and_history():
+def test_manager_config_validates_name_id_and_history():
     with pytest.raises(ValueError):
-        ShellConfig(name=" ")
+        ManagerConfig(name=" ")
     with pytest.raises(ValueError):
-        ShellConfig(id=BUILDER_ID)
+        ManagerConfig(id=BUILDER_ID)
     with pytest.raises(ValueError):
-        ShellConfig(num_history_runs=-1)
+        ManagerConfig(num_history_runs=-1)
 
 
-def test_shell_stays_out_of_the_registry_including_after_resync(db, workspace):
+def test_manager_stays_out_of_the_registry_including_after_resync(db, workspace):
     registry = Registry(models=[OfflineModel()])
     app_agent = Agent(id="app", model=OfflineModel())
-    os = AgentOS(db=db, registry=registry, agents=[app_agent], shell=ShellConfig(workspace=workspace), telemetry=False)
+    os = AgentOS(
+        db=db, registry=registry, agents=[app_agent], manager=ManagerConfig(workspace=workspace), telemetry=False
+    )
     app = os.get_app()
     os.resync(app)
     assert [a.id for a in registry.agents] == ["app"]
@@ -116,27 +124,27 @@ def test_application_component_cannot_take_a_reserved_id(db):
         AgentOS(
             db=db,
             agents=[Agent(id=BUILDER_ID, model=OfflineModel())],
-            shell=ShellConfig(model=OfflineModel()),
+            manager=ManagerConfig(model=OfflineModel()),
             telemetry=False,
         )
 
 
 def test_builder_operator_and_lead_carry_the_framework_toolkits(db):
-    os = AgentOS(db=db, shell=ShellConfig(model=OfflineModel(), tools=[lambda: "x"]), telemetry=False)
-    studio = next(t for t in os.shell.builder.tools if isinstance(t, StudioTools))
+    os = AgentOS(db=db, manager=ManagerConfig(model=OfflineModel(), tools=[lambda: "x"]), telemetry=False)
+    studio = next(t for t in manager_member(os, BUILDER_ID).tools if isinstance(t, StudioTools))
     assert studio.registry is os.registry and studio.db is db
     assert set(studio.requires_confirmation_tools) >= {"archive_component", "delete_version", "delete_schedule"}
-    assert any(isinstance(t, AgentOSTools) for t in os.shell.operator.tools)
-    assert any("run_diagnostics" in getattr(t, "functions", {}) for t in os.shell.operator.tools)
-    runner = next(t for t in os.shell.team.tools if isinstance(t, StudioRunnerTools))
+    assert any(isinstance(t, AgentOSTools) for t in manager_member(os, OPERATOR_ID).tools)
+    assert any("run_diagnostics" in getattr(t, "functions", {}) for t in manager_member(os, OPERATOR_ID).tools)
+    runner = next(t for t in os.manager.tools if isinstance(t, StudioRunnerTools))
     assert runner.include_all_components and runner.self_dispatch == "once"
     # Attached resources ride the lead.
-    assert any(callable(t) and getattr(t, "__name__", "") == "<lambda>" for t in os.shell.team.tools)
+    assert any(callable(t) and getattr(t, "__name__", "") == "<lambda>" for t in os.manager.tools)
 
 
 def test_engineer_reads_the_workspace_but_not_env_files(db, workspace):
-    os = AgentOS(db=db, shell=ShellConfig(model=OfflineModel(), workspace=workspace), telemetry=False)
-    engineer = os.shell.engineer
+    os = AgentOS(db=db, manager=ManagerConfig(model=OfflineModel(), workspace=workspace), telemetry=False)
+    engineer = manager_member(os, ENGINEER_ID)
     assert engineer is not None
     tools = (
         {tool.name: tool for tool in engineer.tools[0].functions.values()}
@@ -153,21 +161,21 @@ def test_engineer_reads_the_workspace_but_not_env_files(db, workspace):
 
 
 def test_manifest_defaults_yield_to_the_application_config(db):
-    config = AgentOSConfig(manifest={SHELL_TEAM_ID: Manifest(description="Our lead", quick_prompts=["Hi"])})
-    os = AgentOS(db=db, shell=ShellConfig(model=OfflineModel()), config=config, telemetry=False)
-    assert os.config.manifest[SHELL_TEAM_ID].description == "Our lead"
+    config = AgentOSConfig(manifest={MANAGER_TEAM_ID: Manifest(description="Our lead", quick_prompts=["Hi"])})
+    os = AgentOS(db=db, manager=ManagerConfig(model=OfflineModel()), config=config, telemetry=False)
+    assert os.config.manifest[MANAGER_TEAM_ID].description == "Our lead"
     assert os.config.manifest[BUILDER_ID].quick_prompts
     assert ENGINEER_ID not in os.config.manifest
 
 
-def test_shell_serves_over_the_ordinary_planes(db):
-    os = AgentOS(db=db, shell=ShellConfig(name="Jarvis", model=OfflineModel()), telemetry=False)
+def test_manager_serves_over_the_ordinary_planes(db):
+    os = AgentOS(db=db, manager=ManagerConfig(name="Jarvis", model=OfflineModel()), telemetry=False)
     client = TestClient(os.get_app())
     config = client.get("/config").json()
-    assert [t["id"] for t in config["teams"]] == [SHELL_TEAM_ID]
+    assert [t["id"] for t in config["teams"]] == [MANAGER_TEAM_ID]
     assert {a["id"] for a in config["agents"]} == {BUILDER_ID, OPERATOR_ID}
-    assert config["manifest"][SHELL_TEAM_ID]["quick_prompts"]
-    run = client.post(f"/teams/{SHELL_TEAM_ID}/runs", data={"message": "hello", "stream": "false"})
+    assert config["manifest"][MANAGER_TEAM_ID]["quick_prompts"]
+    run = client.post(f"/teams/{MANAGER_TEAM_ID}/runs", data={"message": "hello", "stream": "false"})
     assert run.status_code == 200, run.text
     assert run.json()["content"] == "local answer" and run.json()["team_name"] == "Jarvis"
     sessions = client.get("/sessions?type=team").json()["data"]
@@ -180,7 +188,7 @@ def test_diagnostics_report_sync_async_and_required_env(db, monkeypatch):
     monkeypatch.setenv("PRESENT_KEY", "1")
     monkeypatch.delenv("MISSING_KEY", raising=False)
     os = AgentOS(
-        db=db, shell=ShellConfig(model=OfflineModel(), required_env=("PRESENT_KEY", "MISSING_KEY")), telemetry=False
+        db=db, manager=ManagerConfig(model=OfflineModel(), required_env=("PRESENT_KEY", "MISSING_KEY")), telemetry=False
     )
     report = os.run_diagnostics()
     by_name = {check.name: check for check in report.checks}
@@ -208,15 +216,15 @@ def test_diagnostics_report_sync_async_and_required_env(db, monkeypatch):
     }
 
 
-def test_diagnostics_without_a_shell(tmp_path):
+def test_diagnostics_without_a_manager(tmp_path):
     os = AgentOS(db=SqliteDb(db_file=str(tmp_path / "bare.db")), telemetry=False)
-    assert os.shell is None
+    assert os.manager is None
     report = os.run_diagnostics()
     assert {c.name for c in report.checks} >= {"database", "scheduler"}
 
 
 def test_diagnostics_hide_exception_messages(db, monkeypatch):
-    os = AgentOS(db=db, shell=ShellConfig(model=OfflineModel()), telemetry=False)
+    os = AgentOS(db=db, manager=ManagerConfig(model=OfflineModel()), telemetry=False)
 
     def boom(*args, **kwargs):
         raise RuntimeError("password=hunter2")
@@ -229,26 +237,26 @@ def test_diagnostics_hide_exception_messages(db, monkeypatch):
 
 @pytest.mark.parametrize("use_async", [False, True])
 @pytest.mark.parametrize("by_name", [False, True])
-def test_shell_cannot_be_composed_through_explicit_studio_lists(db, workspace, use_async, by_name):
+def test_manager_cannot_be_composed_through_explicit_studio_lists(db, workspace, use_async, by_name):
     registry = Registry(models=[OfflineModel()])
-    os = AgentOS(db=db, registry=registry, shell=ShellConfig(workspace=workspace), telemetry=False)
+    os = AgentOS(db=db, registry=registry, manager=ManagerConfig(workspace=workspace), telemetry=False)
     studio = StudioTools(
         registry=registry,
         db=db,
         include_agents=os.agents,
         include_teams=os.teams,
-        # Shell exclusion is not the overridable guard for application builders.
-        allowed_tools=[c.id for c in os.shell.components],
+        # Manager exclusion is not the overridable guard for application builders.
+        allowed_tools=[c.id for c in [os.manager, *os.manager.members]],
     )
     assert registry.agents == [] and registry.teams == []
     os.resync(os.get_app())
     assert registry.agents == [] and registry.teams == []
-    for component in os.shell.components:
+    for component in [os.manager, *os.manager.members]:
         reference = component.name if by_name else component.id
         kwargs = dict(name="Wrapper", instructions="Delegate", member_ids=[reference], publish=True)
         result = asyncio.run(studio.acreate_team(**kwargs)) if use_async else studio.create_team(**kwargs)
         assert json.loads(result)["error"]["code"] == "tool_not_allowed"
-        step = {"name": "Inspect", "type": "step", "team_id" if component is os.shell.team else "agent_id": reference}
+        step = {"name": "Inspect", "type": "step", "team_id" if component is os.manager else "agent_id": reference}
         kwargs = dict(name="Flow", steps=[step], publish=True)
         result = asyncio.run(studio.acreate_workflow(**kwargs)) if use_async else studio.create_workflow(**kwargs)
         assert json.loads(result)["error"]["code"] == "tool_not_allowed"
@@ -256,15 +264,17 @@ def test_shell_cannot_be_composed_through_explicit_studio_lists(db, workspace, u
     assert db.get_component("flow") is None
 
 
-def test_resync_repairs_shell_mirrors_and_recursive_collection_stops_at_shell(db, workspace):
+def test_resync_repairs_manager_mirrors_and_recursive_collection_stops_at_manager(db, workspace):
     from agno.os.utils import collect_components_from_os
     from agno.team import Team
 
     registry = Registry(models=[OfflineModel()])
-    os = AgentOS(db=db, registry=registry, shell=ShellConfig(workspace=workspace), telemetry=False)
-    registry.agents.extend(os.shell.agents)
-    registry.teams.append(os.shell.team)
-    wrapper = Team(id="wrapper", name="Wrapper", model=OfflineModel(), members=[os.shell.engineer.deep_copy()])
+    os = AgentOS(db=db, registry=registry, manager=ManagerConfig(workspace=workspace), telemetry=False)
+    registry.agents.extend(os.manager.members)
+    registry.teams.append(os.manager)
+    wrapper = Team(
+        id="wrapper", name="Wrapper", model=OfflineModel(), members=[manager_member(os, ENGINEER_ID).deep_copy()]
+    )
     os.teams.append(wrapper)
     collect_components_from_os(os.agents, os.teams, os.workflows, registry)
     os.resync(os.get_app())
@@ -277,7 +287,7 @@ def test_resync_repairs_shell_mirrors_and_recursive_collection_stops_at_shell(db
 
 
 @pytest.mark.parametrize("declaration", [None, "registry", "os", "agent"])
-def test_shell_knowledge_requires_an_independent_build_declaration(db, declaration):
+def test_manager_knowledge_requires_an_independent_build_declaration(db, declaration):
     from agno.agent import get_agent_by_id
     from agno.knowledge import Knowledge
     from agno.learn import LearningMachine
@@ -291,14 +301,14 @@ def test_shell_knowledge_requires_an_independent_build_declaration(db, declarati
         registry=registry,
         agents=[app_agent],
         knowledge=[knowledge] if declaration == "os" else None,
-        shell=ShellConfig(knowledge=knowledge, learning=learning),
+        manager=ManagerConfig(knowledge=knowledge, learning=learning),
         telemetry=False,
     )
     os.resync(os.get_app())
     assert knowledge in os.knowledge_instances  # still served as an ordinary team's resource
     assert (knowledge in registry.knowledge) == (declaration is not None)
     assert learning not in registry.learning
-    studio = os.shell.builder.tools[0]
+    studio = manager_member(os, BUILDER_ID).tools[0]
     result = json.loads(
         studio.create_agent(name="Consumer", instructions="Read", knowledge_name=knowledge.name, publish=True)
     )
@@ -317,7 +327,7 @@ def test_engineer_normalizes_workspace_and_confines_all_read_tools(db, workspace
 
     class CustomProvider(WorkspaceContextProvider):
         def get_tools(self):
-            raise AssertionError("The shell must not use replacement platform tools")
+            raise AssertionError("The manager must not use replacement platform tools")
 
     (workspace / "credentials.json").write_text('{"token": "synthetic-credential"}')
     (workspace / "alias.py").symlink_to(workspace / "credentials.json")
@@ -333,8 +343,8 @@ def test_engineer_normalizes_workspace_and_confines_all_read_tools(db, workspace
             root=workspace, exclude_patterns=[] if provider_kind == "empty_exclusions" else None
         )
     )
-    os = AgentOS(db=db, shell=ShellConfig(model=OfflineModel(), workspace=provider), telemetry=False)
-    tool = os.shell.engineer.tools[0]
+    os = AgentOS(db=db, manager=ManagerConfig(model=OfflineModel(), workspace=provider), telemetry=False)
+    tool = manager_member(os, ENGINEER_ID).tools[0]
     assert set(tool.functions) == {"read_file", "list_files", "search_content"}
     assert "print" in tool.read_file("main.py")
     for path in (".env", "credentials.json", "alias.py", "./credentials.json", "../outside.txt", "escape.py"):
@@ -354,14 +364,14 @@ def test_engineer_refuses_workspace_exclusion_overrides(db, workspace, kwargs):
     with pytest.raises(ValueError, match="cannot override exclusions"):
         AgentOS(
             db=db,
-            shell=ShellConfig(model=OfflineModel(), workspace=WorkspaceContextProvider(root=workspace, **kwargs)),
+            manager=ManagerConfig(model=OfflineModel(), workspace=WorkspaceContextProvider(root=workspace, **kwargs)),
             telemetry=False,
         )
 
 
 def test_engineer_rejects_an_arbitrary_tool_provider(db):
     with pytest.raises(TypeError, match="WorkspaceContextProvider"):
-        AgentOS(db=db, shell=ShellConfig(model=OfflineModel(), workspace=object()), telemetry=False)
+        AgentOS(db=db, manager=ManagerConfig(model=OfflineModel(), workspace=object()), telemetry=False)
 
 
 class ToolCallingModel(OfflineModel):
@@ -395,21 +405,25 @@ class ToolCallingModel(OfflineModel):
 @pytest.mark.parametrize("use_async", [False, True])
 def test_operator_executes_diagnostics_in_both_run_modes(db, use_async):
     model = ToolCallingModel("run_diagnostics", {})
-    os = AgentOS(db=db, shell=ShellConfig(model=model), telemetry=False)
-    result = asyncio.run(os.shell.operator.arun("Diagnose")) if use_async else os.shell.operator.run("Diagnose")
+    os = AgentOS(db=db, manager=ManagerConfig(model=model), telemetry=False)
+    result = (
+        asyncio.run(manager_member(os, OPERATOR_ID).arun("Diagnose"))
+        if use_async
+        else manager_member(os, OPERATOR_ID).run("Diagnose")
+    )
     report = json.loads(result.content)
     assert next(c for c in report["checks"] if c["name"] == "database")["status"] == "PASS"
     assert model.calls == 2
 
 
 @pytest.mark.parametrize("use_async", [False, True])
-def test_shell_self_dispatch_terminates_after_one_nested_run(db, use_async):
+def test_manager_self_dispatch_terminates_after_one_nested_run(db, use_async):
     model = ToolCallingModel("run_team", {"team_id": "custom-lead", "message": "Fresh context"})
-    os = AgentOS(db=db, shell=ShellConfig(id="custom-lead", model=model), telemetry=False)
+    os = AgentOS(db=db, manager=ManagerConfig(id="custom-lead", model=model), telemetry=False)
     result = (
-        asyncio.run(os.shell.team.arun("Consult yourself", user_id="alice"))
+        asyncio.run(os.manager.arun("Consult yourself", user_id="alice"))
         if use_async
-        else os.shell.team.run("Consult yourself", user_id="alice")
+        else os.manager.run("Consult yourself", user_id="alice")
     )
     assert "already running" in result.content
     assert model.calls == 4
@@ -419,9 +433,9 @@ def test_shell_self_dispatch_terminates_after_one_nested_run(db, use_async):
 
 
 @pytest.mark.parametrize("use_async", [False, True])
-def test_shell_runner_tracks_served_components_after_list_replacement(db, use_async):
-    os = AgentOS(db=db, shell=ShellConfig(model=OfflineModel()), telemetry=False)
-    runner = next(t for t in os.shell.team.deep_copy().tools if isinstance(t, StudioRunnerTools))
+def test_manager_runner_tracks_served_components_after_list_replacement(db, use_async):
+    os = AgentOS(db=db, manager=ManagerConfig(model=OfflineModel()), telemetry=False)
+    runner = next(t for t in os.manager.deep_copy().tools if isinstance(t, StudioRunnerTools))
     app_agent = Agent(id="later", model=OfflineModel(), db=db)
     os.agents = [*os.agents, app_agent]
     kwargs = dict(agent_id="later", message="Hello")
@@ -434,31 +448,31 @@ def test_shell_runner_tracks_served_components_after_list_replacement(db, use_as
 
 @pytest.mark.parametrize("component_id", [BUILDER_ID, OPERATOR_ID, ENGINEER_ID, "custom-lead"])
 @pytest.mark.parametrize("in_registry", [False, True])
-def test_shell_reserves_ids_even_without_an_engineer(db, component_id, in_registry):
+def test_manager_reserves_ids_even_without_an_engineer(db, component_id, in_registry):
     app_agent = Agent(id=component_id, model=OfflineModel())
-    with pytest.raises(ValueError, match="reserved for the shell"):
+    with pytest.raises(ValueError, match="reserved for the manager"):
         AgentOS(
             db=db,
             agents=[] if in_registry else [app_agent],
             registry=Registry(agents=[app_agent] if in_registry else []),
-            shell=ShellConfig(id="custom-lead", model=OfflineModel()),
+            manager=ManagerConfig(id="custom-lead", model=OfflineModel()),
             telemetry=False,
         )
 
 
 def test_resync_rejects_an_application_agent_with_an_unused_reserved_id(db):
-    os = AgentOS(db=db, shell=ShellConfig(model=OfflineModel()), telemetry=False)
+    os = AgentOS(db=db, manager=ManagerConfig(model=OfflineModel()), telemetry=False)
     app = os.get_app()
     os.agents.append(Agent(id=ENGINEER_ID, model=OfflineModel()))
-    with pytest.raises(ValueError, match="reserved for the shell"):
+    with pytest.raises(ValueError, match="reserved for the manager"):
         os.resync(app)
 
 
 @pytest.mark.parametrize("copied", [False, True])
-def test_shell_exclusion_survives_foreign_registry_mirrors(db, workspace, copied):
-    os = AgentOS(db=db, shell=ShellConfig(model=OfflineModel(), workspace=workspace), telemetry=False)
-    agents = [a.deep_copy() for a in os.shell.agents] if copied else os.shell.agents
-    team = os.shell.team.deep_copy() if copied else os.shell.team
+def test_manager_exclusion_survives_foreign_registry_mirrors(db, workspace, copied):
+    os = AgentOS(db=db, manager=ManagerConfig(model=OfflineModel(), workspace=workspace), telemetry=False)
+    agents = [a.deep_copy() for a in os.manager.members] if copied else os.manager.members
+    team = os.manager.deep_copy() if copied else os.manager
     foreign = Registry(models=[OfflineModel()], agents=list(agents), teams=[team])
     assert foreign.agents == [] and foreign.teams == []
     studio = StudioTools(
@@ -472,10 +486,10 @@ def test_shell_exclusion_survives_foreign_registry_mirrors(db, workspace, copied
 
 
 @pytest.mark.parametrize("component_id", [BUILDER_ID, OPERATOR_ID, ENGINEER_ID, "custom-lead"])
-def test_studio_and_component_api_cannot_mint_reserved_shell_ids(db, component_id):
+def test_studio_and_component_api_cannot_mint_reserved_manager_ids(db, component_id):
     registry = Registry(models=[OfflineModel()])
-    os = AgentOS(db=db, registry=registry, shell=ShellConfig(id="custom-lead"), telemetry=False)
-    studio = os.shell.builder.tools[0]
+    os = AgentOS(db=db, registry=registry, manager=ManagerConfig(id="custom-lead"), telemetry=False)
+    studio = manager_member(os, BUILDER_ID).tools[0]
     result = json.loads(
         studio.create_agent(name="Application agent", component_id=component_id, instructions="Answer", publish=True)
     )
@@ -494,13 +508,59 @@ def test_studio_and_component_api_cannot_mint_reserved_shell_ids(db, component_i
 
 
 def test_registry_exclusion_does_not_mutate_the_served_lists(db, workspace):
-    os = AgentOS(db=db, shell=ShellConfig(model=OfflineModel(), workspace=workspace), telemetry=False)
+    os = AgentOS(db=db, manager=ManagerConfig(model=OfflineModel(), workspace=workspace), telemetry=False)
     app = os.get_app()
     foreign = Registry(agents=os.agents, teams=os.teams)
     assert foreign.agents == [] and foreign.teams == []
-    assert len(os.agents) == 3 and os.teams == [os.shell.team]
+    assert len(os.agents) == 3 and os.teams == [os.manager]
     os.registry.agents = os.agents
     os.registry.teams = os.teams
     os.resync(app)
     assert os.registry.agents == [] and os.registry.teams == []
-    assert len(os.agents) == 3 and os.teams == [os.shell.team]
+    assert len(os.agents) == 3 and os.teams == [os.manager]
+
+
+@pytest.mark.parametrize("enabled", [None, False])
+def test_disabled_manager_needs_neither_a_model_nor_a_workspace(db, enabled):
+    os = AgentOS(db=db, manager=enabled, telemetry=False)
+    assert os.manager is None
+    assert not os.agents and not os.teams
+    assert not os.registry._excluded_component_ids
+
+
+@pytest.mark.parametrize("invalid", ["true", {}, 1, 0])
+def test_manager_rejects_values_outside_the_configuration_contract(db, invalid):
+    with pytest.raises(TypeError, match="AgentOS.manager must be"):
+        AgentOS(db=db, manager=invalid, telemetry=False)
+
+
+@pytest.mark.parametrize("use_async", [False, True])
+def test_manager_property_is_the_served_team_and_runs_directly(db, use_async):
+    from agno.team import Team
+
+    os = AgentOS(db=db, manager=ManagerConfig(model=OfflineModel()), telemetry=False)
+    assert type(os.manager) is Team
+    assert os.manager is os.teams[0]
+    result = (
+        asyncio.run(os.manager.arun("Hello", user_id="alice"))
+        if use_async
+        else os.manager.run("Hello", user_id="alice")
+    )
+    assert result.content == "local answer"
+    assert [s.session_id for s in db.get_sessions(user_id="alice")] == [result.session_id]
+    app = os.get_app()
+    manager = os.manager
+    os.resync(app)
+    assert os.manager is manager and os.manager is os.teams[0]
+    assert not any(path.startswith("/manager") for path in app.openapi()["paths"])
+    assert not hasattr(os, "shell")
+
+
+def test_unreleased_shell_constructor_keyword_is_not_retained(db):
+    with pytest.raises(TypeError, match="shell"):
+        AgentOS(db=db, shell=True, telemetry=False)
+
+
+def test_manager_configuration_does_not_accept_replacement_members():
+    with pytest.raises(TypeError, match="members"):
+        ManagerConfig(members=[])

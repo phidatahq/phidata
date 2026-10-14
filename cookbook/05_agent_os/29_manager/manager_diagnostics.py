@@ -1,10 +1,10 @@
-"""Construct a shell and run the OS diagnostics. No model calls.
+"""Construct a manager and run the OS diagnostics. No model calls.
 
 Shows what the OS registers, what stays out of the build palette, and the
 structured report the operator agent reads through its run_diagnostics tool.
 
 Run:
-    .venvs/demo/bin/python cookbook/05_agent_os/29_shell/shell_diagnostics.py
+    .venvs/demo/bin/python cookbook/05_agent_os/29_manager/manager_diagnostics.py
 """
 
 import json
@@ -13,7 +13,7 @@ from tempfile import TemporaryDirectory
 
 from agno.db.sqlite import SqliteDb
 from agno.models.openai import OpenAIResponses
-from agno.os import AgentOS, ShellConfig
+from agno.os import AgentOS, ManagerConfig
 from agno.registry import Registry
 from agno.tools.calculator import CalculatorTools
 
@@ -27,7 +27,7 @@ def main() -> None:
         agent_os = AgentOS(
             db=db,
             registry=registry,
-            shell=ShellConfig(
+            manager=ManagerConfig(
                 name="Agno",
                 required_env=("OPENAI_API_KEY",),
                 workspace=Path(__file__).parent,

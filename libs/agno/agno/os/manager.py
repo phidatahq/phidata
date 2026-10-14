@@ -1,6 +1,6 @@
-"""The AgentOS shell: the conversational entry point to the OS.
+"""The AgentOS manager: the conversational entry point to the OS.
 
-``AgentOS(shell=ShellConfig(...))`` builds one team and its three member
+``AgentOS(manager=ManagerConfig(...))`` builds one team and its three member
 agents, all framework-owned, and serves them as ordinary components. The lead
 delegates; Platform Builder composes components from the declared registry
 through the Studio tools; Platform Manager reads the runtime through the
@@ -27,7 +27,7 @@ from agno.team import Team
 if TYPE_CHECKING:
     from agno.os.app import AgentOS
 
-SHELL_TEAM_ID = "agno"
+MANAGER_TEAM_ID = "agno"
 BUILDER_ID = "platform-builder"
 OPERATOR_ID = "platform-manager"
 ENGINEER_ID = "platform-engineer"
@@ -37,8 +37,8 @@ RESERVED_MEMBER_IDS = frozenset({BUILDER_ID, OPERATOR_ID, ENGINEER_ID})
 
 
 @dataclass
-class ShellConfig:
-    """What an application may decide about its shell.
+class ManagerConfig:
+    """What an application may decide about its manager.
 
     Args:
         name: The lead team's display name.
@@ -61,7 +61,7 @@ class ShellConfig:
 
     name: str = "Agno"
     model: Optional[Any] = None
-    id: str = SHELL_TEAM_ID
+    id: str = MANAGER_TEAM_ID
     tools: List[Any] = field(default_factory=list)
     knowledge: Optional[Any] = None
     learning: Optional[Any] = None
@@ -73,20 +73,20 @@ class ShellConfig:
 
     def __post_init__(self) -> None:
         if not self.name or not self.name.strip():
-            raise ValueError("ShellConfig.name must not be empty")
+            raise ValueError("ManagerConfig.name must not be empty")
         if not self.id or not self.id.strip():
-            raise ValueError("ShellConfig.id must not be empty")
+            raise ValueError("ManagerConfig.id must not be empty")
         if self.id in RESERVED_MEMBER_IDS:
-            raise ValueError(f"ShellConfig.id {self.id!r} is reserved for a shell member")
+            raise ValueError(f"ManagerConfig.id {self.id!r} is reserved for a manager member")
         if self.num_history_runs < 0:
-            raise ValueError("ShellConfig.num_history_runs must not be negative")
+            raise ValueError("ManagerConfig.num_history_runs must not be negative")
 
 
 @dataclass
-class Shell:
-    """The built shell: the lead team and its members."""
+class _Manager:
+    """The built manager: the lead team and its members."""
 
-    config: ShellConfig
+    config: ManagerConfig
     team: Team
     builder: Agent
     operator: Agent
@@ -101,11 +101,11 @@ class Shell:
         return [self.team, *self.agents]
 
     def owns(self, component: Any) -> bool:
-        """Identity test used to keep the shell out of the application's registry."""
+        """Identity test used to keep the manager out of the application's registry."""
         return any(component is owned for owned in self.components)
 
     def manifest(self) -> Dict[str, Any]:
-        """Default UI metadata for the shell's components, keyed by id."""
+        """Default UI metadata for the manager's components, keyed by id."""
         from agno.os.config import Manifest
 
         entries = {
@@ -327,18 +327,18 @@ What you hand off:
 """
 
 
-def _resolve_model(agent_os: "AgentOS", config: ShellConfig) -> Any:
+def _resolve_model(agent_os: "AgentOS", config: ManagerConfig) -> Any:
     if config.model is not None:
         return config.model
     registry = agent_os.registry
     if registry is not None and registry.models:
         return registry.models[0]
     raise ValueError(
-        "The shell needs a model: pass ShellConfig(model=...) or declare one on the registry (Registry(models=[...]))"
+        "The manager needs a model: pass ManagerConfig(model=...) or declare one on the registry (Registry(models=[...]))"
     )
 
 
-def _resolve_workspace(config: ShellConfig) -> Optional[Any]:
+def _resolve_workspace(config: ManagerConfig) -> Optional[Any]:
     if config.workspace is None:
         return None
     from agno.context.mode import ContextMode
@@ -355,14 +355,14 @@ def _resolve_workspace(config: ShellConfig) -> Optional[Any]:
             mode=ContextMode.tools,
         )
     if not isinstance(config.workspace, WorkspaceContextProvider):
-        raise TypeError("ShellConfig.workspace must be a path or WorkspaceContextProvider")
+        raise TypeError("ManagerConfig.workspace must be a path or WorkspaceContextProvider")
     from agno.tools.workspace import DEFAULT_EXCLUDE_PATTERNS
 
     provider = config.workspace
     if provider.allow_paths or any(
         pattern.startswith("!") and pattern not in DEFAULT_EXCLUDE_PATTERNS for pattern in provider.exclude_patterns
     ):
-        raise ValueError("ShellConfig.workspace cannot override exclusions with allow_paths or custom exemptions")
+        raise ValueError("ManagerConfig.workspace cannot override exclusions with allow_paths or custom exemptions")
     # Rebuild instead of mutating a provider the application may reuse. Its
     # model, prompt and overridden get_tools cannot replace the engineer's tools.
     return WorkspaceContextProvider(
@@ -376,7 +376,7 @@ def _resolve_workspace(config: ShellConfig) -> Optional[Any]:
     )
 
 
-def _raise_if_reserved_ids(config: ShellConfig, components: List[Any], owned: Sequence[Any] = ()) -> None:
+def _raise_if_reserved_ids(config: ManagerConfig, components: List[Any], owned: Sequence[Any] = ()) -> None:
     reserved = RESERVED_MEMBER_IDS | {config.id}
     collisions = sorted(
         {
@@ -386,7 +386,7 @@ def _raise_if_reserved_ids(config: ShellConfig, components: List[Any], owned: Se
         }
     )
     if collisions:
-        raise ValueError(f"Duplicate IDs reserved for the shell: {', '.join(collisions)}")
+        raise ValueError(f"Duplicate IDs reserved for the manager: {', '.join(collisions)}")
 
 
 def _diagnostics_tool(agent_os: "AgentOS", required_env: Sequence[str]) -> Any:
@@ -407,14 +407,14 @@ def _diagnostics_tool(agent_os: "AgentOS", required_env: Sequence[str]) -> Any:
 
     arun_diagnostics.__doc__ = run_diagnostics.__doc__
     return Toolkit(
-        name="shell_diagnostics",
+        name="manager_diagnostics",
         tools=[run_diagnostics],
         async_tools=[(arun_diagnostics, "run_diagnostics")],
     )
 
 
-def build_shell(agent_os: "AgentOS", config: ShellConfig) -> Shell:
-    """Construct the shell against this OS's registry and database.
+def _build_manager(agent_os: "AgentOS", config: ManagerConfig) -> _Manager:
+    """Construct the manager against this OS's registry and database.
 
     Called by AgentOS after its registry and database are known. Not for applications:
     the result is served and owned by the OS that built it.
@@ -426,12 +426,12 @@ def build_shell(agent_os: "AgentOS", config: ShellConfig) -> Shell:
 
     db = agent_os.db
     if db is None:
-        raise ValueError("The shell needs AgentOS(db=...): its conversations, builds and diagnostics live there")
+        raise ValueError("The manager needs AgentOS(db=...): its conversations, builds and diagnostics live there")
     if isinstance(db, AsyncBaseDb) or not isinstance(db, BaseDb):
-        raise ValueError("The shell needs a synchronous OS database; the Studio tools write the component catalog")
+        raise ValueError("The manager needs a synchronous OS database; the Studio tools write the component catalog")
     registry = agent_os.registry
     if registry is None:
-        raise ValueError("The shell needs the OS registry to be set before it is built")
+        raise ValueError("The manager needs the OS registry to be set before it is built")
     _raise_if_reserved_ids(
         config,
         [
@@ -540,4 +540,4 @@ def build_shell(agent_os: "AgentOS", config: ShellConfig) -> Shell:
         member._registry_excluded = True
     registry._excluded_component_ids.update(RESERVED_MEMBER_IDS | {config.id})
     registry._exclude_components([team, *members])
-    return Shell(config=config, team=team, builder=builder, operator=operator, engineer=engineer)
+    return _Manager(config=config, team=team, builder=builder, operator=operator, engineer=engineer)

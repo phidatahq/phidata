@@ -1428,7 +1428,7 @@ class StudioTools(Toolkit):
     def _excluded_component_error(blocked: List[str]) -> str:
         return error_result(
             "tool_not_allowed",
-            f"Refusing to compose {blocked}: framework-owned shell components are not buildable.",
+            f"Refusing to compose {blocked}: framework-owned manager components are not buildable.",
             blocked=blocked,
         )
 

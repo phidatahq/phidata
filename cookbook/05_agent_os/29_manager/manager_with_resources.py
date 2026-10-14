@@ -1,11 +1,11 @@
-"""Attach application resources to the shell: a notebook, knowledge, learning and the source.
+"""Attach application resources to the manager: a notebook, knowledge, learning and the source.
 
 Resources attached here ride the lead team. They do not enter the registry, so a
 component built by Platform Builder cannot pick them up unless the application
 also declares them on the registry.
 
 Run:
-    .venvs/demo/bin/python cookbook/05_agent_os/29_shell/shell_with_resources.py
+    .venvs/demo/bin/python cookbook/05_agent_os/29_manager/manager_with_resources.py
 """
 
 from pathlib import Path
@@ -20,19 +20,19 @@ from agno.learn import (
     UserProfileConfig,
 )
 from agno.models.openai import OpenAIResponses
-from agno.os import AgentOS, ShellConfig
+from agno.os import AgentOS, ManagerConfig
 from agno.registry import Registry
 
-db = SqliteDb(db_file="tmp/shell_resources.db")
+db = SqliteDb(db_file="tmp/manager_resources.db")
 model = OpenAIResponses(id="gpt-5.6-luna")
 
-# A shared notebook for the platform. The shell gets the full toolkit; the registry
+# A shared notebook for the platform. The manager gets the full toolkit; the registry
 # gets an append-only view for built components.
 notes = FileSystem(db, namespace="shared-notes", user_scoped=False)
 
 # Per-user memory for the lead.
 memory = LearningMachine(
-    name="shell-memory",
+    name="manager-memory",
     db=db,
     model=model,
     user_profile=UserProfileConfig(mode=LearningMode.AGENTIC),
@@ -53,10 +53,10 @@ registry = Registry(
 )
 
 agent_os = AgentOS(
-    name="Shell with resources",
+    name="Manager with resources",
     db=db,
     registry=registry,
-    shell=ShellConfig(
+    manager=ManagerConfig(
         name="Agno",
         model=model,
         tools=[notes.tools()],
@@ -70,4 +70,4 @@ agent_os = AgentOS(
 app = agent_os.get_app()
 
 if __name__ == "__main__":
-    agent_os.serve(app="shell_with_resources:app", reload=True)
+    agent_os.serve(app="manager_with_resources:app", reload=True)

@@ -918,3 +918,44 @@ async def test_long_provider_operation_keeps_its_lease(store):
 
     await store._aoperation(state.lease, slow)
     assert (await store.aget(state.lease)).lease == state.lease
+
+
+@pytest.mark.parametrize("status", ["RUNNING", "PAUSED"])
+async def test_first_binding_waits_for_a_turn_running_outside_the_sandbox(store, status):
+    await seed(store)
+    await store._transaction(lambda c: c.execute(update(store.runs).values(status=status)))
+    await seed(store, run_id="second")
+    with pytest.raises(SandboxSessionBusy) as busy:
+        await claim(store, run_id="second")
+    assert busy.value.run_id == "run"
+    assert await store._transaction(lambda c: c.execute(select(store.bindings)).first()) is None
+
+
+async def test_first_binding_ignores_runs_still_queued(store):
+    await seed(store)
+    await store._transaction(lambda c: c.execute(update(store.runs).values(status="PENDING")))
+    await seed(store, run_id="second")
+    assert (await claim(store, run_id="second")).record["phase"] == "executing"
+
+
+async def test_admission_takes_the_core_run_index_lock(store):
+    await seed(store)
+    value = {**result((await claim(store)).lease)["run"], "run_id": "queued", "status": "PENDING"}
+    engine = create_engine(URL)
+    holder = await asyncio.to_thread(engine.connect)
+    key = "SELECT pg_advisory_lock(hashtext('agno_run_index'), hashtext('session'))"
+    await asyncio.to_thread(lambda: holder.exec_driver_sql(key))
+    try:
+        admission = asyncio.create_task(store.aprepare(value))
+        await asyncio.sleep(0.5)
+        # Core run saves hold this lock while picking the next index; admission must wait for it too.
+        assert not admission.done()
+    finally:
+        await asyncio.to_thread(
+            lambda: holder.exec_driver_sql("SELECT pg_advisory_unlock(hashtext('agno_run_index'), hashtext('session'))")
+        )
+    await admission
+    await asyncio.to_thread(holder.close)
+    engine.dispose()
+    indexes = await store._transaction(lambda c: c.execute(select(store.runs.c.run_index)).scalars().all())
+    assert len(set(indexes)) == len(indexes)

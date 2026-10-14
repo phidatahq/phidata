@@ -24,7 +24,7 @@ from agno.utils.log import log_warning
 from agno.utils.string import sanitize_postgres_strings
 
 try:
-    from sqlalchemy import Table, func, select, update
+    from sqlalchemy import Table, func, select, text, update
     from sqlalchemy.dialects.postgresql import insert
     from sqlalchemy.engine import Connection
     from sqlalchemy.exc import IntegrityError
@@ -427,6 +427,19 @@ class _SandboxStore:
             candidate = SandboxLease(agent_id, session_id, user_id, run_id, row["epoch"], owner, queue_attempt)
             run, _ = self._service_run(connection, candidate)
             if row["epoch"] == 0:
+                # Before the first binding every other run is outside the sandbox. One running or paused
+                # would execute alongside this turn; queued (PENDING) runs wait for this binding instead.
+                running = connection.execute(
+                    select(self.runs.c.run_id)
+                    .where(
+                        (self.runs.c.session_id == session_id)
+                        & (self.runs.c.run_id != run_id)
+                        & self.runs.c.status.in_(["RUNNING", "PAUSED"])
+                    )
+                    .limit(1)
+                ).first()
+                if running is not None:
+                    raise SandboxSessionBusy(running[0])
                 # A first binding on a session with finished runs has no checkpoint to continue from.
                 historical = connection.execute(
                     select(self.runs.c.run_id)
@@ -864,6 +877,11 @@ class _SandboxStore:
         if row["run_data"].get("input") != value.get("input"):
             raise SandboxError("Run identity already exists with different input")
         if row["run_index"] is None:
+            # The lock core run saves take, so a concurrent save cannot pick the same index.
+            connection.execute(
+                text("SELECT pg_advisory_xact_lock(hashtext('agno_run_index'), hashtext(:sid))"),
+                {"sid": value["session_id"]},
+            )
             index = connection.execute(
                 select(func.coalesce(func.max(self.runs.c.run_index), -1) + 1).where(
                     self.runs.c.session_id == value["session_id"]

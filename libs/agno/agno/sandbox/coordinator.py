@@ -25,7 +25,7 @@ from agno.run.base import RunStatus
 from agno.sandbox.base import Sandbox, SandboxError, SandboxHandle
 from agno.sandbox.checkpoint import CheckpointRef
 from agno.sandbox.client import RuntimeExecution, SandboxRuntimeClient
-from agno.sandbox.postgres import SandboxLease, SandboxLeaseLost, SandboxRunFinished, _SandboxStore
+from agno.sandbox.postgres import SandboxLease, SandboxLeaseLost, SandboxRunFinished, _drain, _SandboxStore
 from agno.sandbox.protocol import NATIVE_SESSION_KEYS
 from agno.sandbox.transfer import CheckpointTransfer
 
@@ -193,12 +193,10 @@ class SandboxCoordinator:
         try:
             state = await asyncio.shield(claim_task)
         except asyncio.CancelledError:
-            try:
-                accepted = await claim_task
-            except Exception:
-                pass
-            else:
-                await self.store.arelinquish(accepted.lease)
+            # Drain without forwarding further cancels: a cancelled claim can still commit its lease.
+            await _drain(claim_task)
+            if not claim_task.cancelled() and claim_task.exception() is None:
+                await self.store.arelinquish(claim_task.result().lease)
             raise
         except SandboxRunFinished as finished:
             yield self._terminal(finished.run)

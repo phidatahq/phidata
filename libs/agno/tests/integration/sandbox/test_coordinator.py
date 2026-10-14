@@ -503,3 +503,32 @@ async def test_retry_during_finalization_must_match_the_original_request(system,
             user_id="user",
         )
     assert (await binding(coordinator))["record"]["phase"] == "finalizing"
+
+
+async def test_repeated_cancellation_during_admission_does_not_strand_its_lease(system, monkeypatch):
+    coordinator, spec, root = system
+    claim = coordinator.store.aclaim
+    entered, release = asyncio.Event(), asyncio.Event()
+
+    async def delayed_ack(**kwargs):
+        state = await claim(**kwargs)
+        entered.set()
+        await release.wait()
+        return state
+
+    monkeypatch.setattr(coordinator.store, "aclaim", delayed_ack)
+    task = asyncio.create_task(run(coordinator, spec))
+    await entered.wait()
+    # A timeout followed by shutdown: the second cancel must not reach the committed claim.
+    task.cancel()
+    await asyncio.sleep(0.05)
+    task.cancel()
+    await asyncio.sleep(0.05)
+    assert not task.done()
+    release.set()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    monkeypatch.setattr(coordinator.store, "aclaim", claim)
+    # An unreleased lease would refuse this re-claim as busy for the whole lease.
+    assert (await run(coordinator, spec)).status == RunStatus.completed
+    assert await recovered_effects(coordinator, root) == ["first"]

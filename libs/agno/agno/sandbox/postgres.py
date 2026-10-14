@@ -12,7 +12,7 @@ import math
 import time
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta
-from typing import Any, Callable, Dict, Optional, Tuple, TypeVar, Union
+from typing import Any, Awaitable, Callable, Dict, Optional, Tuple, TypeVar, Union
 from uuid import uuid4
 
 from agno.db.postgres import AsyncPostgresDb, PostgresDb
@@ -74,6 +74,16 @@ async def _drain(task: "asyncio.Future[Any]") -> None:
             continue
     if not task.cancelled():
         task.exception()  # Retrieved: the caller is raising CancelledError instead.
+
+
+async def _settled(awaitable: Awaitable[_T]) -> _T:
+    """Await work that keeps running when cancelled, such as a worker thread, before cancellation propagates."""
+    task = asyncio.ensure_future(awaitable)
+    try:
+        return await asyncio.shield(task)
+    except asyncio.CancelledError:
+        await _drain(task)
+        raise
 
 
 class SandboxLeaseLost(SandboxError):
@@ -144,7 +154,7 @@ class _SandboxStore:
             if isinstance(db, AsyncPostgresDb):
                 table = await db._get_table(table_type, create_table_if_not_found=True)
             else:
-                table = await asyncio.to_thread(db._get_table, table_type, create_table_if_not_found=True)
+                table = await _settled(asyncio.to_thread(db._get_table, table_type, create_table_if_not_found=True))
         except Exception as exc:
             # Another process may have won the first CREATE TABLE.
             cause = getattr(exc, "orig", exc)
@@ -154,7 +164,7 @@ class _SandboxStore:
             if isinstance(db, AsyncPostgresDb):
                 table = await db._get_table(table_type)
             else:
-                table = await asyncio.to_thread(db._get_table, table_type)
+                table = await _settled(asyncio.to_thread(db._get_table, table_type))
         if table is None:
             raise SandboxError(f"Sandbox coordination could not create the {table_type} table")
         return table
@@ -188,12 +198,7 @@ class _SandboxStore:
                 return operation(connection)
 
         # Cancelling to_thread leaves the thread running; wait so a cancelled call never commits later.
-        task = asyncio.ensure_future(asyncio.to_thread(transact))
-        try:
-            return await asyncio.shield(task)
-        except asyncio.CancelledError:
-            await _drain(task)
-            raise
+        return await _settled(asyncio.to_thread(transact))
 
     @staticmethod
     def _json(value: Any) -> Any:
@@ -224,7 +229,17 @@ class _SandboxStore:
             raise SandboxLeaseLost("Service session ownership does not match the sandbox lease")
         return row, session
 
+    def _hold_session(self, connection: Connection, session_id: str) -> None:
+        # Taken before the binding. A concurrent session delete then waits for this transaction instead of
+        # cascading into rows it holds, a deadlock; KEY SHARE does not block ordinary session writes.
+        connection.execute(
+            select(self.sessions.c.session_id)
+            .where(self.sessions.c.session_id == session_id)
+            .with_for_update(key_share=True)
+        )
+
     def _locked(self, connection: Connection, lease: SandboxLease) -> Any:
+        self._hold_session(connection, lease.session_id)
         row = (
             connection.execute(select(self.bindings).where(self._key(lease.session_id)).with_for_update())
             .mappings()
@@ -300,6 +315,7 @@ class _SandboxStore:
             raise ValueError("Lease duration must be between 0 and 3600 seconds")
 
         def claim(connection: Connection) -> SandboxState:
+            self._hold_session(connection, session_id)
             try:
                 connection.execute(
                     insert(self.bindings)

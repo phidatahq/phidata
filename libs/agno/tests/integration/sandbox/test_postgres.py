@@ -1,6 +1,7 @@
 """Real PostgreSQL fencing and atomic recovery publication; no model calls."""
 
 import asyncio
+import threading
 import os
 import time
 from dataclasses import replace
@@ -565,3 +566,46 @@ async def test_deleting_a_run_under_an_active_turn_is_refused(store):
         assert await delete("run")
     else:
         assert await asyncio.to_thread(delete, "run")
+
+
+async def test_cancelled_first_use_waits_for_table_setup(store, monkeypatch):
+    if isinstance(store.db, AsyncPostgresDb):
+        pytest.skip("AsyncPostgresDb resolves tables on the event loop")
+    finished = []
+    get_table = store.db._get_table
+
+    def slow(*args, **kwargs):
+        time.sleep(0.5)
+        table = get_table(*args, **kwargs)
+        finished.append(True)
+        return table
+
+    monkeypatch.setattr(store.db, "_get_table", slow)
+    task = asyncio.create_task(store._ensure_tables())
+    await asyncio.sleep(0.1)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert finished
+
+
+async def test_session_deletion_waits_for_a_sandbox_operation(store, monkeypatch):
+    if isinstance(store.db, AsyncPostgresDb):
+        pytest.skip("Interleaves a blocking database call with the store's worker thread")
+    await seed(store)
+    state = await claim(store)
+    service_run = store._service_run
+    holding = threading.Event()
+
+    def pause_after_binding(*args, **kwargs):
+        # The binding is locked; give a session deletion time to issue its DELETE before the run is.
+        holding.set()
+        time.sleep(2)
+        return service_run(*args, **kwargs)
+
+    monkeypatch.setattr(store, "_service_run", pause_after_binding)
+    operation = asyncio.create_task(store.aget(state.lease))
+    await asyncio.to_thread(holding.wait, 5)
+    deleted = await asyncio.to_thread(store.db.delete_session, "session")
+    assert (await operation).lease == state.lease
+    assert deleted

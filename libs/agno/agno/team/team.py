@@ -86,9 +86,6 @@ class Team:
 
     members: Union[List[Union[Agent, "Team"]], Callable[..., List]]
 
-    # Framework-owned components remain runnable but are not registry building blocks.
-    _registry_excluded: bool = field(default=False, init=False, repr=False, compare=False)
-
     # Model for this Team
     model: Optional[Model] = None
     # Fallback models tried when the primary model fails
@@ -463,6 +460,9 @@ class Team:
     _callable_tools_cache: Dict[str, List[Any]] = None  # type: ignore[assignment]
     _callable_knowledge_cache: Dict[str, Any] = None  # type: ignore[assignment]
     _callable_members_cache: Dict[str, List[Any]] = None  # type: ignore[assignment]
+
+    # Keep this team out of the registry while allowing it to run.
+    _registry_excluded: bool = field(default=False, init=False, repr=False, compare=False)
 
     def __init__(
         self,

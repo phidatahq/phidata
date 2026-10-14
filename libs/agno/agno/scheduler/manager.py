@@ -131,7 +131,7 @@ class ScheduleManager:
         if_exists: str = "raise",
         user_id: Optional[str] = None,
         provenance: Optional[Dict[str, str]] = None,
-        initial_enabled: bool = True,
+        enabled_on_create: bool = True,
     ) -> Schedule:
         """Create a new schedule.
 
@@ -143,7 +143,7 @@ class ScheduleManager:
                 supplied values.
             user_id: Owner of the schedule; names are unique per owner. ``None``
                 leaves it unowned and the executor fires it unscoped.
-            initial_enabled: Enabled state written with the insert itself, so a new
+            enabled_on_create: Enabled state written with the insert itself, so a new
                 schedule is never visible to the poller as enabled before it is turned off.
                 An existing schedule keeps its stored state, including under
                 ``if_exists="update"``; use enable/disable to change it.
@@ -212,7 +212,7 @@ class ScheduleManager:
             timeout_seconds=timeout_seconds,
             max_retries=max_retries,
             retry_delay_seconds=retry_delay_seconds,
-            enabled=initial_enabled,
+            enabled=enabled_on_create,
             next_run_at=next_run_at,
             locked_by=None,
             locked_at=None,
@@ -350,7 +350,7 @@ class ScheduleManager:
         if_exists: str = "raise",
         user_id: Optional[str] = None,
         provenance: Optional[Dict[str, str]] = None,
-        initial_enabled: bool = True,
+        enabled_on_create: bool = True,
     ) -> Schedule:
         """Async create a new schedule.
 
@@ -362,7 +362,7 @@ class ScheduleManager:
                 supplied values.
             user_id: Owner of the schedule; names are unique per owner. ``None``
                 leaves it unowned and the executor fires it unscoped.
-            initial_enabled: Enabled state written with the insert itself, so a new
+            enabled_on_create: Enabled state written with the insert itself, so a new
                 schedule is never visible to the poller as enabled before it is turned off.
                 An existing schedule keeps its stored state, including under
                 ``if_exists="update"``; use enable/disable to change it.
@@ -431,7 +431,7 @@ class ScheduleManager:
             timeout_seconds=timeout_seconds,
             max_retries=max_retries,
             retry_delay_seconds=retry_delay_seconds,
-            enabled=initial_enabled,
+            enabled=enabled_on_create,
             next_run_at=next_run_at,
             locked_by=None,
             locked_at=None,

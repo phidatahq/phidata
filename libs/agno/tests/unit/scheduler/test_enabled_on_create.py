@@ -11,14 +11,14 @@ from agno.scheduler import ScheduleManager
 def test_disabled_insert_is_not_claimable_and_update_preserves_the_toggle(tmp_path):
     db = SqliteDb(db_file=str(tmp_path / "schedules.db"))
     manager = ScheduleManager(db)
-    schedule = manager.create(name="evals", cron="0 14 * * *", endpoint="/evals", initial_enabled=False)
+    schedule = manager.create(name="evals", cron="0 14 * * *", endpoint="/evals", enabled_on_create=False)
     assert db.get_schedule(schedule.id)["enabled"] is False
     db.update_schedule(schedule.id, next_run_at=int(time.time()) - 60)
     assert db.claim_due_schedule(worker_id="poller") is None
 
     manager.enable(schedule.id)
     refreshed = manager.create(
-        name="evals", cron="0 15 * * *", endpoint="/evals", initial_enabled=False, if_exists="update"
+        name="evals", cron="0 15 * * *", endpoint="/evals", enabled_on_create=False, if_exists="update"
     )
     assert refreshed.id == schedule.id and refreshed.enabled is True
     manager.disable(schedule.id)
@@ -31,12 +31,12 @@ async def test_async_creation_and_update_preserve_operator_state(tmp_path, async
     db = (AsyncSqliteDb if async_db else SqliteDb)(db_file=str(tmp_path / "schedules.db"))
     manager = ScheduleManager(db)
     try:
-        schedule = await manager.acreate(name="evals", cron="0 14 * * *", endpoint="/evals", initial_enabled=False)
+        schedule = await manager.acreate(name="evals", cron="0 14 * * *", endpoint="/evals", enabled_on_create=False)
         assert schedule.enabled is False
         assert (await manager.aget(schedule.id)).enabled is False
         await manager.aenable(schedule.id)
         refreshed = await manager.acreate(
-            name="evals", cron="0 15 * * *", endpoint="/evals", initial_enabled=False, if_exists="update"
+            name="evals", cron="0 15 * * *", endpoint="/evals", enabled_on_create=False, if_exists="update"
         )
         assert refreshed.enabled is True
         await manager.adisable(schedule.id)

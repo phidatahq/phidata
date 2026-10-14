@@ -258,6 +258,8 @@ class CodexAgent(BaseExternalAgent):
         if self._effective_model()[0] is None:
             # Like a native model's default id: the default is what the thread runs and the run records.
             self.model = "gpt-5.6-luna"
+        if self.require_native_resume and self._resolved_thread_options().get("ephemeral"):
+            raise ValueError("Native resume requires persistent Codex threads; ephemeral mode is incompatible")
         for name in ("thread", "turn"):
             if getattr(self, f"{name}_kwargs"):
                 warnings.warn(
@@ -334,7 +336,7 @@ class CodexAgent(BaseExternalAgent):
             try:
                 thread = await codex.thread_resume(thread_id, **self._thread_kwargs(sdk, resume=True))
             except Exception as e:
-                if not self._is_missing_thread(e):
+                if self.require_native_resume or not self._is_missing_thread(e):
                     raise
                 log_warning(f"Codex: cannot compact thread {thread_id} for session {session_id}: {e}. Forgetting it.")
                 self._forget_thread(session, session_id)
@@ -582,6 +584,7 @@ class CodexAgent(BaseExternalAgent):
         if self._resolved_thread_options().get("ephemeral"):
             self._forget_thread(session, session_id)
         thread_id = self._get_thread_id(session, session_id)
+        self._check_native_resume(thread_id, session)
         if thread_id:
             try:
                 thread = await codex.thread_resume(thread_id, **self._thread_kwargs(sdk, resume=True))
@@ -595,7 +598,7 @@ class CodexAgent(BaseExternalAgent):
                         f"Session {session_id} already has a turn in flight on Codex thread {thread_id}: {e}",
                         session_id=session_id,
                     ) from e
-                if not self._is_missing_thread(e):
+                if self.require_native_resume or not self._is_missing_thread(e):
                     raise
                 log_warning(
                     f"Codex: could not resume thread {thread_id} for session {session_id}: {e}. Starting a new one."

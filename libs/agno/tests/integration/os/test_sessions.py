@@ -1143,12 +1143,12 @@ def test_get_session_runs_unknown_status_is_400(mixed_status_session, shared_db)
     assert "FAILED" in response.json()["detail"]
 
 
-def test_get_session_runs_summary_mode_is_lightweight(mixed_status_session, shared_db):
-    """summary=true: previews truncated, heavy fields absent, filter composes."""
+def test_get_session_run_previews_are_lightweight(mixed_status_session, shared_db):
+    """Previews truncated, heavy fields absent, status filter composes."""
     client = _mixed_client(shared_db)
     response = client.get(
-        f"/sessions/{mixed_status_session.session_id}/runs",
-        params={"summary": "true", "status": ["COMPLETED"]},
+        f"/sessions/{mixed_status_session.session_id}/run-previews",
+        params={"status": ["COMPLETED"]},
     )
     assert response.status_code == 200
     data = response.json()
@@ -1188,19 +1188,32 @@ def team_session_with_structured_run(shared_db):
 
 def test_get_session_runs_team_runs_carry_user_id(team_session_with_structured_run, shared_db):
     client = _mixed_client(shared_db)
-    url = f"/sessions/{team_session_with_structured_run.session_id}/runs"
-    full = client.get(url, params={"session_type": "team"})
-    summary = client.get(url, params={"session_type": "team", "summary": "true"})
-    assert full.status_code == 200 and summary.status_code == 200
+    session_id = team_session_with_structured_run.session_id
+    full = client.get(f"/sessions/{session_id}/runs", params={"type": "team"})
+    previews = client.get(f"/sessions/{session_id}/run-previews", params={"type": "team"})
+    assert full.status_code == 200 and previews.status_code == 200
     assert full.json()[0]["user_id"] == "test-user"
-    assert summary.json()[0]["user_id"] == "test-user"
+    assert previews.json()[0]["user_id"] == "test-user"
 
 
-def test_get_session_runs_summary_previews_structured_content_as_json(team_session_with_structured_run, shared_db):
+def test_get_session_run_previews_render_structured_content_as_json(team_session_with_structured_run, shared_db):
     client = _mixed_client(shared_db)
     response = client.get(
-        f"/sessions/{team_session_with_structured_run.session_id}/runs",
-        params={"session_type": "team", "summary": "true"},
+        f"/sessions/{team_session_with_structured_run.session_id}/run-previews",
+        params={"type": "team"},
     )
     assert response.status_code == 200
     assert json.loads(response.json()[0]["content_preview"]) == {"answer": 42, "notes": "structured"}
+
+
+def test_get_session_runs_default_shape_is_unchanged(mixed_status_session, shared_db):
+    client = _mixed_client(shared_db)
+    response = client.get(f"/sessions/{mixed_status_session.session_id}/runs", params={"status": ["COMPLETED"]})
+    assert response.status_code == 200
+    entry = response.json()[0]
+    assert "content" in entry and "content_preview" not in entry
+
+
+def test_get_session_run_previews_unknown_session_is_404(shared_db):
+    client = _mixed_client(shared_db)
+    assert client.get("/sessions/no-such-session/run-previews").status_code == 404

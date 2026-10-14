@@ -813,7 +813,7 @@ class RunSchema(BaseModel):
 _RUN_PREVIEW_CHARS = 280
 
 
-class SessionRunSummarySchema(BaseModel):
+class SessionRunPreviewSchema(BaseModel):
     """Lightweight session-run listing entry: the shape a queue tray or
     session sidebar polls for. Deliberately excludes messages, events, media,
     metrics and step results - the full shapes stay on the default listing
@@ -841,7 +841,7 @@ class SessionRunSummarySchema(BaseModel):
         return text[:_RUN_PREVIEW_CHARS]
 
     @classmethod
-    def from_run(cls, run: Any) -> "SessionRunSummarySchema":
+    def from_run(cls, run: Any) -> "SessionRunPreviewSchema":
         return cls(
             run_id=run.run_id,
             parent_run_id=getattr(run, "parent_run_id", None),

@@ -8,7 +8,7 @@ import tarfile
 import tempfile
 from contextlib import suppress
 from pathlib import Path
-from typing import Any, Dict, Mapping, Optional, Sequence, Tuple
+from typing import Any, Dict, Mapping, Optional, Protocol, Sequence, Tuple, runtime_checkable
 
 from agno.sandbox.base import SandboxError, SandboxHandle, _sync
 from agno.sandbox.checkpoint import (
@@ -25,6 +25,30 @@ from agno.sandbox.checkpoint import (
 from agno.sandbox.docker import DockerSandbox
 
 DEFAULT_NATIVE_EXCLUSIONS = ("native/codex/auth.json", "native/.claude/.credentials.json")
+
+
+@runtime_checkable
+class CheckpointTransfer(Protocol):
+    """Moves checkpoints between a sandbox's roots and a store; only the transport is per provider.
+
+    Capture returns a reference to the uploaded archive. Restore fills an empty, unused
+    generation and returns the manifest state. The archive format, exclusions and store
+    are shared through ``checkpoint``.
+    """
+
+    store: CheckpointStore
+
+    async def acapture(
+        self, handle: SandboxHandle, *, state: Mapping[str, Any], exclude: Sequence[str] = DEFAULT_NATIVE_EXCLUSIONS
+    ) -> CheckpointRef: ...
+
+    def capture(
+        self, handle: SandboxHandle, *, state: Mapping[str, Any], exclude: Sequence[str] = DEFAULT_NATIVE_EXCLUSIONS
+    ) -> CheckpointRef: ...
+
+    async def arestore(self, handle: SandboxHandle, reference: CheckpointRef) -> Mapping[str, Any]: ...
+
+    def restore(self, handle: SandboxHandle, reference: CheckpointRef) -> Mapping[str, Any]: ...
 
 
 class DockerCheckpointTransfer:

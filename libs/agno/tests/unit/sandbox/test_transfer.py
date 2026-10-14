@@ -11,7 +11,7 @@ import pytest
 from agno.sandbox import SandboxError, SandboxHandle
 from agno.sandbox.checkpoint import CheckpointArchive, FileCheckpointStore
 from agno.sandbox.docker import DockerSandbox
-from agno.sandbox.transfer import DEFAULT_NATIVE_EXCLUSIONS, DockerCheckpointTransfer
+from agno.sandbox.transfer import DEFAULT_NATIVE_EXCLUSIONS, CheckpointTransfer, DockerCheckpointTransfer
 
 
 def exported(path, root, entries):
@@ -266,3 +266,11 @@ async def test_capture_cancellation_survives_a_failed_unpause(tmp_path):
     task.cancel()
     with pytest.raises(asyncio.CancelledError):
         await task
+
+
+def test_docker_transfer_satisfies_the_transfer_protocol(tmp_path):
+    transfer: CheckpointTransfer = DockerCheckpointTransfer(
+        DockerSandbox("python:test", namespace="test"), FileCheckpointStore(tmp_path / "objects")
+    )
+    assert isinstance(transfer, CheckpointTransfer)
+    assert not isinstance(object(), CheckpointTransfer)

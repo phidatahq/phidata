@@ -1,5 +1,5 @@
-from dataclasses import dataclass
-from typing import Any
+from dataclasses import dataclass, field
+from typing import Any, Optional
 
 
 @dataclass(frozen=True)
@@ -11,6 +11,8 @@ class CompanyConfig:
     """
 
     db: Any
+    # Optional read-only GitHub credential for private pull requests and API rate limits.
+    github_token: Optional[str] = field(default=None, repr=False)
 
     def __post_init__(self) -> None:
         from agno.db.postgres import PostgresDb

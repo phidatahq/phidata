@@ -33,6 +33,7 @@ def mock_db():
 @pytest.fixture
 def mock_executor():
     executor = MagicMock()
+    executor._company = None
     executor.execute = AsyncMock(return_value={"status": "success"})
     executor.close = AsyncMock()
     return executor
@@ -236,6 +237,7 @@ class TestPollerExecuteSafe:
     @pytest.mark.asyncio
     async def test_catches_exceptions(self, mock_db):
         executor = MagicMock()
+        executor._company = None
         executor.execute = AsyncMock(side_effect=RuntimeError("boom"))
 
         poller = SchedulePoller(db=mock_db, executor=executor)

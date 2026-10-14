@@ -30,6 +30,7 @@ from agno.os.company.schemas import (
     ProjectCreate,
     ProjectPatch,
     ProjectSummary,
+    PullRequestReview,
     Reason,
     RunTask,
     Task,
@@ -464,5 +465,18 @@ def get_company_router(service: CompanyService) -> APIRouter:
         task_id: UUID, run_id: UUID, principal: Principal = Depends(principal_from_request)
     ) -> Any:
         return await service.aget_task_result(task_id=str(task_id), run_id=str(run_id), principal=principal)
+
+    @router.put("/tasks/{task_id}/review/pull-request", response_model=Task)
+    async def set_review_pull_request(
+        task_id: UUID,
+        data: PullRequestReview,
+        response: Response,
+        headers: dict = Depends(mutation_headers),
+        principal: Principal = Depends(principal_from_request),
+    ) -> Any:
+        return _etag(
+            response,
+            await service.aset_review_pull_request(task_id=str(task_id), data=data, principal=principal, **headers),
+        )
 
     return router

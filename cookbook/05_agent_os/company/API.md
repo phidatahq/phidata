@@ -14,7 +14,7 @@ field. Products carry `name`; Projects and Tasks carry `title`.
 | --- | --- |
 | Product | `owner_id`, `agent_id`, `state`, `counts` |
 | Project | `product_id`, `owner_id`, `state`, derived `status`, `counts`, `summary`, `summary_at`, `summary_sources` |
-| Task | `product_id`, nullable `project_id`, nullable `status`, `accountable_owner_id`, optional `assignee_id` and `agent_id`, `state`, `evidence`, `schedule`, `schedule_id` |
+| Task | `product_id`, nullable `project_id`, nullable `status`, `accountable_owner_id`, optional `assignee_id` and `agent_id`, `state`, `evidence`, `schedule`, `schedule_id`, `review_pull_request`, `review_started_at`, `automation_error` |
 
 `state` is active or archived. Project status is derived as empty, active or
 completed. Task status is null for direct work; Project Tasks use backlog, ready,
@@ -25,7 +25,7 @@ Completion requires a nonempty Project with every unarchived Task Done.
 
 - Products: list/create/get/patch, archive/restore, members.
 - Projects: list/create/get/patch, archive/restore, comments, generated summary.
-- Tasks: list/create/get/patch, archive/restore, comments, transitions, runs, schedule.
+- Tasks: list/create/get/patch, archive/restore, comments, transitions, runs, schedule, review PR link.
 - `/me` and `/activity`: caller capabilities and permission-filtered activity.
 
 Project creation is `POST /products/{id}/projects`. Task creation is
@@ -74,6 +74,46 @@ default agents and Task overrides must be authorized for the configuring caller.
 Platform specialists are not eligible Company workers. Codex needs an explicit
 existing workspace; workspace allocation and containment are deployment concerns.
 
+## Automatic progression and PR review
+
+With `queue=QueueConfig(durable=True)` and `scheduler=True`, the existing scheduler
+poller picks up newly accepted Ready Tasks with a registered worker. The run has
+`trigger: "ready"`. Stable acceptance/run identity and the existing one-active-run
+constraint prevent overlapping pickup. The stored Ready grant is private and does
+not contain a bearer token. User activity, Product membership and agent-run permission
+are checked again. Changes to accepted Task execution instructions or authority return
+it to Backlog. A changed Product default does not silently substitute another worker.
+
+`PUT /tasks/{id}/review/pull-request` accepts `url` (an exact github.com PR URL) and
+`head_sha` (40 lowercase hexadecimal characters). It requires the normal mutation
+headers, an eligible human Product owner with review permission, and In-review state.
+The action is advertised as `link_pull_request`. Agents cannot call it through
+CompanyTools. Updating the link uses the new Task version; it replaces the saved
+reviewer's grant. This explicitly permits completion after any GitHub User account
+merges the linked revision; no Company/GitHub account mapping is implied.
+
+On each scheduler tick, Company checks the repository, PR number, exact head SHA,
+merged state, merger account type and merge timestamp using GitHub's read-only API.
+The merge must occur after this review started. Permission and Task version are
+rechecked under the Product lock after the network request. A changed review or
+revoked reviewer cannot be completed using stale proof. Successful verification
+records `task.pull_request_merged` with actor `service:github`, the configuring
+reviewer as initiating principal, and the observed merge details. A plain evidence
+link cannot trigger completion. Project completion remains derived from Task states.
+
+Set `CompanyConfig.github_token` for private PRs or authenticated API limits. It is
+excluded from config repr. Requests use the fixed api.github.com origin and do not
+follow redirects. Transport/provider failure leaves the Task in review with a safe
+`automation_error`; a later tick retries verification. That diagnostic does not
+change the accepted Task version. GitHub Enterprise and other providers are not
+included. A GitHub User account can itself be automated: this gate verifies account
+metadata, not a person's physical interaction. It does not merge PRs.
+
+Explicit human Done acceptance remains available independently of GitHub. Requesting
+revision clears the previous link. Failed/cancelled work stays In progress until a
+deliberate retry. Ready Tasks without a worker remain manual. Turning off the scheduler
+stops automatic pickup and merge checks; explicit run and acceptance remain available.
+
 ## Identity and review
 
 Product membership is mandatory in addition to provider permissions. Readers read;
@@ -105,7 +145,7 @@ Back up Company and runtime databases before deployment. Restore both for run hi
 
 Separate Company and runtime databases are supported without a distributed
 transaction. A committed intent plus stable runtime ID recovers queue submission;
-startup and history reads reconcile completed attempts. Default execution makes one
+startup, scheduler ticks and history reads reconcile completed attempts. Default execution makes one
 queue attempt; interrupted external work is visible rather than silently rerun.
 
 The current examples are a bounded pilot. Live provider quality, multi-replica
@@ -115,5 +155,7 @@ operation and automatic workspace provisioning require separate deployment valid
 Cancellation covers queued and executing work. Cancellation before queue acceptance
 is durable and prevents startup recovery or a request retry from dispatching that run.
 While an executing worker stops, its status may remain running; poll until terminal.
-Cancelling a run does not mark its Project Task Done. Apply migration v5 before
-starting this version; it preserves previous records and adds cancellation intent.
+Cancelling a run does not mark its Project Task Done. Migration v5 preserves previous records and adds cancellation intent. Apply v6 before
+starting this release; it adds Ready authority and review fields without enrolling
+existing Ready Tasks. Reaccept those Tasks after returning to Backlog. Legacy In-review
+Tasks remain manually acceptable; a fresh review is needed for automatic PR completion.

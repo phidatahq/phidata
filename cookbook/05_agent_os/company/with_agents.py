@@ -2,7 +2,8 @@
 
 Set ENABLE_MANAGER=true only with the AgentOS Manager feature installed.
 Set CODING_WORKSPACE to a dedicated disposable worktree to enable the coding pilot.
-No agent runs merely by starting this server.
+The scheduler automatically picks up accepted Ready Tasks and due recurring Tasks.
+Set GITHUB_TOKEN for read-only verification of private reviewer-linked PRs.
 """
 
 from os import environ
@@ -70,7 +71,7 @@ agent_os = AgentOS(
     id=environ.get("AGENT_OS_ID", "company"),
     db=db,
     agents=agents,
-    company=CompanyConfig(db=db),
+    company=CompanyConfig(db=db, github_token=environ.get("GITHUB_TOKEN")),
     authorization=Authorization(
         verification_keys=[environ["JWT_VERIFY_KEY"]],
         algorithm=environ.get("JWT_ALGORITHM", "RS256"),

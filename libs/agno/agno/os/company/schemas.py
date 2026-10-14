@@ -21,6 +21,11 @@ class Evidence(Input):
     label: Optional[str] = Field(default=None, max_length=200)
 
 
+class PullRequestReview(Input):
+    url: str = Field(pattern=r"^https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/pull/[1-9][0-9]*$")
+    head_sha: str = Field(pattern=r"^[0-9a-f]{40}$")
+
+
 class ProductCreate(Input):
     agent_id: Optional[str] = Field(default=None, min_length=1, max_length=200)
     name: str = Field(min_length=1, max_length=200)
@@ -175,6 +180,9 @@ class Task(Record):
     origin: Literal["human", "agent"]
     schedule: Optional[Dict[str, Any]] = None
     schedule_id: Optional[str] = None
+    review_pull_request: Optional[PullRequestReview] = None
+    review_started_at: Optional[datetime] = None
+    automation_error: Optional[str] = None
     accepted_by: Optional[str] = None
     accepted_at: Optional[datetime] = None
     evidence: List[Evidence]

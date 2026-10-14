@@ -92,6 +92,12 @@ class SchedulePoller:
 
     async def _poll_once(self) -> None:
         """Claim all due schedules in a tight loop and fire them off."""
+        company = getattr(self.executor, "_company", None)
+        if company is not None:
+            try:
+                await company._tick()
+            except Exception:
+                log_warning("Company automation tick failed; work will be checked on the next scheduler tick")
         while self._running:
             # Enforce concurrency limit
             self._in_flight -= {t for t in self._in_flight if t.done()}

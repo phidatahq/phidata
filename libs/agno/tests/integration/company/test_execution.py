@@ -393,9 +393,11 @@ def test_housekeeping_uses_worker_context_and_preserves_human_plan(setup):
 
 
 def test_manager_team_delegates_company_tools_with_verified_identity(setup, tmp_path):
-    platform = pytest.importorskip(
-        "agno.os.platform", reason="Run this compatibility test with the manager workstream combined"
-    )
+    import agno.os as os_module
+
+    manager_config = getattr(os_module, "ManagerConfig", None)
+    if manager_config is None:
+        pytest.skip("Combine with Manager to test composition")
 
     class DelegateModel(LocalModel):
         def invoke(self, messages, **kwargs):
@@ -439,7 +441,7 @@ def test_manager_team_delegates_company_tools_with_verified_identity(setup, tmp_
         company=CompanyConfig(db=db),
         user_directory=users,
         authorization=Authorization(verification_keys=[KEY], algorithm="HS256", audience="company-test"),
-        manager=platform.ManagerConfig(model=DelegateModel(), workspace=str(tmp_path)),
+        manager=manager_config(model=DelegateModel(), workspace=str(tmp_path)),
         queue=QueueConfig(durable=True, poll_interval=0.02),
     )
     os.manager.members.append(product_manager)
@@ -451,7 +453,9 @@ def test_manager_team_delegates_company_tools_with_verified_identity(setup, tmp_
     }
     assert all(t.name == "company" for t in product_manager.tools)
     with TestClient(os.get_app()) as client:
-        client.headers["Authorization"] = "Bearer " + token(scopes=(*SCOPES, "teams:run", "agents:run"))
+        client.headers["Authorization"] = "Bearer " + token(
+            scopes=(*SCOPES, "teams:run", "agents:run", "agent_os:admin")
+        )
         response = client.post(
             f"/teams/{os.manager.id}/runs", data={"message": "List the Company Products", "stream": "false"}
         )
@@ -470,7 +474,9 @@ def test_manager_team_delegates_company_tools_with_verified_identity(setup, tmp_
                 break
             time.sleep(0.02)
         assert output and "Documentation" in str(output.content)
-        client.headers["Authorization"] = "Bearer " + token(who="mallory", scopes=(*SCOPES, "teams:run", "agents:run"))
+        client.headers["Authorization"] = "Bearer " + token(
+            who="mallory", scopes=(*SCOPES, "teams:run", "agents:run", "agent_os:admin")
+        )
         denied = client.post(
             f"/teams/{os.manager.id}/runs",
             data={"message": "List the Company Products", "stream": "false", "user_id": "alice"},

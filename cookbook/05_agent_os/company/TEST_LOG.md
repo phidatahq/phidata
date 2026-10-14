@@ -1,5 +1,47 @@
 # Company manual slice validation
 
+## Ready pickup and review gates — 14 October 2026
+
+**Status:** PASS for behavior checks; full validation remains blocked by seven inherited typing errors.
+
+**Description:** The existing scheduler picks up newly accepted Ready Tasks through
+its durable queue. Successful execution stops at In review. An eligible human may
+accept Done or link an exact GitHub PR revision for read-only merge verification.
+
+**Results:**
+- Backend Company, queue, scheduler, configuration and authorization selection:
+  **382 passed, 2 expected Manager-only skips**; two existing OpenAPI warnings.
+- Disposable combined checkout with Manager head
+  `01a202354a7e5f5bd7fd0b61f60dc0a7bb7b24d3`: **324 passed**; four existing OpenAPI
+  warnings. Includes all platform specialists, ordinary Product Manager composition,
+  automatic Ready pickup, inline/queued Manager delegation and queue wakeup checks.
+  Compatibility uses public ManagerConfig and the current platform-admin requirement.
+- Company suite with isolated installed dependencies: **64 passed, 2 expected
+  Manager-only skips**; two existing OpenAPI warnings. Source loaded from this checkout.
+- Covered concurrent ticks, restart reconstruction, partial dispatch recovery,
+  cancellation, failed-run non-retry, worker changes, revoked authority, migration
+  v5-to-v6, human-only PR linking, duplicate completion, stale review races, plain
+  evidence URLs, changed SHA, bot/old merges, malformed responses and GitHub failures.
+- Actual read-only GitHub verification against an already-merged public PR accepted
+  its exact historical head and rejected a wrong SHA and using that old merge for
+  a new review. Full Task completion uses mocked GitHub HTTP in local integration
+  tests; no new live agent calls or actual human-merge workflow was performed.
+- `with_agents.py` constructs the Company routes and worker configuration without
+  starting lifespan or making model calls. Starting lifespan can dispatch existing work.
+- `scripts/format.sh`: PASS (three unrelated formatter-only baseline edits restored).
+  Ruff, cookbook pattern checks and agnoctl typing: PASS. `scripts/validate.sh`: FAIL
+  with seven typing errors outside Company, exactly reproduced on the unchanged
+  parent commit `ca295d99e9b6f41ca9e829397f8320a751e7b8f4`. No new typing errors.
+
+**Limits:** GitHub.com only; its User account type is not proof of physical human
+interaction or branch-protection enforcement. No automatic failed-run retry, per-Task
+workspace provisioning, frontend work, new live model evaluation or multi-host proof.
+Existing Ready Tasks need renewed acceptance after migration; old reviews need a new
+review cycle before PR verification. Sequential GitHub checks can delay scheduler ticks
+at scale; production-scale rate-limit and throughput behavior is not established.
+
+---
+
 ## Completion checks — 14 October 2026
 
 **Status:** PASS for local backend checks and the two-run live Codex pilot.

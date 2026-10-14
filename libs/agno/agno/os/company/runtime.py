@@ -4,6 +4,7 @@ import asyncio
 import hashlib
 import time
 from dataclasses import replace
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 from uuid import NAMESPACE_URL, uuid4, uuid5
 
@@ -81,6 +82,15 @@ class CompanyRuntime:
                 if existing["request_hash"] != request_hash:
                     raise CompanyError(409, "idempotency_mismatch", "Run key was used with different inputs")
                 return existing
+            if trigger == "ready" and (
+                task["status"] != "ready"
+                or not task["ready_principal"]
+                or task["ready_principal"] != self._saved(principal)
+                or task["ready_agent_id"] != (task["agent_id"] or product["agent_id"])
+            ):
+                raise CompanyError(
+                    409, "ready_changed", "Return to Backlog and accept Ready again to authorize this worker"
+                )
             if task["version"] != version:
                 raise CompanyError(412, "version_conflict", "Reload the Task before running it")
             if task["state"] != "active" or product["state"] != "active":
@@ -130,7 +140,7 @@ class CompanyRuntime:
                     "instructions": project["instructions"],
                 }
             if not active and task["status"] == "ready":
-                task = service._update(conn, "tasks", task_id, {"status": "in_progress"})
+                task = service._update(conn, "tasks", task_id, {"status": "in_progress", "automation_error": None})
             row = _row(
                 conn,
                 """INSERT INTO agno_company.task_runs
@@ -303,7 +313,17 @@ class CompanyRuntime:
             ).scalar()
             if changed:
                 if status == "completed" and task["status"] == "in_progress":
-                    self.service._update(conn, "tasks", str(task["id"]), {"status": "in_review"})
+                    self.service._update(
+                        conn,
+                        "tasks",
+                        str(task["id"]),
+                        {
+                            "status": "in_review",
+                            "review_started_at": datetime.now(timezone.utc),
+                            "review_pull_request": None,
+                            "review_principal": None,
+                        },
+                    )
                 self.service._insert(
                     conn,
                     "activity",
@@ -585,10 +605,14 @@ class CompanyRuntime:
         except CompanyError as exc:
             return {"status": "failed", "status_code": exc.status, "error": str(exc)}
 
-    async def _recover(self) -> None:
+    async def _recover(self, *, schedules: bool = True) -> None:
         def read() -> Any:
             with self.service._engine.connect() as conn:
+                from agno.os.company.migrations import VERSION
+
                 if not _query(conn, "SELECT to_regclass('agno_company.task_runs')").scalar():
+                    return [], []
+                if _query(conn, "SELECT max(version) FROM agno_company.schema_version").scalar() != VERSION:
                     return [], []
                 rows = [
                     dict(r)
@@ -602,7 +626,7 @@ class CompanyRuntime:
                         conn, "SELECT id,schedule_principal FROM agno_company.tasks WHERE schedule IS NOT NULL"
                     ).mappings()
                 ]
-                return rows, tasks
+                return rows, tasks if schedules else []
 
         rows, tasks = await asyncio.to_thread(read)
         from agno.utils.log import log_warning
@@ -638,3 +662,132 @@ class CompanyRuntime:
 
     def get_task_result(self, **kwargs: Any) -> Dict[str, Any]:
         return asyncio.run(self.aget_task_result(**kwargs))
+
+    def _automation_tasks(self) -> list:
+        from agno.os.company.migrations import VERSION
+
+        with self.service._engine.connect() as conn:
+            if not _query(conn, "SELECT to_regclass('agno_company.schema_version')").scalar():
+                return []
+            if _query(conn, "SELECT max(version) FROM agno_company.schema_version").scalar() != VERSION:
+                return []
+            return [
+                dict(r)
+                for r in _query(
+                    conn,
+                    """
+                SELECT t.* FROM agno_company.tasks t
+                JOIN agno_company.products p ON p.id=t.product_id
+                JOIN agno_company.projects j ON j.id=t.project_id
+                WHERE t.state='active' AND p.state='active' AND j.state='active' AND
+                ((t.status='ready' AND t.ready_principal IS NOT NULL AND t.ready_agent_id IS NOT NULL)
+                 OR (t.status='in_review' AND jsonb_typeof(t.review_pull_request)='object'))
+                ORDER BY t.updated_at, t.id
+            """,
+                ).mappings()
+            ]
+
+    def _automation_error(self, task: Dict[str, Any], error: Optional[str]) -> None:
+        # Diagnostics do not change the accepted Task version. A stale tick cannot overwrite a newer review.
+        with self.service._engine.begin() as conn:
+            _query(
+                conn,
+                "UPDATE agno_company.tasks SET automation_error=:error WHERE id=:id AND version=:version",
+                id=task["id"],
+                version=task["version"],
+                error=error,
+            )
+
+    def _review_authority(self, conn: Any, task: Dict[str, Any], principal: Principal) -> Any:
+        current, product = self.service._load(conn, principal, "task", str(task["id"]), lock=True)
+        self.service._require(principal, product, "owner", "review")
+        if (
+            current["version"] != task["version"]
+            or current["status"] != "in_review"
+            or current["review_pull_request"] != task["review_pull_request"]
+            or current["review_principal"] != task["review_principal"]
+        ):
+            raise CompanyError(412, "review_changed", "The Task review changed during verification")
+        if "transition:done" not in self.service._actions(conn, principal, "task", current, product):
+            raise CompanyError(409, "review_unavailable", "This Task is no longer available for review")
+        return current, product
+
+    def _check_review(self, task: Dict[str, Any]) -> Principal:
+        principal = self._principal(task["review_principal"])
+        with self.service._transaction(principal) as conn:
+            self._review_authority(conn, task, principal)
+        return principal
+
+    def _accept_merge(self, task: Dict[str, Any], principal: Principal, proof: Dict[str, Any]) -> None:
+        with self.service._transaction(principal) as conn:
+            current, product = self._review_authority(conn, task, principal)
+            changes = self.service._transition(
+                conn,
+                principal,
+                "task",
+                current,
+                product,
+                {
+                    "to_status": "done",
+                    "reason": "GitHub confirmed the reviewer-approved PR revision was merged",
+                    "acceptance_check": "Verified merged revision and GitHub user account",
+                    "evidence": []
+                    if any(e["url"] == proof["url"] for e in current["evidence"])
+                    else [{"type": "pull_request", "url": proof["url"], "label": "Verified merged pull request"}],
+                },
+            )
+            self.service._update(conn, "tasks", str(task["id"]), changes)
+            self.service._insert(
+                conn,
+                "activity",
+                {
+                    "id": str(uuid4()),
+                    "product_id": product["id"],
+                    "subject_type": "task",
+                    "subject_id": task["id"],
+                    "actor_id": "service:github",
+                    "initiating_principal_id": principal.id,
+                    "operation": "task.pull_request_merged",
+                    "delta": {
+                        "verification": proof,
+                        "review_version": task["version"],
+                        "before_status": "in_review",
+                        "after_status": "done",
+                    },
+                    "request_id": "merge:" + str(task["id"]) + ":" + str(task["version"]),
+                },
+            )
+
+    async def _tick(self) -> None:
+        """Use the existing scheduler tick and queue; never create agents or a second timer."""
+        if self.worker is None:
+            return
+        tasks = await asyncio.to_thread(self._automation_tasks)
+        # Reconcile interrupted queue submissions and terminal results even without an HTTP reader.
+        await self._recover(schedules=False)
+        from agno.os.company.review import _verify_merge
+
+        for task in tasks:
+            try:
+                if task["status"] == "ready":
+                    await self.arun_task(
+                        principal=self._principal(task["ready_principal"]),
+                        task_id=str(task["id"]),
+                        version=task["version"],
+                        trigger="ready",
+                        idempotency_key="ready:" + str(task["id"]) + ":" + task["accepted_at"].isoformat(),
+                    )
+                else:
+                    principal = await asyncio.to_thread(self._check_review, task)
+                    if not task["review_started_at"]:
+                        raise CompanyError(
+                            409, "review_required", "Request revision and start a new review before linking a PR"
+                        )
+                    proof = await _verify_merge(
+                        task["review_pull_request"], task["review_started_at"], self.service._config.github_token
+                    )
+                    if proof is not None:
+                        await asyncio.to_thread(self._accept_merge, task, principal, proof)
+                await asyncio.to_thread(self._automation_error, task, None)
+            except CompanyError as exc:
+                await asyncio.to_thread(self._automation_error, task, str(exc))

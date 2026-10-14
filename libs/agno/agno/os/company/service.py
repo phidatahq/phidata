@@ -25,6 +25,7 @@ from agno.os.company.schemas import (
     ProductPatch,
     ProjectCreate,
     ProjectPatch,
+    PullRequestReview,
     Reason,
     TaskCreate,
     TaskPatch,
@@ -50,6 +51,7 @@ def _row(conn: Any, sql: str, **params: Any) -> Optional[Dict[str, Any]]:
 
 class CompanyService:
     def __init__(self, config: CompanyConfig, user_directory: Any = None):
+        self._config = config
         self._engine = config.db.db_engine
         self._users = user_directory
         self._runtime: Any = None
@@ -216,7 +218,7 @@ class CompanyService:
             actions.append("transition:" + ("in_progress" if status == "ready" else "in_review"))
         if review:
             if status == "in_review":
-                actions += ["transition:done", "transition:in_progress"]
+                actions += ["transition:done", "transition:in_progress", "link_pull_request"]
             if status in ("ready", "done"):
                 actions.append("transition:backlog")
         return actions
@@ -227,7 +229,8 @@ class CompanyService:
         result = dict(record)
         result.pop("role", None)
         result.pop("legacy_status", None)
-        result.pop("schedule_principal", None)
+        for private in ("schedule_principal", "ready_principal", "ready_agent_id", "review_principal"):
+            result.pop(private, None)
         result["permitted_actions"] = self._actions(conn, principal, kind, record, product)
         if kind != "task":
             result["counts"] = self._counts(conn, str(product["id"]), str(record["id"]) if kind == "project" else None)
@@ -408,6 +411,8 @@ class CompanyService:
                     role = "owner"
                     if action == "schedule":
                         permission = "manage"
+                if action == "pull_request":
+                    role, permission = "owner", "review"
                 if action == "transition":
                     if (
                         kind == "project"
@@ -467,7 +472,15 @@ class CompanyService:
                 if self._runtime is None:
                     raise CompanyError(409, "worker_required", "Configure a registered AgentOS worker first")
                 self._runtime._agent(principal, body["agent_id"])
-            before = {k: v for k, v in record.items() if k != "schedule_principal"} if record else None
+            before = (
+                {
+                    k: v
+                    for k, v in record.items()
+                    if k not in ("schedule_principal", "ready_principal", "ready_agent_id", "review_principal")
+                }
+                if record
+                else None
+            )
             if action == "create":
                 record_id = str(uuid4())
                 values = {
@@ -554,8 +567,24 @@ class CompanyService:
                             status="backlog" if body["project_id"] else None,
                             accepted_at=None,
                             accepted_by=None,
+                            ready_principal=None,
+                            ready_agent_id=None,
                             completed_at=None,
                         )
+                if (
+                    kind == "task"
+                    and record["status"] == "ready"
+                    and {"instructions", "agent_id", "accountable_owner_id"}.intersection(body)
+                ):
+                    self._require(principal, product, "owner", "review")
+                    body.update(
+                        status="backlog",
+                        accepted_by=None,
+                        accepted_at=None,
+                        ready_principal=None,
+                        ready_agent_id=None,
+                        automation_error=None,
+                    )
                 record = self._update(conn, _TABLES[kind], record_id, body)
             elif action in ("archive", "restore"):
                 assert record_id is not None
@@ -605,6 +634,22 @@ class CompanyService:
                         raise CompanyError(404, "not_found", "Membership not found")
                 record = self._update(conn, "products", record_id, {})
                 result = {**member, "version": record["version"]}
+            elif action == "pull_request":
+                assert record_id is not None
+                if kind != "task" or record["status"] != "in_review":
+                    raise CompanyError(409, "review_required", "Link a pull request while the Task is In review")
+                if self._runtime is None:
+                    raise CompanyError(409, "runtime_required", "Configure AgentOS to verify pull requests")
+                record = self._update(
+                    conn,
+                    "tasks",
+                    record_id,
+                    {
+                        "review_pull_request": body,
+                        "review_principal": self._runtime._saved(principal),
+                        "automation_error": None,
+                    },
+                )
             elif action == "schedule":
                 assert record_id is not None
                 if record["project_id"] and body["enabled"]:
@@ -664,7 +709,11 @@ class CompanyService:
                     "delta": {
                         "request": body,
                         "before": before,
-                        "after": {k: v for k, v in record.items() if k != "schedule_principal"},
+                        "after": {
+                            k: v
+                            for k, v in record.items()
+                            if k not in ("schedule_principal", "ready_principal", "ready_agent_id", "review_principal")
+                        },
                         "member_id": member_id,
                     },
                     "request_id": request_id,
@@ -715,13 +764,34 @@ class CompanyService:
             f"{key}="
             + (
                 f"CAST(:{key} AS jsonb)"
-                if key in ("evidence", "summary_sources", "schedule", "schedule_principal")
+                if key
+                in (
+                    "evidence",
+                    "summary_sources",
+                    "schedule",
+                    "schedule_principal",
+                    "ready_principal",
+                    "review_principal",
+                    "review_pull_request",
+                )
                 else f":{key}"
             )
             for key in values
         ]
         params = {
-            key: _json(value) if key in ("evidence", "summary_sources", "schedule", "schedule_principal") else value
+            key: _json(value)
+            if value is not None
+            and key
+            in (
+                "evidence",
+                "summary_sources",
+                "schedule",
+                "schedule_principal",
+                "ready_principal",
+                "review_principal",
+                "review_pull_request",
+            )
+            else value
             for key, value in values.items()
         }
         fields += ["version=version+1", "updated_at=clock_timestamp()"]
@@ -756,6 +826,18 @@ class CompanyService:
                     )
                 self._member(conn, principal, str(product["id"]), record["accountable_owner_id"])
                 changes.update(accepted_by=principal.id, accepted_at=datetime.now(timezone.utc))
+                if self._runtime is not None:
+                    changes.update(
+                        ready_principal=self._runtime._saved(principal),
+                        ready_agent_id=record["agent_id"] or product["agent_id"],
+                    )
+            changes["automation_error"] = None
+            if target == "in_review":
+                changes["review_started_at"] = datetime.now(timezone.utc)
+            else:
+                changes.update(review_pull_request=None, review_principal=None, review_started_at=None)
+            if target != "ready":
+                changes.update(ready_principal=None, ready_agent_id=None)
             if target == "backlog":
                 changes.update(accepted_by=None, accepted_at=None, completed_at=None)
             if target == "done":
@@ -1253,3 +1335,10 @@ class CompanyService:
         if self._runtime is None:
             raise CompanyError(503, "runtime_required", "Configure Company on AgentOS for execution")
         return await self._runtime.aget_task_result(**kwargs)
+
+    def set_review_pull_request(self, *, task_id: str, data: PullRequestReview, **kwargs: Any) -> Dict[str, Any]:
+        """Let an eligible human bind the current review to an exact GitHub PR revision."""
+        return self._mutate(kind="task", action="pull_request", record_id=task_id, data=data, **kwargs)
+
+    async def aset_review_pull_request(self, **kwargs: Any) -> Dict[str, Any]:
+        return await asyncio.to_thread(self.set_review_pull_request, **kwargs)

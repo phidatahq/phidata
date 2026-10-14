@@ -5,7 +5,7 @@ from typing import Any
 
 from sqlalchemy import text
 
-VERSION = 5
+VERSION = 6
 
 
 def migrate(db: Any) -> None:
@@ -16,6 +16,7 @@ def migrate(db: Any) -> None:
     from agno.os.company.migrations.v003 import SQL as WORK_SQL
     from agno.os.company.migrations.v004 import SQL as RUN_SQL
     from agno.os.company.migrations.v005 import SQL as CANCEL_SQL
+    from agno.os.company.migrations.v006 import SQL as AUTOMATION_SQL
 
     CompanyConfig(db=db)
     with db.db_engine.begin() as conn:
@@ -38,6 +39,9 @@ def migrate(db: Any) -> None:
         if version == 4:
             conn.exec_driver_sql(CANCEL_SQL)
             version = 5
+        if version == 5:
+            conn.exec_driver_sql(AUTOMATION_SQL)
+            version = 6
         if version != VERSION:
             raise RuntimeError("Unsupported Company schema version; use the matching release migration")
 

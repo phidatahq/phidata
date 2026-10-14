@@ -746,10 +746,14 @@ def test_cancel_pending_dispatch_survives_recovery_and_retry(setup, monkeypatch)
         response = client.post(f"/company/v1/tasks/{task['id']}/runs", json={}, headers=headers)
         assert response.status_code == 503
         run = client.get(f"/company/v1/tasks/{task['id']}/runs").json()["data"][0]
+        # A deployment may remove the worker before this interrupted dispatch is cancelled.
+        registered = os.agents
+        os.agents = []
         cancelled = client.post(f"/company/v1/tasks/{task['id']}/runs/{run['id']}/cancel")
         assert cancelled.status_code == 200 and cancelled.json()["status"] == "cancelled"
         monkeypatch.setattr(runtime, "_enqueue", enqueue)
         client.portal.call(runtime._recover)
+        os.agents = registered
         replay = client.post(f"/company/v1/tasks/{task['id']}/runs", json={}, headers=headers)
         assert replay.status_code == 202 and replay.json()["status"] == "cancelled"
         assert client.portal.call(runtime.worker.store.get_job, run["id"]) is None

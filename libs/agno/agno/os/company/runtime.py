@@ -241,7 +241,9 @@ class CompanyRuntime:
 
     async def _result(self, row: Dict[str, Any]) -> Dict[str, Any]:
         job = await self.worker.store.get_job(str(row["id"])) if self.worker and not row["skipped"] else None
-        status = job["status"] if job else "dispatch_pending"
+        status = "cancelled" if row["cancel_requested"] else ("unavailable" if row["released"] else "dispatch_pending")
+        if job is not None:
+            status = job["status"]
         if job is None and not row["skipped"]:
             agent = next((a for a in self.os.agents or [] if a.id == row["agent_id"]), None)
             if agent is not None:
@@ -255,9 +257,7 @@ class CompanyRuntime:
                     "PAUSED": "paused",
                 }.get(
                     getattr(getattr(output, "status", None), "value", ""),
-                    "cancelled"
-                    if row["cancel_requested"]
-                    else ("unavailable" if row["released"] else "dispatch_pending"),
+                    status,
                 )
         return {
             "id": str(row["id"]),

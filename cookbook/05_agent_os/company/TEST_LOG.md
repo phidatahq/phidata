@@ -15,7 +15,8 @@
   plus Product Manager and retain the initiating human's Product access.
 - Cancellation now interrupts executing agents as well as waiting queue entries.
   A durable cancellation intent prevents partial dispatch from restarting cancelled
-  work. Active, queued and pre-dispatch cancellation regressions: **3 passed**.
+  work, including after its worker is removed from a deployment. Active, queued
+  and pre-dispatch cancellation regressions: **3 passed**.
 - Existing cookbook database upgraded from v4 to v5 without dropping data. Repeating
   `manual.py` preserved the original single completed Task and derived Project counts.
 - The prepared two-run operator script passed with a fixture SDK, including an actual

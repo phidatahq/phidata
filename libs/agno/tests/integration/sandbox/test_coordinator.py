@@ -555,3 +555,76 @@ async def test_large_structured_result_still_checkpoints(system, monkeypatch):
     target = root / uuid4().hex
     state = await coordinator.transfer.store.arestore(CheckpointRef(**record["checkpoint"]), target)
     assert "result" not in state and len(state["result_sha256"]) == 64
+
+
+async def test_invalid_start_request_retires_the_turn_and_releases_the_session(system, monkeypatch):
+    coordinator, spec, root = system
+    start = coordinator.client.astart
+
+    async def rejected(*args, **kwargs):
+        raise ValueError("Runtime request exceeds 1 MiB")
+
+    monkeypatch.setattr(coordinator.client, "astart", rejected)
+    first = await run(coordinator, spec)
+    assert first.status == RunStatus.error and "exceeds 1 MiB" in str(first.content)
+    row = await binding(coordinator)
+    # Nothing executed: the session is released and the provisioned computer is gone.
+    assert row["run_id"] is None and row["record"]["phase"] == "idle" and row["record"].get("computer") is None
+    assert (
+        await coordinator.provider.afind(
+            spec.session_id, agent_id=spec.agent_id, generation=row["record"]["generation"], env=spec.env
+        )
+        is None
+    )
+    monkeypatch.setattr(coordinator.client, "astart", start)
+    assert (await run(coordinator, spec, "second")).status == RunStatus.completed
+    assert await recovered_effects(coordinator, root) == ["second"]
+
+
+async def test_request_near_the_limit_is_refused_before_the_claim(system):
+    coordinator, spec, root = system
+    # Sized so the fingerprint form of the request is exactly 1 MiB; the real start request is larger.
+    shape = dict(
+        version=1,
+        execution_id="validate",
+        run_id="first",
+        agent_id=spec.agent_id,
+        session_id=spec.session_id,
+        user_id="user",
+        input="",
+        sdk="fixture",
+        config={},
+        execution_timeout=900,
+    )
+    text = "x" * (1024 * 1024 - len(json.dumps(shape).encode()))
+    with pytest.raises(ValueError, match="exceeds"):
+        await coordinator.arun(
+            spec.session_id,
+            agent_id=spec.agent_id,
+            env=spec.env,
+            run_id="first",
+            input=text,
+            sdk="fixture",
+            user_id="user",
+        )
+    assert await coordinator.store._transaction(lambda c: c.execute(select(coordinator.store.bindings)).first()) is None
+
+
+async def test_finished_turn_does_not_relinquish_a_released_lease(system, monkeypatch):
+    coordinator, spec, root = system
+    relinquish, calls = coordinator.store.arelinquish, []
+
+    async def counted(lease):
+        calls.append(lease)
+        await relinquish(lease)
+
+    monkeypatch.setattr(coordinator.store, "arelinquish", counted)
+    assert (await run(coordinator, spec)).status == RunStatus.completed
+    assert calls == []
+    # A caller that leaves mid-turn still detaches.
+    task = asyncio.create_task(run(coordinator, spec, "second", config={"delay": 5}))
+    await asyncio.sleep(1.5)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert len(calls) == 1

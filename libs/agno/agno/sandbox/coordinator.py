@@ -161,20 +161,17 @@ class SandboxCoordinator:
             config=dict(config or {}),
             execution_timeout=execution_timeout,
         )
-        # Fixture opt-in belongs to the compute image/environment; production SDKs
-        # use the same pure request validation without importing either SDK.
-        _validate(
-            {
-                **request,
-                "sdk": "claude" if sdk == "fixture" else sdk,
-                # The longest values astart sends: a uuid4 hex execution id and a 256-character native id.
-                "execution_id": "0" * 32,
-                "native_session_id": "0" * 256,
-            }
-        )
+        # Validate what the client will actually send, not this fingerprint form: the start request
+        # carries a 32-character execution id and the committed conversation id, which is unknown
+        # before the claim, so the largest id allowed stands in for it. Fixture opt-in belongs to the
+        # compute image/environment; production SDKs use the same pure request validation without
+        # importing either SDK.
+        probe = {**request, "execution_id": "0" * 32, "native_session_id": "0" * 256}
+        _validate({**probe, "sdk": "claude" if sdk == "fixture" else sdk})
         request = json.loads(json.dumps(request, allow_nan=False))
         config = request["config"]
-        if len(json.dumps(request, allow_nan=False).encode()) > 1024 * 1024:
+        # The client's own measurement of the start request.
+        if len(json.dumps(probe, allow_nan=False).encode()) > 1024 * 1024:
             raise ValueError("Runtime request exceeds 1 MiB")
         run = RunOutput(
             run_id=run_id,
@@ -224,6 +221,8 @@ class SandboxCoordinator:
                 heartbeat_error.append(error)
 
         heart = asyncio.create_task(heartbeat())
+        # Set once the turn's outcome is stored, which also releases the session.
+        committed: Optional[Dict[str, Any]] = None
         try:
             # Image and resource limits belong to the provider; afind refuses a generation created with others.
             allocation: Dict[str, Any] = dict(agent_id=agent_id, generation=state.record["generation"], env=env)
@@ -284,7 +283,13 @@ class SandboxCoordinator:
                 record["computer"] = asdict(handle)
                 return record
 
-            state = await self.store._aoperation(lease, provision)
+            try:
+                state = await self.store._aoperation(lease, provision)
+            except ValueError as error:
+                committed = await self._retire_invalid(lease, error)
+                yield self._terminal(committed)
+                yield RunOutput.from_dict(committed)
+                return
             if state.record["phase"] == "stopping":
                 committed = await self._stop(
                     lease, status=state.record["stop_status"], reason=state.record["stop_reason"]
@@ -304,19 +309,25 @@ class SandboxCoordinator:
                         yield RunOutput.from_dict(committed)
                         return
                     execution = RuntimeExecution(handle, state.record["execution_id"], run_id)
-                    # Identical execution identity/request reconciles a lost start acknowledgement.
-                    await self.client.astart(
-                        handle,
-                        execution_id=execution.execution_id,
-                        run_id=run_id,
-                        sdk=sdk,
-                        input=input,
-                        user_id=user_id,
-                        config=config,
-                        execution_timeout=execution_timeout,
-                        # The conversation the restored checkpoint must hold; None on a session's first turn.
-                        native_session_id=(state.record.get("native") or {}).get(NATIVE_SESSION_KEYS[sdk]),
-                    )
+                    try:
+                        # Identical execution identity/request reconciles a lost start acknowledgement.
+                        await self.client.astart(
+                            handle,
+                            execution_id=execution.execution_id,
+                            run_id=run_id,
+                            sdk=sdk,
+                            input=input,
+                            user_id=user_id,
+                            config=config,
+                            execution_timeout=execution_timeout,
+                            # The conversation the restored checkpoint must hold; None on a session's first turn.
+                            native_session_id=(state.record.get("native") or {}).get(NATIVE_SESSION_KEYS[sdk]),
+                        )
+                    except ValueError as error:
+                        committed = await self._retire_invalid(lease, error)
+                        yield self._terminal(committed)
+                        yield RunOutput.from_dict(committed)
+                        return
                     cursor = 0
                     while True:
                         if heartbeat_error:
@@ -385,8 +396,17 @@ class SandboxCoordinator:
             heart.cancel()
             with suppress(asyncio.CancelledError):
                 await heart
-            with suppress(SandboxLeaseLost):
-                await self.store.arelinquish(lease)
+            if committed is None:
+                # The caller is leaving a turn that is still running: detach, keep execution going.
+                with suppress(SandboxLeaseLost):
+                    await self.store.arelinquish(lease)
+
+    async def _retire_invalid(self, lease: SandboxLease, error: ValueError) -> Dict[str, Any]:
+        # A request the runtime can never accept was only caught after the claim, before anything
+        # executed. Retire the turn so the session is released: propagating would leave the run
+        # bound to it, and every retry would fail the same way. Provider and transport failures
+        # still propagate, since a retry of the same run reconciles them.
+        return await self._stop(lease, status="ERROR", reason=str(error)[:8192] or "Invalid runtime request")
 
     async def _finalize(self, lease: SandboxLease) -> Dict[str, Any]:
         async def capture(record: Dict[str, Any]) -> Dict[str, Any]:

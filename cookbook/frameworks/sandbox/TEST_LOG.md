@@ -259,6 +259,16 @@ Local container checks of `agentcore_server`: the guard refuses commands before 
 
 ---
 
+### AgentCore review fixes: stdin limit, staging failures, claim ordering
+
+**Status:** PASS
+
+**Description:** Three edge cases found in review. Stdin up to the documented 8 MiB was base64 encoded into the runner request and then hex encoded for staging, so anything over about 6 MiB passed the client check, was refused by the server, and stopped the computer. A failed staging upload stopped compute although nothing had run. A claim wrote `claim.json` before the runtime server was healthy, so after a failed start a retry matched the claim and reported success with no runtime.
+
+**Result:** The client and server now share one 12 MiB staged request limit, staging uses base64, and the client refuses oversized argv or stdin before sending anything. Only the command step stops compute. The claim file is written after the runtime answers its health check; a failed start kills the supervisor's process group and leaves the computer unclaimed, and a repeated claim restarts an unhealthy runtime. Five new unit tests cover these, and 266 sandbox unit tests pass. Live on the staging runtime: an 8 MiB stdin reached `sha256sum` intact, a 12 MiB argv was refused before sending and the computer kept running, a repeated create returned the same computer, and the fixture session with `--replace` passed.
+
+---
+
 ### agentcore_session.py --replace
 
 **Status:** PASS (fixture, codex, claude)

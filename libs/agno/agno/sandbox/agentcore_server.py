@@ -42,7 +42,11 @@ _PORT = 8080
 _RUNTIME_PORT = 8765
 _TOKEN_ENV = "AGNO_SANDBOX_RUNTIME_TOKEN"
 _GUARD_EXIT = 125
-_MAX_INPUT = 8 * 1024 * 1024
+# A staged runner request: up to 8 MiB of command stdin, which grows by a third
+# as base64, plus argv. The provider checks the same limit before it sends.
+_MAX_STAGED = 12 * 1024 * 1024
+# An invocation body carries a staged request or a checkpoint chunk as base64.
+_MAX_BODY = 24 * 1024 * 1024
 _MAX_CHUNK = 8 * 1024 * 1024
 _USER = 1000
 _GROUP = 1000
@@ -116,14 +120,32 @@ def _start_runtime(claim: Dict[str, Any]) -> None:
     _state["token"] = token
     deadline = time.monotonic() + 15
     while time.monotonic() < deadline:
-        try:
-            status, _ = _forward("GET", "/health", None, timeout=2)
-            if status == 200:
-                return
-        except OSError:
-            pass
+        if _runtime_healthy():
+            return
         time.sleep(0.1)
     raise RuntimeError("The sandbox runtime server did not become ready")
+
+
+def _runtime_healthy() -> bool:
+    if _state["token"] is None:
+        return False
+    try:
+        status, _ = _forward("GET", "/health", None, timeout=2)
+    except OSError:
+        return False
+    return status == 200
+
+
+def _stop_runtime() -> None:
+    """Kill the runtime supervisor and everything in its process group."""
+    supervisor, _state["supervisor"], _state["token"] = _state["supervisor"], None, None
+    if supervisor is None:
+        return
+    try:
+        os.killpg(supervisor.pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+    supervisor.wait()
 
 
 def _claim(request: Dict[str, Any]) -> Dict[str, Any]:
@@ -142,14 +164,26 @@ def _claim(request: Dict[str, Any]) -> Dict[str, Any]:
         if existing is not None:
             if existing["metadata"] != metadata or existing["env"] != env:
                 raise PermissionError("This computer is already claimed with a different identity")
+            # A matching claim only means this computer is ours; repeat create
+            # must still hand back a working runtime.
+            if not _runtime_healthy():
+                _stop_runtime()
+                _start_runtime(existing)
             return {"metadata": existing["metadata"], "created": False}
         for path in (_WORKSPACE, _RUNTIME):
             path.mkdir(mode=0o700, exist_ok=True)
             os.chown(path, _USER, _GROUP)
             path.chmod(0o700)
         claim = {"metadata": metadata, "env": env, "deadline": time.time() + lifetime}
+        # The claim file is the computer's proof of ownership, and the guard runs
+        # commands only after it exists. Write it only once the runtime is
+        # healthy, so a failed start leaves the computer unclaimed for a retry.
+        try:
+            _start_runtime(claim)
+        except BaseException:
+            _stop_runtime()
+            raise
         _write_private(_CLAIM, json.dumps(claim).encode())
-        _start_runtime(claim)
     threading.Thread(target=_expire, args=(claim["deadline"],), daemon=True).start()
     return {"metadata": metadata, "created": True}
 
@@ -194,8 +228,8 @@ def _stage(request: Dict[str, Any]) -> Dict[str, Any]:
     name = request.get("name", "")
     if not re.fullmatch(r"[a-f0-9]{32}", name):
         raise ValueError("Invalid staged input name")
-    data = bytes.fromhex(request.get("data", ""))
-    if len(data) > _MAX_INPUT:
+    data = base64.b64decode(request.get("data", ""), validate=True)
+    if len(data) > _MAX_STAGED:
         raise ValueError("Staged input exceeds its limit")
     _write_private(_CONTROL / (name + ".stdin"), data)
     return {"size": len(data)}
@@ -398,7 +432,7 @@ class _Handler(BaseHTTPRequestHandler):
             return
         try:
             length = int(self.headers.get("Content-Length") or 0)
-            if not 0 < length <= 3 * _MAX_INPUT:
+            if not 0 < length <= _MAX_BODY:
                 raise ValueError("Invocation body is empty or too large")
             request = json.loads(self.rfile.read(length))
             operation = _OPERATIONS[request.pop("op")]

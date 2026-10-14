@@ -1,14 +1,23 @@
 """Deploy or remove an AgentCore Runtime for sandbox sessions. This creates AWS resources.
 
-Builds the ARM64 image from Dockerfile.agentcore, pushes it to a new ECR
+Builds the ARM64 sandbox image from the Dockerfile, pushes it to an ECR
 repository, creates an execution role and a PUBLIC runtime without session
 storage, then prints the runtime ARN to pass as the sandbox image.
 
   .venv/bin/python cookbook/frameworks/sandbox/agentcore_setup.py deploy --name agno-sandbox
   .venv/bin/python cookbook/frameworks/sandbox/agentcore_setup.py teardown --name agno-sandbox
 
-Every resource carries the given name. Set AWS_PROFILE and AWS_REGION first.
-The role may call Bedrock models, so a Claude harness needs no API key.
+Every resource it creates carries the given name. Set AWS_PROFILE and AWS_REGION
+first. The role may call Bedrock models, so a Claude harness needs no API key.
+
+Without permission to create ECR repositories or IAM roles, have an
+administrator create them, with the role's trust and policy from create_role
+below, and pass them in. --skip-build deploys an image already pushed with --tag:
+
+  agentcore_setup.py deploy --name agno-sandbox --repository agno-sandbox \\
+      --role-arn arn:aws:iam::123456789012:role/agno-sandbox --tag 1791978197 --skip-build
+
+Teardown with the same --repository or --role-arn leaves those in place.
 """
 
 import argparse
@@ -19,29 +28,25 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from typing import Any, Dict, Optional
 
 import boto3
 
 
-def deploy(session: boto3.session.Session, name: str, tag: str) -> None:
-    region = session.region_name
-    account = session.client("sts").get_caller_identity()["Account"]
-    ecr, iam = session.client("ecr"), session.client("iam")
-    control = session.client("bedrock-agentcore-control")
+def find_repository(ecr: Any, name: str, create: bool) -> Dict[str, Any]:
+    if create:
+        try:
+            return ecr.create_repository(repositoryName=name)["repository"]
+        except ecr.exceptions.RepositoryAlreadyExistsException:
+            pass
+    return ecr.describe_repositories(repositoryNames=[name])["repositories"][0]
 
-    try:
-        repository = ecr.create_repository(repositoryName=name)["repository"]
-    except ecr.exceptions.RepositoryAlreadyExistsException:
-        repository = ecr.describe_repositories(repositoryNames=[name])["repositories"][
-            0
-        ]
-    image = repository["repositoryUri"] + ":" + tag
+
+def build_and_push(ecr: Any, image: str) -> None:
     subprocess.run(
         [
             sys.executable,
             str(Path(__file__).with_name("build_image.py")),
-            "--dockerfile",
-            "Dockerfile.agentcore",
             "--platform",
             "linux/arm64",
             "--tag",
@@ -66,6 +71,10 @@ def deploy(session: boto3.session.Session, name: str, tag: str) -> None:
     )
     subprocess.run(["docker", "push", image], check=True)
 
+
+def create_role(
+    iam: Any, name: str, account: str, region: str, repository: Dict[str, Any]
+) -> str:
     trust = {
         "Version": "2012-10-17",
         "Statement": [
@@ -123,7 +132,10 @@ def deploy(session: boto3.session.Session, name: str, tag: str) -> None:
     iam.put_role_policy(
         RoleName=name, PolicyName=name, PolicyDocument=json.dumps(policy)
     )
+    return role
 
+
+def deploy_runtime(control: Any, name: str, image: str, role: str) -> str:
     runtime_name = name.replace("-", "_")
     config = dict(
         agentRuntimeArtifact={"containerConfiguration": {"containerUri": image}},
@@ -161,10 +173,35 @@ def deploy(session: boto3.session.Session, name: str, tag: str) -> None:
         raise SystemExit(
             f"Runtime is {runtime['status']}: {runtime.get('failureReason')}"
         )
-    print("Runtime ARN:", runtime["agentRuntimeArn"])
+    return runtime["agentRuntimeArn"]
 
 
-def teardown(session: boto3.session.Session, name: str) -> None:
+def deploy(
+    session: boto3.session.Session,
+    name: str,
+    tag: str,
+    repository_name: Optional[str],
+    role_arn: Optional[str],
+    skip_build: bool,
+) -> None:
+    region = session.region_name
+    account = session.client("sts").get_caller_identity()["Account"]
+    ecr, iam = session.client("ecr"), session.client("iam")
+    control = session.client("bedrock-agentcore-control")
+
+    repository = find_repository(
+        ecr, repository_name or name, create=repository_name is None
+    )
+    image = repository["repositoryUri"] + ":" + tag
+    if not skip_build:
+        build_and_push(ecr, image)
+    role = role_arn or create_role(iam, name, account, region, repository)
+    print("Runtime ARN:", deploy_runtime(control, name, image, role))
+
+
+def teardown(
+    session: boto3.session.Session, name: str, keep_repository: bool, keep_role: bool
+) -> None:
     control, iam, ecr = (
         session.client(s) for s in ("bedrock-agentcore-control", "iam", "ecr")
     )
@@ -172,17 +209,19 @@ def teardown(session: boto3.session.Session, name: str) -> None:
         if runtime["agentRuntimeName"] == name.replace("-", "_"):
             control.delete_agent_runtime(agentRuntimeId=runtime["agentRuntimeId"])
             print("Deleted runtime", runtime["agentRuntimeArn"])
-    try:
-        iam.delete_role_policy(RoleName=name, PolicyName=name)
-        iam.delete_role(RoleName=name)
-        print("Deleted role", name)
-    except iam.exceptions.NoSuchEntityException:
-        pass
-    try:
-        ecr.delete_repository(repositoryName=name, force=True)
-        print("Deleted repository", name)
-    except ecr.exceptions.RepositoryNotFoundException:
-        pass
+    if not keep_role:
+        try:
+            iam.delete_role_policy(RoleName=name, PolicyName=name)
+            iam.delete_role(RoleName=name)
+            print("Deleted role", name)
+        except iam.exceptions.NoSuchEntityException:
+            pass
+    if not keep_repository:
+        try:
+            ecr.delete_repository(repositoryName=name, force=True)
+            print("Deleted repository", name)
+        except ecr.exceptions.RepositoryNotFoundException:
+            pass
 
 
 def main() -> None:
@@ -193,15 +232,34 @@ def main() -> None:
     parser.add_argument("--name", default="agno-sandbox")
     parser.add_argument(
         "--tag",
-        default=str(int(time.time())),
-        help="A new tag makes AgentCore pull a new version",
+        help="Image tag, by default the current time. A new tag makes AgentCore pull a new version",
+    )
+    parser.add_argument(
+        "--repository", help="An existing ECR repository to push to and deploy from"
+    )
+    parser.add_argument(
+        "--role-arn", help="An existing execution role, so no IAM role is created"
+    )
+    parser.add_argument(
+        "--skip-build",
+        action="store_true",
+        help="Deploy the image already pushed with --tag",
     )
     args = parser.parse_args()
+    if args.skip_build and not args.tag:
+        parser.error("--skip-build needs the --tag of an image already pushed")
     session = boto3.session.Session(region_name=os.environ.get("AWS_REGION"))
     if args.action == "deploy":
-        deploy(session, args.name, args.tag)
+        deploy(
+            session,
+            args.name,
+            args.tag or str(int(time.time())),
+            args.repository,
+            args.role_arn,
+            args.skip_build,
+        )
     else:
-        teardown(session, args.name)
+        teardown(session, args.name, bool(args.repository), bool(args.role_arn))
 
 
 if __name__ == "__main__":

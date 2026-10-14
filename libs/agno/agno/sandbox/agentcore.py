@@ -120,6 +120,11 @@ class AgentCoreSandbox(Sandbox):
     computer must recover into a new generation, as with every provider; a
     coordinator that records generations enforces this.
 
+    ``lifetime`` is enforced inside the microVM: at the deadline the computer
+    refuses work, ends the agent's processes and exits, so a turn still running
+    then dies with it. Set it from the coordinator's own turn budget rather than
+    relying on the one-hour default.
+
     Stop and destroy end the microVM. Pause is not supported. Files live on the
     microVM's disk; AgentCore session storage is not used because SQLite cannot
     open a database on it.
@@ -276,6 +281,14 @@ class AgentCoreSandbox(Sandbox):
             raise SandboxError("AgentCore computer has incomplete sandbox identity") from error
 
     async def aget(self, provider_ref: str) -> Optional[SandboxHandle]:
+        """The handle for a running computer, or None.
+
+        Not read-only on an ended session. AgentCore cannot inspect a session
+        without calling it, and calling an ended one starts a replacement microVM,
+        about 12 seconds cold, which this then stops, about 12 seconds more. Only
+        sessions this object stopped itself are answered without a call, so another
+        replica pays about 25 seconds for each lookup of an ended generation.
+        """
         if not provider_ref.startswith("agno-") or len(provider_ref) < 33:
             raise ValueError("Invalid AgentCore sandbox reference")
         if provider_ref in self._stopped:

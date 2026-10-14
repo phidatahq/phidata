@@ -295,6 +295,37 @@ def payload_is_queueable(payload: Any) -> bool:
         return False
 
 
+def store_serializes_sessions(store: Any) -> bool:
+    """True when the queue store runs a session's marked tickets one at a time, in order."""
+    return getattr(store, "serializes_sessions", False) is True
+
+
+async def aenqueue_ticket(queue_worker: Any, job: Dict[str, Any], component: Any = None) -> Dict[str, Any]:
+    """Accept a ticket, marking it for per-session order when queue_per_session is on.
+
+    A component that sets one_turn_per_session is always marked: a second concurrent turn
+    on its session fails instead of waiting, so its order cannot depend on the flag."""
+    config = queue_worker.config
+    if config.queue_per_session or getattr(component, "one_turn_per_session", False) is True:
+        job = {**job, "payload": {**(job.get("payload") or {}), "serialize_session": True}}
+    return await queue_worker.store.enqueue_job(job, max_depth=config.max_queue_depth)
+
+
+async def aattach_waiting_on(queue_worker: Any, run_id: str, body: Dict[str, Any]) -> Dict[str, Any]:
+    """Name the run a PENDING run waits behind in its session, when the store can tell."""
+    lookup = getattr(queue_worker.store, "session_blocker", None) if queue_worker is not None else None
+    if lookup is None or body.get("status") != "PENDING":
+        return body
+    try:
+        waiting_on = await lookup(run_id)
+    except Exception as e:
+        log_debug(f"Could not resolve the session blocker of queued run {run_id}: {e}")
+        return body
+    if waiting_on is not None:
+        body["waiting_on"] = waiting_on
+    return body
+
+
 def _is_component_factory(candidate: "RegisteredComponent") -> bool:
     from agno.agent.factory import AgentFactory
     from agno.team.factory import TeamFactory
@@ -484,6 +515,14 @@ class QueueWorker:
         self.worker_id = worker_id or f"worker-{uuid4().hex[:8]}"
         self.stop_timeout = stop_timeout
         self.auto_provision = auto_provision
+        # Effective per-session order: a custom store without serializes_sessions claims
+        # marked tickets concurrently, and /config reports the gate as off.
+        self.queue_per_session = config.queue_per_session and store_serializes_sessions(store)
+        if config.queue_per_session and not self.queue_per_session:
+            log_warning(
+                f"Queue store {type(getattr(store, '_store', store)).__name__} does not set serializes_sessions; "
+                "same-session runs will execute concurrently despite QueueConfig(queue_per_session=True)"
+            )
         if stop_timeout >= config.lock_grace_seconds:
             # Hard validation, not a warning: violating this GUARANTEES the
             # drain-sweep race - a draining run's lease can expire mid-drain
@@ -1704,8 +1743,7 @@ class QueueWorker:
             self.worker_id,
             job["attempt"],
             session_serialized=(
-                (job.get("payload") or {}).get("serialize_session") is True
-                and getattr(self.store, "serializes_sessions", False) is True
+                (job.get("payload") or {}).get("serialize_session") is True and store_serializes_sessions(self.store)
             ),
         ) as ownership:
             await self._execute_claimed_inner(job, ownership)
@@ -2681,7 +2719,7 @@ async def aticket_poll_fallback(
         from agno.run.base import CancellationStage
 
         body["cancellation_stage"] = CancellationStage.pending.value
-    return body
+    return await aattach_waiting_on(queue_worker, run_id, body)
 
 
 def warn_unfenced_session_stores(agent_os: Any) -> None:

@@ -20,7 +20,7 @@ from agno.sandbox.postgres import (
     _SandboxStore,
 )
 from agno.session import AgentSession
-from sqlalchemy import delete, event, func, select, update
+from sqlalchemy import delete, event, func, select, text, update
 
 URL = os.environ.get("AGNO_TEST_SANDBOX_DB_URL")
 pytestmark = [pytest.mark.asyncio, pytest.mark.skipif(not URL, reason="Set AGNO_TEST_SANDBOX_DB_URL")]
@@ -609,3 +609,70 @@ async def test_session_deletion_waits_for_a_sandbox_operation(store, monkeypatch
     deleted = await asyncio.to_thread(store.db.delete_session, "session")
     assert (await operation).lease == state.lease
     assert deleted
+
+
+async def test_run_deletion_racing_a_sandbox_operation_is_refused_not_deadlocked(store, monkeypatch):
+    if isinstance(store.db, AsyncPostgresDb):
+        pytest.skip("Interleaves a blocking database call with the store's worker thread")
+    await seed(store)
+    state = await claim(store)
+    service_run = store._service_run
+    holding = threading.Event()
+
+    def pause(*args, **kwargs):
+        # The store's first locks are held; give the run deletion time to issue its DELETE.
+        holding.set()
+        time.sleep(2)
+        return service_run(*args, **kwargs)
+
+    monkeypatch.setattr(store, "_service_run", pause)
+    operation = asyncio.create_task(store.aget(state.lease))
+    await asyncio.to_thread(holding.wait, 5)
+    with pytest.raises(Exception) as caught:
+        await asyncio.to_thread(store.db.delete_run, "run")
+    assert "foreign key" in str(caught.value).lower() and "deadlock" not in str(caught.value).lower()
+    assert (await operation).lease == state.lease
+
+
+async def test_bindings_table_in_another_schema_is_refused(store):
+    if isinstance(store.db, AsyncPostgresDb):
+        pytest.skip("Schema setup uses the sync engine")
+    other_schema = "sbx_" + uuid4().hex[:8]
+    other = PostgresDb(
+        db_url=URL,
+        db_schema=other_schema,
+        session_table=store.db.session_table_name,
+        runs_table=store.db.runs_table_name,
+        sandbox_table=store.db.sandbox_table_name,
+    )
+    await _SandboxStore(other)._ensure_tables()
+    await store._table("sessions", store.db.session_table_name)
+    await store._table("runs", store.db.runs_table_name)
+    # A same-named bindings table in this schema whose keys point at the other schema's tables.
+    b, s, r, home = (
+        store.db.sandbox_table_name,
+        store.db.session_table_name,
+        store.db.runs_table_name,
+        store.db.db_schema,
+    )
+    with store.db.db_engine.begin() as connection:
+        connection.execute(text(f'CREATE TABLE "{home}"."{b}" (LIKE "{other_schema}"."{b}" INCLUDING DEFAULTS)'))
+        connection.execute(text(f'ALTER TABLE "{home}"."{b}" ADD PRIMARY KEY (namespace, session_id)'))
+        connection.execute(
+            text(
+                f'ALTER TABLE "{home}"."{b}" ADD FOREIGN KEY (session_id) REFERENCES "{other_schema}"."{s}" (session_id)'
+            )
+        )
+        connection.execute(
+            text(f'ALTER TABLE "{home}"."{b}" ADD FOREIGN KEY (run_id) REFERENCES "{other_schema}"."{r}" (run_id)')
+        )
+    try:
+        with pytest.raises(SandboxError, match="session table"):
+            await store._ensure_tables()
+    finally:
+        with store.db.db_engine.begin() as connection:
+            connection.execute(text(f'DROP SCHEMA "{other_schema}" CASCADE'))
+            connection.execute(text(f'DROP TABLE "{home}"."{b}"'))
+        # The fixture's teardown recreates a correct bindings table and drops it.
+        store.db._invalidate_table_cache(b)
+        other.db_engine.dispose()

@@ -176,14 +176,21 @@ class _SandboxStore:
         self.sessions = await self._table("sessions", self.db.session_table_name)
         self.runs = await self._table("runs", self.db.runs_table_name)
         self.bindings = await self._table("sandbox_bindings", self.db.sandbox_table_name)
-        owners = {key.column.table.name for key in self.bindings.c.session_id.foreign_keys}
-        if owners != {self.sessions.name}:
+
+        def qualified(table: Table) -> str:
+            # Reflection can leave a same-schema reference unqualified.
+            return (table.schema or self.db.db_schema) + "." + table.name
+
+        owners = {qualified(key.column.table) for key in self.bindings.c.session_id.foreign_keys}
+        if owners != {qualified(self.sessions)}:
             raise SandboxError(
                 f"Sandbox table {self.bindings.name} belongs to session table {', '.join(sorted(owners)) or 'none'}, "
-                f"not {self.sessions.name}; give each session table its own sandbox_table"
+                f"not {qualified(self.sessions)}; give each session table its own sandbox_table"
             )
-        if {key.column.table.name for key in self.bindings.c.run_id.foreign_keys} != {self.runs.name}:
-            raise SandboxError(f"Sandbox table {self.bindings.name} does not reference run table {self.runs.name}")
+        if {qualified(key.column.table) for key in self.bindings.c.run_id.foreign_keys} != {qualified(self.runs)}:
+            raise SandboxError(
+                f"Sandbox table {self.bindings.name} does not reference run table {qualified(self.runs)}"
+            )
         self._tables_ready = True
 
     async def _transaction(self, operation: Callable[[Connection], _T]) -> _T:
@@ -238,8 +245,14 @@ class _SandboxStore:
             .with_for_update(key_share=True)
         )
 
+    def _lock_run(self, connection: Connection, run_id: str) -> None:
+        # Session, then run, then binding: a run delete locks the run and then checks the bindings
+        # referencing it, so locking the binding first could deadlock with it.
+        connection.execute(select(self.runs.c.run_id).where(self.runs.c.run_id == run_id).with_for_update())
+
     def _locked(self, connection: Connection, lease: SandboxLease) -> Any:
         self._hold_session(connection, lease.session_id)
+        self._lock_run(connection, lease.run_id)
         row = (
             connection.execute(select(self.bindings).where(self._key(lease.session_id)).with_for_update())
             .mappings()
@@ -316,6 +329,7 @@ class _SandboxStore:
 
         def claim(connection: Connection) -> SandboxState:
             self._hold_session(connection, session_id)
+            self._lock_run(connection, run_id)
             try:
                 connection.execute(
                     insert(self.bindings)

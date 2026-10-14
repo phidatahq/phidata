@@ -348,3 +348,49 @@ async def test_cancel_detached_direct_sdk_run_retires_computer(service):
     await agent.acancel_run("direct")
     assert await agent.coordinator.provider.aget(handles[0].provider_ref) is None
     assert (await agent.aget_run_output("direct", "session")).status == "CANCELLED"
+
+
+async def test_remote_cancel_fences_worker_without_failing_ticket(service, monkeypatch):
+    client, agent, app, handles = service
+    agent.runtime_config = {"delay": 20}
+    app.state.queue_worker.config.max_attempts = 1
+    store = agent.coordinator.store
+    original_claim, original_get = store._aclaim_stop, store.aget
+    claimed, observed = asyncio.Event(), asyncio.Event()
+    epoch = None
+
+    async def claim_stop(**kwargs):
+        nonlocal epoch
+        state = await original_claim(**kwargs)
+        if kwargs["status"] == "CANCELLED" and epoch is None and hasattr(state, "lease"):
+            epoch = state.lease.epoch
+            claimed.set()
+            await asyncio.wait_for(observed.wait(), 5)
+            await asyncio.sleep(0.1)
+        return state
+
+    async def get(lease):
+        if claimed.is_set() and lease.epoch < epoch:
+            observed.set()
+        return await original_get(lease)
+
+    monkeypatch.setattr(store, "_aclaim_stop", claim_stop)
+    monkeypatch.setattr(store, "aget", get)
+    response = await client.post(
+        "/agents/coder/runs",
+        data={"message": "cancel", "session_id": "session", "stream": "false", "background": "true"},
+    )
+    run_id = response.json()["run_id"]
+
+    async def allocated():
+        while not handles:
+            await asyncio.sleep(0.05)
+
+    await asyncio.wait_for(allocated(), 10)
+    await agent.acancel_run(run_id)
+    assert observed.is_set()
+    job = await settled(app, run_id)
+    assert job["status"] == "cancelled", job
+    assert (await agent.aget_run_output(run_id, "session")).status == "CANCELLED"
+    for handle in handles:
+        assert await agent.coordinator.provider.aget(handle.provider_ref) is None

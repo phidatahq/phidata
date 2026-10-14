@@ -757,7 +757,10 @@ class PostgresSandboxStore:
                 "incarnation"
             ):
                 raise SandboxLeaseLost("Session changed before queue termination")
-            record.update(phase="stopping", stop_status=status, stop_reason=reason, stop_retryable=False)
+            # Cancellation may supersede an unfinished failure, but a competing
+            # error cleanup must never erase a persisted cancellation intent.
+            if record["phase"] != "stopping" or record.get("stop_status") != "CANCELLED":
+                record.update(phase="stopping", stop_status=status, stop_reason=reason, stop_retryable=False)
             if record.get("computer") is None:
                 record["computer_stopped"] = True
             now = connection.execute(select(func.clock_timestamp())).scalar_one()

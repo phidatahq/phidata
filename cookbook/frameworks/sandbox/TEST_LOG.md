@@ -165,3 +165,27 @@ Python 3.9 follow-up: 76 sandbox unit tests, 40 real Postgres cases and 12 Agent
 **Remaining:** A separate cross-replica cancellation race was reproduced: another stop claimant can replace cancellation intent with an error. Its fix and acceptance are tracked separately. Hosted acceptance remains deferred by the user. Live model budget is $100 total; metered/estimated completed calls remain below $1 at this checkpoint.
 
 ---
+
+### Live cross-replica cancellation
+
+**Status:** PASS after fixes
+
+**Description:** Live Codex reproduced cancellation becoming ERROR when a remote cleanup claimant fenced the worker. A deterministic Postgres test reproduced stop-intent replacement on both database adapters; a forced AgentOS race reproduced a failed queue ticket over cancellation. Pending cancellation now survives competing failure cleanup, and a worker fenced by shared cancellation raises the queue's cancellation signal.
+
+**Result:** Claude and Codex both passed live cancellation after a tool started, through a second HTTP replica; both run and queue ticket ended CANCELLED. Focused sandbox/queue units: 185 passed, 4 optional SDK modules skipped. Final real Postgres/AgentOS/coordinator integration suite: 85 passed. Required format/validation passed.
+
+**Budget:** Recorded Claude costs plus a conservative Codex token estimate total $0.350741, including successful calls from corrected test probes. Cancelled runs do not return final usage; $21 is reserved across all five cancellation probes, including failed reproductions. Total accounted usage plus reserves: $21.350741 of the authorized $100. This is test-budget accounting, not a provider invoice. No hosted tests or hosted compute spending.
+
+---
+
+### Docker-only restack acceptance — 2026-10-12
+
+**Status:** PASS
+
+**Description:** Replayed fresh Codex startup/authentication and cancellation cleanup fixes directly after the Docker operations cookbook, without hosted-provider commits. The code patches are unchanged. Built a fresh runtime image and installed a fresh service wheel into an isolated environment.
+
+**Result:** 829 focused unit tests passed; 180 real Docker/Postgres/Redis integration tests passed, with 4 deliberately inapplicable synchronous-interleaving variants skipped. All 26 runtime unit cases passed on Python 3.9; required format/validation scripts passed. The installed-wheel coding workload passed clone/install/fail-edit-pass/application/database/replacement restoration. Live Claude and Codex each passed native identity/conversation and workspace continuity, injected checkpoint failure with finalization-only recovery, and real HTTP cross-replica cancellation with both run and queue ticket CANCELLED. Four new checkpoint archives excluded known native auth files and selected credential bytes.
+
+**Limits:** Bounded Docker evidence for customer-operated trusted teams; hosted acceptance remains deferred. These checks do not replace independent review, final main-target CI or published-wheel validation. Historical full HTTP process-replacement/replay evidence above is from the earlier ancestry; this restack reran native replacement and HTTP cancellation.
+
+---

@@ -10563,6 +10563,7 @@ class Workflow:
         metadata: Optional[Dict[str, Any]] = None,
         add_dependencies_to_context: Optional[bool] = None,
         add_session_state_to_context: Optional[bool] = None,
+        parent_run_id: Optional[str] = None,
     ) -> WorkflowRunOutput: ...
 
     @overload
@@ -10586,6 +10587,7 @@ class Workflow:
         metadata: Optional[Dict[str, Any]] = None,
         add_dependencies_to_context: Optional[bool] = None,
         add_session_state_to_context: Optional[bool] = None,
+        parent_run_id: Optional[str] = None,
     ) -> Iterator[WorkflowRunOutputEvent]: ...
 
     def run(
@@ -10608,6 +10610,7 @@ class Workflow:
         metadata: Optional[Dict[str, Any]] = None,
         add_dependencies_to_context: Optional[bool] = None,
         add_session_state_to_context: Optional[bool] = None,
+        parent_run_id: Optional[str] = None,
         **kwargs: Any,
     ) -> Union[WorkflowRunOutput, Iterator[WorkflowRunOutputEvent]]:
         """Execute the workflow synchronously with optional streaming"""
@@ -10725,6 +10728,7 @@ class Workflow:
         # Create workflow run response for regular workflow execution
         workflow_run_response = WorkflowRunOutput(
             run_id=run_id,
+            parent_run_id=parent_run_id,
             input=input,
             session_id=session_id,
             user_id=user_id,
@@ -10785,6 +10789,7 @@ class Workflow:
         metadata: Optional[Dict[str, Any]] = None,
         add_dependencies_to_context: Optional[bool] = None,
         add_session_state_to_context: Optional[bool] = None,
+        parent_run_id: Optional[str] = None,
     ) -> WorkflowRunOutput: ...
 
     @overload
@@ -10810,6 +10815,7 @@ class Workflow:
         metadata: Optional[Dict[str, Any]] = None,
         add_dependencies_to_context: Optional[bool] = None,
         add_session_state_to_context: Optional[bool] = None,
+        parent_run_id: Optional[str] = None,
     ) -> AsyncIterator[WorkflowRunOutputEvent]: ...
 
     def arun(  # type: ignore
@@ -10834,6 +10840,7 @@ class Workflow:
         metadata: Optional[Dict[str, Any]] = None,
         add_dependencies_to_context: Optional[bool] = None,
         add_session_state_to_context: Optional[bool] = None,
+        parent_run_id: Optional[str] = None,
         **kwargs: Any,
     ) -> Union[WorkflowRunOutput, AsyncIterator[WorkflowRunOutputEvent]]:
         """Execute the workflow with optional streaming.
@@ -11006,6 +11013,7 @@ class Workflow:
         # Create workflow run response for regular workflow execution
         workflow_run_response = WorkflowRunOutput(
             run_id=run_id,
+            parent_run_id=parent_run_id,
             input=input,
             session_id=session_id,
             user_id=user_id,

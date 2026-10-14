@@ -2934,6 +2934,7 @@ class Step:
             stream=False,
             background_tasks=background_tasks,
             run_id=nested_run_id,
+            parent_run_id=workflow_run_response.run_id if workflow_run_response is not None else None,
         )
 
         # Warn if the nested workflow paused (e.g., due to HITL on an inner step)
@@ -3061,6 +3062,7 @@ class Step:
             stream_events=stream_events,
             background_tasks=background_tasks,
             run_id=nested_run_id,
+            parent_run_id=workflow_run_response.run_id if workflow_run_response is not None else None,
         ):
             # Capture the WorkflowCompletedEvent which contains step_results
             if isinstance(event, WorkflowCompletedEvent):
@@ -3211,6 +3213,7 @@ class Step:
             stream=False,
             background_tasks=background_tasks,
             run_id=nested_run_id,
+            parent_run_id=workflow_run_response.run_id if workflow_run_response is not None else None,
         )
 
         # Warn if the nested workflow paused (e.g., due to HITL on an inner step)
@@ -3339,6 +3342,7 @@ class Step:
             stream_events=stream_events,
             background_tasks=background_tasks,
             run_id=nested_run_id,
+            parent_run_id=workflow_run_response.run_id if workflow_run_response is not None else None,
         ):
             # Capture the WorkflowCompletedEvent which contains step_results
             if isinstance(event, WorkflowCompletedEvent):

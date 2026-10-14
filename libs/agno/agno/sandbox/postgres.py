@@ -268,7 +268,23 @@ class _SandboxStore:
         if not math.isfinite(lease_seconds) or not 0 < lease_seconds <= 3600:
             raise ValueError("Lease duration must be between 0 and 3600 seconds")
 
+        prepared: Optional[Dict[str, Any]] = None
+        if prepared_run is not None:
+            prepared = self._json(prepared_run)
+            if (
+                prepared.get("agent_id"),
+                prepared.get("session_id"),
+                prepared.get("user_id"),
+                prepared.get("run_id"),
+                prepared.get("queue_attempt"),
+            ) != (agent_id, session_id, user_id, run_id, queue_attempt):
+                raise ValueError("Prepared run does not match the requested lease")
+
         def claim(connection: Connection) -> SandboxState:
+            if prepared is not None:
+                # The binding's foreign key needs the session row; inserting it locks no existing row,
+                # so the binding is still locked before any run or session row.
+                self._insert_session(connection, prepared)
             try:
                 connection.execute(
                     insert(self.bindings)
@@ -297,17 +313,8 @@ class _SandboxStore:
             )
             if row["agent_id"] != agent_id or row["user_id"] != user_id:
                 raise SandboxLeaseLost("Sandbox session ownership is immutable")
-            if prepared_run is not None:
-                value = self._json(prepared_run)
-                if (
-                    value.get("agent_id"),
-                    value.get("session_id"),
-                    value.get("user_id"),
-                    value.get("run_id"),
-                    value.get("queue_attempt"),
-                ) != (agent_id, session_id, user_id, run_id, queue_attempt):
-                    raise ValueError("Prepared run does not match the requested lease")
-                self._prepare_service_run(connection, value)
+            if prepared is not None:
+                self._prepare_service_run(connection, prepared)
             candidate = SandboxLease(agent_id, session_id, user_id, run_id, row["epoch"], owner, queue_attempt)
             run, _ = self._service_run(connection, candidate)
             if row["epoch"] == 0:
@@ -652,19 +659,7 @@ class _SandboxStore:
         for key in ("run_id", "session_id", "agent_id"):
             if not isinstance(value.get(key), str) or not value[key] or len(value[key]) > 256:
                 raise ValueError("Sandbox runs require bounded service identities")
-        assert self.sessions is not None and self.runs is not None
-        connection.execute(
-            insert(self.sessions)
-            .values(
-                session_id=value["session_id"],
-                agent_id=value["agent_id"],
-                user_id=value.get("user_id"),
-                session_type="agent",
-                created_at=int(time.time()),
-                session_data={},
-            )
-            .on_conflict_do_nothing()
-        )
+        self._insert_session(connection, value)
         connection.execute(
             insert(self.runs)
             .values(
@@ -699,6 +694,20 @@ class _SandboxStore:
             ).scalar_one()
             connection.execute(update(self.runs).where(self.runs.c.run_id == value["run_id"]).values(run_index=index))
 
+    def _insert_session(self, connection: Connection, value: Dict[str, Any]) -> None:
+        connection.execute(
+            insert(self.sessions)
+            .values(
+                session_id=value["session_id"],
+                agent_id=value["agent_id"],
+                user_id=value.get("user_id"),
+                session_type="agent",
+                created_at=int(time.time()),
+                session_data={},
+            )
+            .on_conflict_do_nothing()
+        )
+
     async def aprepare(self, run: Dict[str, Any]) -> None:
         """Insert an accepted queued run without rewriting existing session recovery metadata."""
         value = self._json(run)
@@ -714,6 +723,7 @@ class _SandboxStore:
         # takeover waits until it drains, then checks ownership against the DB clock.
         # This closes the check-then-act gap between a lease read and provider calls.
         async def perform() -> SandboxState:
+            await self._ensure_tables()
             if isinstance(self.db, AsyncPostgresDb):
                 async with self.db.db_engine.begin() as connection:
                     row = await connection.run_sync(lambda c: self._locked(c, lease))

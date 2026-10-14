@@ -1671,7 +1671,9 @@ async def test_read_parity_knowledge():
 
 
 class StubSkills:
-    """Duck-typed skills: the methods the run path calls."""
+    """Duck-typed skills: the attributes the run path uses."""
+
+    loaders: list = []
 
     def get_system_prompt_snippet(self):
         return "SKILLS-MARKER-XYZZY"
@@ -1683,9 +1685,6 @@ class StubSkills:
         pass
 
     async def aclose(self):
-        pass
-
-    def gate_execution_tools(self, toolkits, functions, run_context, run_response=None):
         pass
 
 

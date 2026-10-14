@@ -6,6 +6,7 @@ import weakref
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
+from agno.db.schemas.scheduler import MCP_SKILL_GATE_METADATA_KEY
 from agno.exceptions import PathSecurityError
 from agno.run.base import RunContext
 from agno.skills.errors import SkillValidationError
@@ -133,40 +134,6 @@ class Skills:
                 await loader.aclose()
             except Exception as e:
                 log_warning(f"Error closing {loader}: {str(e)}")
-
-    def gate_execution_tools(
-        self,
-        toolkits: Sequence[Any],
-        functions: Sequence[Any],
-        run_context: RunContext,
-        run_response: Any = None,
-    ) -> None:
-        """Record this run's code-execution tools on `run_context`.
-
-        Once the run loads a skill from an MCP server, these tools require confirmation for
-        the rest of the run, so remote skill content cannot run code on the host unapproved.
-        A run that already loaded one, such as a continued run, starts gated.
-
-        Args:
-            toolkits: The run's tools before they were expanded into functions.
-            functions: The run's per-run Function copies, as handed to the model.
-            run_context: The run's context.
-            run_response: The run's output, whose tool history shows an earlier MCP skill load.
-        """
-        loaders = [loader for loader in self.loaders if isinstance(loader, MCPSkills)]
-        if not loaders:
-            return
-        run_functions = [f for f in functions if isinstance(f, Function) and f.name not in _SKILL_TOOL_NAMES]
-        if any(loader.gate_all_tools for loader in loaders):
-            gated = run_functions
-        else:
-            names = {name for loader in loaders for name in loader.gated_tools}
-            for toolkit in toolkits:
-                names.update(_execution_function_names(toolkit))
-            gated = [f for f in run_functions if f.name in names]
-        run_context.skill_gated_tools = gated
-        if gated and _loaded_mcp_skill(run_response):
-            _require_confirmation(run_context)
 
     def _pending_async_loaders(self) -> List[SkillLoader]:
         return [loader for loader in self.loaders if loader.requires_async and loader not in self._loaded_async_loaders]
@@ -596,7 +563,7 @@ class Skills:
         except Exception as e:
             return json.dumps({"error": f"Error loading skill '{skill_name}': {e}", "skill_name": skill_name})
         # Gate before the instructions reach the model.
-        _require_confirmation(run_context)
+        _require_confirmation(run_context, self.loaders)
         return json.dumps(
             {
                 "skill_name": skill.name,
@@ -715,6 +682,44 @@ class Skills:
         )
 
 
+def gate_execution_tools(
+    skills: Optional[Skills],
+    toolkits: Sequence[Any],
+    functions: Sequence[Any],
+    run_context: RunContext,
+    run_response: Any = None,
+) -> None:
+    """Record this run's code-execution tools on `run_context`.
+
+    Once the run loads a skill from an MCP server, these tools require confirmation for
+    the rest of the run, so remote skill content cannot run code on the host unapproved.
+    A run that already loaded one, such as a continued run, starts gated, and so does a
+    member run delegated by a run that loaded one, even if the member has no skills.
+
+    Args:
+        skills: The run's skills, if any.
+        toolkits: The run's tools before they were expanded into functions.
+        functions: The run's per-run Function copies, as handed to the model.
+        run_context: The run's context.
+        run_response: The run's output, whose tool history shows an earlier MCP skill load.
+    """
+    loaders = skills.loaders if skills is not None else []
+    gate = _gate_config(loaders, run_context)
+    if gate is None:
+        return
+    run_functions = [f for f in functions if isinstance(f, Function) and f.name not in _SKILL_TOOL_NAMES]
+    if gate["gate_all_tools"]:
+        gated = run_functions
+    else:
+        names = set(gate["gated_tools"])
+        for toolkit in toolkits:
+            names.update(_execution_function_names(toolkit))
+        gated = [f for f in run_functions if f.name in names]
+    run_context.skill_gated_tools = gated
+    if _inherited_gate(run_context) is not None or _loaded_mcp_skill(run_response):
+        _require_confirmation(run_context, loaders)
+
+
 def _execution_function_names(toolkit: Any) -> List[str]:
     """Names of `toolkit`'s functions that execute code on the host."""
     if not isinstance(toolkit, Toolkit):
@@ -743,8 +748,43 @@ def _loaded_mcp_skill(run_response: Any) -> bool:
     return False
 
 
-def _require_confirmation(run_context: Optional[RunContext]) -> None:
-    for function in (run_context.skill_gated_tools if run_context is not None else None) or []:
+def _inherited_gate(run_context: Optional[RunContext]) -> Optional[Dict[str, Any]]:
+    """The gate config this run inherited from a run that loaded an MCP skill."""
+    metadata = run_context.metadata if run_context is not None else None
+    if not isinstance(metadata, dict) or MCP_SKILL_GATE_METADATA_KEY not in metadata:
+        return None
+    gate = metadata[MCP_SKILL_GATE_METADATA_KEY]
+    gated_tools = gate.get("gated_tools") if isinstance(gate, dict) else None
+    if not isinstance(gated_tools, list) or not all(isinstance(name, str) for name in gated_tools):
+        # Fail closed on a malformed value.
+        return {"gate_all_tools": True, "gated_tools": []}
+    return {"gate_all_tools": gate.get("gate_all_tools") is not False, "gated_tools": gated_tools}
+
+
+def _gate_config(loaders: Sequence[SkillLoader], run_context: Optional[RunContext]) -> Optional[Dict[str, Any]]:
+    """This run's gate config: its own MCPSkills loaders merged with any inherited gate."""
+    mcp_loaders = [loader for loader in loaders if isinstance(loader, MCPSkills)]
+    inherited = _inherited_gate(run_context)
+    if not mcp_loaders and inherited is None:
+        return None
+    names = {name for loader in mcp_loaders for name in loader.gated_tools}
+    gate_all = any(loader.gate_all_tools for loader in mcp_loaders)
+    if inherited is not None:
+        names.update(inherited["gated_tools"])
+        gate_all = gate_all or inherited["gate_all_tools"]
+    return {"gate_all_tools": gate_all, "gated_tools": sorted(names)}
+
+
+def _require_confirmation(run_context: Optional[RunContext], loaders: Sequence[SkillLoader]) -> None:
+    if run_context is None:
+        return
+    gate = _gate_config(loaders, run_context)
+    if gate is not None:
+        # Written in place so the run output, which shares this dict, persists it for a resume.
+        if run_context.metadata is None:
+            run_context.metadata = {}
+        run_context.metadata[MCP_SKILL_GATE_METADATA_KEY] = gate
+    for function in run_context.skill_gated_tools or []:
         # HITL modes are exclusive; a tool that already waits on user input or external execution keeps its mode.
         if not (function.requires_user_input or function.external_execution):
             function.requires_confirmation = True

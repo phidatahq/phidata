@@ -88,9 +88,8 @@ class MCPSkills(SkillLoader):
         gate_all_tools: Require confirmation for every other tool, not only execution tools,
             once a run loads a skill from this server.
 
-    The gate covers the tools of the agent or team that loads the skill. A team's members
-    run separately and are not gated: give `MCPSkills` to the member that runs code, or set
-    `requires_confirmation` on the members' execution tools.
+    The gate also covers the members a team delegates to after loading a skill, including
+    nested teams, with the same `gated_tools` and `gate_all_tools`.
     """
 
     requires_async = True

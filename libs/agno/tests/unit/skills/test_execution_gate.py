@@ -8,14 +8,16 @@ import pytest
 pytest.importorskip("mcp.server.extension")
 
 from agno.agent import Agent
+from agno.db.schemas.scheduler import MCP_SKILL_GATE_METADATA_KEY
 from agno.db.sqlite import SqliteDb
 from agno.models.base import Model
 from agno.models.response import ModelResponse, ModelResponseEvent
 from agno.run import RunContext
 from agno.run.requirement import RunRequirement
 from agno.skills import Skills
+from agno.skills.agent_skills import gate_execution_tools
 from agno.skills.skill import Skill
-from agno.team import Team
+from agno.team import Team, TeamMode
 from agno.tools.function import Function
 from agno.tools.toolkit import Toolkit
 
@@ -220,6 +222,145 @@ async def test_gate_keeps_a_tool_s_existing_hitl_mode(tmp_path) -> None:
     assert records[0].external_execution_required and not records[0].requires_confirmation
 
 
+# --- Team members ---
+
+
+def _delegate(member_id: str, call_id: str = "c-delegate") -> tuple:
+    return ("tool", "delegate_task_to_member", {"member_id": member_id, "task": "run it"}, call_id)
+
+
+def _shell_member(name: str, script: List[tuple], tools: Any = None) -> Agent:
+    return Agent(name=name, model=ScriptedModel(script), tools=tools or [ShellTools()], telemetry=False)
+
+
+def _team(tmp_path, script: List[tuple], members: List[Any], **kwargs: Any) -> Team:
+    kwargs.setdefault("skills", Skills(loaders=[make_loader(SkillsServerState())]))
+    return Team(
+        name="team",
+        model=ScriptedModel(script),
+        members=members,
+        db=SqliteDb(db_file=str(tmp_path / "team.db")),
+        telemetry=False,
+        **kwargs,
+    )
+
+
+async def test_delegated_member_shell_call_pauses_after_the_team_loads_an_mcp_skill(tmp_path) -> None:
+    member = _shell_member("member", [_shell(1), ("content", "done")])
+    run = await _team(tmp_path, [LOAD, _delegate("member"), ("content", "done")], [member]).arun("go", session_id="s1")
+
+    assert run.is_paused
+    assert [r.tool_execution.tool_name for r in run.requirements] == ["run_shell_command"]
+    assert SHELL_CALLS == []
+
+
+async def test_member_runs_ungated_when_the_team_loaded_no_mcp_skill(tmp_path) -> None:
+    member = _shell_member("member", [_shell(1), ("content", "done")])
+    run = await _team(tmp_path, [_delegate("member"), ("content", "done")], [member]).arun("go", session_id="s1")
+
+    assert not run.is_paused
+    assert SHELL_CALLS == [["echo", "1"]]
+
+
+async def test_broadcast_members_are_gated(tmp_path) -> None:
+    members = [_shell_member(f"m{i}", [_shell(i), ("content", "done")]) for i in (1, 2)]
+    script = [LOAD, ("tool", "delegate_task_to_members", {"task": "run it"}, "c-all"), ("content", "done")]
+    run = await _team(tmp_path, script, members, mode=TeamMode.broadcast).arun("go", session_id="s1")
+
+    assert run.is_paused
+    assert sorted(r.tool_execution.tool_call_id for r in run.requirements) == ["c-shell-1", "c-shell-2"]
+    assert SHELL_CALLS == []
+
+
+async def test_tasks_mode_member_is_gated(tmp_path, monkeypatch) -> None:
+    import agno.team.task as task_module
+
+    monkeypatch.setattr(task_module, "uuid4", lambda: "task0001-fixed")
+    member = _shell_member("member", [_shell(1), ("content", "done")])
+    script = [
+        LOAD,
+        ("tool", "create_task", {"title": "Run it", "assignee": "member"}, "c-create"),
+        ("tool", "execute_task", {"task_id": "task0001", "member_id": "member"}, "c-exec"),
+        ("content", "done"),
+    ]
+    run = await _team(tmp_path, script, [member], mode=TeamMode.tasks).arun("go", session_id="s1")
+
+    assert run.is_paused
+    assert [r.tool_execution.tool_name for r in run.requirements] == ["run_shell_command"]
+    assert SHELL_CALLS == []
+
+
+async def test_nested_subteam_member_is_gated(tmp_path) -> None:
+    member = _shell_member("member", [_shell(1), ("content", "done")])
+    subteam = Team(name="sub", model=ScriptedModel([_delegate("member"), ("content", "done")]), members=[member])
+    run = await _team(tmp_path, [LOAD, _delegate("sub"), ("content", "done")], [subteam]).arun("go", session_id="s1")
+
+    assert run.is_paused
+    assert SHELL_CALLS == []
+
+
+async def test_member_inherits_the_team_s_gate_all_tools(tmp_path) -> None:
+    calls: List[str] = []
+
+    def deploy(target: str) -> str:
+        """Deploy to a target.
+
+        Args:
+            target: Where to deploy.
+        """
+        calls.append(target)
+        return "deployed"
+
+    member = _shell_member("member", [("tool", "deploy", {"target": "prod"}, "c-deploy"), ("content", "ok")], [deploy])
+    skills = Skills(loaders=[make_loader(SkillsServerState(), gate_all_tools=True)])
+    team = _team(tmp_path, [LOAD, _delegate("member"), ("content", "ok")], [member], skills=skills)
+    run = await team.arun("go", session_id="s1")
+    # gate_all_tools also gates the team's own delegation call.
+    assert [r.tool_execution.tool_name for r in run.requirements] == ["delegate_task_to_member"]
+    resumed = await team.acontinue_run(run_id=run.run_id, session_id="s1", requirements=_confirmed(run.requirements))
+
+    assert [r.tool_execution.tool_name for r in resumed.active_requirements] == ["deploy"]
+    assert calls == []
+
+
+async def test_continued_team_keeps_its_member_gated(tmp_path) -> None:
+    member = _shell_member("member", [_shell(1), _shell(2), ("content", "done")])
+    team = _team(tmp_path, [LOAD, _delegate("member"), ("content", "done")], [member])
+    run = await team.arun("go", session_id="s1")
+    resumed = await team.acontinue_run(run_id=run.run_id, session_id="s1", requirements=_confirmed(run.requirements))
+
+    assert resumed.is_paused
+    assert [r.tool_execution.tool_call_id for r in resumed.active_requirements] == ["c-shell-2"]
+    assert SHELL_CALLS == [["echo", "1"]]
+
+
+_INHERITED_GATE = {MCP_SKILL_GATE_METADATA_KEY: {"gate_all_tools": False, "gated_tools": []}}
+
+
+def test_sync_member_run_is_gated(tmp_path) -> None:
+    agent = Agent(model=ScriptedModel([_shell(1), ("content", "done")]), tools=[ShellTools()], telemetry=False)
+    run = agent.run("go", session_id="s1", metadata=dict(_INHERITED_GATE))
+
+    assert run.is_paused
+    assert SHELL_CALLS == []
+
+
+async def test_resume_keeps_the_gate_when_the_caller_drops_it(tmp_path) -> None:
+    agent = Agent(
+        model=ScriptedModel([_shell(1), _shell(2), ("content", "done")]),
+        tools=[ShellTools()],
+        db=SqliteDb(db_file=str(tmp_path / "agent.db")),
+        telemetry=False,
+    )
+    run = await agent.arun("go", session_id="s1", metadata=dict(_INHERITED_GATE))
+    resumed = await agent.acontinue_run(
+        run_id=run.run_id, session_id="s1", requirements=_confirmed(run.requirements), metadata={"other": 1}
+    )
+
+    assert resumed.is_paused
+    assert SHELL_CALLS == [["echo", "1"]]
+
+
 # --- Choosing the gated tools ---
 
 
@@ -229,7 +370,7 @@ def _run_functions(*toolkits: Toolkit) -> List[Function]:
 
 def _gated_names(skills: Skills, toolkits: List[Any], functions: List[Any]) -> List[str]:
     run_context = RunContext(run_id="r", session_id="s")
-    skills.gate_execution_tools(toolkits, functions, run_context)
+    gate_execution_tools(skills, toolkits, functions, run_context)
     return sorted(f.name for f in run_context.skill_gated_tools or [])
 
 
@@ -264,5 +405,5 @@ def test_gate_all_tools_gates_everything_but_skill_tools() -> None:
 def test_no_gate_without_mcp_skills() -> None:
     shell = ShellTools()
     run_context = RunContext(run_id="r", session_id="s")
-    Skills(loaders=[MockSkillLoader([])]).gate_execution_tools([shell], _run_functions(shell), run_context)
+    gate_execution_tools(Skills(loaders=[MockSkillLoader([])]), [shell], _run_functions(shell), run_context)
     assert run_context.skill_gated_tools is None

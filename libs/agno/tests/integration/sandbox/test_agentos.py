@@ -342,3 +342,22 @@ async def test_cancel_detached_direct_sdk_run_retires_computer(service):
     await agent.acancel_run("direct")
     assert await _harness.coordinator(agent).provider.aget(handles[0].provider_ref) is None
     assert (await agent.aget_run_output("direct", "session")).status == "CANCELLED"
+
+
+async def test_timed_out_attempt_is_retried_on_new_compute(service, monkeypatch):
+    client, agent, app, handles = service
+    agent.delay = 4
+    monkeypatch.setattr(app.state.queue_worker.config, "timeout_seconds", 2)
+    response = await client.post(
+        "/agents/coder/runs",
+        data={"message": "slow", "session_id": "session", "stream": "false", "background": "true"},
+    )
+    job = await settled(app, response.json()["run_id"])
+    # Both attempts time out; the second must have executed again, not replayed the first ERROR.
+    assert job["status"] == "failed" and job["attempt"] == 2, job
+    assert "timeout_seconds" in (job.get("error") or ""), job
+    assert len(handles) == 2, handles
+    assert all(
+        value is None
+        for value in await asyncio.gather(*(_harness.coordinator(agent).provider.aget(h.provider_ref) for h in handles))
+    )

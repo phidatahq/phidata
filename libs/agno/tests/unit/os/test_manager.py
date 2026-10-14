@@ -11,10 +11,13 @@ from agno.db.sqlite import AsyncSqliteDb, SqliteDb
 from agno.models.base import Model
 from agno.models.message import MessageMetrics
 from agno.models.response import ModelResponse
+from agno.offload import ResultStore
+from agno.offload.tools import get_read_result_function
 from agno.os import AgentOS, ManagerConfig
 from agno.os.config import AgentOSConfig, Manifest
-from agno.os.platform import BUILDER_ID, ENGINEER_ID, MANAGER_TEAM_ID, MANAGER_TEAM_NAME, OPERATOR_ID
+from agno.os.manager.config import BUILDER_ID, ENGINEER_ID, MANAGER_TEAM_ID, MANAGER_TEAM_NAME, OPERATOR_ID
 from agno.registry import Registry
+from agno.run import RunContext
 from agno.tools.agentos import AgentOSTools
 from agno.tools.studio import StudioTools
 from agno.tools.studio_runner import StudioRunnerTools
@@ -657,3 +660,108 @@ def test_an_existing_platform_team_keeps_its_id_and_name(db):
     assert "agno" in os.registry.excluded_component_ids and MANAGER_TEAM_ID not in os.registry.excluded_component_ids
     run = TestClient(os.get_app()).post("/teams/agno/runs", data={"message": "hello", "stream": "false"})
     assert run.status_code == 200 and run.json()["team_name"] == "Agno"
+
+
+class ManagerToolModel(OfflineModel):
+    """Call one tool, then finish without an external model."""
+
+    def __init__(self, tool_name, tool_args):
+        super().__init__()
+        self.tool_name = tool_name
+        self.tool_args = tool_args
+        self.calls = 0
+
+    def invoke(self, *args, **kwargs):
+        self.calls += 1
+        if self.calls == 1:
+            return ModelResponse(
+                role="assistant",
+                tool_calls=[
+                    {
+                        "id": "manager-tool-call",
+                        "type": "function",
+                        "function": {"name": self.tool_name, "arguments": json.dumps(self.tool_args)},
+                    }
+                ],
+                response_usage=MessageMetrics(),
+            )
+        return super().invoke(*args, **kwargs)
+
+
+class ManagerAnswerModel(OfflineModel):
+    def __init__(self, answer):
+        super().__init__()
+        self.answer = answer
+
+    def invoke(self, *args, **kwargs):
+        return ModelResponse(content=self.answer, role="assistant", response_usage=MessageMetrics())
+
+
+@pytest.mark.parametrize("async_mode", [False, True])
+@pytest.mark.parametrize("target", [MANAGER_TEAM_ID, BUILDER_ID, OPERATOR_ID, ENGINEER_ID])
+@pytest.mark.parametrize("setting", ["default", "disabled", "custom"])
+def test_manager_offloading_and_readback(db, workspace, async_mode, target, setting):
+    # The custom payload is below the default threshold, so it only offloads
+    # if the supplied ResultStore settings survive manager construction.
+    payload = "\n".join(f"row {i}: " + "x" * 70 for i in range(1, 301 if setting != "custom" else 101))
+    config = ManagerConfig(model=OfflineModel(), workspace=workspace)
+    if setting == "disabled":
+        config.offload_tool_results = False
+    elif setting == "custom":
+        config.offload_tool_results = ResultStore(threshold_chars=500, ttl_seconds=3600)
+    os = AgentOS(db=db, manager=config, telemetry=False)
+    assert os.manager.offload_tool_results is config.offload_tool_results
+    assert all(member.offload_tool_results is config.offload_tool_results for member in os.manager.members)
+    if setting == "default":
+        assert config.offload_tool_results is True
+
+    if target == MANAGER_TEAM_ID:
+        owner = os.manager
+        member = manager_member(os, OPERATOR_ID)
+        member.model = ManagerAnswerModel(payload)
+        owner.model = ManagerToolModel(
+            "delegate_task_to_member", {"member_id": OPERATOR_ID, "task": "Return the report"}
+        )
+    else:
+        owner = manager_member(os, target)
+
+        def fetch_report() -> str:
+            """Return the full report."""
+            return payload
+
+        owner.tools.append(fetch_report)
+        owner.model = ManagerToolModel("fetch_report", {})
+
+    run_args = {"session_id": "manager-report", "user_id": "alice"}
+    result = (
+        asyncio.run(owner.arun("Get the report", **run_args)) if async_mode else owner.run("Get the report", **run_args)
+    )
+    messages = [message for message in result.messages if message.role == "tool"]
+    assert len(messages) == 1
+    content = messages[0].content
+    if setting == "disabled":
+        assert content == payload
+        assert owner._result_store is None
+        return
+
+    assert content.startswith('<result id="res_')
+    assert payload not in content
+    result_id = content.split('id="')[1].split('"')[0]
+    store = owner._result_store
+    assert store.threshold_chars == (500 if setting == "custom" else 16000)
+    if setting == "custom":
+        assert store.ttl_seconds == 3600
+    if target == MANAGER_TEAM_ID:
+        assert member._result_store.db is store.db
+
+    def read(session_id, user_id):
+        context = RunContext(run_id="read-back", session_id=session_id, user_id=user_id)
+        tool = get_read_result_function(owner, context, async_mode=async_mode)
+        args = {"result_id": result_id, "start_line": 50, "end_line": 51}
+        return asyncio.run(tool.entrypoint(**args)) if async_mode else tool.entrypoint(**args)
+
+    # Read past the preview through the actual tool, including access checks.
+    assert "row 50:" not in content
+    assert "row 50:" in read("manager-report", "alice")
+    assert "different session" in read("another-session", "alice")
+    assert "different user" in read("manager-report", "bob")

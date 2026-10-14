@@ -1,5 +1,67 @@
 # Test log
 
+## Manager package and default offloading, 2026-10-14
+
+### basic_manager.py
+
+**Status:** PASS
+
+**Description:** Constructed the app after moving the manager into its own package.
+
+**Result:** OS Manager and its two members are created with default offloading.
+Manager resources stay excluded from the build registry. No model calls.
+
+---
+
+### manager_builds_agents.py
+
+**Status:** PASS
+
+**Description:** Constructed the app and published Budget Helper through the
+builder's create tool against a temporary SQLite database.
+
+**Result:** The model, calculator tools and workflow functions remain available
+for building; manager components remain excluded. No model calls.
+
+---
+
+### manager_with_resources.py
+
+**Status:** PASS
+
+**Description:** Constructed the app with a workspace and learning, then wrote
+and read `project.md` through the manager's notebook tools.
+
+**Result:** Three members are configured, and the saved note is returned. No
+live-model memory or source explanation was tested.
+
+---
+
+### manager_diagnostics.py
+
+**Status:** PASS
+
+**Description:** Ran the script with `OPENAI_API_KEY` unset and model calls blocked.
+
+**Result:** Completed the report and reported the missing required key as FAIL.
+
+---
+
+### Manager offloading regression checks
+
+**Status:** PASS
+
+**Description:** Ran the manager, diagnostics and offloading unit suites. New
+cases exercise delegation and each specialist directly, in sync and async mode,
+with default offloading, explicit opt-out and custom ResultStore settings.
+
+**Result:** 186 tests passed, including 24 new manager cases. Stored results can
+be read beyond their previews; reads by another user or session are rejected.
+Two existing duplicate OpenAPI operation-id warnings remain. Tests use SQLite
+and scripted models; no live provider or PostgreSQL run was performed.
+
+---
+
 ## Revised manager examples, 2026-10-14
 
 Used `.venv/bin/python` with this checkout's `libs/agno` on `PYTHONPATH`.

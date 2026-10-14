@@ -5,7 +5,7 @@ from agno.os.app import AgentOS
 from agno.os.auth import create_dev_token
 from agno.os.authz import Authorization, UserDirectory
 from agno.os.config import MCP_BUILTIN_TAGS, CORSConfig, MCPBuiltinTag, MCPConfig, MCPServerConfig
-from agno.os.platform import ManagerConfig
+from agno.os.manager import ManagerConfig
 
 if TYPE_CHECKING:
     from agno.os.mcp_auth_builtin import AgentOSBuiltinAuth

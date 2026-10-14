@@ -104,6 +104,28 @@ supported; `allow_paths` and custom `!` exemptions are rejected.
 The resources example shares notebook files across users, while learning keeps
 user memory separate. It does not configure a knowledge base.
 
+## Large tool results
+
+OS Manager and its members offload tool results by default on SQLite and
+PostgreSQL. Results above 16,000 characters are stored in the database; the
+model receives a preview and can read or search the full result. Small results
+stay inline. Other database adapters warn and leave offloading disabled.
+
+Use `ManagerConfig(offload_tool_results=False)` to disable it, or pass a
+`ResultStore` to customize the threshold and retention:
+
+```python
+from agno.offload import ResultStore
+
+manager_config = ManagerConfig(
+    model=OpenAIResponses(id="gpt-5.6-luna"),
+    offload_tool_results=ResultStore(threshold_chars=32000, ttl_seconds=86400),
+)
+```
+
+Pass this config as `AgentOS(db=db, manager=manager_config)`. The custom example
+expires stored results after one day; the default has no time-based expiry.
+
 ## Direct use
 
 `agent_os.manager` is a regular Team, or `None` when disabled. Use its sync or

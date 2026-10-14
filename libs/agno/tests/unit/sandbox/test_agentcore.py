@@ -693,8 +693,9 @@ def test_freeze_skips_processes_the_agent_already_stopped(monkeypatch):
 
 def test_process_state_reads_past_a_command_name_with_spaces_and_parentheses(monkeypatch, tmp_path):
     stat = "42 (bad ) name) T 1 42 42 0 -1"
-    monkeypatch.setattr(server, "Path", lambda path: tmp_path / "stat" if path == "/proc/42/stat" else Path(path))
-    (tmp_path / "stat").write_text(stat)
+    # Every pid maps into tmp_path, so a real process on a Linux host never answers.
+    monkeypatch.setattr(server, "Path", lambda path: tmp_path / path.replace("/", "_"))
+    (tmp_path / "_proc_42_stat").write_text(stat)
     assert server._process_state(42) == "T"
     assert server._process_state(43) == ""
 

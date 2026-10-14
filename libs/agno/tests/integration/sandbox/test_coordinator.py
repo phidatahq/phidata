@@ -555,3 +555,58 @@ async def test_large_structured_result_still_checkpoints(system, monkeypatch):
     target = root / uuid4().hex
     state = await coordinator.transfer.store.arestore(CheckpointRef(**record["checkpoint"]), target)
     assert "result" not in state and len(state["result_sha256"]) == 64
+
+
+async def test_switching_sdk_mid_session_is_refused_before_compute(system, monkeypatch):
+    coordinator, spec, root = system
+    await run(coordinator, spec)
+    created = []
+    create = coordinator.provider.acreate
+
+    async def counting(*args, **kwargs):
+        created.append(True)
+        return await create(*args, **kwargs)
+
+    monkeypatch.setattr(coordinator.provider, "acreate", counting)
+    output = await coordinator.arun(
+        spec.session_id,
+        agent_id=spec.agent_id,
+        env=spec.env,
+        run_id="second",
+        input="second",
+        sdk="claude",
+        user_id="user",
+    )
+    assert output.status == RunStatus.error and "belongs to fixture" in output.content
+    assert output.metadata["retryable"] is False and created == []
+    record = (await binding(coordinator))["record"]
+    assert record["phase"] == "idle" and await recovered_effects(coordinator, root) == ["first"]
+
+
+async def test_request_validated_at_its_sent_size_before_claiming(system):
+    coordinator, spec, _ = system
+    base = dict(
+        version=1,
+        execution_id="validate",
+        run_id="first",
+        agent_id=spec.agent_id,
+        session_id=spec.session_id,
+        user_id="user",
+        input="",
+        sdk="claude",
+        config={},
+        execution_timeout=900,
+    )
+    # Fits with the short placeholder id and no native id, but not as astart sends it.
+    room = 1024 * 1024 - len(json.dumps(base, separators=(",", ":")).encode())
+    with pytest.raises(ValueError, match="limit"):
+        await coordinator.arun(
+            spec.session_id,
+            agent_id=spec.agent_id,
+            env=spec.env,
+            run_id="first",
+            input="x" * room,
+            sdk="fixture",
+            user_id="user",
+        )
+    assert await coordinator.store._transaction(lambda c: c.execute(select(coordinator.store.bindings)).first()) is None

@@ -163,7 +163,15 @@ class SandboxCoordinator:
         )
         # Fixture opt-in belongs to the compute image/environment; production SDKs
         # use the same pure request validation without importing either SDK.
-        _validate({**request, "sdk": "claude" if sdk == "fixture" else sdk})
+        _validate(
+            {
+                **request,
+                "sdk": "claude" if sdk == "fixture" else sdk,
+                # The longest values astart sends: a uuid4 hex execution id and a 256-character native id.
+                "execution_id": "0" * 32,
+                "native_session_id": "0" * 256,
+            }
+        )
         request = json.loads(json.dumps(request, allow_nan=False))
         config = request["config"]
         if len(json.dumps(request, allow_nan=False).encode()) > 1024 * 1024:
@@ -245,6 +253,17 @@ class SandboxCoordinator:
                 if record["phase"] != "executing":
                     return record
                 record["request_hash"] = fingerprint
+                native = record.get("native") or {}
+                if native and NATIVE_SESSION_KEYS[sdk] not in native:
+                    # Starting the other SDK fresh would fork the conversation.
+                    held = ", ".join(sorted(name for name, key in NATIVE_SESSION_KEYS.items() if key in native))
+                    record.update(
+                        phase="stopping",
+                        stop_status="ERROR",
+                        stop_reason=f"This session's conversation belongs to {held}; it cannot continue with {sdk}",
+                        computer_stopped=record.get("computer") is None,
+                    )
+                    return record
                 if record.get("computer") is not None:
                     return record
                 # No SDK execution can start before this binding commits. An

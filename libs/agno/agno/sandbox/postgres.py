@@ -427,19 +427,6 @@ class _SandboxStore:
             candidate = SandboxLease(agent_id, session_id, user_id, run_id, row["epoch"], owner, queue_attempt)
             run, _ = self._service_run(connection, candidate)
             if row["epoch"] == 0:
-                # Before the first binding every other run is outside the sandbox. One running or paused
-                # would execute alongside this turn; queued (PENDING) runs wait for this binding instead.
-                running = connection.execute(
-                    select(self.runs.c.run_id)
-                    .where(
-                        (self.runs.c.session_id == session_id)
-                        & (self.runs.c.run_id != run_id)
-                        & self.runs.c.status.in_(["RUNNING", "PAUSED"])
-                    )
-                    .limit(1)
-                ).first()
-                if running is not None:
-                    raise SandboxSessionBusy(running[0])
                 # A first binding on a session with finished runs has no checkpoint to continue from.
                 historical = connection.execute(
                     select(self.runs.c.run_id)
@@ -459,6 +446,21 @@ class _SandboxStore:
             active = record["phase"] != "idle"
             if not active and str(run["status"]).upper() in _FINISHED:
                 raise SandboxRunFinished(dict(run["run_data"]))
+            if not active:
+                # Starting a turn on an idle session, first or later: another run that is running or
+                # paused outside the sandbox would execute alongside it. Queued (PENDING) runs wait for
+                # the binding instead.
+                running = connection.execute(
+                    select(self.runs.c.run_id)
+                    .where(
+                        (self.runs.c.session_id == session_id)
+                        & (self.runs.c.run_id != run_id)
+                        & self.runs.c.status.in_(["RUNNING", "PAUSED"])
+                    )
+                    .limit(1)
+                ).first()
+                if running is not None:
+                    raise SandboxSessionBusy(running[0])
             if active and row["run_id"] != run_id:
                 raise SandboxSessionBusy(row["run_id"])
             newer_attempt = (

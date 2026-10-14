@@ -981,3 +981,16 @@ async def test_admission_takes_the_core_run_index_lock(store):
     engine.dispose()
     indexes = await store._transaction(lambda c: c.execute(select(store.runs.c.run_index)).scalars().all())
     assert len(set(indexes)) == len(indexes)
+
+
+async def test_later_claim_waits_for_a_run_outside_the_sandbox(store):
+    lease = await staged(store)
+    await store.astage_checkpoint(lease, REF)
+    await store.aconfirm_stopped(lease, "ref")
+    await store.acommit(lease)
+    # A normal run in the same session, after the session's first sandbox turn.
+    await seed(store, run_id="outside")
+    await seed(store, run_id="second")
+    with pytest.raises(SandboxSessionBusy) as caught:
+        await claim(store, run_id="second")
+    assert caught.value.run_id == "outside"

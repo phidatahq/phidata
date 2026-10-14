@@ -73,7 +73,7 @@ identity = {"session_id": "example", "agent_id": "coder", "env": credentials}
 RECALL = "What word did I ask you to remember? Reply with that word only, or NONE if you do not know."
 
 
-def turn(computer, number: int, prompt: str, expected_native=None, label: str = ""):
+def turn(computer, number: int, prompt: str, native_session_id=None, label: str = ""):
     execution = client.start(
         computer,
         execution_id=f"turn-{number}",
@@ -81,7 +81,7 @@ def turn(computer, number: int, prompt: str, expected_native=None, label: str = 
         sdk="claude",
         input=prompt,
         config=config,
-        expected_native=expected_native,
+        native_session_id=native_session_id,
     )
     result = client.wait_result(execution, timeout=240)
     if result["type"] == "execution_finished":
@@ -132,7 +132,7 @@ try:
             handles[1],
             2,
             RECALL,
-            expected_native=committed,
+            native_session_id=committed,
             label="restore landed, expectation set",
         )
         sandbox.destroy(handles[1])
@@ -152,7 +152,7 @@ try:
             handles[3],
             4,
             RECALL,
-            expected_native=committed,
+            native_session_id=committed,
             label="restore missing, expectation set",
         )
         say("refused before the model ran; the caller treats this as a failed restore")
@@ -167,7 +167,7 @@ try:
             handles[4],
             5,
             RECALL,
-            expected_native=committed,
+            native_session_id=committed,
             label="restore retried, expectation set",
         )
         say("the session is whole again and nothing forked was ever committed")

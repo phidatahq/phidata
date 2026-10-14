@@ -72,9 +72,9 @@ def _validate(request: Dict[str, Any]) -> None:
     timeout = request.get("execution_timeout", 900)
     if not isinstance(timeout, (float, int)) or not math.isfinite(timeout) or not 0 < timeout <= 86400:
         raise ValueError("Runtime execution timeout must be between 0 and 86400 seconds")
-    expected = request.get("expected_native")
+    expected = request.get("native_session_id")
     if expected is not None and (not isinstance(expected, str) or not expected or len(expected) > 256):
-        raise ValueError("Runtime expected_native must be a bounded native session identity or null")
+        raise ValueError("Runtime native_session_id must be a bounded native session id or null")
     if len(_encode(request)) > _MAX_REQUEST:
         raise ValueError("Runtime request exceeds its limit")
 
@@ -87,11 +87,11 @@ class NativeStateMissing(SandboxError):
 _NATIVE_KEYS = {"claude": "claude_sdk_session_id", "codex": "codex_thread_id"}
 
 
-def _check_expected_native(agent: Any, request: Dict[str, Any]) -> None:
+def _check_native_session_id(agent: Any, request: Dict[str, Any]) -> None:
     """Refuse to run when the caller expects an existing native conversation and the local
     database does not record exactly that one. This is the only check that catches a lost
     database: with no session row the adapter would treat the turn as a new conversation."""
-    expected = request.get("expected_native")
+    expected = request.get("native_session_id")
     if expected is None:
         return
     session = agent.get_session(request["session_id"], user_id=request.get("user_id"))
@@ -253,7 +253,7 @@ async def _execute(directory: Path, request: Dict[str, Any]) -> Dict[str, Any]:
     try:
         # Before anything reaches the model: the state on disk must be the state the caller
         # restored. A mismatch is a restore problem and is reported as one.
-        _check_expected_native(agent, request)
+        _check_native_session_id(agent, request)
         async for event in agent.arun(
             request["input"],
             run_id=request["run_id"],

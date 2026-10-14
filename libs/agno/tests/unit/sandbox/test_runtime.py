@@ -654,13 +654,13 @@ def _expecting_agent(native_id, calls):
         ("native-2", "native-1", "refused"),
     ],
 )
-async def test_expected_native_is_checked_before_the_model_runs(tmp_path, monkeypatch, stored, expected, outcome):
+async def test_native_session_id_is_checked_before_the_model_runs(tmp_path, monkeypatch, stored, expected, outcome):
     calls = []
     monkeypatch.setattr(runtime, "_agent", lambda *args: _expecting_agent(stored, calls))
     monkeypatch.setenv("HOME", str(tmp_path))
     directory = tmp_path / "jobs/e"
     directory.mkdir(parents=True)
-    request = {"sdk": "claude", "run_id": "r", "session_id": "s", "input": "hello", "expected_native": expected}
+    request = {"sdk": "claude", "run_id": "r", "session_id": "s", "input": "hello", "native_session_id": expected}
     if outcome == "runs":
         result = await runtime._execute(directory, request)
         assert result["type"] == "execution_finished" and calls == ["model"]
@@ -684,7 +684,7 @@ def test_worker_reports_missing_native_state_with_a_reason(tmp_path, monkeypatch
         "agent_id": "a",
         "sdk": "claude",
         "input": "x",
-        "expected_native": "native-1",
+        "native_session_id": "native-1",
     }
     (directory / "request.json").write_bytes(runtime._encode(request))
     runtime._worker(directory)
@@ -693,9 +693,9 @@ def test_worker_reports_missing_native_state_with_a_reason(tmp_path, monkeypatch
     assert "expected the native conversation native-1, found none" in result["error"]
 
 
-def test_expected_native_is_validated_and_optional(request_data):
-    runtime._validate({**request_data, "expected_native": None})
-    runtime._validate({**request_data, "expected_native": "abc"})
+def test_native_session_id_is_validated_and_optional(request_data):
+    runtime._validate({**request_data, "native_session_id": None})
+    runtime._validate({**request_data, "native_session_id": "abc"})
     for bad in ("", 5, "x" * 257):
-        with pytest.raises(ValueError, match="expected_native"):
-            runtime._validate({**request_data, "expected_native": bad})
+        with pytest.raises(ValueError, match="native_session_id"):
+            runtime._validate({**request_data, "native_session_id": bad})

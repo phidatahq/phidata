@@ -325,13 +325,17 @@ class _SandboxStore:
             self._json(row["record"]),
         )
 
-    def _write_record(self, connection: Connection, lease: SandboxLease, record: Dict[str, Any]) -> SandboxState:
+    def _write_record(
+        self, connection: Connection, lease: SandboxLease, record: Dict[str, Any], *, extend: bool = False
+    ) -> SandboxState:
+        values: Dict[str, Any] = {"record": self._json(record)}
+        if extend:
+            # Only for a writer that held the binding row lock throughout, so nobody else could own it.
+            now = connection.execute(select(func.clock_timestamp())).scalar_one()
+            values["expires_at"] = now + timedelta(seconds=record.get("lease_seconds", 60))
         row = (
             connection.execute(
-                update(self.bindings)
-                .where(self._key(lease.session_id))
-                .values(record=self._json(record))
-                .returning(self.bindings)
+                update(self.bindings).where(self._key(lease.session_id)).values(**values).returning(self.bindings)
             )
             .mappings()
             .one()
@@ -429,7 +433,7 @@ class _SandboxStore:
                     .where(
                         (self.runs.c.session_id == session_id)
                         & (self.runs.c.run_id != run_id)
-                        & self.runs.c.status.in_(["COMPLETED", "ERROR", "CANCELLED"])
+                        & self.runs.c.status.in_(_FINISHED)
                     )
                     .limit(1)
                 ).first()
@@ -471,12 +475,16 @@ class _SandboxStore:
                     staged_identity=None,
                     request_hash=None,
                 )
-            if active and str(run["status"]).upper() in ("CANCELLED", "ERROR"):
+            if active and str(run["status"]).upper() in _FINISHED:
+                # Finished elsewhere while this turn was active: retire its compute and release the session.
                 record.update(
-                    phase="stopping", stop_status=str(run["status"]).upper(), stop_reason="Service run was terminated"
+                    phase="stopping",
+                    stop_status="CANCELLED" if str(run["status"]).upper() == "CANCELLED" else "ERROR",
+                    stop_reason="Service run was finished elsewhere",
                 )
                 if record.get("computer") is None:
                     record["computer_stopped"] = True
+            record["lease_seconds"] = lease_seconds
             updated = (
                 connection.execute(
                     update(self.bindings)
@@ -542,13 +550,14 @@ class _SandboxStore:
             raise ValueError("Lease duration must be between 0 and 3600 seconds")
 
         def renew(connection: Connection) -> SandboxState:
-            self._locked(connection, lease)
+            record = dict(self._locked(connection, lease)["record"])
+            record["lease_seconds"] = lease_seconds
             now = connection.execute(select(func.clock_timestamp())).scalar_one()
             row = (
                 connection.execute(
                     update(self.bindings)
                     .where(self._key(lease.session_id))
-                    .values(expires_at=now + timedelta(seconds=lease_seconds))
+                    .values(expires_at=now + timedelta(seconds=lease_seconds), record=self._json(record))
                     .returning(self.bindings)
                 )
                 .mappings()
@@ -896,13 +905,14 @@ class _SandboxStore:
                 async with self.db.db_engine.begin() as connection:
                     row = await connection.run_sync(lambda c: self._locked(c, lease))
                     record = await operation(self._json(row["record"]))
-                    return await connection.run_sync(lambda c: self._write_record(c, lease, record))
+                    # Extend the lease with the commit: the heartbeat could not renew it during the call.
+                    return await connection.run_sync(lambda c: self._write_record(c, lease, record, extend=True))
             sync_connection = await asyncio.to_thread(self.db.db_engine.connect)
             sync_transaction = await asyncio.to_thread(sync_connection.begin)
             try:
                 row = await asyncio.to_thread(self._locked, sync_connection, lease)
                 record = await operation(self._json(row["record"]))
-                state = await asyncio.to_thread(self._write_record, sync_connection, lease, record)
+                state = await asyncio.to_thread(lambda: self._write_record(sync_connection, lease, record, extend=True))
                 await asyncio.to_thread(sync_transaction.commit)
                 return state
             except BaseException:
@@ -917,7 +927,7 @@ class _SandboxStore:
         except asyncio.CancelledError:
             # Closing a transaction while its provider operation still runs would
             # let the next owner mutate that same computer concurrently.
-            await task
+            await _drain(task)
             raise
 
     async def arelinquish(self, lease: SandboxLease) -> None:

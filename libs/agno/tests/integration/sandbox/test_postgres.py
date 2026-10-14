@@ -905,3 +905,16 @@ async def test_compute_cannot_replace_service_input_or_metadata(store):
     assert committed["input"] == {"input_content": "original"}
     assert committed["metadata"]["tenant"] == "trusted"
     assert committed["metadata"]["sandbox"]["native_metadata"]["tenant"] == "forged"
+
+
+async def test_long_provider_operation_keeps_its_lease(store):
+    await seed(store)
+    state = await claim(store, lease_seconds=1)
+
+    async def slow(record):
+        # Longer than the lease; the heartbeat cannot renew while this holds the row.
+        await asyncio.sleep(1.5)
+        return record
+
+    await store._aoperation(state.lease, slow)
+    assert (await store.aget(state.lease)).lease == state.lease

@@ -45,7 +45,7 @@ async def system(request, tmp_path):
     )
     provider = DockerSandbox(IMAGE, namespace="coordinator-" + suffix, memory_mb=512, workspace_mb=32)
     transfer = DockerCheckpointTransfer(provider, FileCheckpointStore(tmp_path / "objects"))
-    coordinator = SandboxCoordinator(db, provider, transfer, poll_interval=0.05)
+    coordinator = SandboxCoordinator(db, provider, transfer, poll_wait=1)
     spec = Target("agent", "session", env={"AGNO_SANDBOX_TEST_RUNTIME": "1"})
     handles = []
     original = provider.acreate
@@ -121,7 +121,7 @@ async def test_checkpoint_failure_retries_finalization_without_repeating_tools(s
     record = (await binding(coordinator))["record"]
     assert record["phase"] == "finalizing" and record["result"]["run"]["status"] == "COMPLETED"
     monkeypatch.setattr(coordinator.transfer, "acapture", capture)
-    fresh = SandboxCoordinator(coordinator.store.db, coordinator.provider, coordinator.transfer, poll_interval=0.05)
+    fresh = SandboxCoordinator(coordinator.store.db, coordinator.provider, coordinator.transfer, poll_wait=1)
     assert (await run(fresh, spec)).status == RunStatus.completed
     assert await recovered_effects(coordinator, root) == ["first"]
 
@@ -341,11 +341,11 @@ async def test_crash_after_provision_replaces_unbound_computer_before_execution(
     write = coordinator.store._write_record
     failed = []
 
-    def fail_binding(connection, lease, record):
+    def fail_binding(connection, lease, record, **kwargs):
         if record.get("computer") and not failed:
             failed.append(True)
             raise OSError("lost provisioning commit")
-        return write(connection, lease, record)
+        return write(connection, lease, record, **kwargs)
 
     monkeypatch.setattr(coordinator.store, "_write_record", fail_binding)
     with pytest.raises(OSError, match="provisioning"):
@@ -412,6 +412,8 @@ async def test_restore_missing_native_state_fails_before_the_turn_runs(system, m
     monkeypatch.setattr(coordinator.transfer, "arestore", lose_native)
     second = await run(coordinator, spec, "second")
     assert second.status == RunStatus.error
+    # The model never ran, so this one is safe to retry.
+    assert second.metadata["retryable"] is True
     record = (await binding(coordinator))["record"]
     assert record["phase"] == "idle" and record["native"]["fixture_session_id"]
     # The model never ran: the recovery point still holds only the first turn.
@@ -435,3 +437,69 @@ async def test_completion_without_native_conversation_cannot_publish(system, mon
     assert output.metadata["retryable"] is False
     record = (await binding(coordinator))["record"]
     assert record["checkpoint"] is None and not record.get("native")
+
+
+async def test_completion_by_another_writer_releases_the_session(system, monkeypatch):
+    coordinator, spec, _ = system
+    commit = coordinator.store.acommit
+
+    async def finished_elsewhere(lease):
+        def complete(connection):
+            runs = coordinator.store.runs
+            run_data = connection.execute(select(runs.c.run_data).where(runs.c.run_id == lease.run_id)).scalar_one()
+            connection.execute(
+                runs.update()
+                .where(runs.c.run_id == lease.run_id)
+                .values(status="COMPLETED", run_data={**run_data, "status": "COMPLETED", "content": "elsewhere"})
+            )
+
+        await coordinator.store._transaction(complete)
+        return await commit(lease)
+
+    monkeypatch.setattr(coordinator.store, "acommit", finished_elsewhere)
+    output = await run(coordinator, spec)
+    assert output.status == RunStatus.completed and output.content == "elsewhere"
+    record = (await binding(coordinator))["record"]
+    assert record["phase"] == "idle" and record["checkpoint"] is None
+    monkeypatch.setattr(coordinator.store, "acommit", commit)
+    assert (await run(coordinator, spec, "second")).status == RunStatus.completed
+
+
+async def test_runtime_failure_is_not_retried(system, monkeypatch):
+    coordinator, spec, _ = system
+    poll = coordinator.client.apoll
+
+    async def crashed(*args, **kwargs):
+        page = await poll(*args, **kwargs)
+        if page.result is not None:
+            page.result.clear()
+            page.result.update(type="execution_error", error="harness crashed after its tools ran")
+        return page
+
+    monkeypatch.setattr(coordinator.client, "apoll", crashed)
+    output = await run(coordinator, spec)
+    assert output.status == RunStatus.error and output.metadata["retryable"] is False
+
+
+async def test_retry_during_finalization_must_match_the_original_request(system, monkeypatch):
+    coordinator, spec, _ = system
+    capture = coordinator.transfer.acapture
+
+    async def unavailable(*args, **kwargs):
+        raise OSError("checkpoint store unavailable")
+
+    monkeypatch.setattr(coordinator.transfer, "acapture", unavailable)
+    with pytest.raises(OSError):
+        await run(coordinator, spec)
+    monkeypatch.setattr(coordinator.transfer, "acapture", capture)
+    with pytest.raises(SandboxError, match="configuration changed"):
+        await coordinator.arun(
+            spec.session_id,
+            agent_id=spec.agent_id,
+            env=spec.env,
+            run_id="first",
+            input="first",
+            sdk="claude",
+            user_id="user",
+        )
+    assert (await binding(coordinator))["record"]["phase"] == "finalizing"

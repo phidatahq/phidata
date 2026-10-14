@@ -24,6 +24,7 @@ try:
     from sqlalchemy import Table, func, select, update
     from sqlalchemy.dialects.postgresql import insert
     from sqlalchemy.engine import Connection
+    from sqlalchemy.exc import IntegrityError
 except ImportError:
     raise ImportError("Sandbox coordination requires sqlalchemy and a PostgreSQL driver")
 
@@ -84,6 +85,8 @@ class SandboxLease:
     epoch: int
     owner: str = field(repr=False)
     queue_attempt: Optional[int] = None
+    # Unique per binding row, so a lease for a deleted session never matches its recreation
+    incarnation: Optional[str] = field(default=None, repr=False)
 
 
 @dataclass(frozen=True)
@@ -160,7 +163,13 @@ class _SandboxStore:
             with db.db_engine.begin() as connection:
                 return operation(connection)
 
-        return await asyncio.to_thread(transact)
+        # Cancelling to_thread leaves the thread running; wait so a cancelled call never commits later.
+        task = asyncio.ensure_future(asyncio.to_thread(transact))
+        try:
+            return await asyncio.shield(task)
+        except asyncio.CancelledError:
+            await asyncio.wait([task])
+            raise
 
     @staticmethod
     def _json(value: Any) -> Any:
@@ -202,13 +211,12 @@ class _SandboxStore:
             row is None
             or (row["agent_id"], row["user_id"], row["run_id"], row["epoch"], row["owner"], row["queue_attempt"])
             != (lease.agent_id, lease.user_id, lease.run_id, lease.epoch, lease.owner, lease.queue_attempt)
+            or row["record"].get("incarnation") != lease.incarnation
             or row["expires_at"] is None
             or row["expires_at"] <= now
         ):
             raise SandboxLeaseLost("Sandbox session lease expired or was fenced by another owner")
-        _, session = self._service_run(connection, lease)
-        if session["created_at"] != row["record"].get("session_created_at"):
-            raise SandboxLeaseLost("Service session was replaced; reconcile its previous sandbox before reuse")
+        self._service_run(connection, lease)
         return row
 
     def _state(self, row: Any) -> SandboxState:
@@ -221,6 +229,7 @@ class _SandboxStore:
                 row["epoch"],
                 row["owner"],
                 row["queue_attempt"],
+                row["record"].get("incarnation"),
             ),
             row["expires_at"],
             self._json(row["record"]),
@@ -259,18 +268,27 @@ class _SandboxStore:
             raise ValueError("Lease duration must be between 0 and 3600 seconds")
 
         def claim(connection: Connection) -> SandboxState:
-            connection.execute(
-                insert(self.bindings)
-                .values(
-                    namespace=self.namespace,
-                    session_id=session_id,
-                    agent_id=agent_id,
-                    user_id=user_id,
-                    epoch=0,
-                    record={"phase": "idle", "generation": uuid4().int, "checkpoint": None, "incarnation": uuid4().hex},
+            try:
+                connection.execute(
+                    insert(self.bindings)
+                    .values(
+                        namespace=self.namespace,
+                        session_id=session_id,
+                        agent_id=agent_id,
+                        user_id=user_id,
+                        epoch=0,
+                        record={
+                            "phase": "idle",
+                            "generation": uuid4().int,
+                            "checkpoint": None,
+                            "incarnation": uuid4().hex,
+                        },
+                    )
+                    .on_conflict_do_nothing()
                 )
-                .on_conflict_do_nothing()
-            )
+            except IntegrityError as error:
+                # The binding's foreign key: the service session does not exist.
+                raise SandboxLeaseLost("Service session ownership does not match the sandbox lease") from error
             row = (
                 connection.execute(select(self.bindings).where(self._key(session_id)).with_for_update())
                 .mappings()
@@ -279,15 +297,8 @@ class _SandboxStore:
             if row["agent_id"] != agent_id or row["user_id"] != user_id:
                 raise SandboxLeaseLost("Sandbox session ownership is immutable")
             candidate = SandboxLease(agent_id, session_id, user_id, run_id, row["epoch"], owner, queue_attempt)
-            run, session = self._service_run(connection, candidate)
+            run, _ = self._service_run(connection, candidate)
             record = dict(row["record"])
-            # created_at identifies the session row: upserts never rewrite it, a delete and recreate does.
-            if row["epoch"] == 0:
-                if (session["session_data"] or {}).get("sandbox") is not None:
-                    raise SandboxLeaseLost("Sandbox registry was replaced; reconcile existing recovery state")
-                record["session_created_at"] = session["created_at"]
-            elif session["created_at"] != record.get("session_created_at"):
-                raise SandboxLeaseLost("Service session was replaced; reconcile its previous sandbox before reuse")
             now = connection.execute(select(func.clock_timestamp())).scalar_one()
             active = record["phase"] != "idle"
             if not active and str(run["status"]).upper() in ("COMPLETED", "CANCELLED", "ERROR"):

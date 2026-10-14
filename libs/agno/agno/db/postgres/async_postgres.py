@@ -126,11 +126,11 @@ class AsyncPostgresDb(AsyncBaseDb):
         schedules_table: Optional[str] = None,
         schedule_runs_table: Optional[str] = None,
         job_table: Optional[str] = None,
-        sandbox_table: Optional[str] = None,
         approvals_table: Optional[str] = None,
         auth_tokens_table: Optional[str] = None,
         service_accounts_table: Optional[str] = None,
         create_schema: bool = True,
+        sandbox_table: Optional[str] = None,
     ):
         """
         Async interface for interacting with a PostgreSQL database.
@@ -168,9 +168,9 @@ class AsyncPostgresDb(AsyncBaseDb):
             schedules_table (Optional[str]): Name of the table to store cron schedules.
             schedule_runs_table (Optional[str]): Name of the table to store schedule run history.
             job_table (Optional[str]): Name of the table to store durable background run jobs.
-            sandbox_table (Optional[str]): Name of the table to store sandbox session leases and recovery state.
             create_schema (bool): Whether to automatically create the database schema if it doesn't exist.
                 Set to False if schema is managed externally (e.g., via migrations). Defaults to True.
+            sandbox_table (Optional[str]): Name of the table to store sandbox session leases and recovery state.
 
         Raises:
             ValueError: If neither db_url nor db_engine is provided.

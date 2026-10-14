@@ -154,7 +154,6 @@ class PostgresDb(BaseDb):
         schedules_table: Optional[str] = None,
         schedule_runs_table: Optional[str] = None,
         job_table: Optional[str] = None,
-        sandbox_table: Optional[str] = None,
         approvals_table: Optional[str] = None,
         auth_tokens_table: Optional[str] = None,
         service_accounts_table: Optional[str] = None,
@@ -165,6 +164,7 @@ class PostgresDb(BaseDb):
         mcp_oauth_keys_table: Optional[str] = None,
         id: Optional[str] = None,
         create_schema: bool = True,
+        sandbox_table: Optional[str] = None,
     ):
         """
         Interface for interacting with a PostgreSQL database.
@@ -194,7 +194,6 @@ class PostgresDb(BaseDb):
             schedules_table (Optional[str]): Name of the table to store cron schedules.
             schedule_runs_table (Optional[str]): Name of the table to store schedule run history.
             job_table (Optional[str]): Name of the table to store durable background run jobs.
-            sandbox_table (Optional[str]): Name of the table to store sandbox session leases and recovery state.
             mcp_oauth_clients_table (Optional[str]): Name of the table to store MCP OAuth client registrations.
             mcp_oauth_transactions_table (Optional[str]): Name of the table to store MCP OAuth transactions.
             mcp_oauth_codes_table (Optional[str]): Name of the table to store MCP OAuth authorization codes.
@@ -203,6 +202,7 @@ class PostgresDb(BaseDb):
             id (Optional[str]): ID of the database.
             create_schema (bool): Whether to automatically create the database schema if it doesn't exist.
                 Set to False if schema is managed externally (e.g., via migrations). Defaults to True.
+            sandbox_table (Optional[str]): Name of the table to store sandbox session leases and recovery state.
 
         Raises:
             ValueError: If neither db_url nor db_engine is provided.

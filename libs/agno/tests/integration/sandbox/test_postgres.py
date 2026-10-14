@@ -2,6 +2,7 @@
 
 import asyncio
 import os
+import time
 from dataclasses import replace
 from datetime import timedelta
 from uuid import uuid4
@@ -276,13 +277,41 @@ async def test_stale_previous_turn_cannot_overwrite_new_turn(store):
     assert new.record["checkpoint"]["sha256"] == REF.sha256
 
 
-async def test_deleted_and_recreated_session_cannot_inherit_old_compute(store):
-    await seed(store)
-    await claim(store)
+async def test_recreated_session_starts_a_fresh_binding(store):
+    lease = await staged(store)
+    await store.astage_checkpoint(lease, REF)
     await store._transaction(lambda c: c.execute(delete(store.sessions)))
-    await seed(store, created_at=2)
-    with pytest.raises(SandboxLeaseLost, match="replaced"):
+    bindings = await store._transaction(lambda c: c.execute(select(store.bindings)).all())
+    assert bindings == []
+    with pytest.raises(SandboxLeaseLost):
         await claim(store)
+    # Same session id, created_at, run id and owner: nothing but the binding row tells them apart.
+    await seed(store)
+    fresh = await claim(store)
+    assert fresh.record["phase"] == "executing" and fresh.record["result"] is None
+    assert fresh.record["checkpoint"] is None and fresh.record["staged_checkpoint"] is None
+    with pytest.raises(SandboxLeaseLost):
+        await store.aget(lease)
+    with pytest.raises(SandboxLeaseLost):
+        await store.abegin_stop(lease, status="CANCELLED", reason="stale coordinator")
+
+
+async def test_cancelled_call_waits_for_its_sync_transaction(store):
+    if isinstance(store.db, AsyncPostgresDb):
+        pytest.skip("AsyncPostgresDb runs the transaction on the event loop and rolls it back on cancellation")
+    finished = []
+
+    def slow(connection):
+        time.sleep(0.5)
+        finished.append(True)
+
+    await store._ensure_tables()
+    task = asyncio.create_task(store._transaction(slow))
+    await asyncio.sleep(0.1)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert finished
 
 
 async def test_shutdown_intent_is_durable_and_requires_cleanup(store):

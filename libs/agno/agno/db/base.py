@@ -267,6 +267,7 @@ class TableResolutionCache:
 
 _FK_EDGES = {
     "runs": [("sessions", "session_table_name")],
+    "sandbox_bindings": [("sessions", "session_table_name")],
     "spans": [("traces", "trace_table_name")],
     "schedule_runs": [("schedules", "schedules_table_name")],
     "component_configs": [("components", "components_table_name")],

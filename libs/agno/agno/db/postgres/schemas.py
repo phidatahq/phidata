@@ -366,20 +366,29 @@ TOOL_RESULTS_TABLE_SCHEMA = {
 }
 
 
-SANDBOX_BINDINGS_TABLE_SCHEMA = {
-    # namespace = "<schema>.<session table>", so stores sharing a table never collide
-    "namespace": {"type": String, "primary_key": True, "nullable": False},
-    "session_id": {"type": String, "primary_key": True, "nullable": False},
-    "agent_id": {"type": String, "nullable": False},
-    "user_id": {"type": String, "nullable": True},
-    "epoch": {"type": BigInteger, "nullable": False},
-    "owner": {"type": String, "nullable": True},
-    "run_id": {"type": String, "nullable": True},
-    "queue_attempt": {"type": BigInteger, "nullable": True},
-    # Compared against the database clock, so it needs a timezone-aware type
-    "expires_at": {"type": partial(DateTime, timezone=True), "nullable": True},
-    "record": {"type": JSONB, "nullable": False},
-}
+def _get_sandbox_bindings_table_schema(session_table_name: str = "agno_sessions") -> dict[str, Any]:
+    """Sandbox lease table; deleting a session deletes its binding, so a recreated session starts fresh."""
+    return {
+        # namespace = "<schema>.<session table>", so stores sharing a table never collide
+        "namespace": {"type": String, "primary_key": True, "nullable": False},
+        "session_id": {
+            "type": String,
+            "primary_key": True,
+            "nullable": False,
+            "foreign_key": f"{session_table_name}.session_id",
+            "ondelete": "CASCADE",
+        },
+        "agent_id": {"type": String, "nullable": False},
+        "user_id": {"type": String, "nullable": True},
+        "epoch": {"type": BigInteger, "nullable": False},
+        "owner": {"type": String, "nullable": True},
+        "run_id": {"type": String, "nullable": True},
+        "queue_attempt": {"type": BigInteger, "nullable": True},
+        # Compared against the database clock, so it needs a timezone-aware type
+        "expires_at": {"type": partial(DateTime, timezone=True), "nullable": True},
+        "record": {"type": JSONB, "nullable": False},
+    }
+
 
 JOBS_TABLE_SCHEMA = {
     # id == run_id, so poll/resume endpoints key identically
@@ -567,6 +576,8 @@ def get_table_schema_definition(
         return _get_schedule_runs_table_schema(schedules_table_name, db_schema)
     if table_type == "runs":
         return _get_run_table_schema(session_table_name)
+    if table_type == "sandbox_bindings":
+        return _get_sandbox_bindings_table_schema(session_table_name)
 
     schemas = {
         "sessions": SESSION_TABLE_SCHEMA,
@@ -583,7 +594,6 @@ def get_table_schema_definition(
         "learnings": LEARNINGS_TABLE_SCHEMA,
         "schedules": SCHEDULE_TABLE_SCHEMA,
         "jobs": JOBS_TABLE_SCHEMA,
-        "sandbox_bindings": SANDBOX_BINDINGS_TABLE_SCHEMA,
         "tool_results": TOOL_RESULTS_TABLE_SCHEMA,
         "compactions": COMPACTIONS_TABLE_SCHEMA,
         "transcripts": TRANSCRIPTS_TABLE_SCHEMA,

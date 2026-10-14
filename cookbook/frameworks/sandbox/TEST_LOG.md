@@ -262,6 +262,16 @@ Local container checks of `agentcore_server`: the guard refuses commands before 
 
 ---
 
+### AgentCore deploy flags and one image
+
+**Status:** PASS
+
+**Description:** Review requests from Kaustubh. `agentcore_setup.py` takes `--repository`, `--role-arn` and `--skip-build`, so an account without permission to create ECR repositories or IAM roles can deploy into ones an administrator made. `Dockerfile.agentcore` is gone: the one `Dockerfile` has the AgentCore server as its entrypoint, and `DockerSandbox` overrides the user, entrypoint and working directory at create. Docstrings and the README now cover the cost of `get` on an ended session, the lifetime deadline, and the failed polls during an export.
+
+**Result:** 305 sandbox unit tests pass. The image built from the one Dockerfile passed the Docker integration suite: 34 passed, and the 5 skipped cases target the other transport. On staging, a deploy with `--repository` and `--role-arn` built and pushed that image into the existing repository and created no IAM role. A second deploy of the same tag with `--skip-build` updated the runtime without building, and `--skip-build` without `--tag` is refused. On that image the hardening checks passed and `agentcore_session.py --replace` recalled the codeword with Codex and Claude, and the fixture harness passed.
+
+---
+
 ### AgentCore adversarial review fixes
 
 **Status:** PASS

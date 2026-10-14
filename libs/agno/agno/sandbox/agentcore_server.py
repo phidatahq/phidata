@@ -547,6 +547,10 @@ def _export(request: Dict[str, Any]) -> Dict[str, Any]:
     A UID 1000 child runs the shared ``CheckpointArchive.capture``, which applies
     the exclusions, including hardlinks to excluded files, and the limits. Its
     output goes straight into a root-only file; the host validates it again.
+
+    The freeze also stops the runtime server, which runs as UID 1000, so host polls
+    fail until the export finishes. Docker's pause does the same and the client's
+    cursor reconnect absorbs it, so a failed poll here does not mean a lost turn.
     """
     _require(request)
     target = _transfer_file(request["name"])

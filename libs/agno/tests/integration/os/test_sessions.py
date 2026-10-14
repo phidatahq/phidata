@@ -1217,3 +1217,31 @@ def test_get_session_runs_default_shape_is_unchanged(mixed_status_session, share
 def test_get_session_run_previews_unknown_session_is_404(shared_db):
     client = _mixed_client(shared_db)
     assert client.get("/sessions/no-such-session/run-previews").status_code == 404
+
+
+@pytest.fixture
+def os_client(shared_db, monkeypatch):
+    """AgentOSClient wired to the in-process app over ASGI, so requests take the client's real HTTP path."""
+    import httpx
+
+    from agno.client import os as client_module
+    from agno.client.os import AgentOSClient
+
+    app = AgentOS(agents=[Agent(name="test-agent", id="test-agent-id", db=shared_db)]).get_app()
+    http = httpx.AsyncClient(transport=httpx.ASGITransport(app=app))
+    monkeypatch.setattr(client_module, "get_default_async_client", lambda: http)
+    return AgentOSClient(base_url="http://agentos")
+
+
+async def test_client_get_session_runs_status_filter(mixed_status_session, os_client):
+    runs = await os_client.get_session_runs(mixed_status_session.session_id, status=["PENDING", "RUNNING"])
+    assert {run.run_id for run in runs} == {"run-q", "run-r"}
+
+
+async def test_client_get_session_run_previews(mixed_status_session, os_client):
+    from agno.os.schema import SessionRunPreviewSchema
+
+    previews = await os_client.get_session_run_previews(mixed_status_session.session_id, status=["COMPLETED", "ERROR"])
+    assert {p.run_id for p in previews} == {"run-c", "run-e"}
+    assert all(isinstance(p, SessionRunPreviewSchema) for p in previews)
+    assert all(len(p.content_preview or "") <= 280 for p in previews)

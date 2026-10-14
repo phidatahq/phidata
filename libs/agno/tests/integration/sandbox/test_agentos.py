@@ -361,3 +361,11 @@ async def test_timed_out_attempt_is_retried_on_new_compute(service, monkeypatch)
         value is None
         for value in await asyncio.gather(*(_harness.coordinator(agent).provider.aget(h.provider_ref) for h in handles))
     )
+
+
+async def test_direct_run_keeps_the_agent_name(service):
+    _, agent, _, _ = service
+    agent.name = "Coder"
+    result = await agent.arun("named", session_id="session", run_id="named")
+    assert result.status == "COMPLETED" and result.agent_name == "Coder"
+    assert (await agent.aget_run_output("named", "session")).agent_name == "Coder"

@@ -336,3 +336,11 @@ async def test_codex_host_operations_refuse_a_sandboxed_agent(sandbox, operation
         result = method("key") if "login" in operation else method("s1")
         if asyncio.iscoroutine(result):
             await result
+
+
+@pytest.mark.asyncio
+async def test_direct_run_carries_the_agent_name(coordinator, sandbox):
+    agent = ClaudeAgent(id="coder", name="Coder", sandbox=sandbox)
+    await agent.arun("hello", session_id="s1")
+    _, execution = coordinator.calls[0]
+    assert execution["agent_name"] == "Coder"

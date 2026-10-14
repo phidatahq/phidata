@@ -221,6 +221,7 @@ def _execution(agent: "BaseExternalAgent", input: Any, kwargs: Dict[str, Any]) -
         input=input,
         sdk=agent._sandbox_runtime,
         user_id=kwargs.get("user_id"),
+        agent_name=agent.name,
         config=_config(agent, options.get("output_schema")),
         env=env(agent),
         queue_attempt=owner.attempt if owner is not None else None,

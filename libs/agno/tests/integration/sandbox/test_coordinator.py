@@ -2,7 +2,8 @@
 
 import asyncio
 import os
-from dataclasses import replace
+from dataclasses import dataclass, field, replace
+from typing import Dict
 from uuid import uuid4
 
 import pytest
@@ -12,11 +13,11 @@ from sqlalchemy import select
 from agno.db.postgres import AsyncPostgresDb, PostgresDb
 from agno.run.agent import RunOutput
 from agno.run.base import RunStatus
-from agno.sandbox import SandboxError, SandboxSpec
+from agno.sandbox import SandboxError
 from agno.sandbox.checkpoint import CheckpointRef, FileCheckpointStore
 from agno.sandbox.coordinator import SandboxCoordinator
-from agno.sandbox.docker import DockerSandboxProvider
-from agno.sandbox.postgres import PostgresSandboxStore, SandboxSessionBusy
+from agno.sandbox.docker import DockerSandbox
+from agno.sandbox.postgres import SandboxSessionBusy
 from agno.sandbox.transfer import DockerCheckpointTransfer
 
 URL, IMAGE = os.environ.get("AGNO_TEST_SANDBOX_DB_URL"), os.environ.get("AGNO_TEST_RUNTIME_IMAGE")
@@ -26,23 +27,31 @@ pytestmark = [
 ]
 
 
+@dataclass(frozen=True)
+class Target:
+    agent_id: str
+    session_id: str
+    env: Dict[str, str] = field(default_factory=dict)
+
+
 @pytest_asyncio.fixture(params=[PostgresDb, AsyncPostgresDb])
 async def system(request, tmp_path):
     suffix = uuid4().hex[:12]
-    db = request.param(db_url=URL, session_table="co_sessions_" + suffix, runs_table="co_runs_" + suffix)
-    store = PostgresSandboxStore(db, table_name="co_bindings_" + suffix)
-    await store.asetup()
-    provider = DockerSandboxProvider("coordinator-" + suffix)
-    transfer = DockerCheckpointTransfer(provider, FileCheckpointStore(tmp_path / "objects"))
-    coordinator = SandboxCoordinator(store, provider, transfer, poll_interval=0.05)
-    spec = SandboxSpec(
-        "agent", "session", 1, IMAGE, env={"AGNO_SANDBOX_TEST_RUNTIME": "1"}, memory_mb=512, workspace_mb=32
+    db = request.param(
+        db_url=URL,
+        session_table="co_sessions_" + suffix,
+        runs_table="co_runs_" + suffix,
+        sandbox_table="co_bindings_" + suffix,
     )
+    provider = DockerSandbox(IMAGE, namespace="coordinator-" + suffix, memory_mb=512, workspace_mb=32)
+    transfer = DockerCheckpointTransfer(provider, FileCheckpointStore(tmp_path / "objects"))
+    coordinator = SandboxCoordinator(db, provider, transfer, poll_interval=0.05)
+    spec = Target("agent", "session", env={"AGNO_SANDBOX_TEST_RUNTIME": "1"})
     handles = []
     original = provider.acreate
 
-    async def create(value):
-        handle = await original(value)
+    async def create(session_id, **kwargs):
+        handle = await original(session_id, **kwargs)
         handles.append(handle)
         return handle
 
@@ -50,6 +59,7 @@ async def system(request, tmp_path):
     yield coordinator, spec, tmp_path
     for handle in handles:
         await provider.adestroy(handle)
+    store = coordinator.store
     await store._transaction(lambda c: [t.drop(c) for t in (store.bindings, store.runs, store.sessions)])
     if isinstance(db, AsyncPostgresDb):
         await db.db_engine.dispose()
@@ -58,7 +68,16 @@ async def system(request, tmp_path):
 
 
 async def run(coordinator, spec, run_id="first", **kwargs):
-    return await coordinator.arun(spec, run_id=run_id, input=run_id, sdk="fixture", user_id="user", **kwargs)
+    return await coordinator.arun(
+        spec.session_id,
+        agent_id=spec.agent_id,
+        env=spec.env,
+        run_id=run_id,
+        input=run_id,
+        sdk="fixture",
+        user_id="user",
+        **kwargs,
+    )
 
 
 async def binding(coordinator):
@@ -102,7 +121,7 @@ async def test_checkpoint_failure_retries_finalization_without_repeating_tools(s
     record = (await binding(coordinator))["record"]
     assert record["phase"] == "finalizing" and record["result"]["run"]["status"] == "COMPLETED"
     monkeypatch.setattr(coordinator.transfer, "acapture", capture)
-    fresh = SandboxCoordinator(coordinator.store, coordinator.provider, coordinator.transfer, poll_interval=0.05)
+    fresh = SandboxCoordinator(coordinator.store.db, coordinator.provider, coordinator.transfer, poll_interval=0.05)
     assert (await run(fresh, spec)).status == RunStatus.completed
     assert await recovered_effects(coordinator, root) == ["first"]
 
@@ -142,7 +161,15 @@ async def test_lost_commit_ack_returns_stored_output_without_compute(system, mon
 async def test_terminal_event_follows_atomic_database_commit(system):
     coordinator, spec, _ = system
     terminal_seen = False
-    async for value in coordinator._astream(spec, run_id="first", input="first", sdk="fixture", user_id="user"):
+    async for value in coordinator._astream(
+        spec.session_id,
+        agent_id=spec.agent_id,
+        env=spec.env,
+        run_id="first",
+        input="first",
+        sdk="fixture",
+        user_id="user",
+    ):
         if not isinstance(value, RunOutput) and value.event == "RunCompleted":
             terminal_seen = True
             state = await binding(coordinator)
@@ -270,7 +297,15 @@ async def test_changed_input_and_configuration_cannot_reuse_active_execution(sys
         await run(coordinator, spec)
     monkeypatch.setattr(coordinator.client, "astart", start)
     with pytest.raises(SandboxError, match="different input"):
-        await coordinator.arun(spec, run_id="first", input="changed", sdk="fixture", user_id="user")
+        await coordinator.arun(
+            spec.session_id,
+            agent_id=spec.agent_id,
+            env=spec.env,
+            run_id="first",
+            input="changed",
+            sdk="fixture",
+            user_id="user",
+        )
     with pytest.raises(SandboxError, match="configuration changed"):
         await run(coordinator, spec, config={"delay": 1})
     assert (await run(coordinator, spec)).status == RunStatus.completed
@@ -316,7 +351,9 @@ async def test_crash_after_provision_replaces_unbound_computer_before_execution(
     with pytest.raises(OSError, match="provisioning"):
         await run(coordinator, spec)
     state = await binding(coordinator)
-    orphan = await coordinator.provider.afind(replace(spec, generation=state["record"]["generation"]))
+    orphan = await coordinator.provider.afind(
+        spec.session_id, agent_id=spec.agent_id, generation=state["record"]["generation"], env=spec.env
+    )
     assert orphan is not None and state["record"]["computer"] is None
     monkeypatch.setattr(coordinator.store, "_write_record", write)
     assert (await run(coordinator, spec)).status == RunStatus.completed

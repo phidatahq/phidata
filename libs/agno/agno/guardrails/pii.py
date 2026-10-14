@@ -5,6 +5,7 @@ from agno.exceptions import CheckTrigger, InputCheckError
 from agno.guardrails.base import BaseGuardrail
 from agno.run.agent import RunInput
 from agno.run.team import TeamRunInput
+from agno.utils.log import log_warning
 
 
 class PIIDetectionGuardrail(BaseGuardrail):
@@ -61,7 +62,11 @@ class PIIDetectionGuardrail(BaseGuardrail):
             if pattern.search(content):
                 detected_pii.append(pii_type)
         if detected_pii:
-            if self.mask_pii:
+            if self.mask_pii and isinstance(run_input.input_content, str):
+                # Only string input can be masked in place. Non-string input
+                # (multimodal parts, dicts, messages) would be flattened into
+                # a serialized string and lose its structure, so fall through
+                # to the blocking path below instead of corrupting it.
                 for pii_type in detected_pii:
 
                     def mask_match(match):
@@ -70,12 +75,16 @@ class PIIDetectionGuardrail(BaseGuardrail):
                     content = self.pii_patterns[pii_type].sub(mask_match, content)
                 run_input.input_content = content
                 return
-            else:
-                raise InputCheckError(
-                    "Potential PII detected in input",
-                    additional_data={"detected_pii": detected_pii},
-                    check_trigger=CheckTrigger.PII_DETECTED,
+            elif self.mask_pii:
+                log_warning(
+                    "mask_pii=True cannot mask non-string input_content (%s); blocking instead",
+                    type(run_input.input_content).__name__,
                 )
+            raise InputCheckError(
+                "Potential PII detected in input",
+                additional_data={"detected_pii": detected_pii},
+                check_trigger=CheckTrigger.PII_DETECTED,
+            )
 
     async def async_check(self, run_input: Union[RunInput, TeamRunInput]) -> None:
         """Asynchronously check for PII patterns in the input."""
@@ -85,7 +94,11 @@ class PIIDetectionGuardrail(BaseGuardrail):
             if pattern.search(content):
                 detected_pii.append(pii_type)
         if detected_pii:
-            if self.mask_pii:
+            if self.mask_pii and isinstance(run_input.input_content, str):
+                # Only string input can be masked in place. Non-string input
+                # (multimodal parts, dicts, messages) would be flattened into
+                # a serialized string and lose its structure, so fall through
+                # to the blocking path below instead of corrupting it.
                 for pii_type in detected_pii:
 
                     def mask_match(match):
@@ -94,9 +107,13 @@ class PIIDetectionGuardrail(BaseGuardrail):
                     content = self.pii_patterns[pii_type].sub(mask_match, content)
                 run_input.input_content = content
                 return
-            else:
-                raise InputCheckError(
-                    "Potential PII detected in input",
-                    additional_data={"detected_pii": detected_pii},
-                    check_trigger=CheckTrigger.PII_DETECTED,
+            elif self.mask_pii:
+                log_warning(
+                    "mask_pii=True cannot mask non-string input_content (%s); blocking instead",
+                    type(run_input.input_content).__name__,
                 )
+            raise InputCheckError(
+                "Potential PII detected in input",
+                additional_data={"detected_pii": detected_pii},
+                check_trigger=CheckTrigger.PII_DETECTED,
+            )

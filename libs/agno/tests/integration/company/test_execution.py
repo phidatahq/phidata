@@ -314,6 +314,18 @@ def test_pending_dispatch_recovery_no_overlap_and_revoked_claim(setup, monkeypat
                 break
             time.sleep(0.02)
         assert job["status"] == "failed" and "active" in job["error"]
+        # Rejection releases the business reservation without a history read or restart.
+        from sqlalchemy import text
+
+        while time.monotonic() < deadline:
+            with service._engine.connect() as conn:
+                released = conn.execute(
+                    text("SELECT released FROM agno_company.task_runs WHERE id=:id"), {"id": pending["id"]}
+                ).scalar_one()
+            if released:
+                break
+            time.sleep(0.02)
+        assert released
         setup[1].set_disabled("alice", False)
         assert wait_run(client, task["id"], pending["id"])["status"] == "failed"
         assert service.get_task(task_id=task["id"], principal=caller())["status"] is None
@@ -484,61 +496,24 @@ def test_manager_team_delegates_company_tools_with_verified_identity(setup, tmp_
         assert "Documentation" not in denied.json()["content"]
 
 
-def test_v2_upgrade_preserves_prose_history_and_direct_work(setup):
+def test_unsupported_prototype_schema_is_not_modified(setup):
     from sqlalchemy import text
 
     from agno.os.company.migrations import migrate
-    from agno.os.company.migrations.v001 import SQL as v1
-    from agno.os.company.migrations.v002 import SQL as v2
 
-    db, _, service = setup
-    product, project, task = str(uuid4()), str(uuid4()), str(uuid4())
+    db, _, _ = setup
     with db.db_engine.begin() as conn:
         conn.exec_driver_sql("DROP SCHEMA agno_company CASCADE")
-        conn.exec_driver_sql(v1)
-        conn.exec_driver_sql(v2)
-        conn.execute(
-            text(
-                "INSERT INTO agno_company.products(id,key,name,purpose,owner_id) VALUES (:id,'PRD-1','Docs','Reliable guidance','alice')"
-            ),
-            {"id": product},
-        )
-        conn.execute(
-            text(
-                "INSERT INTO agno_company.product_memberships(product_id,principal_id,role) VALUES (:id,'alice','owner')"
-            ),
-            {"id": product},
-        )
-        conn.execute(
-            text(
-                "INSERT INTO agno_company.projects(id,key,product_id,title,outcome,acceptance_criteria,owner_id,status) VALUES (:id,'PRJ-2',:pid,'Onboarding','Install succeeds','Test a clean install','alice','canceled')"
-            ),
-            {"id": project, "pid": product},
-        )
-        conn.execute(
-            text(
-                "INSERT INTO agno_company.tasks(id,key,product_id,title,description,acceptance_criteria,accountable_owner_id,status) VALUES (:id,'TSK-3',:pid,'Check guide','Find broken commands','Link evidence','alice','canceled')"
-            ),
-            {"id": task, "pid": product},
-        )
-        conn.execute(
-            text(
-                "INSERT INTO agno_company.comments(id,task_id,author_id,body) VALUES (:id,:task,'alice','Keep this history')"
-            ),
-            {"id": str(uuid4()), "task": task},
-        )
-    migrate(db)
-    migrate(db)
-    preserved = service.get_project(principal=principal(), project_id=project)
-    assert preserved["state"] == "archived" and preserved["status"] == "empty"
-    assert "Install succeeds" in preserved["instructions"] and "Test a clean install" in preserved["instructions"]
-    direct = service.get_task(principal=principal(), task_id=task)
-    assert direct["status"] is None and direct["state"] == "archived"
-    assert "Find broken commands" in direct["instructions"] and "Link evidence" in direct["instructions"]
-    assert (
-        service.list_comments(principal=principal(), kind="task", record_id=task)["data"][0]["body"]
-        == "Keep this history"
-    )
+        conn.exec_driver_sql("CREATE SCHEMA agno_company")
+        conn.exec_driver_sql("CREATE TABLE agno_company.schema_version(version integer PRIMARY KEY)")
+        conn.exec_driver_sql("INSERT INTO agno_company.schema_version VALUES(2)")
+        conn.exec_driver_sql("CREATE TABLE agno_company.saved_work(body text)")
+        conn.exec_driver_sql("INSERT INTO agno_company.saved_work VALUES('Keep this work')")
+    with pytest.raises(RuntimeError, match="No data was changed"):
+        migrate(db)
+    with db.db_engine.connect() as conn:
+        assert conn.execute(text("SELECT body FROM agno_company.saved_work")).scalar() == "Keep this work"
+        assert conn.execute(text("SELECT max(version) FROM agno_company.schema_version")).scalar() == 2
 
 
 def test_codex_adapter_task_revision_keeps_native_thread_and_explicit_workspace(setup, tmp_path, monkeypatch):
@@ -768,3 +743,48 @@ def test_cancel_pending_dispatch_survives_recovery_and_retry(setup, monkeypatch)
         )
         assert fresh.status_code == 202, fresh.text
         assert wait_run(client, task["id"], fresh.json()["id"])["status"] == "completed"
+
+
+@pytest.mark.parametrize("who,expected", [("alice", ["Documentation"]), ("mallory", [])])
+def test_mcp_run_uses_verified_company_identity(setup, monkeypatch, who, expected):
+    """MCP calls inherit authenticated Company scope, ignoring a forged user_id."""
+    pytest.importorskip("fastmcp")
+    from agno.os import MCPConfig
+    from agno.run.agent import RunOutput
+
+    os, worker = runtime_os(setup)
+    os.mcp = MCPConfig(default_tools=True, stateless=True)
+    make_work(os.company)
+    observed = []
+
+    async def read_products(self, *args, user_id=None, **kwargs):
+        context = RunContext(run_id=str(uuid4()), session_id=str(uuid4()), user_id=user_id)
+        result = await CompanyTools().alist_products(self, context)
+        observed.append((user_id, [p["name"] for p in result["data"]]))
+        yield RunOutput(content=json.dumps(result, default=str))
+
+    monkeypatch.setattr(Agent, "arun", read_products)
+    with TestClient(os.get_app()) as client:
+        response = client.post(
+            "/mcp",
+            headers={
+                "Authorization": "Bearer " + token(who, scopes=(*SCOPES, "agents:run", "agents:read")),
+                "Accept": "application/json, text/event-stream",
+                "MCP-Protocol-Version": "2025-11-25",
+            },
+            json={
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "tools/call",
+                "params": {
+                    "name": "run_agent",
+                    "arguments": {
+                        "agent_id": "docs-agent",
+                        "message": "List products",
+                        "user_id": "alice",
+                    },
+                },
+            },
+        )
+        assert response.status_code == 200, response.text
+        assert observed == [(who, expected)], response.text

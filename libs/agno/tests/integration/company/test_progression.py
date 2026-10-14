@@ -520,3 +520,26 @@ async def test_merge_commit_metadata_is_optional_but_head_is_verified(monkeypatc
     mock_github(monkeypatch, payload)
     proof = await review._verify_merge({"url": URL, "head_sha": SHA}, datetime(2026, 1, 1, tzinfo=timezone.utc))
     assert proof["head_sha"] == SHA and proof["merge_commit_sha"] is None
+
+
+def test_verified_merge_preserves_full_evidence_list(setup, monkeypatch):
+    from agno.os.company.schemas import Evidence
+
+    os, _ = runtime_os(setup)
+    with TestClient(os.get_app()) as client:
+        task = review_task(client, os.company)
+        task = transition(os.company, task, "in_progress", reason="Record all checks")
+        evidence = [Evidence(url=f"https://example.com/check/{i}") for i in range(20)]
+        task = os.company.update_task(
+            task_id=task["id"],
+            version=task["version"],
+            data=TaskPatch(evidence=evidence),
+            **mutation(principal=caller()),
+        )
+        task = transition(os.company, task, "in_review")
+        link_pr(os.company, task)
+        mock_github(monkeypatch, github_response())
+        tick(client, os.company)
+        result = os.company.get_task(principal=caller(), task_id=task["id"])
+        assert result["status"] == "done"
+        assert len(result["evidence"]) == 20

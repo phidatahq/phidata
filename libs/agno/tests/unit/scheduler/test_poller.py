@@ -243,3 +243,50 @@ class TestPollerExecuteSafe:
         poller = SchedulePoller(db=mock_db, executor=executor)
         # Should not raise
         await poller._execute_safe({"id": "s1"})
+
+
+@pytest.mark.asyncio
+async def test_company_review_does_not_block_schedules_or_overlap(mock_db, mock_executor):
+    from types import SimpleNamespace
+
+    started = asyncio.Event()
+    cancelled = asyncio.Event()
+
+    async def slow_review():
+        started.set()
+        try:
+            await asyncio.Event().wait()
+        finally:
+            cancelled.set()
+
+    tick = AsyncMock(side_effect=slow_review)
+    mock_executor._company = SimpleNamespace(_tick=tick)
+    mock_db.claim_due_schedule.side_effect = [_make_schedule_dict(), None, None]
+    poller = SchedulePoller(mock_db, mock_executor, max_concurrent=1)
+    poller._running = True
+    await asyncio.wait_for(poller._poll_once(), timeout=1)
+    await asyncio.wait_for(started.wait(), timeout=1)
+    await asyncio.sleep(0)
+    mock_executor.execute.assert_awaited_once()
+    await poller._poll_once()
+    tick.assert_awaited_once()
+    await poller.stop()
+    assert cancelled.is_set()
+    assert poller._company_task is None
+
+
+@pytest.mark.asyncio
+async def test_failed_company_tick_can_retry_on_next_poll(mock_db, mock_executor):
+    from types import SimpleNamespace
+
+    tick = AsyncMock(side_effect=[RuntimeError("unavailable"), None])
+    mock_executor._company = SimpleNamespace(_tick=tick)
+    poller = SchedulePoller(mock_db, mock_executor)
+    poller._running = True
+    await poller._poll_once()
+    await poller._company_task
+    await poller._poll_once()
+    await poller._company_task
+    assert tick.await_count == 2
+    assert mock_db.claim_due_schedule.call_count == 2
+    await poller.stop()

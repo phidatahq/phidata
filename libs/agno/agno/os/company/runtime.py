@@ -392,9 +392,11 @@ class CompanyRuntime:
         except CompanyError as exc:
             cancelled = exc.code == "dispatch_cancelled"
             if await worker._persist_run_error(job, str(exc), status="cancelled" if cancelled else "error"):
-                await worker._asettle_ticket(
-                    job["id"], job["attempt"], "cancelled" if cancelled else "failed", str(exc)
-                )
+                status = "cancelled" if cancelled else "failed"
+                settled = await worker._asettle_ticket(job["id"], job["attempt"], status, str(exc))
+                if settled and (job.get("idempotency_key") or "").startswith("company:"):
+                    row = await self._result_for_job(job)
+                    await asyncio.to_thread(self._settle, row, status)
             return
         token = current_company.set(context)
         try:
@@ -620,13 +622,15 @@ class CompanyRuntime:
                         conn, "SELECT * FROM agno_company.task_runs WHERE NOT released ORDER BY created_at"
                     ).mappings()
                 ]
+                if not schedules:
+                    return rows, []
                 tasks = [
                     dict(r)
                     for r in _query(
                         conn, "SELECT id,schedule_principal FROM agno_company.tasks WHERE schedule IS NOT NULL"
                     ).mappings()
                 ]
-                return rows, tasks if schedules else []
+                return rows, tasks
 
         rows, tasks = await asyncio.to_thread(read)
         from agno.utils.log import log_warning
@@ -732,7 +736,7 @@ class CompanyRuntime:
                     "reason": "GitHub confirmed the reviewer-approved PR revision was merged",
                     "acceptance_check": "Verified merged revision and GitHub user account",
                     "evidence": []
-                    if any(e["url"] == proof["url"] for e in current["evidence"])
+                    if len(current["evidence"]) >= 20 or any(e["url"] == proof["url"] for e in current["evidence"])
                     else [{"type": "pull_request", "url": proof["url"], "label": "Verified merged pull request"}],
                 },
             )
@@ -767,7 +771,7 @@ class CompanyRuntime:
         await self._recover(schedules=False)
         from agno.os.company.review import _verify_merge
 
-        for task in tasks:
+        for task in sorted(tasks, key=lambda task: task["status"] != "ready"):
             try:
                 if task["status"] == "ready":
                     await self.arun_task(

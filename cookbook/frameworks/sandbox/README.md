@@ -79,6 +79,36 @@ The example prints every event as it arrives with its cursor and elapsed time. I
 
 Without `runtime_port`, `rpc` falls back to exec with the rule of a control request: a failed or lost reply raises and leaves compute alone, never stopping the container, since start and poll exit on their own and are idempotent. Arbitrary `exec` keeps its stop-on-uncertainty rule. `runtime_port` and `runtime_host` are part of the generation's config digest, so changing them, including flipping a default, makes `create` refuse every live generation; treat such a change as a migration that drains sessions rather than a rolling deploy.
 
+## Amazon Bedrock AgentCore Runtime
+
+```bash
+export AWS_PROFILE=staging AWS_REGION=us-east-1
+.venv/bin/python cookbook/frameworks/sandbox/agentcore_setup.py deploy --name agno-sandbox
+export AGENTCORE_RUNTIME_ARN=arn:aws:bedrock-agentcore:...:runtime/agno_sandbox-...
+.venv/bin/python cookbook/frameworks/sandbox/agentcore_session.py                    # fixture, no model calls
+.venv/bin/python cookbook/frameworks/sandbox/agentcore_session.py --harness codex    # forwards OPENAI_API_KEY
+.venv/bin/python cookbook/frameworks/sandbox/agentcore_session.py --harness claude   # Bedrock via the execution role
+.venv/bin/python cookbook/frameworks/sandbox/agentcore_setup.py teardown --name agno-sandbox
+```
+
+These create AWS resources and billable compute. Install `agno[agentcore-sandbox]`. `agentcore_setup.py` builds the ARM64 image from `Dockerfile.agentcore`, pushes it to a new ECR repository, creates an execution role that may call Bedrock models, and creates a PUBLIC runtime without session storage. It prints the runtime ARN.
+
+`AgentCoreSandbox(runtime_arn, namespace=...)` implements the same `Sandbox` contract as `DockerSandbox`. Each generation is the AgentCore runtime session named after its namespace, agent, session and generation, so `create` is idempotent and finds a computer again after a lost reply. Every session is a Firecracker microVM with 2 vCPU and 8 GiB.
+
+The image's entrypoint, `agno.sandbox.agentcore_server`, runs as root and answers AgentCore on port 8080. `create` claims the microVM: the server records the identity, environment and a lifetime deadline where the agent cannot read them, creates `/workspace` and `/runtime` for UID 1000, and starts the runtime server as UID 1000 with a token only it holds. `rpc` reaches that server through `InvokeAgentRuntime`, so long polls work without publishing a port. Commands go through `InvokeAgentRuntimeCommand` behind a guard that refuses an unclaimed microVM, applies the claimed environment and drops to UID 1000 in `/workspace`.
+
+The example runs two turns on one generation. Turn 2 calls `create` again, as a new request would, gets the same microVM, and the harness resumes its native session with nothing to restore. With a real harness, turn 2 must recall a codeword that only the conversation from turn 1 holds.
+
+Differences from Docker:
+
+| Behavior | AgentCore |
+|---|---|
+| Stopped generation | AgentCore starts a fresh microVM when a stopped session is called again. The provider treats an unclaimed microVM as gone and stops it; recovery takes a new generation. |
+| Pause | Not supported. Keep the generation running between turns; the runtime's idle timeout and maximum lifetime bound it. |
+| Files | On the microVM's disk. AgentCore session storage is NFS, where SQLite cannot open a database and POSIX locks fail, so it is not used. |
+| Credentials | Code in the sandbox can use the runtime's IAM role through the metadata service. Give the role only the model access the harness needs. |
+| Limits | Commands run for at most an hour and must fit in 64 KiB, with input staged separately. The provider exits the entrypoint at the claimed lifetime. |
+
 ## Boundaries
 
 - The image, Docker daemon and its administrator are trusted. This is not a hostile multitenant isolation service.

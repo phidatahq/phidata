@@ -247,6 +247,25 @@ No model calls in the load run. Requests and daemon calls per turn are what scal
 **Description:** The strict native recovery change ported onto the base branch, plus the missing guard: `native_session_id` on `start`, checked by the runtime against the local database before the model runs and reported as `execution_error` with reason `native_state_missing`. Without it a lost local database was indistinguishable from a new session and produced a completed turn on a fresh conversation, measured live earlier with both SDKs.
 
 **Result:** Unit: agent and sandbox suites 795 passed, including the expectation matrix (match runs, null runs, missing or different native id refused without a model call), the worker's reason field, and request validation. Live on the branch image with real Claude: continuity with the expectation set; a wrong expectation refused in 0.4 s; the database deleted then refused in 0.4 s with the committed id; a fresh turn without an expectation allowed; a read-only database refused before the model. Real Codex: thread files deleted with the database kept ends the run with status ERROR and the stored thread id intact; the database deleted with the committed id is refused with `native_state_missing`. `native_recovery.py` walks five generations of one session: checkpoint and destroy, a restore that lands and recalls the word, a skipped restore answering NONE as COMPLETED without an expectation, the same skipped restore refused with `native_state_missing` when the committed id is passed, and the retry that restores the same checkpoint into a fresh generation and recalls the word again. 21 s end to end with real Claude.
+### agentcore_session.py
+
+**Status:** PASS (fixture, codex); NOT RUN (claude)
+
+**Description:** `AgentCoreSandbox` against a runtime deployed by `agentcore_setup.py` in the staging AWS account, us-east-1. Two turns on one generation. Turn 2 looks the sandbox up again with `create` and must get the same microVM. With Codex, turn 1 is told the codeword BLUE-HERON and told not to write it to any file; turn 2 is asked for it.
+
+**Result:** On 14 October 2026 the fixture run completed both turns on the same microVM and left `fixture-effects.txt` and `fixture-env.txt` in the workspace. The Codex run completed both turns: turn 2 answered "The codeword was `BLUE-HERON`" and added `test_primes.py`, whose two tests passed against the `primes.py` from turn 1. Live runs on an earlier version found that Codex fails without `CODEX_HOME` and ignores `OPENAI_API_KEY` without a stored login; the runtime now creates the directory and logs in. The Claude harness was not run: staging Bedrock refused every Anthropic model with an AWS Marketplace subscription error, including from an administrator role.
+
+Local container checks of `agentcore_server`: the guard refuses commands before a claim with exit code 125, a second claim with different identity is refused, start and a long poll reach the runtime server, the long poll returned when the 2 second fixture finished, commands run as UID 1000 in `/workspace` with staged stdin and `HOME=/runtime`, the staged input is deleted, and the agent cannot read the claim.
+
+---
+
+### AgentCore sandbox contract tests
+
+**Status:** PASS
+
+**Description:** `libs/agno/tests/unit/sandbox/test_agentcore.py`: 10 tests against a fake data plane covering constructor validation, deterministic and idempotent create, refusal of changed configuration, no return of a stopped generation, release of unclaimed replacement compute, staged stdin through the guard, stop on guard refusal and uncertain commands, RPC failures that leave compute alone, retry of RetryableConflictException only, and unsupported pause.
+
+**Result:** 234 sandbox unit tests pass with this branch on `PYTHONPATH`. Without it, `test_sandbox_import_does_not_load_agent_runtime` starts a fresh interpreter that imports agno from another checkout.
 
 ---
 

@@ -321,3 +321,43 @@ class TestFactoryReadRoutesCarryTheRequest:
         assert "Request context is required" not in resp.text
         # The factory ran with the request's context
         assert seen and seen[-1].request is not None
+
+
+class TestQueueSurfaceRedactsClaims:
+    @pytest.fixture()
+    def ops(self):
+        from fastapi import FastAPI
+
+        from agno.db.schemas.jobs import QueuedJob
+        from agno.os.routers.job_queue import get_queue_router
+
+        app = FastAPI()
+        app.include_router(get_queue_router(SimpleNamespace()))
+        store = InMemoryQueueStore()
+        app.state.queue_worker = SimpleNamespace(store=store, config=QueueConfig(durable=True))
+        scope = factory_queue_scope(
+            SimpleNamespace(claims={"sub": "alice", "email": "alice@acme.io"}, scopes=["runs:write"]),
+            "alice",
+            "s-1",
+            json.dumps({"persona": "pirate"}),
+        )
+        store._jobs["j1"] = QueuedJob(
+            id="j1",
+            component_type="agent",
+            component_id="fx-agent",
+            session_id="s-1",
+            payload={"input": "hi", "scope": scope},
+        ).to_dict()
+        return SimpleNamespace(store=store, client=TestClient(app))
+
+    @pytest.mark.parametrize("path", ["/queue/jobs", "/queue/jobs/j1"])
+    def test_claims_never_leave_the_ops_surface(self, ops, path):
+        body = ops.client.get(path).json()
+        job = body["data"][0] if "data" in body else body
+        context = job["payload"]["scope"]["context"]
+        assert context["claims"] == "[redacted]"
+        assert "alice@acme.io" not in json.dumps(body)
+        assert context["input"] == {"persona": "pirate"}, "the rest of the context stays visible to operators"
+        assert ops.store._jobs["j1"]["payload"]["scope"]["context"]["claims"]["sub"] == "alice", (
+            "the stored ticket keeps the claims the worker needs"
+        )

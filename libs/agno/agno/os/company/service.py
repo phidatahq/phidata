@@ -226,7 +226,10 @@ class CompanyService:
     ) -> Dict[str, Any]:
         result = dict(record)
         result.pop("role", None)
+        # Older pilot stores may retain columns that are no longer part of the API.
         result.pop("legacy_status", None)
+        if kind == "project":
+            result.pop("completed_at", None)
         result.pop("schedule_principal", None)
         result["permitted_actions"] = self._actions(conn, principal, kind, record, product)
         if kind != "task":
@@ -744,9 +747,7 @@ class CompanyService:
         if "transition:" + target not in self._actions(conn, principal, kind, record, product):
             raise CompanyError(409, "invalid_transition", "This transition is not available from the current state")
         changes: Dict[str, Any] = {"status": target}
-        if not body["reason"] and (
-            target in ("backlog", "proposed", "canceled", "done", "completed") or status == "in_review"
-        ):
+        if not body["reason"] and (target in ("backlog", "done") or status == "in_review"):
             raise CompanyError(409, "reason_required", "Supply a reason or outcome assessment")
         if kind == "task":
             if target == "ready":

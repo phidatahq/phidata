@@ -156,7 +156,6 @@ class Project(Record):
     summary_at: Optional[datetime] = None
     summary_sources: Dict[str, int] = Field(default_factory=dict)
     target_date: Optional[date] = None
-    completed_at: Optional[datetime] = None
     counts: Counts
 
 

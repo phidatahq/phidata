@@ -372,9 +372,11 @@ class CompanyRuntime:
         except CompanyError as exc:
             cancelled = exc.code == "dispatch_cancelled"
             if await worker._persist_run_error(job, str(exc), status="cancelled" if cancelled else "error"):
-                await worker._asettle_ticket(
-                    job["id"], job["attempt"], "cancelled" if cancelled else "failed", str(exc)
-                )
+                status = "cancelled" if cancelled else "failed"
+                settled = await worker._asettle_ticket(job["id"], job["attempt"], status, str(exc))
+                if settled and (job.get("idempotency_key") or "").startswith("company:"):
+                    row = await self._result_for_job(job)
+                    await asyncio.to_thread(self._settle, row, status)
             return
         token = current_company.set(context)
         try:

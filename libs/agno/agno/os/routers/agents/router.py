@@ -867,7 +867,9 @@ def get_agent_router(
         # Extract auth token for remote agents
         auth_token = get_auth_token_from_request(request)
 
-        if getattr(agent, "sandbox", None) is not None:
+        from agno.agents.base import BaseExternalAgent
+
+        if isinstance(agent, BaseExternalAgent) and agent.sandbox is not None:
             from agno.os.routers.agents.sandbox import sandbox_run_response
 
             return await sandbox_run_response(

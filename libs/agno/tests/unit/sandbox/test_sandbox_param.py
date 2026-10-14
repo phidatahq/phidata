@@ -1,8 +1,10 @@
+import asyncio
 import warnings
 from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
+from pydantic import BaseModel
 
 from agno.agent import Agent
 from agno.agents._config import agent_dataclass
@@ -43,21 +45,28 @@ class FakeCoordinator:
         self.calls = []
         self.stream_closed = False
 
-    async def arun(self, session_id, **execution):
-        self.calls.append((session_id, execution))
+    @staticmethod
+    def _result(session_id, execution):
+        # The runtime returns structured output as a JSON value, never the caller's model.
+        structured = execution["config"].get("output_schema") is not None
         return RunOutput(
             run_id=execution["run_id"],
             session_id=session_id,
             agent_id=execution["agent_id"],
             status=RunStatus.completed,
-            content="done",
+            content={"answer": "done"} if structured else "done",
         )
+
+    async def arun(self, session_id, **execution):
+        self.calls.append((session_id, execution))
+        return self._result(session_id, execution)
 
     async def _astream(self, session_id, **execution):
         self.calls.append((session_id, execution))
         try:
             yield RunContentEvent(run_id=execution["run_id"], content="one")
             yield RunContentEvent(run_id=execution["run_id"], content="two")
+            yield self._result(session_id, execution)
         finally:
             self.stream_closed = True
 
@@ -236,3 +245,94 @@ def test_coordinator_is_built_once_per_sandbox_and_database(tmp_path, monkeypatc
     assert _harness.coordinator(other_db) is not _harness.coordinator(first)
     unset = ClaudeAgent(id="fourth", db=db, sandbox=DockerSandbox("agno-sandbox:claude", network="isolated"))
     assert _harness.coordinator(unset).transfer.store.root == tmp_path / "default"
+
+
+class Answer(BaseModel):
+    answer: str
+
+
+@pytest.mark.asyncio
+async def test_structured_output_is_parsed_into_the_callers_model(coordinator, sandbox):
+    agent = ClaudeAgent(id="coder", output_schema=Answer, sandbox=sandbox)
+    result = await agent.arun("hello", session_id="s1")
+    assert result.content == Answer(answer="done")
+    streamed = [event async for event in agent.arun("hello", session_id="s1", stream=True, yield_run_output=True)]
+    assert streamed[-1].content == Answer(answer="done")
+
+
+@pytest.mark.parametrize("value", ["read-only", object()])
+def test_sandbox_must_be_a_sandbox(value):
+    with pytest.raises(TypeError, match="sandbox= takes a Sandbox"):
+        ClaudeAgent(sandbox=value)
+
+
+@pytest.mark.asyncio
+async def test_host_only_setting_assigned_after_construction_is_rejected(coordinator, sandbox):
+    agent = CodexAgent(id="coder", sandbox=sandbox)
+    agent.codex_bin = "/usr/local/bin/codex"
+    with pytest.raises(ValueError, match="Not supported with sandbox=: codex_bin"):
+        await agent.arun("hello", session_id="s1")
+    assert not coordinator.calls
+
+
+@pytest.mark.parametrize(
+    "build, field",
+    [
+        (lambda sandbox: CodexAgent(turn_options={"cwd": "/repo"}, sandbox=sandbox), "turn_options"),
+        (lambda sandbox: CodexAgent(thread_options={"cwd": "/repo"}, sandbox=sandbox), "thread_options"),
+        (lambda sandbox: ClaudeAgent(plugins=[{"type": "local", "path": "/plugins/x"}], sandbox=sandbox), "plugins"),
+    ],
+)
+def test_nested_host_paths_are_rejected(sandbox, build, field):
+    with pytest.raises(ValueError, match="Not supported with sandbox=: " + field):
+        build(sandbox)
+
+
+def test_runtime_refuses_a_host_codex_binary():
+    from agno.sandbox.protocol import validate_request
+
+    with pytest.raises(ValueError, match="Runtime owns"):
+        validate_request(
+            dict(
+                version=1,
+                execution_id="e",
+                run_id="r",
+                agent_id="a",
+                session_id="s",
+                sdk="codex",
+                input="hello",
+                config={"codex_bin": "/usr/local/bin/codex"},
+            )
+        )
+
+
+@pytest.mark.asyncio
+async def test_cancellation_registration_is_cleaned_up(coordinator, sandbox, monkeypatch):
+    import agno.run.cancel as cancel
+
+    cleaned = []
+    original = cancel.acleanup_run
+
+    async def record(run_id):
+        cleaned.append(run_id)
+        await original(run_id)
+
+    monkeypatch.setattr(cancel, "acleanup_run", record)
+    agent = ClaudeAgent(id="coder", sandbox=sandbox)
+    await agent.arun("hello", session_id="s1", run_id="direct")
+    stream = agent.arun("hello", session_id="s1", run_id="streamed", stream=True)
+    async for _ in stream:
+        break
+    await stream.aclose()
+    assert cleaned == ["direct", "streamed"]
+
+
+@pytest.mark.parametrize("operation", ["login_api_key", "alogin_api_key", "compact", "acompact"])
+@pytest.mark.asyncio
+async def test_codex_host_operations_refuse_a_sandboxed_agent(sandbox, operation):
+    agent = CodexAgent(id="coder", sandbox=sandbox)
+    method = getattr(agent, operation)
+    with pytest.raises(ValueError, match="acts on this host, not the sandbox"):
+        result = method("key") if "login" in operation else method("s1")
+        if asyncio.iscoroutine(result):
+            await result

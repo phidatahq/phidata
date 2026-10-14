@@ -300,14 +300,25 @@ class CodexAgent(BaseExternalAgent):
                 "use the native SDK for images, skills or external tool messages."
             )
 
+    def _refuse_host_operation(self, operation: str) -> None:
+        if self.sandbox is not None:
+            raise ValueError(
+                f"{operation} acts on this host, not the sandbox where Codex runs; "
+                "pass OPENAI_API_KEY in the sandbox's env instead"
+                if operation == "login_api_key"
+                else f"{operation} acts on this host, not the sandbox where the Codex thread lives"
+            )
+
     def login_api_key(self, api_key: str) -> None:
         """Store an API key in the Codex CLI auth so future runs are authenticated."""
+        self._refuse_host_operation("login_api_key")
         sdk = _sdk()
         with sdk.Codex(self._codex_config(sdk)) as codex:
             codex.login_api_key(api_key)
 
     async def alogin_api_key(self, api_key: str) -> None:
         """Async version of login_api_key."""
+        self._refuse_host_operation("login_api_key")
         sdk = _sdk()
         async with sdk.AsyncCodex(self._codex_config(sdk)) as codex:
             await codex.login_api_key(api_key)
@@ -318,6 +329,7 @@ class CodexAgent(BaseExternalAgent):
 
     def compact(self, session_id: str, user_id: Optional[str] = None, timeout: float = 120.0) -> bool:
         """Sync version of acompact."""
+        self._refuse_host_operation("compact")
         return run_coroutine_sync(self.acompact(session_id, user_id=user_id, timeout=timeout))
 
     async def acompact(self, session_id: str, user_id: Optional[str] = None, timeout: float = 120.0) -> bool:
@@ -336,6 +348,7 @@ class CodexAgent(BaseExternalAgent):
         same session: two processes would append to one rollout. A run recorded as pending or
         running for the session raises RuntimeError.
         """
+        self._refuse_host_operation("acompact")
         sdk = _sdk()
         session = await self.aget_session(session_id, user_id)
         thread_id = self._get_thread_id(session, session_id)

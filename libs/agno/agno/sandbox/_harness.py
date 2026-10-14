@@ -83,6 +83,11 @@ def _check_db(agent: "BaseExternalAgent") -> None:
 
 def validate(agent: "BaseExternalAgent") -> None:
     """Reject settings a sandboxed turn cannot honour, at construction."""
+    if not isinstance(agent.sandbox, Sandbox):
+        raise TypeError(
+            f"sandbox= takes a Sandbox such as DockerSandbox(image), not {type(agent.sandbox).__name__}"
+            + ("; CodexAgent's permission policy is sandbox_mode" if isinstance(agent.sandbox, str) else "")
+        )
     sandbox = _sandbox(agent)
     runtime = agent._sandbox_runtime
     if runtime is None:
@@ -91,17 +96,6 @@ def validate(agent: "BaseExternalAgent") -> None:
         raise ValueError("The fixture harness requires explicit test-runtime opt-in")
     if agent.db is not None:
         _check_db(agent)
-    host_only = sorted(
-        item.name
-        for item in fields(agent)
-        if item.name in _HOST_ONLY and not _is_default(item, getattr(agent, item.name))
-    )
-    if host_only:
-        raise ValueError(
-            "Not supported with sandbox=: "
-            + ", ".join(host_only)
-            + ". The sandbox owns the workspace and process; configure retries on QueueConfig."
-        )
     if runtime in _HARNESS_ENV_KEYS and getattr(sandbox, "network", None) == "none":
         log_warning(
             f"{type(agent).__name__} cannot reach its model API from a sandbox with network='none'; "
@@ -143,18 +137,40 @@ def env(agent: "BaseExternalAgent") -> Dict[str, str]:
     return values
 
 
+def _host_paths(name: str, value: Any) -> bool:
+    """Whether a setting points at host files that do not exist inside the sandbox."""
+    if name in _HOST_ONLY:
+        return True
+    if name in ("thread_options", "turn_options", "turn_kwargs") and isinstance(value, dict):
+        return "cwd" in value
+    if name == "plugins" and isinstance(value, list):
+        return any(isinstance(plugin, dict) and plugin.get("type") == "local" for plugin in value)
+    return False
+
+
 def _config(agent: "BaseExternalAgent", output_schema: Any) -> Dict[str, Any]:
+    """The agent's non-default settings as JSON; checked on every run, so later assignments are caught too."""
     config: Dict[str, Any] = {}
+    host_only: List[str] = []
     for item in fields(agent):
         if not item.init or item.name in _RUNTIME_OWNED:
             continue
         value = getattr(agent, item.name)
         if _is_default(item, value):
             continue
+        if _host_paths(item.name, value):
+            host_only.append(item.name)
+            continue
         try:
             config[item.name] = json.loads(json.dumps(value, allow_nan=False))
         except (TypeError, ValueError) as error:
             raise ValueError(f"Sandboxed agent setting {item.name!r} must be a JSON value") from error
+    if host_only:
+        raise ValueError(
+            "Not supported with sandbox=: "
+            + ", ".join(sorted(host_only))
+            + ". The sandbox owns the workspace, process and local files; configure retries on QueueConfig."
+        )
     if output_schema is not None:
         config["output_schema"] = output_schema
     return config
@@ -212,16 +228,27 @@ def _execution(agent: "BaseExternalAgent", input: Any, kwargs: Dict[str, Any]) -
     )
 
 
+def _output_schema(agent: "BaseExternalAgent", kwargs: Dict[str, Any]) -> Any:
+    schema = kwargs.get("output_schema")
+    return schema if schema is not None else agent.output_schema
+
+
 async def arun(agent: "BaseExternalAgent", input: Any, **kwargs: Any) -> RunOutput:
-    from agno.run.cancel import aregister_run
+    from agno.run.cancel import acleanup_run, aregister_run
 
     execution = _execution(agent, input, kwargs)
     await aregister_run(execution["run_id"])
-    return await coordinator(agent).arun(kwargs.get("session_id") or str(uuid4()), **execution)
+    try:
+        run = await coordinator(agent).arun(kwargs.get("session_id") or str(uuid4()), **execution)
+    finally:
+        await acleanup_run(execution["run_id"])
+    # The runtime returns structured output as JSON; parse it into the caller's schema as the host path does.
+    agent._apply_output_schema(run, _output_schema(agent, kwargs))
+    return run
 
 
 async def astream(agent: "BaseExternalAgent", input: Any, **kwargs: Any) -> AsyncGenerator[Any, None]:
-    from agno.run.cancel import aregister_run
+    from agno.run.cancel import acleanup_run, aregister_run
 
     execution = _execution(agent, input, kwargs)
     await aregister_run(execution["run_id"])
@@ -231,15 +258,20 @@ async def astream(agent: "BaseExternalAgent", input: Any, **kwargs: Any) -> Asyn
     skipped = {event.value for event in agent.events_to_skip or []}
     try:
         async for value in iterator:
-            if isinstance(value, RunOutput) and agent.store_events:
-                await runner.store._apublish_events(value.to_dict(), events)
+            if isinstance(value, RunOutput):
+                if agent.store_events:
+                    await runner.store._apublish_events(value.to_dict(), events)
+                agent._apply_output_schema(value, _output_schema(agent, kwargs))
             if not isinstance(value, RunOutput) or kwargs.get("yield_run_output", False):
                 yield value
             # The queue publisher stamps the same object before resuming us.
             if agent.store_events and not isinstance(value, RunOutput) and value.event not in skipped:
                 events.append(value.to_dict())
     finally:
-        await iterator.aclose()
+        try:
+            await iterator.aclose()
+        finally:
+            await acleanup_run(execution["run_id"])
 
 
 async def aprepare_pending_run(

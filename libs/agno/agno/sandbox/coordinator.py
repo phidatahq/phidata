@@ -411,12 +411,10 @@ class SandboxCoordinator:
             await self.store.aconfirm_stopped(lease, handle.provider_ref)
         try:
             return await self.store.acommit(lease)
-        except SandboxRunFinished:
-            # Another writer finished the run. The stop keeps its stored outcome and releases the
-            # session; the status passed here only applies to a run nobody has finished.
-            return await self._stop(
-                lease, status="ERROR", reason="Service run was finished elsewhere during finalization"
-            )
+        except SandboxRunFinished as finished:
+            # Another writer finished the run; the commit already released the session and kept
+            # the previous checkpoint, so the stored outcome is the result.
+            return finished.run
 
     @staticmethod
     def _terminal(run: Dict[str, Any]) -> Any:

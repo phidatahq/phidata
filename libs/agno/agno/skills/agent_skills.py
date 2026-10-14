@@ -4,17 +4,37 @@ import json
 import subprocess
 import weakref
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from agno.exceptions import PathSecurityError
+from agno.run.base import RunContext
 from agno.skills.errors import SkillValidationError
 from agno.skills.loaders.base import SkillLoader
 from agno.skills.loaders.mcp import MCPSkills
 from agno.skills.skill import Skill
 from agno.skills.utils import read_file_safe, run_script
 from agno.tools.function import Function
+from agno.tools.toolkit import Toolkit
 from agno.utils.log import log_debug, log_warning
 from agno.utils.path_safety import safe_join_relative_path
+
+# agno toolkits whose functions execute code on the host, keyed by class name so
+# optional dependencies are never imported.
+_EXECUTION_TOOLS: Dict[str, Tuple[str, ...]] = {
+    "ShellTools": ("run_shell_command",),
+    "PythonTools": (
+        "run_python_code",
+        "run_python_file_return_variable",
+        "save_to_file_and_run",
+        "pip_install_package",
+        "uv_pip_install_package",
+    ),
+    "CodingTools": ("run_shell",),
+    "Workspace": ("run_command",),
+    "DockerTools": ("run_container", "exec_in_container", "start_container", "build_image"),
+}
+
+_SKILL_TOOL_NAMES = ("get_skill_instructions", "get_skill_reference", "get_skill_script")
 
 
 class Skills:
@@ -113,6 +133,40 @@ class Skills:
                 await loader.aclose()
             except Exception as e:
                 log_warning(f"Error closing {loader}: {str(e)}")
+
+    def gate_execution_tools(
+        self,
+        toolkits: Sequence[Any],
+        functions: Sequence[Any],
+        run_context: RunContext,
+        run_response: Any = None,
+    ) -> None:
+        """Record this run's code-execution tools on `run_context`.
+
+        Once the run loads a skill from an MCP server, these tools require confirmation for
+        the rest of the run, so remote skill content cannot run code on the host unapproved.
+        A run that already loaded one, such as a continued run, starts gated.
+
+        Args:
+            toolkits: The run's tools before they were expanded into functions.
+            functions: The run's per-run Function copies, as handed to the model.
+            run_context: The run's context.
+            run_response: The run's output, whose tool history shows an earlier MCP skill load.
+        """
+        loaders = [loader for loader in self.loaders if isinstance(loader, MCPSkills)]
+        if not loaders:
+            return
+        run_functions = [f for f in functions if isinstance(f, Function) and f.name not in _SKILL_TOOL_NAMES]
+        if any(loader.gate_all_tools for loader in loaders):
+            gated = run_functions
+        else:
+            names = {name for loader in loaders for name in loader.gated_tools}
+            for toolkit in toolkits:
+                names.update(_execution_function_names(toolkit))
+            gated = [f for f in run_functions if f.name in names]
+        run_context.skill_gated_tools = gated
+        if gated and _loaded_mcp_skill(run_response):
+            _require_confirmation(run_context)
 
     def _pending_async_loaders(self) -> List[SkillLoader]:
         return [loader for loader in self.loaders if loader.requires_async and loader not in self._loaded_async_loaders]
@@ -523,7 +577,7 @@ class Skills:
                 }
             )
 
-    async def _aget_skill_instructions(self, skill_name: str) -> str:
+    async def _aget_skill_instructions(self, skill_name: str, run_context: Optional[RunContext] = None) -> str:
         """Load the full instructions for a skill.
 
         Args:
@@ -541,6 +595,8 @@ class Skills:
             instructions = await source.aread_instructions(skill_name)
         except Exception as e:
             return json.dumps({"error": f"Error loading skill '{skill_name}': {e}", "skill_name": skill_name})
+        # Gate before the instructions reach the model.
+        _require_confirmation(run_context)
         return json.dumps(
             {
                 "skill_name": skill.name,
@@ -657,6 +713,39 @@ class Skills:
                 "content": content,
             }
         )
+
+
+def _execution_function_names(toolkit: Any) -> List[str]:
+    """Names of `toolkit`'s functions that execute code on the host."""
+    if not isinstance(toolkit, Toolkit):
+        return []
+    execution: Tuple[str, ...] = ()
+    for cls in type(toolkit).__mro__:
+        execution += _EXECUTION_TOOLS.get(cls.__name__, ())
+    if not execution:
+        return []
+    names = set(toolkit.functions) | set(toolkit.async_functions)
+    # Namespaced filesystem toolkits prefix their function names.
+    return [name for name in names if any(name == base or name.endswith("_" + base) for base in execution)]
+
+
+def _loaded_mcp_skill(run_response: Any) -> bool:
+    """Whether this run's tool history includes a successful MCP skill load."""
+    for execution in getattr(run_response, "tools", None) or []:
+        if getattr(execution, "tool_name", None) != "get_skill_instructions":
+            continue
+        try:
+            result = json.loads(execution.result or "")
+        except (TypeError, ValueError):
+            continue
+        if isinstance(result, dict) and "error" not in result and str(result.get("origin", "")).startswith("mcp:"):
+            return True
+    return False
+
+
+def _require_confirmation(run_context: Optional[RunContext]) -> None:
+    for function in (run_context.skill_gated_tools if run_context is not None else None) or []:
+        function.requires_confirmation = True
 
 
 def _mcp_sync_error(skill_name: str) -> str:

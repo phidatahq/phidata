@@ -31,3 +31,12 @@
 **Result:** Completed successfully.
 
 ---
+
+### mcp_skills_execution_gate.py
+
+**Status:** PASS
+**Tier:** untagged
+**Description:** Agent with `ShellTools` and Hugging Face's MCP skills. The agent loaded `hf/hf-cli`, then called `run_shell_command` for `hf version`, which paused for confirmation. Answering "n" rejected it and the shell never ran; the agent reported it could not check. Answering "y" ran it (the `hf` CLI is not installed on the test machine, which the agent reported). Tested on 2026-10-14 with `.venv/bin/python` and `gpt-5.6-luna`.
+**Result:** Both the reject and the approve paths completed as expected.
+
+---

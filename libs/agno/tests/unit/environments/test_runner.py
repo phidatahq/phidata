@@ -1685,6 +1685,9 @@ class StubSkills:
     async def aclose(self):
         pass
 
+    def gate_execution_tools(self, toolkits, functions, run_context, run_response=None):
+        pass
+
 
 async def test_read_parity_skills():
     world_db = InMemoryDb()

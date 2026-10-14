@@ -511,6 +511,9 @@ def _determine_tools_for_model(
                 func._audios = joint_audios
                 func._videos = joint_videos
 
+    if team.skills is not None:
+        team.skills.gate_execution_tools(_tools, _functions, run_context, run_response)
+
     return _functions
 
 

@@ -82,6 +82,11 @@ class MCPSkills(SkillLoader):
             listing, for skills a server does not enumerate.
         allow_dynamic: Load skills whose content the server marks "dynamic". Their
             content cannot be verified, so they are skipped by default.
+        gated_tools: Names of the agent's own tools that execute code, in addition to agno's
+            built-in execution tools (ShellTools, PythonTools, ...). Once a run loads a skill
+            from this server, calls to these tools require confirmation for the rest of the run.
+        gate_all_tools: Require confirmation for every other tool, not only execution tools,
+            once a run loads a skill from this server.
     """
 
     requires_async = True
@@ -99,6 +104,8 @@ class MCPSkills(SkillLoader):
         label: Optional[str] = None,
         skill_uris: Optional[List[str]] = None,
         allow_dynamic: bool = False,
+        gated_tools: Optional[List[str]] = None,
+        gate_all_tools: bool = False,
     ):
         if not (command or url or server_params):
             raise ValueError("MCPSkills needs a command, url or server_params")
@@ -128,6 +135,8 @@ class MCPSkills(SkillLoader):
             raise ValueError(f"MCPSkills label cannot contain '/': {self.label!r}")
         self.skill_uris = list(skill_uris or [])
         self.allow_dynamic = allow_dynamic
+        self.gated_tools = list(gated_tools or [])
+        self.gate_all_tools = gate_all_tools
         self._entries: Dict[str, _HeldEntry] = {}
         self._skills: Dict[str, Skill] = {}
         self._cache: Dict[Tuple[str, str], bytes] = {}

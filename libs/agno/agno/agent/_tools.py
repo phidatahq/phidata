@@ -692,6 +692,9 @@ def determine_tools_for_model(
                 func._audios = joint_audios
                 func._videos = joint_videos
 
+    if agent.skills is not None:
+        agent.skills.gate_execution_tools(processed_tools or [], _functions, run_context, run_response)
+
     return _functions
 
 

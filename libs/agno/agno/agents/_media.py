@@ -228,7 +228,7 @@ def cleanup_run_media(workspace: Optional[Any], run_id: str, staged: Sequence[St
 
 def media_prompt_block(staged: Sequence[StagedMedia]) -> str:
     """The lines appended to the prompt so the harness knows what was attached and where."""
-    if not staged:
+    if not staged: 
         return ""
     lines = ["", "Attached files. Read them before answering; images and PDFs can be opened with the file tools:"]
     for item in staged:

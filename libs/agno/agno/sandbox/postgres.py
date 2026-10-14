@@ -7,7 +7,6 @@ A staged execution result or uploaded object alone never completes a service run
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import json
 import math
 import time
@@ -22,8 +21,8 @@ from agno.sandbox.checkpoint import CheckpointRef
 from agno.utils.string import sanitize_postgres_strings
 
 try:
-    from sqlalchemy import BigInteger, Column, DateTime, MetaData, String, Table, func, select, text, update
-    from sqlalchemy.dialects.postgresql import JSONB, insert
+    from sqlalchemy import Table, func, select, update
+    from sqlalchemy.dialects.postgresql import insert
     from sqlalchemy.engine import Connection
 except ImportError:
     raise ImportError("Sandbox coordination requires sqlalchemy and a PostgreSQL driver")
@@ -94,65 +93,64 @@ class SandboxState:
     record: Dict[str, Any] = field(repr=False)
 
 
-class PostgresSandboxStore:
+class _SandboxStore:
     """Session leases and finalization on the same database as service run history.
 
-    Call setup/asetup before accepting traffic. Async methods support both
-    Postgres adapters; synchronous methods require PostgresDb. Compute cleanup is
+    Tables live in the agent's PostgresDb (``sandbox_table`` names the lease
+    table) and are created on first use. Async methods support both Postgres
+    adapters; synchronous methods require PostgresDb. Compute cleanup is
     acknowledged only after the coordinator confirms it through the provider.
     This store cannot independently prove a remote machine has stopped.
     """
 
-    def __init__(self, db: Union[PostgresDb, AsyncPostgresDb], *, table_name: str = "agno_sandbox_bindings") -> None:
+    sessions: Table
+    runs: Table
+    bindings: Table
+
+    def __init__(self, db: Union[PostgresDb, AsyncPostgresDb]) -> None:
         if not isinstance(db, (PostgresDb, AsyncPostgresDb)):
             raise TypeError("Sandbox coordination requires PostgresDb or AsyncPostgresDb")
         self.db = db
         self.namespace = db.db_schema + "." + db.session_table_name
-        self.bindings = Table(
-            table_name,
-            MetaData(schema=db.db_schema),
-            Column("namespace", String, primary_key=True),
-            Column("session_id", String, primary_key=True),
-            Column("agent_id", String, nullable=False),
-            Column("user_id", String, nullable=True),
-            Column("epoch", BigInteger, nullable=False),
-            Column("owner", String, nullable=True),
-            Column("run_id", String, nullable=True),
-            Column("queue_attempt", BigInteger, nullable=True),
-            Column("expires_at", DateTime(timezone=True), nullable=True),
-            Column("record", JSONB, nullable=False),
-        )
-        self.sessions: Optional[Table] = None
-        self.runs: Optional[Table] = None
+        self._tables_ready = False
 
     def _sync(self, function: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
         if isinstance(self.db, AsyncPostgresDb):
             raise TypeError("Use async sandbox store methods with AsyncPostgresDb")
         return _sync(function(*args, **kwargs))
 
-    async def asetup(self) -> None:
-        if isinstance(self.db, AsyncPostgresDb):
-            self.sessions = await self.db._get_table("sessions", create_table_if_not_found=True)
-            self.runs = await self.db._get_table("runs", create_table_if_not_found=True)
-        else:
-            self.sessions = await asyncio.to_thread(self.db._get_table, "sessions", create_table_if_not_found=True)
-            self.runs = await asyncio.to_thread(self.db._get_table, "runs", create_table_if_not_found=True)
-        if self.sessions is None or self.runs is None:
-            raise SandboxError("Sandbox setup requires service session and run tables")
+    async def _table(self, table_type: str, table_name: str) -> Table:
+        db = self.db
+        try:
+            if isinstance(db, AsyncPostgresDb):
+                table = await db._get_table(table_type, create_table_if_not_found=True)
+            else:
+                table = await asyncio.to_thread(db._get_table, table_type, create_table_if_not_found=True)
+        except Exception as exc:
+            # Another process may have won the first CREATE TABLE.
+            cause = getattr(exc, "orig", exc)
+            if getattr(cause, "sqlstate", getattr(cause, "pgcode", None)) not in ("42P07", "23505"):
+                raise
+            db._invalidate_table_cache(table_name)
+            if isinstance(db, AsyncPostgresDb):
+                table = await db._get_table(table_type)
+            else:
+                table = await asyncio.to_thread(db._get_table, table_type)
+        if table is None:
+            raise SandboxError(f"Sandbox coordination could not create the {table_type} table")
+        return table
 
-        def create(connection: Connection) -> None:
-            key = int.from_bytes(hashlib.sha256(self.bindings.fullname.encode()).digest()[:8], "big", signed=True)
-            connection.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": key})
-            self.bindings.create(connection, checkfirst=True)
-
-        await self._transaction(create)
-
-    def setup(self) -> None:
-        self._sync(self.asetup)
+    async def _ensure_tables(self) -> None:
+        if self._tables_ready:
+            return
+        # Creation is idempotent, so concurrent first calls need no lock.
+        self.sessions = await self._table("sessions", self.db.session_table_name)
+        self.runs = await self._table("runs", self.db.runs_table_name)
+        self.bindings = await self._table("sandbox_bindings", self.db.sandbox_table_name)
+        self._tables_ready = True
 
     async def _transaction(self, operation: Callable[[Connection], _T]) -> _T:
-        if self.sessions is None or self.runs is None:
-            raise SandboxError("Call sandbox store setup before accepting runs")
+        await self._ensure_tables()
         if isinstance(self.db, AsyncPostgresDb):
             async with self.db.db_engine.begin() as connection:
                 return await connection.run_sync(operation)
@@ -175,7 +173,6 @@ class PostgresSandboxStore:
         return (self.bindings.c.namespace == self.namespace) & (self.bindings.c.session_id == session_id)
 
     def _service_run(self, connection: Connection, lease: SandboxLease, *, lock: bool = True) -> Any:
-        assert self.runs is not None and self.sessions is not None
         query = select(self.runs).where(self.runs.c.run_id == lease.run_id)
         row = connection.execute(query.with_for_update() if lock else query).mappings().one_or_none()
         if (
@@ -465,7 +462,6 @@ class PostgresSandboxStore:
 
     async def acommit(self, lease: SandboxLease) -> Dict[str, Any]:
         def commit(connection: Connection) -> Dict[str, Any]:
-            assert self.runs is not None and self.sessions is not None
             row = self._locked(connection, lease)
             record = dict(row["record"])
             if (
@@ -553,7 +549,6 @@ class PostgresSandboxStore:
         """Retain the previous recovery boundary after confirmed cleanup of a failed turn."""
 
         def finish(connection: Connection) -> Dict[str, Any]:
-            assert self.runs is not None
             record = dict(self._locked(connection, lease)["record"])
             if record["phase"] != "stopping" or not record.get("computer_stopped"):
                 raise SandboxError("Stop completion requires confirmed compute cleanup")

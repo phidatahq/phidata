@@ -1,5 +1,6 @@
 """Table schemas and related utils used by the PostgresDb class"""
 
+from functools import partial
 from typing import Any
 
 from agno.db.schemas.authz import AUTHZ_TABLE_SCHEMAS
@@ -7,7 +8,7 @@ from agno.db.schemas.mcp_oauth import MCP_OAUTH_TABLE_SCHEMAS
 
 try:
     from sqlalchemy.dialects.postgresql import JSONB
-    from sqlalchemy.types import BigInteger, Boolean, Date, Integer, String, Text
+    from sqlalchemy.types import BigInteger, Boolean, Date, DateTime, Integer, String, Text
 except ImportError:
     raise ImportError("`sqlalchemy` not installed. Please install it using `pip install sqlalchemy`")
 
@@ -365,6 +366,21 @@ TOOL_RESULTS_TABLE_SCHEMA = {
 }
 
 
+SANDBOX_BINDINGS_TABLE_SCHEMA = {
+    # namespace = "<schema>.<session table>", so stores sharing a table never collide
+    "namespace": {"type": String, "primary_key": True, "nullable": False},
+    "session_id": {"type": String, "primary_key": True, "nullable": False},
+    "agent_id": {"type": String, "nullable": False},
+    "user_id": {"type": String, "nullable": True},
+    "epoch": {"type": BigInteger, "nullable": False},
+    "owner": {"type": String, "nullable": True},
+    "run_id": {"type": String, "nullable": True},
+    "queue_attempt": {"type": BigInteger, "nullable": True},
+    # Compared against the database clock, so it needs a timezone-aware type
+    "expires_at": {"type": partial(DateTime, timezone=True), "nullable": True},
+    "record": {"type": JSONB, "nullable": False},
+}
+
 JOBS_TABLE_SCHEMA = {
     # id == run_id, so poll/resume endpoints key identically
     "id": {"type": String, "primary_key": True, "nullable": False},
@@ -567,6 +583,7 @@ def get_table_schema_definition(
         "learnings": LEARNINGS_TABLE_SCHEMA,
         "schedules": SCHEDULE_TABLE_SCHEMA,
         "jobs": JOBS_TABLE_SCHEMA,
+        "sandbox_bindings": SANDBOX_BINDINGS_TABLE_SCHEMA,
         "tool_results": TOOL_RESULTS_TABLE_SCHEMA,
         "compactions": COMPACTIONS_TABLE_SCHEMA,
         "transcripts": TRANSCRIPTS_TABLE_SCHEMA,

@@ -171,7 +171,14 @@ The example walks the whole path on one Claude session, through five generations
 
 ## Atomic completion store
 
-`durable_completion.py` exercises the Postgres ownership/finalization contract using fixture output and an actual archive. Set `AGNO_TEST_SANDBOX_DB_URL` to a dedicated local test database. It creates unique tables and removes them afterwards. The store supports both Postgres adapters asynchronously; synchronous entry points require `PostgresDb`.
+```bash
+./cookbook/scripts/run_pgvector.sh
+.venv/bin/python cookbook/frameworks/sandbox/durable_completion.py
+```
+
+The example walks one session through three scenarios and prints the run status, lease and session checkpoint after every step: a completed turn that stays RUNNING until its checkpoint is staged and its computer confirmed stopped, a session edit and a stalled coordinator during the next turn, and a cancellation that keeps the previous checkpoint. It uses fixture output and a real archive, no model or containers. It defaults to the pgvector database on port 5532 (override with `AGNO_TEST_SANDBOX_DB_URL`), and creates unique tables that it drops afterwards.
+
+The store is internal: the coordinator builds it from the agent's `PostgresDb`, and the example calls it directly only to show each step. Its lease table lives in that same database, named by `PostgresDb(sandbox_table=...)` (default `agno_sandbox_bindings`), and is created on first use like every other agno table, so there is no setup call. Async methods support both Postgres adapters; synchronous methods require `PostgresDb`.
 
 A runtime result is staged first. A verified checkpoint reference and provider-confirmed compute cleanup are required before one transaction publishes the run and session recovery reference. Lease epochs and queue attempts fence previous coordinators. Native session data is nested under `session_data.sandbox.native`. The run takes only runtime output fields (content, messages, tools, metrics, media, events, status) from the result; identity, input, lineage and service metadata stay as stored, and runtime metadata is nested under `metadata.sandbox.native_metadata`. The binding records the session row's `created_at`, which session upserts never rewrite, so editing a session mid-run is safe while a deleted and recreated session requires explicit reconciliation of its old registry/compute; it cannot silently inherit that state.
 

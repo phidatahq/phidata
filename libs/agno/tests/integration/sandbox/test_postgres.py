@@ -12,10 +12,10 @@ from agno.db.postgres import AsyncPostgresDb, PostgresDb
 from agno.sandbox.base import SandboxError, SandboxHandle
 from agno.sandbox.checkpoint import CheckpointRef
 from agno.sandbox.postgres import (
-    PostgresSandboxStore,
     SandboxLeaseLost,
     SandboxRunFinished,
     SandboxSessionBusy,
+    _SandboxStore,
 )
 from agno.session import AgentSession
 from sqlalchemy import delete, event, func, select, update
@@ -27,12 +27,23 @@ REF = CheckpointRef("a" * 64, 10240)
 
 @pytest_asyncio.fixture(params=[PostgresDb, AsyncPostgresDb])
 async def store(request):
-    suffix = uuid4().hex[:12]
-    db = request.param(db_url=URL, session_table="sb_sessions_" + suffix, runs_table="sb_runs_" + suffix)
-    store = PostgresSandboxStore(db, table_name="sb_bindings_" + suffix)
-    await store.asetup()
+    db = new_db(request.param, uuid4().hex[:12])
+    store = _SandboxStore(db)
     yield store
     await store._transaction(lambda c: [table.drop(c) for table in (store.bindings, store.runs, store.sessions)])
+    await dispose(db)
+
+
+def new_db(adapter, suffix):
+    return adapter(
+        db_url=URL,
+        session_table="sb_sessions_" + suffix,
+        runs_table="sb_runs_" + suffix,
+        sandbox_table="sb_bindings_" + suffix,
+    )
+
+
+async def dispose(db):
     if isinstance(db, AsyncPostgresDb):
         await db.db_engine.dispose()
     else:
@@ -124,8 +135,8 @@ async def rows(store):
 
 async def test_independent_instances_have_one_owner(store):
     await seed(store)
-    other = PostgresSandboxStore(store.db, table_name=store.bindings.name)
-    await other.asetup()
+    other_db = new_db(type(store.db), store.db.session_table_name.removeprefix("sb_sessions_"))
+    other = _SandboxStore(other_db)
     outcomes = await asyncio.gather(claim(store), claim(other, owner="other"), return_exceptions=True)
     assert sum(isinstance(x, SandboxSessionBusy) for x in outcomes) == 1
     winner = next(x for x in outcomes if not isinstance(x, Exception))
@@ -137,6 +148,25 @@ async def test_independent_instances_have_one_owner(store):
         await claim(store, run_id="second")
     await seed(store, run_id="parallel", session_id="parallel")
     assert (await claim(store, run_id="parallel", session_id="parallel")).record["phase"] == "executing"
+    await dispose(other_db)
+
+
+@pytest.mark.parametrize("adapter", [PostgresDb, AsyncPostgresDb])
+async def test_tables_are_created_on_first_use_by_racing_processes(adapter):
+    suffix = uuid4().hex[:12]
+    dbs = [new_db(adapter, suffix) for _ in range(4)]
+    stores = [_SandboxStore(db) for db in dbs]
+    try:
+        await asyncio.gather(*(store._ensure_tables() for store in stores))
+        await seed(stores[0])
+        state = await claim(stores[1])
+        assert (await stores[2].aget(state.lease)).lease == state.lease
+    finally:
+        await stores[0]._transaction(
+            lambda c: [table.drop(c) for table in (stores[0].bindings, stores[0].runs, stores[0].sessions)]
+        )
+        for db in dbs:
+            await dispose(db)
 
 
 async def test_wrong_owner_rolls_back_first_binding(store):
@@ -344,7 +374,7 @@ async def test_runtime_result_cannot_rewrite_service_fields(store):
 async def test_sync_api_contract(store):
     if isinstance(store.db, AsyncPostgresDb):
         with pytest.raises(TypeError, match="async"):
-            store.setup()
+            store.claim(agent_id="agent", session_id="session", user_id="user", run_id="run", owner="owner")
     else:
         await seed(store)
         state = await asyncio.to_thread(

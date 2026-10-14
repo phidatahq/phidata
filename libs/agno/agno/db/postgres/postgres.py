@@ -154,6 +154,7 @@ class PostgresDb(BaseDb):
         schedules_table: Optional[str] = None,
         schedule_runs_table: Optional[str] = None,
         job_table: Optional[str] = None,
+        sandbox_table: Optional[str] = None,
         approvals_table: Optional[str] = None,
         auth_tokens_table: Optional[str] = None,
         service_accounts_table: Optional[str] = None,
@@ -193,6 +194,7 @@ class PostgresDb(BaseDb):
             schedules_table (Optional[str]): Name of the table to store cron schedules.
             schedule_runs_table (Optional[str]): Name of the table to store schedule run history.
             job_table (Optional[str]): Name of the table to store durable background run jobs.
+            sandbox_table (Optional[str]): Name of the table to store sandbox session leases and recovery state.
             mcp_oauth_clients_table (Optional[str]): Name of the table to store MCP OAuth client registrations.
             mcp_oauth_transactions_table (Optional[str]): Name of the table to store MCP OAuth transactions.
             mcp_oauth_codes_table (Optional[str]): Name of the table to store MCP OAuth authorization codes.
@@ -255,6 +257,7 @@ class PostgresDb(BaseDb):
         self.db_schema: str = db_schema if db_schema is not None else "ai"
         self.metadata: MetaData = MetaData(schema=self.db_schema)
         self.create_schema: bool = create_schema
+        self.sandbox_table_name: str = sandbox_table or "agno_sandbox_bindings"
 
         # Initialize database session
         self.Session: scoped_session = scoped_session(sessionmaker(bind=self.db_engine, expire_on_commit=False))
@@ -274,6 +277,7 @@ class PostgresDb(BaseDb):
             {
                 "db_url": self.db_url,
                 "db_schema": self.db_schema,
+                "sandbox_table": self.sandbox_table_name,
                 "type": "postgres",
             }
         )
@@ -299,6 +303,7 @@ class PostgresDb(BaseDb):
             learnings_table=data.get("learnings_table"),
             schedules_table=data.get("schedules_table"),
             schedule_runs_table=data.get("schedule_runs_table"),
+            sandbox_table=data.get("sandbox_table"),
             approvals_table=data.get("approvals_table"),
             service_accounts_table=data.get("service_accounts_table"),
             id=data.get("id"),
@@ -741,6 +746,14 @@ class PostgresDb(BaseDb):
                 create_table_if_not_found=create_table_if_not_found,
             )
             return self.job_table
+
+        if table_type == "sandbox_bindings":
+            self.sandbox_table = self._get_or_create_table(
+                table_name=self.sandbox_table_name,
+                table_type="sandbox_bindings",
+                create_table_if_not_found=create_table_if_not_found,
+            )
+            return self.sandbox_table
 
         if table_type == "tool_results":
             self.tool_results_table = self._get_or_create_table(

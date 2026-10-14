@@ -126,6 +126,7 @@ class AsyncPostgresDb(AsyncBaseDb):
         schedules_table: Optional[str] = None,
         schedule_runs_table: Optional[str] = None,
         job_table: Optional[str] = None,
+        sandbox_table: Optional[str] = None,
         approvals_table: Optional[str] = None,
         auth_tokens_table: Optional[str] = None,
         service_accounts_table: Optional[str] = None,
@@ -167,6 +168,7 @@ class AsyncPostgresDb(AsyncBaseDb):
             schedules_table (Optional[str]): Name of the table to store cron schedules.
             schedule_runs_table (Optional[str]): Name of the table to store schedule run history.
             job_table (Optional[str]): Name of the table to store durable background run jobs.
+            sandbox_table (Optional[str]): Name of the table to store sandbox session leases and recovery state.
             create_schema (bool): Whether to automatically create the database schema if it doesn't exist.
                 Set to False if schema is managed externally (e.g., via migrations). Defaults to True.
 
@@ -209,6 +211,7 @@ class AsyncPostgresDb(AsyncBaseDb):
         self.db_schema: str = db_schema if db_schema is not None else "ai"
         self.metadata: MetaData = MetaData(schema=self.db_schema)
         self.create_schema: bool = create_schema
+        self.sandbox_table_name: str = sandbox_table or "agno_sandbox_bindings"
 
         # Initialize database session factory
         self.async_session_factory = async_sessionmaker(
@@ -547,6 +550,14 @@ class AsyncPostgresDb(AsyncBaseDb):
                 create_table_if_not_found=create_table_if_not_found,
             )
             return self.job_table
+
+        if table_type == "sandbox_bindings":
+            self.sandbox_table = await self._get_or_create_table(
+                table_name=self.sandbox_table_name,
+                table_type="sandbox_bindings",
+                create_table_if_not_found=create_table_if_not_found,
+            )
+            return self.sandbox_table
 
         if table_type == "tool_results":
             self.tool_results_table = await self._get_or_create_table(

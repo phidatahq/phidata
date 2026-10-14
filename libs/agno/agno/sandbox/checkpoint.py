@@ -522,9 +522,7 @@ class CheckpointArchive:
 
     def validate(self, source: Path) -> Dict[str, Any]:
         """Validate archive framing, roots, metadata and the complete link graph without extracting."""
-        with _regular(Path(source)) as stream:
-            if os.fstat(stream.fileno()).st_size > self.limits.max_bytes:
-                raise SandboxError("Checkpoint archive exceeds its limit")
+        with _archive_bytes(Path(source), self.limits) as stream:
             _preflight(stream, self.limits)
             with tarfile.open(fileobj=stream, mode="r:") as archive:
                 manifest, _ = self._inspect(archive)

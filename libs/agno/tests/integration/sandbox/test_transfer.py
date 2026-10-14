@@ -81,7 +81,8 @@ async def test_failed_capture_resumes_compute_and_preserves_previous_checkpoint(
     provider = DockerSandbox(IMAGE, namespace="transfer-failure-" + uuid4().hex, memory_mb=256)
     handle = await provider.acreate("s", agent_id="a")
     store = FileCheckpointStore(tmp_path / "objects")
-    transfer = DockerCheckpointTransfer(provider, store)
+    (tmp_path / "scratch").mkdir()
+    transfer = DockerCheckpointTransfer(provider, store, scratch=tmp_path / "scratch")
     try:
         assert (await provider.aexec(handle, ["sh", "-c", "echo first > file"])).exit_code == 0
         reference = await transfer.acapture(handle, state={"run": "first"})
@@ -93,8 +94,8 @@ async def test_failed_capture_resumes_compute_and_preserves_previous_checkpoint(
         with pytest.raises(OSError, match="disk full"):
             await transfer.acapture(handle, state={"run": "second"})
         assert (await provider.aget(handle.provider_ref)).state == "running"
-        assert store.verify(reference).exists()
-        assert not list(store.root.glob(".capture-*"))
+        store.verify(reference)
+        assert not list((tmp_path / "scratch").iterdir())
     finally:
         await provider.adestroy(handle)
 
@@ -132,11 +133,13 @@ async def test_archive_transfer_exceeds_command_output_limit_without_buffering_w
     transfer = DockerCheckpointTransfer(provider, FileCheckpointStore(tmp_path / "objects"))
     try:
         result = await provider.aexec(
-            handle, ["python", "-c", "from pathlib import Path; Path('large').write_bytes(b'x' * (40 * 1024 * 1024))"]
+            # Random bytes stay large after compression, so the stored object still exceeds the output limit.
+            handle,
+            ["python", "-c", "import os; open('large', 'wb').write(os.urandom(40 * 1024 * 1024))"],
         )
         assert result.exit_code == 0
         reference = await transfer.acapture(handle, state={"large": True})
         assert reference.size > 40 * 1024 * 1024
-        assert (await transfer.store.averify(reference)).exists()
+        await transfer.store.averify(reference)
     finally:
         await provider.adestroy(handle)

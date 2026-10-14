@@ -60,8 +60,9 @@ def test_combine_converts_hardlinks_and_excludes_native_credentials(tmp_path):
     CheckpointArchive().restore(tmp_path / "result.tar", tmp_path / "restored")
     assert (tmp_path / "restored/workspace/link").read_bytes() == b"data"
     assert not (tmp_path / "restored/native/codex/auth.json").exists()
-    transfer._export_root(tmp_path / "result.tar", "workspace", tmp_path / "import.tar")
-    with tarfile.open(tmp_path / "import.tar") as archive:
+    (tmp_path / "import").mkdir()
+    assert transfer._split(tmp_path / "result.tar", tmp_path / "import") == ({"run": "r"}, 0o700)
+    with tarfile.open(tmp_path / "import/workspace.tar") as archive:
         assert archive.getnames() == ["file", "link"]
         assert all(member.uid == member.gid == 1000 for member in archive)
 
@@ -151,10 +152,10 @@ async def test_restore_applies_the_captured_native_root_mode(tmp_path):
         {"workspace": tmp_path / "workspace.tar", "native": tmp_path / "native.tar"}, tmp_path / "result.tar", {}, []
     )
     transfer._check_mounts = AsyncMock()
-    transfer.store.averify = AsyncMock(return_value=tmp_path / "result.tar")
+    reference = transfer.store.put(tmp_path / "result.tar")
     handle = SandboxHandle("id", "name", "a", "s", 1, "running", "digest")
     with pytest.raises(SandboxError, match="empty, unused"):
-        await transfer.arestore(handle, None)
+        await transfer.arestore(handle, reference)
     assert provider.aexec.call_args.args[1][-1].endswith("n.chmod(0o700)")
 
 

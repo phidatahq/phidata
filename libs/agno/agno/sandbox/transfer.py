@@ -8,16 +8,19 @@ import tarfile
 import tempfile
 from contextlib import suppress
 from pathlib import Path
-from typing import Any, Mapping, Optional, Sequence
+from typing import Any, Dict, Mapping, Optional, Sequence, Tuple
 
 from agno.sandbox.base import SandboxError, SandboxHandle, _sync
 from agno.sandbox.checkpoint import (
     CheckpointArchive,
     CheckpointRef,
-    FileCheckpointStore,
+    CheckpointStore,
+    _archive_bytes,
     _drain,
+    _encoder,
     _name,
     _preflight,
+    _thread,
 )
 from agno.sandbox.docker import DockerSandbox
 
@@ -30,16 +33,19 @@ class DockerCheckpointTransfer:
     The caller must own the session generation, drain the SDK and quiesce any
     application requiring a logical backup before capture. Pause freezes files,
     not application transactions. Restore targets a fresh, unused generation.
+    ``scratch`` holds unencrypted archives in transit and must be coordinator-private;
+    the system temporary directory is used when it is omitted.
     """
 
     def __init__(
         self,
         provider: DockerSandbox,
-        store: FileCheckpointStore,
+        store: CheckpointStore,
         *,
         archive: Optional[CheckpointArchive] = None,
+        scratch: Optional[Path] = None,
     ) -> None:
-        self.provider, self.store = provider, store
+        self.provider, self.store, self.scratch = provider, store, scratch
         self.archive = archive or CheckpointArchive()
 
     async def _copy(
@@ -80,8 +86,6 @@ class DockerCheckpointTransfer:
                     if size > limit:
                         raise SandboxError("Checkpoint transfer exceeds its byte limit")
                     if target is not None:
-                        from agno.sandbox.checkpoint import _thread
-
                         await _thread(target.write, chunk)
 
             async def stderr() -> bytes:
@@ -131,7 +135,11 @@ class DockerCheckpointTransfer:
         ).encode()
         if len(manifest) > self.archive.limits.max_manifest_bytes:
             raise SandboxError("Checkpoint manifest exceeds its limit")
-        with tarfile.open(destination, "w", format=tarfile.PAX_FORMAT) as target:
+        with (
+            destination.open("xb") as output,
+            _encoder(output, self.archive.compress) as sink,
+            tarfile.open(fileobj=sink, mode="w", format=tarfile.PAX_FORMAT) as target,
+        ):
             info = tarfile.TarInfo("manifest.json")
             info.size, info.mode = len(manifest), 0o600
             target.addfile(info, io.BytesIO(manifest))
@@ -240,7 +248,7 @@ class DockerCheckpointTransfer:
         ready = await self.provider.aexec(handle, ["mkdir", "-p", "/runtime/native"])
         if ready.exit_code:
             raise SandboxError("Could not prepare the native state directory")
-        with tempfile.TemporaryDirectory(prefix=".capture-", dir=self.store.root) as directory:
+        with tempfile.TemporaryDirectory(prefix=".capture-", dir=self.scratch) as directory:
             root = Path(directory)
             await self._pause(handle)
             cancelled = False
@@ -263,8 +271,6 @@ class DockerCheckpointTransfer:
                         raise
             # Files no longer change after export. Validation and upload run outside
             # the pause, so storage latency does not freeze warm applications.
-            from agno.sandbox.checkpoint import _thread
-
             await _thread(
                 self._combine,
                 {"workspace": root / "workspace.tar", "native": root / "native.tar"},
@@ -279,35 +285,44 @@ class DockerCheckpointTransfer:
     ) -> CheckpointRef:
         return _sync(self.acapture(handle, state=state, exclude=exclude))
 
-    def _export_root(self, checkpoint: Path, root: str, destination: Path) -> int:
-        mode = 0o700
-        with (
-            tarfile.open(checkpoint, "r:") as source,
-            tarfile.open(destination, "w", format=tarfile.PAX_FORMAT) as target,
-        ):
-            for member in source:
-                if member.name == root:
-                    mode = member.mode & 0o777
-                elif member.name.startswith(root + "/"):
+    def _split(self, checkpoint: Path, directory: Path) -> Tuple[Dict[str, Any], int]:
+        """Validate a stored archive and write one import tar per root, expanding it once.
+
+        Returns the manifest state and the captured native root mode.
+        """
+        limits = self.archive.limits
+        modes = {}
+        with _archive_bytes(checkpoint, limits) as stream:
+            _preflight(stream, limits)
+            with (
+                tarfile.open(fileobj=stream, mode="r:") as source,
+                tarfile.open(directory / "workspace.tar", "w", format=tarfile.PAX_FORMAT) as workspace,
+                tarfile.open(directory / "native.tar", "w", format=tarfile.PAX_FORMAT) as native,
+            ):
+                manifest, members = self.archive._inspect(source)
+                targets = {"workspace": workspace, "native": native}
+                for name, member in members.items():
+                    root, _, relative = name.partition("/")
+                    if root not in targets:
+                        continue
+                    if not relative:
+                        modes[root] = member.mode & 0o777
+                        continue
                     info = copy.copy(member)
                     info.pax_headers = {}
-                    info.name = member.name[len(root) + 1 :]
+                    info.name = relative
                     info.mode &= 0o777
                     info.uid = info.gid = 1000
                     info.uname = info.gname = ""
-                    target.addfile(info, source.extractfile(member) if member.isfile() else None)
-        return mode
+                    targets[root].addfile(info, source.extractfile(member) if member.isfile() else None)
+        return manifest["state"], modes.get("native", 0o700)
 
     async def arestore(self, handle: SandboxHandle, reference: CheckpointRef) -> Mapping[str, Any]:
-        from agno.sandbox.checkpoint import _thread
-
         await self._check_mounts(handle)
-        checkpoint = await self.store.averify(reference)
-        state = await self.archive.avalidate(checkpoint)
-        with tempfile.TemporaryDirectory(prefix=".import-", dir=self.store.root) as directory:
+        with tempfile.TemporaryDirectory(prefix=".import-", dir=self.scratch) as directory:
             root = Path(directory)
-            await _thread(self._export_root, checkpoint, "workspace", root / "workspace.tar")
-            native_mode = await _thread(self._export_root, checkpoint, "native", root / "native.tar")
+            async with self.store.aopen_archive(reference) as checkpoint:
+                state, native_mode = await _thread(self._split, checkpoint, root)
             # The native directory is created here, so apply its captured mode rather than the umask.
             check = await self.provider.aexec(
                 handle,

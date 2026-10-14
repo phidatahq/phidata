@@ -254,11 +254,30 @@ No model calls in the load run. Requests and daemon calls per turn are what scal
 
 **Status:** PASS
 
-**Description:** Two credential-free runtime turns on real Docker and Postgres, using the synchronous coordinator API. The second turn restores the previous files into different compute. Both computers are retired after durable publication.
+**Description:** Three runs on one session through the public coordinator API, real Docker and local Postgres 18, fixture runtime. Turn 1 and turn 2 each ran on a fresh computer, turn 2 restored from turn 1's checkpoint and passed the native conversation check, and retrying turn 2's run id returned the stored result.
 
-**Result:** Cookbook passed. Integrated failure cases cover lost start/cleanup/commit acknowledgements, checkpoint outages, compute loss before checkpointing, identity mismatch on restore, unchanged configuration on reattach, cancellation, same-session contention, and terminal-event ordering. Real Postgres regressions additionally cover atomic rejection with no phantom run, explicit migration for older non-sandbox history, and cancellation drainage while a provider operation holds ownership rows. Self-review caught destructive RunOutput parsing during terminal event construction and fixed it by copying the input dictionary. No live models or hosted providers were used. Final counts are recorded in the PR validation notes.
+**Result:** Passed: COMPLETED, COMPLETED, and the retry returned turn 2's stored content. Coordinator integration suite: 34 passed across PostgresDb and AsyncPostgresDb. On Docker 27.4, restoring with `docker cp --archive` fails with `getent unable to find entry "1000:1000"`, and `feat/sandbox`'s own `test_transfer.py` fails the same way. These runs used a local-only workaround (a passwd entry for uid 1000 in the image and a numeric `--user`) that is not part of the change.
 
-**Port onto feat/sandbox:** Re-run after porting the coordinator to the `Sandbox` provider API and the internal store, on Docker 27.4 with local Postgres 18. Coordinator suite: 32 passed across PostgresDb and AsyncPostgresDb, including two new native-continuity cases: the next turn sends the committed `native_session_id`, and a restore that loses the native state ends as an error before the model runs, with the previous checkpoint kept. Without the coordinator passing the id, that second case completed on a new conversation. Store suite: 39 passed, 1 skipped. Both cookbooks passed. On this Docker version, restoring with `docker cp --archive` fails with `getent unable to find entry "1000:1000"`, and `feat/sandbox`'s own `test_transfer.py` fails the same way. These runs used a local-only workaround (a passwd entry for uid 1000 in the image and a numeric `--user`) that is not part of this change.
+---
+
+### resume_after_disconnect.py
+
+**Status:** PASS
+
+**Description:** A six-second fixture turn whose caller task is cancelled after three seconds, then a second coordinator asks for the same run id and input. Same environment and Docker workaround as above.
+
+**Result:** Passed: the second coordinator reattached to the running execution and returned COMPLETED after 4.9s, against at least 6s for a restarted turn plus provisioning and checkpointing.
+
+---
+
+### cancel_turn.py
+
+**Status:** PASS
+
+**Description:** Turn 1 completes; turn 2 (six seconds) is cancelled after three seconds with `acancel_run`; turn 3 runs on the same session. Same environment and Docker workaround as above.
+
+**Result:** Passed: turn 2 ended CANCELLED and turn 3 completed from turn 1's checkpoint, passing the native conversation check against turn 1's id. The coordinator does not register runs with the cancellation manager, so the cancel logs "not yet registered, storing cancellation intent"; the stored intent is honored.
+
 ---
 
 Coordinator review follow-up: native transcript-mirror warnings and lost pre-checkpoint compute cannot publish success or trigger model execution retries. Tool audit history is retained on failure. Runtime output cannot replace the original submitted input or trusted service metadata. Added 2 real mirror-warning cases and 2 metadata/input boundary cases; final store suite: 32 passed. Focused finalization/mirror cases: 4 passed. Required scripts passed again.

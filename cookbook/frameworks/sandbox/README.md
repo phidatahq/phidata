@@ -174,16 +174,35 @@ The example walks the whole path on one Claude session, through five generations
 The store is internal: the coordinator builds it from the agent's `PostgresDb`. Its lease table lives in that same database, named by `PostgresDb(sandbox_table=...)` (default `<session_table>_sandbox_bindings`, since each bindings table has a foreign key to exactly one session table), and is created on first use like every other agno table, so there is no setup call. Async methods support both Postgres adapters; synchronous methods require `PostgresDb`.
 
 A runtime result is staged first. A verified checkpoint reference and provider-confirmed compute cleanup are required before one transaction publishes the run and session recovery reference. Lease epochs and queue attempts fence previous coordinators. Native session data is nested under `session_data.sandbox.native`. The run takes only runtime output fields (content, messages, tools, metrics, media, events, status) from the result; identity, input, lineage and service metadata stay as stored, and runtime metadata is nested under `metadata.sandbox.native_metadata`. The store keeps nothing it depends on in `session_data`, so editing a session mid-run is safe. The binding row has a foreign key to its session with `ON DELETE CASCADE`: deleting a session deletes its binding, a recreated session (even with the same id, `created_at` and run id) starts from a fresh binding, and every lease carries its binding's incarnation, so a coordinator still holding a lease for the deleted session is refused. The store then no longer tracks a computer that was running for the deleted session; providers should sweep orphaned computers by their labels. The binding's `checkpoint` is the authoritative recovery point. `session_data.sandbox` is a copy for readers, and a stale session upsert can overwrite it.
-## Session computer coordinator
 
-`session_computer.py` runs two fixture turns through the complete Docker/Postgres path. Build the runtime, then set `AGNO_TEST_RUNTIME_IMAGE` and `AGNO_TEST_SANDBOX_DB_URL` before running it. No model credentials are used. The second turn restores the first turn's workspace onto a replacement computer.
+## Session coordinator
+
+`SandboxCoordinator` runs a session's turns on sandbox computers with durable recovery. These three cookbooks use only its public API and the credential-free fixture runtime; build the runtime image and start pgvector first:
+
+```bash
+./cookbook/scripts/run_pgvector.sh
+.venv/bin/python cookbook/frameworks/sandbox/build_image.py
+```
+
+| Cookbook | What it shows |
+|----------|---------------|
+| `session_computer.py` | Several turns of one session, each on a fresh computer restored from the last checkpoint; retrying a finished run returns its stored result |
+| `resume_after_disconnect.py` | The caller drops mid-turn, the turn keeps running in its container, and another coordinator reattaches to it |
+| `cancel_turn.py` | A cancelled turn publishes nothing; the next turn continues from the last completed one |
 
 ```python
 coordinator = SandboxCoordinator(db, DockerSandbox(image), transfer)
-coordinator.run("session-id", agent_id="coder", run_id="turn-1", input="...", sdk="claude", env={...})
+coordinator.run(
+    "session-id",
+    agent_id="coder",
+    run_id="turn-1",
+    input="...",
+    sdk="claude",
+    env={"ANTHROPIC_API_KEY": key},
+)
 ```
 
-`db` is the agent's `PostgresDb`; the coordinator keeps its leases there, with no setup call. Image and resource limits belong to the provider, and `env` is the per-session runtime environment.
+`db` is the agent's `PostgresDb`; the coordinator keeps its leases there, with no setup call. Image and resource limits belong to the provider, and `env` is the per-session runtime environment. A real SDK also needs network access, for example `DockerSandbox(image, network="bridge")`.
 
 Each commit records the native conversation id the checkpoint holds (Claude's session id, Codex's thread id) on the session's binding. The next turn passes it as `native_session_id`, so a restore that did not bring the native state back fails with `native_state_missing` before the model runs, instead of completing on a new conversation. The turn ends as a retryable error and the previous checkpoint stays the recovery point.
 

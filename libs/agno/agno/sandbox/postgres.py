@@ -166,12 +166,14 @@ class _SandboxStore:
         self.sessions = await self._table("sessions", self.db.session_table_name)
         self.runs = await self._table("runs", self.db.runs_table_name)
         self.bindings = await self._table("sandbox_bindings", self.db.sandbox_table_name)
-        owners = {key.column.table.name for key in self.bindings.foreign_keys}
+        owners = {key.column.table.name for key in self.bindings.c.session_id.foreign_keys}
         if owners != {self.sessions.name}:
             raise SandboxError(
                 f"Sandbox table {self.bindings.name} belongs to session table {', '.join(sorted(owners)) or 'none'}, "
                 f"not {self.sessions.name}; give each session table its own sandbox_table"
             )
+        if {key.column.table.name for key in self.bindings.c.run_id.foreign_keys} != {self.runs.name}:
+            raise SandboxError(f"Sandbox table {self.bindings.name} does not reference run table {self.runs.name}")
         self._tables_ready = True
 
     async def _transaction(self, operation: Callable[[Connection], _T]) -> _T:

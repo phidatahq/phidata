@@ -25,7 +25,7 @@ from agno.db.base import (
 )
 from agno.db.migrations.manager import MigrationManager
 from agno.db.postgres.engine import _engine_options
-from agno.db.postgres.schemas import get_table_schema_definition
+from agno.db.postgres.schemas import default_sandbox_table_name, get_table_schema_definition
 from agno.db.postgres.utils import (
     apply_sorting,
     bulk_upsert_metrics,
@@ -259,7 +259,7 @@ class PostgresDb(BaseDb):
         self.metadata: MetaData = MetaData(schema=self.db_schema)
         self.create_schema: bool = create_schema
         # The bindings table has a foreign key to one session table, so each gets its own.
-        self.sandbox_table_name: str = sandbox_table or self.session_table_name + "_sandbox_bindings"
+        self.sandbox_table_name: str = sandbox_table or default_sandbox_table_name(self.session_table_name)
 
         # Initialize database session
         self.Session: scoped_session = scoped_session(sessionmaker(bind=self.db_engine, expire_on_commit=False))
@@ -380,6 +380,7 @@ class PostgresDb(BaseDb):
                 db_schema=self.db_schema,
                 schedules_table_name=self.schedules_table_name,
                 session_table_name=self.session_table_name,
+                runs_table_name=self.runs_table_name,
             ).copy()
 
             # Register FK parent tables on the metadata first, so SQLAlchemy

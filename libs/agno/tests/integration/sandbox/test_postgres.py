@@ -545,3 +545,23 @@ async def test_repeated_cancellation_still_waits_for_its_sync_transaction(store)
     with pytest.raises(asyncio.CancelledError):
         await task
     assert finished
+
+
+async def test_deleting_a_run_under_an_active_turn_is_refused(store):
+    lease = await staged(store)
+    delete = store.db.delete_run
+    with pytest.raises(Exception):
+        if isinstance(store.db, AsyncPostgresDb):
+            await delete("run")
+        else:
+            await asyncio.to_thread(delete, "run")
+    run, _, binding = await rows(store)
+    assert run["run_id"] == "run" and binding["run_id"] == "run"
+    await store.astage_checkpoint(lease, REF)
+    await store.aconfirm_stopped(lease, "ref")
+    await store.acommit(lease)
+    # Once the turn is committed the binding no longer holds the run.
+    if isinstance(store.db, AsyncPostgresDb):
+        assert await delete("run")
+    else:
+        assert await asyncio.to_thread(delete, "run")

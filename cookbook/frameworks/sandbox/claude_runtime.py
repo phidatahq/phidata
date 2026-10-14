@@ -39,8 +39,11 @@ if not credentials:
 sandbox = DockerSandbox(
     image=os.environ.get("AGNO_SANDBOX_IMAGE", "agno-sandbox:local"),
     namespace="claude-runtime-" + uuid4().hex,
-    network="bridge",
+    network="isolated",
     memory_mb=1024,
+    # The container serves the runtime over HTTP on a loopback-published port, so start and
+    # poll are pooled requests instead of a docker exec each.
+    runtime_port=8765,
 )
 identity = {"session_id": "example", "agent_id": "coder", "env": credentials}
 runtime_config = {
@@ -105,7 +108,9 @@ try:
     print("Paused:", sandbox.get(computer.provider_ref).state)
     resumed = sandbox.resume(computer)
     assert resumed.provider_ref == computer.provider_ref
-    print("Resumed the same container, nothing restored")
+    print(
+        "Resumed the same container: files and native session still in place, no checkpoint restore needed"
+    )
 
     second = run_turn(
         resumed,

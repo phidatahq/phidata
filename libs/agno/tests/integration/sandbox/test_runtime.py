@@ -17,14 +17,19 @@ pytestmark = [
 ]
 
 
-@pytest_asyncio.fixture
-async def runtime_computer():
-    provider = DockerSandbox(IMAGE, namespace="runtime-test-" + uuid4().hex, memory_mb=512)
+@pytest_asyncio.fixture(params=["exec", "http"])
+async def runtime_computer(request):
+    """Every runtime case runs over both transports: the runtime spawned per request over
+    docker exec, and the runtime served over HTTP from a port published on loopback."""
+    options = {"network": "isolated", "runtime_port": 8765} if request.param == "http" else {}
+    provider = DockerSandbox(IMAGE, namespace="runtime-test-" + uuid4().hex, memory_mb=512, **options)
     handle = await provider.acreate("s", agent_id="a", env={"AGNO_SANDBOX_TEST_RUNTIME": "1"})
+    assert (handle.runtime_url is not None) == (request.param == "http")
     try:
         yield provider, handle, SandboxRuntimeClient(provider)
     finally:
         await provider.adestroy(handle)
+        await provider.aremove_network()  # best effort: left in place while other sandboxes use it
 
 
 async def test_reconnect_and_duplicate_dispatch_execute_only_once(runtime_computer):
@@ -32,7 +37,15 @@ async def test_reconnect_and_duplicate_dispatch_execute_only_once(runtime_comput
     execution = await first.astart(
         computer, execution_id="e", run_id="r", sdk="fixture", input="hello", config={"delay": 0.3}
     )
-    second = SandboxRuntimeClient(DockerSandbox(IMAGE, namespace=provider.namespace, memory_mb=512))
+    second = SandboxRuntimeClient(
+        DockerSandbox(
+            IMAGE,
+            namespace=provider.namespace,
+            memory_mb=512,
+            network=provider.network,
+            runtime_port=provider.runtime_port,
+        )
+    )
     assert (
         await second.astart(computer, execution_id="e", run_id="r", sdk="fixture", input="hello", config={"delay": 0.3})
         == execution
@@ -140,10 +153,165 @@ print('SDK construction passed without model calls')
     assert "SDK construction passed" in result.stdout
 
 
+async def test_http_transport_long_polls_and_streams_events_as_they_land(runtime_computer):
+    import time
+
+    provider, computer, client = runtime_computer
+    if computer.runtime_url is None:
+        pytest.skip("exec transport")
+    execution = await client.astart(
+        computer, execution_id="lp", run_id="r", sdk="fixture", input="late", config={"delay": 1.0}
+    )
+    started = time.monotonic()
+    first = await client.apoll(execution, wait=10)
+    waited = time.monotonic() - started
+    # The poll was held inside the container until the fixture journaled its event, well under the wait.
+    assert [event.get("content") for event in first.events] == ["late"] or first.result is not None
+    assert 0.5 < waited < 5
+    result = await client.await_result(execution, timeout=20)
+    assert result["run"]["content"] == "late"
+
+
+async def test_http_transport_refuses_requests_without_the_containers_token(runtime_computer):
+    import httpx
+
+    provider, computer, client = runtime_computer
+    if computer.runtime_url is None:
+        pytest.skip("exec transport")
+    assert computer.runtime_token
+    async with httpx.AsyncClient() as raw:
+        anonymous = await raw.get(computer.runtime_url + "/health")
+        assert anonymous.status_code == 401
+        owner = await raw.get(
+            computer.runtime_url + "/health", headers={"Authorization": "Bearer " + computer.runtime_token}
+        )
+        assert owner.status_code == 200
+
+
+_KILL_SERVER = (
+    "import os, signal\n"
+    "for pid in os.listdir('/proc'):\n"
+    "    if not pid.isdigit() or int(pid) == os.getpid():\n"
+    "        continue\n"
+    "    try:\n"
+    "        cmd = open(f'/proc/{pid}/cmdline', 'rb').read().replace(b'\\0', b' ')\n"
+    "    except OSError:\n"
+    "        continue\n"
+    "    if b'agno.sandbox.runtime serve' in cmd:\n"
+    "        os.kill(int(pid), signal.SIGKILL)\n"
+    "        print(pid)\n"
+)
+
+
+async def test_the_turn_never_sees_the_control_token(runtime_computer):
+    provider, computer, client = runtime_computer
+    execution = await client.astart(computer, execution_id="env", run_id="r", sdk="fixture", input="x")
+    await client.await_result(execution, timeout=20)
+    seen = (await provider.aexec(computer, ["cat", "fixture-env.txt"])).stdout.split()
+    assert "AGNO_SANDBOX_TEST_RUNTIME" in seen, "the fixture reports the variables it can see"
+    assert "AGNO_SANDBOX_RUNTIME_TOKEN" not in seen, "the token never reaches the worker's environment"
+
+
+async def test_server_crash_mid_turn_is_survived_by_the_turn_and_healed_by_the_supervisor(runtime_computer):
+    import asyncio
+
+    import httpx
+
+    provider, computer, client = runtime_computer
+    if computer.runtime_url is None:
+        pytest.skip("exec transport")
+    execution = await client.astart(
+        computer, execution_id="crash", run_id="r", sdk="fixture", input="still here", config={"delay": 3.0}
+    )
+    killed = await provider.aexec(computer, ["python", "-c", _KILL_SERVER])
+    assert killed.exit_code == 0 and killed.stdout.strip(), "the server process was found and killed"
+    headers = {"Authorization": "Bearer " + computer.runtime_token}
+    async with httpx.AsyncClient() as http:
+        for _ in range(50):
+            try:
+                if (await http.get(computer.runtime_url + "/health", headers=headers, timeout=1)).status_code == 200:
+                    break
+            except httpx.HTTPError:
+                pass
+            await asyncio.sleep(0.1)
+        else:
+            pytest.fail("the runtime server did not come back")
+    result = await client.await_result(execution, timeout=20)
+    assert result["type"] == "execution_finished" and result["run"]["content"] == "still here"
+    assert (await provider.aexec(computer, ["cat", "fixture-effects.txt"])).stdout == "r\n", "ran exactly once"
+
+
+_CONNECT = "import socket, sys; socket.create_connection((sys.argv[1], 8765), timeout=3); print('reached')"
+
+
+@pytest.mark.parametrize("network", ["isolated", "bridge"])
+async def test_sandboxes_cannot_reach_each_other_on_the_isolated_network(network):
+    """Two sandboxes in one namespace: on the isolated bridge neither can open the other's runtime
+    port, while on Docker's default bridge the same connection succeeds. The host still reaches
+    both through their published loopback ports, which create already verified via /health."""
+    provider = DockerSandbox(
+        IMAGE, namespace="isolation-test-" + uuid4().hex, memory_mb=512, network=network, runtime_port=8765
+    )
+    a = await provider.acreate("a", env={"AGNO_SANDBOX_TEST_RUNTIME": "1"})
+    b = await provider.acreate("b", env={"AGNO_SANDBOX_TEST_RUNTIME": "1"})
+    try:
+        code, out, _ = await provider._docker(
+            "container", "inspect", "-f", "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}", b.provider_ref
+        )
+        ip = out.decode().strip()
+        assert code == 0 and ip, "b has an address on the network"
+        if network == "isolated":
+            import ipaddress
+
+            assert ipaddress.ip_address(ip) in ipaddress.ip_network(provider.subnet), (
+                "addresses come from the pinned subnet"
+            )
+        result = await provider.aexec(a, ["python", "-c", _CONNECT, ip], timeout=10)
+        if network == "isolated":
+            assert result.exit_code != 0 and "reached" not in result.stdout, "a cannot open b's runtime port"
+        else:
+            assert result.exit_code == 0 and "reached" in result.stdout, "the default bridge lets a reach b"
+    finally:
+        await provider.adestroy(a)
+        await provider.adestroy(b)
+        await provider.aremove_network()  # best effort: left in place while other sandboxes use it
+
+
+_SERVER_ENVIRON = (
+    "import os\n"
+    "for pid in os.listdir('/proc'):\n"
+    "    if not pid.isdigit():\n"
+    "        continue\n"
+    "    try:\n"
+    "        cmd = open(f'/proc/{pid}/cmdline', 'rb').read()\n"
+    "        env = open(f'/proc/{pid}/environ', 'rb').read()\n"
+    "    except OSError:\n"
+    "        continue\n"
+    "    if b'agno.sandbox.runtime' in cmd and b'serve' in cmd and b'supervise' not in cmd:\n"
+    "        print('server', 'token' if b'AGNO_SANDBOX_RUNTIME_TOKEN=' in env else 'clean')\n"
+)
+
+
+async def test_host_exec_and_the_serving_process_do_not_carry_the_token(runtime_computer):
+    """What stays: PID 1 and the supervisor keep the token in their exec-time environment, readable by
+    the same UID. Only a separate UID for the runtime server removes that."""
+    provider, computer, client = runtime_computer
+    if computer.runtime_url is None:
+        pytest.skip("exec transport")
+    shell = await provider.aexec(computer, ["sh", "-c", 'echo "${AGNO_SANDBOX_RUNTIME_TOKEN:-absent}"'])
+    assert shell.stdout.strip() == "absent", "a host-run command sees the variable blanked"
+    server = await provider.aexec(computer, ["python", "-c", _SERVER_ENVIRON])
+    assert server.stdout.strip() == "server clean", "the serving process has no token in its environ"
+    execution = await client.astart(computer, execution_id="t", run_id="r", sdk="fixture", input="works")
+    assert (await client.await_result(execution, timeout=20))["run"]["content"] == "works", "the token still works"
+
+
 async def test_lost_poll_response_keeps_execution_available_for_another_client(runtime_computer, monkeypatch):
     import json
 
     provider, computer, first = runtime_computer
+    if computer.runtime_url is not None:
+        pytest.skip("Injects a lost reply on the exec transport")
     execution = await first.astart(
         computer, execution_id="e", run_id="r", sdk="fixture", input="survives", config={"delay": 1}
     )

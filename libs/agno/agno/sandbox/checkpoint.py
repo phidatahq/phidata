@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import errno
+import gzip
 import hashlib
 import io
 import json
@@ -17,34 +18,54 @@ import shutil
 import stat
 import tarfile
 import tempfile
-from contextlib import suppress
+import zlib
+from contextlib import asynccontextmanager, contextmanager, nullcontext, suppress
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
-from typing import Any, BinaryIO, Callable, Dict, Mapping, Sequence, TypeVar
+from typing import (
+    Any,
+    AsyncContextManager,
+    AsyncIterator,
+    BinaryIO,
+    Callable,
+    ContextManager,
+    Dict,
+    Iterator,
+    Mapping,
+    Optional,
+    Protocol,
+    Sequence,
+    Tuple,
+    TypeVar,
+    runtime_checkable,
+)
 
 from agno.sandbox.base import SandboxError
 
 _ROOTS = {"workspace", "native"}
 _MANIFEST = "manifest.json"
 _CHUNK = 1024 * 1024
+_GZIP_MAGIC = b"\x1f\x8b"
+# Level 4, not zlib's default 6: on a checkpoint of already-deflated package data plus a
+# source tree it reaches within 5% of 6's ratio for 44% of its time, and a capture runs
+# on every turn.
+_GZIP_LEVEL = 4
 _T = TypeVar("_T")
 
 
-async def _drain(task: asyncio.Task[Any]) -> None:
+async def _drain(task: asyncio.Task[Any]) -> Optional[BaseException]:
     """Let a shielded operation finish, however often the caller is cancelled.
 
     Shielding alone is not enough: a second cancellation interrupts the await that was
     waiting for the work, and the caller returns while it is still running. ``wait``
     reports completion without re-raising, so the operation's own failure cannot divert
-    the drain either.
+    the drain either. Returning the failure retrieves it, so it is never a stray task
+    exception, and lets the caller chain it onto the cancellation it is about to raise.
     """
     while not task.done():
         with suppress(asyncio.CancelledError):
             await asyncio.wait({task})
-    if not task.cancelled():
-        # Cancellation stays the caller's outcome, so the operation's own failure is
-        # retrieved and dropped; unretrieved, it would surface as a stray task exception.
-        task.exception()
+    return None if task.cancelled() else task.exception()
 
 
 async def _thread(function: Callable[..., _T], *args: Any, **kwargs: Any) -> _T:
@@ -53,9 +74,22 @@ async def _thread(function: Callable[..., _T], *args: Any, **kwargs: Any) -> _T:
     task = asyncio.create_task(asyncio.to_thread(function, *args, **kwargs))
     try:
         return await asyncio.shield(task)
-    except asyncio.CancelledError:
-        await _drain(task)
-        raise
+    except asyncio.CancelledError as cancelled:
+        failure = await _drain(task)
+        if failure is None:
+            raise
+        # Cancellation stays the outcome, but the write that died under it is still the
+        # useful diagnostic, so chain it on rather than discarding it.
+        raise cancelled from failure
+
+
+class CheckpointObjectNotFound(SandboxError):
+    """The object a reference names is not in storage.
+
+    Retention, storage loss or an external deletion removes objects that references
+    still point at. It is a condition of the storage rather than of the request, so a
+    service answers it as storage being unavailable, not as a missing resource.
+    """
 
 
 @dataclass(frozen=True)
@@ -152,11 +186,68 @@ def _resolved(path: Path) -> Path:
 
 
 def _regular(path: Path) -> BinaryIO:
+    if not hasattr(os, "O_NOFOLLOW"):
+        raise SandboxError("Checkpoint file access requires os.O_NOFOLLOW; use a host with no-follow file opens")
     fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
     if not stat.S_ISREG(os.fstat(fd).st_mode):
         os.close(fd)
         raise SandboxError("Checkpoint object must be a regular file")
     return os.fdopen(fd, "rb")
+
+
+def _encoder(output: BinaryIO, compress: bool) -> ContextManager[Any]:
+    """Wrap a destination file in the configured encoder, for writers of either format.
+
+    The yielded sink is writable binary either way, but ``GzipFile`` and the plain file
+    share no stream supertype that typeshed declares, hence ``Any``.
+
+    No filename and no timestamp go in the header: the store deduplicates objects by
+    the digest of their stored bytes, and recording when a capture ran would give one
+    unchanged tree a different object every turn.
+    """
+    if not compress:
+        return nullcontext(output)
+    return gzip.GzipFile(filename="", mode="wb", compresslevel=_GZIP_LEVEL, fileobj=output, mtime=0)
+
+
+@contextmanager
+def _archive_bytes(source: Path, limits: CheckpointLimits) -> Iterator[BinaryIO]:
+    """Open a stored checkpoint object as a seekable stream of archive bytes.
+
+    Both stored representations are accepted, identified by the compressed one's two
+    magic bytes rather than by trying decoders in turn. Validation walks tar offsets, so
+    compressed bytes are expanded into a real descriptor before any of them is trusted.
+    The expansion is chunked and counted: a stored size bounds nothing once the bytes are
+    deflated, so the limit has to be applied as they are produced. The staging file is
+    unlinked as it is created, so an interrupted restore leaves nothing to clean up.
+    """
+    with _regular(source) as stored:
+        if os.fstat(stored.fileno()).st_size > limits.max_bytes:
+            raise SandboxError("Checkpoint archive exceeds its limit")
+        magic = stored.read(len(_GZIP_MAGIC))
+        stored.seek(0)
+        if magic != _GZIP_MAGIC:
+            yield stored
+            return
+        with tempfile.TemporaryFile() as expanded:
+            total = 0
+            with gzip.GzipFile(fileobj=stored, mode="rb") as decoder:
+                while True:
+                    # Only the decode is guarded. A write failure here is a real
+                    # filesystem error and has to reach the caller as one.
+                    try:
+                        chunk = decoder.read(_CHUNK)
+                    except (EOFError, zlib.error, gzip.BadGzipFile) as error:
+                        raise SandboxError("Invalid compressed checkpoint archive") from error
+                    if not chunk:
+                        break
+                    total += len(chunk)
+                    if total > limits.max_bytes:
+                        raise SandboxError("Checkpoint archive exceeds its limit")
+                    expanded.write(chunk)
+            expanded.flush()
+            expanded.seek(0)
+            yield expanded
 
 
 def _preflight(stream: BinaryIO, limits: CheckpointLimits) -> None:
@@ -190,25 +281,52 @@ def _preflight(stream: BinaryIO, limits: CheckpointLimits) -> None:
     raise SandboxError("Checkpoint archive ends without its end-of-archive marker")
 
 
+def _discard(path: Path) -> None:
+    """Remove a partial restore tree without masking the failure that caused it.
+
+    A restored directory can be read-only, which stops its children being unlinked,
+    so modes are reopened top down and each directory is writable before it is
+    entered. Nothing here may raise: this runs while another exception is in flight.
+    """
+    for parent, directories, _ in os.walk(path):
+        for directory in directories:
+            child = os.path.join(parent, directory)
+            # A symlink to a directory is listed here and chmod would follow it, so an
+            # archive's link could retarget this outside the tree. Links need no mode:
+            # removal unlinks them, and the walk does not descend through them.
+            if not os.path.islink(child):
+                with suppress(OSError):
+                    os.chmod(child, 0o700)
+    shutil.rmtree(path, ignore_errors=True)
+
+
 def _fsync_directory(path: Path) -> None:
-    fd = os.open(path, os.O_RDONLY)
     try:
-        os.fsync(fd)
-    finally:
-        os.close(fd)
+        fd = os.open(path, os.O_RDONLY)
+        try:
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+    except (NotImplementedError, OSError) as error:
+        if isinstance(error, OSError) and error.errno not in (errno.ENOSYS, errno.ENOTSUP, errno.EOPNOTSUPP):
+            raise
+        raise SandboxError("Checkpoint storage requires directory fsync; use a filesystem that supports it") from error
 
 
 class CheckpointArchive:
-    """Uncompressed tar with exactly workspace/native roots and a JSON state manifest.
+    """Tar with exactly workspace/native roots and a JSON state manifest.
 
+    ``compress`` selects the representation this instance writes; reading accepts
+    either one, so an archive written before compression existed still restores.
     Native credentials must live outside the declared native root. Explicit
     exclusions are relative to either root, for example ``native/auth.json``.
     User workspace files, including ignored/untracked files, are otherwise kept.
     Restore rejects special files, hardlinks, escaping symlinks and duplicate paths.
     """
 
-    def __init__(self, limits: CheckpointLimits = CheckpointLimits()) -> None:
+    def __init__(self, limits: CheckpointLimits = CheckpointLimits(), *, compress: bool = True) -> None:
         self.limits = limits
+        self.compress = compress
 
     def capture(
         self, roots: Mapping[str, Path], destination: Path, *, state: Mapping[str, Any], exclude: Sequence[str] = ()
@@ -234,11 +352,44 @@ class CheckpointArchive:
                 raise SandboxError("Durable roots must be real directories")
             if destination.resolve().is_relative_to(root_paths[name]):
                 raise SandboxError("Checkpoint destination cannot be inside a captured root")
+        # An exclusion names one archive prefix, so a root that contains the other would
+        # carry an excluded file in under that other prefix. Compared resolved: neither
+        # root has to be a link for an ancestor of one to be an alias of the other.
+        if root_paths["workspace"].is_relative_to(root_paths["native"]) or root_paths["native"].is_relative_to(
+            root_paths["workspace"]
+        ):
+            raise SandboxError("Durable roots must not overlap")
+        # An exclusion names a path, but a hardlink is a second name for the same bytes.
+        # Collect the inodes behind each exclusion so an alias cannot smuggle them in.
+        # Only possible while the excluded path exists: once its original is unlinked, a
+        # surviving link is indistinguishable from a file that was never excluded.
+        excluded_inodes: Dict[Tuple[int, int], str] = {}
+
+        def collect(path: Path, name: str) -> None:
+            entry = path.lstat()
+            if stat.S_ISDIR(entry.st_mode):
+                for child in sorted(path.iterdir()):
+                    collect(child, name + "/" + child.name)
+            elif stat.S_ISREG(entry.st_mode) and entry.st_nlink > 1:
+                excluded_inodes.setdefault((entry.st_dev, entry.st_ino), name)
+
+        for item in sorted(exclusions):
+            parts = PurePosixPath(item).parts
+            root = root_paths[parts[0]]
+            excluded = root.joinpath(*parts[1:])
+            # Resolve before walking. A symlinked component would otherwise send this
+            # outside the root and enumerate a tree the roots do not contain, and such a
+            # path excludes nothing inside the root anyway.
+            if os.path.lexists(excluded) and _resolved(excluded).is_relative_to(root):
+                collect(excluded, item)
         output_file = destination.open("xb")
         try:
+            # Closing order: the tar's end-of-archive marker is written first, then the
+            # encoder flushes, then the file closes.
             with (
                 output_file as output,
-                tarfile.open(fileobj=output, mode="w", format=tarfile.PAX_FORMAT) as archive,
+                _encoder(output, self.compress) as sink,
+                tarfile.open(fileobj=sink, mode="w", format=tarfile.PAX_FORMAT) as archive,
             ):
                 info = tarfile.TarInfo(_MANIFEST)
                 info.size = len(manifest)
@@ -278,6 +429,9 @@ class CheckpointArchive:
                             raise SandboxError("Checkpoint symlink chain escapes its durable root")
                         archive.addfile(info)
                     elif info.isfile():
+                        alias = excluded_inodes.get((entry.st_dev, entry.st_ino))
+                        if alias is not None:
+                            raise SandboxError(f"Checkpoint entry {name!r} is a hardlink to excluded {alias!r}")
                         size += info.size
                         if size > self.limits.max_bytes:
                             raise SandboxError("Checkpoint data exceeds its limit")
@@ -300,11 +454,18 @@ class CheckpointArchive:
                                 raise SandboxError("Workspace changed during checkpoint capture")
                     else:
                         raise SandboxError("Checkpoint contains an unsupported file type")
-                    if output.tell() > self.limits.max_bytes:
+                    if sink.tell() > self.limits.max_bytes:
                         raise SandboxError("Checkpoint archive exceeds its limit")
 
                 for name in sorted(_ROOTS):
                     add(root_paths[name], name)
+                # Closed here, not by the block, because only an open encoder reports the
+                # expanded length and the end-of-archive marker has to be in it first.
+                archive.close()
+                if sink.tell() > self.limits.max_bytes:
+                    raise SandboxError("Checkpoint archive exceeds its limit")
+            # Restore bounds the stored bytes too, and compression is not guaranteed to
+            # shrink what it wraps.
             if destination.stat().st_size > self.limits.max_bytes:
                 raise SandboxError("Checkpoint archive exceeds its limit")
         except BaseException:
@@ -348,7 +509,7 @@ class CheckpointArchive:
         assert manifest_file is not None
         try:
             manifest = json.load(manifest_file)
-        except (json.JSONDecodeError, UnicodeDecodeError) as error:
+        except (ValueError, RecursionError) as error:
             raise SandboxError("Invalid checkpoint manifest") from error
         if (
             not isinstance(manifest, dict)
@@ -385,9 +546,7 @@ class CheckpointArchive:
         # symlink anywhere in the parent's own path would otherwise fail every comparison.
         temporary = Path(tempfile.mkdtemp(prefix=".restore-", dir=destination.parent)).resolve()
         try:
-            with _regular(source) as stream:
-                if os.fstat(stream.fileno()).st_size > self.limits.max_bytes:
-                    raise SandboxError("Checkpoint archive exceeds its limit")
+            with _archive_bytes(source, self.limits) as stream:
                 _preflight(stream, self.limits)
                 with tarfile.open(fileobj=stream, mode="r:") as archive:
                     manifest, members = self._inspect(archive)
@@ -413,10 +572,24 @@ class CheckpointArchive:
                             root = temporary / PurePosixPath(name).parts[0]
                             if not _resolved(temporary / name).is_relative_to(root):
                                 raise SandboxError("Checkpoint symlink chain escapes its durable root")
-                    # Directories remain writable while children are materialized.
+                    # Last pass, deepest first: materializing a child retimes its parent,
+                    # and a directory stays writable until its own children exist.
                     for name, member in sorted(members.items(), reverse=True):
+                        if name == _MANIFEST:
+                            continue
+                        path = temporary / name
+                        times = (member.mtime, member.mtime)
+                        try:
+                            if member.issym():
+                                # Stamp the link itself; following it would retime its target.
+                                os.utime(path, times, follow_symlinks=False)
+                            else:
+                                os.utime(path, times)
+                        except (OverflowError, ValueError) as error:
+                            # A hostile archive can carry a NaN or out-of-range timestamp.
+                            raise SandboxError("Invalid checkpoint timestamp") from error
                         if member.isdir():
-                            (temporary / name).chmod(member.mode & 0o777)
+                            path.chmod(member.mode & 0o777)
             os.rename(temporary, destination)
             return manifest["state"]
         except tarfile.TarError as error:
@@ -424,11 +597,68 @@ class CheckpointArchive:
             # namely opening the archive, walking members and reading a member's bytes.
             raise SandboxError("Invalid checkpoint archive") from error
         finally:
-            if temporary.exists():
-                shutil.rmtree(temporary)
+            _discard(temporary)
 
     async def arestore(self, source: Path, destination: Path) -> Dict[str, Any]:
         return await _thread(self.restore, source, destination)
+
+
+@runtime_checkable
+class CheckpointStore(Protocol):
+    """Immutable checkpoint objects addressed by the digest of their stored bytes.
+
+    An implementation owns where those bytes live and nothing more: capture,
+    validation and restore all belong to ``CheckpointArchive``. A reference is only
+    publishable after the durable run commit, and ``delete`` belongs to retention
+    rather than to compute destruction, so destroying compute never removes an object.
+
+    Reading an object that is absent raises ``CheckpointObjectNotFound``; one that is
+    oversized, or that does not match its reference, raises ``SandboxError``. ``delete``
+    is the exception, because removing an object that is already gone succeeds. Every
+    other filesystem or transport failure is passed through unchanged, except that
+    an unavailable required filesystem primitive raises ``SandboxError`` with its
+    original failure as the cause when available.
+    """
+
+    def put(self, source: Path) -> CheckpointRef:
+        """Store ``source`` and return the reference describing its stored bytes."""
+        ...
+
+    async def aput(self, source: Path) -> CheckpointRef: ...
+
+    def verify(self, reference: CheckpointRef) -> None:
+        """Re-read the stored object and raise unless its size and digest both match.
+
+        Raises ``CheckpointObjectNotFound`` when storage no longer holds it. Reading one
+        back is ``open_archive``'s job: an object need not have a path.
+        """
+        ...
+
+    async def averify(self, reference: CheckpointRef) -> None: ...
+
+    def open_archive(self, reference: CheckpointRef) -> ContextManager[Path]:
+        """Verify the object, then yield a path holding its stored archive bytes.
+
+        The bytes are the ones the reference names, not a decoded archive, so the
+        digest still describes what the caller reads.
+
+        The store owns the path and it is valid only inside the context. Exiting
+        releases whatever the store materialized to produce it, on an exception as much
+        as on success, and never removes the object itself. Concurrent and repeated
+        accesses are independent.
+        """
+        ...
+
+    def aopen_archive(self, reference: CheckpointRef) -> AsyncContextManager[Path]:
+        """Async ``open_archive``, with the same ownership and lifetime, and releasing
+        what it materialized under cancellation too."""
+        ...
+
+    def delete(self, reference: CheckpointRef) -> None:
+        """Remove the object. Removing one that is already gone is not an error."""
+        ...
+
+    async def adelete(self, reference: CheckpointRef) -> None: ...
 
 
 class FileCheckpointStore:
@@ -469,6 +699,10 @@ class FileCheckpointStore:
                 os.link(temporary, target)
             except FileExistsError:
                 self.verify(reference)
+            except (NotImplementedError, OSError) as error:
+                if isinstance(error, OSError) and error.errno not in (errno.ENOSYS, errno.ENOTSUP, errno.EOPNOTSUPP):
+                    raise
+                raise SandboxError("Checkpoint storage requires filesystem hard links for publication") from error
             _fsync_directory(self.root)
             return reference
         finally:
@@ -477,12 +711,18 @@ class FileCheckpointStore:
     async def aput(self, source: Path) -> CheckpointRef:
         return await _thread(self.put, source)
 
-    def verify(self, reference: CheckpointRef) -> Path:
+    def verify(self, reference: CheckpointRef) -> None:
+        self._verify(self.root / reference.sha256, reference)
+
+    def _verify(self, path: Path, reference: CheckpointRef) -> None:
         if reference.size > self.max_bytes:
             raise SandboxError("Checkpoint object exceeds its limit")
-        path = self.root / reference.sha256
         digest, size = hashlib.sha256(), 0
-        with _regular(path) as stream:
+        try:
+            stream = _regular(path)
+        except FileNotFoundError as error:
+            raise CheckpointObjectNotFound("Checkpoint object is missing") from error
+        with stream:
             if os.fstat(stream.fileno()).st_size != reference.size:
                 raise SandboxError("Checkpoint size mismatch")
             while chunk := stream.read(_CHUNK):
@@ -492,16 +732,66 @@ class FileCheckpointStore:
                 digest.update(chunk)
         if size != reference.size or digest.hexdigest() != reference.sha256:
             raise SandboxError("Checkpoint checksum mismatch")
-        return path
 
-    async def averify(self, reference: CheckpointRef) -> Path:
-        return await _thread(self.verify, reference)
+    async def averify(self, reference: CheckpointRef) -> None:
+        await _thread(self.verify, reference)
+
+    @contextmanager
+    def _lease(self, reference: CheckpointRef) -> Iterator[Path]:
+        """Hold the object's bytes under a private name for as long as the lease lasts.
+
+        Retention unlinks the canonical name on its own schedule, which a reader that
+        already holds the object must not see disappear. A second link keeps those exact
+        bytes reachable; releasing it leaves the object itself alone.
+        """
+        lease = self.root / f".open-{os.urandom(8).hex()}"
+        try:
+            os.link(self.root / reference.sha256, lease)
+        except FileNotFoundError as error:
+            raise CheckpointObjectNotFound("Checkpoint object is missing") from error
+        except (NotImplementedError, OSError) as error:
+            if isinstance(error, OSError) and error.errno not in (errno.ENOSYS, errno.ENOTSUP, errno.EOPNOTSUPP):
+                raise
+            raise SandboxError("Checkpoint storage requires filesystem hard links for archive leases") from error
+        try:
+            yield lease
+        finally:
+            lease.unlink(missing_ok=True)
+
+    @contextmanager
+    def open_archive(self, reference: CheckpointRef) -> Iterator[Path]:
+        """Lease the object, verify the leased file, and yield it.
+
+        The file handed out is the file that was checked, and retention removing the
+        canonical name after the lease exists cannot fail the check.
+        """
+        with self._lease(reference) as lease:
+            self._verify(lease, reference)
+            yield lease
+
+    @asynccontextmanager
+    async def aopen_archive(self, reference: CheckpointRef) -> AsyncIterator[Path]:
+        with self._lease(reference) as lease:
+            # _thread drains the verification before a cancellation propagates, so the
+            # lease is released only once nothing is still reading it.
+            await _thread(self._verify, lease, reference)
+            yield lease
+
+    def delete(self, reference: CheckpointRef) -> None:
+        # Durable, because a reconciler that crashes must not find the object again.
+        (self.root / reference.sha256).unlink(missing_ok=True)
+        _fsync_directory(self.root)
+
+    async def adelete(self, reference: CheckpointRef) -> None:
+        await _thread(self.delete, reference)
 
     def restore(
         self, reference: CheckpointRef, destination: Path, *, archive: CheckpointArchive | None = None
     ) -> Dict[str, Any]:
         # The store is coordinator-owned and immutable. Sandboxes never mount it.
-        return (archive or CheckpointArchive()).restore(self.verify(reference), destination)
+        # One access, one verification: the access already established integrity.
+        with self.open_archive(reference) as source:
+            return (archive or CheckpointArchive()).restore(source, destination)
 
     async def arestore(
         self, reference: CheckpointRef, destination: Path, *, archive: CheckpointArchive | None = None

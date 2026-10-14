@@ -190,6 +190,36 @@ async def test_team_shell_call_pauses_after_an_mcp_skill_loads(tmp_path) -> None
     assert SHELL_CALLS == []
 
 
+async def test_gate_keeps_a_tool_s_existing_hitl_mode(tmp_path) -> None:
+    from agno.tools import tool
+
+    @tool(external_execution=True)
+    def deploy(target: str) -> str:
+        """Deploy to a target.
+
+        Args:
+            target: Where to deploy.
+        """
+        return "deployed"
+
+    skills = Skills(loaders=[make_loader(SkillsServerState(), gate_all_tools=True)])
+    script = [LOAD, ("tool", "deploy", {"target": "prod"}, "c-deploy"), ("content", "done")]
+    agent = Agent(
+        model=ScriptedModel(script),
+        tools=[deploy],
+        skills=skills,
+        db=SqliteDb(db_file=str(tmp_path / "agent.db")),
+        telemetry=False,
+    )
+    run = await agent.arun("go", session_id="s1")
+
+    # One paused record for the call, in its own mode; confirmation is not stacked on top.
+    assert run.is_paused
+    records = [t for t in run.tools or [] if t.tool_call_id == "c-deploy"]
+    assert len(records) == 1
+    assert records[0].external_execution_required and not records[0].requires_confirmation
+
+
 # --- Choosing the gated tools ---
 
 

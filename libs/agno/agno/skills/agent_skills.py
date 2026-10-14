@@ -745,7 +745,9 @@ def _loaded_mcp_skill(run_response: Any) -> bool:
 
 def _require_confirmation(run_context: Optional[RunContext]) -> None:
     for function in (run_context.skill_gated_tools if run_context is not None else None) or []:
-        function.requires_confirmation = True
+        # HITL modes are exclusive; a tool that already waits on user input or external execution keeps its mode.
+        if not (function.requires_user_input or function.external_execution):
+            function.requires_confirmation = True
 
 
 def _mcp_sync_error(skill_name: str) -> str:

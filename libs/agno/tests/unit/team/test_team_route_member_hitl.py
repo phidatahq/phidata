@@ -22,6 +22,7 @@ from agno.models.base import Model
 from agno.models.message import MessageMetrics
 from agno.models.response import ModelResponse
 from agno.run import RunStatus
+from agno.run.team import RunContentEvent as TeamRunContentEvent
 from agno.run.team import TeamRunOutput
 from agno.team import Team
 from agno.tools import tool
@@ -170,6 +171,19 @@ def _assert_no_synthesis(leader: LeaderModel, outputs: List[Any]) -> None:
         assert content != SYNTHESIS, "leader synthesized a response after member-HITL resolution"
 
 
+def _assert_team_content_streamed(events: List[Any]) -> None:
+    """The direct response must also be relayed as a team-level content event.
+
+    Clients (AgentOS SSE) consume TeamRunContent for the reply; the member's own
+    RunContent events alone are not the team's answer channel.
+    """
+    team_content = [e for e in events if isinstance(e, TeamRunContentEvent)]
+    assert team_content, "expected a team-level TeamRunContent event with the member's direct response"
+    assert any(e.content == MEMBER_ANSWER for e in team_content), (
+        "TeamRunContent did not carry the member's direct response"
+    )
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize("stream", [True, False])
 @pytest.mark.parametrize("resolve", ["reject", "confirm"])
@@ -189,6 +203,7 @@ async def test_async_continue_returns_member_response_directly(tmp_path, resolve
             events.append(event)
         final = next((e for e in reversed(events) if isinstance(e, TeamRunOutput)), None)
         _assert_no_synthesis(leader, events)
+        _assert_team_content_streamed(events)
     else:
         final = await team.acontinue_run(run_response=run, requirements=[requirement])
         _assert_no_synthesis(leader, [final])
@@ -216,6 +231,7 @@ def test_sync_continue_returns_member_response_directly(tmp_path, resolve: str, 
             events.append(event)
         final = next((e for e in reversed(events) if isinstance(e, TeamRunOutput)), None)
         _assert_no_synthesis(leader, events)
+        _assert_team_content_streamed(events)
     else:
         final = team.continue_run(run_response=run, requirements=[requirement])
         _assert_no_synthesis(leader, [final])

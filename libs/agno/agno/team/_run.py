@@ -111,6 +111,7 @@ from agno.utils.events import (
     create_team_run_completed_event,
     create_team_run_content_completed_event,
     create_team_run_error_event,
+    create_team_run_output_content_event,
     create_team_run_started_event,
     create_team_session_summary_completed_event,
     create_team_session_summary_started_event,
@@ -8605,6 +8606,15 @@ def _continue_run_stream(
                     # respond_directly: the member's response is the direct response —
                     # no leader-model call after member-HITL resolution (see #10474).
                     run_response.content = direct_content
+                    # Mirror the normal respond_directly path, where the delegate tool's
+                    # show_result relays the member's answer as a team-level content
+                    # event; without it, clients only see member-level RunContent.
+                    yield handle_event(
+                        create_team_run_output_content_event(from_run_response=run_response, content=direct_content),
+                        run_response,
+                        events_to_skip=team.events_to_skip,
+                        store_events=team.store_events,
+                    )
                 else:
                     # Stream model response
                     if team.output_model is None:
@@ -10449,6 +10459,17 @@ async def _acontinue_run_stream(
                         # respond_directly: the member's response is the direct response —
                         # no leader-model call after member-HITL resolution (see #10474).
                         run_response.content = direct_content
+                        # Mirror the normal respond_directly path, where the delegate tool's
+                        # show_result relays the member's answer as a team-level content
+                        # event; without it, clients only see member-level RunContent.
+                        yield handle_event(
+                            create_team_run_output_content_event(
+                                from_run_response=run_response, content=direct_content
+                            ),
+                            run_response,
+                            events_to_skip=team.events_to_skip,
+                            store_events=team.store_events,
+                        )
                     else:
                         # Stream model response
                         if team.output_model is None:

@@ -378,3 +378,41 @@ async def test_native_mirror_failure_cannot_publish_success(system, monkeypatch)
     assert output.tools[0].result == "already ran"
     assert output.metadata["retryable"] is False
     assert (await binding(coordinator))["record"]["checkpoint"] is None
+
+
+async def test_next_turn_requires_the_committed_native_conversation(system, monkeypatch):
+    coordinator, spec, _ = system
+    await run(coordinator, spec)
+    native = (await binding(coordinator))["record"]["native"]
+    assert native["fixture_session_id"]
+    sent = []
+    start = coordinator.client.astart
+
+    async def recording(*args, **kwargs):
+        sent.append(kwargs.get("native_session_id"))
+        return await start(*args, **kwargs)
+
+    monkeypatch.setattr(coordinator.client, "astart", recording)
+    assert (await run(coordinator, spec, "second")).status == RunStatus.completed
+    assert sent == [native["fixture_session_id"]]
+    assert (await binding(coordinator))["record"]["native"] == native
+
+
+async def test_restore_missing_native_state_fails_before_the_turn_runs(system, monkeypatch):
+    coordinator, spec, root = system
+    await run(coordinator, spec)
+    restore = coordinator.transfer.arestore
+
+    async def lose_native(handle, reference):
+        state = await restore(handle, reference)
+        removed = await coordinator.provider.aexec(handle, ["rm", "-f", "/runtime/native/fixture-session"])
+        assert removed.exit_code == 0
+        return state
+
+    monkeypatch.setattr(coordinator.transfer, "arestore", lose_native)
+    second = await run(coordinator, spec, "second")
+    assert second.status == RunStatus.error
+    record = (await binding(coordinator))["record"]
+    assert record["phase"] == "idle" and record["native"]["fixture_session_id"]
+    # The model never ran: the recovery point still holds only the first turn.
+    assert await recovered_effects(coordinator, root) == ["first"]

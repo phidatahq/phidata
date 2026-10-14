@@ -72,8 +72,36 @@ def _validate(request: Dict[str, Any]) -> None:
     timeout = request.get("execution_timeout", 900)
     if not isinstance(timeout, (float, int)) or not math.isfinite(timeout) or not 0 < timeout <= 86400:
         raise ValueError("Runtime execution timeout must be between 0 and 86400 seconds")
+    expected = request.get("expected_native")
+    if expected is not None and (not isinstance(expected, str) or not expected or len(expected) > 256):
+        raise ValueError("Runtime expected_native must be a bounded native session identity or null")
     if len(_encode(request)) > _MAX_REQUEST:
         raise ValueError("Runtime request exceeds its limit")
+
+
+class NativeStateMissing(SandboxError):
+    """The sandbox does not hold the native conversation the caller expects. The model never
+    ran; the caller treats this as a failed restore, not a failed turn."""
+
+
+_NATIVE_KEYS = {"claude": "claude_sdk_session_id", "codex": "codex_thread_id"}
+
+
+def _check_expected_native(agent: Any, request: Dict[str, Any]) -> None:
+    """Refuse to run when the caller expects an existing native conversation and the local
+    database does not record exactly that one. This is the only check that catches a lost
+    database: with no session row the adapter would treat the turn as a new conversation."""
+    expected = request.get("expected_native")
+    if expected is None:
+        return
+    session = agent.get_session(request["session_id"], user_id=request.get("user_id"))
+    found = (session.session_data or {}).get(_NATIVE_KEYS[request["sdk"]]) if session is not None else None
+    if found != expected:
+        raise NativeStateMissing(
+            "Sandbox native state does not match the session: expected "
+            + ("the native conversation " + expected)
+            + (", found " + found if found else ", found none")
+        )
 
 
 @contextmanager
@@ -174,10 +202,15 @@ async def _fixture(directory: Path, request: Dict[str, Any]) -> Dict[str, Any]:
             "run_id": request["run_id"],
             "session_id": request["session_id"],
             "agent_id": request["agent_id"],
+            "user_id": request.get("user_id"),
             "status": "COMPLETED",
             "content": request["input"],
         },
-        "session": {"session_id": request["session_id"], "session_data": {"fixture": True}},
+        "session": {
+            "session_id": request["session_id"],
+            "user_id": request.get("user_id"),
+            "session_data": {"fixture": True},
+        },
     }
 
 
@@ -188,7 +221,15 @@ def _agent(request: Dict[str, Any], native: Path) -> Any:
     # database. It has no network credentials and is checkpointed after SDK drain.
     db = SqliteDb(db_file=str(native / "history.db"))
     config = dict(request.get("config", {}))
-    config.update(id=request["agent_id"], cwd="/workspace", db=db, retries=0, keep_uploads=True)
+    config.update(
+        id=request["agent_id"],
+        cwd="/workspace",
+        db=db,
+        retries=0,
+        keep_uploads=True,
+        require_native_resume=True,
+        strict_persistence=True,
+    )
     if request["sdk"] == "claude":
         from agno.agents.claude import ClaudeAgent
 
@@ -210,6 +251,9 @@ async def _execute(directory: Path, request: Dict[str, Any]) -> Dict[str, Any]:
     agent = _agent(request, native)
     run = None
     try:
+        # Before anything reaches the model: the state on disk must be the state the caller
+        # restored. A mismatch is a restore problem and is reported as one.
+        _check_expected_native(agent, request)
         async for event in agent.arun(
             request["input"],
             run_id=request["run_id"],
@@ -228,6 +272,12 @@ async def _execute(directory: Path, request: Dict[str, Any]) -> Dict[str, Any]:
         session = agent.get_session(request["session_id"], user_id=request.get("user_id"))
         if session is None:
             raise SandboxError("SDK runtime did not retain native session metadata")
+        persisted = agent.db.get_run(request["run_id"])
+        if (
+            persisted is None
+            or RunOutput.from_dict(persisted.to_dict()).to_dict() != RunOutput.from_dict(run.to_dict()).to_dict()
+        ):
+            raise SandboxError("SDK runtime did not durably retain its exact execution result")
         return {"type": "execution_finished", "run": run.to_dict(), "session": session.to_dict(include_runs=False)}
     finally:
         agent.db.db_engine.dispose()
@@ -253,10 +303,11 @@ def _worker(directory: Path) -> None:
                 raise SandboxError("Runtime execution result exceeds its limit")
             _atomic(directory / "result.json", payload)
     except Exception as error:
-        _atomic(
-            directory / "result.json",
-            _encode({"type": "execution_error", "error": (str(error) or type(error).__name__)[:2000]}),
-        )
+        result = {"type": "execution_error", "error": (str(error) or type(error).__name__)[:2000]}
+        if isinstance(error, NativeStateMissing):
+            # Machine-readable, so a coordinator retries the restore instead of the turn.
+            result["reason"] = "native_state_missing"
+        _atomic(directory / "result.json", _encode(result))
 
 
 def _poll(root: Path, execution_id: str, cursor: int) -> Dict[str, Any]:

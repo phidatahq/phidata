@@ -223,6 +223,10 @@ class BaseExternalAgent:
     description: Optional[str] = None
     db: Optional[Union[BaseDb, AsyncBaseDb]] = None
     markdown: bool = True
+    # Fail closed when native context is missing; sandbox restoration requires exact continuity.
+    require_native_resume: bool = False
+    # Propagate local persistence failures before acknowledging a runtime result.
+    strict_persistence: bool = False
 
     _sdk_name: ClassVar[str] = "external"
 
@@ -810,11 +814,12 @@ class BaseExternalAgent:
                             run=run_output, session_id=session.session_id, user_id=user_id, run_index=run_index
                         )
                 except NotImplementedError:
-                    # Adapter not ported to v3 storage; runs persist inline via upsert_session
-                    pass
+                    # Adapter not ported to v3 storage; strict runtimes require explicit run rows.
+                    if strict or self.strict_persistence:
+                        raise
         except Exception as upsert_err:
             log_warning(f"Failed to persist run for {self.sdk} agent '{self.id}': {upsert_err}")
-            if strict or worker_owned:
+            if strict or worker_owned or self.strict_persistence:
                 raise
 
     async def _arewrite_run_row(self, session: AgentSession, run_output: RunOutput) -> None:
@@ -844,9 +849,12 @@ class BaseExternalAgent:
             elif isinstance(self.db, BaseDb):
                 self.db.upsert_run(run=run_output, session_id=session.session_id, user_id=user_id, run_index=run_index)
         except NotImplementedError:
-            pass
+            if self.strict_persistence:
+                raise
         except Exception as upsert_err:
             log_warning(f"Failed to rewrite run row for {self.framework} agent '{self.id}': {upsert_err}")
+            if self.strict_persistence:
+                raise
 
     def get_session(self, session_id: str, user_id: Optional[str] = None) -> Optional[AgentSession]:
         """Read a session scoped to this agent and, when supplied, its user."""
@@ -1574,6 +1582,11 @@ class BaseExternalAgent:
         elif role in ("user", "assistant") and content:
             lines.append(f"{role}: {content}")
         return lines
+
+    def _check_native_resume(self, native_id: Optional[str], session: Optional[AgentSession]) -> None:
+        if self.require_native_resume and not native_id and session is not None:
+            if any(run.status == RunStatus.completed for run in session.runs or []):
+                raise ValueError("Native conversation identity is missing; restore its checkpoint before continuing")
 
     @staticmethod
     def _build_prompt(input: Any, history: Optional[List[Dict[str, Any]]], resumed: bool) -> str:

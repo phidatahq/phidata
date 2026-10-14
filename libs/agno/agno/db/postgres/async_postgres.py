@@ -171,6 +171,7 @@ class AsyncPostgresDb(AsyncBaseDb):
             create_schema (bool): Whether to automatically create the database schema if it doesn't exist.
                 Set to False if schema is managed externally (e.g., via migrations). Defaults to True.
             sandbox_table (Optional[str]): Name of the table to store sandbox session leases and recovery state.
+                Defaults to "<session_table>_sandbox_bindings"; it serves exactly one session table.
 
         Raises:
             ValueError: If neither db_url nor db_engine is provided.
@@ -211,7 +212,8 @@ class AsyncPostgresDb(AsyncBaseDb):
         self.db_schema: str = db_schema if db_schema is not None else "ai"
         self.metadata: MetaData = MetaData(schema=self.db_schema)
         self.create_schema: bool = create_schema
-        self.sandbox_table_name: str = sandbox_table or "agno_sandbox_bindings"
+        # The bindings table has a foreign key to one session table, so each gets its own.
+        self.sandbox_table_name: str = sandbox_table or self.session_table_name + "_sandbox_bindings"
 
         # Initialize database session factory
         self.async_session_factory = async_sessionmaker(

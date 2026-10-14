@@ -170,6 +170,30 @@ async def test_tables_are_created_on_first_use_by_racing_processes(adapter):
             await dispose(db)
 
 
+async def test_generation_survives_json_number_precision(store):
+    await seed(store)
+    state = await claim(store)
+    # JavaScript readers round integers above 2**53, so two generations could compare equal.
+    assert 0 < state.record["generation"] < 2**53
+
+
+async def test_bindings_table_serves_one_session_table(store):
+    await store._ensure_tables()
+    # A second session table pointed at the same bindings table, whose foreign key names the first.
+    other = type(store.db)(
+        db_url=URL, session_table=store.db.session_table_name + "_other", sandbox_table=store.db.sandbox_table_name
+    )
+    second = _SandboxStore(other)
+    try:
+        with pytest.raises(SandboxError, match="session table"):
+            await second._ensure_tables()
+    finally:
+        runs = await second._table("runs", other.runs_table_name)
+        sessions = await second._table("sessions", other.session_table_name)
+        await store._transaction(lambda c: [table.drop(c) for table in (runs, sessions)])
+        await dispose(other)
+
+
 async def test_wrong_owner_rolls_back_first_binding(store):
     await seed(store)
     with pytest.raises(SandboxLeaseLost):
@@ -400,6 +424,33 @@ async def test_runtime_result_cannot_rewrite_service_fields(store):
     assert run["metadata"]["sandbox"]["native_metadata"] == {"native": "value", "service": "forged"}
 
 
+async def test_cancelled_result_keeps_its_cancellation_stage(store):
+    await seed(store)
+    state = await claim(store)
+    await store.aset_computer(state.lease, computer(state))
+    cancelled = result(state.lease)
+    cancelled["run"].update(status="CANCELLED", cancellation_stage="tool_call")
+    await store.astage_result(state.lease, cancelled)
+    await store.astage_checkpoint(state.lease, REF)
+    await store.aconfirm_stopped(state.lease, "ref")
+    run = await store.acommit(state.lease)
+    assert run["status"] == "CANCELLED" and run["cancellation_stage"] == "tool_call"
+
+
+async def test_stop_keeps_existing_content_and_staged_output(store):
+    lease = await staged(store)
+    run_data = (await rows(store))[0]["run_data"]
+    await store._transaction(
+        lambda c: c.execute(update(store.runs).values(run_data={**run_data, "content": "partial"}))
+    )
+    await store.abegin_stop(lease, status="CANCELLED", reason="Cancelled by the user")
+    await store.aconfirm_stopped(lease, "ref")
+    run = await store.afinish_stop(lease)
+    assert run["status"] == "CANCELLED" and run["content"] == "partial"
+    assert run["metadata"]["sandbox"]["runtime_content"] == "done"
+    assert run["metadata"]["service"] == "keep"
+
+
 async def test_sync_api_contract(store):
     if isinstance(store.db, AsyncPostgresDb):
         with pytest.raises(TypeError, match="async"):
@@ -411,4 +462,5 @@ async def test_sync_api_contract(store):
         )
         assert (await asyncio.to_thread(store.get, state.lease)).lease == state.lease
         await asyncio.to_thread(store.begin_stop, state.lease, status="ERROR", reason="no compute")
-        assert (await asyncio.to_thread(store.finish_stop, state.lease))["status"] == "ERROR"
+        stopped = await asyncio.to_thread(store.finish_stop, state.lease)
+        assert stopped["status"] == "ERROR" and stopped["content"] == "no compute"

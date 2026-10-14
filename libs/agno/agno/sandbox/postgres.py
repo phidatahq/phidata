@@ -55,6 +55,7 @@ _RUNTIME_RUN_FIELDS = frozenset(
         "followups",
         "events",
         "status",
+        "cancellation_stage",
         "last_checkpoint_at_message_index",
     )
 )
@@ -150,6 +151,12 @@ class _SandboxStore:
         self.sessions = await self._table("sessions", self.db.session_table_name)
         self.runs = await self._table("runs", self.db.runs_table_name)
         self.bindings = await self._table("sandbox_bindings", self.db.sandbox_table_name)
+        owners = {key.column.table.name for key in self.bindings.foreign_keys}
+        if owners != {self.sessions.name}:
+            raise SandboxError(
+                f"Sandbox table {self.bindings.name} belongs to session table {', '.join(sorted(owners)) or 'none'}, "
+                f"not {self.sessions.name}; give each session table its own sandbox_table"
+            )
         self._tables_ready = True
 
     async def _transaction(self, operation: Callable[[Connection], _T]) -> _T:
@@ -259,6 +266,14 @@ class _SandboxStore:
         queue_attempt: Optional[int] = None,
         lease_seconds: float = 60,
     ) -> SandboxState:
+        """Own the session for ``run_id``; always continue with the returned state's lease.
+
+        Re-claiming after the lease expired bumps the epoch, which fences every
+        earlier lease object, the caller's own included. An unfinished run keeps
+        the session even after its lease expires: other run ids get
+        SandboxSessionBusy until someone re-claims that run id and stops or
+        finishes it, so a coordinator needs a reaper for abandoned runs.
+        """
         for value in (agent_id, session_id, run_id, owner, *(() if user_id is None else (user_id,))):
             if not isinstance(value, str) or not value or "\x00" in value or len(value) > 512:
                 raise ValueError("Sandbox lease identities must be nonempty bounded strings")
@@ -279,7 +294,9 @@ class _SandboxStore:
                         epoch=0,
                         record={
                             "phase": "idle",
-                            "generation": uuid4().int,
+                            # Random so a recreated session never reuses a deleted one's container
+                            # names; 52 bits so JSON readers keep it exact.
+                            "generation": uuid4().int >> 76,
                             "checkpoint": None,
                             "incarnation": uuid4().hex,
                         },
@@ -568,15 +585,20 @@ class _SandboxStore:
             if str(previous_run["status"]).upper() == "COMPLETED":
                 raise SandboxRunFinished(run)
             if str(previous_run["status"]).upper() not in ("ERROR", "CANCELLED"):
-                run.update(status=record["stop_status"], content=record["stop_reason"])
-                run["metadata"] = {
-                    **(run.get("metadata") or {}),
-                    "sandbox": {
-                        "recovery_run_id": record.get("last_run_id"),
-                        "workspace_rolled_back": True,
-                        "execution_id": record["execution_id"],
-                    },
+                run["status"] = record["stop_status"]
+                # Like core run termination: the reason fills content only when there is none.
+                if not run.get("content"):
+                    run["content"] = record["stop_reason"]
+                sandbox = {
+                    "recovery_run_id": record.get("last_run_id"),
+                    "workspace_rolled_back": True,
+                    "execution_id": record["execution_id"],
+                    "stop_reason": record["stop_reason"],
                 }
+                staged = (record.get("result") or {}).get("run") or {}
+                if staged.get("content") is not None:
+                    sandbox["runtime_content"] = staged["content"]
+                run["metadata"] = {**(run.get("metadata") or {}), "sandbox": sandbox}
                 connection.execute(
                     update(self.runs)
                     .where(self.runs.c.run_id == lease.run_id)

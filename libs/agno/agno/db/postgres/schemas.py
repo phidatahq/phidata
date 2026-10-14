@@ -369,7 +369,7 @@ TOOL_RESULTS_TABLE_SCHEMA = {
 def _get_sandbox_bindings_table_schema(session_table_name: str = "agno_sessions") -> dict[str, Any]:
     """Sandbox lease table; deleting a session deletes its binding, so a recreated session starts fresh."""
     return {
-        # namespace = "<schema>.<session table>", so stores sharing a table never collide
+        # namespace = "<schema>.<session table>"; the foreign key below ties the table to that one session table
         "namespace": {"type": String, "primary_key": True, "nullable": False},
         "session_id": {
             "type": String,

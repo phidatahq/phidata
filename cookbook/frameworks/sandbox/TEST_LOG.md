@@ -256,6 +256,6 @@ No model calls in the load run. Requests and daemon calls per turn are what scal
 
 **Description:** Real local Postgres, unique fixture tables and immutable local archive; staged output remains RUNNING until checkpoint staging and cleanup acknowledgement permit atomic publication. No model calls or real compute in this cookbook.
 
-**Result:** Passed. Companion integration suite: 24 passed across PostgresDb and AsyncPostgresDb, including independent owners, lease expiry, queue attempt fencing, transaction rollback, lost acknowledgement, immutable staged output, deleted/recreated session isolation, external cancellation, and sync entry points. Review found and fixed native metadata overwriting service fields and old-session recovery reuse. Provider shutdown and archive verification remain coordinator responsibilities.
+**Result:** Passed. Companion integration suite: 28 passed across PostgresDb and AsyncPostgresDb, including independent owners, a core `upsert_session` overwriting `session_data` mid-run without stranding the lease, runtime output unable to rewrite input, lineage or service metadata, lease expiry, queue attempt fencing, transaction rollback, lost acknowledgement, immutable staged output, deleted/recreated session isolation, external cancellation, and sync entry points. Review found and fixed native metadata overwriting service fields and old-session recovery reuse. Provider shutdown and archive verification remain coordinator responsibilities.
 
 ---

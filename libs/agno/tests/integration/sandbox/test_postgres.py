@@ -8,8 +8,6 @@ from uuid import uuid4
 
 import pytest
 import pytest_asyncio
-from sqlalchemy import delete, event, func, select, update
-
 from agno.db.postgres import AsyncPostgresDb, PostgresDb
 from agno.sandbox.base import SandboxError, SandboxHandle
 from agno.sandbox.checkpoint import CheckpointRef
@@ -19,6 +17,8 @@ from agno.sandbox.postgres import (
     SandboxRunFinished,
     SandboxSessionBusy,
 )
+from agno.session import AgentSession
+from sqlalchemy import delete, event, func, select, update
 
 URL = os.environ.get("AGNO_TEST_SANDBOX_DB_URL")
 pytestmark = [pytest.mark.asyncio, pytest.mark.skipif(not URL, reason="Set AGNO_TEST_SANDBOX_DB_URL")]
@@ -39,7 +39,7 @@ async def store(request):
         db.db_engine.dispose()
 
 
-async def seed(store, run_id="run", session_id="session", attempt=None):
+async def seed(store, run_id="run", session_id="session", attempt=None, created_at=1):
     def write(c):
         if c.execute(select(store.sessions).where(store.sessions.c.session_id == session_id)).first() is None:
             c.execute(
@@ -49,7 +49,7 @@ async def seed(store, run_id="run", session_id="session", attempt=None):
                     agent_id="agent",
                     user_id="user",
                     session_data={"trusted": "keep"},
-                    created_at=1,
+                    created_at=created_at,
                 )
             )
         c.execute(
@@ -68,6 +68,8 @@ async def seed(store, run_id="run", session_id="session", attempt=None):
                     "user_id": "user",
                     "status": "RUNNING",
                     "queue_attempt": attempt,
+                    "input": {"input_content": "hello"},
+                    "metadata": {"service": "keep"},
                 },
             )
         )
@@ -248,7 +250,7 @@ async def test_deleted_and_recreated_session_cannot_inherit_old_compute(store):
     await seed(store)
     await claim(store)
     await store._transaction(lambda c: c.execute(delete(store.sessions)))
-    await seed(store)
+    await seed(store, created_at=2)
     with pytest.raises(SandboxLeaseLost, match="replaced"):
         await claim(store)
 
@@ -288,14 +290,55 @@ async def test_external_cancellation_wins_over_staged_success(store):
     assert (await rows(store))[2]["record"]["checkpoint"] is None
 
 
-async def test_native_data_cannot_replace_session_incarnation(store):
+async def test_staged_result_is_immutable_and_identity_bound(store):
     lease = await staged(store)
     changed = result(lease)
-    changed["session"]["session_data"]["_sandbox_incarnation"] = "evil"
+    changed["session"]["session_data"]["native_id"] = "other"
     with pytest.raises(SandboxError, match="immutable"):
         await store.astage_result(lease, changed)
     with pytest.raises(SandboxError, match="identity"):
         await store.astage_result(lease, result(replace(lease, user_id="other")))
+
+
+async def test_core_session_upsert_does_not_strand_active_lease(store):
+    await seed(store)
+    # AgentOS PATCH /sessions reads the session, edits it, and upserts the whole session_data blob.
+    stale = AgentSession(
+        session_id="session", agent_id="agent", user_id="user", session_data={"session_name": "x"}, created_at=1
+    )
+    state = await claim(store)
+    if isinstance(store.db, AsyncPostgresDb):
+        await store.db.upsert_session(stale)
+    else:
+        await asyncio.to_thread(store.db.upsert_session, stale)
+    await store.aset_computer(state.lease, computer(state))
+    await store.astage_result(state.lease, result(state.lease))
+    await store.astage_checkpoint(state.lease, REF)
+    await store.aconfirm_stopped(state.lease, "ref")
+    assert (await store.acommit(state.lease))["status"] == "COMPLETED"
+
+
+async def test_runtime_result_cannot_rewrite_service_fields(store):
+    await seed(store)
+    state = await claim(store)
+    await store.aset_computer(state.lease, computer(state))
+    forged = result(state.lease)
+    forged["run"].update(
+        input={"input_content": "forged"},
+        created_at=0,
+        parent_run_id="other",
+        session_state={"admin": True},
+        metadata={"native": "value", "service": "forged"},
+    )
+    await store.astage_result(state.lease, forged)
+    await store.astage_checkpoint(state.lease, REF)
+    await store.aconfirm_stopped(state.lease, "ref")
+    run = await store.acommit(state.lease)
+    assert run["content"] == "done" and run["status"] == "COMPLETED"
+    assert run["input"] == {"input_content": "hello"}
+    assert "created_at" not in run and "parent_run_id" not in run and "session_state" not in run
+    assert run["metadata"]["service"] == "keep"
+    assert run["metadata"]["sandbox"]["native_metadata"] == {"native": "value", "service": "forged"}
 
 
 async def test_sync_api_contract(store):

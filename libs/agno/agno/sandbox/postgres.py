@@ -30,6 +30,35 @@ except ImportError:
 
 _T = TypeVar("_T")
 
+# Fields the runtime produces; service-owned identity, input and lineage stay as stored.
+_RUNTIME_RUN_FIELDS = frozenset(
+    (
+        "content",
+        "content_type",
+        "reasoning_content",
+        "reasoning_steps",
+        "reasoning_messages",
+        "model",
+        "model_provider",
+        "model_provider_data",
+        "messages",
+        "metrics",
+        "compaction",
+        "tools",
+        "images",
+        "videos",
+        "audio",
+        "files",
+        "response_audio",
+        "citations",
+        "references",
+        "followups",
+        "events",
+        "status",
+        "last_checkpoint_at_message_index",
+    )
+)
+
 
 class SandboxLeaseLost(SandboxError):
     """The caller no longer owns this session or queue attempt."""
@@ -181,7 +210,7 @@ class PostgresSandboxStore:
         ):
             raise SandboxLeaseLost("Sandbox session lease expired or was fenced by another owner")
         _, session = self._service_run(connection, lease)
-        if (session["session_data"] or {}).get("_sandbox_incarnation") != row["record"].get("incarnation"):
+        if session["created_at"] != row["record"].get("session_created_at"):
             raise SandboxLeaseLost("Service session was replaced; reconcile its previous sandbox before reuse")
         return row
 
@@ -254,21 +283,15 @@ class PostgresSandboxStore:
                 raise SandboxLeaseLost("Sandbox session ownership is immutable")
             candidate = SandboxLease(agent_id, session_id, user_id, run_id, row["epoch"], owner, queue_attempt)
             run, session = self._service_run(connection, candidate)
-            session_data = dict(session["session_data"] or {})
+            record = dict(row["record"])
+            # created_at identifies the session row: upserts never rewrite it, a delete and recreate does.
             if row["epoch"] == 0:
-                if session_data.get("_sandbox_incarnation") is not None:
+                if (session["session_data"] or {}).get("sandbox") is not None:
                     raise SandboxLeaseLost("Sandbox registry was replaced; reconcile existing recovery state")
-                session_data["_sandbox_incarnation"] = row["record"]["incarnation"]
-                assert self.sessions is not None
-                connection.execute(
-                    update(self.sessions)
-                    .where(self.sessions.c.session_id == session_id)
-                    .values(session_data=session_data)
-                )
-            elif session_data.get("_sandbox_incarnation") != row["record"]["incarnation"]:
+                record["session_created_at"] = session["created_at"]
+            elif session["created_at"] != record.get("session_created_at"):
                 raise SandboxLeaseLost("Service session was replaced; reconcile its previous sandbox before reuse")
             now = connection.execute(select(func.clock_timestamp())).scalar_one()
-            record = dict(row["record"])
             active = record["phase"] != "idle"
             if not active and str(run["status"]).upper() in ("COMPLETED", "CANCELLED", "ERROR"):
                 raise SandboxRunFinished(dict(run["run_data"]))
@@ -455,11 +478,13 @@ class PostgresSandboxStore:
             if str(previous_run["status"]).upper() in ("COMPLETED", "CANCELLED", "ERROR"):
                 raise SandboxRunFinished(dict(previous_run["run_data"]))
             result = record["result"]
-            run = {**previous_run["run_data"], **result["run"]}
+            run = dict(previous_run["run_data"])
+            run.update({key: value for key, value in result["run"].items() if key in _RUNTIME_RUN_FIELDS})
             run["queue_attempt"] = lease.queue_attempt
             run["metadata"] = {
-                **(run.get("metadata") or {}),
+                **(previous_run["run_data"].get("metadata") or {}),
                 "sandbox": {
+                    "native_metadata": result["run"].get("metadata") or {},
                     "epoch": lease.epoch,
                     "generation": record["generation"],
                     "checkpoint": record["staged_checkpoint"],

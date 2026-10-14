@@ -226,6 +226,43 @@ def _agent(request: Dict[str, Any], native: Path) -> Any:
     return CodexAgent(**config)
 
 
+async def _prepare_codex(native: Path) -> None:
+    # The Codex CLI refuses to start when CODEX_HOME names a missing directory.
+    home = native / "codex"
+    if home.is_symlink() or (home.exists() and not home.is_dir()):
+        raise SandboxError("CODEX_HOME must be a directory; remove the file at native/codex")
+    home.mkdir(exist_ok=True)
+
+
+def _codex_login_needed(native: Path, api_key: str) -> bool:
+    """Whether Codex needs logging in with the configured key.
+
+    The Codex app server reads a stored login, not OPENAI_API_KEY. Checkpoints never
+    contain auth.json, so a restored computer always logs in. A stored ChatGPT login
+    is the user's choice and is kept; a stored API key different from the configured
+    one, or an unreadable file, is replaced.
+    """
+    try:
+        stored = json.loads((native / "codex" / "auth.json").read_text())
+    except (OSError, ValueError):
+        return True
+    if not isinstance(stored, dict):
+        return True
+    if stored.get("tokens"):
+        return False
+    return stored.get("OPENAI_API_KEY") != api_key
+
+
+async def _login_codex(agent: Any, api_key: str) -> None:
+    """Log Codex in with the configured key."""
+    try:
+        await agent.alogin_api_key(api_key)
+    except Exception as error:
+        # The run error is journaled, so it must never carry the key.
+        message = str(error).replace(api_key, "[redacted]")
+        raise SandboxError("Codex login failed: " + message[:500]) from None
+
+
 async def _execute(directory: Path, request: Dict[str, Any]) -> Dict[str, Any]:
     if request["sdk"] == "fixture":
         return await _fixture(directory, request)
@@ -233,21 +270,19 @@ async def _execute(directory: Path, request: Dict[str, Any]) -> Dict[str, Any]:
 
     native = directory.parent.parent / "native"
     native.mkdir(exist_ok=True)
-    # The Codex CLI refuses to start when CODEX_HOME names a missing directory.
-    (native / "codex").mkdir(exist_ok=True)
     os.environ["HOME"] = str(native)
     os.environ["CODEX_HOME"] = str(native / "codex")
+    if request["sdk"] == "codex":
+        await _prepare_codex(native)
     agent = _agent(request, native)
     run = None
     try:
         # Before anything reaches the model: the state on disk must be the state the caller
         # restored. A mismatch is a restore problem and is reported as one.
         _check_native_session_id(agent, request)
-        # The Codex app server reads a stored login, not OPENAI_API_KEY. A computer
-        # restored from a checkpoint has no auth.json, so it logs in again here.
         api_key = os.environ.get("OPENAI_API_KEY")
-        if request["sdk"] == "codex" and api_key and not (native / "codex" / "auth.json").exists():
-            await agent.alogin_api_key(api_key)
+        if request["sdk"] == "codex" and api_key and _codex_login_needed(native, api_key):
+            await _login_codex(agent, api_key)
         async for event in agent.arun(
             request["input"],
             run_id=request["run_id"],

@@ -7,37 +7,85 @@ import json
 import math
 import random
 import shlex
+import tarfile
 import tempfile
+import threading
 import time
+from contextlib import suppress
+from dataclasses import asdict
 from pathlib import Path
-from typing import Any, Mapping, Optional, Sequence, Set
+from typing import Any, Dict, Mapping, Optional, Sequence, Set
 from uuid import uuid4
 
-from agno.sandbox.agentcore_server import _MAX_STAGED
-from agno.sandbox.base import ExecResult, Sandbox, SandboxError, SandboxHandle, _identity
-from agno.sandbox.checkpoint import CheckpointArchive, CheckpointRef, CheckpointStore
-from agno.sandbox.transfer import DEFAULT_NATIVE_EXCLUSIONS, _ArchiveTransfer
+from agno.sandbox.agentcore_server import _MAX_STAGED, _MAX_TRANSFER
+from agno.sandbox.base import ExecResult, Sandbox, SandboxError, SandboxHandle, _identity, _sync
+from agno.sandbox.checkpoint import (
+    _MANIFEST,
+    _ROOTS,
+    CheckpointArchive,
+    CheckpointRef,
+    CheckpointStore,
+    _archive_bytes,
+    _name,
+)
+from agno.sandbox.transfer import DEFAULT_NATIVE_EXCLUSIONS
 
 _GUARD_EXIT = 125
 # AgentCore rejects these before anything runs, so a retry cannot repeat work.
 # Throttling appears when many sessions start at once: the default quota is 25
 # new sessions per second.
 _RETRYABLE = ("RetryableConflictException", "ThrottlingException", "ThrottledException")
-# Gateway and server errors leave the outcome unknown. Every invocation and stop
-# is idempotent (claim and start by identity, describe and poll read only), so
-# those retry them; a command could run twice, so it never does.
+# Gateway and server errors leave the outcome unknown. Invocations that are safe
+# to repeat (claim and start by identity, describe and poll read only, chunks by
+# offset) retry them; a command, an export or an import never does.
 _SERVER_ERRORS = ("500", "502", "503", "504", "InternalServerException", "ServiceException")
+# Refused by AgentCore before a request reaches the computer.
+_REJECTED = _RETRYABLE + (
+    "AccessDeniedException",
+    "ValidationException",
+    "ResourceNotFoundException",
+    "ServiceQuotaExceededException",
+    "UnauthorizedException",
+    "InvalidInputException",
+)
 _ATTEMPTS = 10
 _MAX_COMMAND = 64 * 1024
+# Commands run for up to an hour and write their result only at the end, so their
+# reads wait longer than any command may run.
+_COMMAND_READ_TIMEOUT = 3600 + 180
 # Checkpoint bytes per invocation. Base64 makes the payload a third larger, well
 # under AgentCore's 100 MB request and response limit.
 _CHUNK = 8 * 1024 * 1024
-_RUNNER = Path(__file__).with_name("_exec.py").read_text()
+# Codex clones a plugin marketplace of about 100 MiB into .tmp/plugins on start and
+# rebuilds it, so AgentCore checkpoints leave it out to keep transfers small.
+AGENTCORE_NATIVE_EXCLUSIONS = (*DEFAULT_NATIVE_EXCLUSIONS, "native/codex/.tmp/plugins", "native/codex/.tmp/plugins.sha")
+
+
+class _Refusal(SandboxError):
+    """A refusal by the in-computer server's own checks, carrying its code."""
+
+    def __init__(self, message: str, code: str) -> None:
+        super().__init__(message)
+        self.code = code
 
 
 def _error_code(error: BaseException) -> str:
     response = getattr(error, "response", None)
     return response.get("Error", {}).get("Code", "") if isinstance(response, dict) else ""
+
+
+def _not_sent(error: BaseException) -> bool:
+    """True when a command request certainly never reached the computer."""
+    from botocore.exceptions import (
+        ConnectTimeoutError,
+        EndpointConnectionError,
+        NoCredentialsError,
+        ParamValidationError,
+    )
+
+    if isinstance(error, (ConnectTimeoutError, EndpointConnectionError, NoCredentialsError, ParamValidationError)):
+        return True
+    return _error_code(error) in _REJECTED
 
 
 async def _thread(function: Any, *args: Any, **kwargs: Any) -> Any:
@@ -61,11 +109,20 @@ class AgentCoreSandbox(Sandbox):
     PUBLIC mode, and the runtime's IAM role. Code in the sandbox can use that
     role, so give it only the model access the harness needs.
 
-    Stop and destroy end the microVM. AgentCore starts a fresh microVM if a stopped
-    session is called again; this class treats such an unclaimed microVM as gone
-    and stops it, so recovery takes a new generation, as on Docker. Pause is not
-    supported. Files live on the microVM's disk; AgentCore session storage is not
-    used because SQLite cannot open a database on it.
+    Each claim carries a random incarnation, kept in ``SandboxHandle.name``, and
+    every request names it. A microVM that AgentCore starts after the claimed one
+    ended therefore never runs work for an earlier handle: it is either unclaimed,
+    which this class stops, or claimed again with a different incarnation.
+
+    Limitation: without durable state outside the microVM, ``create`` cannot tell
+    an expired generation from a new one, so after an idle timeout or lifetime it
+    claims a fresh, empty microVM for the same generation. Callers that lose a
+    computer must recover into a new generation, as with every provider; a
+    coordinator that records generations enforces this.
+
+    Stop and destroy end the microVM. Pause is not supported. Files live on the
+    microVM's disk; AgentCore session storage is not used because SQLite cannot
+    open a database on it.
     """
 
     def __init__(
@@ -95,22 +152,30 @@ class AgentCoreSandbox(Sandbox):
             raise ValueError("AgentCore max_connections must be a positive integer")
         self.runtime_arn, self.namespace, self.qualifier, self.lifetime = runtime_arn, namespace, qualifier, lifetime
         session = boto_session or boto3.session.Session()
-        # An uncertain command must never be sent twice, so the SDK does not retry.
-        # Rejections that AgentCore returns before running anything are retried
-        # explicitly in _call.
-        config = Config(
-            region_name=parts[3],
-            read_timeout=request_timeout,
-            connect_timeout=10,
-            retries={"total_max_attempts": 1, "mode": "standard"},
+
+        def client(read_timeout: float) -> Any:
+            # An uncertain command must never be sent twice, so the SDK does not
+            # retry; _call retries only what AgentCore refused before running.
             # Each session in flight holds a connection, and a long poll holds it
-            # for up to 30 seconds. Size this to the concurrent sessions served.
-            max_pool_connections=max_connections,
-        )
-        self._data = session.client("bedrock-agentcore", config=config)
+            # for up to 30 seconds. Size the pool to the sessions served at once.
+            config = Config(
+                region_name=parts[3],
+                read_timeout=read_timeout,
+                connect_timeout=10,
+                retries={"total_max_attempts": 1, "mode": "standard"},
+                max_pool_connections=max_connections,
+            )
+            return session.client("bedrock-agentcore", config=config)
+
+        self._data = client(request_timeout)
+        self._commands = client(_COMMAND_READ_TIMEOUT)
         # Sessions this object stopped. Calling one again would only start an
         # unclaimed replacement microVM.
         self._stopped: Set[str] = set()
+        # A claim retrying through throttling must not land after a stop of the same
+        # session; both hold that session's lock for their whole request.
+        self._session_locks: Dict[str, threading.Lock] = {}
+        self._locks_guard = threading.Lock()
 
     def _name(self, session_id: str, agent_id: Optional[str], generation: int) -> str:
         identity = json.dumps([self.namespace, agent_id, session_id, generation])
@@ -140,11 +205,16 @@ class AgentCoreSandbox(Sandbox):
                 # Full jitter spreads a burst of throttled creates across the window.
                 time.sleep(random.uniform(0, min(8.0, 0.5 * 2**attempt)))
 
-    def _invoke(self, provider_ref: str, operation: str, /, **payload: Any) -> Any:
+    def _invoke(
+        self, provider_ref: str, operation: str, /, *, idempotent: bool = True, slow: bool = False, **payload: Any
+    ) -> Any:
         body = json.dumps(dict(payload, op=operation)).encode()
+        # Export and import may run for up to 14 minutes inside the computer, so they
+        # use the client whose reads wait that long.
+        client = self._commands if slow else self._data
         response = self._call(
-            self._data.invoke_agent_runtime,
-            idempotent=True,
+            client.invoke_agent_runtime,
+            idempotent=idempotent,
             agentRuntimeArn=self.runtime_arn,
             qualifier=self.qualifier,
             runtimeSessionId=provider_ref,
@@ -155,16 +225,47 @@ class AgentCoreSandbox(Sandbox):
         reply = json.loads(response["response"].read())
         if not isinstance(reply, dict) or not reply.get("ok"):
             reason = reply.get("error", reply) if isinstance(reply, dict) else reply
-            raise SandboxError("AgentCore sandbox refused " + operation + ": " + str(reason)[:1000])
+            message = "AgentCore sandbox refused " + operation + ": " + str(reason)[:1000]
+            code = reply.get("code") if isinstance(reply, dict) else None
+            if isinstance(code, str):
+                raise _Refusal(message, code)
+            raise SandboxError(message)
         return reply["value"]
 
-    def _handle(self, provider_ref: str, metadata: Mapping[str, str]) -> SandboxHandle:
+    @staticmethod
+    def _expect(handle: SandboxHandle) -> Dict[str, str]:
+        return {"config": handle.config_digest, "incarnation": handle.name.rpartition("/")[2]}
+
+    async def _invoke_for(
+        self, handle: SandboxHandle, operation: str, /, *, idempotent: bool = True, slow: bool = False, **payload: Any
+    ) -> Any:
+        """Invoke an operation on the computer a handle names, and no other."""
+        if handle.provider_ref in self._stopped:
+            raise SandboxError("Sandbox is not running")
+        try:
+            return await _thread(
+                self._invoke,
+                handle.provider_ref,
+                operation,
+                idempotent=idempotent,
+                slow=slow,
+                expect=self._expect(handle),
+                **payload,
+            )
+        except _Refusal as error:
+            if error.code == "unclaimed":
+                # This call started a replacement microVM: the claimed one ended.
+                await self._stop(handle.provider_ref)
+                raise SandboxError("Sandbox is not running; its microVM ended") from error
+            raise
+
+    def _handle(self, provider_ref: str, metadata: Mapping[str, str], incarnation: str) -> SandboxHandle:
         if metadata.get("namespace") != self.namespace:
             raise SandboxError("AgentCore computer does not belong to this sandbox namespace")
         try:
             return SandboxHandle(
                 provider_ref=provider_ref,
-                name=provider_ref,
+                name=provider_ref + "/" + incarnation,
                 agent_id=metadata["agent"] or None,
                 session_id=metadata["session"],
                 generation=int(metadata["generation"]),
@@ -185,13 +286,14 @@ class AgentCoreSandbox(Sandbox):
             # ended. Release it and report the generation gone.
             await self._stop(provider_ref)
             return None
-        return self._handle(provider_ref, description["metadata"])
+        return self._handle(provider_ref, description["metadata"], description["incarnation"])
 
     async def _owned(self, handle: SandboxHandle) -> SandboxHandle:
         current = await self.aget(handle.provider_ref)
         if current is None:
             raise SandboxError("Sandbox is not running")
-        if (current.agent_id, current.session_id, current.generation, current.config_digest) != (
+        if (current.name, current.agent_id, current.session_id, current.generation, current.config_digest) != (
+            handle.name,
             handle.agent_id,
             handle.session_id,
             handle.generation,
@@ -221,23 +323,24 @@ class AgentCoreSandbox(Sandbox):
             "config": digest,
         }
         try:
-            await _thread(self._invoke, name, "claim", metadata=metadata, env=values, lifetime=self.lifetime)
-        except SandboxError as error:
-            if "different identity" in str(error):
+            claim = await _thread(self._claim, name, metadata, values)
+        except _Refusal as error:
+            if error.code == "identity":
                 raise SandboxError("Sandbox generation already exists with different configuration") from error
+            if error.code == "unusable":
+                raise SandboxError("Sandbox generation is not usable; recovery requires a new generation") from error
             raise
-        return self._handle(name, metadata)
+        return self._handle(name, metadata, claim["incarnation"])
 
     async def arpc(self, handle: SandboxHandle, operation: str, payload: bytes) -> ExecResult:
         """Runtime start/poll through InvokeAgentRuntime to the in-computer runtime server.
 
-        A failed or lost reply never touches compute: the caller reconciles.
+        A failed or lost reply never touches the claimed computer: the caller
+        reconciles. Only an unclaimed replacement microVM is stopped.
         """
         if operation not in ("start", "poll") or not isinstance(payload, bytes) or len(payload) > 1024 * 1024:
             raise ValueError("Runtime RPC requires start/poll and a payload no larger than 1 MiB")
-        if handle.provider_ref in self._stopped:
-            raise SandboxError("Sandbox is not running")
-        reply = await _thread(self._invoke, handle.provider_ref, "rpc", operation=operation, payload=payload.decode())
+        reply = await self._invoke_for(handle, "rpc", operation=operation, payload=payload.decode())
         body = str(reply["body"])[: 4 * 1024 * 1024]
         if reply["status"] != 200:
             return ExecResult(exit_code=1, stdout="", stderr=body)
@@ -257,7 +360,7 @@ class AgentCoreSandbox(Sandbox):
         if not math.isfinite(timeout) or timeout <= 0 or not 1 <= max_output_bytes <= 4 * 1024 * 1024:
             raise ValueError("Timeout must be positive and output limit must be between 1 byte and 4 MiB")
         if timeout > 3500:
-            raise ValueError("AgentCore commands run for at most an hour")
+            raise ValueError("AgentCore commands run for at most 3500 seconds")
         if not isinstance(stdin, bytes) or len(stdin) > 8 * 1024 * 1024:
             raise ValueError("Command stdin must be bytes no larger than 8 MiB")
         request = json.dumps(
@@ -275,27 +378,35 @@ class AgentCoreSandbox(Sandbox):
         # The command API has no stdin, so the runner's request is staged first and
         # handed to the command by the guard, which deletes it.
         name = uuid4().hex
+        expect = self._expect(handle)
         command = shlex.join(
-            ["python", "-I", "-m", "agno.sandbox.agentcore_server", "exec", "--stdin", name, "--"]
-            + ["python", "-I", "-c", _RUNNER]
+            ["python", "-I", "-m", "agno.sandbox.agentcore_server", "exec"]
+            + ["--expect", expect["config"] + ":" + expect["incarnation"], "--stdin", name]
         )
         if len(command.encode()) > _MAX_COMMAND:
             raise SandboxError("AgentCore command exceeds 64 KiB")
         await self._owned(handle)
         # Nothing runs until the command is sent, so a failed upload leaves compute
         # as it is. A staged file whose upload reply was lost is never executed.
-        await _thread(
-            self._invoke, handle.provider_ref, "stage", name=name, data=base64.b64encode(request).decode("ascii")
-        )
+        await self._invoke_for(handle, "stage", name=name, data=base64.b64encode(request).decode("ascii"))
         try:
             code, out, err, timed_out = await _thread(self._command, handle.provider_ref, command, timeout + 15)
-        except BaseException:
-            # The command may still be running remotely. Stop compute to bound it;
-            # recovery belongs to the caller.
-            await asyncio.shield(self.astop(handle))
+        except BaseException as error:
+            if not _not_sent(error):
+                # The command may still be running remotely. Stop compute to bound
+                # it; recovery belongs to the caller.
+                await asyncio.shield(self.astop(handle))
             raise
-        if code == _GUARD_EXIT and "not claimed" in err:
-            raise SandboxError("AgentCore session answered from an unclaimed replacement computer")
+        if code == _GUARD_EXIT and err.startswith("AgentCore computer refusing to run ["):
+            # Code running after the privilege drop could print the same refusal, so
+            # trust it only if the guard recorded it where only root can write.
+            refusal = await _thread(self._invoke, handle.provider_ref, "refusal", name=name)
+            if refusal["refused"]:
+                if refusal["code"] == "unclaimed":
+                    # The server retired this replacement microVM, so stopping it
+                    # cannot hit a computer claimed in the meantime.
+                    await self._stop(handle.provider_ref)
+                raise SandboxError("AgentCore computer refused the command: " + err.strip()[-500:])
         try:
             if code or timed_out:
                 raise ValueError(err[-500:] or "command transport timed out")
@@ -309,7 +420,7 @@ class AgentCoreSandbox(Sandbox):
 
     def _command(self, provider_ref: str, command: str, timeout: float) -> tuple:
         response = self._call(
-            self._data.invoke_agent_runtime_command,
+            self._commands.invoke_agent_runtime_command,
             agentRuntimeArn=self.runtime_arn,
             qualifier=self.qualifier,
             runtimeSessionId=provider_ref,
@@ -329,23 +440,37 @@ class AgentCoreSandbox(Sandbox):
             raise SandboxError("AgentCore command stream ended without an exit status")
         return int(stop.get("exitCode", -1)), "".join(stdout), "".join(stderr), stop.get("status") == "TIMED_OUT"
 
+    def _session_lock(self, provider_ref: str) -> threading.Lock:
+        with self._locks_guard:
+            return self._session_locks.setdefault(provider_ref, threading.Lock())
+
+    def _claim(self, provider_ref: str, metadata: Mapping[str, str], env: Mapping[str, str]) -> Any:
+        with self._session_lock(provider_ref):
+            if provider_ref in self._stopped:
+                raise SandboxError("Sandbox generation is not running; recovery requires a new generation")
+            return self._invoke(provider_ref, "claim", metadata=dict(metadata), env=dict(env), lifetime=self.lifetime)
+
     async def _stop(self, provider_ref: str) -> None:
         def stop() -> None:
-            try:
-                self._call(
-                    self._data.stop_runtime_session,
-                    idempotent=True,
-                    agentRuntimeArn=self.runtime_arn,
-                    qualifier=self.qualifier,
-                    runtimeSessionId=provider_ref,
-                )
-            except Exception as error:
-                if _error_code(error) != "ResourceNotFoundException":
-                    raise
+            with self._session_lock(provider_ref):
+                # Recorded first: if the call is cancelled or its reply lost after
+                # AgentCore stopped the microVM, this provider must still never
+                # revive the generation.
+                self._stopped.add(provider_ref)
+                try:
+                    self._call(
+                        self._data.stop_runtime_session,
+                        idempotent=True,
+                        agentRuntimeArn=self.runtime_arn,
+                        qualifier=self.qualifier,
+                        runtimeSessionId=provider_ref,
+                    )
+                except Exception as error:
+                    if _error_code(error) != "ResourceNotFoundException":
+                        raise
 
         # StopRuntimeSession returns once AgentCore has terminated the microVM.
         await _thread(stop)
-        self._stopped.add(provider_ref)
 
     async def astop(self, handle: SandboxHandle) -> None:
         await self._stop(handle.provider_ref)
@@ -355,14 +480,15 @@ class AgentCoreSandbox(Sandbox):
         await self._stop(handle.provider_ref)
 
 
-class AgentCoreCheckpointTransfer(_ArchiveTransfer):
+class AgentCoreCheckpointTransfer:
     """Move checkpoints in and out of AgentCore microVMs through invocations.
 
-    The in-computer server stops the agent's processes, archives /workspace and
-    /runtime/native without excluded paths, and resumes them. The archives come
-    out in chunks of at most 8 MiB and are validated and repacked here with the
-    same code as Docker checkpoints. Restore fills an empty, unused generation and
-    stops the computer if anything fails, so a partial restore never runs a turn.
+    Implements the ``CheckpointTransfer`` protocol. Inside the microVM a process
+    dropped to UID 1000 runs the shared ``CheckpointArchive`` while the agent's
+    processes are stopped, so root never touches paths the agent controls. Archives
+    move in chunks of at most 8 MiB and the host validates each one before storing
+    or sending it. Restore fills a claimed, unused generation; the computer refuses
+    all further work if a restore fails, and this class stops it.
     ``scratch`` holds unencrypted archives in transit and must be coordinator-private.
     """
 
@@ -374,90 +500,131 @@ class AgentCoreCheckpointTransfer(_ArchiveTransfer):
         archive: Optional[CheckpointArchive] = None,
         scratch: Optional[Path] = None,
     ) -> None:
-        super().__init__(store, archive=archive, scratch=scratch)
-        self.provider = provider
+        self.provider, self.store, self.scratch = provider, store, scratch
+        self.archive = archive or CheckpointArchive()
+        if self.archive.limits.max_bytes > _MAX_TRANSFER:
+            raise ValueError("AgentCore checkpoints are limited to 2 GiB")
 
-    async def _pull(self, handle: SandboxHandle, name: str, root: str, size: int, destination: Path) -> None:
+    async def _pull(self, handle: SandboxHandle, name: str, size: int, destination: Path) -> None:
+        if size > self.archive.limits.max_bytes:
+            raise SandboxError("Checkpoint export exceeds the archive byte limit")
         with destination.open("xb") as output:
             offset = 0
             while offset < size:
-                reply = await _thread(
-                    self.provider._invoke,
-                    handle.provider_ref,
-                    "get",
-                    name=name,
-                    root=root,
-                    offset=offset,
-                    length=_CHUNK,
+                reply = await self.provider._invoke_for(
+                    handle, "get", name=name, offset=offset, length=min(_CHUNK, size - offset)
                 )
                 data = base64.b64decode(reply["data"], validate=True)
                 if not data:
                     raise SandboxError("Checkpoint export ended before its reported size")
-                await _thread(output.write, data)
+                await asyncio.to_thread(output.write, data)
                 offset += len(data)
         if offset != size:
             raise SandboxError("Checkpoint export changed size while it was read")
 
-    async def _push(self, handle: SandboxHandle, name: str, root: str, source: Path) -> None:
+    async def _push(self, handle: SandboxHandle, name: str, source: Path) -> None:
         with source.open("rb") as stream:
             offset = 0
             while True:
-                data = await _thread(stream.read, _CHUNK)
-                if not data and offset:
+                data = await asyncio.to_thread(stream.read, _CHUNK)
+                if not data:
                     return
-                reply = await _thread(
-                    self.provider._invoke,
-                    handle.provider_ref,
-                    "put",
-                    name=name,
-                    root=root,
-                    offset=offset,
-                    data=base64.b64encode(data).decode(),
+                reply = await self.provider._invoke_for(
+                    handle, "put", name=name, offset=offset, data=base64.b64encode(data).decode()
                 )
                 offset += len(data)
                 if reply["size"] != offset:
                     raise SandboxError("Checkpoint import size mismatch")
-                if not data:
-                    return
+
+    def _check_excluded(self, path: Path, exclude: Sequence[str]) -> None:
+        exclusions = set(exclude)
+        with _archive_bytes(path, self.archive.limits) as stream:
+            with tarfile.open(fileobj=stream, mode="r:") as archive:
+                for member in archive:
+                    if member.name == _MANIFEST:
+                        manifest = json.loads(archive.extractfile(member).read())  # type: ignore[union-attr]
+                        if set(manifest.get("excluded", [])) != exclusions:
+                            raise SandboxError("Checkpoint export does not record the requested exclusions")
+                    elif any(member.name == item or member.name.startswith(item + "/") for item in exclusions):
+                        raise SandboxError(f"Checkpoint export contains excluded path {member.name!r}")
+                # Validation stops at the end marker, but the store uploads the whole
+                # file, so anything after it, such as a second appended archive,
+                # would reach storage unchecked.
+                stream.seek(archive.offset)
+                while chunk := stream.read(1024 * 1024):
+                    if chunk.count(0) != len(chunk):
+                        raise SandboxError("Checkpoint export has data after the end of the archive")
+
+    @staticmethod
+    def _check_exclusions(exclude: Sequence[str]) -> None:
+        # The same rules capture applies inside the computer, checked before the
+        # agent is stopped and anything is archived.
+        for item in exclude:
+            if str(_name(item)) == _MANIFEST or item in _ROOTS:
+                raise ValueError("Cannot exclude a manifest or entire durable root")
 
     async def acapture(
-        self, handle: SandboxHandle, *, state: Mapping[str, Any], exclude: Sequence[str] = DEFAULT_NATIVE_EXCLUSIONS
+        self,
+        handle: SandboxHandle,
+        *,
+        state: Mapping[str, Any],
+        exclude: Sequence[str] = AGENTCORE_NATIVE_EXCLUSIONS,
     ) -> CheckpointRef:
+        self._check_exclusions(exclude)
         await self.provider._owned(handle)
         name = uuid4().hex
-        exported = await _thread(
-            self.provider._invoke,
-            handle.provider_ref,
-            "export",
-            name=name,
-            exclude=list(exclude),
-            max_bytes=self.archive.limits.max_bytes,
-        )
         try:
+            exported = await self.provider._invoke_for(
+                handle,
+                "export",
+                idempotent=False,
+                slow=True,
+                name=name,
+                state=dict(state),
+                exclude=list(exclude),
+                limits=asdict(self.archive.limits),
+            )
             with tempfile.TemporaryDirectory(prefix=".capture-", dir=self.scratch) as directory:
-                root = Path(directory)
-                exports = {}
-                for part, size in exported["sizes"].items():
-                    exports[part] = root / (part + ".tar")
-                    await self._pull(handle, name, part, int(size), exports[part])
-                await _thread(self._combine, exports, root / "checkpoint.tar", state, exclude)
-                return await self.store.aput(root / "checkpoint.tar")
+                path = Path(directory) / "checkpoint.tar"
+                await self._pull(handle, name, int(exported["size"]), path)
+                # The archive was written inside the computer, where the agent can
+                # reach it, so check its structure and the exclusions here.
+                await self.archive.avalidate(path)
+                await asyncio.to_thread(self._check_excluded, path, exclude)
+                return await self.store.aput(path)
         finally:
-            await asyncio.shield(_thread(self.provider._invoke, handle.provider_ref, "remove", name=name))
+            # Cleanup must never turn a stored checkpoint into an error.
+            with suppress(Exception):
+                await asyncio.shield(self.provider._invoke_for(handle, "remove", name=name))
+
+    def capture(
+        self,
+        handle: SandboxHandle,
+        *,
+        state: Mapping[str, Any],
+        exclude: Sequence[str] = AGENTCORE_NATIVE_EXCLUSIONS,
+    ) -> CheckpointRef:
+        return _sync(self.acapture(handle, state=state, exclude=exclude))
 
     async def arestore(self, handle: SandboxHandle, reference: CheckpointRef) -> Mapping[str, Any]:
-        await self.provider._owned(handle)
         name = uuid4().hex
-        with tempfile.TemporaryDirectory(prefix=".import-", dir=self.scratch) as directory:
-            root = Path(directory)
+        # Checked before the stop-on-failure block: a stale handle must not stop the
+        # computer that now holds this session.
+        await self.provider._owned(handle)
+        try:
             async with self.store.aopen_archive(reference) as checkpoint:
-                state, native_mode = await _thread(self._split, checkpoint, root)
-            try:
-                for part in ("workspace", "native"):
-                    await self._push(handle, name, part, root / (part + ".tar"))
-                await _thread(self.provider._invoke, handle.provider_ref, "import", name=name, native_mode=native_mode)
-            except BaseException:
-                # A partially restored computer must never execute another turn.
-                await asyncio.shield(self.provider.astop(handle))
-                raise
-        return state
+                state = await self.archive.avalidate(checkpoint)
+                await self._push(handle, name, checkpoint)
+            reply = await self.provider._invoke_for(
+                handle, "import", idempotent=False, slow=True, name=name, limits=asdict(self.archive.limits)
+            )
+            if reply["state"] != state:
+                raise SandboxError("Restored manifest differs from the verified checkpoint")
+            return state
+        except BaseException:
+            # A partially restored computer must never execute another turn.
+            await asyncio.shield(self.provider.astop(handle))
+            raise
+
+    def restore(self, handle: SandboxHandle, reference: CheckpointRef) -> Mapping[str, Any]:
+        return _sync(self.arestore(handle, reference))

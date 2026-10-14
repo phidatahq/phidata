@@ -25,7 +25,7 @@ from agno.run.base import RunStatus
 from agno.sandbox.base import Sandbox, SandboxError, SandboxHandle
 from agno.sandbox.checkpoint import CheckpointRef
 from agno.sandbox.client import RuntimeExecution, SandboxRuntimeClient
-from agno.sandbox.postgres import SandboxLease, SandboxLeaseLost, SandboxRunFinished, _drain, _SandboxStore
+from agno.sandbox.postgres import SandboxLease, SandboxLeaseLost, SandboxRunFinished, _drain, _SandboxStore, _settled
 from agno.sandbox.protocol import NATIVE_SESSION_KEYS
 from agno.sandbox.transfer import CheckpointTransfer
 
@@ -201,7 +201,7 @@ class SandboxCoordinator:
             # Drain without forwarding further cancels: a cancelled claim can still commit its lease.
             await _drain(claim_task)
             if not claim_task.cancelled() and claim_task.exception() is None:
-                await self.store.arelinquish(claim_task.result().lease)
+                await _settled(self.store.arelinquish(claim_task.result().lease))
             raise
         except SandboxRunFinished as finished:
             yield self._terminal(finished.run)
@@ -398,8 +398,9 @@ class SandboxCoordinator:
                 await heart
             if committed is None:
                 # The caller is leaving a turn that is still running: detach, keep execution going.
+                # Shielded so a further cancel cannot abort the release and leave the lease to run out.
                 with suppress(SandboxLeaseLost):
-                    await self.store.arelinquish(lease)
+                    await _settled(self.store.arelinquish(lease))
 
     async def _retire_invalid(self, lease: SandboxLease, error: ValueError) -> Dict[str, Any]:
         # A request the runtime can never accept was only caught after the claim, before anything

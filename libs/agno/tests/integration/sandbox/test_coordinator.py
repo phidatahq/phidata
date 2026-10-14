@@ -654,3 +654,25 @@ async def test_finished_turn_does_not_relinquish_a_released_lease(system, monkey
     with pytest.raises(asyncio.CancelledError):
         await task
     assert len(calls) == 1
+
+
+async def test_repeated_cancellation_still_releases_the_lease(system, monkeypatch):
+    coordinator, spec, _ = system
+    relinquish, released, entered = coordinator.store.arelinquish, [], asyncio.Event()
+
+    async def slow(lease):
+        entered.set()
+        await asyncio.sleep(0.5)
+        await relinquish(lease)
+        released.append(lease)
+
+    monkeypatch.setattr(coordinator.store, "arelinquish", slow)
+    task = asyncio.create_task(run(coordinator, spec, config={"delay": 20, "steps": 20}))
+    await asyncio.sleep(6)
+    task.cancel()
+    await asyncio.wait_for(entered.wait(), 10)
+    # A second cancel, say shutdown after a timeout, lands while the release is in flight.
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert released

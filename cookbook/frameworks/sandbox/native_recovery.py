@@ -1,16 +1,20 @@
-"""Show what the sandbox does when the native conversation it should hold is gone.
+"""Cold replacement, a restore that does not land, and the recovery loop, with a real Claude session.
 
-A Claude turn continues its own native session from files under /runtime/native: Claude's
-transcript and the local history database that maps the Agno session to it. After a cold
-replacement those files come back from a checkpoint. This example shows the two outcomes when
-they do not come back whole, in one container, by deleting the local database between turns:
+A Claude turn continues its own native session from files under /runtime/native: the transcript
+and the local history database that maps the Agno session to it. When a container is replaced,
+those files come back from a checkpoint. This example walks the whole path on one session:
 
-- Without an expectation, the runtime cannot tell a lost database from a brand new session. The
-  turn starts a fresh conversation, forgets everything, and reports COMPLETED. That is the
-  behaviour before this change and the one a coordinator must never checkpoint.
-- With the native id the caller committed passed as ``expected_native``, the runtime refuses
-  before the model runs and reports ``native_state_missing``, so the caller retries the restore
-  instead of committing a fork.
+1. Turn 1 runs on generation 1. The session is checkpointed and the container destroyed.
+2. Generation 2 is restored from the checkpoint. Turn 2 passes the committed native id as its
+   expectation and Claude recalls the conversation: the cold path working.
+3. Generation 3 is created but the restore is skipped, standing in for a restore that did not
+   land. Turn 3 runs without an expectation: the runtime sees a new session, Claude starts a
+   fresh conversation with no memory, and the turn reports COMPLETED. That is the old outcome,
+   and the one a coordinator must never checkpoint.
+4. Generation 4, restore skipped again. Turn 4 passes the committed id and is refused before the
+   model runs, with reason native_state_missing. That is the new outcome.
+5. The coordinator's reaction: destroy that generation, restore the same checkpoint into
+   generation 5, start again with the same expectation. Claude recalls the conversation.
 
 Build the image first, then export ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN:
 
@@ -20,10 +24,14 @@ Build the image first, then export ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN:
 
 import os
 import time
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from uuid import uuid4
 
+from agno.sandbox.checkpoint import FileCheckpointStore
 from agno.sandbox.client import SandboxRuntimeClient
 from agno.sandbox.docker import DockerSandbox
+from agno.sandbox.transfer import DockerCheckpointTransfer
 
 credentials = {
     key: os.environ[key]
@@ -36,10 +44,16 @@ if not credentials:
     )
 
 started = time.monotonic()
+outcomes = []
 
 
 def say(line: str) -> None:
     print(f"[{time.monotonic() - started:5.1f}s] {line}")
+
+
+def section(title: str) -> None:
+    print()
+    print("=== " + title)
 
 
 config = {
@@ -54,11 +68,12 @@ sandbox = DockerSandbox(
     network="isolated",
     memory_mb=1024,
 )
-computer = sandbox.create(session_id="example", agent_id="coder", env=credentials)
 client = SandboxRuntimeClient(sandbox)
+identity = {"session_id": "example", "agent_id": "coder", "env": credentials}
+RECALL = "What word did I ask you to remember? Reply with that word only, or NONE if you do not know."
 
 
-def turn(number: int, prompt: str, expected_native=None):
+def turn(computer, number: int, prompt: str, expected_native=None, label: str = ""):
     execution = client.start(
         computer,
         execution_id=f"turn-{number}",
@@ -73,52 +88,94 @@ def turn(number: int, prompt: str, expected_native=None):
         native = (result["session"].get("session_data") or {}).get(
             "claude_sdk_session_id"
         )
-        say(
-            f"turn {number}: {result['run']['status']}, answer {result['run'].get('content')!r}, native session {native}"
-        )
+        outcome = f"{result['run']['status']}, answer {result['run'].get('content')!r}, native {str(native)[:8]}"
+        say(f"turn {number}: {outcome}")
+        outcomes.append((label, outcome))
         return native
-    say(
-        f"turn {number}: {result['type']}, reason {result.get('reason')}: {result['error'][:120]}"
-    )
+    outcome = f"{result['type']}, reason {result.get('reason')}"
+    say(f"turn {number}: {outcome}: {result['error'][:100]}")
+    outcomes.append((label, outcome))
     return None
 
 
+handles = []
 try:
-    say("turn 1 starts the conversation")
-    original = turn(1, "Remember the word pineapple. Reply with exactly OK.")
+    with TemporaryDirectory(prefix="agno-native-recovery-") as directory:
+        transfer = DockerCheckpointTransfer(
+            sandbox, FileCheckpointStore(Path(directory) / "objects")
+        )
 
-    say("turn 2 passes the committed native id as the expectation and continues it")
-    turn(
-        2,
-        "What word did I ask you to remember? Reply with that word only.",
-        expected_native=original,
-    )
+        section("1. Turn 1 on generation 1, then checkpoint and destroy")
+        handles.append(sandbox.create(**identity, generation=1))
+        committed = turn(
+            handles[0],
+            1,
+            "Remember the word pineapple. Reply with exactly OK.",
+            label="turn 1",
+        )
+        reference = transfer.capture(
+            handles[0], state={"claude_sdk_session_id": committed}
+        )
+        say(
+            f"checkpoint {reference.sha256[:12]}, {reference.size} bytes; native id {committed[:8]} is what the caller commits"
+        )
+        sandbox.destroy(handles[0])
+        say("generation 1 destroyed; the checkpoint is the only copy")
 
-    say("now the local database is lost, as after a restore that did not land whole")
-    assert (
-        sandbox.exec(computer, ["rm", "-f", "/runtime/native/history.db"]).exit_code
-        == 0
-    )
+        section("2. Generation 2 restored from the checkpoint: the cold path")
+        handles.append(sandbox.create(**identity, generation=2))
+        state = transfer.restore(handles[1], reference)
+        say(
+            "restored, manifest carries native id " + state["claude_sdk_session_id"][:8]
+        )
+        turn(
+            handles[1],
+            2,
+            RECALL,
+            expected_native=committed,
+            label="restore landed, expectation set",
+        )
+        sandbox.destroy(handles[1])
 
-    say("turn 3 without an expectation: the runtime sees a new session and runs anyway")
-    replaced = turn(
-        3,
-        "What word did I ask you to remember? Reply with that word only, or NONE if you do not know.",
-    )
-    say(
-        "that is the old outcome: a new native session "
-        + str(replaced)[:8]
-        + "..., no memory, reported COMPLETED"
-    )
+        section("3. Generation 3, restore skipped, no expectation: the old outcome")
+        handles.append(sandbox.create(**identity, generation=3))
+        say("standing in for a restore that did not land: the roots are empty")
+        turn(handles[2], 3, RECALL, label="restore missing, no expectation")
+        say(
+            "a new native session with no memory, reported COMPLETED: a fork the coordinator cannot detect"
+        )
+        sandbox.destroy(handles[2])
 
-    say("turn 4 with the committed id: refused before the model runs")
-    turn(
-        4,
-        "What word did I ask you to remember? Reply with that word only.",
-        expected_native=original,
-    )
-    say(
-        "the caller now treats this as a failed restore and retries it, instead of committing a fork"
-    )
+        section("4. Generation 4, restore skipped, expectation set: the new outcome")
+        handles.append(sandbox.create(**identity, generation=4))
+        turn(
+            handles[3],
+            4,
+            RECALL,
+            expected_native=committed,
+            label="restore missing, expectation set",
+        )
+        say("refused before the model ran; the caller treats this as a failed restore")
+
+        section(
+            "5. The coordinator's reaction: replace the generation and restore again"
+        )
+        sandbox.destroy(handles[3])
+        handles.append(sandbox.create(**identity, generation=5))
+        transfer.restore(handles[4], reference)
+        turn(
+            handles[4],
+            5,
+            RECALL,
+            expected_native=committed,
+            label="restore retried, expectation set",
+        )
+        say("the session is whole again and nothing forked was ever committed")
 finally:
-    sandbox.destroy(computer)
+    for handle in handles:
+        sandbox.destroy(handle)
+
+print()
+print("Summary")
+for label, outcome in outcomes:
+    print(f"  {label:40s} {outcome}")

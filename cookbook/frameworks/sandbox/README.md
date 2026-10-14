@@ -108,6 +108,7 @@ Differences from Docker:
 | Files | On the microVM's disk. AgentCore session storage is NFS, where SQLite cannot open a database and POSIX locks fail, so it is not used. |
 | Credentials | Code in the sandbox can use the runtime's IAM role through the metadata service. Give the role only the model access the harness needs. |
 | Limits | Commands run for at most an hour and must fit in 64 KiB, with input staged separately. The provider exits the entrypoint at the claimed lifetime. |
+| Bursts | The default quota is 25 new sessions per second per account. The provider retries throttled calls with jitter; `agentcore_load.py` completed 497 of 500 simultaneous sessions, so pace larger bursts or raise the quota. Set `max_connections` to the number of sessions one process serves at once. |
 
 ## Boundaries
 

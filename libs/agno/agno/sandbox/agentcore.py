@@ -5,6 +5,7 @@ import base64
 import hashlib
 import json
 import math
+import random
 import shlex
 import time
 from pathlib import Path
@@ -14,6 +15,15 @@ from uuid import uuid4
 from agno.sandbox.base import ExecResult, Sandbox, SandboxError, SandboxHandle, _identity
 
 _GUARD_EXIT = 125
+# AgentCore rejects these before anything runs, so a retry cannot repeat work.
+# Throttling appears when many sessions start at once: the default quota is 25
+# new sessions per second.
+_RETRYABLE = ("RetryableConflictException", "ThrottlingException", "ThrottledException")
+# Gateway and server errors leave the outcome unknown. Every invocation and stop
+# is idempotent (claim and start by identity, describe and poll read only), so
+# those retry them; a command could run twice, so it never does.
+_SERVER_ERRORS = ("500", "502", "503", "504", "InternalServerException", "ServiceException")
+_ATTEMPTS = 10
 _MAX_COMMAND = 64 * 1024
 _RUNNER = Path(__file__).with_name("_exec.py").read_text()
 
@@ -60,6 +70,7 @@ class AgentCoreSandbox(Sandbox):
         lifetime: int = 3600,
         boto_session: Optional[Any] = None,
         request_timeout: float = 120,
+        max_connections: int = 10,
     ) -> None:
         try:
             import boto3
@@ -73,16 +84,21 @@ class AgentCoreSandbox(Sandbox):
             raise ValueError("AgentCore namespace must be nonempty and lifetime at least 60 seconds")
         if request_timeout < 60:
             raise ValueError("AgentCore request timeout must cover a 30 second long poll")
+        if type(max_connections) is not int or max_connections < 1:
+            raise ValueError("AgentCore max_connections must be a positive integer")
         self.runtime_arn, self.namespace, self.qualifier, self.lifetime = runtime_arn, namespace, qualifier, lifetime
         session = boto_session or boto3.session.Session()
         # An uncertain command must never be sent twice, so the SDK does not retry.
-        # RetryableConflictException, which AgentCore returns before running
-        # anything, is retried explicitly.
+        # Rejections that AgentCore returns before running anything are retried
+        # explicitly in _call.
         config = Config(
             region_name=parts[3],
             read_timeout=request_timeout,
             connect_timeout=10,
             retries={"total_max_attempts": 1, "mode": "standard"},
+            # Each session in flight holds a connection, and a long poll holds it
+            # for up to 30 seconds. Size this to the concurrent sessions served.
+            max_pool_connections=max_connections,
         )
         self._data = session.client("bedrock-agentcore", config=config)
         # Sessions this object stopped. Calling one again would only start an
@@ -105,23 +121,30 @@ class AgentCoreSandbox(Sandbox):
         }
         return hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest()
 
+    @staticmethod
+    def _call(function: Any, *, idempotent: bool = False, **kwargs: Any) -> Any:
+        retryable = _RETRYABLE + _SERVER_ERRORS if idempotent else _RETRYABLE
+        for attempt in range(_ATTEMPTS):
+            try:
+                return function(**kwargs)
+            except Exception as error:
+                if _error_code(error) not in retryable or attempt == _ATTEMPTS - 1:
+                    raise
+                # Full jitter spreads a burst of throttled creates across the window.
+                time.sleep(random.uniform(0, min(8.0, 0.5 * 2**attempt)))
+
     def _invoke(self, provider_ref: str, operation: str, /, **payload: Any) -> Any:
         body = json.dumps(dict(payload, op=operation)).encode()
-        for attempt in range(5):
-            try:
-                response = self._data.invoke_agent_runtime(
-                    agentRuntimeArn=self.runtime_arn,
-                    qualifier=self.qualifier,
-                    runtimeSessionId=provider_ref,
-                    payload=body,
-                    contentType="application/json",
-                    accept="application/json",
-                )
-                break
-            except Exception as error:
-                if _error_code(error) != "RetryableConflictException" or attempt == 4:
-                    raise
-                time.sleep(0.5 * 2**attempt)
+        response = self._call(
+            self._data.invoke_agent_runtime,
+            idempotent=True,
+            agentRuntimeArn=self.runtime_arn,
+            qualifier=self.qualifier,
+            runtimeSessionId=provider_ref,
+            payload=body,
+            contentType="application/json",
+            accept="application/json",
+        )
         reply = json.loads(response["response"].read())
         if not isinstance(reply, dict) or not reply.get("ok"):
             reason = reply.get("error", reply) if isinstance(reply, dict) else reply
@@ -270,7 +293,8 @@ class AgentCoreSandbox(Sandbox):
         return result
 
     def _command(self, provider_ref: str, command: str, timeout: float) -> tuple:
-        response = self._data.invoke_agent_runtime_command(
+        response = self._call(
+            self._data.invoke_agent_runtime_command,
             agentRuntimeArn=self.runtime_arn,
             qualifier=self.qualifier,
             runtimeSessionId=provider_ref,
@@ -293,8 +317,12 @@ class AgentCoreSandbox(Sandbox):
     async def _stop(self, provider_ref: str) -> None:
         def stop() -> None:
             try:
-                self._data.stop_runtime_session(
-                    agentRuntimeArn=self.runtime_arn, qualifier=self.qualifier, runtimeSessionId=provider_ref
+                self._call(
+                    self._data.stop_runtime_session,
+                    idempotent=True,
+                    agentRuntimeArn=self.runtime_arn,
+                    qualifier=self.qualifier,
+                    runtimeSessionId=provider_ref,
                 )
             except Exception as error:
                 if _error_code(error) != "ResourceNotFoundException":

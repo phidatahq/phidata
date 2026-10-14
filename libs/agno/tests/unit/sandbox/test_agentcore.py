@@ -22,6 +22,7 @@ class Data:
         self.claims = {}
         self.invokes, self.commands, self.stops, self.staged = [], [], [], {}
         self.conflicts = 0
+        self.conflict_code = "RetryableConflictException"
         self.command_reply = {"exitCode": 0, "status": "COMPLETED"}
         self.command_stdout = json.dumps({"exit_code": 0, "stdout": "hi", "stderr": ""})
         self.command_stderr = ""
@@ -31,7 +32,7 @@ class Data:
         self.invokes.append(kwargs)
         if self.conflicts:
             self.conflicts -= 1
-            raise ClientError({"Error": {"Code": "RetryableConflictException", "Message": "busy"}}, "Invoke")
+            raise ClientError({"Error": {"Code": self.conflict_code, "Message": "busy"}}, "Invoke")
         request = json.loads(kwargs["payload"])
         session, operation = kwargs["runtimeSessionId"], request.pop("op")
         reply = {"ok": True}
@@ -159,12 +160,41 @@ async def test_rpc_forwards_without_touching_compute_on_failure():
 
 
 @pytest.mark.asyncio
-async def test_only_retryable_conflicts_are_retried(monkeypatch):
+async def test_rejections_before_execution_are_retried_and_others_are_not(monkeypatch):
     monkeypatch.setattr("agno.sandbox.agentcore.time.sleep", lambda seconds: None)
     value = sandbox()
     value._data.conflicts = 2
     await value.acreate("s")
     assert len(value._data.invokes) == 3
+    value._data.conflict_code = "ThrottlingException"
+    value._data.conflicts = 3
+    await value.acreate("s")
+    assert len(value._data.invokes) == 7
+    value._data.conflict_code = "502"
+    value._data.conflicts = 1
+    await value.acreate("s")
+    assert len(value._data.invokes) == 9
+    value._data.conflict_code = "ValidationException"
+    value._data.conflicts = 1
+    with pytest.raises(ClientError):
+        await value.acreate("s")
+
+
+@pytest.mark.asyncio
+async def test_commands_never_retry_a_server_error(monkeypatch):
+    monkeypatch.setattr("agno.sandbox.agentcore.time.sleep", lambda seconds: None)
+    value = sandbox()
+    handle = await value.acreate("s")
+    calls = []
+
+    def failing(**kwargs):
+        calls.append(kwargs)
+        raise ClientError({"Error": {"Code": "502", "Message": "bad gateway"}}, "InvokeAgentRuntimeCommand")
+
+    value._data.invoke_agent_runtime_command = failing
+    with pytest.raises(ClientError):
+        await value.aexec(handle, ["true"])
+    assert len(calls) == 1 and value._data.stops == [handle.provider_ref]
 
 
 @pytest.mark.asyncio

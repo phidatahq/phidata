@@ -259,13 +259,34 @@ Local container checks of `agentcore_server`: the guard refuses commands before 
 
 ---
 
+### agentcore_load.py
+
+**Status:** PASS with documented throttling
+
+**Description:** Concurrent sessions against the staging runtime. Each session is created, runs a 5 second fixture turn, runs one command and is destroyed, all at once.
+
+**Result:** On 14 October 2026:
+
+| Sessions | Completed | Create p50 / p90 | Turn p50 | Command p50 | Destroy p50 | Total time |
+|---|---|---|---|---|---|---|
+| 20 | 20 | 4.3 s / 14.4 s | 5.35 s | 0.95 s | 0.24 s | 21 s |
+| 100 | 98 | 18.7 s / 19.6 s | 5.41 s | 0.95 s | 0.24 s | 27 s |
+| 250, no throttling retry | 235 | 24.9 s / 26.9 s | 5.39 s | 0.89 s | 0.22 s | 34 s |
+| 250, throttling retried | 249 | 26.3 s / 28.2 s | 5.40 s | 0.87 s | 0.21 s | 44 s |
+| 500, 8 attempts | 499 | 37.1 s / 38.5 s | 5.40 s | 0.87 s | 0.21 s | 59 s |
+| 500, 10 attempts | 497 | 39.2 s / 41.1 s | 5.40 s | 0.87 s | 0.21 s | 70 s |
+
+Only creation slows with load: 500 sessions came up at about 13 per second, under the default quota of 25 new sessions per second. Turns, commands and destroys stayed flat at every size. The first runs failed creates with `ThrottlingException` and one poll and one stop with HTTP 502. The provider now retries throttling for every call with jittered backoff, and retries server errors for invocations and stops, which are idempotent; it never retries a command after a server error. The remaining failures at 500 are creates that stayed throttled for all attempts, so bursts above a few hundred need paced creates or a quota increase. The 100-session run also had one client-side TLS error from opening about a hundred connections at once from one laptop.
+
+---
+
 ### AgentCore sandbox contract tests
 
 **Status:** PASS
 
-**Description:** `libs/agno/tests/unit/sandbox/test_agentcore.py`: 10 tests against a fake data plane covering constructor validation, deterministic and idempotent create, refusal of changed configuration, no return of a stopped generation, release of unclaimed replacement compute, staged stdin through the guard, stop on guard refusal and uncertain commands, RPC failures that leave compute alone, retry of RetryableConflictException only, and unsupported pause.
+**Description:** `libs/agno/tests/unit/sandbox/test_agentcore.py`: 11 tests against a fake data plane covering constructor validation, deterministic and idempotent create, refusal of changed configuration, no return of a stopped generation, release of unclaimed replacement compute, staged stdin through the guard, stop on guard refusal and uncertain commands, RPC failures that leave compute alone, retry of rejections that AgentCore returns before running anything, retry of server errors for idempotent invocations only, no retry of a command after a server error, and unsupported pause.
 
-**Result:** 234 sandbox unit tests pass with this branch on `PYTHONPATH`. Without it, `test_sandbox_import_does_not_load_agent_runtime` starts a fresh interpreter that imports agno from another checkout.
+**Result:** 235 sandbox unit tests pass with this branch on `PYTHONPATH`. Without it, `test_sandbox_import_does_not_load_agent_runtime` starts a fresh interpreter that imports agno from another checkout.
 
 ---
 

@@ -79,7 +79,7 @@ def _merge_reasoning_details(reasoning_details: Optional[List[Any]]) -> List[Any
             else:
                 target[field] = value
 
-    return [blocks[key] for key in sorted(first_pos, key=first_pos.get)]
+    return [blocks[key] for key in sorted(first_pos, key=lambda k: first_pos[k])]
 
 
 @dataclass

@@ -856,7 +856,7 @@ class InMemoryDb(BaseDb):
             if memory.memory_id is None:
                 memory.memory_id = str(uuid4())
 
-            memory_dict = memory.to_dict() if hasattr(memory, "to_dict") else memory.__dict__
+            memory_dict = deepcopy(memory.to_dict() if hasattr(memory, "to_dict") else memory.__dict__)
             memory_dict["updated_at"] = int(time.time())
 
             # Find existing memory to update

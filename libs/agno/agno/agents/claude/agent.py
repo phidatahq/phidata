@@ -155,6 +155,8 @@ class ClaudeAgent(BaseExternalAgent):
             and errors that would fail again (authentication, billing, invalid requests) are not retried.
         delay_between_retries: Seconds to wait before each retry.
         exponential_backoff: Double the delay after each failed attempt.
+        sandbox: Run the whole Claude Code process in a computer from this sandbox each turn,
+            such as DockerSandbox(image). Requires a PostgresDb on the agent or its AgentOS.
 
     Example:
         from agno.agents.claude import ClaudeAgent
@@ -201,6 +203,7 @@ class ClaudeAgent(BaseExternalAgent):
     options_kwargs: Dict[str, Any] = field(default_factory=dict)
 
     _sdk_name: ClassVar[str] = "claude-agent-sdk"
+    _sandbox_runtime: ClassVar[Optional[str]] = "claude"
     # Key under which the SDK session id is stored in the Agno session.
     _SESSION_KEY = "claude_sdk_session_id"
     _store_warning_logged: bool = field(default=False, init=False, repr=False)

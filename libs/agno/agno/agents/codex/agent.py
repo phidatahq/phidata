@@ -174,7 +174,7 @@ class CodexAgent(BaseExternalAgent):
         model: Codex model id. Defaults to gpt-5.6-luna unless set in thread_options or turn_options.
         instructions: Developer instructions appended to the Codex system prompt.
         base_instructions: Replaces the Codex built-in system prompt entirely.
-        sandbox: "read-only", "workspace-write" or "full-access". Defaults to the Codex default.
+        sandbox_mode: "read-only", "workspace-write" or "full-access". Defaults to the Codex default.
         approval_mode: "auto_review" or "deny_all" for escalated permission requests.
         reasoning_effort: "minimal", "low", "medium", "high" or "xhigh".
         cwd: Working directory for the agent.
@@ -197,6 +197,8 @@ class CodexAgent(BaseExternalAgent):
             that would fail again (context window, authentication, bad requests, policy) are not retried.
         delay_between_retries: Seconds to wait before each retry.
         exponential_backoff: Double the delay after each failed attempt.
+        sandbox: Run the whole Codex process in a computer from this sandbox each turn,
+            such as DockerSandbox(image). Requires a PostgresDb on the agent or its AgentOS.
 
     Input must be a string. Native SDK input objects (including images, skills and
     external tool messages) are not supported by Agno's text history adapter.
@@ -206,7 +208,7 @@ class CodexAgent(BaseExternalAgent):
 
         agent = CodexAgent(
             name="Codex Coder",
-            sandbox="workspace-write",
+            sandbox_mode="workspace-write",
             cwd=".",
         )
 
@@ -231,7 +233,7 @@ class CodexAgent(BaseExternalAgent):
     cwd: Optional[str] = None
     # Keep attachments staged under cwd/.agno/uploads/<run_id>/ after the run instead of deleting them.
     keep_uploads: bool = False
-    sandbox: Optional[str] = None
+    sandbox_mode: Optional[str] = None
     approval_mode: Optional[str] = None
     ephemeral: Optional[bool] = None
     # Native runtime configuration
@@ -246,6 +248,7 @@ class CodexAgent(BaseExternalAgent):
 
     _supports_output_schema: ClassVar[bool] = True
     _sdk_name: ClassVar[str] = "codex"
+    _sandbox_runtime: ClassVar[Optional[str]] = "codex"
     # Key under which the Codex thread id is stored in the Agno session.
     _THREAD_KEY = "codex_thread_id"
 
@@ -253,6 +256,16 @@ class CodexAgent(BaseExternalAgent):
     _thread_ids: Dict[str, str] = field(default_factory=dict, init=False, repr=False)
 
     def __post_init__(self) -> None:
+        legacy_mode: Any = self.sandbox
+        if isinstance(legacy_mode, str):
+            if self.sandbox_mode is not None:
+                raise ValueError("Use sandbox_mode, not both sandbox and sandbox_mode")
+            warnings.warn(
+                "CodexAgent(sandbox=<str>) is deprecated; use sandbox_mode. sandbox= now takes a Sandbox.",
+                DeprecationWarning,
+                stacklevel=4,
+            )
+            self.sandbox_mode, self.sandbox = legacy_mode, None
         super().__post_init__()
         self._validate_options()
         if self._effective_model()[0] is None:
@@ -457,7 +470,7 @@ class CodexAgent(BaseExternalAgent):
             "model_provider": self.model_provider,
             "developer_instructions": self.instructions,
             "base_instructions": self.base_instructions,
-            "sandbox": self.sandbox,
+            "sandbox": self.sandbox_mode,
             "approval_mode": self.approval_mode,
             "cwd": self.cwd,
             "config": self.config,
@@ -509,7 +522,7 @@ class CodexAgent(BaseExternalAgent):
         for key, value in {
             "model": self.model,
             "cwd": self.cwd,
-            "sandbox": self.sandbox,
+            "sandbox": self.sandbox_mode,
             "approval_mode": self.approval_mode,
             "service_tier": self.service_tier,
             "effort": self.reasoning_effort,

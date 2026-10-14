@@ -8,7 +8,6 @@ from typing import Any, AsyncIterator, Dict, Iterator, List, Mapping, Optional
 
 from agno.sandbox.base import Sandbox, SandboxError, SandboxHandle, _sync
 
-
 # Seconds a poll is held open inside the container when nothing has happened yet.
 _DEFAULT_WAIT = 10.0
 

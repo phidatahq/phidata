@@ -3,13 +3,15 @@ import json
 from contextlib import asynccontextmanager, suppress
 from contextvars import ContextVar
 from copy import copy
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from functools import partial
 from time import time
 from typing import (
     TYPE_CHECKING,
     Any,
     AsyncIterator,
     Awaitable,
+    Callable,
     ClassVar,
     Coroutine,
     Dict,
@@ -55,6 +57,7 @@ from agno.utils.log import log_exception, log_warning
 from agno.utils.string import parse_response_dict_str, parse_response_model_str
 
 if TYPE_CHECKING:
+    from agno.sandbox import Sandbox
     from agno.tools.component import ComponentTool
 
 # Limits for the history replayed into a fresh harness session when the framework's own
@@ -81,6 +84,12 @@ _live_handles: Dict[str, _LiveHandle] = {}
 # Identifies the attempt currently inside _run_cancellation on this task, so handle cleanup can
 # tell its own registration from one a retry of the same run id made in the meantime.
 _handle_owner: ContextVar[Optional[object]] = ContextVar("agno_external_handle_owner", default=None)
+
+
+def _sandbox_harness() -> Any:
+    from agno.sandbox import _harness
+
+    return _harness
 
 
 def run_coroutine_sync(coro: Awaitable[Any]) -> Any:
@@ -227,8 +236,12 @@ class BaseExternalAgent:
     require_native_resume: bool = False
     # Propagate local persistence failures before acknowledging a runtime result.
     strict_persistence: bool = False
+    # Run the whole harness process in a computer from this sandbox each turn, e.g. DockerSandbox(image).
+    sandbox: Optional["Sandbox"] = field(default=None, repr=False)
 
     _sdk_name: ClassVar[str] = "external"
+    # Runtime name the sandbox uses to rebuild this adapter; None means it cannot be sandboxed.
+    _sandbox_runtime: ClassVar[Optional[str]] = None
 
     # Keep the streamed events on the persisted run (RunOutput.events), as Agent does, so a
     # finished run can be shown and replayed from the database. AgentOS turns this on.
@@ -262,6 +275,8 @@ class BaseExternalAgent:
         if self.events_to_skip is None:
             self.events_to_skip = [RunEvent.run_content]
         self._check_output_schema(self.output_schema)
+        if self.sandbox is not None:
+            _sandbox_harness().validate(self)
 
     @property
     def sdk(self) -> str:
@@ -922,6 +937,9 @@ class BaseExternalAgent:
         so the row is marked whenever no live handle exists here. A run that is live on another
         replica sees the cancellation through the manager and ends cancelled as well.
         """
+        if self.sandbox is not None:
+            await _sandbox_harness().acancel_unowned_row(self, run_id)
+            return
         if self.db is None:
             return
         from agno.run.status_persist import apersist_run_transition
@@ -1156,6 +1174,8 @@ class BaseExternalAgent:
         self, run_id: str, session_id: str, user_id: Optional[str], input: Any, queued: bool = False
     ) -> RunOutput:
         """Persist an idempotent PENDING row before background or queued execution."""
+        if self.sandbox is not None:
+            return await _sandbox_harness().aprepare_pending_run(self, run_id, session_id, user_id, input)
         from agno.os.job_queue import _aappend_pending_run
 
         run = RunOutput(
@@ -1176,10 +1196,18 @@ class BaseExternalAgent:
             await self._apersist_run_in_session(session, run, strict=True)
         return run
 
+    def _queue_terminal_writer(self) -> Optional[Callable[..., Awaitable[Any]]]:
+        """Queue terminal writer that retires sandbox compute before the ticket settles."""
+        if self.sandbox is None:
+            return None
+        return partial(_sandbox_harness().apersist_queue_terminal, self)
+
     async def _apersist_run_fallback(
         self, session_id: str, run_response: RunOutput, user_id: Optional[str] = None
     ) -> None:
         """Re-read the session and persist one run; completed or cancelled rows win."""
+        if self.sandbox is not None:
+            _sandbox_harness().refuse_fallback()
         session = await self.aread_or_create_session(session_id, user_id)
         existing = session.get_run(run_response.run_id or "")
         if existing is not None and existing.status in (RunStatus.completed, RunStatus.cancelled):
@@ -1197,6 +1225,17 @@ class BaseExternalAgent:
         yield_run_output: bool,
         **kwargs: Any,
     ) -> Any:
+        if self.sandbox is not None:
+            return await _sandbox_harness().astart_background(
+                self,
+                input,
+                run_id=run_id,
+                session_id=session_id,
+                user_id=user_id,
+                stream=stream,
+                yield_run_output=yield_run_output,
+                **kwargs,
+            )
         from agno.run.background import _BackgroundStream, _execute_background, _spawn_background
         from agno.run.cancel import aregister_run
         from agno.run.status_persist import apersist_run_transition
@@ -1256,6 +1295,14 @@ class BaseExternalAgent:
         return transport if transport is not None else run
 
     async def _arun_background_stream(self, input: Any, **kwargs: Any) -> AsyncIterator[Any]:
+        if self.sandbox is not None:
+            events = _sandbox_harness().astream_background(self, input, **kwargs)
+            try:
+                async for item in events:
+                    yield item
+            finally:
+                await events.aclose()
+            return
         transport = await self._astart_background(input, stream=True, **kwargs)
         pump = transport.pump()
         try:
@@ -1627,6 +1674,8 @@ class BaseExternalAgent:
     # ---------------------------------------------------------------------------
 
     async def _arun_non_stream(self, input: Any, **kwargs: Any) -> RunOutput:
+        if self.sandbox is not None:
+            return await _sandbox_harness().arun(self, input, **kwargs)
         run_id = kwargs.pop("run_id", None) or str(uuid4())
         session_id = kwargs.get("session_id") or str(uuid4())
         kwargs["session_id"] = session_id
@@ -1722,6 +1771,14 @@ class BaseExternalAgent:
             self._release_session(session_id, run_id)
 
     async def _arun_stream(self, input: Any, **kwargs: Any) -> AsyncIterator[Any]:
+        if self.sandbox is not None:
+            events = _sandbox_harness().astream(self, input, **kwargs)
+            try:
+                async for item in events:
+                    yield item
+            finally:
+                await events.aclose()
+            return
         run_id = kwargs.pop("run_id", None) or str(uuid4())
         session_id = kwargs.get("session_id") or str(uuid4())
         kwargs["session_id"] = session_id

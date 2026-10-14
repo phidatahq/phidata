@@ -5,7 +5,7 @@ RUN sed -i 's|http://deb.debian.org|https://deb.debian.org|g' /etc/apt/sources.l
     && rm -rf /var/lib/apt/lists/*
 COPY agno /opt/agno/agno
 COPY pyproject.toml LICENSE README.md /opt/agno/
-RUN pip install --no-cache-dir /opt/agno \
+RUN pip install --no-cache-dir "/opt/agno[claude,codex]" \
     sqlalchemy==2.0.52 claude-agent-sdk==0.2.165 openai-codex==0.162.1 \
     && python -c "import agno.sandbox.runtime, claude_agent_sdk, openai_codex"
 ENV HOME=/runtime

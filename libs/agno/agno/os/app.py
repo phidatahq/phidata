@@ -965,6 +965,11 @@ class AgentOS:
                 if self.db is not None and entry.db is None:
                     entry.db = self.db
                 entry.store_events = True
+                if entry.sandbox is not None:
+                    from agno.sandbox import _harness
+
+                    # Fail at startup, not on the first run, when the sandbox has no Postgres to coordinate on.
+                    _harness._check_db(entry)
 
         if not self._agents:
             return

@@ -7,7 +7,6 @@ credentials. Its journal reports execution finished, not durable run completion.
 from __future__ import annotations
 
 import argparse
-from contextlib import suppress
 import asyncio
 import fcntl
 import hashlib
@@ -17,7 +16,7 @@ import os
 import subprocess
 import sys
 import time
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from pathlib import Path
 from typing import Any, Dict, Iterator, Optional
 

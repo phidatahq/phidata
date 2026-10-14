@@ -326,6 +326,9 @@ class _SandboxStore:
                         (self.runs.c.session_id == session_id)
                         & (self.runs.c.run_id != run_id)
                         & self.runs.c.status.in_(["COMPLETED", "ERROR", "CANCELLED"])
+                        & func.coalesce(
+                            self.runs.c.run_data["metadata"]["sandbox"]["never_executed"].as_boolean(), False
+                        ).is_(False)
                     )
                     .limit(1)
                 ).first()
@@ -636,6 +639,7 @@ class _SandboxStore:
                         "native_metadata": runtime_run.get("metadata") or {},
                         "recovery_run_id": record.get("last_run_id"),
                         "workspace_rolled_back": True,
+                        "epoch": lease.epoch,
                         "execution_id": record["execution_id"],
                     },
                 }
@@ -678,6 +682,13 @@ class _SandboxStore:
             )
             .on_conflict_do_nothing()
         )
+        attempt = value.get("queue_attempt")
+        if value["status"] == "PENDING":
+            # A worker may already have claimed the accepted run; keep its attempt.
+            existing: Dict[str, Any] = connection.execute(
+                select(self.runs.c.run_data).where(self.runs.c.run_id == value["run_id"]).with_for_update()
+            ).scalar_one()
+            attempt = existing.get("queue_attempt")
         lease = SandboxLease(
             value["agent_id"],
             value["session_id"],
@@ -685,7 +696,7 @@ class _SandboxStore:
             value["run_id"],
             0,
             "prepare",
-            value.get("queue_attempt"),
+            attempt,
         )
         row, _ = self._service_run(connection, lease)
         if row["run_data"].get("input") != value.get("input"):
@@ -711,6 +722,147 @@ class _SandboxStore:
             )
             .on_conflict_do_nothing()
         )
+
+    async def _apublish_events(self, run: Dict[str, Any], events: list[Dict[str, Any]]) -> None:
+        """Attach transport indices without rewriting a committed recovery boundary."""
+
+        def publish(connection: Connection) -> None:
+            row = (
+                connection.execute(select(self.runs).where(self.runs.c.run_id == run["run_id"]).with_for_update())
+                .mappings()
+                .first()
+            )
+            if row is None:
+                raise SandboxLeaseLost("Run disappeared before event retention")
+            previous = dict(row["run_data"])
+            identity = (run.get("metadata") or {}).get("sandbox") or {}
+            stored_identity = (previous.get("metadata") or {}).get("sandbox") or {}
+            if (
+                any(
+                    previous.get(key) != run.get(key)
+                    for key in ("run_id", "session_id", "agent_id", "user_id", "queue_attempt", "status")
+                )
+                or not identity.get("execution_id")
+                or any(stored_identity.get(key) != identity.get(key) for key in ("execution_id", "epoch"))
+            ):
+                raise SandboxLeaseLost("Event writer no longer owns this run result")
+            retained = {
+                event["event_index"]: event
+                for event in previous.get("events", [])
+                if event.get("event_index") is not None
+            }
+            retained.update({event["event_index"]: event for event in events if event.get("event_index") is not None})
+            if retained:
+                previous["events"] = [retained[key] for key in sorted(retained)]
+                connection.execute(
+                    update(self.runs).where(self.runs.c.run_id == run["run_id"]).values(run_data=self._json(previous))
+                )
+
+        await self._transaction(publish)
+
+    async def _aclaim_stop(
+        self,
+        *,
+        agent_id: str,
+        session_id: str,
+        user_id: Optional[str],
+        run_id: str,
+        queue_attempt: Optional[int],
+        status: str,
+        reason: str,
+        cancellation_stage: Optional[str] = None,
+    ) -> Any:
+        """Fence execution before a queue terminal path retires its compute."""
+        from agno.run.status_persist import RunPersistOutcome
+
+        if status not in ("ERROR", "CANCELLED"):
+            raise ValueError("Queue termination requires ERROR or CANCELLED")
+
+        def stop(connection: Connection) -> Any:
+            # Insert an idle binding to serialize even a never-started run with
+            # its first coordinator. A plain SELECT cannot lock an absent row.
+            try:
+                with connection.begin_nested():
+                    connection.execute(
+                        insert(self.bindings)
+                        .values(
+                            namespace=self.namespace,
+                            session_id=session_id,
+                            agent_id=agent_id,
+                            user_id=user_id,
+                            epoch=0,
+                            record={
+                                "phase": "idle",
+                                "generation": uuid4().int,
+                                "checkpoint": None,
+                                "incarnation": uuid4().hex,
+                            },
+                        )
+                        .on_conflict_do_nothing()
+                    )
+            except IntegrityError:
+                # The binding's foreign key: the session, and with it the run, was deleted.
+                return RunPersistOutcome.MISSING
+            binding = (
+                connection.execute(select(self.bindings).where(self._key(session_id)).with_for_update())
+                .mappings()
+                .one()
+            )
+            # A session bound to another owner can never have executed this run.
+            foreign = binding["agent_id"] != agent_id or binding["user_id"] != user_id
+            row = (
+                connection.execute(select(self.runs).where(self.runs.c.run_id == run_id).with_for_update())
+                .mappings()
+                .first()
+            )
+            if row is None or (row["session_id"], row["agent_id"], row["user_id"]) != (session_id, agent_id, user_id):
+                return RunPersistOutcome.MISSING
+            run = dict(row["run_data"])
+            actual_attempt = run.get("queue_attempt")
+            if actual_attempt != queue_attempt and not (actual_attempt is None and queue_attempt == 0):
+                return RunPersistOutcome.STALE_ATTEMPT
+            record = dict(binding["record"])
+            active = not foreign and record["phase"] != "idle" and binding["run_id"] == run_id
+            if not active:
+                if str(row["status"]).upper() in ("COMPLETED", "CANCELLED"):
+                    return RunPersistOutcome.TERMINAL_REFUSED
+                run.update(status=status, content=run.get("content") or reason)
+                run["metadata"] = {**(run.get("metadata") or {}), "retryable": False}
+                if foreign or binding["epoch"] == 0:
+                    run["metadata"]["sandbox"] = {"never_executed": True}
+                if status == "CANCELLED" and cancellation_stage is not None:
+                    run["cancellation_stage"] = cancellation_stage
+                connection.execute(
+                    update(self.runs)
+                    .where(self.runs.c.run_id == run_id)
+                    .values(status=status, run_data=self._json(run), updated_at=int(time.time()))
+                )
+                return RunPersistOutcome.UPDATED
+            # Take over an interrupted stop without rewriting the status it already committed to.
+            if record["phase"] != "stopping":
+                record.update(phase="stopping", stop_status=status, stop_reason=reason, stop_retryable=False)
+            if record.get("computer") is None:
+                record["computer_stopped"] = True
+            now: datetime = connection.execute(select(func.clock_timestamp())).scalar_one()
+            updated = (
+                connection.execute(
+                    update(self.bindings)
+                    .where(self._key(session_id))
+                    .values(
+                        epoch=binding["epoch"] + 1,
+                        owner=uuid4().hex,
+                        queue_attempt=actual_attempt,
+                        expires_at=now + timedelta(seconds=600),
+                        record=self._json(record),
+                    )
+                    .returning(self.bindings)
+                )
+                .mappings()
+                .one()
+            )
+            return self._state(updated)
+
+        return await self._transaction(stop)
 
     async def aprepare(self, run: Dict[str, Any]) -> None:
         """Insert an accepted queued run without rewriting existing session recovery metadata."""

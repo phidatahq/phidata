@@ -272,3 +272,13 @@ No model calls in the load run. Requests and daemon calls per turn are what scal
 ---
 
 Coordinator review follow-up: native transcript-mirror warnings and lost pre-checkpoint compute cannot publish success or trigger model execution retries. Tool audit history is retained on failure. Runtime output cannot replace the original submitted input or trusted service metadata. Added 2 real mirror-warning cases and 2 metadata/input boundary cases; final store suite: 32 passed. Focused finalization/mirror cases: 4 passed. Required scripts passed again.
+
+### agentos.py and durable API integration
+
+**Status:** PASS
+
+**Description:** `ClaudeAgent`/`CodexAgent(sandbox=DockerSandbox(...))` served by AgentOS with a durable Postgres queue and Redis, using the credential-free `FixtureAgent`. The agent builds its coordinator from the AgentOS `db`; no store, coordinator or setup call appears in the cookbook. Ran the cookbook server and sent a foreground turn (COMPLETED, checkpoint recorded) then a streamed second turn on the same session (RunContent, RunCompleted after restoring the first turn's checkpoint).
+
+**Result:** `test_agentos.py` 12 passed (foreground, background, streaming, idempotency, same-session admission, retained replay, finalization-only retry, active and between-attempt cancellation, retry exhaustion, SDK background, missing queue, detached SDK cancel). `test_coordinator.py` 32 passed and `test_postgres.py` 55 passed, 1 skipped, both adapters. Docker 27.4 needed the same local-only workaround as the coordinator PR (passwd entry for uid 1000 in the image, numeric `--user`), not committed. No model calls.
+
+---

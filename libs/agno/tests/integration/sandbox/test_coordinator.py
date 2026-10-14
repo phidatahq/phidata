@@ -416,3 +416,22 @@ async def test_restore_missing_native_state_fails_before_the_turn_runs(system, m
     assert record["phase"] == "idle" and record["native"]["fixture_session_id"]
     # The model never ran: the recovery point still holds only the first turn.
     assert await recovered_effects(coordinator, root) == ["first"]
+
+
+async def test_completion_without_native_conversation_cannot_publish(system, monkeypatch):
+    coordinator, spec, _ = system
+    poll = coordinator.client.apoll
+
+    async def lost_native_id(*args, **kwargs):
+        page = await poll(*args, **kwargs)
+        if page.result is not None and page.result["type"] == "execution_finished":
+            page.result["session"]["session_data"].pop("fixture_session_id")
+        return page
+
+    monkeypatch.setattr(coordinator.client, "apoll", lost_native_id)
+    output = await run(coordinator, spec)
+    # Publishing it would leave the next turn with no conversation to require.
+    assert output.status == RunStatus.error and "native conversation" in output.content
+    assert output.metadata["retryable"] is False
+    record = (await binding(coordinator))["record"]
+    assert record["checkpoint"] is None and not record.get("native")

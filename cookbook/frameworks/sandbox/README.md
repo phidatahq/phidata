@@ -203,6 +203,22 @@ Provider mutation operations hold the session ownership rows until their bounded
 
 Use deployment storage accessible to every coordinator replica for checkpoint bytes. The local directory store in these examples is temporary and does not certify host-loss recovery. Workspace and native files restore; live processes restart, and remote MCP/tool effects are not rolled back. Direct stream reconnection may repeat provisional events; durable event transport remains an AgentOS integration responsibility.
 
+## The smallest sandboxed agent
+
+```bash
+.venv/bin/python cookbook/frameworks/sandbox/sandbox_claude.py
+```
+
+`sandbox_claude.py` is a `ClaudeAgent` with a `PostgresDb` and `sandbox=DockerSandbox(image, env=credentials)`, nothing else. `agent.run` twice on one session: the first turn writes and runs a file inside a container, the container is checkpointed and destroyed, and the second turn restores the checkpoint into a new container and describes what it did. Checkpoints default to `~/.agno/sandbox/checkpoints`, which is enough for one process on one machine; AgentOS with a durable queue needs a store every replica can read. A session that already has turns from outside a sandbox cannot be moved into one, so the example always starts a fresh session.
+
+## The smallest sandboxed agent on AgentOS
+
+```bash
+.venv/bin/python cookbook/frameworks/sandbox/sandbox_claude_agentos.py
+```
+
+`sandbox_claude_agentos.py` is the same agent served by AgentOS with a durable queue: the HTTP API, a worker that runs each turn, and Redis for cancellation and event streaming, so any replica can answer a request and a turn survives the request that started it. Its docstring has the three curl calls: start a turn in the background, poll it by run id, stream the next turn on the same session. The checkpoint store is passed explicitly here because a queue means more than one process may need to read it; point it at shared storage when running replicas.
+
 ## AgentOS API execution
 
 `agentos.py` registers a `ClaudeAgent` or `CodexAgent` with `sandbox=DockerSandbox(...)`, a durable Postgres queue and shared Redis cancellation/event transport. The agent builds its coordinator from the AgentOS `db` on first use; there is no store or coordinator to construct. `DockerSandbox(checkpoints=...)` names the checkpoint storage (default `~/.agno/sandbox/checkpoints`, which only suits a single host), `env=` adds variables over the harness's model API key forwarded from the service environment, and `execution_timeout=` bounds one turn. Foreground, streaming and background API requests all submit to the queue; losing the HTTP connection does not cancel the worker. Independent sessions run concurrently; overlapping turns in one session wait without consuming attempts. Direct Python `run`/`arun` use the coordinator's Postgres fence. Python background submission requires the active AgentOS queue.

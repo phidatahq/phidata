@@ -188,6 +188,15 @@ This PR supplies the storage contract, not the AgentOS coordinator. The caller s
 
 `session_computer.py` runs two fixture turns through the complete Docker/Postgres path. Build the runtime, then set `AGNO_TEST_RUNTIME_IMAGE` and `AGNO_TEST_SANDBOX_DB_URL` before running it. No model credentials are used. The second turn restores the first turn's workspace onto a replacement computer.
 
+```python
+coordinator = SandboxCoordinator(db, DockerSandbox(image), transfer)
+coordinator.run("session-id", agent_id="coder", run_id="turn-1", input="...", sdk="claude", env={...})
+```
+
+`db` is the agent's `PostgresDb`; the coordinator keeps its leases there, with no setup call. Image and resource limits belong to the provider, and `env` is the per-session runtime environment.
+
+Each commit records the native conversation id the checkpoint holds (Claude's session id, Codex's thread id) on the session's binding. The next turn passes it as `native_session_id`, so a restore that did not bring the native state back fails with `native_state_missing` before the model runs, instead of completing on a new conversation. The turn ends as a retryable error and the previous checkpoint stays the recovery point.
+
 `SandboxCoordinator` stages the execution result before capturing an archive, persists that reference before removing compute, and atomically publishes conversation plus recovery metadata afterwards. A reconnect uses the same execution identity; a finalization retry never starts another model turn. Missing compute before capture fails visibly and preserves the previous checkpoint. A missing cleanup or commit acknowledgement can be reconciled with the same run ID and input. `run()` requires PostgresDb; `arun()` supports both Postgres adapters.
 
 Provider mutation operations hold the session ownership rows until their bounded transport calls drain. Takeover waits for an in-flight restore/capture instead of racing it. This costs a database connection and can delay cancellation until a transfer finishes. The initial implementation uses cold replacement after every completed turn; no warm-computer reuse is claimed.

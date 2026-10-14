@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterator, Optional
 
 from agno.sandbox.base import SandboxError
+from agno.sandbox.protocol import NATIVE_SESSION_KEYS
 from agno.sandbox.protocol import validate_request as _validate
 
 _VERSION = 1
@@ -59,9 +60,6 @@ class NativeStateMissing(SandboxError):
     ran; the caller treats this as a failed restore, not a failed turn."""
 
 
-_NATIVE_KEYS = {"claude": "claude_sdk_session_id", "codex": "codex_thread_id"}
-
-
 def _check_native_session_id(agent: Any, request: Dict[str, Any]) -> None:
     """Refuse to run when the caller expects an existing native conversation and the local
     database does not record exactly that one. This is the only check that catches a lost
@@ -70,7 +68,11 @@ def _check_native_session_id(agent: Any, request: Dict[str, Any]) -> None:
     if expected is None:
         return
     session = agent.get_session(request["session_id"], user_id=request.get("user_id"))
-    found = (session.session_data or {}).get(_NATIVE_KEYS[request["sdk"]]) if session is not None else None
+    found = (session.session_data or {}).get(NATIVE_SESSION_KEYS[request["sdk"]]) if session is not None else None
+    _require_native(expected, found)
+
+
+def _require_native(expected: str, found: Optional[str]) -> None:
     if found != expected:
         raise NativeStateMissing(
             "Sandbox native state does not match the session: expected "
@@ -155,6 +157,16 @@ def _append(directory: Path, event: Dict[str, Any]) -> None:
 
 
 async def _fixture(directory: Path, request: Dict[str, Any]) -> Dict[str, Any]:
+    # A stand-in native conversation: its id lives in the checkpointed native root, like an SDK's.
+    native = directory.parent.parent / "native"
+    native.mkdir(exist_ok=True)
+    marker = native / "fixture-session"
+    found = marker.read_text() if marker.exists() else None
+    if request.get("native_session_id") is not None:
+        _require_native(request["native_session_id"], found)
+    if found is None:
+        found = hashlib.sha256(request["session_id"].encode() + os.urandom(16)).hexdigest()[:32]
+        marker.write_text(found)
     workspace = Path(os.environ.get("AGNO_SANDBOX_WORKSPACE", "/workspace"))
     workspace.mkdir(exist_ok=True)
     with (workspace / "fixture-effects.txt").open("a") as stream:
@@ -184,7 +196,7 @@ async def _fixture(directory: Path, request: Dict[str, Any]) -> Dict[str, Any]:
         "session": {
             "session_id": request["session_id"],
             "user_id": request.get("user_id"),
-            "session_data": {"fixture": True},
+            "session_data": {"fixture": True, NATIVE_SESSION_KEYS["fixture"]: found},
         },
     }
 

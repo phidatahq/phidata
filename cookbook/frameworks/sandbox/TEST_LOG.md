@@ -250,12 +250,3 @@ No model calls in the load run. Requests and daemon calls per turn are what scal
 
 ---
 
-### durable_completion.py
-
-**Status:** PASS
-
-**Description:** Step-by-step walkthrough against local Postgres 18 (pgvector image), with fixture output and a real archive, no model calls or compute. The store is built from `PostgresDb` with no setup call; its lease table is created on first use. Turn 1 stays RUNNING after the result is staged and after checkpoint/cleanup staging, then commit marks it COMPLETED and points the session at the checkpoint in one transaction. Turn 2 survives a session rename upserted mid-turn, a coordinator whose 1 s lease lapses is taken over at a higher epoch and its late write is refused, and cancelling turn 2 leaves turn 1's checkpoint as the session's recovery point.
-
-**Result:** Passed; every printed state matched the expected step. Companion integration suite: 31 passed and 1 skipped across PostgresDb and AsyncPostgresDb (the cancellation drain applies to PostgresDb only), including independent owners, tables created on first use by four racing stores, a core `upsert_session` overwriting `session_data` mid-run without stranding the lease, runtime output unable to rewrite input, lineage or service metadata, lease expiry, queue attempt fencing, transaction rollback, lost acknowledgement, immutable staged output, a recreated session with the same id, created_at and run id starting from a fresh binding while the old lease is refused, a cancelled call waiting for its sync transaction, external cancellation, and sync entry points. Provider shutdown and archive verification remain coordinator responsibilities.
-
----

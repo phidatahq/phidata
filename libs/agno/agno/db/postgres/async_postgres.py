@@ -20,6 +20,7 @@ from agno.db.postgres.utils import (
     calculate_date_metrics,
     fetch_all_sessions_data,
     get_dates_to_calculate_metrics_for,
+    is_foreign_key_violation,
 )
 from agno.db.schemas.authz import (
     AUTHZ_AUDIT,
@@ -1073,6 +1074,11 @@ class AsyncPostgresDb(AsyncBaseDb):
             return deleted
 
         except Exception as e:
+            if is_foreign_key_violation(e):
+                # The sandbox bindings table references the run a turn holds; the run stays
+                # until that turn ends, or until its session is deleted.
+                log_warning(f"Run {run_id} was not deleted: an active sandbox turn still holds it")
+                return False
             log_error(f"Error deleting run: {str(e)}")
             raise e
 
@@ -1094,6 +1100,10 @@ class AsyncPostgresDb(AsyncBaseDb):
             log_debug(f"Successfully deleted {result.rowcount} runs")  # type: ignore
 
         except Exception as e:
+            if is_foreign_key_violation(e):
+                # One statement, so none of the runs were deleted.
+                log_warning("Runs were not deleted: an active sandbox turn still holds one of them")
+                return
             log_error(f"Error deleting runs: {str(e)}")
             raise e
 

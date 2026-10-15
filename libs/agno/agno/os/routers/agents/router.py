@@ -55,6 +55,7 @@ from agno.os.job_queue import (
     resolve_queue_scope,
     ticket_status_to_api,
     validate_seam_input,
+    wake_queue_worker,
 )
 from agno.os.middleware.user_scope import (
     SESSION_ID_REQUIRED,
@@ -975,6 +976,7 @@ def get_agent_router(
                     await aprepare_accepted_or_abort(
                         queue_worker, agent, "agent", queued_run_id, queued_session_id, user_id, message
                     )
+                    wake_queue_worker(queue_worker)
                     return StreamingResponse(queued_run_tail_streamer(queued_run_id), media_type="text/event-stream")
                 if queue_worker is not None:
                     log_warning(
@@ -1084,6 +1086,7 @@ def get_agent_router(
                 await aprepare_accepted_or_abort(
                     queue_worker, agent, "agent", queued_run_id, queued_session_id, user_id, message
                 )
+                wake_queue_worker(queue_worker)
                 return JSONResponse(
                     status_code=202,
                     content={"run_id": queued_run_id, "session_id": queued_session_id, "status": "PENDING"},

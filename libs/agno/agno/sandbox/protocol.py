@@ -34,6 +34,7 @@ def validate_request(request: Dict[str, Any]) -> None:
         "options_kwargs",
         "thread_kwargs",
         "keep_uploads",
+        "codex_bin",
     } & set(request.get("config", {})):
         raise ValueError("Runtime owns database, workspace, identity, process environment and retry configuration")
     timeout = request.get("execution_timeout", 900)

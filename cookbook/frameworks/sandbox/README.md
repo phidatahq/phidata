@@ -27,6 +27,17 @@ The example does a turn's worth of work, writing a file and leaving a background
 
 `pause`, `resume` and their async counterparts are part of the `Sandbox` contract. A provider without a native pause raises `NotImplementedError`, so a caller can fall back to keeping the container running or to the cold path. A paused container is still tied to one host and still counts against its memory, so pausing complements checkpoints rather than replacing them: checkpoints remain the recovery path when the host or the container is gone.
 
+## The smallest sandboxed agent
+
+```bash
+export ANTHROPIC_API_KEY=...   # or CLAUDE_CODE_OAUTH_TOKEN
+.venv/bin/python cookbook/frameworks/sandbox/sandbox_claude.py
+```
+
+`sandbox_claude.py` is a `ClaudeAgent` with a `PostgresDb` and `sandbox=DockerSandbox(image)`, nothing else. It runs two turns on a new session: the first writes and runs a file, the second asks what file was created. Each turn runs the whole Claude Code process in a container from the image; when it completes, its workspace and Claude Code's own conversation are checkpointed and the container is removed, and the next turn starts a fresh container restored from that checkpoint, which is how turn 2 knows the file name. The credential in the process environment (`ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN`) is forwarded into the container. Checkpoints default to `~/.agno/sandbox/checkpoints`, which suits a single host.
+
+`sandbox_claude_agentos.py` serves the same agent through AgentOS with a durable queue (Postgres and Redis). Every API request submits to the queue, a dropped connection does not cancel the turn, and a second request on the same session waits for the first. It names its checkpoint store explicitly: with a queue, any replica may run the next attempt, so the default host-local store is refused.
+
 ## A live Claude session in a sandbox
 
 ```bash
@@ -213,3 +224,31 @@ Provider mutation operations hold the session ownership rows until their bounded
 Each active turn costs the database: one held connection during a provider call, a lease check per poll page, and a heartbeat renewal every third of the lease. Polls long-poll inside the container for up to `poll_wait` seconds (default 5) and return as soon as there are events, so an idle turn makes about one poll and one lease check per `poll_wait`. `poll_wait` also bounds how long a cancellation can go unnoticed while a turn emits nothing. Size the `PostgresDb` connection pool for the number of concurrently active sessions plus the rest of the application; the default pool is small.
 
 Use deployment storage accessible to every coordinator replica for checkpoint bytes. The local directory store in these examples is temporary and does not certify host-loss recovery. Workspace and native files restore; live processes restart, and remote MCP/tool effects are not rolled back. Direct stream reconnection may repeat provisional events; durable event transport remains an AgentOS integration responsibility.
+
+## AgentOS API execution
+
+`agentos.py` registers a `ClaudeAgent` or `CodexAgent` with `sandbox=DockerSandbox(...)`, a durable Postgres queue and shared Redis cancellation/event transport. The agent builds its coordinator from the AgentOS `db` on first use; there is no store or coordinator to construct. `DockerSandbox(checkpoints=...)` names the checkpoint storage (the host-local default `~/.agno/sandbox/checkpoints` is refused once a queue worker is active, since another replica may run the next attempt), `env=` adds variables over the harness's model API key forwarded from the service environment, and `execution_timeout=` bounds one turn. Foreground, streaming and background API requests all submit to the queue; losing the HTTP connection does not cancel the worker. Independent sessions run concurrently; overlapping turns in one session wait without consuming attempts. Direct Python `run`/`arun` use the coordinator's Postgres fence. Python background submission requires the active AgentOS queue.
+
+Build the runtime image with `build_image.py`, install `psycopg[binary]`, `redis`, `docker` CLI, `fastapi` and `uvicorn` in the service environment, and configure:
+
+```bash
+export SANDBOX_DATABASE_URL=postgresql+psycopg://ai:ai@localhost:5573/ai
+export SANDBOX_REDIS_URL=redis://localhost:6407/0
+export SANDBOX_CHECKPOINT_DIRECTORY=/absolute/path/to/durable/shared/checkpoints
+export SANDBOX_RUNTIME_IMAGE=agno-sandbox:local
+export SANDBOX_HARNESS=fixture
+.venv/bin/python cookbook/frameworks/sandbox/agentos.py
+```
+
+The fixture harness (`agno.sandbox.fixture.FixtureAgent`) makes no model calls. For a real harness select `claude` or `codex` and configure its model API key. The example uses `network="isolated"` for those harnesses so they can reach their model API; customer network policy must control its egress. Every replica must reach the same Docker daemon, checkpoint storage, Postgres and Redis and use identical runtime configuration. Multiple independent Docker daemons are not interchangeable for an active computer. Local checkpoint directories do not provide host-loss durability unless backed by shared durable storage.
+
+```bash
+curl -X POST http://localhost:7777/agents/coder/runs \
+  -H 'Idempotency-Key: first-turn' \
+  -F session_id=example -F message='Create a small application and test it' \
+  -F stream=false -F background=true
+```
+
+Keep the returned run ID. Reconnect with `POST /agents/coder/runs/{run_id}/resume` using form fields `session_id` and optionally `last_event_index`; cancel with `POST /agents/coder/runs/{run_id}/cancel?session_id=example`. Reusing an idempotency key requires the same session ID, input and options. Conflicting submissions return 409. Streaming terminal success follows the durable checkpoint commit. Retained indexed events support replay after the live Redis view expires; content deltas follow the agent's `events_to_skip` policy.
+
+Agent settings travel to the sandbox as JSON, including structured-output schemas; callbacks, native option objects (`options`, `client_options`) and host paths (`cwd`, `codex_bin`) are rejected when the agent is constructed. Running a native `Agent` inside a sandbox is not supported yet: `Agent(sandbox=...)` raises. File/image inputs, step replay/fork, version-pinned instances and arbitrary per-turn SDK options are explicitly rejected pending checkpoint-aware integrations. Do not use the ordinary session deletion API to retire sandbox resources; coordinated lifecycle/retention is a separate follow-up. A failed checkpoint upload retries finalization without repeating the model. If the configured queue attempts are exhausted, compute is removed and the turn fails visibly while retaining the previous checkpoint. External effects can still repeat after execution crashes and need application idempotency.

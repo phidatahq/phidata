@@ -11,9 +11,13 @@ import secrets
 import tempfile
 from contextlib import suppress
 from pathlib import Path
-from typing import Any, Dict, Mapping, Optional, Sequence
+from typing import TYPE_CHECKING, Any, Dict, Mapping, Optional, Sequence
 
 from agno.sandbox.base import ExecResult, Sandbox, SandboxError, SandboxHandle, _identity, _sync
+
+if TYPE_CHECKING:
+    from agno.sandbox.checkpoint import CheckpointStore
+    from agno.sandbox.transfer import CheckpointTransfer
 
 _LABEL = "io.agno.sandbox."
 # One provider-owned bridge per host with inter-container traffic off: sandboxes reach the
@@ -52,6 +56,9 @@ class DockerSandbox(Sandbox):
         runtime_port: Optional[int] = None,
         runtime_host: str = "127.0.0.1",
         subnet: str = _DEFAULT_SUBNET,
+        checkpoints: Optional["CheckpointStore"] = None,
+        env: Optional[Mapping[str, str]] = None,
+        execution_timeout: float = 900,
     ) -> None:
         for value in (image, namespace, network):
             if not isinstance(value, str) or not value or "\x00" in value:
@@ -100,8 +107,18 @@ class DockerSandbox(Sandbox):
         if parsed.version != 4 or parsed.prefixlen > 30:
             raise ValueError("Sandbox subnet must be an IPv4 network no smaller than a /30")
         self.subnet = str(parsed)
+        if not math.isfinite(execution_timeout) or not 0 < execution_timeout <= 86400:
+            raise ValueError("Sandbox execution timeout must be between 0 and 86400 seconds")
+        self.checkpoints = checkpoints
+        self.env = dict(env) if env is not None else None
+        self.execution_timeout = execution_timeout
         self._http: Dict[int, Any] = {}
         self._network_ready = False
+
+    def checkpoint_transfer(self, store: "CheckpointStore") -> "CheckpointTransfer":
+        from agno.sandbox.transfer import DockerCheckpointTransfer
+
+        return DockerCheckpointTransfer(self, store)
 
     @property
     def network_name(self) -> str:

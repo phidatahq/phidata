@@ -90,6 +90,10 @@ openlit = ["openlit", "agno[opentelemetry]"]
 arize = ["arize-phoenix", "agno[opentelemetry]", "opentelemetry-exporter-otlp-proto-grpc", "opentelemetry-distro"]
 langfuse = ["langfuse"]
 
+# Dependencies for External Agent Harnesses
+claude = ["claude-agent-sdk>=0.2.148"]
+codex = ["openai-codex"]
+
 # Dependencies for Models
 # >=0.77.0: the first release accepting output_config on the stable messages endpoint
 # as well as the beta one. Structured output rides inside it, and anthropic 1.0.0

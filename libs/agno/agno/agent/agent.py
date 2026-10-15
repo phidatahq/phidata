@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -58,6 +58,7 @@ from agno.models.message import Message
 
 if TYPE_CHECKING:
     from agno.offload.store import ResultStore
+    from agno.sandbox import Sandbox
 from agno.registry.registry import Registry
 from agno.run import RunContext, RunStatus
 from agno.run.agent import (
@@ -404,6 +405,9 @@ class Agent:
     # Custom cache key function for knowledge callable factory
     callable_knowledge_cache_key: Optional[Callable[..., Optional[str]]] = None
 
+    # Keep this agent out of the registry while allowing it to run.
+    _registry_excluded: bool = field(default=False, init=False, repr=False, compare=False)
+
     def __init__(
         self,
         *,
@@ -516,7 +520,13 @@ class Agent:
         cache_callables: bool = True,
         callable_tools_cache_key: Optional[Callable[..., Optional[str]]] = None,
         callable_knowledge_cache_key: Optional[Callable[..., Optional[str]]] = None,
+        sandbox: Optional["Sandbox"] = None,
     ):
+        if sandbox is not None:
+            raise NotImplementedError(
+                "Agent(sandbox=...) is not supported yet. Use ClaudeAgent(sandbox=...) or "
+                "CodexAgent(sandbox=...) to run a coding harness inside a sandbox."
+            )
         self.model = model  # type: ignore[assignment]
         if fallback_config is not None:
             if fallback_models:

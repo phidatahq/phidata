@@ -5,10 +5,12 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import threading
 from contextlib import suppress
 from copy import deepcopy
 from dataclasses import asdict
-from typing import Any, AsyncIterator, Dict, Mapping, Optional, Union
+from queue import Queue
+from typing import Any, AsyncGenerator, Dict, Iterator, Mapping, Optional, Union
 from uuid import uuid4
 
 from agno.db.postgres import AsyncPostgresDb, PostgresDb
@@ -66,19 +68,21 @@ class SandboxCoordinator:
         input: str,
         sdk: str,
         user_id: Optional[str] = None,
+        agent_name: Optional[str] = None,
         config: Optional[Dict[str, Any]] = None,
         env: Optional[Mapping[str, str]] = None,
         queue_attempt: Optional[int] = None,
         execution_timeout: float = 900,
     ) -> RunOutput:
         result = None
-        async for value in self._astream(
+        async for value in self.astream(
             session_id,
             agent_id=agent_id,
             run_id=run_id,
             input=input,
             sdk=sdk,
             user_id=user_id,
+            agent_name=agent_name,
             config=config,
             env=env,
             queue_attempt=queue_attempt,
@@ -99,6 +103,7 @@ class SandboxCoordinator:
         input: str,
         sdk: str,
         user_id: Optional[str] = None,
+        agent_name: Optional[str] = None,
         config: Optional[Dict[str, Any]] = None,
         env: Optional[Mapping[str, str]] = None,
         queue_attempt: Optional[int] = None,
@@ -112,6 +117,7 @@ class SandboxCoordinator:
             input=input,
             sdk=sdk,
             user_id=user_id,
+            agent_name=agent_name,
             config=config,
             env=env,
             queue_attempt=queue_attempt,
@@ -130,7 +136,55 @@ class SandboxCoordinator:
             await self.store.aconfirm_stopped(lease, handle.provider_ref)
         return await self.store.afinish_stop(lease)
 
-    async def _astream(
+    async def _aterminate(
+        self,
+        session_id: str,
+        *,
+        agent_id: str,
+        run_id: str,
+        user_id: Optional[str],
+        queue_attempt: Optional[int],
+        status: str,
+        reason: str,
+        cancellation_stage: Optional[str] = None,
+        env: Optional[Mapping[str, str]] = None,
+    ) -> Any:
+        """Fence a queue terminal path and retire the run's compute before its ticket settles."""
+        from agno.run.status_persist import RunPersistOutcome
+
+        state = await self.store._aclaim_stop(
+            agent_id=agent_id,
+            session_id=session_id,
+            user_id=user_id,
+            run_id=run_id,
+            queue_attempt=queue_attempt,
+            status=status,
+            reason=reason,
+            cancellation_stage=cancellation_stage,
+        )
+        if not hasattr(state, "lease"):
+            return state
+        allocation: Dict[str, Any] = dict(agent_id=agent_id, generation=state.record["generation"], env=env)
+
+        async def find_orphan(record: Dict[str, Any]) -> Dict[str, Any]:
+            if record.get("computer") is None and not record.get("stopped_ref"):
+                orphan = await self.provider.afind(session_id, **allocation)
+                if orphan is not None:
+                    record.update(computer=asdict(orphan), computer_stopped=False)
+            return record
+
+        try:
+            await self.store._aoperation(state.lease, find_orphan)
+            committed = await self._stop(state.lease, status=status, reason=reason)
+            # An earlier stop that committed a different status wins; callers reconcile from the row.
+            if committed.get("status") != status:
+                return RunPersistOutcome.TERMINAL_REFUSED
+            return RunPersistOutcome.UPDATED
+        finally:
+            with suppress(SandboxLeaseLost):
+                await self.store.arelinquish(state.lease)
+
+    def stream(
         self,
         session_id: str,
         *,
@@ -139,11 +193,74 @@ class SandboxCoordinator:
         input: str,
         sdk: str,
         user_id: Optional[str] = None,
+        agent_name: Optional[str] = None,
         config: Optional[Dict[str, Any]] = None,
         env: Optional[Mapping[str, str]] = None,
         queue_attempt: Optional[int] = None,
         execution_timeout: float = 900,
-    ) -> AsyncIterator[Any]:
+    ) -> Iterator[Any]:
+        """Synchronous ``astream``: the turn runs on its own loop in a worker thread and events
+        arrive as they are produced. Stopping early detaches this caller like any disconnect."""
+        if isinstance(self.store.db, AsyncPostgresDb):
+            raise TypeError("Use astream with AsyncPostgresDb")
+        done = object()
+        items: "Queue[Any]" = Queue()
+
+        async def pump() -> None:
+            try:
+                async for value in self.astream(
+                    session_id,
+                    agent_id=agent_id,
+                    run_id=run_id,
+                    input=input,
+                    sdk=sdk,
+                    user_id=user_id,
+                    agent_name=agent_name,
+                    config=config,
+                    env=env,
+                    queue_attempt=queue_attempt,
+                    execution_timeout=execution_timeout,
+                ):
+                    items.put(value)
+            except BaseException as error:
+                items.put(error)
+            finally:
+                items.put(done)
+
+        worker = threading.Thread(target=lambda: asyncio.run(pump()), name="sandbox-stream", daemon=True)
+        worker.start()
+        try:
+            while True:
+                item = items.get()
+                if item is done:
+                    return
+                if isinstance(item, BaseException):
+                    raise item
+                yield item
+        finally:
+            worker.join()
+
+    async def astream(
+        self,
+        session_id: str,
+        *,
+        agent_id: str,
+        run_id: str,
+        input: str,
+        sdk: str,
+        user_id: Optional[str] = None,
+        agent_name: Optional[str] = None,
+        config: Optional[Dict[str, Any]] = None,
+        env: Optional[Mapping[str, str]] = None,
+        queue_attempt: Optional[int] = None,
+        execution_timeout: float = 900,
+    ) -> AsyncGenerator[Any, None]:
+        """Run one turn and yield its events as they arrive, then the committed ``RunOutput`` last.
+
+        The same turn as ``arun``: the run output is yielded only once the result and recovery
+        checkpoint are stored, so a consumer that sees it can rely on it. Cancelling the consumer
+        detaches it; the turn keeps running and a later call with the same run id reattaches.
+        """
         if not isinstance(input, str) or sdk not in ("claude", "codex", "fixture"):
             raise ValueError("Sandbox runtime requires text input and a supported SDK")
         # Validate before any allocation, including JSON serializability and limits.
@@ -176,6 +293,7 @@ class SandboxCoordinator:
         run = RunOutput(
             run_id=run_id,
             agent_id=agent_id,
+            agent_name=agent_name,
             session_id=session_id,
             user_id=user_id,
             input=RunInput(input_content=input),
@@ -395,6 +513,23 @@ class SandboxCoordinator:
                     committed = await self._finalize(lease)
             yield self._terminal(committed)
             yield RunOutput.from_dict(committed)
+        except asyncio.CancelledError:
+            from agno.run.cancel import ais_cancelled
+            from agno.run.concurrency import get_worker_ownership
+
+            owner = get_worker_ownership(run_id)
+            cause = owner.cancellation_cause if owner is not None else None
+            if cause in ("user_cancel", "timeout") or await ais_cancelled(run_id):
+                with suppress(SandboxLeaseLost):
+                    await self._stop(
+                        lease,
+                        status="ERROR" if cause == "timeout" else "CANCELLED",
+                        reason="Run timed out" if cause == "timeout" else "Run cancelled",
+                        retryable=cause == "timeout",
+                    )
+            # Shutdown/disconnect alone detaches; the queue's next attempt uses
+            # this generation's execution journal instead of rerunning tools.
+            raise
         finally:
             heart.cancel()
             with suppress(asyncio.CancelledError):

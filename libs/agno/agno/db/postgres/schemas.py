@@ -264,6 +264,18 @@ LEARNINGS_TABLE_SCHEMA = {
 }
 
 
+PRODUCTS_TABLE_SCHEMA = {
+    "id": {"type": String, "primary_key": True},
+    "name": {"type": String, "nullable": True, "index": True},
+    "purpose": {"type": Text, "nullable": True},
+    "user_id": {"type": String, "nullable": True, "index": True},
+    "metadata": {"type": JSONB, "nullable": True},
+    "created_at": {"type": BigInteger, "nullable": False, "index": True},
+    "updated_at": {"type": BigInteger, "nullable": True},
+    "deleted_at": {"type": BigInteger, "nullable": True},
+}
+
+
 SCHEDULE_TABLE_SCHEMA = {
     "id": {"type": String, "primary_key": True, "nullable": False},
     "name": {"type": String, "nullable": False, "index": True},
@@ -566,6 +578,7 @@ def get_table_schema_definition(
         "component_links": COMPONENT_LINKS_TABLE_SCHEMA,
         "learnings": LEARNINGS_TABLE_SCHEMA,
         "schedules": SCHEDULE_TABLE_SCHEMA,
+        "products": PRODUCTS_TABLE_SCHEMA,
         "jobs": JOBS_TABLE_SCHEMA,
         "tool_results": TOOL_RESULTS_TABLE_SCHEMA,
         "compactions": COMPACTIONS_TABLE_SCHEMA,

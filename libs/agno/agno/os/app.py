@@ -100,6 +100,7 @@ if TYPE_CHECKING:
     # runtime here would break `import agno.os` when the extra is not installed.
     from fastmcp.server.auth import AuthProvider
 
+    from agno.company.config import CompanyConfig
     from agno.os.authz.audit import AuditSink
     from agno.os.authz.authorization import Authorization
     from agno.os.authz.provider import AuthorizationProvider
@@ -331,6 +332,7 @@ class AgentOS:
         internal_service_token: Optional[str] = None,
         public: Optional[Any] = None,
         manager: Optional[Union[bool, "OSManager"]] = None,
+        company: Optional["CompanyConfig"] = None,
     ):
         """Initialize AgentOS.
 
@@ -350,6 +352,7 @@ class AgentOS:
             knowledge: List of knowledge bases to include in the OS
             interfaces: List of interfaces to include in the OS
             manager: Adds an OS Manager team to the OS.
+            company: Enable Company Products, inheriting db unless a Company database is provided.
             a2a_interface: Whether to expose the OS agents and teams in an A2A server
             config: Configuration file path or AgentOSConfig instance
             settings: API settings for the OS
@@ -423,7 +426,7 @@ class AgentOS:
             scheduler_base_url: Base URL for scheduler HTTP calls (default: http://127.0.0.1:7777)
             internal_service_token: Token for scheduler-to-OS auth (auto-generated if not provided)
         """
-        if not agents and not workflows and not teams and not knowledge and not db:
+        if not agents and not workflows and not teams and not knowledge and not db and company is None:
             raise ValueError("Either agents, teams, workflows, knowledge bases or a database must be provided.")
 
         self.config = load_yaml_config(config) if isinstance(config, str) else config
@@ -457,6 +460,8 @@ class AgentOS:
         self.version = version
         self.description = description
         self.db = db
+        self.company = company
+        self._company_db = (company.db if company.db is not None else db) if company is not None else None
         self.checkpoint = checkpoint
 
         self.telemetry = telemetry
@@ -885,6 +890,10 @@ class AgentOS:
             get_traces_router(dbs=self.dbs),
             get_database_router(self, settings=self.settings),
         ]
+        if self.company is not None:
+            from agno.os.routers.company.products import get_products_router
+
+            updated_routers.append(get_products_router(db=self._company_db, settings=self.settings))
         # Routes that require a database
         if self.db is not None:
             if isinstance(self.db, BaseDb):
@@ -1699,6 +1708,10 @@ class AgentOS:
             get_traces_router(dbs=self.dbs),
             get_database_router(self, settings=self.settings),
         ]
+        if self.company is not None:
+            from agno.os.routers.company.products import get_products_router
+
+            routers.append(get_products_router(db=self._company_db, settings=self.settings))
         # Routes that require a database
         if self.db is not None:
             if isinstance(self.db, BaseDb):
@@ -1810,6 +1823,8 @@ class AgentOS:
                     status_code=status_code,
                     content=_error_body(detail, exc),
                 )
+
+        fastapi_app.state.company_enabled = self.company is not None
 
         # Update CORS middleware
         origin_policy = update_cors_middleware(
@@ -2189,6 +2204,10 @@ class AgentOS:
         # unmapped-route default (allow). Self-authenticating interfaces are excluded from
         # the auth layer entirely, so their mappings are irrelevant here.
         interface_mappings: Dict[str, List[str]] = {}
+        if self.company is not None:
+            from agno.os.scopes import get_default_scope_mappings
+
+            interface_mappings.update(get_default_scope_mappings(company=True))
         for interface in self.interfaces:
             if getattr(interface, "authenticates_own_requests", False):
                 continue

@@ -410,11 +410,11 @@ def _authorization_context(
     )
 
 
-@lru_cache(maxsize=1)
-def _default_scope_mappings() -> Dict[str, List[str]]:
+@lru_cache(maxsize=2)
+def _default_scope_mappings(company: bool = False) -> Dict[str, List[str]]:
     """The default route→scope mappings, built once (they are static data) so the
     per-request service-account path does not rebuild the dict on every call."""
-    return get_default_scope_mappings()
+    return get_default_scope_mappings(company=company)
 
 
 # Scopes granted to the internal service token (used by the scheduler executor).
@@ -494,7 +494,7 @@ async def _authenticate_service_account(
         request,
         token,
         verifier=verifier,
-        scope_mappings=_default_scope_mappings(),
+        scope_mappings=_default_scope_mappings(company=getattr(request.app.state, "company_enabled", False)),
         admin_scope=admin_scope,
     )
     if error is not None:

@@ -21,6 +21,7 @@ from agno.os.authz.provider import AuthorizationContext, AuthorizationProvider
 from agno.os.authz.run_context import request_authorization, restore_authorization
 from agno.os.authz.scope_provider import ScopeAuthorizationProvider
 from agno.os.job_queue import QueueWorker, aenqueue_ticket
+from agno.os.manager.config import MANAGER_TEAM_ID, OPERATOR_ID
 from agno.registry import Registry
 from agno.run import RunContext
 from agno.run.authorization import (
@@ -549,3 +550,138 @@ def test_manager_run_discovery_and_session_permissions_remain_separate(tmp_path)
     assert client.get(f"/teams/{manager_id}", headers=session_headers).status_code == 403
     other = os.manager.run("hi", user_id="bob")
     assert client.get(f"/sessions/{other.session_id}", headers=session_headers).status_code == 404
+
+
+def _operator_permission_os(tmp_path, scopes, identity="jwt", tool="read_file", arguments=None, delegated=False):
+    root = tmp_path / "source"
+    root.mkdir()
+    (root / "example.py").write_text("READABLE_SOURCE_SENTINEL = 42\n")
+    (root / ".env").write_text("SECRET_SENTINEL_NEVER_RETURN=synthetic\n")
+    auth = Authorization(verification_keys=[SECRET], algorithm="HS256", audience="test", verify_audience=True)
+    request_headers = headers(scopes)
+    if identity == "managed":
+        auth.define_role("caller", scopes)
+        auth.assign("alice", "caller")
+        request_headers = headers(["agent_os:admin"])
+    os = AgentOS(
+        id="test",
+        db=SqliteDb(db_file=str(tmp_path / "db.sqlite")),
+        authorization=auth,
+        user_isolation=True,
+        manager=OSManager(model=ScriptedModel(), root=root),
+        telemetry=False,
+    )
+    operator = next(m for m in os.manager.members if m.id == OPERATOR_ID)
+    operator.model = ScriptedModel(tool, arguments or {})
+    path = f"/agents/{OPERATOR_ID}/runs"
+    if delegated:
+        os.manager.model = ScriptedModel(
+            "delegate_task_to_member", {"member_id": OPERATOR_ID, "task": "Execute the tool"}
+        )
+        path = f"/teams/{MANAGER_TEAM_ID}/runs"
+    if identity == "pat":
+        from agno.db.schemas.service_accounts import ServiceAccount
+        from agno.os.service_accounts import generate_token
+
+        token, hashed, prefix = generate_token()
+        os.db.create_service_account(
+            ServiceAccount(
+                id="probe-caller", name="probe-caller", token_hash=hashed, token_prefix=prefix, scopes=scopes
+            ).to_dict()
+        )
+        request_headers = {"Authorization": "Bearer " + token}
+    return os, TestClient(os.get_app()), path, request_headers
+
+
+@pytest.mark.parametrize("identity", ["jwt", "managed", "pat"])
+@pytest.mark.parametrize("delegated", [False, True])
+@pytest.mark.parametrize("allowed", [False, True])
+@pytest.mark.parametrize(
+    "tool,args,grant,marker",
+    [
+        ("read_file", {"path": "example.py"}, "filesystem:read", "READABLE_SOURCE_SENTINEL"),
+        ("run_diagnostics", {}, "config:read", "checks"),
+        ("get_platform_metrics", {}, "agent_os:admin", "window_days"),
+    ],
+)
+def test_operator_action_grants(tmp_path, identity, delegated, allowed, tool, args, grant, marker):
+    scopes = [f"teams:{MANAGER_TEAM_ID}:run" if delegated else f"agents:{OPERATOR_ID}:run"]
+    if allowed:
+        scopes.append(grant)
+    os, client, path, request_headers = _operator_permission_os(tmp_path, scopes, identity, tool, args, delegated)
+    response = client.post(path, headers=request_headers, data={"message": "Execute", "stream": "false"})
+    assert response.status_code == 200, response.text
+    content = response.json()["content"]
+    if allowed:
+        assert "Permission required:" not in content, content
+        assert marker in content, content
+    else:
+        assert "Permission required: " + grant in content, content
+        assert marker not in content, content
+
+
+@pytest.mark.parametrize("scope", ["filesystem:read", "agent_os:admin"])
+def test_even_authorized_source_reads_cannot_read_credential_files(tmp_path, scope):
+    scopes = [f"agents:{OPERATOR_ID}:run", scope]
+    os, client, path, h = _operator_permission_os(tmp_path, scopes, arguments={"path": ".env"})
+    response = client.post(path, headers=h, data={"message": "Read", "stream": "false"})
+    assert response.status_code == 200
+    assert "SECRET_SENTINEL_NEVER_RETURN" not in response.text
+    assert "Error:" in response.json()["content"]
+
+
+@pytest.mark.parametrize("mode", ["missing", "malformed", "expired", "wrong_audience"])
+def test_invalid_credentials_cannot_start_manager(tmp_path, mode):
+    os, client, _, _ = _operator_permission_os(tmp_path, [])
+    claims = {"sub": "alice", "aud": "test", "scopes": ["agent_os:admin"], "exp": int(time.time()) + 300}
+    h = {}
+    if mode == "malformed":
+        h = {"Authorization": "Bearer invalid-token"}
+    elif mode != "missing":
+        if mode == "expired":
+            claims["exp"] = int(time.time()) - 300
+        if mode == "wrong_audience":
+            claims["aud"] = "another-os"
+        h = {"Authorization": "Bearer " + jwt.encode(claims, SECRET, algorithm="HS256")}
+    response = client.post(f"/teams/{MANAGER_TEAM_ID}/runs", headers=h, data={"message": "Hello", "stream": "false"})
+    assert response.status_code == 401, response.text
+    assert os.manager.model.calls == 0
+
+
+def test_regular_user_cookbook_permissions_and_session_history(tmp_path, monkeypatch, capsys):
+    import runpy
+    import sys
+    from pathlib import Path
+
+    from agno.models.openai import OpenAIResponses
+    from agno.os import create_dev_token
+
+    examples = Path(__file__).resolve().parents[5] / "cookbook/05_agent_os/29_manager"
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("JWT_VERIFICATION_KEY", SECRET)
+    monkeypatch.delenv("AGNO_API_KEY", raising=False)
+    monkeypatch.syspath_prepend(str(examples))
+    monkeypatch.delitem(sys.modules, "manager_user_access", raising=False)
+
+    def unexpected_model_call(*args, **kwargs):
+        pytest.fail("The permission checker must never call a live model")
+
+    monkeypatch.setattr(OpenAIResponses, "invoke", unexpected_model_call)
+    monkeypatch.setattr(OpenAIResponses, "ainvoke", unexpected_model_call)
+    runpy.run_path(str(examples / "check_manager_permissions.py"), run_name="__main__")
+    assert "All seven permission checks passed" in capsys.readouterr().out
+
+    os = sys.modules["manager_user_access"].agent_os
+    os.manager.model = ScriptedModel()
+    client = TestClient(os.get_app())
+    token = create_dev_token("alice", secret=SECRET, audience="manager-access-demo")
+    alice_headers = {"Authorization": f"Bearer {token}"}
+    own = client.post(
+        f"/teams/{MANAGER_TEAM_ID}/runs", headers=alice_headers, data={"message": "Hello", "stream": "false"}
+    )
+    assert own.status_code == 200
+    assert client.get(f"/sessions/{own.json()['session_id']}", headers=alice_headers).status_code == 200
+    other = os.manager.run("Hello", user_id="bob")
+    assert client.get(f"/sessions/{other.session_id}", headers=alice_headers).status_code == 404
+    # Do not retain the temporary app across unrelated cookbook imports.
+    monkeypatch.delitem(sys.modules, "manager_user_access")

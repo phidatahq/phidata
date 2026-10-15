@@ -326,3 +326,57 @@ These results supersede the earlier configurable-ID and Platform Engineer descri
 **Result:** The broad affected suite passed **6,082 tests, 24 skipped**. The final manager/authorization/registry/component API selection passed **563 tests, 14 skipped** after the final reservation checks; selections overlap. The focused manager/authorization selection passed **182 tests**. Three unrelated Telegram files were excluded because their optional dependency is unavailable. Required `scripts/format.sh` and `scripts/validate.sh` pass using `.venv` with isolated validation dependencies; mypy covers **1,126 framework files and 21 CLI files**. Unrelated formatter-only changes were removed. No paid model, live PostgreSQL, live Slack delivery or live docs MCP calls were made.
 
 ---
+
+## Final permissions and developer-experience review — 2026-10-15
+
+### check_manager_permissions.py
+
+**Status:** PASS
+
+**Description:** Ran the new in-process HTTP checker with a temporary development signing key and no model API key.
+
+**Result:** All seven checks pass: Alice can discover the manager and math-helper and list her sessions; unassigned users and anonymous callers are refused; a wrong audience is refused; an admin claim in a JWT does not grant Alice publication access. No model calls. The accompanying regression also runs a scripted manager conversation and verifies Alice can reopen it while Bob's session returns 404.
+
+---
+
+### manager_source.py
+
+**Status:** PASS
+
+**Description:** Constructed the separate read-only source/Agno docs example without network or model calls.
+
+**Result:** The manager has two members, Platform Manager carries source tools and opt-in docs MCP, and the example's root is anchored to its file location. Live docs delivery and live-model answers were not tested.
+
+---
+
+### manager_user_access.py
+
+**Status:** PASS
+
+**Description:** Enabled audience verification explicitly and added session-read access to the example's managed role. Ran the new checker and session ownership regression against this exact cookbook.
+
+**Result:** Wrong-audience credentials return 401. Alice can read her own chat history; another user's session remains inaccessible. The role still cannot publish or schedule, and a JWT admin claim does not elevate it.
+
+---
+
+### basic_manager.py, manager_builds_agents.py, manager_with_resources.py, manager_diagnostics.py
+
+**Status:** PASS
+
+**Description:** Reconstructed the serving examples in a temporary directory without model or live MCP calls, and executed the diagnostics script.
+
+**Result:** All examples construct with the fixed manager IDs and two-member composition. Diagnostics completes and correctly reports FAIL for the deliberately absent required `OPENAI_API_KEY`.
+
+---
+
+### Permanent permission regressions
+
+**Status:** PASS
+
+**Description:** Added 42 cases covering direct and delegated source reads, diagnostics and admin-only aggregates across scope JWTs, managed roles and service accounts; credential-file exclusion even for administrators; and rejection of missing, malformed, expired and wrong-audience tokens. Added the actual-cookbook/session-history regression.
+
+**Result:** The focused manager, authorization, diagnostics, workflow-helper and schedule-creation selection passed **291 tests**. Full format/lint/type validation passed. Final broad-run results are recorded below.
+
+---
+
+**Final broad result:** 6,321 passed, 24 skipped in 285.85 seconds. The selection includes OS, Studio/runner, scheduler, workspace, operational tools, run, registry, workflow helpers and authorization/service-account integration regressions. The final required formatting and validation scripts passed. This selection overlaps the 291 focused tests above. Three unrelated Telegram files were excluded for missing optional dependencies.

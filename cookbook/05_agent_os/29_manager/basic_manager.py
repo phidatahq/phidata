@@ -2,7 +2,8 @@
 
 Open the AgentOS UI, select OS Manager and ask it to run diagnostics.
 This example needs only a model and a database. See manager_builds_agents.py
-for an example that lets the manager create and run new agents.
+to add calculator tools and workflow functions to the build palette. The manager
+model alone is enough to build basic agents.
 
 Run:
     .venvs/demo/bin/python cookbook/05_agent_os/29_manager/basic_manager.py

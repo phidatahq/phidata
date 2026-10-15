@@ -2,8 +2,8 @@
 
 Set JWT_VERIFICATION_KEY and OPENAI_API_KEY, then serve this example. Authenticate
 with a JWT whose sub is "alice" and aud is "manager-access-demo". Alice can ask the
-manager to run math-helper or diagnostics, but cannot publish components or
-create schedules. Grants come from the managed role, not the JWT scopes claim.
+manager to run math-helper or diagnostics and reopen her own sessions, but cannot
+publish components or create schedules. Grants come from the managed role, not the JWT scopes claim.
 
 Run:
     .venvs/demo/bin/python cookbook/05_agent_os/29_manager/manager_user_access.py
@@ -28,6 +28,7 @@ authorization = Authorization(
     verification_keys=[environ["JWT_VERIFICATION_KEY"]],
     algorithm="HS256",
     audience="manager-access-demo",
+    verify_audience=True,
 )
 authorization.define_role(
     "manager-user",
@@ -37,6 +38,7 @@ authorization.define_role(
         "agents:math-helper:run",
         "agents:math-helper:read",
         "config:read",
+        "sessions:read",
     ],
 )
 authorization.assign("alice", "manager-user")

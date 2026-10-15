@@ -49,6 +49,8 @@ Conversations use the configured model and incur provider charges.
 | `basic_manager.py` | “Run diagnostics and explain any issues.” | A report from Platform Manager, including the authorization warning. The manager model is available for basic builds; no additional tools are declared. |
 | `manager_user_access.py` | As Alice, ask “Run math-helper: what is 6 * 7?” Then ask to publish a new agent. | The permitted run succeeds; publishing is refused. Configure `JWT_VERIFICATION_KEY` and a JWT with `sub=alice`, `aud=manager-access-demo`. |
 | `manager_builds_agents.py` | “Create a calculator agent named Budget Helper.” Then: “Run Budget Helper: what is 15% of 240?” | Platform Builder publishes the agent. The second request runs it and should return 36. |
+| `manager_source.py` | “Read basic_manager.py, then check the Agno docs for how to add knowledge.” | Platform Manager reads the configured root and consults the docs MCP server; no notebook or memory setup is needed. |
+| `check_manager_permissions.py` | Run it directly; no chat or model key needed. | Seven HTTP checks confirm discovery, session access, rejected audiences, and denied publication. |
 | `manager_with_resources.py` | “Save a note in project.md: the demo is on Friday.” Then: “Read project.md.” | The shared notebook stores and retrieves the note. |
 | `manager_with_resources.py` | “Remember that I prefer short answers.” Then ask about your preference in a new session with the same user id. | The manager can save and retrieve a user preference across sessions. |
 | `manager_with_resources.py` | “Read basic_manager.py and explain how the manager is configured.” | Platform Manager reads the example from its configured root. |
@@ -67,6 +69,41 @@ To try the notebook, memory and source tools:
 
 Each serving example uses its own SQLite file under `tmp/`, so conversations,
 notes and published components persist between runs. Use PostgreSQL in production.
+
+## Check regular-user access without a model call
+
+Set `JWT_VERIFICATION_KEY` to a local development signing key of at least 32
+characters, then run:
+
+```bash
+.venvs/demo/bin/python cookbook/05_agent_os/29_manager/check_manager_permissions.py
+```
+
+Expect seven `PASS` lines. This checks the same app as `manager_user_access.py`
+without starting a server or calling a model. The example explicitly enables
+`verify_audience=True`; setting `audience` alone does not enable audience checks.
+Alice's managed role allows manager/math-helper discovery and runs, diagnostics,
+and reading her own sessions. It does not grant publishing, scheduling, source
+reads, or platform-wide operational reports. Even a signed JWT claiming admin
+cannot override that role. Production tokens should come from your identity provider.
+
+## Manager settings
+
+| Setting | Default | Effect |
+|---|---|---|
+| `model` | First registry model | Shared by the manager and both members; also available for builds. |
+| `name` | `OS Manager` | Display name only; the ID and member composition are fixed. |
+| `root` | `None` | Platform Manager's read-only source directory or constrained workspace provider. |
+| `docs` | `False` | Connects Platform Manager to Agno's documentation MCP server. |
+| `tools`, `knowledge`, `learning` | Empty / `None` | Extra resources for the lead team; not automatically available for builds. |
+| `instructions` | `None` | Appends instructions to the lead team's existing prompt. |
+| `required_env` | Empty | Names whose presence diagnostics checks; values are never returned. |
+| `num_history_runs` | `7` | Lead-team history depth. Members retain five runs. |
+| `offload_tool_results` | `True` | Stores large tool results on supported databases; accepts `False` or a `ResultStore`. |
+
+`root` is resolved relative to the process working directory. Use a path based on
+`__file__`, as in `manager_source.py`, for the same root regardless of where you
+launch the server. Setting `root` does not enable file writes or shell execution.
 
 ## When to use a registry
 

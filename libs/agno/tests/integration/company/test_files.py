@@ -252,3 +252,22 @@ def test_output_quota_keeps_run_reconcilable(setup, monkeypatch):
     monkeypatch.setattr(service.files, "_store", store)
     service._runtime._settle(row, "completed")
     assert service.get_task(principal=caller(), task_id=task["id"])["status"] == "in_review"
+
+
+def test_run_history_does_not_consume_the_next_snapshot_budget(setup):
+    from test_execution import caller, make_work, runtime_os
+
+    os, _ = runtime_os(setup)
+    service = os.company
+    product, task = make_work(service)
+    write(service, product["id"])
+    with service._engine.begin() as conn:
+        service.files._backend._write_on(
+            conn,
+            service.files._store(product["id"]).namespace,
+            f"tasks/{task['id']}/results/previous.md",
+            "x" * 300_000,
+        )
+    with service._transaction(caller()) as conn:
+        snapshot = service.files._snapshot(conn, caller(), product["id"], task["id"], None)
+    assert list(snapshot) == ["product/brief.md"]

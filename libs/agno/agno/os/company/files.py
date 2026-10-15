@@ -234,6 +234,10 @@ class CompanyFiles:
                         t.c.path.startswith(f"tasks/{task_id}/"),
                     )
                 ).where(or_(~t.c.path.startswith("projects/"), t.c.path.startswith(f"projects/{project_id}/")))
+            if prefix == "product":
+                # Run history is available separately; copying it into every occurrence
+                # would grow recurring-task context without bound.
+                stmt = stmt.where(~t.c.path.startswith(f"tasks/{task_id}/results/"))
             rows = conn.execute(stmt.order_by(t.c.path).limit(101)).mappings()
             for row in rows:
                 size += len(row["content"].encode("utf-8"))

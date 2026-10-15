@@ -175,3 +175,13 @@ passed. Format and validation scripts passed. No live provider calls.
 **Result:** Company regression suite: 89 passed, four optional sandbox cases skipped on the standalone branch. Three focused policy/migration cases pass, including preserving existing direct work without inventing acceptance. Final combined validation is recorded in the release handoff.
 
 ---
+
+### Final core integration — October 15, 2026
+
+**Status:** PASS
+
+**Description:** Combined Company, Manager, authorization and sandbox tests with both Docker cases enabled. Real disposable PostgreSQL, pinned public Git checkout and checkpoint restoration; deterministic agents, no provider calls.
+
+**Result:** 707 passed, no skips. Required format/validation scripts passed on the combined checkout and both review branches. A subsequent focused filesystem suite passed eight tests, including excluding historical run outputs from recurring snapshots. Existing FastAPI duplicate operation-ID warnings remain outside this change.
+
+---

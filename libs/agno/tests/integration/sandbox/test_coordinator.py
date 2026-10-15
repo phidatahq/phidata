@@ -12,7 +12,7 @@ import pytest_asyncio
 from sqlalchemy import select
 
 from agno.db.postgres import AsyncPostgresDb, PostgresDb
-from agno.run.agent import RunInput, RunOutput
+from agno.run.agent import RunCompletedEvent, RunInput, RunOutput
 from agno.run.base import RunStatus
 from agno.sandbox import SandboxError
 from agno.sandbox.checkpoint import CheckpointRef, FileCheckpointStore
@@ -162,7 +162,7 @@ async def test_lost_commit_ack_returns_stored_output_without_compute(system, mon
 async def test_terminal_event_follows_atomic_database_commit(system):
     coordinator, spec, _ = system
     terminal_seen = False
-    async for value in coordinator._astream(
+    async for value in coordinator.astream(
         spec.session_id,
         agent_id=spec.agent_id,
         env=spec.env,
@@ -737,3 +737,26 @@ async def test_retryable_restore_failure_runs_again_on_the_next_queue_attempt(sy
     retried = await run(coordinator, spec, "second", queue_attempt=2)
     assert retried.status == RunStatus.completed
     assert await recovered_effects(coordinator, root) == ["first", "second"]
+
+
+async def test_sync_stream_yields_events_then_the_committed_output(system):
+    coordinator, spec, root = system
+    if isinstance(coordinator.store.db, AsyncPostgresDb):
+        pytest.skip("stream() is the synchronous variant; AsyncPostgresDb uses astream")
+    values = await asyncio.to_thread(
+        lambda: list(
+            coordinator.stream(
+                spec.session_id,
+                agent_id=spec.agent_id,
+                env=spec.env,
+                run_id="first",
+                input="first",
+                sdk="fixture",
+                user_id="user",
+                config={"steps": 2},
+            )
+        )
+    )
+    assert isinstance(values[-1], RunOutput) and values[-1].status == RunStatus.completed
+    assert any(isinstance(value, RunCompletedEvent) for value in values[:-1])
+    assert await recovered_effects(coordinator, root) == ["first"]

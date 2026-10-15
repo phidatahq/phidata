@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -460,6 +460,9 @@ class Team:
     _callable_tools_cache: Dict[str, List[Any]] = None  # type: ignore[assignment]
     _callable_knowledge_cache: Dict[str, Any] = None  # type: ignore[assignment]
     _callable_members_cache: Dict[str, List[Any]] = None  # type: ignore[assignment]
+
+    # Keep this team out of the registry while allowing it to run.
+    _registry_excluded: bool = field(default=False, init=False, repr=False, compare=False)
 
     def __init__(
         self,

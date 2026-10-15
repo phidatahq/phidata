@@ -61,7 +61,7 @@ class FakeCoordinator:
         self.calls.append((session_id, execution))
         return self._result(session_id, execution)
 
-    async def _astream(self, session_id, **execution):
+    async def astream(self, session_id, **execution):
         self.calls.append((session_id, execution))
         try:
             yield RunContentEvent(run_id=execution["run_id"], content="one")
@@ -102,6 +102,28 @@ async def test_claude_settings_travel_as_json(coordinator, sandbox, monkeypatch)
     assert config["allowed_tools"] == ["Read"]
     assert config["max_turns"] == 3
     assert not {"id", "db", "sandbox", "store_events", "cwd", "retries"} & set(config)
+
+
+@pytest.mark.asyncio
+async def test_claude_oauth_token_is_forwarded_like_the_api_key(coordinator, sandbox, monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setenv("CLAUDE_CODE_OAUTH_TOKEN", "oauth-token")
+    agent = ClaudeAgent(id="coder", sandbox=sandbox)
+    await agent.arun("hello", session_id="s1")
+    _, execution = coordinator.calls[0]
+    assert execution["env"] == {"CLAUDE_CODE_OAUTH_TOKEN": "oauth-token"}
+
+
+def test_default_checkpoints_are_refused_under_a_queue_worker(tmp_path, monkeypatch):
+    from agno.db.postgres import PostgresDb
+    from agno.os import job_queue
+
+    monkeypatch.setattr(_harness, "_DEFAULT_CHECKPOINTS", tmp_path / "default")
+    monkeypatch.setattr(job_queue, "get_active_queue_worker", lambda: object())
+    db = PostgresDb(db_url="postgresql+psycopg://ai:ai@localhost:1/ai")
+    agent = ClaudeAgent(id="coder", db=db, sandbox=DockerSandbox("agno-sandbox:claude", network="isolated"))
+    with pytest.raises(ValueError, match="checkpoints="):
+        _harness.coordinator(agent)
 
 
 @pytest.mark.asyncio

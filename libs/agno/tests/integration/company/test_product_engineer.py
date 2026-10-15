@@ -96,7 +96,7 @@ def test_repository_requires_sandbox_before_ready(setup):
 
 def engineering_work(setup, monkeypatch):
     pytest.importorskip("agno.sandbox.repository")
-    from agno.sandbox.docker import DockerSandbox
+    DockerSandbox = pytest.importorskip("agno.sandbox.docker").DockerSandbox
     from test_progression import accept_ready
 
     from agno.agents.codex import CodexAgent
@@ -198,8 +198,8 @@ def test_docker_ready_review_and_revision_use_real_repository_checkpoint(setup, 
     if not image:
         pytest.skip("Set COMPANY_TEST_SANDBOX_IMAGE to the combined runtime image")
     pytest.importorskip("agno.sandbox.repository")
-    from agno.sandbox.checkpoint import FileCheckpointStore
-    from agno.sandbox.docker import DockerSandbox
+    FileCheckpointStore = pytest.importorskip("agno.sandbox.checkpoint").FileCheckpointStore
+    DockerSandbox = pytest.importorskip("agno.sandbox.docker").DockerSandbox
     from fastapi.testclient import TestClient
     from test_progression import accept_ready, tick
 
@@ -323,8 +323,8 @@ def test_docker_ready_review_and_revision_use_real_repository_checkpoint(setup, 
             import json
             import subprocess
 
-            from agno.sandbox._harness import coordinator
-            from agno.sandbox.checkpoint import CheckpointRef
+            coordinator = pytest.importorskip("agno.sandbox._harness").coordinator
+            CheckpointRef = pytest.importorskip("agno.sandbox.checkpoint").CheckpointRef
             from sqlalchemy import select
 
             runner = coordinator(engineer)

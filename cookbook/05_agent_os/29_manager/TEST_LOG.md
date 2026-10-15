@@ -585,3 +585,18 @@ dependencies described above. Optional Telegram files remain excluded; tests use
 disposable data and scripted models, with no live provider or frontend calls.
 
 ---
+
+
+### Reserved-ID wording and import cleanup
+
+**Status:** PASS
+
+**Description:** Removed redundant constant re-exports from manager config.
+Loaders and REST now say: "Component ID '<id>' is reserved. Please choose a
+different ID for your component." Existing assertions verify the exact message.
+
+**Result:** **441 focused tests passed**. Required format and validation scripts
+passed with the same isolated validation dependencies. The earlier broad suite
+was not repeated for this wording and import cleanup.
+
+---

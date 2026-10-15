@@ -136,7 +136,7 @@ composition are fixed. Its members are:
 Only OS Manager is exposed in config, discovery, REST and MCP. Platform Builder
 and Platform Manager are internal members: they are absent from `/config`,
 `/agents` and the public team detail, and their standalone agent routes return
-422 with an explanation that the ID is reserved for OS Manager. OS Manager
+422 with an explanation that the component ID is reserved. OS Manager
 delegates to them; their child runs and tool results remain
 available inside its session for replay and diagnostics. Schedule the manager
 team, not either specialist. Ordinary run grants, including `teams:os-manager-internal:run`, let a user talk to the manager. Access

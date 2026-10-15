@@ -21,8 +21,8 @@ from agno.os.authz.provider import AuthorizationContext, AuthorizationProvider
 from agno.os.authz.run_context import request_authorization, restore_authorization
 from agno.os.authz.scope_provider import ScopeAuthorizationProvider
 from agno.os.job_queue import QueueWorker, aenqueue_ticket
-from agno.os.manager.config import MANAGER_TEAM_ID, OPERATOR_ID
 from agno.registry import Registry
+from agno.registry._reserved import MANAGER_TEAM_ID, OPERATOR_ID
 from agno.run import RunContext
 from agno.run.authorization import (
     AUTHORIZATION_HEADER,
@@ -1000,7 +1000,7 @@ async def test_mcp_preserves_ordinary_studio_access_and_enforces_manager_tools(t
     monkeypatch.setattr(dependencies, "get_http_request", lambda: request)
     async with Client(build_mcp_server(os)) as client:
         if manager_target:
-            with pytest.raises(Exception, match="reserved for OS Manager"):
+            with pytest.raises(Exception, match="is reserved"):
                 await client.call_tool("run_agent", {"agent_id": builder.id, "message": "List models"})
             assert builder.model.calls == 0
             result = await client.call_tool("run_team", {"team_id": MANAGER_TEAM_ID, "message": "List models"})

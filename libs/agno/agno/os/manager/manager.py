@@ -6,12 +6,13 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence
 
 from agno.agent import Agent
-from agno.os.manager.config import BUILDER_ID, OPERATOR_ID, RESERVED_MEMBER_IDS, OSManager
+from agno.os.manager.config import OSManager
 from agno.os.manager.prompts import (
     BUILDER_INSTRUCTIONS,
     MANAGER_INSTRUCTIONS,
     OPERATOR_INSTRUCTIONS,
 )
+from agno.registry._reserved import BUILDER_ID, OPERATOR_ID, RESERVED_MEMBER_IDS
 from agno.run.authorization import requires_permission
 from agno.team import Team
 

@@ -17,9 +17,10 @@ from agno.offload import ResultStore
 from agno.offload.tools import get_read_result_function
 from agno.os import AgentOS, OSManager
 from agno.os.config import AgentOSConfig, Manifest
-from agno.os.manager.config import BUILDER_ID, MANAGER_TEAM_ID, MANAGER_TEAM_NAME, OPERATOR_ID
+from agno.os.manager.config import MANAGER_TEAM_NAME
 from agno.os.utils import AgnoHTTPException
 from agno.registry import Registry
+from agno.registry._reserved import BUILDER_ID, MANAGER_TEAM_ID, OPERATOR_ID
 from agno.run import RunContext
 from agno.tools.agentos import AgentOSTools
 from agno.tools.studio import StudioTools
@@ -1228,8 +1229,7 @@ def test_specialists_are_absent_from_public_config_and_cannot_start_or_continue(
         response = client.post(endpoint, data=data)
         assert response.status_code == 422, response.text
         assert member_id in response.json()["detail"]
-        assert "reserved for OS Manager" in response.json()["detail"]
-        assert MANAGER_TEAM_ID in response.json()["detail"]
+        assert "is reserved" in response.json()["detail"]
     assert client.post("/agents/ordinary/runs", data={"message": "Hi", "stream": "false"}).status_code == 200
 
 
@@ -1250,7 +1250,7 @@ async def test_mcp_config_hides_specialists_but_manager_delegates(db):
         result = await client.call_tool("run_team", {"team_id": MANAGER_TEAM_ID, "message": "Answer"})
         assert not result.is_error
         for member_id in (BUILDER_ID, OPERATOR_ID):
-            with pytest.raises(Exception, match="reserved for OS Manager"):
+            with pytest.raises(Exception, match="is reserved"):
                 await client.call_tool("run_agent", {"agent_id": member_id, "message": "Answer"})
 
 
@@ -1281,9 +1281,9 @@ async def test_legacy_catalog_rows_cannot_restore_public_specialists(db, manager
     assert [agent["id"] for agent in client.get("/agents").json()] == ["stored-ordinary"]
     for member_id in (BUILDER_ID, OPERATOR_ID):
         assert client.get(f"/agents/{member_id}").status_code == 422
-        with pytest.raises(AgnoHTTPException, match="reserved for OS Manager"):
+        with pytest.raises(AgnoHTTPException, match="is reserved"):
             get_agent_by_id(member_id, db=db, published_only=False)
-        with pytest.raises(AgnoHTTPException, match="reserved for OS Manager"):
+        with pytest.raises(AgnoHTTPException, match="is reserved"):
             await get_agent_by_id_async(member_id, db=db, published_only=False)
     assert get_agent_by_id("stored-ordinary", db=db) is not None
     assert await get_agent_by_id_async("stored-ordinary", db=db) is not None
@@ -1357,13 +1357,14 @@ def test_catalog_cannot_restore_framework_manager_ids(db, kind, strict):
     for component_id in RESERVED_MANAGER_IDS:
         _store_manager_test_component(db, kind, component_id)
         for version in (None, 1):
-            with pytest.raises(ComponentRehydrationError, match="reserved for OS Manager") as exc:
+            with pytest.raises(ComponentRehydrationError, match="is reserved") as exc:
                 getattr(module, f"get_{kind}_by_id")(
                     db=db, id=component_id, registry=registry, version=version, strict=strict
                 )
             assert component_id in str(exc.value)
-            assert MANAGER_TEAM_ID in str(exc.value)
-            assert "choose a different ID" in str(exc.value)
+            assert str(exc.value) == (
+                f"Component ID '{component_id}' is reserved. Please choose a different ID for your component."
+            )
         assert db.get_component(component_id) is not None  # No implicit migration/deletion.
     _store_manager_test_component(db, kind, "ordinary")
     assert [c.id for c in getattr(module, f"get_{kind}s")(db=db, registry=registry)] == ["ordinary"]
@@ -1546,9 +1547,10 @@ def test_reserved_catalog_ids_have_clear_rest_errors(db, kind, manager_enabled):
     for response in responses:
         assert response.status_code == 422, response.text
         assert OPERATOR_ID in response.json()["detail"]
-        assert "reserved for OS Manager" in response.json()["detail"]
-        assert MANAGER_TEAM_ID in response.json()["detail"]
-        assert "choose a different ID" in response.json()["detail"]
+        assert "is reserved" in response.json()["detail"]
+        assert response.json()["detail"] == (
+            f"Component ID '{OPERATOR_ID}' is reserved. Please choose a different ID for your component."
+        )
     assert client.get(f"/{kind}s/missing").status_code == 404
 
 
@@ -1559,9 +1561,9 @@ async def test_reserved_catalog_errors_match_sync_and_async_os_lookup(db, kind):
     from agno.registry._reserved import RESERVED_MANAGER_IDS
 
     for component_id in RESERVED_MANAGER_IDS:
-        with pytest.raises(AgnoHTTPException, match="reserved for OS Manager") as sync_error:
+        with pytest.raises(AgnoHTTPException, match="is reserved") as sync_error:
             getattr(utils, f"get_{kind}_by_id")(component_id, db=db)
-        with pytest.raises(AgnoHTTPException, match="reserved for OS Manager") as async_error:
+        with pytest.raises(AgnoHTTPException, match="is reserved") as async_error:
             await getattr(utils, f"get_{kind}_by_id_async")(component_id, db=db)
         assert sync_error.value.status_code == async_error.value.status_code == 422
         assert sync_error.value.detail == async_error.value.detail

@@ -6,10 +6,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence
 
 from agno.agent import Agent
-from agno.os.manager.config import BUILDER_ID, ENGINEER_ID, OPERATOR_ID, RESERVED_MEMBER_IDS, ManagerConfig
+from agno.os.manager.config import BUILDER_ID, OPERATOR_ID, RESERVED_MEMBER_IDS, OSManager
 from agno.os.manager.prompts import (
     BUILDER_INSTRUCTIONS,
-    ENGINEER_INSTRUCTIONS,
     MANAGER_INSTRUCTIONS,
     OPERATOR_INSTRUCTIONS,
 )
@@ -24,15 +23,14 @@ if TYPE_CHECKING:
 class _Manager:
     """The OS Manager team, its configuration and its platform specialists."""
 
-    config: ManagerConfig
+    config: OSManager
     team: Team
     builder: Agent
     operator: Agent
-    engineer: Optional[Agent] = None
 
     @property
     def agents(self) -> List[Agent]:
-        return [agent for agent in (self.builder, self.operator, self.engineer) if agent is not None]
+        return [self.builder, self.operator]
 
     @property
     def components(self) -> List[Any]:
@@ -71,49 +69,44 @@ class _Manager:
                 ],
             ),
         }
-        if self.engineer is not None:
-            entries[ENGINEER_ID] = Manifest(
-                description="Reads source code and explains how this AgentOS works.",
-                quick_prompts=["How is this platform put together?", "How does learning work here?"],
-            )
         return entries
 
 
-def _resolve_model(agent_os: "AgentOS", config: ManagerConfig) -> Any:
+def _resolve_model(agent_os: "AgentOS", config: OSManager) -> Any:
     if config.model is not None:
         return config.model
     registry = agent_os.registry
     if registry is not None and registry.models:
         return registry.models[0]
     raise ValueError(
-        "The manager needs a model: pass ManagerConfig(model=...) or declare one on the registry (Registry(models=[...]))"
+        "The manager needs a model: pass OSManager(model=...) or declare one on the registry (Registry(models=[...]))"
     )
 
 
-def _resolve_workspace(config: ManagerConfig) -> Optional[Any]:
-    if config.workspace is None:
+def _resolve_workspace(config: OSManager) -> Optional[Any]:
+    if config.root is None:
         return None
     from agno.context.mode import ContextMode
     from agno.context.workspace import WorkspaceContextProvider
 
-    if isinstance(config.workspace, (str, Path)):
-        # Give the engineer file tools directly. Default exclusions block
+    if isinstance(config.root, (str, Path)):
+        # Give Platform Manager file tools directly. Default exclusions block
         # environment and credential files.
         return WorkspaceContextProvider(
             id="platform-source",
             name="Platform Source",
-            root=config.workspace,
+            root=config.root,
             mode=ContextMode.tools,
         )
-    if not isinstance(config.workspace, WorkspaceContextProvider):
-        raise TypeError("ManagerConfig.workspace must be a path or WorkspaceContextProvider")
+    if not isinstance(config.root, WorkspaceContextProvider):
+        raise TypeError("OSManager.root must be a path or WorkspaceContextProvider")
     from agno.tools.workspace import DEFAULT_EXCLUDE_PATTERNS
 
-    provider = config.workspace
+    provider = config.root
     if provider.allow_paths or any(
         pattern.startswith("!") and pattern not in DEFAULT_EXCLUDE_PATTERNS for pattern in provider.exclude_patterns
     ):
-        raise ValueError("ManagerConfig.workspace cannot override exclusions with allow_paths or custom exemptions")
+        raise ValueError("OSManager.root cannot override exclusions with allow_paths or custom exemptions")
     # Copy the provider's settings without changing the original or accepting
     # custom tools that could bypass file exclusions.
     return WorkspaceContextProvider(
@@ -127,13 +120,15 @@ def _resolve_workspace(config: ManagerConfig) -> Optional[Any]:
     )
 
 
-def _raise_if_reserved_ids(config: ManagerConfig, components: List[Any], owned: Sequence[Any] = ()) -> None:
-    reserved = RESERVED_MEMBER_IDS | {config.id}
+def _raise_if_reserved_ids(components: List[Any], owned: Sequence[Any] = ()) -> None:
+    from agno.registry._reserved import RESERVED_MANAGER_IDS
+
+    reserved = RESERVED_MANAGER_IDS
     collisions = sorted(
         {
-            component.id
+            component_id
             for component in components
-            if component.id in reserved and all(component is not c for c in owned)
+            if (component_id := getattr(component, "id", None)) in reserved and all(component is not c for c in owned)
         }
     )
     if collisions:
@@ -166,7 +161,7 @@ def _diagnostics_tool(agent_os: "AgentOS", required_env: Sequence[str]) -> Any:
     )
 
 
-def _build_manager(agent_os: "AgentOS", config: ManagerConfig) -> _Manager:
+def _build_manager(agent_os: "AgentOS", config: OSManager) -> _Manager:
     """Create the manager using the OS registry and database.
 
     Called internally by AgentOS after its registry and database are set.
@@ -186,7 +181,6 @@ def _build_manager(agent_os: "AgentOS", config: ManagerConfig) -> _Manager:
     if registry is None:
         raise ValueError("The manager needs the OS registry to be set before it is built")
     _raise_if_reserved_ids(
-        config,
         [
             *(agent_os.agents or []),
             *(agent_os.teams or []),
@@ -197,10 +191,12 @@ def _build_manager(agent_os: "AgentOS", config: ManagerConfig) -> _Manager:
         ],
     )
     model = _resolve_model(agent_os, config)
+    registry.add_model(model)
     workspace = _resolve_workspace(config)
 
     builder = Agent(
         id=BUILDER_ID,
+        metadata={"_agno": {"internal": True, "id": BUILDER_ID}},
         name="Platform Builder",
         model=model,
         db=db,
@@ -226,41 +222,37 @@ def _build_manager(agent_os: "AgentOS", config: ManagerConfig) -> _Manager:
         num_history_runs=5,
     )
 
+    operator_tools = [AgentOSTools(db=db), _diagnostics_tool(agent_os, config.required_env)]
+    operator_instructions = [OPERATOR_INSTRUCTIONS]
+    if workspace is not None:
+        operator_tools.extend(workspace.get_tools())
+        operator_instructions.append(workspace.instructions())
+    if config.docs:
+        from agno.tools.mcp import MCPTools
+
+        operator_tools.append(MCPTools(url="https://docs.agno.com/mcp"))
+
     operator = Agent(
         id=OPERATOR_ID,
+        metadata={"_agno": {"internal": True, "id": OPERATOR_ID}},
         name="Platform Manager",
         model=model,
         db=db,
         offload_tool_results=config.offload_tool_results,
-        tools=[AgentOSTools(db=db), _diagnostics_tool(agent_os, config.required_env)],
-        instructions=OPERATOR_INSTRUCTIONS,
+        tools=operator_tools,
+        instructions=operator_instructions,
         add_datetime_to_context=True,
         add_history_to_context=True,
         num_history_runs=5,
     )
 
-    engineer: Optional[Agent] = None
-    if workspace is not None:
-        engineer = Agent(
-            id=ENGINEER_ID,
-            name="Platform Engineer",
-            model=model,
-            db=db,
-            offload_tool_results=config.offload_tool_results,
-            tools=[*workspace.get_tools()],
-            # Separate the engineer and workspace instructions with a blank line.
-            instructions=f"{ENGINEER_INSTRUCTIONS}\n\n{workspace.instructions()}",
-            add_datetime_to_context=True,
-            add_history_to_context=True,
-            num_history_runs=5,
-        )
-
-    members: List[Any] = [builder, operator] + ([engineer] if engineer is not None else [])
+    members: List[Any] = [builder, operator]
     instructions: List[str] = [MANAGER_INSTRUCTIONS]
     if config.instructions:
         instructions.append(config.instructions)
     team = Team(
         id=config.id,
+        metadata={"_agno": {"internal": True, "id": config.id}},
         name=config.name,
         model=model,
         db=db,
@@ -287,7 +279,6 @@ def _build_manager(agent_os: "AgentOS", config: ManagerConfig) -> _Manager:
         add_history_to_context=True,
         num_history_runs=config.num_history_runs,
     )
-    # Reserve the engineer's id even when no workspace is configured.
     registry.reserve_component_ids(RESERVED_MEMBER_IDS | {config.id})
     registry.exclude_components([team, *members])
-    return _Manager(config=config, team=team, builder=builder, operator=operator, engineer=engineer)
+    return _Manager(config=config, team=team, builder=builder, operator=operator)

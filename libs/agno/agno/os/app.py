@@ -105,7 +105,7 @@ if TYPE_CHECKING:
     from agno.os.authz.provider import AuthorizationProvider
     from agno.os.authz.user_directory import UserDirectory
     from agno.os.diagnostics import DiagnosticReport
-    from agno.os.manager import ManagerConfig
+    from agno.os.manager import OSManager
     from agno.os.manager.manager import _Manager
     from agno.os.schema import FileSystemConfig
 
@@ -330,7 +330,7 @@ class AgentOS:
         scheduler_base_url: Optional[str] = None,
         internal_service_token: Optional[str] = None,
         public: Optional[Any] = None,
-        manager: Optional[Union[bool, "ManagerConfig"]] = None,
+        manager: Optional[Union[bool, "OSManager"]] = None,
     ):
         """Initialize AgentOS.
 
@@ -617,14 +617,14 @@ class AgentOS:
         # Create the manager using this OS's registry and database, then initialize
         # it with the other components. Keep its members and tools out of the registry
         # so Studio cannot add them to new components.
-        from agno.os.manager import ManagerConfig
+        from agno.os.manager import OSManager
         from agno.os.manager.manager import _build_manager
 
         self._manager: Optional["_Manager"] = None
-        if manager is not None and not isinstance(manager, (bool, ManagerConfig)):
-            raise TypeError("AgentOS.manager must be True, False, None, or ManagerConfig")
+        if manager is not None and not isinstance(manager, (bool, OSManager)):
+            raise TypeError("AgentOS.manager must be True, False, None, or OSManager")
         if manager:
-            manager_config = manager if isinstance(manager, ManagerConfig) else ManagerConfig()
+            manager_config = manager if isinstance(manager, OSManager) else OSManager()
             if self.registry is None:
                 self.registry = Registry()
             self._manager = _build_manager(self, manager_config)
@@ -994,14 +994,12 @@ class AgentOS:
         Raises:
             ValueError: If duplicate IDs are found within the same entity type
         """
-        if self._manager is not None:
-            from agno.os.manager.manager import _raise_if_reserved_ids
+        from agno.os.manager.manager import _raise_if_reserved_ids
 
-            _raise_if_reserved_ids(
-                self._manager.config,
-                [*(self.agents or []), *(self.teams or []), *(self.workflows or [])],
-                owned=self._manager.components,
-            )
+        _raise_if_reserved_ids(
+            [*(self.agents or []), *(self.teams or []), *(self.workflows or [])],
+            owned=self._manager.components if self._manager is not None else (),
+        )
         duplicate_ids: List[str] = []
 
         for entities in [self.agents, self.teams, self.workflows]:
@@ -1159,6 +1157,22 @@ class AgentOS:
         """
         if self.registry is None:
             self.registry = Registry()
+        from agno.os.manager.manager import _raise_if_reserved_ids
+
+        # Check before filtering mirrors, including nested application members and
+        # registry entries appended since construction. Framework copies stay excluded.
+        _raise_if_reserved_ids(
+            [
+                component
+                for component in [
+                    *self._iter_component_carriers(),
+                    *self.registry.agents,
+                    *self.registry.teams,
+                    *self.registry.workflows,
+                ]
+                if not getattr(component, "_registry_excluded", False)
+            ]
+        )
         if self._manager is not None:
             self.registry.exclude_components(self._manager.components)
 

@@ -19,7 +19,7 @@ from agno.learn import (
     UserProfileConfig,
 )
 from agno.models.openai import OpenAIResponses
-from agno.os import AgentOS, ManagerConfig
+from agno.os import AgentOS, OSManager
 
 db = SqliteDb(db_file="tmp/manager_resources.db")
 model = OpenAIResponses(id="gpt-5.6-luna")
@@ -39,12 +39,14 @@ memory = LearningMachine(
 agent_os = AgentOS(
     name="Manager with resources",
     db=db,
-    manager=ManagerConfig(
+    manager=OSManager(
         model=model,
         tools=[notes.tools()],
         learning=memory,
-        # The engineer reads this directory in tools mode; env and credential files are excluded.
-        workspace=Path(__file__).parent,
+        # Platform Manager reads this directory in tools mode; env and credential files are excluded.
+        root=Path(__file__).parent,
+        # Opt in to Agno docs lookup; requires a network connection.
+        docs=True,
         instructions=notes.instructions(),
     ),
 )

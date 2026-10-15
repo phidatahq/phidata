@@ -16,7 +16,7 @@ from agno.job_queue.config import QueueConfig
 from agno.models.base import Model
 from agno.models.message import MessageMetrics
 from agno.models.response import ModelResponse
-from agno.os import AgentOS, Authorization, ManagerConfig
+from agno.os import AgentOS, Authorization, OSManager
 from agno.os.authz.provider import AuthorizationContext, AuthorizationProvider
 from agno.os.authz.run_context import request_authorization, restore_authorization
 from agno.os.authz.scope_provider import ScopeAuthorizationProvider
@@ -112,7 +112,7 @@ def make_os(tmp_path, model, agents=None, auth=None):
         authorization=auth or Authorization(verification_keys=[SECRET], algorithm="HS256", audience="test"),
         agents=agents,
         registry=Registry(models=[ScriptedModel()]),
-        manager=ManagerConfig(model=model),
+        manager=OSManager(model=model),
     )
 
 
@@ -122,7 +122,7 @@ def test_manager_can_dispatch_only_an_authorized_target(tmp_path, allowed, ident
     target_model = ScriptedModel()
     target = Agent(id="allowed", name="Friendly target", model=target_model)
     model = ScriptedModel("run_agent", {"agent_id": "Friendly target", "message": "hello"})
-    scopes = ["teams:os-manager:run"] + (["agents:allowed:run"] if allowed else [])
+    scopes = ["teams:os-manager-internal:run"] + (["agents:allowed:run"] if allowed else [])
     token_headers = headers(scopes)
     auth = Authorization(verification_keys=[SECRET], algorithm="HS256", audience="test")
     if identity == "managed_role":
@@ -141,7 +141,7 @@ def test_manager_can_dispatch_only_an_authorized_target(tmp_path, allowed, ident
         )
         token_headers = {"Authorization": "Bearer " + token}
     response = TestClient(os.get_app()).post(
-        "/teams/os-manager/runs", headers=token_headers, data={"message": "run target", "stream": "false"}
+        "/teams/os-manager-internal/runs", headers=token_headers, data={"message": "run target", "stream": "false"}
     )
     assert response.status_code == 200, response.text
     assert ("allowed target ran" if allowed else "Permission required: agents:allowed:run") in response.text
@@ -153,16 +153,16 @@ def test_manager_can_dispatch_only_an_authorized_target(tmp_path, allowed, ident
 def test_builder_publish_checks_component_write(tmp_path, allowed, delegated):
     builder_model = ScriptedModel("create_agent", {"name": "Alice calc", "instructions": "Calculate", "publish": True})
     os = make_os(tmp_path, ScriptedModel())
-    builder = next(member for member in os.manager.members if member.id == "platform-builder")
+    builder = next(member for member in os.manager.members if member.id == "platform-builder-internal")
     builder.model = builder_model
-    path = "/agents/platform-builder/runs"
-    scopes = ["agents:platform-builder:run"]
+    path = "/agents/platform-builder-internal/runs"
+    scopes = ["agents:platform-builder-internal:run"]
     if delegated:
         os.manager.model = ScriptedModel(
-            "delegate_task_to_member", {"member_id": "platform-builder", "task": "Build Alice calc"}
+            "delegate_task_to_member", {"member_id": "platform-builder-internal", "task": "Build Alice calc"}
         )
-        path = "/teams/os-manager/runs"
-        scopes = ["teams:os-manager:run"]
+        path = "/teams/os-manager-internal/runs"
+        scopes = ["teams:os-manager-internal:run"]
     if allowed:
         scopes.append("components:write")
     response = TestClient(os.get_app()).post(
@@ -179,7 +179,7 @@ def test_builder_publish_checks_component_write(tmp_path, allowed, delegated):
 def test_studio_actions_refuse_before_writing(tmp_path, use_async):
     db = SqliteDb(db_file=str(tmp_path / "studio.db"))
     studio = StudioTools(registry=Registry(models=[ScriptedModel()]), db=db, versions=True, schedules=True)
-    with authorization_scope(lambda: authority(["teams:os-manager:run"])):
+    with authorization_scope(lambda: authority(["teams:os-manager-internal:run"])):
         ctx = RunContext(run_id="run", session_id="session", user_id="alice")
         fn = studio.acreate_agent if use_async else studio.create_agent
         with pytest.raises(PermissionError, match="components:write"):
@@ -349,7 +349,7 @@ async def test_mcp_call_carries_permissions_into_manager_tools(tmp_path, monkeyp
             authorization_enabled=True,
             user_id="alice",
             claims={},
-            scopes=["teams:os-manager:run"] + (["agents:allowed:run"] if allowed else []),
+            scopes=["teams:os-manager-internal:run"] + (["agents:allowed:run"] if allowed else []),
             admin_scope="agent_os:admin",
             user_isolation_enabled=True,
         ),
@@ -357,7 +357,7 @@ async def test_mcp_call_carries_permissions_into_manager_tools(tmp_path, monkeyp
     request.scope = {}
     monkeypatch.setattr(dependencies, "get_http_request", lambda: request)
     async with Client(build_mcp_server(os)) as client:
-        result = await client.call_tool("run_team", {"team_id": "os-manager", "message": "run"})
+        result = await client.call_tool("run_team", {"team_id": "os-manager-internal", "message": "run"})
     text = str(result)
     assert ("allowed target ran" if allowed else "Permission required: agents:allowed:run") in text
 
@@ -372,14 +372,14 @@ def test_scheduled_manager_run_keeps_original_caller_permissions(tmp_path, allow
     app = os.get_app()
     app.state.internal_service_token = "internal-test-token"
     client = TestClient(app)
-    scopes = ["teams:os-manager:run", "schedules:write"] + (["agents:allowed:run"] if allowed else [])
+    scopes = ["teams:os-manager-internal:run", "schedules:write"] + (["agents:allowed:run"] if allowed else [])
     created = client.post(
         "/schedules",
         headers=headers(scopes),
         json={
             "name": "manager",
             "cron_expr": "0 0 * * *",
-            "endpoint": "/teams/os-manager/runs",
+            "endpoint": "/teams/os-manager-internal/runs",
             "payload": {"message": "run", AUTHORIZATION_KEY: None},
         },
     )
@@ -399,7 +399,7 @@ def test_scheduled_manager_run_keeps_original_caller_permissions(tmp_path, allow
     executor._get_client = AsyncMock(return_value=object())
     asyncio.run(executor._call_endpoint(schedule))
     response = client.post(
-        "/teams/os-manager/runs",
+        "/teams/os-manager-internal/runs",
         headers=captured["headers"],
         data={**captured["data"], "stream": "false", "background": "false"},
     )
@@ -435,10 +435,10 @@ def test_durable_background_manager_run_preserves_caller(tmp_path, allowed):
     target = Agent(id="allowed", model=ScriptedModel())
     os = make_os(tmp_path, ScriptedModel("run_agent", {"agent_id": "allowed", "message": "hi"}), [target])
     os.queue = QueueConfig(durable=True, db=InMemoryQueueStore(), poll_interval=0.01)
-    scopes = ["teams:os-manager:run"] + (["agents:allowed:run"] if allowed else [])
+    scopes = ["teams:os-manager-internal:run"] + (["agents:allowed:run"] if allowed else [])
     with TestClient(os.get_app()) as client:
         response = client.post(
-            "/teams/os-manager/runs",
+            "/teams/os-manager-internal/runs",
             headers=headers(scopes),
             data={
                 "message": "run",
@@ -467,7 +467,7 @@ def test_service_account_tool_authority_is_enforced_even_when_rbac_flag_is_off()
             authorization_enabled=False,
             service_account_name="caller",
             user_id="sa:caller",
-            scopes=["teams:os-manager:run"],
+            scopes=["teams:os-manager-internal:run"],
             claims={},
         ),
     )
@@ -526,3 +526,26 @@ async def test_mounted_application_cannot_replace_the_parent_authorization_polic
     middleware = RunAuthorizationMiddleware(child, authorization_app=parent)
     await middleware({"type": "http", "app": parent, "headers": []}, AsyncMock(), AsyncMock())
     assert current_authorization() is None
+
+
+def test_manager_run_discovery_and_session_permissions_remain_separate(tmp_path):
+    os = make_os(tmp_path, ScriptedModel())
+    client = TestClient(os.get_app())
+    manager_id = os.manager.id
+    run_headers = headers([f"teams:{manager_id}:run"])
+    run = client.post(f"/teams/{manager_id}/runs", headers=run_headers, data={"message": "hi", "stream": "false"})
+    assert run.status_code == 200
+    session_id = run.json()["session_id"]
+    assert client.get(f"/teams/{manager_id}", headers=run_headers).status_code == 403
+    assert client.get(f"/sessions/{session_id}", headers=run_headers).status_code == 403
+
+    read_headers = headers(["teams:read"])
+    assert client.get(f"/teams/{manager_id}", headers=read_headers).status_code == 200
+    assert client.get(f"/sessions/{session_id}", headers=read_headers).status_code == 403
+    assert client.post(f"/teams/{manager_id}/runs", headers=read_headers, data={"message": "hi"}).status_code == 403
+
+    session_headers = headers(["sessions:read"])
+    assert client.get(f"/sessions/{session_id}", headers=session_headers).status_code == 200
+    assert client.get(f"/teams/{manager_id}", headers=session_headers).status_code == 403
+    other = os.manager.run("hi", user_id="bob")
+    assert client.get(f"/sessions/{other.session_id}", headers=session_headers).status_code == 404

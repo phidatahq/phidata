@@ -262,3 +262,67 @@ could not collect unrelated optional integrations; the affected selection exclud
 three Telegram files whose optional dependency is unavailable.
 
 ---
+
+## OSManager API and fixed identity — 2026-10-15
+
+These results supersede the earlier configurable-ID and Platform Engineer descriptions.
+
+### basic_manager.py
+
+**Status:** PASS
+
+**Description:** Constructed the example in a temporary directory without model calls.
+
+**Result:** OS Manager has the fixed `os-manager-internal` ID, exactly two members, and its model is available in the build registry. No privileged manager tools are exposed to builds.
+
+---
+
+### manager_builds_agents.py
+
+**Status:** PASS
+
+**Description:** Constructed the declared-registry example without model calls.
+
+**Result:** The fixed manager team reuses the declared model and keeps Platform Builder and Platform Manager as its two members.
+
+---
+
+### manager_with_resources.py
+
+**Status:** PASS
+
+**Description:** Constructed the notebook, learning, root and optional docs example in a temporary directory. No model or live MCP calls were made.
+
+**Result:** Platform Manager receives read-only source tools and the opt-in Agno docs MCP toolkit. There is no Platform Engineer. Separate regressions verify file exclusions and stubbed MCP connection/cleanup.
+
+---
+
+### manager_user_access.py
+
+**Status:** PASS
+
+**Description:** Constructed the example using a temporary JWT verification key, without model calls.
+
+**Result:** The managed role uses the new reserved team ID. Regression tests verify that run, discovery and session-reading grants remain separate and another user's sessions stay inaccessible.
+
+---
+
+### manager_diagnostics.py
+
+**Status:** PASS
+
+**Description:** Executed the model-free diagnostics example.
+
+**Result:** The command completed. Its overall report is FAIL because the required `OPENAI_API_KEY` is absent; this is expected and is not a failed execution.
+
+---
+
+### OSManager regression and validation suites
+
+**Status:** PASS
+
+**Description:** Added 27 parametrized regression cases for reserved IDs, disabled-manager and resync protections, metadata on discovery/detail/run responses, model-only builds, docs MCP lifecycle, and independent run/read/session permissions. Updated existing tests for the API, IDs and two-member composition, preserving source confinement and authorization coverage.
+
+**Result:** The broad affected suite passed **6,082 tests, 24 skipped**. The final manager/authorization/registry/component API selection passed **563 tests, 14 skipped** after the final reservation checks; selections overlap. The focused manager/authorization selection passed **182 tests**. Three unrelated Telegram files were excluded because their optional dependency is unavailable. Required `scripts/format.sh` and `scripts/validate.sh` pass using `.venv` with isolated validation dependencies; mypy covers **1,126 framework files and 21 CLI files**. Unrelated formatter-only changes were removed. No paid model, live PostgreSQL, live Slack delivery or live docs MCP calls were made.
+
+---

@@ -14,7 +14,7 @@ from tempfile import TemporaryDirectory
 
 from agno.db.sqlite import SqliteDb
 from agno.models.openai import OpenAIResponses
-from agno.os import AgentOS, ManagerConfig
+from agno.os import AgentOS, OSManager
 
 
 def main() -> None:
@@ -22,7 +22,7 @@ def main() -> None:
         db = SqliteDb(db_file=str(Path(directory) / "os.db"))
         agent_os = AgentOS(
             db=db,
-            manager=ManagerConfig(
+            manager=OSManager(
                 required_env=("OPENAI_API_KEY",),
                 model=OpenAIResponses(id="gpt-5.6-luna"),
             ),

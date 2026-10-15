@@ -5,14 +5,14 @@ from agno.os.app import AgentOS
 from agno.os.auth import create_dev_token
 from agno.os.authz import Authorization, UserDirectory
 from agno.os.config import MCP_BUILTIN_TAGS, CORSConfig, MCPBuiltinTag, MCPConfig, MCPServerConfig
-from agno.os.manager import ManagerConfig
+from agno.os.manager import OSManager
 
 if TYPE_CHECKING:
     from agno.os.mcp_auth_builtin import AgentOSBuiltinAuth
 
 __all__ = [
     "AgentOS",
-    "ManagerConfig",  # AgentOS(manager=ManagerConfig(...)): the conversational entry point to the OS
+    "OSManager",  # AgentOS(manager=OSManager(...)): the conversational entry point to the OS
     "Authorization",  # verification + roles + audit + the /authz admin API, wired into AgentOS
     "UserDirectory",  # the credential-less roster, AgentOS(user_directory=...)
     "CORSConfig",

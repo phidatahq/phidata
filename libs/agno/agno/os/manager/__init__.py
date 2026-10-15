@@ -1,5 +1,5 @@
 """OS Manager configuration."""
 
-from agno.os.manager.config import ManagerConfig
+from agno.os.manager.config import OSManager
 
-__all__ = ["ManagerConfig"]
+__all__ = ["OSManager"]

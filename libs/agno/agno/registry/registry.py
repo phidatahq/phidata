@@ -24,6 +24,7 @@ from pydantic import BaseModel, ValidationError
 
 from agno.db.base import BaseDb
 from agno.models.base import Model
+from agno.registry._reserved import RESERVED_MANAGER_IDS
 from agno.tools.function import RUNTIME_ONLY_FIELDS, Function, isolated_runtime_value
 from agno.tools.toolkit import Toolkit
 from agno.utils.log import log_warning
@@ -139,9 +140,13 @@ class Registry:
 
     # Served framework components may be runnable without being building blocks.
     # IDs keep that boundary intact when a caller supplies a per-run copy.
-    _excluded_component_ids: Set[str] = field(default_factory=set, init=False, repr=False)
+    _excluded_component_ids: Set[str] = field(default_factory=lambda: set(RESERVED_MANAGER_IDS), init=False, repr=False)
 
     def __post_init__(self) -> None:
+        for component in [*self.agents, *self.teams, *self.workflows]:
+            component_id = getattr(component, "id", None)
+            if component_id in RESERVED_MANAGER_IDS and not getattr(component, "_registry_excluded", False):
+                raise ValueError(f"Duplicate IDs reserved for the manager: {component_id}")
         self.exclude_components(
             [
                 component

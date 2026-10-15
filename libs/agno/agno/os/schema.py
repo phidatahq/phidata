@@ -256,6 +256,16 @@ def _extract_filesystem(filesystem: Any, agent: Any, user_id: Optional[str] = No
     )
 
 
+def _builtin_component_metadata(component: Any) -> Optional[Dict[str, Any]]:
+    """Expose framework identity without publishing arbitrary metadata in summaries."""
+    from agno.registry._reserved import RESERVED_MANAGER_IDS
+
+    component_id = getattr(component, "id", None)
+    if component_id in RESERVED_MANAGER_IDS and getattr(component, "_registry_excluded", False):
+        return {"_agno": {"internal": True, "id": component_id}}
+    return None
+
+
 class AgentSummaryResponse(BaseModel):
     id: Optional[str] = Field(None, description="Unique identifier for the agent")
     name: Optional[str] = Field(None, description="Name of the agent")
@@ -270,7 +280,9 @@ class AgentSummaryResponse(BaseModel):
         # Built-in adapters expose sdk. The framework fallback is only for third-party adapters that
         # satisfy AgentProtocol structurally and predate the rename; drop it with the framework alias.
         sdk = getattr(agent, "sdk", None) or getattr(agent, "framework", None)
-        metadata = {"sdk": sdk} if sdk else None
+        metadata = _builtin_component_metadata(agent)
+        if sdk:
+            metadata = {**(metadata or {}), "sdk": sdk}
         if isinstance(agent, AgentFactory):
             return cls(
                 id=agent.id,
@@ -297,6 +309,8 @@ class TeamSummaryResponse(BaseModel):
     mode: Optional[str] = Field(None, description="Team execution mode (coordinate, route, broadcast, tasks)")
     model: Optional[Model] = Field(None, description="Model used by the team leader")
 
+    metadata: Optional[Dict[str, Any]] = Field(None, description="Framework component metadata")
+
     @classmethod
     def from_team(cls, team: Union[Team, RemoteTeam, TeamFactory]) -> "TeamSummaryResponse":
         if isinstance(team, TeamFactory):
@@ -316,6 +330,7 @@ class TeamSummaryResponse(BaseModel):
             db_id=db_id,
             mode=mode,
             model=_extract_model(team),
+            metadata=_builtin_component_metadata(team),
         )
 
 

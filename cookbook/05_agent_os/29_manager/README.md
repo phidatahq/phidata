@@ -7,11 +7,11 @@ Start with a model and a database:
 ```python
 from agno.db.sqlite import SqliteDb
 from agno.models.openai import OpenAIResponses
-from agno.os import AgentOS, ManagerConfig
+from agno.os import AgentOS, OSManager
 
 agent_os = AgentOS(
     db=SqliteDb(db_file="tmp/manager.db"),
-    manager=ManagerConfig(model=OpenAIResponses(id="gpt-5.6-luna")),
+    manager=OSManager(model=OpenAIResponses(id="gpt-5.6-luna")),
 )
 ```
 
@@ -46,12 +46,12 @@ Conversations use the configured model and incur provider charges.
 
 | File | Ask OS Manager | What to expect |
 |---|---|---|
-| `basic_manager.py` | “Run diagnostics and explain any issues.” | A report from Platform Manager, including the authorization warning. No tools or models have been supplied for building new agents. |
+| `basic_manager.py` | “Run diagnostics and explain any issues.” | A report from Platform Manager, including the authorization warning. The manager model is available for basic builds; no additional tools are declared. |
 | `manager_user_access.py` | As Alice, ask “Run math-helper: what is 6 * 7?” Then ask to publish a new agent. | The permitted run succeeds; publishing is refused. Configure `JWT_VERIFICATION_KEY` and a JWT with `sub=alice`, `aud=manager-access-demo`. |
 | `manager_builds_agents.py` | “Create a calculator agent named Budget Helper.” Then: “Run Budget Helper: what is 15% of 240?” | Platform Builder publishes the agent. The second request runs it and should return 36. |
 | `manager_with_resources.py` | “Save a note in project.md: the demo is on Friday.” Then: “Read project.md.” | The shared notebook stores and retrieves the note. |
 | `manager_with_resources.py` | “Remember that I prefer short answers.” Then ask about your preference in a new session with the same user id. | The manager can save and retrieve a user preference across sessions. |
-| `manager_with_resources.py` | “Read basic_manager.py and explain how the manager is configured.” | Platform Engineer reads the example from its configured workspace. |
+| `manager_with_resources.py` | “Read basic_manager.py and explain how the manager is configured.” | Platform Manager reads the example from its configured root. |
 
 To try the build example:
 
@@ -71,29 +71,33 @@ notes and published components persist between runs. Use PostgreSQL in productio
 ## When to use a registry
 
 You do not need to configure a registry just to add a manager. Pass its model
-through `ManagerConfig`, as in the basic example.
+through `OSManager`, as in the basic example. That model is added to the registry,
+without replacing an equivalent explicitly registered model. With no other
+resources declared, the builder can create basic model-backed agents. It explains
+which tools or knowledge sources are missing when a richer build needs them.
 
 Use a `Registry` when you want to choose resources for components the builder
 creates: models, tools, workflow functions, knowledge or learning. The build
 example supplies a model, calculator tools and JSON/CSV functions. It uses
 `manager=True` so the manager uses the first model in that registry too.
 
-Tools passed to `ManagerConfig(tools=[...])` are for the manager itself. They do
+Tools passed to `OSManager(tools=[...])` are for the manager itself. They do
 not become tools for new agents. To share a resource with the builder, include
 it in the registry as well. Code-defined application components also contribute
 resources through AgentOS registry discovery. Manager components are excluded.
 
 ## The team and its members
 
-The default team name is **OS Manager**, with id `os-manager`. Set
-`ManagerConfig(name=..., id=...)` to change them. Its members are:
+The default team name is **OS Manager**, with id `os-manager-internal`. Set
+`OSManager(name=...)` to change the display name. The ID and two-member
+composition are fixed. Its members are:
 
-- **Platform Builder** (`platform-builder`): creates components and schedules.
-- **Platform Manager** (`platform-manager`): checks activity and runs diagnostics.
-- **Platform Engineer** (`platform-engineer`): reads source when a workspace is configured.
+- **Platform Builder** (`platform-builder-internal`): creates components and schedules.
+- **Platform Manager** (`platform-manager-internal`): checks activity, runs diagnostics,
+  reads source when `root` is set, and queries Agno documentation when `docs=True`.
 
 The team and its members use the normal UI, REST and MCP routes. Ordinary run
-grants, including `teams:os-manager:run`, let a user talk to the manager. Access
+grants, including `teams:os-manager-internal:run`, let a user talk to the manager. Access
 to the manager does not grant its tools additional permissions:
 
 - Running another component requires its agent, team or workflow `run` permission.
@@ -130,18 +134,39 @@ as an authorized caller.
 Direct Python calls, security-key access, unauthenticated deployments and interfaces
 bound directly to the team are trusted application entry points. Expose those only
 to trusted operators; binding Slack does not enforce REST user roles. Custom tools
-supplied through `ManagerConfig.tools` remain application-defined capabilities:
+supplied through `OSManager.tools` remain application-defined capabilities:
 use `RunContext.authorization` or `requires_permission` from
 `agno.run.authorization` when they need caller authorization.
 
-Their ids are reserved, including the engineer id when no workspace is
-configured. The manager can run itself once with a fresh context; it cannot start
+All three IDs are reserved, even when the manager is disabled. Application
+components and Studio builds cannot use them. The manager can run itself once with a fresh context; it cannot start
 another self-run from that run.
 
-A workspace path gives the engineer read-only file tools with default exclusions
+`OSManager(root="./")` gives Platform Manager read-only file tools with default exclusions
 for credential files. A supplied `WorkspaceContextProvider` is copied into tools
 mode. Its model, prompt and custom tools are not used. Additional exclusions are
 supported; `allow_paths` and custom `!` exemptions are rejected.
+
+Enable Agno documentation access with `OSManager(model=model, root="./", docs=True)`.
+Docs are opt-in and use the existing MCP connection lifecycle; enabling them
+requires network access to `https://docs.agno.com/mcp`. The docs tools remain
+private to Platform Manager and are not added to the build palette.
+
+Agent and team responses expose their built-in identity through existing metadata:
+
+```json
+{"metadata": {"_agno": {"internal": true, "id": "os-manager-internal"}}}
+```
+
+Each member carries its own reserved ID in the same place. This is a UI marker,
+not an authorization grant. Ordinary application metadata is unchanged.
+
+This unreleased API replaces `ManagerConfig` with `OSManager`, `workspace` with
+`root`, and the earlier manager IDs with the fixed IDs above. Update client IDs
+and permission grants accordingly. Existing sessions under earlier IDs are not
+migrated automatically. Run access, component discovery (`teams:read` or
+`agents:read`), and session access (`sessions:read` plus ownership restrictions)
+remain separate permissions.
 
 The resources example shares notebook files across users, while learning keeps
 user memory separate. It does not configure a knowledge base.
@@ -153,13 +178,13 @@ PostgreSQL. Results above 16,000 characters are stored in the database; the
 model receives a preview and can read or search the full result. Small results
 stay inline. Other database adapters warn and leave offloading disabled.
 
-Use `ManagerConfig(offload_tool_results=False)` to disable it, or pass a
+Use `OSManager(offload_tool_results=False)` to disable it, or pass a
 `ResultStore` to customize the threshold and retention:
 
 ```python
 from agno.offload import ResultStore
 
-manager_config = ManagerConfig(
+manager_config = OSManager(
     model=OpenAIResponses(id="gpt-5.6-luna"),
     offload_tool_results=ResultStore(threshold_chars=32000, ttl_seconds=86400),
 )

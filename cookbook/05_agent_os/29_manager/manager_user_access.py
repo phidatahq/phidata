@@ -14,7 +14,7 @@ from os import environ
 from agno.agent import Agent
 from agno.db.sqlite import SqliteDb
 from agno.models.openai import OpenAIResponses
-from agno.os import AgentOS, Authorization, ManagerConfig
+from agno.os import AgentOS, Authorization, OSManager
 
 model = OpenAIResponses(id="gpt-5.6-luna")
 math_helper = Agent(
@@ -32,8 +32,8 @@ authorization = Authorization(
 authorization.define_role(
     "manager-user",
     [
-        "teams:os-manager:run",
-        "teams:os-manager:read",
+        "teams:os-manager-internal:run",
+        "teams:os-manager-internal:read",
         "agents:math-helper:run",
         "agents:math-helper:read",
         "config:read",
@@ -47,7 +47,7 @@ agent_os = AgentOS(
     agents=[math_helper],
     authorization=authorization,
     user_isolation=True,
-    manager=ManagerConfig(model=model),
+    manager=OSManager(model=model),
 )
 app = agent_os.get_app()
 

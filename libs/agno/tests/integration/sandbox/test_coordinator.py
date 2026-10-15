@@ -1,6 +1,7 @@
 """Full Docker + Postgres recovery boundary, using a credential-free runtime."""
 
 import asyncio
+import time
 import json
 import os
 from dataclasses import dataclass, field, replace
@@ -9,7 +10,7 @@ from uuid import uuid4
 
 import pytest
 import pytest_asyncio
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 from agno.db.postgres import AsyncPostgresDb, PostgresDb
 from agno.run.agent import RunCompletedEvent, RunInput, RunOutput
@@ -46,7 +47,8 @@ async def system(request, tmp_path):
     )
     provider = DockerSandbox(IMAGE, namespace="coordinator-" + suffix, memory_mb=512, workspace_mb=32)
     transfer = DockerCheckpointTransfer(provider, FileCheckpointStore(tmp_path / "objects"))
-    coordinator = SandboxCoordinator(db, provider, transfer, poll_wait=1)
+    # Cold replacement every turn, which most of these tests rely on; warm reuse has its own tests.
+    coordinator = SandboxCoordinator(db, provider, transfer, poll_wait=1, warm_seconds=0)
     spec = Target("agent", "session", env={"AGNO_SANDBOX_TEST_RUNTIME": "1"})
     handles = []
     original = provider.acreate
@@ -57,6 +59,7 @@ async def system(request, tmp_path):
         return handle
 
     provider.acreate = create
+    coordinator._test_handles = handles  # type: ignore[attr-defined]
     yield coordinator, spec, tmp_path
     for handle in handles:
         await provider.adestroy(handle)
@@ -66,6 +69,11 @@ async def system(request, tmp_path):
         await db.db_engine.dispose()
     else:
         db.db_engine.dispose()
+
+
+def handles_of(coordinator):
+    """Every computer the provider created for this coordinator, in order."""
+    return coordinator._test_handles
 
 
 async def run(coordinator, spec, run_id="first", **kwargs):
@@ -122,7 +130,9 @@ async def test_checkpoint_failure_retries_finalization_without_repeating_tools(s
     record = (await binding(coordinator))["record"]
     assert record["phase"] == "finalizing" and record["result"]["run"]["status"] == "COMPLETED"
     monkeypatch.setattr(coordinator.transfer, "acapture", capture)
-    fresh = SandboxCoordinator(coordinator.store.db, coordinator.provider, coordinator.transfer, poll_wait=1)
+    fresh = SandboxCoordinator(
+        coordinator.store.db, coordinator.provider, coordinator.transfer, poll_wait=1, warm_seconds=0
+    )
     assert (await run(fresh, spec)).status == RunStatus.completed
     assert await recovered_effects(coordinator, root) == ["first"]
 
@@ -444,7 +454,7 @@ async def test_completion_by_another_writer_releases_the_session(system, monkeyp
     coordinator, spec, _ = system
     commit = coordinator.store.acommit
 
-    async def finished_elsewhere(lease):
+    async def finished_elsewhere(lease, **kwargs):
         def complete(connection):
             runs = coordinator.store.runs
             run_data = connection.execute(select(runs.c.run_data).where(runs.c.run_id == lease.run_id)).scalar_one()
@@ -760,3 +770,109 @@ async def test_sync_stream_yields_events_then_the_committed_output(system):
     assert isinstance(values[-1], RunOutput) and values[-1].status == RunStatus.completed
     assert any(isinstance(value, RunCompletedEvent) for value in values[:-1])
     assert await recovered_effects(coordinator, root) == ["first"]
+
+
+async def test_next_turn_resumes_the_warm_computer(system, monkeypatch):
+    coordinator, spec, root = system
+    coordinator.warm_seconds = 300
+    restores = []
+    restore = coordinator.transfer.arestore
+
+    async def counted(*args, **kwargs):
+        restores.append(args)
+        return await restore(*args, **kwargs)
+
+    monkeypatch.setattr(coordinator.transfer, "arestore", counted)
+    await run(coordinator, spec)
+    first = (await binding(coordinator))["record"]
+    assert first["warm_until"] and first["computer"] and not first["computer_stopped"]
+    assert (await coordinator.provider.aget(handles_of(coordinator)[0].provider_ref)).state == "paused"
+    # The checkpoint is still the recovery point, captured after the turn.
+    assert await recovered_effects(coordinator, root) == ["first"]
+
+    result = await run(coordinator, spec, "second")
+    assert result.status == RunStatus.completed and result.metadata["sandbox"]["resumed"] is True
+    second = (await binding(coordinator))["record"]
+    assert second["generation"] == first["generation"] and restores == []
+    assert len(handles_of(coordinator)) == 1
+    assert await recovered_effects(coordinator, root) == ["first", "second"]
+
+
+async def test_a_lost_warm_computer_is_replaced_from_the_checkpoint(system):
+    coordinator, spec, root = system
+    coordinator.warm_seconds = 300
+    assert (await run(coordinator, spec)).metadata["sandbox"]["resumed"] is False
+    first = (await binding(coordinator))["record"]
+    await coordinator.provider.adestroy(handles_of(coordinator)[0])
+    replaced = await run(coordinator, spec, "second")
+    assert replaced.status == RunStatus.completed and replaced.metadata["sandbox"]["resumed"] is False
+    second = (await binding(coordinator))["record"]
+    assert second["generation"] == first["generation"] + 1
+    assert len(handles_of(coordinator)) == 2
+    assert await recovered_effects(coordinator, root) == ["first", "second"]
+
+
+async def test_an_expired_warm_window_retires_the_computer(system):
+    coordinator, spec, root = system
+    coordinator.warm_seconds = 1
+    await run(coordinator, spec)
+    kept = handles_of(coordinator)[0]
+    await asyncio.sleep(1.5)
+    assert (await run(coordinator, spec, "second")).status == RunStatus.completed
+    assert len(handles_of(coordinator)) == 2
+    assert await coordinator.provider.aget(kept.provider_ref) is None
+    assert await recovered_effects(coordinator, root) == ["first", "second"]
+
+
+async def test_a_cancelled_warm_turn_retires_the_computer_and_keeps_the_boundary(system, monkeypatch):
+    from agno.run import cancel
+
+    coordinator, spec, root = system
+    coordinator.warm_seconds = 300
+    await run(coordinator, spec)
+    kept = handles_of(coordinator)[0]
+
+    async def cancelled(run_id):
+        return run_id == "second"
+
+    monkeypatch.setattr(cancel, "ais_cancelled", cancelled)
+    assert (await run(coordinator, spec, "second", config={"delay": 2})).status == RunStatus.cancelled
+    assert await coordinator.provider.aget(kept.provider_ref) is None
+    assert await recovered_effects(coordinator, root) == ["first"]
+    assert (await binding(coordinator))["record"].get("warm_until") is None
+
+
+async def test_retire_computer_removes_the_warm_computer_and_keeps_the_checkpoint(system):
+    coordinator, spec, root = system
+    coordinator.warm_seconds = 300
+    await run(coordinator, spec)
+    kept = handles_of(coordinator)[0]
+    assert await coordinator.aretire_computer(spec.session_id, agent_id=spec.agent_id, user_id="user") is True
+    assert await coordinator.provider.aget(kept.provider_ref) is None
+    assert await coordinator.aretire_computer(spec.session_id, agent_id=spec.agent_id, user_id="user") is False
+    record = (await binding(coordinator))["record"]
+    assert record["phase"] == "idle" and record["computer"] is None and record.get("warm_until") is None
+    # The next turn restores from the checkpoint on a fresh generation.
+    assert (await run(coordinator, spec, "second")).status == RunStatus.completed
+    assert len(handles_of(coordinator)) == 2
+    assert await recovered_effects(coordinator, root) == ["first", "second"]
+
+
+async def test_sweep_retires_only_expired_warm_computers(system):
+    coordinator, spec, root = system
+    coordinator.warm_seconds = 300
+    await run(coordinator, spec)
+    kept = handles_of(coordinator)[0]
+    assert await coordinator.asweep_warm() == 0
+    assert (await coordinator.provider.aget(kept.provider_ref)).state == "paused"
+    # Move the window into the past, as time would.
+    await coordinator.store._transaction(
+        lambda c: c.execute(
+            update(coordinator.store.bindings).values(
+                record=coordinator.store.bindings.c.record.op("||")({"warm_until": time.time() - 1})
+            )
+        )
+    )
+    assert await coordinator.asweep_warm() == 1
+    assert await coordinator.provider.aget(kept.provider_ref) is None
+    assert await coordinator.asweep_warm() == 0

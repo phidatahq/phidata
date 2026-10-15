@@ -53,7 +53,7 @@ These steps create AWS resources and billable compute. You need an AWS profile t
    .venv/bin/python cookbook/frameworks/sandbox/agentcore/agentcore_setup.py teardown --name agno-sandbox
    ```
 
-What to expect: each session is a Firecracker microVM with 2 vCPU and 8 GiB, started fresh per turn and restored from its checkpoint, so a turn begins with a cold start of a few seconds. The runtime's network mode is public egress; invocations are still authenticated by IAM, so scope the calling credentials. Code inside the sandbox can use the runtime's execution role, which is why the setup script limits it to Claude models. Checkpoints move in 8 MiB chunks through invocations, so very large workspaces are slow to capture and restore.
+What to expect: each session is a Firecracker microVM with 2 vCPU and 8 GiB. The first turn boots one and later turns resume it while it is warm; a turn after the warm window, or after a cancel or failure, boots a fresh microVM restored from the checkpoint, a cold start of several seconds. `warm_turns.py --provider agentcore` in the parent folder shows both paths with timings. The runtime's network mode is public egress; invocations are still authenticated by IAM, so scope the calling credentials. Code inside the sandbox can use the runtime's execution role, which is why the setup script limits it to Claude models. Checkpoints move in 8 MiB chunks through invocations, so very large workspaces are slow to capture and restore.
 
 ## Cookbooks
 

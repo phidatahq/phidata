@@ -229,15 +229,16 @@ def test_docker_ready_review_and_revision_use_real_repository_checkpoint(setup, 
     async def remember(*args, **kwargs):
         handle = await create(*args, **kwargs)
         handles.append(handle)
-        prepared = await provider.aexec(
-            handle,
-            [
-                "python",
-                "-c",
-                "from pathlib import Path; p=Path('/workspace/output'); p.mkdir(exist_ok=True); (p/'checks.md').write_text('Credential-free fixture output')",
-            ],
-        )
-        assert prepared.exit_code == 0, prepared.stderr
+        if len(handles) == 1:
+            prepared = await provider.aexec(
+                handle,
+                [
+                    "python",
+                    "-c",
+                    "from pathlib import Path; p=Path('/workspace/output'); p.mkdir(exist_ok=True); (p/'checks.md').write_text('Credential-free fixture output')",
+                ],
+            )
+            assert prepared.exit_code == 0, prepared.stderr
         return handle
 
     monkeypatch.setattr(provider, "acreate", remember)

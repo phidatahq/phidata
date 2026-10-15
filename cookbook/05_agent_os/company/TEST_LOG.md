@@ -155,3 +155,13 @@ passed. Format and validation scripts passed. No live provider calls.
 **Result:** Created a version-1 Product brief and read identical content through a fresh service instance. Seven database integration tests cover permissions, concurrent edits, idempotency, audit rollback, quota recovery, input snapshots, HTTP and tools. Docker recovery is recorded separately after the combined build.
 
 ---
+
+### Company files through Docker recovery — October 15, 2026
+
+**Status:** PASS
+
+**Description:** Fresh combined runtime image, disposable PostgreSQL, real Docker/Git, deterministic fixture protocol through both CodexAgent and ClaudeAgent. No model calls.
+
+**Result:** Two cases passed: Ready pickup, output import, In review hold, human revision, replacement container, original input snapshot and source SHA restored. Initial fixture incorrectly populated the replacement workspace before restore; the runtime rejected it. Corrected fixture leaves replacements empty. The combined non-Docker suite passed 702 tests; these two cases cover its Docker skips.
+
+---

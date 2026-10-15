@@ -47,9 +47,10 @@ def test_product_manager_assembly_and_model_precedence(tmp_path, manager):
     assert inherited.product_manager.model is first
 
 
-def test_no_model_manual_api_and_disabled_company(tmp_path):
+def test_no_model_manual_api_and_disabled_company(tmp_path, caplog):
     db = SqliteDb(db_file=str(tmp_path / "no-model.db"))
     os = AgentOS(db=db, company=CompanyConfig(), telemetry=False)
+    assert not any("Product Manager unavailable" in record.message for record in caplog.records)
     assert os.product_manager is None and "CompanyConfig(model=" in os.product_manager_unavailable_reason
     assert any(c.name == "company" and c.status == "WARN" for c in os.run_diagnostics().checks)
     assert TestClient(os.get_app()).post("/company/decisions", json={"decision": "manual"}).status_code == 201
@@ -91,10 +92,13 @@ async def test_tools_identity_fence_and_learning(tmp_path, use_async):
         await invoke("log_company_decision", "Draft first", reasoning="review needed", _agno_run_context=alice)
     )
     assert entry["user_id"] == "alice" and entry["session_id"] == "s"
-    assert manager.list_decisions(agent_id=PRODUCT_MANAGER_ID, session_id="s")[1] == 1
+    assert entry["agent_id"] is None
+    assert manager.list_decisions(agent_id=PRODUCT_MANAGER_ID, session_id="s")[1] == 0
     for function in tools.get_async_functions().values():
         function.process_entrypoint()
         properties = function.parameters.get("properties", {})
+        if function.name == "log_company_decision":
+            assert "agent_id" not in properties
         assert not {"user_id", "_agno_run_context", "status", "owner", "sources", "executor_id"} & set(properties) - {
             "status"
         }
@@ -123,6 +127,10 @@ async def test_direct_mcp_has_only_bounded_tools(tmp_path):
         assert not result.is_error
         rows, _ = CompanyManager(db).list_tasks()
         assert rows[0]["status"] == "backlog" and rows[0]["user_id"] is None
+        result = await client.call_tool("log_company_decision", {"decision": "MCP decision"})
+        assert not result.is_error
+        decisions, _ = CompanyManager(db).list_decisions()
+        assert decisions[0].agent_id is None
         for forbidden in ["transition_company_task", "accept_company_task", "complete_company_task"]:
             result = await client.call_tool(forbidden, {"task_id": rows[0]["id"]}, raise_on_error=False)
             assert result.is_error
@@ -143,7 +151,12 @@ async def test_product_manager_runs_tools_with_injected_identity(tmp_path, use_a
             super().__init__(id="offline-planner", provider="test")
             self.calls = 0
 
-        def invoke(self, *args, **kwargs):
+        def invoke(self, messages, *args, **kwargs):
+            prompt = "\n".join(m.content for m in messages if m.role == "system" and isinstance(m.content, str))
+            assert "Human review decision" in prompt
+            assert "`log_company_decision`" in prompt and "`search_company_decisions`" in prompt
+            assert not any(name in prompt for name in ("`log_decision`", "`search_decisions`", "`record_outcome`"))
+            assert "append-only" in prompt
             self.calls += 1
             if self.calls == 1:
                 calls = [
@@ -194,6 +207,9 @@ async def test_product_manager_runs_tools_with_injected_identity(tmp_path, use_a
             return response
 
     os = AgentOS(db=db, company=CompanyConfig(model=PlanningModel()), user_isolation=True, telemetry=False)
+    with TestClient(os.get_app()) as client:
+        response = client.post("/company/decisions", json={"decision": "Human review decision"})
+        assert response.status_code == 201 and response.json()["agent_id"] is None
     if use_async:
         await os.product_manager.arun("Plan the release", user_id="alice", session_id="planning")
     else:
@@ -203,7 +219,10 @@ async def test_product_manager_runs_tools_with_injected_identity(tmp_path, use_a
     assert total == 1 and tasks[0]["user_id"] == "alice" and tasks[0]["status"] == "backlog"
     assert m.read_wiki(product["id"], "status.md").content == "Draft proposed"
     decisions, total = m.list_decisions()
-    assert total == 1 and decisions[0].user_id == "alice" and decisions[0].session_id == "planning"
+    assert total == 2
+    own = next(decision for decision in decisions if decision.decision == "Review first")
+    assert own.user_id == "alice" and own.session_id == "planning" and own.agent_id == PRODUCT_MANAGER_ID
+    assert m.list_decisions(agent_id=PRODUCT_MANAGER_ID)[1] == 1
 
 
 @pytest.mark.asyncio

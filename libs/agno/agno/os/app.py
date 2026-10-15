@@ -640,7 +640,6 @@ class AgentOS:
                     if company_model is None
                     else "Product Manager unavailable: Company requires a database"
                 )
-                log_warning(self.product_manager_unavailable_reason)
 
         self._manager: Optional["_Manager"] = None
         if manager is not None and not isinstance(manager, (bool, OSManager)):

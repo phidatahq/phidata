@@ -140,3 +140,18 @@ def test_company_namespace_and_decision_identity(client):
     assert "decisions.md" not in {
         row["path"] for row in client.get("/company/wiki", headers=headers("reader")).json()["data"]
     }
+
+
+@pytest.mark.parametrize(
+    "method,path,expected",
+    [
+        ("GET", "/company/products/p1/wiki", ["wiki:read"]),
+        ("GET", "/company/products/p1/wiki/notes/status.md", ["wiki:read"]),
+        ("PUT", "/company/products/p1/wiki/status.md", ["wiki:write"]),
+        ("GET", "/company/products/p1", ["products:read"]),
+    ],
+)
+def test_wiki_scope_precedes_generic_product_pattern(method, path, expected):
+    from agno.os.scopes import get_default_scope_mappings, get_required_scopes_for_route
+
+    assert get_required_scopes_for_route(get_default_scope_mappings(company=True), method, path) == expected

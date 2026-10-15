@@ -176,3 +176,26 @@ filesystem/context unit tests plus the new four-adapter parity tests passed
 including both mypy checks; the validate output was read.
 
 ---
+
+
+### Review fixes — October 16, 2026
+
+**Status:** PASS
+
+**Description:** Reran all five files in `cookbook/05_agent_os/30_company/`:
+`01_manage_products.py`, `02_manage_projects.py`, `03_manage_tasks.py`,
+`04_manage_playbook.py`, and `05_product_manager.py`, after fixing Company
+decision recall, tool instructions, author attribution and wiki routing.
+
+**Result:** All cookbook assertions passed. The shared Company decision context
+includes human entries; direct CompanyTools/MCP calls no longer claim Product
+Manager authorship. Actual offline sync/async Product Manager runs verified
+human decision context and the exposed tool names in system prompts.
+The broader regression run passed **1,516 tests**, with no skips, covering
+Company routes/tools, scopes, manager composition, diagnostics, learning,
+context providers, and Company SQLite/PostgreSQL storage in both execution
+modes. All provider calls remained offline. The original full database/OS
+unit-suite results above precede this follow-up; those full suites were not
+rerun for these focused fixes. Format and validation passed.
+
+---

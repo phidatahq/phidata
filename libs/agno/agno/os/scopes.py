@@ -559,7 +559,9 @@ def get_default_scope_mappings(*, company: bool = False) -> Dict[str, List[str]]
     if company:
         mappings.update(
             {
-                # Company playbook and learning-decision endpoints
+                # Company playbook and learning-decision endpoints. Keep nested
+                # wiki routes before products/*: matching is first-match and *
+                # spans slashes, so the generic Product pattern also matches wiki.
                 "GET /company/products/*/wiki": ["wiki:read"],
                 "GET /company/products/*/wiki/*": ["wiki:read"],
                 "PUT /company/products/*/wiki/*": ["wiki:write"],

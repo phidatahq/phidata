@@ -195,3 +195,35 @@ async def test_durable_wiki_tools_use_native_async_filesystem(db):
     assert (await tools.amove_file("status.md", "renamed.md")).startswith("Moved")
     assert (await tools.adelete_file("renamed.md")).startswith("Deleted")
     assert await fs.alist() == []
+
+
+@pytest.mark.asyncio
+async def test_company_recall_is_shared_and_agent_attribution_is_bound(db):
+    import json
+
+    from agno.company.decisions import CompanyDecisionLogStore
+    from agno.registry._reserved import PRODUCT_MANAGER_ID
+    from agno.run import RunContext
+    from agno.tools.company import CompanyTools
+
+    m = AsyncCompanyManager(db) if isinstance(db, AsyncBaseDb) else CompanyManager(db)
+    human = await call(m.log_decision, "Human review decision", user_id="alice")
+    tools = CompanyTools(db)
+    context = RunContext(run_id="r", session_id="s", user_id="bob")
+    direct = json.loads(await tools.alog_company_decision("Caller decision", _agno_run_context=context))
+    assert direct["agent_id"] is None and direct["user_id"] == "bob"
+    store = CompanyDecisionLogStore(db)
+    learned_tools = await store.aget_tools(agent_id="other-agent")
+    fn = next(tool for tool in learned_tools if tool.name == "log_company_decision")
+    own = json.loads(await fn.entrypoint("Other agent decision", _agno_run_context=context))
+    assert own["agent_id"] == "other-agent"
+    recalled = await store.arecall(agent_id=PRODUCT_MANAGER_ID, session_id="new-session")
+    assert {entry.id for entry in recalled} == {human.id, direct["id"], own["id"]}
+    assert len(await store.asearch(agent_id="other-agent")) == 1
+    assert await store.asearch(agent_id=PRODUCT_MANAGER_ID) == []
+    if not isinstance(db, AsyncBaseDb):
+        sync_tool = store.get_tools(agent_id="sync-agent")[0]
+        entry = json.loads(sync_tool("Sync agent decision", _agno_run_context=context))
+        assert entry["agent_id"] == "sync-agent"
+        assert len(store.recall(agent_id=PRODUCT_MANAGER_ID)) == 4
+        assert len(store.search(agent_id="sync-agent")) == 1

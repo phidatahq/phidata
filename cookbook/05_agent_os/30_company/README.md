@@ -90,6 +90,11 @@ GET and POST `/company/decisions` use `decisions:read` and `decisions:write`.
 Decisions are learning log entries in the `company` namespace, never a file.
 Listings support text, agent, session and age filters plus standard paging.
 The server stamps human identity; agents get identity from injected run context.
+Automatic learning recall includes human and agent decisions across the company;
+explicit searches can still filter by agent. The learning machine binds the agent
+ID when supplying decision tools. Standalone CompanyTools and direct MCP calls
+leave agent attribution unset. The log is append-only: later outcomes are new
+entries that reference the original decision.
 
 Product Manager uses `CompanyConfig(model=...)`, otherwise the first declared
 registry model. If neither exists, its unavailable reason appears in diagnostics

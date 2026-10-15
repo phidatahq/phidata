@@ -21,15 +21,21 @@ class CompanyDecisionLogStore(DecisionLogStore):
         self.user_isolation = user_isolation
 
     def recall(self, **kwargs):
+        """Recall across Company authors; use search for explicit agent filtering."""
         from agno.tools.company import _permission
 
         _permission("decisions", "read", kwargs.get("run_context"))
+        # Runtime agent identity must not hide human or other agents' decisions.
+        # Explicit search retains its optional agent filter.
+        kwargs.pop("agent_id", None)
         return super().recall(**kwargs)
 
     async def arecall(self, **kwargs):
+        """Async recall across Company authors, including human decisions."""
         from agno.tools.company import _apermission
 
         await _apermission("decisions", "read", kwargs.get("run_context"))
+        kwargs.pop("agent_id", None)
         return await super().arecall(**kwargs)
 
     def save(self, decision: DecisionLog) -> None:
@@ -96,16 +102,33 @@ class CompanyDecisionLogStore(DecisionLogStore):
 
         return await asyncio.to_thread(self.search, query, agent_id, session_id, decision_type, days, limit)
 
-    def get_tools(self, **kwargs):
+    def instructions(self) -> str:
+        """Describe only the bounded Company decision tools exposed to the agent."""
+        if not self._should_expose_tools:
+            return ""
+        return (
+            "<decision_log_instructions>\n"
+            "Use `log_company_decision` to record significant decisions with reasoning, context and observed outcome.\n"
+            "Use `search_company_decisions` to find past company decisions, including human decisions.\n"
+            "The log is append-only. To record a later outcome, append a new decision that references the original "
+            "decision and describes the observed outcome; existing entries cannot be updated.\n"
+            "</decision_log_instructions>"
+        )
+
+    def get_tools(self, agent_id: Optional[str] = None, **kwargs):
         from agno.tools.company import CompanyTools
 
-        tools = CompanyTools(self.db, user_isolation=self.user_isolation)
+        if not self._should_expose_tools:
+            return []
+        tools = CompanyTools(self.db, user_isolation=self.user_isolation, agent_id=agent_id)
         return [tools.log_company_decision, tools.search_company_decisions]
 
-    async def aget_tools(self, **kwargs):
+    async def aget_tools(self, agent_id: Optional[str] = None, **kwargs):
         from agno.tools.company import CompanyTools
 
-        tools = CompanyTools(self.db, user_isolation=self.user_isolation)
+        if not self._should_expose_tools:
+            return []
+        tools = CompanyTools(self.db, user_isolation=self.user_isolation, agent_id=agent_id)
         return [
             tools.get_async_functions()["log_company_decision"],
             tools.get_async_functions()["search_company_decisions"],

@@ -55,9 +55,13 @@ class CompanyTools(Toolkit):
     model. Like HTTP, service accounts remain scoped even with isolation off.
     """
 
-    def __init__(self, db: Any, *, user_isolation: bool = False, decision_tools: bool = True):
+    def __init__(
+        self, db: Any, *, user_isolation: bool = False, decision_tools: bool = True, agent_id: Optional[str] = None
+    ):
         self.db = db
         self.user_isolation = user_isolation
+        # Supplied by the learning machine, never by the model or an MCP argument.
+        self._agent_id = agent_id
         names = [
             "list_company_products",
             "get_company_product",
@@ -240,8 +244,6 @@ class CompanyTools(Toolkit):
         _agno_run_context: Optional[Any] = None,
     ) -> str:
         """Append a decision with reasoning, context and observed outcome to the learning log."""
-        from agno.registry._reserved import PRODUCT_MANAGER_ID
-
         _permission("decisions", "write", _agno_run_context)
         self._scoped_user(_agno_run_context)
         return json.dumps(
@@ -253,7 +255,7 @@ class CompanyTools(Toolkit):
                     outcome,
                     user_id=_identity(_agno_run_context),
                     session_id=getattr(_agno_run_context, "session_id", None),
-                    agent_id=PRODUCT_MANAGER_ID,
+                    agent_id=self._agent_id,
                 )
             )
         )
@@ -418,8 +420,6 @@ class CompanyTools(Toolkit):
         _agno_run_context: Optional[Any] = None,
     ) -> str:
         """Append a decision with reasoning, context and observed outcome to the learning log."""
-        from agno.registry._reserved import PRODUCT_MANAGER_ID
-
         await _apermission("decisions", "write", _agno_run_context)
         self._scoped_user(_agno_run_context)
         return json.dumps(
@@ -431,7 +431,7 @@ class CompanyTools(Toolkit):
                     outcome,
                     user_id=_identity(_agno_run_context),
                     session_id=getattr(_agno_run_context, "session_id", None),
-                    agent_id=PRODUCT_MANAGER_ID,
+                    agent_id=self._agent_id,
                 )
             )
         )

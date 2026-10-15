@@ -666,10 +666,10 @@ async def test_run_deletion_racing_a_sandbox_operation_is_refused_not_deadlocked
     monkeypatch.setattr(store, "_service_run", pause)
     operation = asyncio.create_task(store.aget(state.lease))
     await asyncio.to_thread(holding.wait, 5)
-    with pytest.raises(Exception) as caught:
-        await asyncio.to_thread(store.db.delete_run, "run")
-    assert "foreign key" in str(caught.value).lower() and "deadlock" not in str(caught.value).lower()
+    # Refused (False) once the store's transaction commits; a deadlock would raise instead.
+    assert await asyncio.to_thread(store.db.delete_run, "run") is False
     assert (await operation).lease == state.lease
+    assert (await rows(store))[0]["run_id"] == "run"
 
 
 async def test_bindings_table_in_another_schema_is_refused(store):
@@ -789,3 +789,52 @@ async def test_bindings_table_cascading_run_deletes_is_refused(store):
         with store.db.db_engine.begin() as connection:
             connection.execute(text(f'DROP TABLE "{home}"."{b}"'))
         store.db._invalidate_table_cache(b)
+
+
+async def test_bindings_table_not_cascading_session_deletes_is_refused(store):
+    if isinstance(store.db, AsyncPostgresDb):
+        pytest.skip("Table setup uses the sync engine")
+    sessions = await store._table("sessions", store.db.session_table_name)
+    runs = await store._table("runs", store.db.runs_table_name)
+    b, home = store.db.sandbox_table_name, store.db.db_schema
+    # Correct key and targets, but an idle binding would make deleting its session fail.
+    with store.db.db_engine.begin() as connection:
+        connection.execute(
+            text(
+                f'CREATE TABLE "{home}"."{b}" (namespace varchar NOT NULL, session_id varchar NOT NULL '
+                f'REFERENCES "{home}"."{sessions.name}" (session_id), agent_id varchar NOT NULL, '
+                f'user_id varchar, epoch bigint NOT NULL, owner varchar, run_id varchar REFERENCES "{home}"."{runs.name}" '
+                "(run_id), queue_attempt bigint, expires_at timestamptz, record jsonb NOT NULL, "
+                "PRIMARY KEY (namespace, session_id))"
+            )
+        )
+    try:
+        with pytest.raises(SandboxError, match="cascade"):
+            await store._ensure_tables()
+    finally:
+        with store.db.db_engine.begin() as connection:
+            connection.execute(text(f'DROP TABLE "{home}"."{b}"'))
+        store.db._invalidate_table_cache(b)
+
+
+async def test_cancelled_duplicate_claim_keeps_the_live_lease(store, monkeypatch):
+    if isinstance(store.db, AsyncPostgresDb):
+        pytest.skip("AsyncPostgresDb runs the claim on the event loop; a cancel cannot land mid-transaction")
+    await seed(store)
+    held = await claim(store)
+    to_state = store._state
+
+    def slow(row):
+        # Inside the duplicate claim's transaction, so the cancel lands before it commits and returns.
+        time.sleep(0.5)
+        return to_state(row)
+
+    monkeypatch.setattr(store, "_state", slow)
+    # Same owner and attempt while the lease is alive: the claim reuses the lease the caller already holds.
+    duplicate = asyncio.create_task(claim(store))
+    await asyncio.sleep(0.1)
+    duplicate.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await duplicate
+    monkeypatch.setattr(store, "_state", to_state)
+    assert (await store.aget(held.lease)).lease == held.lease

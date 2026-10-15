@@ -208,6 +208,10 @@ class _SandboxStore:
             "RESTRICT",
         }:
             raise SandboxError(f"Sandbox table {self.bindings.name} must not cascade deletes from the run table")
+        # Deleting a session must remove its binding with it: an idle binding outlives every turn, and a
+        # recreated session must start from a fresh one.
+        if {(key.ondelete or "").upper() for key in self.bindings.c.session_id.foreign_keys} != {"CASCADE"}:
+            raise SandboxError(f"Sandbox table {self.bindings.name} must cascade deletes from the session table")
         # The claim's ON CONFLICT relies on this key; without it two first claims could both own a session.
         if {column.name for column in self.bindings.primary_key.columns} != {"namespace", "session_id"}:
             raise SandboxError(f"Sandbox table {self.bindings.name} must have the primary key (namespace, session_id)")
@@ -361,9 +365,10 @@ class _SandboxStore:
             raise ValueError("Lease duration must be between 0 and 3600 seconds")
 
         opened_turn = False
+        reused_lease = False
 
         def claim(connection: Connection) -> SandboxState:
-            nonlocal opened_turn
+            nonlocal opened_turn, reused_lease
             self._hold_session(connection, session_id)
             self._lock_run(connection, run_id)
             try:
@@ -412,7 +417,9 @@ class _SandboxStore:
             lease_alive = row["expires_at"] is not None and row["expires_at"] > now
             if active and lease_alive and not same_owner and not newer_attempt:
                 raise SandboxSessionBusy(row["run_id"])
-            epoch = row["epoch"] if active and same_owner and lease_alive else row["epoch"] + 1
+            # The same owner re-claiming a live lease gets that lease back rather than a new one.
+            reused_lease = active and same_owner and lease_alive
+            epoch = row["epoch"] if reused_lease else row["epoch"] + 1
             opened_turn = not active
             if not active:
                 record.update(
@@ -452,6 +459,9 @@ class _SandboxStore:
             # turn this claim opened goes back to idle, since nothing ran; a re-claimed turn keeps
             # its run, so the abandoned-run rule still applies to it.
             def release(connection: Connection) -> None:
+                if reused_lease:
+                    # The original caller still holds this lease and is still running its turn.
+                    return
                 try:
                     row = self._locked(connection, state.lease)
                 except SandboxLeaseLost:

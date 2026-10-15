@@ -756,8 +756,12 @@ class MCPTools(Toolkit):
         self._active_contexts = []
         self._initialized = False
 
-    async def connect(self, force: bool = False):
-        """Initialize a MCPTools instance and connect to the contextual MCP server"""
+    async def connect(self, force: bool = False) -> bool:
+        """Connect to the MCP server and report whether initialization succeeded.
+
+        Returns True when connected and initialized, False when the handshake fails
+        (the error is logged and cleaned up). Cancellation cleans up and is re-raised.
+        """
 
         if force:
             # Clean up the session and context so we force a new connection
@@ -769,13 +773,18 @@ class MCPTools(Toolkit):
             self._active_contexts = []
 
         if self._initialized:
-            return
+            return True
 
         try:
             await self._connect()
+            return True
+        except asyncio.CancelledError:
+            await self._safe_cleanup()
+            raise
         except Exception as e:
             log_error(f"Failed to connect to {str(self)}: {e}")
             await self._safe_cleanup()
+            return False
 
     def _connection_params(self, extra_headers: Optional[dict] = None) -> dict:
         """Resolve server_params into a plain dict, filling in the url and merging headers.
@@ -830,7 +839,7 @@ class MCPTools(Toolkit):
 
     async def close(self) -> None:
         """Close the MCP connection and clean up resources"""
-        if not self._initialized:
+        if not self._initialized and self._session_context is None and self._context is None:
             return
 
         import warnings

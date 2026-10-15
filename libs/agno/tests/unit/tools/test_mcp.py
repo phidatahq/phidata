@@ -2288,3 +2288,65 @@ async def test_retain_session_transport_captures_the_session_id():
     await transport._capture_session_id(response)
 
     assert transport.get_session_id() == "abc123"
+
+
+@pytest.mark.asyncio
+async def test_connect_returns_true_on_success():
+    tools = MCPTools(server_params=StreamableHTTPClientParams(url="http://localhost:8080/mcp"))
+
+    async def connect():
+        tools._initialized = True
+
+    with patch.object(tools, "_connect", new=AsyncMock(side_effect=connect)):
+        assert await tools.connect() is True
+
+
+@pytest.mark.asyncio
+async def test_connect_already_initialized_returns_true():
+    tools = MCPTools(server_params=StreamableHTTPClientParams(url="http://localhost:8080/mcp"))
+    tools._initialized = True
+
+    with patch.object(tools, "_connect", new=AsyncMock()) as connect_mock:
+        assert await tools.connect() is True
+
+    connect_mock.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_connect_returns_false_on_failure():
+    tools = MCPTools(server_params=StreamableHTTPClientParams(url="http://localhost:8080/mcp"))
+
+    with patch.object(tools, "_connect", new=AsyncMock(side_effect=RuntimeError("connect failed"))):
+        assert await tools.connect() is False
+
+    assert tools._initialized is False
+    assert tools._session_context is None
+
+
+@pytest.mark.asyncio
+async def test_connect_cancelled_cleans_up_and_reraises():
+    tools = MCPTools(server_params=StreamableHTTPClientParams(url="http://localhost:8080/mcp"))
+
+    async def cancel_connect():
+        tools._session_context = _AsyncContextManager(MagicMock())
+        raise asyncio.CancelledError
+
+    with patch.object(tools, "_connect", new=AsyncMock(side_effect=cancel_connect)):
+        with pytest.raises(asyncio.CancelledError):
+            await tools.connect()
+
+    assert tools._session_context is None
+
+
+@pytest.mark.asyncio
+async def test_close_cleans_up_partial_connection_when_not_initialized():
+    tools = MCPTools(server_params=StreamableHTTPClientParams(url="http://localhost:8080/mcp"))
+    tools._initialized = False
+    context = _AsyncContextManager(MagicMock())
+    context.__aexit__ = AsyncMock(return_value=False)
+    tools._session_context = context
+
+    await tools.close()
+
+    context.__aexit__.assert_awaited_once()
+    assert tools._session_context is None

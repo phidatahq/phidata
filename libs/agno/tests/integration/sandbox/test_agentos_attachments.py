@@ -463,3 +463,109 @@ async def test_a_damaged_ticket_whose_run_row_is_missing_still_ends_in_error_on_
     assert job["status"] == "failed" and job["attempt"] == 1 and job["error"].startswith("permanent:"), job
     stored = await agent.aget_run_output(run_id, "session")
     assert stored.status == "ERROR" and stored.content
+
+
+# --- the request body is bounded by the bytes received ------------------------------------------------------------
+
+
+class _Counting:
+    """Wrap the app and count the request-body bytes it actually pulls, and how many it had pulled when it answered."""
+
+    def __init__(self, app):
+        self.app, self.received, self.at_response = app, 0, None
+
+    async def __call__(self, scope, receive, send):
+        async def counted():
+            message = await receive()
+            if message["type"] == "http.request":
+                self.received += len(message.get("body", b""))
+            return message
+
+        async def watched(message):
+            if message["type"] == "http.response.start" and self.at_response is None:
+                self.at_response = self.received
+            await send(message)
+
+        await self.app(scope, counted, watched)
+
+
+def _multipart(megabytes, *, filename="big.txt"):
+    """A lazily generated multipart body with one file of ``megabytes`` MiB, never held in memory."""
+    boundary = "agnoBoundary7MA4YWxk"
+    fields = {"message": "look", "session_id": "session", "stream": "false"}
+    head = "".join(
+        f'--{boundary}\r\nContent-Disposition: form-data; name="{name}"\r\n\r\n{value}\r\n'
+        for name, value in fields.items()
+    )
+    head += f'--{boundary}\r\nContent-Disposition: form-data; name="files"; filename="{filename}"\r\n'
+    head += "Content-Type: text/plain\r\n\r\n"
+    chunk = b"a" * (1024 * 1024)
+
+    async def body():
+        yield head.encode()
+        for _ in range(megabytes):
+            yield chunk
+        yield f"\r\n--{boundary}--\r\n".encode()
+
+    return body(), {"content-type": f"multipart/form-data; boundary={boundary}"}
+
+
+async def _send(app, megabytes, **headers):
+    import httpx
+
+    counting = _Counting(app)
+    content, base = _multipart(megabytes)
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=counting), base_url="http://test") as client:
+        response = await client.post("/agents/coder/runs", content=content, headers={**base, **headers})
+    return response, counting
+
+
+async def test_an_oversized_upload_is_cut_off_instead_of_being_read_and_spooled_whole(service):
+    _, agent, app, handles = service
+    response, counting = await _send(app, 24)  # 24 MiB of file, delivered lazily
+    assert response.status_code == 413, response.text
+    assert counting.received <= 5 * 1024 * 1024, counting.received
+    assert all_rows(agent) == 0 and handles == [] and await agent.aget_session("session") is None
+
+
+async def test_a_content_length_that_understates_the_upload_does_not_bypass_the_bound(service):
+    _, agent, app, handles = service
+    response, counting = await _send(app, 24, **{"content-length": "200"})
+    assert response.status_code == 413 and counting.received <= 5 * 1024 * 1024
+    assert all_rows(agent) == 0 and handles == []
+
+
+async def test_an_upload_at_the_attachment_limit_is_still_accepted_and_one_byte_over_is_refused_as_an_attachment(
+    service,
+):
+    client, agent, _, handles = service
+    limit = 512 * 1024
+    ok = await post(client, files=[("files", ("edge.bin", b"a" * limit, "text/plain"))])
+    assert ok.status_code == 200 and ok.json()["status"] == "COMPLETED", ok.text
+    over = await post(client, files=[("files", ("over.bin", b"a" * (limit + 1), "text/plain"))])
+    assert over.status_code == 400 and "512 KiB" in over.text, over.text
+    assert len(handles) == 1
+
+
+async def test_a_real_socket_upload_over_the_bound_is_refused_and_the_server_stays_healthy(service, tmp_path):
+    import httpx
+
+    _, agent, app, handles = service
+    process, port = _start_service(agent, app, tmp_path)
+    try:
+        await _wait_ready(process, port)
+        content, headers = _multipart(24)  # no Content-Length: sent chunked over TCP
+        async with httpx.AsyncClient(base_url=f"http://127.0.0.1:{port}", timeout=60) as remote:
+            try:
+                response = await remote.post("/agents/coder/runs", content=content, headers=headers)
+                status = response.status_code
+            except httpx.TransportError:
+                # The server answers 413 and closes before the client has finished sending, which a client may
+                # observe as a reset rather than as the response.
+                status = 413
+            assert status == 413
+            assert (await remote.get("/health")).status_code == 200
+    finally:
+        process.terminate()
+        process.wait(timeout=30)
+    assert all_rows(agent) == 0 and handles == []

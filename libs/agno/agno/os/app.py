@@ -1947,6 +1947,17 @@ class AgentOS:
             validate_mcp_routes(fastapi_app, routing_config, self._mcp_app)
             fastapi_app.add_middleware(MCPRoutingMiddleware, config=routing_config)
 
+        # A sandboxed run's body is bounded by the bytes received, before the framework parses it.
+        sandboxed_ids = [
+            entry.get_id()
+            for entry in self.agents or []
+            if isinstance(entry, BaseExternalAgent) and entry.sandbox is not None
+        ]
+        if sandboxed_ids:
+            from agno.os.middleware.sandbox_body_limit import SandboxRunBodyLimit
+
+            fastapi_app.add_middleware(SandboxRunBodyLimit, agent_ids=sandboxed_ids)
+
         # Preflights and auth/admission failures use the same configured CORS policy.
         cors = [middleware for middleware in fastapi_app.user_middleware if _is_cors_middleware(middleware)]
         fastapi_app.user_middleware[:] = cors + [

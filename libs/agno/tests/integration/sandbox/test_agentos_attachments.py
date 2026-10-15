@@ -365,8 +365,17 @@ async def test_a_replacement_process_rebuilds_the_attachments_from_the_ticket_al
         assert (uploads / run_id / name).read_bytes() == content
 
 
-async def test_a_ticket_whose_attachments_cannot_be_replayed_fails_visibly_and_keeps_the_previous_checkpoint(
-    service, tmp_path
+DAMAGE = {
+    "path traversal in a name": lambda wire: wire[0].update(name="../escape"),
+    "content that is not base64": lambda wire: wire[0].update(content="not base64!"),
+    "a field the wire does not have": lambda wire: wire[0].update(host_path="/etc/passwd"),
+    "an unknown kind": lambda wire: wire[0].update(kind="audio"),
+}
+
+
+@pytest.mark.parametrize("damage", list(DAMAGE))
+async def test_a_ticket_whose_attachments_cannot_be_replayed_fails_once_and_keeps_the_previous_checkpoint(
+    service, tmp_path, damage
 ):
     from sqlalchemy import update
 
@@ -388,22 +397,21 @@ async def test_a_ticket_whose_attachments_cannot_be_replayed_fails_visibly_and_k
     # The ticket is damaged after acceptance: the wire no longer passes the validation every replay repeats.
     store = app.state.queue_worker.store
     payload = (await store.get_job(run_id))["payload"]
-    payload["kwargs"]["sandbox_media"][0]["name"] = "../escape"
+    DAMAGE[damage](payload["kwargs"]["sandbox_media"])
     table = agent.db._get_table("jobs")
     with agent.db.db_engine.begin() as connection:
         connection.execute(update(table).where(table.c.id == run_id).values(payload=payload))
-    # A ticket the worker cannot rebuild is never executed; its claim goes stale and the existing sweep fails it.
-    process, port = _start_service(agent, app, tmp_path, lock_grace_seconds=3)
+    process, port = _start_service(agent, app, tmp_path)
     try:
         await _wait_ready(process, port)
         job = await settled(app, run_id)
     finally:
         process.terminate()
         process.wait(timeout=30)
-    assert job["status"] == "failed" and "not re-executed" in job["error"], job
-    # The claim never got as far as a run: the row the accepted request wrote is left as it was, never completed.
+    # Rejected input cannot be cured by a retry: one attempt, failed on the ticket, ERROR on the run, nothing executed.
+    assert job["status"] == "failed" and job["attempt"] == 1 and job["error"].startswith("permanent:"), job
     stored = await agent.aget_run_output(run_id, "session")
-    assert stored.status == "PENDING" and stored.content is None
+    assert stored.status == "ERROR" and stored.content
     assert await checkpoint() == before
     uploads = (await workspace_after(agent, tmp_path)) / ".agno/uploads"
     assert sorted(path.name for path in uploads.iterdir()) == [first.json()["run_id"]]
@@ -427,3 +435,31 @@ async def test_another_user_cannot_attach_files_to_someone_elses_session(service
     )
     assert intruder.status_code in (403, 404), intruder.text
     assert all_rows(agent) == rows and len(handles) == computers
+
+
+async def test_a_damaged_ticket_whose_run_row_is_missing_still_ends_in_error_on_a_run(service, tmp_path):
+    from sqlalchemy import delete, update
+
+    client, agent, app, _ = service
+    await app.state.queue_worker.stop()
+    queued = await post(client, background="true", files=[("files", ("lost.txt", b"never staged", "text/plain"))])
+    run_id = queued.json()["run_id"]
+    store = app.state.queue_worker.store
+    payload = (await store.get_job(run_id))["payload"]
+    payload["kwargs"]["sandbox_media"][0]["name"] = "../escape"
+    jobs, runs = agent.db._get_table("jobs"), agent.db._get_table("runs")
+    with agent.db.db_engine.begin() as connection:
+        connection.execute(update(jobs).where(jobs.c.id == run_id).values(payload=payload))
+        # The submitter died between accepting the ticket and writing its run row.
+        connection.execute(delete(runs).where(runs.c.run_id == run_id))
+    assert await agent.aget_run_output(run_id, "session") is None
+    process, port = _start_service(agent, app, tmp_path)
+    try:
+        await _wait_ready(process, port)
+        job = await settled(app, run_id)
+    finally:
+        process.terminate()
+        process.wait(timeout=30)
+    assert job["status"] == "failed" and job["attempt"] == 1 and job["error"].startswith("permanent:"), job
+    stored = await agent.aget_run_output(run_id, "session")
+    assert stored.status == "ERROR" and stored.content

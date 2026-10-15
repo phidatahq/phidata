@@ -10,7 +10,7 @@ import pytest
 
 from agno.agents.claude import ClaudeAgent
 from agno.agents.codex import CodexAgent
-from agno.exceptions import UnsupportedMediaError
+from agno.exceptions import InputCheckError, UnsupportedMediaError
 from agno.media import Audio, File, Image
 from agno.sandbox import _harness
 from agno.sandbox.docker import DockerSandbox
@@ -47,7 +47,8 @@ def test_queue_wire_is_accepted_and_revalidated_when_the_worker_replays_it():
     agent = _agent()
     wire = encode_media(**_media())
     assert _harness.submission(agent, "hello", {"sandbox_media": wire})["sandbox_media"] == wire
-    with pytest.raises(ValueError):
+    # A damaged wire is incurable, so replaying one raises the queue's permanent-failure type (see below).
+    with pytest.raises(InputCheckError):
         _harness.submission(agent, "hello", {"sandbox_media": [{**wire[0], "name": "../escape"}]})
     with pytest.raises(ValueError, match="either"):
         _harness.submission(agent, "hello", {"sandbox_media": wire, "media": _media()})
@@ -169,3 +170,56 @@ def test_the_synchronous_public_run_forwards_attachments_too(monkeypatch, stream
         list(result)
     (execution,) = recorder.calls
     assert [file.content for file in execution["files"]] == [b"abc"]
+
+
+# --- a ticket that cannot be replayed ---------------------------------------------------------------------------
+# Retrying cannot cure a damaged wire, so the worker must fail it once and write the reason on the run. The
+# claim-time "ensure the run row" step only retries, so the pending-row hook must not raise for such a ticket.
+
+
+@pytest.mark.parametrize(
+    "damage",
+    [
+        lambda wire: wire[0].update(name="../escape"),
+        lambda wire: wire[0].update(content="not base64!"),
+        lambda wire: wire[0].update(host_path="/etc/passwd"),
+        lambda wire: wire.append("not an object"),
+    ],
+)
+def test_a_damaged_wire_is_a_permanent_input_failure_for_the_worker(damage):
+    agent = _agent()
+    wire = encode_media(files=[File(content=b"abc", filename="a.txt")])
+    damage(wire)
+    with pytest.raises(InputCheckError):
+        _harness._execution(agent, "hello", {"sandbox_media": wire, "run_id": "r"})
+
+
+class _RowStore(_Store):
+    def __init__(self, payload):
+        super().__init__(payload)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("row_exists", [True, False])
+async def test_the_pending_row_hook_does_not_raise_for_a_ticket_that_cannot_be_replayed(monkeypatch, row_exists):
+    from types import SimpleNamespace
+
+    agent = _agent()
+    wire = encode_media(files=[File(content=b"abc", filename="a.txt")])
+    wire[0]["name"] = "../escape"
+    store = _RowStore({"input": "hello", "kwargs": {"sandbox_media": wire}})
+    accepted = object()
+
+    async def aget_run_output(run_id, session_id, user_id=None):
+        return accepted if row_exists else None
+
+    monkeypatch.setattr(agent, "aget_run_output", aget_run_output)
+    monkeypatch.setattr("agno.os.job_queue.get_active_queue_worker", lambda: SimpleNamespace(store=store))
+    monkeypatch.setattr(_harness, "coordinator", lambda _: SimpleNamespace(store=store))
+    result = await _harness.aprepare_pending_run(agent, "r", "s", None, "hello")
+    if row_exists:
+        # The row the accepted request wrote is left alone; rewriting it would be refused as a different input.
+        assert result is accepted and store.prepared == []
+    else:
+        # No row to fail onto: a text-only one gives the failure a run to land on.
+        assert result.input.input_content == "hello" and not result.input.files and len(store.prepared) == 1

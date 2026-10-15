@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, AsyncGenerator, Dict, List, Optional, Tuple
 from uuid import uuid4
 
+from agno.exceptions import InputCheckError
 from agno.models.message import Message
 from agno.run.agent import RunInput, RunOutput
 from agno.run.base import RunStatus
@@ -197,7 +198,11 @@ def _media_wire(extra: Dict[str, Any]) -> List[Dict[str, Any]]:
     if objects and replayed:
         raise ValueError("Sandbox attachments are given either as media or as sandbox_media, not both")
     if replayed:
-        validate_media(replayed)
+        try:
+            validate_media(replayed)
+        except ValueError as error:
+            # A wire that no longer validates cannot be cured by running the turn again.
+            raise InputCheckError(f"The accepted attachments can no longer be replayed: {error}") from error
         return list(replayed)
     if objects:
         return encode_media(images=objects.get("images"), files=objects.get("files"))
@@ -326,7 +331,16 @@ async def aprepare_pending_run(
 
     # The store refuses to claim a run whose input differs from this row's, and the coordinator writes the
     # attachments at claim time, so they are written here too, from the same canonical wire.
-    media = decode_media(await _ticket_media(run_id))
+    try:
+        media = decode_media(await _ticket_media(run_id))
+    except ValueError:
+        # A ticket that cannot be replayed fails when it is executed, with the reason on the run. Here, where a
+        # failure would only leave the claim to go stale, keep the row the accepted request wrote, or write a
+        # text-only one if there is none so that the failure has a run to land on.
+        existing = await agent.aget_run_output(run_id, session_id, user_id=user_id)
+        if existing is not None:
+            return existing
+        media = {}
     run = RunOutput(
         run_id=run_id,
         session_id=session_id,

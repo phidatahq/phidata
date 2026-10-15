@@ -89,12 +89,26 @@
 
 ---
 
+### durable_queue.py
+
+**Status:** PASS
+
+**Description:** Started the example under FastAPI TestClient using the demo
+virtual environment and a disposable PostgreSQL database. Verified `/health`,
+creation of `ai.agno_jobs` before the first enqueue, and a strict lookup with no
+ticket. Captured concise startup logs and clean worker shutdown.
+
+**Result:** Startup and queue provisioning passed. No model calls, recovery
+scenario, or live streaming exercise was performed in this smoke check.
+
+---
+
 ### queue_per_session.py
 
-**Status:** PASS (boot and ordering verified over HTTP against real Postgres, 2026-09-08; live model call not exercised: no OPENAI_API_KEY in the test environment, the agent's model was swapped for a slow offline fake in a scratch harness)
+**Status:** PASS (2026-10-13, cookbook run as written with gpt-5.6-luna against local Postgres on localhost:5532; an earlier 2026-10-12 pass used a 2-second offline fake model in a scratch harness)
 
-**Description:** AgentOS with QueueConfig(durable=True, queue_per_session=True). Booted with lifespan: /config reported queue {durable: true, queue_per_session: true} and the worker started with the gate on. Submitted two background runs to one session back to back: both answered 202 PENDING; the first flipped to RUNNING within the poll tick while the second stayed PENDING for the whole of the first run; a run submitted to a different session while the first was still running was claimed and RUNNING alongside it; both same-session runs then reached COMPLETED with the second never RUNNING before the first completed.
+**Description:** Started the cookbook app and submitted its two documented messages to one session back to back, plus one run to another session, then polled all three every 300 ms. Also exercised, through a scratch harness with the same QueueConfig on both the Postgres and the Redis queue store: a run paused for tool confirmation holding its session (the next run polled PENDING with waiting_on naming the paused run while another session completed), continue releasing it in order, cancel of a paused head releasing the next run, and queue_per_session=False restoring concurrent same-session execution with no waiting_on. /config reported queue {durable: true, queue_per_session: true}. The second same-session run stayed PENDING with waiting_on naming the first run while the first was RUNNING; the other session's run went RUNNING alongside the first; the second run went RUNNING only after the first COMPLETED, and all three completed.
 
-**Result:** PASS. Head-of-line ordering per session, concurrency across sessions, and capability discovery on /config all behave as the docstring describes.
+**Result:** PASS. One run per session in acceptance order (the second answer named the city the first run chose), concurrency across sessions, waiting_on on the poll, paused-head hold with continue and cancel, and /config discovery behave as the docstring describes on both stores.
 
 ---

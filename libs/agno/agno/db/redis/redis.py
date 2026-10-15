@@ -52,6 +52,8 @@ except ImportError:
 
 
 class RedisDb(BaseDb):
+    serializes_sessions: bool = True
+
     def __init__(
         self,
         id: Optional[str] = None,
@@ -122,12 +124,6 @@ class RedisDb(BaseDb):
             self.redis_client = Redis.from_url(db_url, decode_responses=True)
         else:
             raise ValueError("One of redis_client or db_url must be provided")
-
-        # One-time migration latch for the job queue's session-line index
-        # (see _q_backfill_session_lines). Per process: the pass is cheap and
-        # idempotent, and a shared marker key would silently skip the
-        # migration forever if Redis were ever flushed or migrated.
-        self._q_lines_backfilled = False
 
     # -- DB methods --
 
@@ -2525,8 +2521,44 @@ class RedisDb(BaseDb):
             return None
         return json.loads(raw if isinstance(raw, str) else raw.decode())
 
+    def _q_session_key(self, job: Dict[str, Any]) -> str:
+        from hashlib import sha256
+
+        from agno.job_queue.session import session_identity
+
+        identity = json.dumps(session_identity(job), separators=(",", ":"))
+        return self._q_key("session:" + sha256(identity.encode()).hexdigest())
+
+    def _q_stamp_session_seq(self, pipe: Any, job: Dict[str, Any]) -> Dict[str, Any]:
+        """Sequence a ticket entering its session index after every live ticket.
+
+        The index holds exactly the live tickets, scored by sequence; watching it orders
+        concurrent entries (submit, requeue) by the commit that wins."""
+        from agno.job_queue.session import with_session_seq
+
+        session_key = self._q_session_key(job)
+        pipe.watch(session_key)
+        top = pipe.zrevrange(session_key, 0, 0, withscores=True)
+        return with_session_seq(job, int(top[0][1]) + 1 if top else 1)
+
+    def _q_session_members(self, session_key: str) -> List[Dict[str, Any]]:
+        """The live serialized tickets of a session, read outside any transaction (advisory)."""
+        member_ids = [_q_to_str(value) for value in self.redis_client.zrange(session_key, 0, -1)]
+        if not member_ids:
+            return []
+        raw = self.redis_client.mget([self._q_job_key(value) for value in member_ids])
+        return [json.loads(value) for value in raw if value is not None]
+
     def _q_save_job_in_pipe(self, pipe: Any, job: Dict[str, Any]) -> None:
+        from agno.job_queue.session import LIVE_STATUSES
+
         pipe.set(self._q_job_key(job["id"]), json.dumps(job))
+        if (job.get("payload") or {}).get("serialize_session") is True:
+            key = self._q_session_key(job)
+            if job["status"] in LIVE_STATUSES:
+                pipe.zadd(key, {job["id"]: job["payload"].get("session_seq") or 0})
+            else:
+                pipe.zrem(key, job["id"])
 
     def enqueue_job(self, job: Dict[str, Any], max_depth: int = 0) -> Dict[str, Any]:
         """Insert an accepted run job (idempotency-first, then depth gate).
@@ -2551,12 +2583,10 @@ class RedisDb(BaseDb):
         idem_key = self._q_idem_key(job.get("user_id"), idem) if idem is not None else None
 
         job_key = self._q_job_key(job["id"])
-        # Store-assigned enqueue sequence, taken once up front: a WATCH retry
-        # keeps the same number (gaps are fine, only monotonicity matters),
-        # and same-second siblings are ordered by it instead of by uuid
-        job = {**job, "seq": int(self.redis_client.incr(self._q_key("seq")))}  # type: ignore[arg-type]
+        # Same-session submits also contend on the session index; every round commits one of them.
+        attempts = 100 if (job.get("payload") or {}).get("serialize_session") is True else 10
 
-        for _ in range(10):
+        for _ in range(attempts):
             with self.redis_client.pipeline() as pipe:
                 try:
                     # The job key is always WATCHed: the MULTI below SETs it,
@@ -2596,25 +2626,23 @@ class RedisDb(BaseDb):
                         pipe.unwatch()
                         raise RuntimeError(f"enqueue_job: job {job['id']} already exists; ids are never reused")
 
+                    if (job.get("payload") or {}).get("serialize_session") is True:
+                        job = self._q_stamp_session_seq(pipe, job)
+
                     pipe.multi()
                     if idem_key is not None:
                         pipe.set(idem_key, job["id"])
                     self._q_save_job_in_pipe(pipe, job)
                     pipe.zadd(self._q_key("queued"), {job["id"]: job["available_at"]})
                     pipe.zadd(self._q_key("all"), {job["id"]: job["created_at"]})
-                    self._q_line_op(pipe, job)
                     pipe.execute()
                     return {"accepted": True, "reason": None, "job": dict(job)}
                 except WatchError:
                     continue  # another submitter raced this key; re-evaluate
-        raise RuntimeError("enqueue_job: idempotency-key contention did not settle after 10 attempts")
+        raise RuntimeError(f"enqueue_job: submit contention did not settle after {attempts} attempts")
 
     def claim_job(
-        self,
-        worker_id: str,
-        lock_grace_seconds: int = 60,
-        deployment_id: Optional[str] = None,
-        queue_per_session: bool = False,
+        self, worker_id: str, lock_grace_seconds: int = 60, deployment_id: Optional[str] = None
     ) -> Optional[Dict[str, Any]]:
         """Atomically claim the oldest executable job (queued, or stale-running
         within the attempt budget). WATCH/MULTI CAS; a raced claim moves on.
@@ -2626,44 +2654,12 @@ class RedisDb(BaseDb):
         head of foreign-deployment jobs starve matching jobs sitting behind
         them indefinitely (foreign entries stay queued at the front). Each
         page is pre-filtered with one pipelined MGET; the CAS inside
-        _q_try_claim remains the only authority.
-
-        queue_per_session restricts claims to each session's HEAD - the
-        oldest non-terminal (queued/running/paused) job by (created_at, seq),
-        seq being the store-assigned enqueue sequence - with no OTHER line
-        member running. Eligibility is checked twice: an
-        advisory pre-filter in the scan (cheap, per candidate, against the
-        session-line zset), then authoritatively INSIDE the claim CAS with
-        the line key under WATCH - a concurrent enqueue into the session (a
-        new line member, however backdated) aborts the EXEC, so a stale
-        head decision can never be committed. Same-second submissions are
-        FIFO by seq (created_at has one-second resolution); the explicit
-        running check covers legacy pairs that predate the gate."""
-        if queue_per_session and not self._q_lines_backfilled:
-            # Before the first gated decision, never after: a claim must not
-            # be arbitrated against a line that predates the index. The latch
-            # is set only on success, so a transient Redis fault retries on
-            # the next poll instead of leaving the gate half-informed.
-            self._q_backfill_session_lines()
-            self._q_lines_backfilled = True
-
+        _q_try_claim remains the only authority."""
         now = self._q_server_now()
         stale = now - lock_grace_seconds
 
-        # Scoped to this call and to the ADVISORY filter: never handed to
-        # _q_try_claim, whose re-check under WATCH on the line key is what
-        # makes a stale head decision uncommittable.
-        line_cache: Optional[Dict[str, List[Tuple[int, int, str, str]]]] = {} if queue_per_session else None
-
         job = self._q_scan_claim(
-            self._q_key("queued"),
-            now,
-            worker_id,
-            now,
-            expect_status="queued",
-            deployment_id=deployment_id,
-            queue_per_session=queue_per_session,
-            line_cache=line_cache,
+            self._q_key("queued"), now, worker_id, now, expect_status="queued", deployment_id=deployment_id
         )
         if job is not None:
             return job
@@ -2675,156 +2671,7 @@ class RedisDb(BaseDb):
             expect_status="running",
             stale_before=stale,
             deployment_id=deployment_id,
-            queue_per_session=queue_per_session,
-            line_cache=line_cache,
         )
-
-    def _q_line_key(self, session_id: str) -> str:
-        return self._q_key(f"line:{session_id}")
-
-    def _q_line_op(self, pipe: Any, job: Dict[str, Any]) -> None:
-        """Maintain the session-line zset inside the caller's MULTI: a member
-        exactly while its job is non-terminal (queued/running/paused), scored
-        by created_at. Membership is what matters; the claim order is
-        computed from the documents (created_at, seq). Every transition
-        MULTI routes
-        through this, the same pattern that keeps status-zset membership
-        crash-consistent with the document."""
-        session_id = job.get("session_id")
-        if not session_id:
-            return
-        line_key = self._q_line_key(session_id)
-        if job.get("status") in ("queued", "running", "paused"):
-            pipe.zadd(line_key, {job["id"]: job.get("created_at") or 0})
-        else:
-            pipe.zrem(line_key, job["id"])
-
-    def _q_backfill_session_lines(self) -> None:
-        """Add every non-terminal job to its session line, once per process,
-        before the first gated claim.
-
-        A queue written by a version without the line index has jobs in no
-        line at all, and the claim path only ever self-heals the candidate it
-        is looking at. A running sibling would be re-added by its next
-        heartbeat, but a PAUSED one never beats and there is no paused index
-        to find it from (it is removed from both the queued and running sets
-        and survives only in `all`), so a newer submission would be admitted
-        straight past a human-in-the-loop pause. Hence the enumeration is
-        over `all`, which is also why terminal jobs must be filtered out: the
-        retained tail lives there too, and adding one would wedge its session
-        behind a job that can never be released.
-
-        Idempotent - ZADD of a member already present at the same score is a
-        no-op, so replicas racing this cost nothing. The one race is a job
-        terminalizing between the read and the add, which resurrects a dead
-        member; that is inert (_q_session_line_view skips members whose
-        document is terminal or missing) and retention cleanup removes it."""
-        page_size = 256
-        offset = 0
-        restored = 0
-        while True:
-            raw_ids = list(self.redis_client.zrange(self._q_key("all"), offset, offset + page_size - 1))  # type: ignore[arg-type]
-            if not raw_ids:
-                break
-            job_ids = [_q_to_str(raw_id) for raw_id in raw_ids]
-            raw_docs = list(self.redis_client.mget([self._q_job_key(job_id) for job_id in job_ids]))  # type: ignore[arg-type]
-            pipe = self.redis_client.pipeline(transaction=False)
-            pending = 0
-            for job_id, raw in zip(job_ids, raw_docs):
-                if raw is None:
-                    continue
-                try:
-                    doc = json.loads(raw if isinstance(raw, str) else raw.decode())
-                except (ValueError, AttributeError):
-                    continue
-                if doc.get("status") not in ("queued", "running", "paused"):
-                    continue
-                session_id = doc.get("session_id")
-                if not session_id:
-                    continue
-                pipe.zadd(self._q_line_key(session_id), {job_id: doc.get("created_at") or 0})
-                pending += 1
-            if pending:
-                pipe.execute()
-                restored += pending
-            offset += page_size
-        if restored:
-            log_info(f"Job queue: indexed {restored} existing job(s) into their session lines (per-session queueing)")
-
-    def _q_session_line_view(self, session_id: str) -> List[Tuple[int, int, str, str]]:
-        """(created_at, seq, id, status) of the session line's LIVE members,
-        in claim order. Documents written before the enqueue sequence existed
-        sort first among same-second ties (seq 0): they are the older
-        submissions. Bounded by the session's own backlog, never by retained
-        history. Dead entries (doc gone) and terminal stragglers (a crash
-        between a doc write and its line op) are skipped, not trusted."""
-        entries: List[Tuple[int, int, str, str]] = []
-        raw_ids = list(self.redis_client.zrange(self._q_line_key(session_id), 0, -1))  # type: ignore[arg-type]
-        if not raw_ids:
-            return entries
-        member_ids = [_q_to_str(raw_id) for raw_id in raw_ids]
-        raw_docs = list(self.redis_client.mget([self._q_job_key(member_id) for member_id in member_ids]))  # type: ignore[arg-type]
-        for member_id, raw in zip(member_ids, raw_docs):
-            if raw is None:
-                continue
-            try:
-                doc = json.loads(raw if isinstance(raw, str) else raw.decode())
-            except (ValueError, AttributeError):
-                continue
-            if doc.get("status") not in ("queued", "running", "paused"):
-                continue
-            entries.append((doc.get("created_at") or 0, doc.get("seq") or 0, member_id, doc["status"]))
-        entries.sort()
-        return entries
-
-    def _q_cached_line_view(
-        self, session_id: str, line_cache: Optional[Dict[str, List[Tuple[int, int, str, str]]]]
-    ) -> List[Tuple[int, int, str, str]]:
-        """The session line view, loaded at most once per session per scan.
-
-        The VERDICT is not cacheable - "is this candidate the head" has a
-        different answer for every candidate - but the view it is computed
-        from is shared by every candidate of that session, and loading it is
-        the expensive part (range read, multi-get, sort). A peer claiming
-        mid-scan makes a cached view stale, which is no new exposure: the
-        uncached filter was equally a snapshot the moment it was read, and
-        the claim CAS is what arbitrates. Callers on the authoritative path
-        pass no cache."""
-        if line_cache is None:
-            return self._q_session_line_view(session_id)
-        entries = line_cache.get(session_id)
-        if entries is None:
-            entries = self._q_session_line_view(session_id)
-            line_cache[session_id] = entries
-        return entries
-
-    def _q_line_admits(
-        self,
-        candidate: Dict[str, Any],
-        line_cache: Optional[Dict[str, List[Tuple[int, int, str, str]]]] = None,
-    ) -> bool:
-        """Advisory pre-filter: the session line admits claiming this
-        candidate when it is the line's head and no OTHER member is running.
-        Everything already in the store was indexed by
-        _q_backfill_session_lines before the first gated claim; the self-heal
-        below covers a job enqueued after that by a replica still running a
-        version without the index. The claim CAS re-validates under WATCH -
-        this filter only saves CAS round-trips."""
-        session_id = candidate.get("session_id")
-        if not session_id:
-            return True
-        entries = self._q_cached_line_view(session_id, line_cache)
-        if not any(member_id == candidate["id"] for _, _, member_id, _ in entries):
-            # Self-heal, and the membership test rides the view rather than a
-            # per-candidate ZSCORE: the candidate's document was just read as
-            # non-terminal, so it appears in the view whenever it is a member.
-            self.redis_client.zadd(self._q_line_key(session_id), {candidate["id"]: candidate.get("created_at") or 0})
-            entries = self._q_session_line_view(session_id)
-            if line_cache is not None:
-                line_cache[session_id] = entries
-        if not entries or entries[0][2] != candidate["id"]:
-            return False
-        return not any(status == "running" and member_id != candidate["id"] for _, _, member_id, status in entries)
 
     def _q_scan_claim(
         self,
@@ -2835,8 +2682,6 @@ class RedisDb(BaseDb):
         expect_status: str,
         stale_before: Optional[int] = None,
         deployment_id: Optional[str] = None,
-        queue_per_session: bool = False,
-        line_cache: Optional[Dict[str, List[Tuple[int, int, str, str]]]] = None,
     ) -> Optional[Dict[str, Any]]:
         """Page through ready jobs oldest-first, cheaply pre-filter each page
         by deployment affinity (MGET, advisory only), and CAS-claim the first
@@ -2848,8 +2693,11 @@ class RedisDb(BaseDb):
         rank shifted mid-scan (a peer claimed something on an earlier page).
         That only ends THIS burst early - every poll tick rescans from rank
         0, so a skipped job is picked up next tick; no starvation."""
+        from agno.job_queue.session import session_blocked
+
         page_size = 64
         offset = 0
+        session_views: Dict[str, List[Dict[str, Any]]] = {}
         while True:
             raw_ids = self.redis_client.zrangebyscore(zset_key, "-inf", max_score, start=offset, num=page_size)
             if not raw_ids:
@@ -2865,15 +2713,22 @@ class RedisDb(BaseDb):
                     continue
                 if candidate.get("deployment_id") is not None and candidate.get("deployment_id") != deployment_id:
                     continue
-                if queue_per_session and not self._q_line_admits(candidate, line_cache):
-                    continue
+                if (candidate.get("payload") or {}).get("serialize_session") is True:
+                    # Advisory pre-check from one view of the session per scan: a backlog
+                    # waiting behind a running or paused head would otherwise load the
+                    # whole session once per waiting ticket, every poll. The CAS in
+                    # _q_try_claim re-reads the session under WATCH and stays the authority.
+                    session_key = self._q_session_key(candidate)
+                    if session_key not in session_views:
+                        session_views[session_key] = self._q_session_members(session_key)
+                    if session_blocked(candidate, session_views[session_key]):
+                        continue
                 job = self._q_try_claim(
                     job_id,
                     worker_id,
                     now,
                     expect_status=expect_status,
                     stale_before=stale_before,
-                    queue_per_session=queue_per_session,
                     deployment_id=deployment_id,
                 )
                 if job is not None:
@@ -2888,7 +2743,6 @@ class RedisDb(BaseDb):
         expect_status: str,
         stale_before: Optional[int] = None,
         deployment_id: Optional[str] = None,
-        queue_per_session: bool = False,
     ) -> Optional[Dict[str, Any]]:
         from redis.exceptions import WatchError
 
@@ -2918,26 +2772,21 @@ class RedisDb(BaseDb):
                 if not claimable:
                     pipe.unwatch()
                     return None
-                if queue_per_session and job.get("session_id"):
-                    # Authoritative head re-check with the LINE KEY under
-                    # WATCH: the reads below happen after the watch, so a
-                    # concurrent enqueue into this session (a new member,
-                    # however backdated its created_at) modifies the line and
-                    # aborts this EXEC - the advisory pre-filter's decision
-                    # can never be committed stale. The only transition that
-                    # sets a sibling running is a claim, and a claim under
-                    # this gate can only target the same head row, which is
-                    # already arbitrated by the job-key WATCH.
-                    pipe.watch(self._q_line_key(job["session_id"]))
-                    entries = self._q_session_line_view(job["session_id"])
-                    admitted = bool(entries) and entries[0][2] == job_id
-                    if admitted:
-                        admitted = not any(
-                            status == "running" and member_id != job_id for _, _, member_id, status in entries
-                        )
-                    if not admitted:
-                        pipe.unwatch()
-                        return None
+                if (job.get("payload") or {}).get("serialize_session") is True:
+                    from agno.job_queue.session import session_blocked
+
+                    # Membership changes commit with each job transition. Watching the
+                    # session index fences a concurrent submit, completion or continuation.
+                    session_key = self._q_session_key(job)
+                    pipe.watch(session_key)
+                    member_ids = [_q_to_str(value) for value in pipe.zrange(session_key, 0, -1)]
+                    keys = [self._q_job_key(value) for value in member_ids]
+                    if keys:
+                        pipe.watch(*keys)
+                        members = [json.loads(value) for value in pipe.mget(keys) if value is not None]
+                        if session_blocked(job, members):
+                            pipe.unwatch()
+                            return None
                 job.update(
                     status="running", locked_by=worker_id, locked_at=now, attempt=job["attempt"] + 1, updated_at=now
                 )
@@ -2945,7 +2794,6 @@ class RedisDb(BaseDb):
                 self._q_save_job_in_pipe(pipe, job)
                 pipe.zrem(self._q_key("queued"), job_id)
                 pipe.zadd(self._q_key("running"), {job_id: now})
-                self._q_line_op(pipe, job)
                 pipe.execute()
                 return job
         except WatchError:
@@ -2995,7 +2843,6 @@ class RedisDb(BaseDb):
                         pipe.zrem(self._q_key("running"), job_id)
                     if job["status"] == "queued":
                         pipe.zadd(self._q_key("queued"), {job_id: job["available_at"]})
-                    self._q_line_op(pipe, job)
                     pipe.execute()
                     return QueueWriteOutcome.APPLIED, job
             except WatchError:
@@ -3085,7 +2932,6 @@ class RedisDb(BaseDb):
                 job.update(status=status, error=error, locked_by=None, locked_at=None, completed_at=now, updated_at=now)
                 pipe.multi()
                 self._q_save_job_in_pipe(pipe, job)
-                self._q_line_op(pipe, job)
                 pipe.execute()
                 return True
         except WatchError:
@@ -3115,7 +2961,6 @@ class RedisDb(BaseDb):
                 pipe.multi()
                 self._q_save_job_in_pipe(pipe, job)
                 pipe.zrem(self._q_key("queued"), job_id)
-                self._q_line_op(pipe, job)
                 pipe.execute()
                 return True
         except WatchError:
@@ -3186,7 +3031,6 @@ class RedisDb(BaseDb):
                 # Keep running-zset membership in the same transaction with
                 # the refreshed score (the sweep scan keys on this score)
                 pipe.zadd(self._q_key("running"), {job_id: now})
-                self._q_line_op(pipe, job)
                 pipe.execute()
                 return True
         except WatchError:
@@ -3217,7 +3061,6 @@ class RedisDb(BaseDb):
                 pipe.multi()
                 self._q_save_job_in_pipe(pipe, job)
                 pipe.zrem(self._q_key("running"), job_id)
-                self._q_line_op(pipe, job)
                 pipe.execute()
                 return True
         except WatchError:
@@ -3229,18 +3072,28 @@ class RedisDb(BaseDb):
         docstring); this load propagates Redis errors in both modes."""
         return self._q_load_job(job_id)
 
+    def session_blocker(self, job_id: str) -> Optional[str]:
+        """The id of the ticket a queued serialized job waits behind, or None."""
+        from agno.job_queue.session import is_serialized, session_blocker
+
+        job = self._q_load_job(job_id)
+        if job is None or job["status"] != "queued" or not is_serialized(job):
+            return None
+        return session_blocker(job, self._q_session_members(self._q_session_key(job)))
+
     def count_queued_jobs(self) -> int:
         return int(self.redis_client.zcard(self._q_key("queued")))
 
     def list_jobs(
         self,
         status: Optional[Union[str, List[str]]] = None,
-        session_id: Optional[Union[str, List[str]]] = None,
-        user_id: Optional[str] = None,
         limit: int = 20,
         page: int = 1,
         sort_by: Optional[str] = "created_at",
         sort_order: Optional[str] = "desc",
+        *,
+        session_id: Optional[Union[str, List[str]]] = None,
+        user_id: Optional[str] = None,
     ) -> Tuple[List[Dict[str, Any]], int]:
         """Paginated job listing: (page of jobs, total matching count).
 
@@ -3273,35 +3126,39 @@ class RedisDb(BaseDb):
         from redis.exceptions import WatchError
 
         job_key = self._q_job_key(job_id)
-        now = self._q_server_now()
-        try:
-            with self.redis_client.pipeline() as pipe:
-                pipe.watch(job_key)
-                raw = pipe.get(job_key)
-                if raw is None:
-                    pipe.unwatch()
-                    return False
-                job = json.loads(raw if isinstance(raw, str) else raw.decode())
-                if job["status"] not in ("failed", "cancelled"):
-                    pipe.unwatch()
-                    return False
-                job.update(
-                    status="queued",
-                    max_attempts=job["attempt"] + 1,
-                    available_at=now,
-                    locked_by=None,
-                    locked_at=None,
-                    completed_at=None,
-                    updated_at=now,
-                )
-                pipe.multi()
-                self._q_save_job_in_pipe(pipe, job)
-                pipe.zadd(self._q_key("queued"), {job_id: now})
-                self._q_line_op(pipe, job)
-                pipe.execute()
-                return True
-        except WatchError:
-            return False
+        # A same-session submit can win the session index; re-evaluate instead of refusing.
+        for _ in range(100):
+            now = self._q_server_now()
+            try:
+                with self.redis_client.pipeline() as pipe:
+                    pipe.watch(job_key)
+                    raw = pipe.get(job_key)
+                    if raw is None:
+                        pipe.unwatch()
+                        return False
+                    job = json.loads(raw if isinstance(raw, str) else raw.decode())
+                    if job["status"] not in ("failed", "cancelled"):
+                        pipe.unwatch()
+                        return False
+                    if (job.get("payload") or {}).get("serialize_session") is True:
+                        job = self._q_stamp_session_seq(pipe, job)
+                    job.update(
+                        status="queued",
+                        max_attempts=job["attempt"] + 1,
+                        available_at=now,
+                        locked_by=None,
+                        locked_at=None,
+                        completed_at=None,
+                        updated_at=now,
+                    )
+                    pipe.multi()
+                    self._q_save_job_in_pipe(pipe, job)
+                    pipe.zadd(self._q_key("queued"), {job_id: now})
+                    pipe.execute()
+                    return True
+            except WatchError:
+                continue
+        return False
 
     def continue_job(self, job_id: str, continue_payload: Dict[str, Any]) -> Dict[str, Any]:
         """Continuation CAS: flip the EXISTING paused ticket back to queued,
@@ -3325,7 +3182,8 @@ class RedisDb(BaseDb):
         from redis.exceptions import WatchError
 
         job_key = self._q_job_key(job_id)
-        for _ in range(10):
+        # Same-session submits also contend on the session index; every round commits one of them.
+        for _ in range(100):
             now = self._q_server_now()
             try:
                 with self.redis_client.pipeline() as pipe:
@@ -3356,12 +3214,11 @@ class RedisDb(BaseDb):
                     pipe.multi()
                     self._q_save_job_in_pipe(pipe, job)
                     pipe.zadd(self._q_key("queued"), {job_id: now})
-                    self._q_line_op(pipe, job)
                     pipe.execute()
                     return {"outcome": "queued", "job": job}
             except WatchError:
                 continue  # ticket changed under us; re-evaluate its new status
-        raise RuntimeError("continue_job: ticket contention did not settle after 10 attempts")
+        raise RuntimeError("continue_job: ticket contention did not settle after 100 attempts")
 
     def queue_stats(self) -> Dict[str, Any]:
         now = int(time.time())
@@ -3416,7 +3273,6 @@ class RedisDb(BaseDb):
                     pipe.zrem(self._q_key("all"), job_id)
                     pipe.zrem(self._q_key("queued"), job_id)
                     pipe.zrem(self._q_key("running"), job_id)
-                    self._q_line_op(pipe, job)
                     pipe.execute()
                     removed += 1
             except WatchError:

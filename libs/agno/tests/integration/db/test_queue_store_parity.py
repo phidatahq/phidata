@@ -16,6 +16,8 @@ the concurrency boundary deliberately is NOT.
 Skips per backend when its server is unreachable (PG at 5532, Redis at 6379).
 """
 
+import asyncio
+import contextlib
 import uuid
 
 import pytest
@@ -65,9 +67,8 @@ STORE_PARAMS = [
 ]
 
 
-@pytest_asyncio.fixture(params=STORE_PARAMS)
-async def store(request):
-    kind = request.param
+@contextlib.asynccontextmanager
+async def _open_store(kind: str):
     if kind == "in_memory":
         yield InMemoryQueueStore()
         return
@@ -90,18 +91,33 @@ async def store(request):
             client.delete(key)
         client.close()
         return
-    if kind == "pg":
-        from agno.db.postgres import AsyncPostgresDb
+    if kind in ("pg", "pg_sync"):
+        from agno.db.postgres import AsyncPostgresDb, PostgresDb
 
-        db = AsyncPostgresDb(db_url=PG_URL, job_table=f"parity_{uuid.uuid4().hex[:8]}")
-        yield db
-        import sqlalchemy
-
-        engine = sqlalchemy.create_engine(PG_URL)
-        with engine.begin() as conn:
-            conn.execute(sqlalchemy.text(f'DROP TABLE IF EXISTS {db.db_schema}."{db.job_table_name}"'))
-        engine.dispose()
+        table = f"parity_{uuid.uuid4().hex[:8]}"
+        db = (
+            AsyncPostgresDb(db_url=PG_URL, job_table=table)
+            if kind == "pg"
+            else PostgresDb(db_url=PG_URL, job_table=table)
+        )
+        yield db if kind == "pg" else _SyncStoreAdapter(db)
+        _drop_jobs_table(db)
         return
+
+
+def _drop_jobs_table(db) -> None:
+    import sqlalchemy
+
+    engine = sqlalchemy.create_engine(PG_URL)
+    with engine.begin() as conn:
+        conn.execute(sqlalchemy.text(f'DROP TABLE IF EXISTS {db.db_schema}."{db.job_table_name}"'))
+    engine.dispose()
+
+
+@pytest_asyncio.fixture(params=STORE_PARAMS)
+async def store(request):
+    async with _open_store(request.param) as opened:
+        yield opened
 
 
 def make_job(job_id: str = "r1", max_attempts: int = 1, **kwargs) -> dict:
@@ -465,463 +481,434 @@ class TestSyncPostgresContinueJobStamps:
             engine.dispose()
 
 
-class TestQueuePerSessionParity:
-    """queue_per_session: at most one live job per session, claimed in
-    submission order. A job is claimable only while it is the HEAD of its
-    session's line - the oldest non-terminal (queued/running/paused) job by
-    (created_at, id). Store-layer default is off; the worker passes
-    QueueConfig.queue_per_session (default on)."""
+# -- Per-session order ---------------------------------------------------------
+# A ticket marked serialize_session runs only while no sibling in its session is
+# running or paused and no earlier-accepted sibling is still queued. Order is the
+# store-assigned payload["session_seq"], never created_at or the run id.
+
+SESSION_STORE_PARAMS = STORE_PARAMS + [
+    pytest.param(
+        "pg_sync",
+        id="pg_sync",
+        marks=pytest.mark.skipif(not _PG_AVAILABLE, reason="Postgres not available on localhost:5532"),
+    )
+]
+
+
+@pytest_asyncio.fixture(params=SESSION_STORE_PARAMS)
+async def session_store(request):
+    async with _open_store(request.param) as opened:
+        yield opened
+
+
+def make_turn(job_id: str, session_id: str = "s1", **kwargs) -> dict:
+    return make_job(job_id, session_id=session_id, payload={"input": job_id, "serialize_session": True}, **kwargs)
+
+
+class TestSessionOrderParity:
+    @pytest.mark.asyncio
+    async def test_waiting_turn_keeps_its_attempt_budget_while_other_sessions_progress(self, session_store):
+        await session_store.enqueue_job(make_turn("a", created_at=1))
+        await session_store.enqueue_job(make_turn("b", created_at=2))
+        assert (await session_store.claim_job("one"))["id"] == "a"
+        for _ in range(3):
+            assert await session_store.claim_job("two") is None
+        waiting = await session_store.get_job("b")
+        assert waiting["status"] == "queued" and waiting["attempt"] == 0
+        await session_store.enqueue_job(make_turn("c", session_id="s2", created_at=3))
+        assert (await session_store.claim_job("two"))["id"] == "c"
+        assert await session_store.complete_job("a", "one", 1, "completed")
+        released = await session_store.claim_job("two")
+        assert released["id"] == "b" and released["attempt"] == 1
 
     @pytest.mark.asyncio
-    async def test_second_submission_waits_for_running_head(self, store):
-        await store.enqueue_job(make_job("r1", session_id="s1", created_at=1000))
-        await store.enqueue_job(make_job("r2", session_id="s1", created_at=1001))
-        head = await store.claim_job("w1", queue_per_session=True)
-        assert head["id"] == "r1"
-        assert await store.claim_job("w2", queue_per_session=True) is None, (
-            "r2 must wait while its session's head is running"
-        )
-        assert await store.complete_job("r1", "w1", head["attempt"], "completed")
-        nxt = await store.claim_job("w2", queue_per_session=True)
-        assert nxt is not None and nxt["id"] == "r2"
+    async def test_concurrent_claims_enter_only_one_turn_per_session(self, session_store):
+        for job_id in ("a", "b", "c", "d"):
+            await session_store.enqueue_job(make_turn(job_id, created_at=1))
+        claims = await asyncio.gather(*(session_store.claim_job(f"worker-{i}") for i in range(8)))
+        assert [claim["id"] for claim in claims if claim] == ["a"]
+        for job_id in ("b", "c", "d"):
+            assert (await session_store.get_job(job_id))["attempt"] == 0
 
     @pytest.mark.asyncio
-    async def test_fifo_by_created_at_not_enqueue_order(self, store):
-        await store.enqueue_job(make_job("r_late", session_id="s1", created_at=1002))
-        await store.enqueue_job(make_job("r_early", session_id="s1", created_at=1000))
-        await store.enqueue_job(make_job("r_mid", session_id="s1", created_at=1001))
+    async def test_same_second_turns_run_in_acceptance_order(self, session_store):
+        # The later turn's id sorts first: only the store sequence keeps it behind
+        await session_store.enqueue_job(make_turn("z", created_at=1))
+        await session_store.enqueue_job(make_turn("a", created_at=1))
+        assert (await session_store.claim_job("one"))["id"] == "z"
+        assert await session_store.claim_job("two") is None
+        assert await session_store.complete_job("z", "one", 1, "completed")
+        assert (await session_store.claim_job("two"))["id"] == "a"
+
+    @pytest.mark.asyncio
+    async def test_acceptance_order_beats_a_backdated_created_at(self, session_store):
+        # created_at is the accepting replica's clock, and replicas skew
+        await session_store.enqueue_job(make_turn("first", created_at=1002))
+        await session_store.enqueue_job(make_turn("second", created_at=1000))
+        await session_store.enqueue_job(make_turn("third", created_at=1001))
         order = []
         for worker in ("w1", "w2", "w3"):
-            job = await store.claim_job(worker, queue_per_session=True)
-            order.append(job["id"])
-            assert await store.complete_job(job["id"], worker, job["attempt"], "completed")
-        assert order == ["r_early", "r_mid", "r_late"]
+            claimed = await session_store.claim_job(worker)
+            order.append(claimed["id"])
+            assert await session_store.complete_job(claimed["id"], worker, claimed["attempt"], "completed")
+        assert order == ["first", "second", "third"]
 
     @pytest.mark.asyncio
-    async def test_paused_head_blocks_line_until_released(self, store):
-        await store.enqueue_job(make_job("r1", session_id="s1", created_at=1000))
-        head = await store.claim_job("w1", queue_per_session=True)
-        assert await store.complete_job("r1", "w1", head["attempt"], "paused")
-        await store.enqueue_job(make_job("r2", session_id="s1", created_at=1001))
-        assert await store.claim_job("w2", queue_per_session=True) is None, "a HITL pause holds the session's line"
-        assert await store.cancel_job("r1")
-        nxt = await store.claim_job("w2", queue_per_session=True)
-        assert nxt is not None and nxt["id"] == "r2"
+    async def test_paused_turn_holds_its_session_until_released(self, session_store):
+        await session_store.enqueue_job(make_turn("a", created_at=1))
+        head = await session_store.claim_job("w1")
+        assert await session_store.complete_job("a", "w1", head["attempt"], "paused")
+        await session_store.enqueue_job(make_turn("b", created_at=2))
+        assert await session_store.claim_job("w2") is None
+        assert await session_store.cancel_job("a")
+        assert (await session_store.claim_job("w2"))["id"] == "b"
 
     @pytest.mark.asyncio
-    async def test_different_sessions_claim_concurrently(self, store):
-        await store.enqueue_job(make_job("r1", session_id="s1", created_at=1000))
-        await store.enqueue_job(make_job("r2", session_id="s2", created_at=1001))
-        first = await store.claim_job("w1", queue_per_session=True)
-        second = await store.claim_job("w2", queue_per_session=True)
-        assert first is not None and second is not None
+    async def test_continued_turn_keeps_its_place(self, session_store):
+        await session_store.enqueue_job(make_turn("z", created_at=1))
+        head = await session_store.claim_job("w1")
+        assert await session_store.complete_job("z", "w1", head["attempt"], "paused")
+        await session_store.enqueue_job(make_turn("a", created_at=2))
+        assert (await session_store.continue_job("z", {"input": "approved"}))["outcome"] == "queued"
+        assert (await session_store.claim_job("w2"))["id"] == "z"
+        assert await session_store.claim_job("w3") is None
+
+    @pytest.mark.asyncio
+    async def test_requeued_turn_rejoins_behind_live_turns(self, session_store):
+        # Its id sorts first, so only a fresh sequence keeps the newer live turn ahead of it
+        await session_store.enqueue_job(make_turn("a", created_at=1))
+        assert (await session_store.claim_job("one"))["id"] == "a"
+        assert await session_store.complete_job("a", "one", 1, "failed")
+        await session_store.enqueue_job(make_turn("z", created_at=2))
+        assert await session_store.requeue_job("a")
+        assert (await session_store.claim_job("two"))["id"] == "z"
+        assert await session_store.claim_job("three") is None
+        assert await session_store.complete_job("z", "two", 1, "completed")
+        assert (await session_store.claim_job("three"))["id"] == "a"
+
+    @pytest.mark.asyncio
+    async def test_retry_backoff_holds_later_turns_without_spending_their_attempts(self, session_store):
+        await session_store.enqueue_job(make_turn("a", created_at=1, max_attempts=2))
+        await session_store.enqueue_job(make_turn("b", created_at=2))
+        assert (await session_store.claim_job("one"))["id"] == "a"
+        await session_store.retry_or_fail_job("a", "one", 1, "retryable failure", 60)
+        assert await session_store.claim_job("two") is None
+        assert (await session_store.get_job("b"))["attempt"] == 0
+
+    @pytest.mark.asyncio
+    async def test_cancelling_a_waiting_head_releases_the_next_turn(self, session_store):
+        await session_store.enqueue_job(make_turn("a", created_at=1))
+        await session_store.enqueue_job(make_turn("b", created_at=2))
+        assert await session_store.cancel_job("a")
+        claimed = await session_store.claim_job("two")
+        assert claimed["id"] == "b" and claimed["attempt"] == 1
+
+    @pytest.mark.asyncio
+    async def test_stale_head_is_reclaimed_before_the_next_turn(self, session_store):
+        await session_store.enqueue_job(make_turn("a", created_at=1, max_attempts=2))
+        await session_store.enqueue_job(make_turn("b", created_at=2))
+        assert (await session_store.claim_job("one"))["id"] == "a"
+        reclaimed = await session_store.claim_job("two", lock_grace_seconds=0)
+        assert reclaimed["id"] == "a" and reclaimed["attempt"] == 2
+        assert not await session_store.complete_job("a", "one", 1, "completed")
+        assert (await session_store.get_job("b"))["attempt"] == 0
+        assert await session_store.complete_job("a", "two", 2, "completed")
+        assert (await session_store.claim_job("three"))["id"] == "b"
+
+    @pytest.mark.asyncio
+    async def test_session_id_alone_identifies_the_session(self, session_store):
+        # Components writing to one session_id share its session row
+        await session_store.enqueue_job(make_turn("a", created_at=1, component_type="agent", component_id="a1"))
+        await session_store.enqueue_job(make_turn("b", created_at=2, component_type="team", component_id="t1"))
+        assert (await session_store.claim_job("one"))["id"] == "a"
+        assert await session_store.claim_job("two") is None
+
+    @pytest.mark.asyncio
+    async def test_unmarked_tickets_claim_concurrently(self, session_store):
+        await session_store.enqueue_job(make_job("r1", session_id="s1", created_at=1000))
+        await session_store.enqueue_job(make_job("r2", session_id="s1", created_at=1001))
+        first = await session_store.claim_job("w1")
+        second = await session_store.claim_job("w2")
         assert {first["id"], second["id"]} == {"r1", "r2"}
 
     @pytest.mark.asyncio
-    async def test_stale_running_head_is_reclaimed_not_bypassed(self, store):
-        await store.enqueue_job(make_job("r1", session_id="s1", created_at=1000, max_attempts=2))
-        await store.claim_job("w1", queue_per_session=True)
-        await store.enqueue_job(make_job("r2", session_id="s1", created_at=1001))
-        # grace=0 makes the fresh claim immediately stale; FIFO must reclaim
-        # the head, never skip past it to its successor
-        reclaimed = await store.claim_job("w2", 0, queue_per_session=True)
-        assert reclaimed is not None and reclaimed["id"] == "r1"
+    async def test_marker_must_be_a_boolean(self, session_store):
+        for job_id, created_at in (("a", 1), ("b", 2)):
+            turn = make_turn(job_id, created_at=created_at)
+            turn["payload"]["serialize_session"] = "true"
+            await session_store.enqueue_job(turn)
+        assert (await session_store.claim_job("one"))["id"] == "a"
+        assert (await session_store.claim_job("two"))["id"] == "b"
 
     @pytest.mark.asyncio
-    async def test_same_second_submission_never_two_live(self, store):
-        """created_at has 1-second resolution, so same-second siblings tie and
-        the (created_at, id) tiebreak alone would elect a NEW head while an
-        earlier submission executes (a lexicographically smaller uuid wins
-        the tie). The running-sibling check must block the claim regardless
-        of head order."""
-        await store.enqueue_job(make_job("r_z", session_id="s1", created_at=1000))
-        head = await store.claim_job("w1", queue_per_session=True)
-        assert head["id"] == "r_z"
-        await store.enqueue_job(make_job("r_a", session_id="s1", created_at=1000))
-        assert await store.claim_job("w2", queue_per_session=True) is None, (
-            "a smaller-id same-second sibling must not run beside its running sibling"
-        )
-        assert await store.complete_job("r_z", "w1", head["attempt"], "completed")
-        nxt = await store.claim_job("w2", queue_per_session=True)
-        assert nxt is not None and nxt["id"] == "r_a"
+    async def test_enqueue_returns_the_callers_dict_with_its_sequence(self, session_store):
+        turn = make_turn("a", created_at=1)
+        for optional in ("error", "updated_at", "completed_at"):
+            turn.pop(optional)
+        first = (await session_store.enqueue_job(dict(turn)))["job"]
+        assert {k: v for k, v in first.items() if k != "payload"} == {k: v for k, v in turn.items() if k != "payload"}
+        assert first["payload"] == {**turn["payload"], "session_seq": 1}
+        second = (await session_store.enqueue_job(make_turn("b", created_at=1)))["job"]
+        assert second["payload"]["session_seq"] == 2
+        assert (await session_store.get_job("b"))["payload"]["session_seq"] == 2
 
     @pytest.mark.asyncio
-    async def test_queue_per_session_off_claims_siblings_concurrently(self, store):
-        """The opt-out restores today's behavior - and doubles as the pin
-        that the store-layer default stays off (direct callers unaffected)."""
-        await store.enqueue_job(make_job("r1", session_id="s1", created_at=1000))
-        await store.enqueue_job(make_job("r2", session_id="s1", created_at=1001))
-        first = await store.claim_job("w1")
-        second = await store.claim_job("w2")
-        assert first is not None and second is not None
-        assert {first["id"], second["id"]} == {"r1", "r2"}
+    async def test_session_blocker_names_the_ticket_a_turn_waits_behind(self, session_store):
+        for job_id, created_at in (("a", 1), ("b", 2), ("c", 3)):
+            await session_store.enqueue_job(make_turn(job_id, created_at=created_at))
+        assert await session_store.session_blocker("a") is None
+        assert await session_store.session_blocker("c") == "a"
+        head = await session_store.claim_job("w1")
+        assert await session_store.session_blocker("b") == "a"
+        assert await session_store.complete_job("a", "w1", head["attempt"], "completed")
+        assert await session_store.session_blocker("b") is None
+        assert await session_store.session_blocker("c") == "b"
+        await session_store.enqueue_job(make_job("plain", session_id="s1", created_at=4))
+        assert await session_store.session_blocker("plain") is None
 
 
 @pytest.mark.skipif(not _PG_AVAILABLE, reason="Postgres not available on localhost:5532")
-class TestSyncPostgresQueuePerSession:
-    """The sync Postgres claim twin (the parity fixture runs the ASYNC
-    adapter, so the sync adapter's head-of-line gate needs its own pin)."""
-
-    def test_head_of_line_gate(self):
-        import sqlalchemy
-
-        from agno.db.postgres import PostgresDb
-
-        db = PostgresDb(db_url=PG_URL, job_table=f"parity_syncser_{uuid.uuid4().hex[:8]}")
-        try:
-            db.enqueue_job(make_job("r1", session_id="s1", created_at=1000))
-            db.enqueue_job(make_job("r2", session_id="s1", created_at=1001))
-            db.enqueue_job(make_job("r3", session_id="s2", created_at=1002))
-            head = db.claim_job("w1", queue_per_session=True)
-            assert head["id"] == "r1"
-            other = db.claim_job("w2", queue_per_session=True)
-            assert other is not None and other["id"] == "r3", "s2 must not be blocked by s1's line"
-            assert db.claim_job("w3", queue_per_session=True) is None
-            assert db.complete_job("r1", "w1", head["attempt"], "completed")
-            released = db.claim_job("w3", queue_per_session=True)
-            assert released is not None and released["id"] == "r2"
-        finally:
-            engine = sqlalchemy.create_engine(PG_URL)
-            with engine.begin() as conn:
-                conn.execute(sqlalchemy.text(f'DROP TABLE IF EXISTS {db.db_schema}."{db.job_table_name}"'))
-            engine.dispose()
-
-
-class TestSubmissionOrderParity:
-    """FIFO by submission must hold within a session even when created_at
-    ties: it has one-second resolution, and a random uuid tiebreak let a
-    later submission with a smaller id run first and read session history
-    the earlier one had not written yet. Stores now carry a monotonic
-    enqueue sequence and order same-second siblings by it."""
-
-    @pytest.mark.asyncio
-    async def test_same_second_fifo_holds_under_uuid_inversion(self, store):
-        # r_z submitted first, r_a second, both in the same second; the id
-        # order is the inverse of the submission order
-        await store.enqueue_job(make_job("r_z", session_id="s1", created_at=1000))
-        await store.enqueue_job(make_job("r_a", session_id="s1", created_at=1000))
-        head = await store.claim_job("w1", queue_per_session=True)
-        assert head is not None and head["id"] == "r_z", "the earlier submission must run first"
-        assert await store.claim_job("w2", queue_per_session=True) is None
-        assert await store.complete_job("r_z", "w1", head["attempt"], "completed")
-        nxt = await store.claim_job("w2", queue_per_session=True)
-        assert nxt is not None and nxt["id"] == "r_a"
-
-    @pytest.mark.asyncio
-    async def test_enqueue_sequence_is_monotonic_and_survives_round_trip(self, store):
-        first = (await store.enqueue_job(make_job("r1", session_id="s1", created_at=1000)))["job"]
-        second = (await store.enqueue_job(make_job("r2", session_id="s2", created_at=1000)))["job"]
-        assert first.get("seq") is not None and second.get("seq") is not None
-        assert first["seq"] < second["seq"]
-        stored = await store.get_job("r2")
-        assert stored is not None and stored.get("seq") == second["seq"]
-
-
-@pytest.mark.skipif(not _PG_AVAILABLE, reason="Postgres not available on localhost:5532")
-class TestSyncPostgresSubmissionOrder:
-    """Sync Postgres twin of the same-second FIFO pin, plus the upgrade path:
-    a jobs table created before the sequence column existed must gain it on
-    first use instead of failing schema validation or claiming out of order."""
+class TestPostgresSessionLocking:
+    """Enqueue and claim of one session share a transaction-scoped advisory lock. An
+    insert is invisible to a concurrent claim until it commits, so ordering alone
+    cannot keep a not-yet-visible predecessor from being claimed beside its sibling."""
 
     @staticmethod
-    def _drop(db):
+    def _held_session_lock(db, session_id: str):
+        """A connection holding the session's lock in an open transaction."""
         import sqlalchemy
 
+        from agno.job_queue.session import session_claim_lock_key
+
+        table = db._get_table(table_type="jobs", create_table_if_not_found=True)
         engine = sqlalchemy.create_engine(PG_URL)
-        with engine.begin() as conn:
-            conn.execute(sqlalchemy.text(f'DROP TABLE IF EXISTS {db.db_schema}."{db.job_table_name}"'))
-        engine.dispose()
+        conn = engine.connect()
+        txn = conn.begin()
+        key = session_claim_lock_key(table.fullname, {"session_id": session_id})
+        conn.execute(sqlalchemy.text("SELECT pg_advisory_xact_lock(:key)"), {"key": key})
+        return engine, conn, txn
 
-    def test_same_second_fifo_holds_under_uuid_inversion(self):
+    @staticmethod
+    def _in_thread(fn):
+        import threading
+
+        done = threading.Event()
+        result: dict = {}
+
+        def target():
+            try:
+                result["value"] = fn()
+            except Exception as exc:  # pragma: no cover - surfaced by the assertion
+                result["error"] = exc
+            finally:
+                done.set()
+
+        threading.Thread(target=target, daemon=True).start()
+        return done, result
+
+    def test_enqueue_waits_for_an_in_flight_session_transaction(self):
         from agno.db.postgres import PostgresDb
 
-        db = PostgresDb(db_url=PG_URL, job_table=f"parity_syncseq_{uuid.uuid4().hex[:8]}")
+        db = PostgresDb(db_url=PG_URL, job_table=f"parity_lockenq_{uuid.uuid4().hex[:8]}")
+        engine, conn, txn = self._held_session_lock(db, "s1")
         try:
-            db.enqueue_job(make_job("r_z", session_id="s1", created_at=1000))
-            db.enqueue_job(make_job("r_a", session_id="s1", created_at=1000))
-            head = db.claim_job("w1", queue_per_session=True)
-            assert head is not None and head["id"] == "r_z"
-            assert db.claim_job("w2", queue_per_session=True) is None
-            assert db.complete_job("r_z", "w1", head["attempt"], "completed")
-            nxt = db.claim_job("w2", queue_per_session=True)
-            assert nxt is not None and nxt["id"] == "r_a"
+            done, result = self._in_thread(lambda: db.enqueue_job(make_turn("b", created_at=1)))
+            assert not done.wait(0.6), "enqueue must wait while another transaction holds the session lock"
+            txn.commit()
+            assert done.wait(5) and "error" not in result and result["value"]["accepted"]
         finally:
-            self._drop(db)
-
-    def test_pre_sequence_jobs_table_is_upgraded_on_first_use(self):
-        import sqlalchemy
-
-        from agno.db.postgres import PostgresDb
-
-        table_name = f"parity_upgrade_{uuid.uuid4().hex[:8]}"
-        db = PostgresDb(db_url=PG_URL, job_table=table_name)
-        try:
-            db.enqueue_job(make_job("r_old", session_id="s1", created_at=999))
-            # Simulate a table created before the column existed
-            engine = sqlalchemy.create_engine(PG_URL)
-            with engine.begin() as conn:
-                conn.execute(sqlalchemy.text(f'ALTER TABLE {db.db_schema}."{table_name}" DROP COLUMN seq'))
+            conn.close()
             engine.dispose()
+            _drop_jobs_table(db)
 
-            reopened = PostgresDb(db_url=PG_URL, job_table=table_name)
-            reopened.enqueue_job(make_job("r_z", session_id="s1", created_at=1000))
-            reopened.enqueue_job(make_job("r_a", session_id="s1", created_at=1000))
-            old = reopened.get_job("r_old")
-            assert old is not None and old.get("seq") is not None, "pre-existing rows are backfilled"
-            claimed = [reopened.claim_job("w1", queue_per_session=True)["id"]]
-            for _ in range(2):
-                reopened.complete_job(claimed[-1], "w1", 1, "completed")
-                claimed.append(reopened.claim_job("w1", queue_per_session=True)["id"])
-            assert claimed == ["r_old", "r_z", "r_a"]
+    def test_claim_declines_without_spending_an_attempt_while_the_session_is_locked(self):
+        from agno.db.postgres import PostgresDb
+
+        db = PostgresDb(db_url=PG_URL, job_table=f"parity_lockclaim_{uuid.uuid4().hex[:8]}")
+        try:
+            db.enqueue_job(make_turn("a", created_at=1))
+            engine, conn, txn = self._held_session_lock(db, "s1")
+            try:
+                assert db.claim_job("w1") is None
+                assert db.get_job("a")["attempt"] == 0
+            finally:
+                txn.commit()
+                conn.close()
+                engine.dispose()
+            assert db.claim_job("w1")["id"] == "a"
         finally:
-            self._drop(db)
+            _drop_jobs_table(db)
+
+    def test_unmarked_claim_does_not_take_the_session_lock(self):
+        from agno.db.postgres import PostgresDb
+
+        db = PostgresDb(db_url=PG_URL, job_table=f"parity_lockoff_{uuid.uuid4().hex[:8]}")
+        try:
+            db.enqueue_job(make_job("r_a", session_id="s1", created_at=1000))
+            engine, conn, txn = self._held_session_lock(db, "s1")
+            try:
+                done, result = self._in_thread(lambda: db.claim_job("w1"))
+                assert done.wait(5) and result["value"] is not None and result["value"]["id"] == "r_a"
+            finally:
+                txn.rollback()
+                conn.close()
+                engine.dispose()
+        finally:
+            _drop_jobs_table(db)
 
     @pytest.mark.asyncio
-    async def test_pre_sequence_jobs_table_is_upgraded_on_first_use_async(self):
-        """The async adapter's twin of the upgrade path."""
-        import sqlalchemy
+    async def test_enqueue_during_a_claim_sorts_after_the_selected_ticket(self):
+        import threading
 
-        from agno.db.postgres import AsyncPostgresDb
+        from sqlalchemy import event
 
-        table_name = f"parity_aupgrade_{uuid.uuid4().hex[:8]}"
-        db = AsyncPostgresDb(db_url=PG_URL, job_table=table_name)
+        from agno.db.postgres import PostgresDb
+
+        db = PostgresDb(db_url=PG_URL, job_table=f"parity_lockrace_{uuid.uuid4().hex[:8]}")
+        store = _SyncStoreAdapter(db)
+        selected = threading.Event()
+        release = threading.Event()
+        paused: list = []
+
+        def pause_after_select(conn, cursor, statement, parameters, context, executemany):
+            if "FOR UPDATE SKIP LOCKED" in statement and not paused:
+                paused.append(threading.get_ident())
+                selected.set()
+                assert release.wait(5), "test did not release the selected candidate"
+
         try:
-            await db.enqueue_job(make_job("r_old", session_id="s1", created_at=999))
-            engine = sqlalchemy.create_engine(PG_URL)
-            with engine.begin() as conn:
-                conn.execute(sqlalchemy.text(f'ALTER TABLE {db.db_schema}."{table_name}" DROP COLUMN seq'))
-            engine.dispose()
-
-            reopened = AsyncPostgresDb(db_url=PG_URL, job_table=table_name)
-            await reopened.enqueue_job(make_job("r_z", session_id="s1", created_at=1000))
-            await reopened.enqueue_job(make_job("r_a", session_id="s1", created_at=1000))
-            old = await reopened.get_job("r_old")
-            assert old is not None and old.get("seq") is not None, "pre-existing rows are backfilled"
-            claimed = [(await reopened.claim_job("w1", queue_per_session=True))["id"]]
-            for _ in range(2):
-                await reopened.complete_job(claimed[-1], "w1", 1, "completed")
-                claimed.append((await reopened.claim_job("w1", queue_per_session=True))["id"])
-            assert claimed == ["r_old", "r_z", "r_a"]
+            await store.enqueue_job(make_turn("z", created_at=1))
+            event.listen(db.db_engine, "after_cursor_execute", pause_after_select)
+            first_claim = asyncio.create_task(store.claim_job("first"))
+            try:
+                assert await asyncio.to_thread(selected.wait, 5)
+                await store.enqueue_job(make_turn("a", created_at=1))
+                assert await store.claim_job("second") is None
+            finally:
+                release.set()
+                first = await first_claim
+                event.remove(db.db_engine, "after_cursor_execute", pause_after_select)
+            assert first["id"] == "z"
+            assert (await store.get_job("a"))["attempt"] == 0
         finally:
-            self._drop(db)
+            _drop_jobs_table(db)
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("async_db", [False, True])
+    async def test_claims_under_a_stricter_engine_isolation_level(self, async_db):
+        from sqlalchemy import create_engine
+        from sqlalchemy.ext.asyncio import create_async_engine
+
+        from agno.db.postgres import AsyncPostgresDb, PostgresDb
+
+        table = f"parity_iso_{uuid.uuid4().hex[:8]}"
+        if async_db:
+            engine = create_async_engine(PG_URL, isolation_level="REPEATABLE READ")
+            db = AsyncPostgresDb(db_engine=engine, job_table=table)
+            store = db
+        else:
+            engine = create_engine(PG_URL, isolation_level="REPEATABLE READ")
+            db = PostgresDb(db_engine=engine, job_table=table)
+            store = _SyncStoreAdapter(db)
+        try:
+            await store.ensure_jobs_table()
+            await store.enqueue_job(make_turn("a", created_at=1))
+            await store.enqueue_job(make_turn("b", created_at=2))
+            assert (await store.claim_job("one"))["id"] == "a"
+            assert await store.claim_job("two") is None
+        finally:
+            _drop_jobs_table(db)
+            if async_db:
+                await engine.dispose()
+            else:
+                engine.dispose()
 
 
-@pytest.mark.skipif(not _REDIS_AVAILABLE, reason="Redis not available on localhost:6379")
-class TestRedisSessionLineBackfill:
-    """A queue that predates the session-line index holds non-terminal jobs
-    that are in no line. Redis has no paused index (a paused job is removed
-    from both the queued and running sets and survives only in the `all`
-    index) and a paused job never heartbeats, so nothing would ever add it
-    back: a newer submission would sail straight past a HITL pause. The store
-    backfills every non-terminal job into its line before its first gated
-    claim. Postgres and in-memory read authoritative state and need none of
-    this."""
+@pytest.mark.skipif(not _FAKEREDIS, reason="fakeredis not installed")
+class TestRedisSessionEntry:
+    """A ticket enters its session index and takes its sequence in one WATCHed
+    transaction, so a stalled entry re-sequences behind one that overtook it."""
 
     @staticmethod
-    def _db(prefix: str):
-        from redis import Redis
-
+    def _db():
         from agno.db.redis import RedisDb
 
-        return RedisDb(redis_client=Redis.from_url(REDIS_URL), db_prefix=prefix)
+        return RedisDb(redis_client=fakeredis.FakeRedis(), db_prefix=f"parity_{uuid.uuid4().hex[:6]}")
 
-    @staticmethod
-    def _line_members(db, session_id: str = "s1"):
-        raw = db.redis_client.zrange(f"{db.db_prefix}:jobs:line:{session_id}", 0, -1)
-        return {member.decode() if isinstance(member, bytes) else member for member in raw}
+    def test_sequence_follows_publication_order_under_a_stalled_enqueue(self):
+        db = self._db()
+        real_pipeline = db.redis_client.pipeline
+        armed = {"stall": True}
 
-    @staticmethod
-    def _strip_line(db, session_id: str = "s1") -> None:
-        """Reduce the store to the shape an upgrade inherits: the jobs exist
-        and are non-terminal, but no session line was ever maintained."""
-        db.redis_client.delete(f"{db.db_prefix}:jobs:line:{session_id}")
+        def pipeline(*args, **kwargs):
+            pipe = real_pipeline(*args, **kwargs)
+            real_execute = pipe.execute
 
-    @staticmethod
-    def _cleanup(prefix: str) -> None:
-        from redis import Redis
+            def execute(*eargs, **ekwargs):
+                if armed["stall"]:
+                    # A second enqueue to the session completes inside the first's window
+                    armed["stall"] = False
+                    db.enqueue_job(make_turn("fast", created_at=1))
+                return real_execute(*eargs, **ekwargs)
 
-        client = Redis.from_url(REDIS_URL)
-        for key in client.scan_iter(f"{prefix}:*"):
-            client.delete(key)
-        client.close()
+            pipe.execute = execute
+            return pipe
 
-    def test_pre_upgrade_paused_head_holds_the_line(self):
-        prefix = f"parity_bfpaused_{uuid.uuid4().hex[:6]}"
-        try:
-            db = self._db(prefix)
-            db.enqueue_job(make_job("r_head", session_id="s1", created_at=1000))
-            head = db.claim_job("w0", queue_per_session=True)
-            assert head is not None and head["id"] == "r_head"
-            assert db.complete_job("r_head", "w0", head["attempt"], "paused")
-            self._strip_line(db)
+        db.redis_client.pipeline = pipeline
+        db.enqueue_job(make_turn("slow", created_at=1))
+        fast, slow = db.get_job("fast"), db.get_job("slow")
+        assert fast["payload"]["session_seq"] < slow["payload"]["session_seq"]
+        assert db.claim_job("w1")["id"] == "fast"
 
-            # A fresh instance is a freshly started replica: backfill pending
-            replica = self._db(prefix)
-            replica.enqueue_job(make_job("r_new", session_id="s1", created_at=1001))
-            assert replica.claim_job("w1", queue_per_session=True) is None, (
-                "a pre-upgrade paused head must hold its session's line, not be bypassed"
-            )
-            assert self._line_members(replica) == {"r_head", "r_new"}
-        finally:
-            self._cleanup(prefix)
+    def test_a_waiting_backlog_loads_its_session_once_per_claim(self, monkeypatch):
+        """Twenty turns queued behind a paused head must not read the session line
+        twenty times: the scan keeps one advisory view per session and only the
+        ticket it actually claims re-reads under WATCH."""
+        from redis.client import Pipeline
 
-    def test_pre_upgrade_running_head_holds_the_line(self):
-        prefix = f"parity_bfrunning_{uuid.uuid4().hex[:6]}"
-        try:
-            db = self._db(prefix)
-            db.enqueue_job(make_job("r_head", session_id="s1", created_at=1000))
-            head = db.claim_job("w0", queue_per_session=True)
-            assert head is not None and head["id"] == "r_head"
-            self._strip_line(db)
+        db = self._db()
+        db.enqueue_job(make_turn("head", created_at=1))
+        head = db.claim_job("w1")
+        assert head["id"] == "head"
+        assert db.complete_job("head", "w1", head["attempt"], "paused")
+        # available_at orders the queued scan: the backlog is scanned before the free ticket.
+        for i in range(20):
+            db.enqueue_job(make_turn(f"wait{i}", created_at=2, available_at=1))
+        db.enqueue_job(make_turn("free", created_at=3, available_at=2, session_id="other"))
+        watched_reads: list = []
+        pipe_zrange = Pipeline.zrange
 
-            replica = self._db(prefix)
-            replica.enqueue_job(make_job("r_new", session_id="s1", created_at=1001))
-            assert replica.claim_job("w1", queue_per_session=True) is None, (
-                "a pre-upgrade running head must hold its session's line"
-            )
-        finally:
-            self._cleanup(prefix)
+        def counting_zrange(self, *args, **kwargs):
+            watched_reads.append(args[0])
+            return pipe_zrange(self, *args, **kwargs)
 
-    def test_backfill_skips_terminal_jobs(self):
-        """The correction must not overshoot: backfilling terminal jobs would
-        wedge the session behind a job that can never be released."""
-        prefix = f"parity_bfterm_{uuid.uuid4().hex[:6]}"
-        try:
-            db = self._db(prefix)
-            db.enqueue_job(make_job("r_done", session_id="s1", created_at=900))
-            head = db.claim_job("w0", queue_per_session=True)
-            assert db.complete_job("r_done", "w0", head["attempt"], "completed")
-            self._strip_line(db)
+        monkeypatch.setattr(Pipeline, "zrange", counting_zrange)
+        assert db.claim_job("w2")["id"] == "free"
+        assert len(watched_reads) == 1
 
-            replica = self._db(prefix)
-            replica.enqueue_job(make_job("r_new", session_id="s1", created_at=1001))
-            claimed = replica.claim_job("w1", queue_per_session=True)
-            assert claimed is not None and claimed["id"] == "r_new", (
-                "a completed pre-upgrade job must not hold the line"
-            )
-            assert "r_done" not in self._line_members(replica)
-        finally:
-            self._cleanup(prefix)
+    @pytest.mark.parametrize("entry", ["enqueue", "requeue"])
+    def test_entry_outlasts_same_session_submit_contention(self, monkeypatch, entry):
+        from redis.client import Pipeline
+        from redis.exceptions import WatchError
 
-    def test_backfill_is_idempotent_across_replicas(self):
-        prefix = f"parity_bfidem_{uuid.uuid4().hex[:6]}"
-        try:
-            db = self._db(prefix)
-            db.enqueue_job(make_job("r_head", session_id="s1", created_at=1000))
-            head = db.claim_job("w0", queue_per_session=True)
-            assert db.complete_job("r_head", "w0", head["attempt"], "paused")
-            self._strip_line(db)
+        db = self._db()
+        if entry == "requeue":
+            db.enqueue_job(make_turn("a", created_at=1))
+            assert db.claim_job("one")["id"] == "a"
+            assert db.complete_job("a", "one", 1, "failed")
+        execute = Pipeline.execute
+        lost: list = []
 
-            first = self._db(prefix)
-            first.enqueue_job(make_job("r_new", session_id="s1", created_at=1001))
-            assert first.claim_job("w1", queue_per_session=True) is None
-            after_first = self._line_members(first)
+        def lose_races(self, *args, **kwargs):
+            if len(lost) < 15:
+                lost.append(1)
+                self.reset()
+                raise WatchError("a same-session submit committed first")
+            return execute(self, *args, **kwargs)
 
-            second = self._db(prefix)
-            assert second.claim_job("w2", queue_per_session=True) is None
-            assert self._line_members(second) == after_first, "a second replica's backfill must change nothing"
-        finally:
-            self._cleanup(prefix)
-
-
-@pytest.mark.skipif(not _REDIS_AVAILABLE, reason="Redis not available on localhost:6379")
-class TestRedisSessionLineScanCost:
-    """The advisory pre-filter asks, per candidate, whether the session line
-    admits it - and each ask reloaded the whole line (range read, multi-get,
-    sort). Behind a blocked head every queued successor is a rejected
-    candidate, so the work was quadratic in that session's backlog and paid
-    again every poll tick. The view is loaded once per session per claim.
-
-    The verdict itself is NOT cacheable: "is this candidate the head" has a
-    different answer for every candidate. What is cached is the view, from
-    which each verdict is computed."""
-
-    @staticmethod
-    def _db(prefix: str):
-        from redis import Redis
-
-        from agno.db.redis import RedisDb
-
-        return RedisDb(redis_client=Redis.from_url(REDIS_URL), db_prefix=prefix)
-
-    @staticmethod
-    def _cleanup(prefix: str) -> None:
-        from redis import Redis
-
-        client = Redis.from_url(REDIS_URL)
-        for key in client.scan_iter(f"{prefix}:*"):
-            client.delete(key)
-        client.close()
-
-    @staticmethod
-    def _count_line_views(db) -> list:
-        loads: list = []
-        original = db._q_session_line_view
-
-        def counting(session_id: str):
-            loads.append(session_id)
-            return original(session_id)
-
-        db._q_session_line_view = counting
-        return loads
-
-    @staticmethod
-    def _pause_head(db, session_id: str, job_id: str, created_at: int) -> None:
-        db.enqueue_job(make_job(job_id, session_id=session_id, created_at=created_at))
-        head = db.claim_job("w0", queue_per_session=True)
-        assert head is not None and head["id"] == job_id
-        assert db.complete_job(job_id, "w0", head["attempt"], "paused")
-
-    def test_blocked_backlog_loads_the_line_once(self):
-        prefix = f"parity_scan1_{uuid.uuid4().hex[:6]}"
-        try:
-            db = self._db(prefix)
-            self._pause_head(db, "s1", "r_head", 1000)
-            for i in range(5):
-                db.enqueue_job(make_job(f"r_{i}", session_id="s1", created_at=1001 + i))
-
-            loads = self._count_line_views(db)
-            assert db.claim_job("w1", queue_per_session=True) is None
-            assert loads.count("s1") == 1, (
-                f"one line load per blocked session per claim, got {loads.count('s1')} for a backlog of 5"
-            )
-        finally:
-            self._cleanup(prefix)
-
-    def test_cache_is_scoped_per_session(self):
-        prefix = f"parity_scan2_{uuid.uuid4().hex[:6]}"
-        try:
-            db = self._db(prefix)
-            self._pause_head(db, "s1", "r1_head", 1000)
-            self._pause_head(db, "s2", "r2_head", 1001)
-            for i in range(3):
-                db.enqueue_job(make_job(f"r1_{i}", session_id="s1", created_at=1010 + i))
-                db.enqueue_job(make_job(f"r2_{i}", session_id="s2", created_at=1010 + i))
-
-            loads = self._count_line_views(db)
-            assert db.claim_job("w1", queue_per_session=True) is None
-            assert loads.count("s1") == 1 and loads.count("s2") == 1, (
-                f"each blocked session is loaded once, got {loads}"
-            )
-        finally:
-            self._cleanup(prefix)
-
-    def test_authoritative_check_inside_the_cas_is_never_cached(self):
-        """The pre-filter is advisory; the check under WATCH on the line key
-        is what makes a stale head decision uncommittable. Serving that one
-        from the scan's cache would reintroduce the snapshot-versus-CAS race
-        the gate was hardened against, so a successful claim must load the
-        view again inside the transaction."""
-        prefix = f"parity_scan3_{uuid.uuid4().hex[:6]}"
-        try:
-            db = self._db(prefix)
-            db.enqueue_job(make_job("r_only", session_id="s1", created_at=1000))
-
-            loads = self._count_line_views(db)
-            claimed = db.claim_job("w1", queue_per_session=True)
-            assert claimed is not None and claimed["id"] == "r_only"
-            assert loads.count("s1") == 2, (
-                f"expected one advisory load plus one authoritative load inside the CAS, got {loads.count('s1')}"
-            )
-        finally:
-            self._cleanup(prefix)
+        monkeypatch.setattr(Pipeline, "execute", lose_races)
+        if entry == "enqueue":
+            assert db.enqueue_job(make_turn("a", created_at=1))["accepted"]
+        else:
+            assert db.requeue_job("a")
+        assert db.get_job("a")["payload"]["session_seq"] == 1

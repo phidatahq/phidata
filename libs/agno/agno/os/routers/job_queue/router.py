@@ -6,12 +6,13 @@ queue depth - depth trending up is the early-warning signal the queue exists
 to provide.
 """
 
-from typing import TYPE_CHECKING, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from agno.db.schemas.jobs import JOB_STATUSES
 from agno.os.auth import get_authentication_dependency
+from agno.os.job_queue import wake_queue_worker
 from agno.os.routers.job_queue.schema import QueueJobSchema
 from agno.os.schema import (
     BadRequestResponse,
@@ -40,6 +41,7 @@ async def _require_queue_admin(request: Request) -> None:
     carries a JWT identity (scopes/user_id stamped by JWTMiddleware) requires
     the admin scope. Deployments without JWT enforcement (security-key or
     open) pass, matching how the run routes treat scope enforcement."""
+    from agno.os.auth import caller_scopes_are_authoritative, resolve_authorization_provider
     from agno.os.middleware.user_scope import _has_admin_scope
 
     scopes = getattr(request.state, "scopes", None)
@@ -50,7 +52,30 @@ async def _require_queue_admin(request: Request) -> None:
 
     admin_scope_raw = getattr(request.state, "admin_scope", None)
     admin_scope = admin_scope_raw if isinstance(admin_scope_raw, str) else None
-    if not _has_admin_scope(scopes or [], admin_scope=admin_scope):
+
+    # The /queue surface is cross-tenant (payloads + user_ids of every user), so it is
+    # admin-only. Deciding admin from the raw token scope is only valid when scopes are
+    # the caller's authority: under a managed-roles/ReBAC plane a token's `agent_os:admin`
+    # is ignored everywhere else, so trust it here and this whole surface leaks. Gate the
+    # scope path on that, and otherwise ask the provider whether the caller is an admin.
+    if caller_scopes_are_authoritative(request):
+        if not _has_admin_scope(scopes or [], admin_scope=admin_scope):
+            raise HTTPException(status_code=403, detail="Job queue operations require an admin scope")
+        return
+
+    from agno.os.authz.provider import AuthorizationContext
+
+    provider = resolve_authorization_provider(request)
+    ctx = AuthorizationContext(
+        principal_id=user_id,
+        scopes=list(scopes or []),
+        claims=getattr(request.state, "claims", None) or {},
+        resource_type="*",
+        resource_id="*",
+        action="*",
+        admin_scope=admin_scope,
+    )
+    if not provider.check(ctx):
         raise HTTPException(status_code=403, detail="Job queue operations require an admin scope")
 
 
@@ -113,15 +138,22 @@ def get_queue_router(os: "AgentOS", settings: AgnoAPISettings = AgnoAPISettings(
         for s in status or []:
             if s not in JOB_STATUSES:
                 raise HTTPException(status_code=400, detail=f"Invalid status {s!r}; expected one of {JOB_STATUSES}")
+        if (session_id is not None and not all(session_id)) or user_id == "":
+            raise HTTPException(status_code=400, detail="session_id and user_id must not be empty")
         store = _get_store(request)
+        # Only pass filters that were asked for: custom stores on the older list_jobs signature keep working.
+        filters: Dict[str, Any] = {}
+        if session_id:
+            filters["session_id"] = session_id
+        if user_id:
+            filters["user_id"] = user_id
         jobs, total_count = await store.list_jobs(
             status=status or None,
-            session_id=session_id or None,
-            user_id=user_id,
             limit=limit,
             page=page,
             sort_by=sort_by,
             sort_order=sort_order.value,
+            **filters,
         )
         return PaginatedResponse(
             data=[QueueJobSchema(**job) for job in jobs],
@@ -241,6 +273,8 @@ def get_queue_router(os: "AgentOS", settings: AgnoAPISettings = AgnoAPISettings(
                 )
         if not await store.requeue_job(job_id):
             raise HTTPException(status_code=400, detail=f"Job {job_id} not found or not in a requeueable state")
+        # The requeued ticket is claimable now; claim it now (best-effort)
+        wake_queue_worker(getattr(request.app.state, "queue_worker", None))
         return await store.get_job(job_id)
 
     @router.get(

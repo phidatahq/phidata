@@ -38,6 +38,17 @@ class PublicSurface:
     Successful runs retain native output, including Team member tool results and
     failure details when the leader recovers. Selecting a Team does not expose
     independent member routes. Failed top-level runs use sanitized public errors.
+
+    With AgentOS(authorization=True), anonymous requests retain these limits while
+    verified JWT callers use the normal REST API with endpoint permissions. MCP
+    remains restricted to its explicit tools and public limits. Scheduler and
+    service-account credentials retain their existing public request contracts.
+
+    ``enforce_browser_origins=True`` rejects run and workflow-socket requests with
+    an Origin outside AgentOS's exact/regex CORS policy. Browsers also send Origin
+    on same-origin POSTs and WebSockets, so a page served from the AgentOS's own
+    domain is rejected unless that origin is listed too. Requests without Origin
+    retain their native authentication and quotas. It does not trust client IPs.
     """
 
     agents: List[Any] = field(default_factory=list)
@@ -47,6 +58,8 @@ class PublicSurface:
     namespace: Optional[str] = None
     limits: Optional[Dict[str, RateLimit]] = None
     client_id: Optional[Callable] = None
+    # Reject browser run/socket requests outside AgentOS's CORS origin policy.
+    enforce_browser_origins: bool = False
     uploads: Optional[FileUploadLimits] = None
     max_body_bytes: int = 12 * 1024 * 1024
     max_run_seconds: float = 240
@@ -94,15 +107,17 @@ class PublicSurface:
             setattr(self, field_name, selected)
         if self.mcp:
             config = agent_os.mcp_config
-            if (
-                not agent_os.mcp
-                or config is None
-                or config.default_tools
-                or config.lifecycle_tools
-                or not config.stateless
-            ):
+            if not agent_os.mcp or config is None or config.default_tools or not config.stateless:
+                raise ValueError("Public MCP requires MCPConfig(tools=[...], default_tools=False, stateless=True)")
+            from agno.os.mcp import _enabled_builtin_tags, _split_tool_entries
+
+            _, exposures = _split_tool_entries(config, agent_os)
+            enabled_tags = _enabled_builtin_tags(config, has_exposures=bool(exposures))
+            if enabled_tags & {"core", "lifecycle"}:
                 raise ValueError(
-                    "Public MCP requires explicit tools, disabled default/lifecycle tools and stateless=True"
+                    "Public MCP cannot expose continue_run or cancel_run. The lifecycle tools were explicitly "
+                    "enabled for exposed components; set lifecycle_tools=False or "
+                    'exclude_tags={"lifecycle"} in MCPConfig to disable them.'
                 )
         if self._limiter is None:
             self._limiter = PublicLimiter(agent_os.db.db_engine, namespace, self.limits)

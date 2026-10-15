@@ -6,6 +6,7 @@ PaginatedResponse body ({data, meta}) instead of a bare list, so the ops UI
 can page the table and reuse the shared pagination components.
 """
 
+import asyncio
 from types import SimpleNamespace
 
 import pytest
@@ -102,6 +103,39 @@ class TestListJobsPagination:
         body = resp.json()
         assert {job["id"] for job in body["data"]} == {"j0", "j1"}
         assert body["meta"]["total_count"] == 2
+
+    def test_user_filter(self, harness):
+        seed(harness.store, "j0", user_id="u1")
+        seed(harness.store, "j1", user_id="u2")
+
+        resp = harness.client.get("/queue/jobs", params={"user_id": "u1"})
+        assert resp.status_code == 200
+        assert [job["id"] for job in resp.json()["data"]] == ["j0"]
+
+    def test_empty_session_or_user_filter_rejected(self, harness):
+        assert harness.client.get("/queue/jobs", params={"session_id": ""}).status_code == 400
+        assert harness.client.get("/queue/jobs", params={"user_id": ""}).status_code == 400
+
+    def test_store_on_the_older_list_jobs_signature_still_lists(self, harness):
+        class LegacyStore(InMemoryQueueStore):
+            async def list_jobs(self, status=None, limit=20, page=1, sort_by="created_at", sort_order="desc"):
+                return await super().list_jobs(status, limit, page, sort_by, sort_order)
+
+        legacy = LegacyStore()
+        seed(legacy, "j0")
+        harness.client.app.state.queue_worker.store = legacy
+
+        resp = harness.client.get("/queue/jobs")
+        assert resp.status_code == 200
+        assert [job["id"] for job in resp.json()["data"]] == ["j0"]
+
+    def test_positional_pagination_args_are_not_read_as_filters(self, harness):
+        for i in range(3):
+            seed(harness.store, f"j{i}", status="failed", created_at=1000 + i, session_id=f"s{i}")
+
+        jobs, total = asyncio.run(harness.store.list_jobs("failed", 2, 1))
+        assert total == 3
+        assert [job["id"] for job in jobs] == ["j2", "j1"]
 
     def test_invalid_params_rejected(self, harness):
         assert harness.client.get("/queue/jobs", params={"status": "bogus"}).status_code == 400

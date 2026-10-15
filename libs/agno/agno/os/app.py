@@ -641,7 +641,7 @@ class AgentOS:
             if self.registry is None:
                 self.registry = Registry()
             self._manager = _build_manager(self, manager_config)
-            self.agents = [*(self.agents or []), *self._manager.agents]
+            self.agents = list(self.agents or [])
             self.teams = [*(self.teams or []), self._manager.team]
             self._apply_manager_manifest()
 
@@ -680,7 +680,7 @@ class AgentOS:
         return self._manager.team if self._manager is not None else None
 
     def _owned_by_manager(self, component: Any) -> bool:
-        """True for the manager's team and members; they are served but never enter the registry."""
+        """True for the manager's team and members, which never enter the registry."""
         return (getattr(component, "_registry_excluded", False) is True) or (
             self._manager is not None and self._manager.owns(component)
         )
@@ -688,12 +688,13 @@ class AgentOS:
     def _apply_manager_manifest(self) -> None:
         """Set default UI descriptions and prompts without replacing application settings."""
         from agno.os.config import AgentOSConfig
+        from agno.registry._reserved import RESERVED_MEMBER_IDS
 
         if self._manager is None:
             return
         if self.config is None:
             self.config = AgentOSConfig()
-        manifest = dict(self.config.manifest or {})
+        manifest = {key: value for key, value in (self.config.manifest or {}).items() if key not in RESERVED_MEMBER_IDS}
         for component_id, entry in self._manager.manifest().items():
             manifest.setdefault(component_id, entry)
         self.config.manifest = manifest
@@ -1072,7 +1073,9 @@ class AgentOS:
                     entry.db = self.db
                 entry.store_events = True
 
-        if not self._agents:
+        # Manager specialists need normal initialization, but are not served agents.
+        agents_to_initialize = [*self._agents, *(self._manager.agents if self._manager else [])]
+        if not agents_to_initialize:
             return
 
         from agno.agent import _init as agent_init
@@ -1087,7 +1090,7 @@ class AgentOS:
                 and self.authorization_config.user_isolation
             )
         )
-        for agent in self._agents:
+        for agent in agents_to_initialize:
             # Set the default db to agents without their own
             if self.db is not None and agent.db is None:
                 agent.db = self.db

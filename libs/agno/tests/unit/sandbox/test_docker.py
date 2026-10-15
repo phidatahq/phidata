@@ -537,6 +537,116 @@ class ServedDocker(FakeDocker):
         return httpx.AsyncClient(transport=httpx.MockTransport(handler))
 
 
+def test_sync_calls_close_their_http_client_and_leave_no_cache(monkeypatch):
+    import httpx
+
+    clients = []
+    real_client = httpx.AsyncClient
+
+    def client(**kwargs):
+        transport = httpx.MockTransport(lambda request: httpx.Response(200, json={"ok": True}))
+        clients.append(real_client(transport=transport, **kwargs))
+        return clients[-1]
+
+    monkeypatch.setattr(httpx, "AsyncClient", client)
+    sandbox = ServedDocker()
+    monkeypatch.setattr(sandbox, "_http_client", lambda: DockerSandbox._http_client(sandbox))
+    handle = sandbox.create("session")
+    for _ in range(3):
+        assert sandbox.rpc(handle, "poll", b'{"execution_id": "e", "cursor": 0}').exit_code == 0
+    assert len(clients) == 4
+    assert all(item.is_closed for item in clients)
+    assert not sandbox._http
+
+
+def test_concurrent_sync_calls_share_the_client_cache_safely(monkeypatch):
+    from concurrent.futures import ThreadPoolExecutor
+
+    import httpx
+
+    real_client = httpx.AsyncClient
+
+    def client(**kwargs):
+        transport = httpx.MockTransport(lambda request: httpx.Response(200, json={"ok": True}))
+        return real_client(transport=transport, **kwargs)
+
+    monkeypatch.setattr(httpx, "AsyncClient", client)
+    sandbox = ServedDocker()
+    monkeypatch.setattr(sandbox, "_http_client", lambda: DockerSandbox._http_client(sandbox))
+    handle = sandbox.create("session")
+
+    def calls(_):
+        for _ in range(100):
+            sandbox.rpc(handle, "poll", b'{"execution_id": "e", "cursor": 0}')
+
+    # Switch threads often so pruning and closers interleave.
+    interval = sys.getswitchinterval()
+    sys.setswitchinterval(1e-6)
+    try:
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            list(pool.map(calls, range(8)))
+    finally:
+        sys.setswitchinterval(interval)
+    assert not sandbox._http
+
+
+@pytest.mark.parametrize("order", ["close then reuse", "close then discard", "discard then close"])
+def test_a_loop_closed_without_cancelling_tasks_does_not_retain_its_closer(order):
+    import gc
+    import weakref
+
+    sandbox = ServedDocker()
+    loop = asyncio.new_event_loop()
+
+    async def client(owner):
+        DockerSandbox._http_client(owner)
+        await asyncio.sleep(0)
+
+    loop.run_until_complete(client(sandbox))
+    closer = weakref.ref(sandbox._http[loop][1])
+    if order == "discard then close":
+        del sandbox
+        gc.collect()
+        loop.close()
+    else:
+        loop.close()
+        if order == "close then reuse":
+            asyncio.run(client(sandbox))
+        else:
+            del sandbox
+    gc.collect()
+    assert closer() is None
+
+
+@pytest.mark.asyncio
+async def test_a_running_loop_reuses_one_http_client(monkeypatch):
+    sandbox = ServedDocker()
+    first = DockerSandbox._http_client(sandbox)
+    assert DockerSandbox._http_client(sandbox) is first
+    assert list(sandbox._http) == [asyncio.get_running_loop()]
+
+
+@pytest.mark.asyncio
+async def test_a_discarded_sandbox_closes_its_client_on_a_running_loop():
+    import gc
+
+    loop = asyncio.get_running_loop()
+    errors = []
+    loop.set_exception_handler(lambda _, context: errors.append(context["message"]))
+    try:
+        sandbox = ServedDocker()
+        client = DockerSandbox._http_client(sandbox)
+        await asyncio.sleep(0)
+        del sandbox
+        gc.collect()
+        for _ in range(5):
+            await asyncio.sleep(0)
+    finally:
+        loop.set_exception_handler(None)
+    assert errors == []
+    assert client.is_closed
+
+
 def _create_args(provider):
     return next(call[0] for call in provider.calls if call[0][:2] == ("container", "create"))
 

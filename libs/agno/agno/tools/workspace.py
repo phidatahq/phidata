@@ -665,6 +665,9 @@ class Workspace(Toolkit):
         :return: Line-numbered file contents (or selected range), or an error message
             starting with "Error".
         """
+        return self._read_file(path, start_line, end_line, encoding)
+
+    def _read_file(self, path: str, start_line: Optional[int], end_line: Optional[int], encoding: str) -> str:
         try:
             log_debug(f"read_file: {path}")
             err, file_path = self._resolve(path)
@@ -728,6 +731,9 @@ class Workspace(Toolkit):
         :return: JSON string with keys ``directory``, ``pattern``, ``recursive``, and
             ``files`` (list of entry objects).
         """
+        return self._list_files(directory, pattern, recursive, max_depth)
+
+    def _list_files(self, directory: str, pattern: Optional[str], recursive: bool, max_depth: int) -> str:
         try:
             err, d = self._resolve(directory, what="directory")
             if err:
@@ -804,6 +810,9 @@ class Workspace(Toolkit):
         :return: JSON string with keys ``query``, ``matches_found``, and ``files`` (a list of
             ``{"file", "size", "snippet"}`` objects).
         """
+        return self._search_content(query, directory, limit)
+
+    def _search_content(self, query: str, directory: str, limit: int) -> str:
         try:
             if not query or not query.strip():
                 return "Error: query cannot be empty"
@@ -1066,7 +1075,7 @@ class Workspace(Toolkit):
         encoding: str = "utf-8",
     ) -> str:
         """Async variant of ``read_file``."""
-        return await asyncio.to_thread(self.read_file, path, start_line, end_line, encoding)
+        return await asyncio.to_thread(self._read_file, path, start_line, end_line, encoding)
 
     @requires_permission("filesystem", "read")
     async def alist_files(
@@ -1077,12 +1086,12 @@ class Workspace(Toolkit):
         max_depth: int = 3,
     ) -> str:
         """Async variant of ``list_files``."""
-        return await asyncio.to_thread(self.list_files, directory, pattern, recursive, max_depth)
+        return await asyncio.to_thread(self._list_files, directory, pattern, recursive, max_depth)
 
     @requires_permission("filesystem", "read")
     async def asearch_content(self, query: str, directory: str = ".", limit: int = 10) -> str:
         """Async variant of ``search_content``."""
-        return await asyncio.to_thread(self.search_content, query, directory, limit)
+        return await asyncio.to_thread(self._search_content, query, directory, limit)
 
     async def awrite_file(self, path: str, content: str, overwrite: bool = True, encoding: str = "utf-8") -> str:
         """Async variant of ``write_file``."""

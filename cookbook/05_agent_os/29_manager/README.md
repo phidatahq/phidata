@@ -270,3 +270,10 @@ schedules and report WARN if the scan is incomplete or an overdue schedule is fo
 To probe MCP, pass `network_probe=True, public_url="https://your-os.example"`.
 Use the OS base URL, including any proxy path prefix; the probe appends the
 configured MCP path or uses `/` on the configured MCP root host.
+
+### Editing scheduled runs
+
+Changing a schedule's timing or description through the REST API preserves its
+saved execution identity. Changing its endpoint, method or payload requires the
+editor to have permission to run the target and saves that editor's authority.
+To refresh captured token-scope grants, update the payload as an authorized caller.

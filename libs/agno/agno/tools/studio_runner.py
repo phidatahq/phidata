@@ -3061,7 +3061,7 @@ class StudioRunnerTools(Toolkit):
                 sibling list tools before concluding a component does not
                 exist).
         """
-        return await asyncio.to_thread(self.list_agents, _agno_run_context=_agno_run_context)
+        return await self._alist_authorized("agent", "agents", _agno_run_context)
 
     @requires_permission()
     async def alist_teams(self, _agno_run_context: Optional[RunContext] = None) -> str:
@@ -3082,7 +3082,7 @@ class StudioRunnerTools(Toolkit):
                 sibling list tools before concluding a component does not
                 exist).
         """
-        return await asyncio.to_thread(self.list_teams, _agno_run_context=_agno_run_context)
+        return await self._alist_authorized("team", "teams", _agno_run_context)
 
     @requires_permission()
     async def alist_workflows(self, _agno_run_context: Optional[RunContext] = None) -> str:
@@ -3103,7 +3103,30 @@ class StudioRunnerTools(Toolkit):
                 sibling list tools before concluding a component does not
                 exist).
         """
-        return await asyncio.to_thread(self.list_workflows, _agno_run_context=_agno_run_context)
+        return await self._alist_authorized("workflow", "workflows", _agno_run_context)
+
+    async def _alist_authorized(self, component_type: str, family: str, run_context: Optional[RunContext]) -> str:
+        from dataclasses import replace
+
+        payload = await asyncio.to_thread(
+            self._list_payload, component_type, family, actor=getattr(run_context, "user_id", None)
+        )
+        authority = authorization_for(run_context)
+        if authority is None:
+            return payload
+        data = json.loads(payload)
+        if family in data:
+            visible = [
+                item
+                for item in data[family]
+                if await authority.provider.acheck(
+                    replace(authority.context, resource_type=family, resource_id=item["id"], action="read")
+                )
+            ]
+            data[family] = visible
+            data["count"] = data["total"] = len(visible)
+            data.pop("other_components", None)
+        return json.dumps(data)
 
     # ------------------------------------------------------------------
     # Result shaping

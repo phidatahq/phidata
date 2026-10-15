@@ -1034,3 +1034,141 @@ def test_authorization_scope_preserves_post_hook_result_mutations(use_async, man
         assert outcome.status == "success"
         assert outcome.result == "entrypoint result"
         assert call.result == "post-hook result"
+
+
+@pytest.mark.parametrize("changes", [{"cron_expr": "0 1 * * *"}, {"description": "Updated description"}])
+def test_schedule_metadata_edit_preserves_execution_authority(tmp_path, changes):
+    from agno.db.schemas.scheduler import Schedule
+    from agno.scheduler.executor import ScheduleExecutor
+
+    db = SqliteDb(db_file=str(tmp_path / "schedules.db"))
+    target = Agent(id="scheduled", model=ScriptedModel(), telemetry=False)
+    os = AgentOS(
+        db=db,
+        agents=[target],
+        telemetry=False,
+        authorization=Authorization(verification_keys=[SECRET], algorithm="HS256", audience="test"),
+    )
+    app = os.get_app()
+    app.state.internal_service_token = "internal-test-token"
+    client = TestClient(app)
+    created = client.post(
+        "/schedules",
+        headers=headers(["agent_os:admin"]),
+        json={
+            "name": "scheduled",
+            "cron_expr": "0 0 * * *",
+            "endpoint": "/agents/scheduled/runs",
+            "payload": {"message": "run"},
+        },
+    )
+    assert created.status_code == 201, created.text
+    schedule_id = created.json()["id"]
+    original_payload = db.get_schedule(schedule_id)["payload"]
+    edited = client.patch("/schedules/" + schedule_id, headers=headers(["schedules:write"]), json=changes)
+    assert edited.status_code == 200, edited.text
+    saved = db.get_schedule(schedule_id)
+    assert saved["payload"] == original_payload
+    assert AUTHORIZATION_KEY not in edited.json()["payload"]
+
+    executor = ScheduleExecutor(base_url="http://testserver", internal_service_token="internal-test-token")
+    captured = {}
+
+    async def fake_background(http_client, url, request_headers, data, *args, **kwargs):
+        captured.update(headers=request_headers, data=data)
+        return {}
+
+    executor._background_run = fake_background
+    executor._get_client = AsyncMock(return_value=object())
+    asyncio.run(executor._call_endpoint(Schedule.from_dict(saved)))
+    response = client.post(
+        saved["endpoint"],
+        headers=captured["headers"],
+        data={**captured["data"], "stream": "false", "background": "false"},
+    )
+    assert response.status_code == 200, response.text
+    assert "allowed target ran" in response.text
+
+    # Executable edits must still be checked and must not retain the admin's authority.
+    for execution_change in (
+        {"endpoint": "/agents/scheduled/runs"},
+        {"method": "POST"},
+        {"payload": {"message": "changed", AUTHORIZATION_KEY: original_payload[AUTHORIZATION_KEY]}},
+    ):
+        denied = client.patch("/schedules/" + schedule_id, headers=headers(["schedules:write"]), json=execution_change)
+        assert denied.status_code == 403, denied.text
+        assert db.get_schedule(schedule_id)["payload"] == original_payload
+
+    allowed = client.patch(
+        "/schedules/" + schedule_id,
+        headers=headers(["schedules:write", "agents:scheduled:run"]),
+        json={"payload": {"message": "changed", AUTHORIZATION_KEY: original_payload[AUTHORIZATION_KEY]}},
+    )
+    assert allowed.status_code == 200, allowed.text
+    snapshot = db.get_schedule(schedule_id)["payload"][AUTHORIZATION_KEY]
+    assert snapshot["context"]["scopes"] == ["schedules:write", "agents:scheduled:run"]
+
+
+@pytest.mark.parametrize(
+    "tool,arguments,component_id,permission,expected",
+    [
+        ("list_agents", {}, MANAGER_TEAM_ID, "agents:visible:read", "visible"),
+        ("list_teams", {}, MANAGER_TEAM_ID, "teams:visible:read", "visible"),
+        ("list_workflows", {}, MANAGER_TEAM_ID, "workflows:visible:read", "visible"),
+        ("read_file", {"path": "public.txt"}, OPERATOR_ID, "filesystem:read", "source content"),
+        ("list_files", {}, OPERATOR_ID, "filesystem:read", "public.txt"),
+        ("search_content", {"query": "source content"}, OPERATOR_ID, "filesystem:read", "public.txt"),
+    ],
+)
+@pytest.mark.parametrize("allowed", [True, False])
+def test_manager_tools_with_async_managed_roles(tmp_path, tool, arguments, component_id, permission, expected, allowed):
+    from agno.db.sqlite import AsyncSqliteDb
+    from agno.os.authz.native_engine import NativePolicyEngine
+    from agno.team import Team
+    from agno.workflow import Workflow
+
+    (tmp_path / "public.txt").write_text("source content")
+    policy_db = AsyncSqliteDb(db_file=str(tmp_path / "policy.db"))
+    engine = NativePolicyEngine(db=policy_db)
+    family = "teams" if component_id == MANAGER_TEAM_ID else "agents"
+    scopes = [(f"{family}:{component_id}:run", "allow")]
+    if allowed:
+        scopes.append((permission, "allow"))
+
+    async def seed():
+        await engine.aset_role_scopes("reader", scopes)
+        await engine.aassign("alice", "reader")
+
+    asyncio.run(seed())
+    visible = Agent(id="visible", model=ScriptedModel(), telemetry=False)
+    hidden = Agent(id="hidden", model=ScriptedModel(), telemetry=False)
+    visible_team = Team(id="visible", members=[visible], model=ScriptedModel(), telemetry=False)
+    hidden_team = Team(id="hidden", members=[hidden], model=ScriptedModel(), telemetry=False)
+    os = AgentOS(
+        db=SqliteDb(db_file=str(tmp_path / "runs.db")),
+        agents=[visible, hidden],
+        teams=[visible_team, hidden_team],
+        workflows=[Workflow(id="visible", steps=[visible]), Workflow(id="hidden", steps=[hidden])],
+        manager=OSManager(model=ScriptedModel(tool, arguments), root=tmp_path, access_docs=False),
+        telemetry=False,
+        authorization=Authorization(
+            verification_keys=[SECRET], algorithm="HS256", audience="test", db=policy_db, roles_claim="roles"
+        ),
+    )
+    response = TestClient(os.get_app()).post(
+        f"/{family}/{component_id}/runs", headers=headers([]), data={"message": "run", "stream": "false"}
+    )
+    assert response.status_code == 200, response.text
+    content = response.json()["content"]
+    assert "synchronously against an async database" not in content
+    if tool.startswith("list_") and component_id == MANAGER_TEAM_ID:
+        listing_family = tool.removeprefix("list_")
+        listing = json.loads(content)
+        assert [item["id"] for item in listing[listing_family]] == (["visible"] if allowed else [])
+        assert listing["count"] == listing["total"] == int(allowed)
+        assert "other_components" not in listing
+    elif allowed:
+        assert expected in content
+    else:
+        assert "Permission required: filesystem:read" in content
+        assert "source content" not in content

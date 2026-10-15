@@ -516,3 +516,27 @@ The broader count includes the focused tests; counts are not additive. Three
 unrelated Telegram files were excluded for their missing optional dependency.
 
 ---
+
+
+## Final review corrections, 2026-10-15
+
+### Schedule edits and async manager authorization
+
+**Status:** PASS
+
+**Description:** Added 14 model-free HTTP regression cases for schedule timing
+and description edits, subsequent scheduled execution, checked execution edits,
+forged authority rejection, and manager discovery/source reads with an
+`AsyncSqliteDb` managed-role store. Discovery covers agents, teams and workflows;
+source operations cover reading, listing and searching. Allowed and denied
+callers are both exercised.
+
+**Result:** The pre-fix revision `1938e9dcd2` fails 11 of these cases; all 14 pass
+with the fixes. Affected manager, authorization, schedule router, scheduler,
+workspace and runner suites: **1,155 passed, 1 skipped**. This includes the actual
+regular-user cookbook's seven HTTP checks and session-history regression.
+Required format and validation scripts passed, including mypy for 1,126 framework
+and 21 CLI files. Tests use disposable data and scripted models; no live model,
+PostgreSQL or hosted docs requests were made.
+
+---

@@ -316,7 +316,8 @@ def get_schedule_router(
 
         # Re-check when the target changes, so a schedule can't be repointed at a component
         # the caller may not run.
-        if "endpoint" in updates or "method" in updates or "payload" in updates:
+        execution_changed = any(key in updates for key in ("endpoint", "method", "payload"))
+        if execution_changed:
             _require_endpoint_permission(
                 request,
                 updates.get("endpoint", existing["endpoint"]),
@@ -371,7 +372,10 @@ def get_schedule_router(
             if dup is not None:
                 raise HTTPException(status_code=409, detail=f"Schedule with name '{updates['name']}' already exists")
 
-        updates["payload"] = stamp_authorization(updates.get("payload", existing.get("payload")))
+        # Timing and descriptive edits must not replace the saved execution identity.
+        # Only changes checked against the target above acquire the editor's authority.
+        if execution_changed:
+            updates["payload"] = stamp_authorization(updates.get("payload", existing.get("payload")))
         try:
             result = await _db_call("update_schedule", schedule_id, user_id=scoped_user_id, **updates)
         except Exception as e:

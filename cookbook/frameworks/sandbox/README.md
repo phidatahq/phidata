@@ -274,3 +274,9 @@ sandbox provider's environment. Credentials are never stored in the repository U
 or source marker; Git errors are redacted. Branch resolution, Task acceptance and
 human completion review belong to Company. This runtime does not create PRs, merge
 or deploy. The prepared application's toolchain belongs in the trusted runtime image.
+
+## Shared text inputs and outputs
+
+Pass `workspace_files={"brief.md": "The work to do"}` to a sandboxed Codex or Claude run. The runtime materializes these inputs in `/workspace/context`, refreshes them from the submitted snapshot on each turn, and collects UTF-8 files written under `/workspace/output`. Each direction is limited to 100 files and 250 KB total. Output symlinks, hardlinks, special files and binary data are rejected. Inputs are reference data, not instructions to expand permissions.
+
+Outputs are retained in the host run's `metadata["sandbox"]["native_metadata"]["_workspace_outputs"]` after durable checkpoint publication. The checkpoint also retains the workspace. Company imports those outputs into its permission-checked shared storage. Credentials and permission decisions remain on the host.

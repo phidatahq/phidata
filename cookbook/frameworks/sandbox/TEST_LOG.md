@@ -322,3 +322,13 @@ checkpoint restore. Model-generated application changes remain a separate pilot.
 **Result:** Passed. The background turn COMPLETED with a checkpoint on the run row; the streamed turn returned four events ending in RunCompleted with the file name from turn 1; no containers were left running and the server log had no errors.
 
 ---
+
+### Workspace files — October 15, 2026
+
+**Status:** PASS
+
+**Description:** Ten unit tests cover bounded inputs, materialization, replay, output link/binary/size rejection and both adapters. Combined Company tests used a freshly built Docker runtime.
+
+**Result:** 702 combined tests passed and two separate real-Docker fixture cases passed through Codex and Claude adapter paths. Both replaced the container, recovered the original input snapshot and persisted outputs. No live model calls; repository publication and hosted deployment are not covered. Formatting and validation scripts passed.
+
+---

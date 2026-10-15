@@ -192,7 +192,7 @@ def submission(agent: "BaseExternalAgent", input: Any, kwargs: Dict[str, Any]) -
     extra = {key: value for key, value in kwargs.items() if value is not None}
     for key in ("run_id", "session_id", "user_id", "yield_run_output", "stream_events", "background_tasks"):
         extra.pop(key, None)
-    unknown = set(extra) - {"output_schema", "repository"}
+    unknown = set(extra) - {"output_schema", "repository", "workspace_files"}
     if unknown:
         raise ValueError("Unsupported sandbox run options: " + ", ".join(sorted(unknown)))
     schema = extra.get("output_schema", agent.output_schema)
@@ -204,6 +204,10 @@ def submission(agent: "BaseExternalAgent", input: Any, kwargs: Dict[str, Any]) -
         from agno.sandbox.repository import validate_repository
 
         config["_repository"] = validate_repository(extra["repository"])
+    if "workspace_files" in extra:
+        from agno.sandbox.files import validate_files
+
+        config["_workspace_files"] = validate_files(extra["workspace_files"])
     runtime = agent._sandbox_runtime
     validate_request(
         dict(

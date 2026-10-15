@@ -1,4 +1,5 @@
 import json
+import socket
 from unittest.mock import patch
 
 import httpx
@@ -32,10 +33,23 @@ FETCH_BODY = {
 }
 
 
+PUBLIC_IP = "93.184.215.14"
+
+
+def _addrinfo(*ips):
+    return [(socket.AF_INET6 if ":" in ip else socket.AF_INET, socket.SOCK_STREAM, 6, "", (ip, 0)) for ip in ips]
+
+
 @pytest.fixture(autouse=True)
 def clear_env(monkeypatch):
     monkeypatch.delenv("KEENABLE_API_KEY", raising=False)
     monkeypatch.delenv("KEENABLE_API_URL", raising=False)
+
+
+@pytest.fixture(autouse=True)
+def resolve_public(monkeypatch):
+    """Resolve every hostname to a public address, so no test does a real DNS lookup."""
+    monkeypatch.setattr("agno.tools.keenable.socket.getaddrinfo", lambda *args, **kwargs: _addrinfo(PUBLIC_IP))
 
 
 def _response(status_code=200, body=None):
@@ -218,6 +232,71 @@ def test_fetch_rejects_private_targets(url):
 
     assert "private/internal host" in output
     mock_get.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "ips",
+    [
+        ("10.0.0.7",),
+        ("127.0.0.1",),
+        ("169.254.169.254",),
+        ("100.64.0.1",),
+        ("fd00::1",),
+        ("::ffff:10.0.0.7",),
+        (PUBLIC_IP, "10.0.0.7"),
+    ],
+)
+def test_fetch_rejects_hostnames_that_resolve_to_internal_addresses(monkeypatch, ips):
+    """An internal DNS name must not leave the machine, even though it is not an IP literal."""
+    monkeypatch.setattr("agno.tools.keenable.socket.getaddrinfo", lambda *args, **kwargs: _addrinfo(*ips))
+    with patch("agno.tools.keenable.httpx.get") as mock_get:
+        output = KeenableTools(enable_fetch=True).fetch_url_content("https://vault.service.consul/v1/secrets")
+
+    assert "private/internal host: 'vault.service.consul'" in output
+    mock_get.assert_not_called()
+
+
+def test_fetch_rejects_unresolvable_hostnames(monkeypatch):
+    def _fail(*args, **kwargs):
+        raise socket.gaierror(socket.EAI_NONAME, "Name or service not known")
+
+    monkeypatch.setattr("agno.tools.keenable.socket.getaddrinfo", _fail)
+    with patch("agno.tools.keenable.httpx.get") as mock_get:
+        output = KeenableTools(enable_fetch=True).fetch_url_content("https://jenkins.corp/job/deploy")
+
+    assert "could not resolve host 'jenkins.corp'" in output
+    mock_get.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://printer.local/status",
+        "https://grafana.internal/d/abc",
+        "http://router.home.arpa/",
+        "http://app.localhost:3000/",
+        "http://localhost./admin",
+        "http://[::ffff:127.0.0.1]/",
+        "http://[::1",
+    ],
+)
+def test_fetch_rejects_special_use_and_malformed_hosts(monkeypatch, url):
+    def _no_lookup(*args, **kwargs):
+        raise AssertionError("special-use names must be refused without a DNS lookup")
+
+    monkeypatch.setattr("agno.tools.keenable.socket.getaddrinfo", _no_lookup)
+    with patch("agno.tools.keenable.httpx.get") as mock_get:
+        output = KeenableTools(enable_fetch=True).fetch_url_content(url)
+
+    assert output.startswith("Error: refusing to fetch")
+    mock_get.assert_not_called()
+
+
+def test_fetch_allows_public_hostnames():
+    with patch("agno.tools.keenable.httpx.get", return_value=_response(body=FETCH_BODY)) as mock_get:
+        KeenableTools(enable_fetch=True).fetch_url_content("https://docs.agno.com/introduction")
+
+    mock_get.assert_called_once()
 
 
 def test_fetch_reports_empty_content():

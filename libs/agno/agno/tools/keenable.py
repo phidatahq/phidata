@@ -1,7 +1,8 @@
 import ipaddress
 import json
+import socket
 from os import getenv
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional, Union
 from urllib.parse import urlsplit
 
 import httpx
@@ -14,6 +15,10 @@ DEFAULT_BASE_URL = "https://api.keenable.ai"
 # Keenable's documented search mode. Kept internal rather than exposed as a
 # parameter, since "pro" is the mode this toolkit is built around.
 SEARCH_MODE = "pro"
+
+# Special-use names that never resolve on the public internet: RFC 6761 (.localhost),
+# RFC 6762 (.local), RFC 8375 (.home.arpa) and the private-use .internal TLD.
+INTERNAL_HOST_SUFFIXES = (".localhost", ".local", ".internal", ".home.arpa")
 
 
 class KeenableTools(Toolkit):
@@ -151,12 +156,9 @@ class KeenableTools(Toolkit):
         Returns:
             str: The page content as markdown, prefixed with its title.
         """
-        if not url.lower().startswith(("http://", "https://")):
-            return f"Error: refusing to fetch a non-http(s) URL: {url!r}"
-
-        private_target = self._private_target(url)
-        if private_target:
-            return f"Error: refusing to fetch a private/internal host: {private_target!r}"
+        target_error = self._fetch_target_error(url)
+        if target_error:
+            return target_error
 
         try:
             endpoint = f"{self._resolved_base_url()}{self._path('/v1/fetch/public', '/v1/fetch')}"
@@ -228,31 +230,41 @@ class KeenableTools(Toolkit):
         return headers
 
     @staticmethod
-    def _private_target(url: str) -> Optional[str]:
-        """Return the host if it is an obviously private/internal fetch target.
+    def _fetch_target_error(url: str) -> Optional[str]:
+        """Return why ``url`` must not be sent to the fetch API, or None if it may be.
 
-        The Keenable backend enforces this server-side as well; checking here avoids
-        sending an internal hostname off the machine in the first place. Hostnames
-        that are not IP literals are passed through for the backend to judge.
+        The fetch request carries the full URL to Keenable, so a URL that names an
+        internal host would disclose that host and its path. The hostname is resolved
+        locally, and the URL is refused if any address it resolves to is not public
+        (loopback, private, link-local, reserved, multicast or unspecified). A hostname
+        that does not resolve is refused as well, since it cannot be shown to be public.
+        The Keenable backend applies its own checks to the URLs it fetches.
         """
-        host = (urlsplit(url).hostname or "").strip().lower()
-        if not host:
-            return url
-        if host in {"localhost", "metadata.google.internal"}:
-            return host
+        if not url.lower().startswith(("http://", "https://")):
+            return f"Error: refusing to fetch a non-http(s) URL: {url!r}"
+
         try:
-            ip = ipaddress.ip_address(host)
+            host = (urlsplit(url).hostname or "").strip().lower().rstrip(".")
         except ValueError:
-            return None
-        if (
-            ip.is_loopback
-            or ip.is_private
-            or ip.is_link_local
-            or ip.is_reserved
-            or ip.is_multicast
-            or ip.is_unspecified
-        ):
-            return host
+            host = ""
+        if not host:
+            return f"Error: refusing to fetch a URL without a valid host: {url!r}"
+        if host == "localhost" or host.endswith(INTERNAL_HOST_SUFFIXES):
+            return f"Error: refusing to fetch a private/internal host: {host!r}"
+
+        addresses: List[Union[ipaddress.IPv4Address, ipaddress.IPv6Address]]
+        try:
+            addresses = [ipaddress.ip_address(host)]
+        except ValueError:
+            try:
+                infos = socket.getaddrinfo(host, None, proto=socket.IPPROTO_TCP)
+                # Drop any IPv6 zone index ("fe80::1%eth0") before parsing.
+                addresses = [ipaddress.ip_address(str(info[4][0]).split("%")[0]) for info in infos]
+            except (OSError, UnicodeError, ValueError) as e:
+                return f"Error: could not resolve host {host!r}, so the URL was not sent for fetching: {e}"
+
+        if not addresses or any(_is_internal_address(address) for address in addresses):
+            return f"Error: refusing to fetch a private/internal host: {host!r}"
         return None
 
     @staticmethod
@@ -275,3 +287,18 @@ class KeenableTools(Toolkit):
             429: "Keenable rate limit exceeded (429)",
         }.get(response.status_code, f"Keenable API error ({response.status_code})")
         return f"{label}: {detail}" if detail else label
+
+
+def _is_internal_address(address: Union[ipaddress.IPv4Address, ipaddress.IPv6Address]) -> bool:
+    """Return True for any address that is not a public unicast address."""
+    if isinstance(address, ipaddress.IPv6Address) and address.ipv4_mapped is not None:
+        address = address.ipv4_mapped
+    return (
+        address.is_loopback
+        or address.is_private
+        or address.is_link_local
+        or address.is_reserved
+        or address.is_multicast
+        or address.is_unspecified
+        or not address.is_global
+    )

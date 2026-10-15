@@ -20,7 +20,7 @@ from agno.sandbox.postgres import (
     _SandboxStore,
 )
 from agno.session import AgentSession
-from sqlalchemy import delete, event, func, select, text, update
+from sqlalchemy import create_engine, delete, event, func, select, text, update
 
 URL = os.environ.get("AGNO_TEST_SANDBOX_DB_URL")
 pytestmark = [pytest.mark.asyncio, pytest.mark.skipif(not URL, reason="Set AGNO_TEST_SANDBOX_DB_URL")]
@@ -696,6 +696,56 @@ async def test_bindings_table_without_its_key_is_refused(store):
         )
     try:
         with pytest.raises(SandboxError, match="key"):
+            await store._ensure_tables()
+    finally:
+        with store.db.db_engine.begin() as connection:
+            connection.execute(text(f'DROP TABLE "{home}"."{b}"'))
+        store.db._invalidate_table_cache(b)
+
+
+async def test_store_operation_does_not_wait_for_an_ordinary_session_update(store):
+    await seed(store)
+    state = await claim(store)
+    engine = create_engine(URL)
+    writer = await asyncio.to_thread(engine.connect)
+    transaction = await asyncio.to_thread(writer.begin)
+    # An ordinary non-key session write, held open; KEY SHARE must not conflict with it.
+    await asyncio.to_thread(
+        lambda: writer.execute(
+            store.sessions.update().where(store.sessions.c.session_id == "session").values(updated_at=2)
+        )
+    )
+    try:
+        operation = asyncio.create_task(store.aget(state.lease))
+        await asyncio.sleep(1)
+        finished_while_held = operation.done()
+    finally:
+        await asyncio.to_thread(transaction.commit)
+        await asyncio.to_thread(writer.close)
+        engine.dispose()
+    assert (await operation).lease == state.lease
+    assert finished_while_held
+
+
+async def test_bindings_table_cascading_run_deletes_is_refused(store):
+    if isinstance(store.db, AsyncPostgresDb):
+        pytest.skip("Table setup uses the sync engine")
+    sessions = await store._table("sessions", store.db.session_table_name)
+    runs = await store._table("runs", store.db.runs_table_name)
+    b, home = store.db.sandbox_table_name, store.db.db_schema
+    # Correct key and targets, but deleting a run would silently remove the binding of its active turn.
+    with store.db.db_engine.begin() as connection:
+        connection.execute(
+            text(
+                f'CREATE TABLE "{home}"."{b}" (namespace varchar NOT NULL, session_id varchar NOT NULL '
+                f'REFERENCES "{home}"."{sessions.name}" (session_id) ON DELETE CASCADE, agent_id varchar NOT NULL, '
+                f'user_id varchar, epoch bigint NOT NULL, owner varchar, run_id varchar REFERENCES "{home}"."{runs.name}" '
+                "(run_id) ON DELETE CASCADE, queue_attempt bigint, expires_at timestamptz, record jsonb NOT NULL, "
+                "PRIMARY KEY (namespace, session_id))"
+            )
+        )
+    try:
+        with pytest.raises(SandboxError, match="cascade"):
             await store._ensure_tables()
     finally:
         with store.db.db_engine.begin() as connection:

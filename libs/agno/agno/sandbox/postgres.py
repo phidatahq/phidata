@@ -191,6 +191,12 @@ class _SandboxStore:
             raise SandboxError(
                 f"Sandbox table {self.bindings.name} does not reference run table {qualified(self.runs)}"
             )
+        # Without cascade, deleting the run an active turn holds is refused instead of dropping its binding.
+        if {(key.ondelete or "NO ACTION").upper() for key in self.bindings.c.run_id.foreign_keys} - {
+            "NO ACTION",
+            "RESTRICT",
+        }:
+            raise SandboxError(f"Sandbox table {self.bindings.name} must not cascade deletes from the run table")
         # The claim's ON CONFLICT relies on this key; without it two first claims could both own a session.
         if {column.name for column in self.bindings.primary_key.columns} != {"namespace", "session_id"}:
             raise SandboxError(f"Sandbox table {self.bindings.name} must have the primary key (namespace, session_id)")
@@ -234,7 +240,11 @@ class _SandboxStore:
             raise SandboxLeaseLost("A different queue attempt owns this service run")
         # Keep the core adapter's run -> session lock order.
         query = select(self.sessions).where(self.sessions.c.session_id == lease.session_id)
-        session = connection.execute(query.with_for_update() if lock else query).mappings().one_or_none()
+        # KEY SHARE keeps the session from being deleted or re-keyed without waiting on ordinary
+        # session writes; a commit's own session update takes its row lock when it writes.
+        if lock:
+            query = query.with_for_update(read=True, key_share=True)
+        session = connection.execute(query).mappings().one_or_none()
         if session is None or session["agent_id"] != lease.agent_id or session["user_id"] != lease.user_id:
             raise SandboxLeaseLost("Service session ownership does not match the sandbox lease")
         return row, session
@@ -245,7 +255,8 @@ class _SandboxStore:
         connection.execute(
             select(self.sessions.c.session_id)
             .where(self.sessions.c.session_id == session_id)
-            .with_for_update(key_share=True)
+            # read=True is what makes this FOR KEY SHARE; key_share alone renders FOR NO KEY UPDATE.
+            .with_for_update(read=True, key_share=True)
         )
 
     def _lock_run(self, connection: Connection, run_id: str) -> None:

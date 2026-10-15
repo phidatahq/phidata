@@ -122,7 +122,7 @@ def test_database_resolution_once_and_override(tmp_path):
         paths = {
             path: methods
             for path, methods in client.app.openapi()["paths"].items()
-            if path.startswith("/company/products")
+            if path.startswith("/company/products") and "/wiki" not in path
         }
         assert sum(len(methods) for methods in paths.values()) == 6
         assert client.get("/company/products").status_code == 200

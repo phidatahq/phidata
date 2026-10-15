@@ -1834,7 +1834,9 @@ class BaseDb(ABC):
         """List Projects and their total, filtering by owner before pagination."""
         raise NotImplementedError("Company projects not supported by the configured database")
 
-    def update_project(self, project_id: str, user_id: Optional[str] = None, **fields: Any) -> Optional[Dict[str, Any]]:
+    def update_project(
+        self, project_id: str, user_id: Optional[str] = None, expected_status: Optional[str] = None, **fields: Any
+    ) -> Optional[Dict[str, Any]]:
         """Update descriptive fields on an active Project within the owner scope."""
         raise NotImplementedError("Company projects not supported by the configured database")
 
@@ -3665,7 +3667,7 @@ class AsyncBaseDb(ABC):
         raise NotImplementedError("Company projects not supported by the configured database")
 
     async def update_project(
-        self, project_id: str, user_id: Optional[str] = None, **fields: Any
+        self, project_id: str, user_id: Optional[str] = None, expected_status: Optional[str] = None, **fields: Any
     ) -> Optional[Dict[str, Any]]:
         """Update descriptive fields on an active Project within the owner scope."""
         raise NotImplementedError("Company projects not supported by the configured database")

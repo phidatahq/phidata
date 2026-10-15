@@ -172,3 +172,49 @@ class TaskTransition(BaseModel):
         elif self.executor_type is not None or self.executor_id is not None:
             raise ValueError("Only Ready can set an executor")
         return self
+
+
+class WikiWrite(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    content: str
+    expected_version: int = Field(..., ge=0, strict=True)
+
+
+class DecisionCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    decision: str = Field(..., min_length=1)
+    reasoning: Optional[str] = None
+    context: Optional[str] = None
+    outcome: Optional[str] = None
+
+
+class WikiPageResponse(BaseModel):
+    path: str
+    size_bytes: int
+    version: Optional[int] = None
+    updated_at: Optional[int] = None
+    user_id: Optional[str] = None
+
+
+class WikiReadResponse(BaseModel):
+    content: str
+    metadata: WikiPageResponse
+
+
+class DecisionResponse(BaseModel):
+    id: str
+    decision: str
+    reasoning: Optional[str] = None
+    context: Optional[str] = None
+    outcome: Optional[str] = None
+    decision_type: Optional[str] = None
+    alternatives: Optional[List[str]] = None
+    confidence: Optional[float] = None
+    outcome_quality: Optional[str] = None
+    tags: Optional[List[str]] = None
+    user_id: Optional[str] = None
+    agent_id: Optional[str] = None
+    session_id: Optional[str] = None
+    team_id: Optional[str] = None
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None

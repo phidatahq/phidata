@@ -5625,7 +5625,7 @@ class AsyncSqliteDb(AsyncBaseDb):
             return [dict(row._mapping) for row in rows], total
 
     async def update_project(
-        self, project_id: str, user_id: Optional[str] = None, **fields: Any
+        self, project_id: str, user_id: Optional[str] = None, expected_status: Optional[str] = None, **fields: Any
     ) -> Optional[Dict[str, Any]]:
         from agno.db.schemas.projects import validate_project_fields
 
@@ -5634,6 +5634,8 @@ class AsyncSqliteDb(AsyncBaseDb):
         if table is None:
             return None
         stmt = table.update().where(table.c.id == project_id, table.c.deleted_at.is_(None))
+        if expected_status is not None:
+            stmt = stmt.where(table.c.status == expected_status)
         if user_id is not None:
             stmt = stmt.where(table.c.user_id == user_id)
         async with self.async_session_factory() as sess, sess.begin():

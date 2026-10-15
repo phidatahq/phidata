@@ -31,3 +31,26 @@ def test_get_metrics_without_thoughts_keeps_candidate_tokens():
     assert metrics.output_tokens == 50
     assert metrics.reasoning_tokens == 0
     assert metrics.total_tokens == usage.total_token_count
+
+
+def test_get_metrics_counts_thoughts_when_there_are_no_candidate_tokens():
+    usage = GenerateContentResponseUsageMetadata(
+        prompt_token_count=1000,
+        thoughts_token_count=800,
+        total_token_count=1800,
+    )
+
+    metrics = Gemini(id="gemini-2.5-flash", api_key="test")._get_metrics(usage)
+
+    assert metrics.output_tokens == 800
+    assert metrics.reasoning_tokens == 800
+    assert metrics.total_tokens == usage.total_token_count
+
+
+def test_get_metrics_with_empty_usage_is_all_zero():
+    metrics = Gemini(id="gemini-2.5-flash", api_key="test")._get_metrics(GenerateContentResponseUsageMetadata())
+
+    assert metrics.input_tokens == 0
+    assert metrics.output_tokens == 0
+    assert metrics.reasoning_tokens == 0
+    assert metrics.total_tokens == 0

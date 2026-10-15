@@ -19,7 +19,7 @@ from agno.sandbox.checkpoint import CheckpointRef, FileCheckpointStore
 from agno.sandbox.coordinator import SandboxCoordinator
 from agno.sandbox.docker import DockerSandbox
 from agno.sandbox.postgres import SandboxSessionBusy
-from agno.sandbox.transfer import DockerCheckpointTransfer
+from agno.sandbox.docker import DockerCheckpointTransfer
 
 URL, IMAGE = os.environ.get("AGNO_TEST_SANDBOX_DB_URL"), os.environ.get("AGNO_TEST_RUNTIME_IMAGE")
 pytestmark = [

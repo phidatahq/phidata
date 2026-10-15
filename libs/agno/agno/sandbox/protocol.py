@@ -41,6 +41,10 @@ def validate_request(request: Dict[str, Any]) -> None:
         from agno.sandbox.repository import validate_repository
 
         validate_repository(request["config"]["_repository"])
+    if "_workspace_files" in request.get("config", {}):
+        from agno.sandbox.files import validate_files
+
+        validate_files(request["config"]["_workspace_files"])
     timeout = request.get("execution_timeout", 900)
     if not isinstance(timeout, (float, int)) or not math.isfinite(timeout) or not 0 < timeout <= 86400:
         raise ValueError("Runtime execution timeout must be between 0 and 86400 seconds")

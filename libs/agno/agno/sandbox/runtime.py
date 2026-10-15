@@ -208,6 +208,7 @@ def _agent(request: Dict[str, Any], native: Path) -> Any:
     db = SqliteDb(db_file=str(native / "history.db"))
     config = dict(request.get("config", {}))
     repository = config.pop("_repository", None)
+    config.pop("_workspace_files", None)
     config.update(
         id=request["agent_id"],
         cwd="/workspace/repository" if repository else "/workspace",
@@ -228,6 +229,20 @@ def _agent(request: Dict[str, Any], native: Path) -> Any:
 
 
 async def _execute(directory: Path, request: Dict[str, Any]) -> Dict[str, Any]:
+    files = request.get("config", {}).get("_workspace_files")
+    if files is not None:
+        from agno.sandbox.files import _outputs, _prepare
+
+        workspace = Path(os.environ.get("AGNO_SANDBOX_WORKSPACE", "/workspace"))
+        await asyncio.to_thread(_prepare, files, workspace)
+    result = await _execute_inner(directory, request)
+    if files is not None and result.get("run") is not None:
+        outputs = await asyncio.to_thread(_outputs, workspace)
+        result["run"]["metadata"] = {**(result["run"].get("metadata") or {}), "_workspace_outputs": outputs}
+    return result
+
+
+async def _execute_inner(directory: Path, request: Dict[str, Any]) -> Dict[str, Any]:
     if (directory.parent.parent / "native" / "repository.json").exists() and not request.get("config", {}).get(
         "_repository"
     ):

@@ -1,4 +1,62 @@
-# Company Product validation
+# Company OS validation
+
+## SQLite and PostgreSQL follow-up — October 15, 2026
+
+Source: `ab/company-products`, changes following `095c78f53cf5275291b24106f09043312d4c12a0`.
+Python 3.12.8, SQLite 3.47.1, disposable PostgreSQL 16.15, SQLAlchemy 2.1.4,
+psycopg 3.3.6, FastAPI 0.143.2, Pydantic 2.14.1. Reused the development venv;
+no clean dependency installation, paid/live model calls, or hosted deployment.
+
+### cookbook/company_os/products.py
+
+**Status:** PASS on SQLite and PostgreSQL.
+
+**Description:** Ran the example without authorization, tokens, or model configuration.
+SQLite uses `tmp/company_products.db`; PostgreSQL used a disposable database via
+`COMPANY_DATABASE_URL`. Both runs explicitly initialized the Company tables, created
+one Product with the shared `local` owner, read/listed/updated it, rejected a stale
+edit, then deleted only the Product created by that run.
+
+**Result:** `PASS: Product CRUD and version conflicts without a model or auth setup`.
+The expected stale-write 409 and post-deletion 404 were observed.
+
+---
+
+### Database parity and framework regression tests
+
+**Status:** PASS.
+
+**Description:** Ran the Company suite together with existing scopes/provider parity,
+run authorization, MCP routing, JWT overrides, authorization offloading, authorization
+integration/planes/denial messages, Manager, client, and config queue capability tests.
+Company cases cover both databases, persistence, concurrent initialization/writers,
+initialization rollback, ownership, revocation after lock waits, sync/async parity,
+local HTTP CRUD, auth-excluded routes, manually installed auth, and explicit rejection
+of in-memory SQLite (worker threads require shared file storage).
+
+**Result:** 714 passed, including 67 Company cases. Warnings cover existing duplicate
+OpenAPI operation IDs and short JWT test keys, plus SQLAlchemy's pool deprecation
+for the intentionally rejected in-memory URI case. An initial run using `localhost`
+stalled and was interrupted; the isolated test and complete rerun using the container's
+explicit `127.0.0.1` binding passed. PostgreSQL used unique schemas; SQLite used temporary files.
+
+---
+
+### Repository publication scripts
+
+**Status:** Format PASS; validation FAIL with the approved baseline exception.
+
+**Description:** Ran both `scripts/format.sh` and `scripts/validate.sh`.
+Removed only formatter churn in four unrelated, previously clean files.
+
+**Result:** Validation has exactly the same 33 mypy errors in 10 unchanged files as
+unchanged main under the same development environment. No new diagnostics. Ruff,
+agnoctl mypy, and cookbook pattern checks pass. The maintainer's approved exception
+permits publication for review; validation is not green and no merge/deployment is authorized.
+
+---
+
+## Previous PostgreSQL-only validation
 
 Run on October 15, 2026. Python 3.12.8, PostgreSQL 16.15 in a disposable Docker
 container, SQLAlchemy 2.1.4, psycopg 3.3.6, FastAPI 0.143.2, Pydantic 2.14.1.

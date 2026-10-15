@@ -8,7 +8,7 @@ from agno.db.base import AsyncBaseDb, BaseDb
 class CompanyConfig:
     """Enable Company; an explicit database overrides the AgentOS database.
 
-    Only synchronous PostgresDb is supported. Schema initialization is an
+    Synchronous PostgresDb and SqliteDb are supported. Schema initialization is an
     explicit deployment step on ``agent_os.company.initialize_schema()``.
     """
 

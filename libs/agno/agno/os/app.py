@@ -927,7 +927,7 @@ class AgentOS:
         if self.company is not None:
             from agno.os.company.router import get_company_router
 
-            updated_routers.append(get_company_router(self.company))
+            updated_routers.append(get_company_router(self.company, auth_enabled=self._auth_configured()))
 
         # Registry router
         if self.registry is not None:
@@ -1750,7 +1750,7 @@ class AgentOS:
         if self.company is not None:
             from agno.os.company.router import get_company_router
 
-            routers.append(get_company_router(self.company))
+            routers.append(get_company_router(self.company, auth_enabled=self._auth_configured()))
 
         # Registry router
         if self.registry is not None:

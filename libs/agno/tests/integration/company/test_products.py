@@ -1,4 +1,4 @@
-"""Model-free PostgreSQL proof of Product persistence, policy and concurrency."""
+"""Model-free SQLite and PostgreSQL proof of Product persistence, policy and concurrency."""
 
 import json
 import subprocess
@@ -12,10 +12,10 @@ import jwt
 import pytest
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
-from sqlalchemy import event, inspect, text
+from sqlalchemy import Column, MetaData, Table, Text, event, inspect
 
 from agno.db.postgres import AsyncPostgresDb, PostgresDb
-from agno.db.sqlite import SqliteDb
+from agno.db.sqlite import AsyncSqliteDb, SqliteDb
 from agno.os import AgentOS, Authorization, CompanyConfig
 from agno.os.authz.provider import AuthorizationContext, AuthorizationProvider
 from agno.os.authz.scope_provider import ScopeAuthorizationProvider
@@ -94,9 +94,16 @@ def test_config_resolution_and_assembly_without_company_ddl(company_db):
         "company_" in sql.lower() and any(op in sql.upper() for op in ("CREATE", "ALTER", "INSERT"))
         for sql in statements
     )
-    assert not inspect(company_db.db_engine).has_schema(company_db.db_schema)
+    if isinstance(company_db, SqliteDb):
+        assert not inspect(company_db.db_engine).get_table_names()
+    else:
+        assert not inspect(company_db.db_engine).has_schema(company_db.db_schema)
     assert os_.agents is None and os_.manager is None
-    override = PostgresDb(db_engine=company_db.db_engine, db_schema=company_db.db_schema)
+    override = (
+        PostgresDb(db_engine=company_db.db_engine, db_schema=getattr(company_db, "db_schema", None))
+        if isinstance(company_db, PostgresDb)
+        else SqliteDb(db_engine=company_db.db_engine)
+    )
     os_override = make_os(SqliteDb(db_file=":memory:"), config=CompanyConfig(db=override))
     assert os_override.company.db is override
     os_override.db = company_db
@@ -106,10 +113,10 @@ def test_config_resolution_and_assembly_without_company_ddl(company_db):
 
 
 @pytest.mark.parametrize(
-    "db", [None, SqliteDb(db_file=":memory:"), AsyncPostgresDb(db_url="postgresql+psycopg://unused/unused")]
+    "db", [None, AsyncSqliteDb(db_file=":memory:"), AsyncPostgresDb(db_url="postgresql+psycopg://unused/unused")]
 )
 def test_configuration_errors(db):
-    with pytest.raises(ValueError, match="Company requires a database|only synchronous PostgreSQL"):
+    with pytest.raises(ValueError, match="Company requires a database|synchronous PostgreSQL"):
         make_os(db)
 
 
@@ -151,25 +158,25 @@ def test_explicit_repeatable_init_and_persistence(company_db):
         assert CompanyService(company_db).get_product(product.id) == product
     with TestClient(make_os(company_db).get_app()) as client:
         assert client.get(BASE + "/" + product.id, headers=headers()).json() == product.model_dump(mode="json")
-    tables = inspect(company_db.db_engine).get_table_names(schema=company_db.db_schema)
+    tables = inspect(company_db.db_engine).get_table_names(schema=getattr(company_db, "db_schema", None))
     assert set(tables) == {"company_schema_version", "company_products"}
 
 
 def test_initializer_preserves_existing_data_and_rejects_unknown_schema(company_db):
+    schema = getattr(company_db, "db_schema", None)
+    old = Table("company_old", MetaData(schema=schema), Column("value", Text))
     with company_db.db_engine.begin() as connection:
-        connection.execute(text('CREATE SCHEMA "' + company_db.db_schema + '"'))
-        connection.execute(text('CREATE TABLE "' + company_db.db_schema + '".company_old (value text)'))
-        connection.execute(
-            text('INSERT INTO "' + company_db.db_schema + '".company_old VALUES (:value)'), {"value": "preserve"}
-        )
+        if schema is not None:
+            from sqlalchemy.schema import CreateSchema
+
+            connection.execute(CreateSchema(schema))
+        old.create(connection)
+        connection.execute(old.insert().values(value="preserve"))
     with pytest.raises(CompanySchemaError, match="Unrecognized"):
         CompanyService(company_db).initialize_schema()
     with company_db.db_engine.connect() as connection:
-        assert (
-            connection.execute(text('SELECT value FROM "' + company_db.db_schema + '".company_old')).scalar()
-            == "preserve"
-        )
-    assert inspect(company_db.db_engine).get_table_names(schema=company_db.db_schema) == ["company_old"]
+        assert connection.execute(old.select()).scalar() == "preserve"
+    assert inspect(company_db.db_engine).get_table_names(schema=schema) == ["company_old"]
 
 
 def test_unsupported_version_does_not_mutate(service):
@@ -227,12 +234,40 @@ def test_http_crud_and_identity_and_ownership(service):
         assert client.get(BASE, headers=alice).json() == []
 
 
-def test_no_auth_configuration_still_fails_closed(service, monkeypatch):
+def test_no_auth_configuration_uses_shared_local_owner(service, monkeypatch):
     for variable in ("JWT_VERIFICATION_KEY", "JWT_JWKS_FILE", "JWT_JWKS_URL", "OS_SECURITY_KEY"):
         monkeypatch.delenv(variable, raising=False)
     os_ = AgentOS(db=service.db, company=CompanyConfig(), auto_provision_dbs=False, telemetry=False, tracing=False)
+    app = os_.get_app()
+    with TestClient(app) as client:
+        response = client.post(BASE + "?user_id=alice", json=BODY, headers={"X-User-ID": "bob"})
+        assert response.status_code == 201, response.text
+        product = response.json()
+        assert product["owner_id"] == "local"
+        url = BASE + "/" + product["id"]
+        assert client.get(BASE).json() == [product]
+        assert client.get(url).json() == product
+        os_.resync(app)
+        assert client.patch(url, json={"name": "Local", "expected_version": 1}).json()["version"] == 2
+        assert client.delete(url + "?expected_version=2").status_code == 204
+    # The HTTP development context never leaks into unrelated Python calls.
+    with pytest.raises(CompanyAuthenticationError):
+        service.list_products()
+
+
+def test_manually_installed_auth_exclusion_stays_closed(service, monkeypatch):
+    from fastapi import FastAPI
+
+    from agno.os.middleware.jwt import JWTMiddleware
+
+    for variable in ("JWT_VERIFICATION_KEY", "JWT_JWKS_FILE", "OS_SECURITY_KEY"):
+        monkeypatch.delenv(variable, raising=False)
+    app = FastAPI()
+    app.add_middleware(JWTMiddleware, verification_keys=[SECRET], algorithm="HS256", excluded_route_paths=[BASE])
+    os_ = AgentOS(
+        db=service.db, company=CompanyConfig(), base_app=app, auto_provision_dbs=False, telemetry=False, tracing=False
+    )
     with TestClient(os_.get_app()) as client:
-        assert client.get(BASE, headers={"X-User-ID": "alice"}).status_code == 401
         assert client.post(BASE, json=BODY).status_code == 401
 
 
@@ -326,7 +361,7 @@ def test_policy_rechecked_after_lock_wait(service):
     main_thread = threading.get_ident()
 
     def before_statement(connection, cursor, sql, *args):
-        if "FOR UPDATE" in sql and threading.get_ident() != main_thread:
+        if ("FOR UPDATE" in sql or sql == "BEGIN IMMEDIATE") and threading.get_ident() != main_thread:
             waiting.set()
 
     event.listen(service.db.db_engine, "before_cursor_execute", before_statement)
@@ -339,7 +374,7 @@ def test_policy_rechecked_after_lock_wait(service):
             return service.update_product(product.id, ProductUpdate(name="Revoked", expected_version=1))
 
     with ThreadPoolExecutor(1) as pool:
-        with service.db.db_engine.begin() as connection:
+        with service._storage._write() as connection:
             connection.execute(table.select().where(table.c.id == product.id).with_for_update())
             future = pool.submit(update)
             assert waiting.wait(5)
@@ -430,20 +465,30 @@ def test_resync_reuses_resolved_company_and_preserves_routes(service):
         )
 
 
-def test_override_persists_only_to_company_database(company_db):
+def test_override_persists_only_to_company_database(company_db, tmp_path):
     from sqlalchemy.schema import DropSchema
 
-    override = PostgresDb(db_engine=company_db.db_engine, db_schema=company_db.db_schema + "_override")
+    override = (
+        PostgresDb(db_engine=company_db.db_engine, db_schema=company_db.db_schema + "_override")
+        if isinstance(company_db, PostgresDb)
+        else SqliteDb(db_file=str(tmp_path / "override.db"))
+    )
     try:
         os_ = make_os(company_db, config=CompanyConfig(db=override))
         os_.company.initialize_schema()
         with caller():
             product = os_.company.create_product(ProductCreate(**BODY))
             assert CompanyService(override).get_product(product.id) == product
-        assert not inspect(company_db.db_engine).has_schema(company_db.db_schema)
+        if isinstance(company_db, SqliteDb):
+            assert not inspect(company_db.db_engine).get_table_names()
+        else:
+            assert not inspect(company_db.db_engine).has_schema(company_db.db_schema)
     finally:
-        with company_db.db_engine.begin() as connection:
-            connection.execute(DropSchema(override.db_schema, cascade=True, if_exists=True))
+        if isinstance(override, PostgresDb):
+            with override.db_engine.begin() as connection:
+                connection.execute(DropSchema(override.db_schema, cascade=True, if_exists=True))
+        else:
+            override.db_engine.dispose()
 
 
 def test_uninitialized_http_returns_actionable_error(company_db):
@@ -451,7 +496,10 @@ def test_uninitialized_http_returns_actionable_error(company_db):
         response = client.get(BASE, headers=headers())
         assert response.status_code == 503
         assert "initialize_schema" in response.text
-    assert not inspect(company_db.db_engine).has_schema(company_db.db_schema)
+    if isinstance(company_db, SqliteDb):
+        assert not inspect(company_db.db_engine).get_table_names()
+    else:
+        assert not inspect(company_db.db_engine).has_schema(company_db.db_schema)
 
 
 def test_pagination_filters_owner_before_limiting(service):
@@ -497,8 +545,8 @@ def test_authentication_route_exclusion_does_not_bypass_service(service):
         assert client.post(BASE, json=BODY, headers={"X-User-ID": "alice"}).status_code == 401
 
 
-def test_http_role_revocation_during_product_lock_wait(service):
-    authz = Authorization(db=service.db, verification_keys=[SECRET], algorithm="HS256", audience="company-test")
+def test_http_role_revocation_during_product_lock_wait(service, auth_db):
+    authz = Authorization(db=auth_db, verification_keys=[SECRET], algorithm="HS256", audience="company-test")
     authz.define_role("products", SCOPES)
     authz.define_role("none", [])
     authz.set_role("alice", "products")
@@ -506,7 +554,9 @@ def test_http_role_revocation_during_product_lock_wait(service):
     main_thread = threading.get_ident()
 
     def before_statement(connection, cursor, sql, *args):
-        if "FOR UPDATE" in sql and "company_products" in sql and threading.get_ident() != main_thread:
+        if (
+            ("FOR UPDATE" in sql and "company_products" in sql) or sql == "BEGIN IMMEDIATE"
+        ) and threading.get_ident() != main_thread:
             waiting.set()
 
     event.listen(service.db.db_engine, "before_cursor_execute", before_statement)
@@ -514,7 +564,7 @@ def test_http_role_revocation_during_product_lock_wait(service):
         product = client.post(BASE, headers=headers(), json=BODY).json()
         table = service._storage.products
         with ThreadPoolExecutor(1) as pool:
-            with service.db.db_engine.begin() as connection:
+            with service._storage._write() as connection:
                 connection.execute(table.select().where(table.c.id == product["id"]).with_for_update())
                 response = pool.submit(
                     client.patch,
@@ -528,3 +578,31 @@ def test_http_role_revocation_during_product_lock_wait(service):
             assert response.result(timeout=5).status_code == 403
     with caller():
         assert service.get_product(product["id"]).version == 1
+
+
+def test_failed_initialization_rolls_back_all_company_tables(company_db):
+    def fail_marker(connection, cursor, sql, *args):
+        if sql.startswith("INSERT INTO") and "company_schema_version" in sql:
+            raise RuntimeError("injected initialization failure")
+
+    event.listen(company_db.db_engine, "before_cursor_execute", fail_marker)
+    service = CompanyService(company_db)
+    with pytest.raises(RuntimeError, match="injected"):
+        service.initialize_schema()
+    event.remove(company_db.db_engine, "before_cursor_execute", fail_marker)
+    inspector = inspect(company_db.db_engine)
+    schema = service._storage.schema
+    assert not inspector.has_table("company_products", schema=schema)
+    assert not inspector.has_table("company_schema_version", schema=schema)
+    service.initialize_schema()
+    with caller():
+        created = service.create_product(ProductCreate(**BODY))
+    company_db.db_engine.dispose()
+    with caller():
+        assert CompanyService(company_db).get_product(created.id) == created
+
+
+@pytest.mark.parametrize("url", ["sqlite://", "sqlite:///:memory:", "sqlite:///file:company?mode=memory&uri=true"])
+def test_in_memory_sqlite_reports_thread_storage_requirement(url):
+    with pytest.raises(ValueError, match="file-backed SQLite"):
+        CompanyService(SqliteDb(db_url=url))

@@ -1,6 +1,7 @@
 """Explicit Product operations with service-level authorization and ownership."""
 
 import asyncio
+from contextvars import ContextVar
 from datetime import datetime, timezone
 from typing import List, Optional, Union
 from uuid import uuid4
@@ -10,11 +11,15 @@ from sqlalchemy.engine import Connection
 
 from agno.db.base import AsyncBaseDb, BaseDb
 from agno.db.postgres import PostgresDb
+from agno.db.sqlite import SqliteDb
 from agno.os.authz._request_scope import invalidate as invalidate_authorization_cache
 from agno.os.company.schemas import Product, ProductCreate, ProductUpdate
 from agno.os.company.storage import ProductStorage
 from agno.os.middleware.jwt import is_reserved_principal
 from agno.run.authorization import current_authorization
+
+# Set only by the HTTP router on an OS with no authentication configured.
+_local_access: ContextVar[bool] = ContextVar("company_local_access", default=False)
 
 
 class CompanyAuthenticationError(PermissionError):
@@ -34,6 +39,7 @@ class CompanyService:
 
     Creation assigns the human caller as immutable owner. Platform permissions
     are necessary but never bypass ownership, including for administrators.
+    On an unauthenticated OS, HTTP requests share the local development owner.
     Python callers must establish the existing ``authorization_scope`` in trusted
     application code. Never construct that scope from user or model arguments.
     """
@@ -41,8 +47,19 @@ class CompanyService:
     def __init__(self, db: Optional[Union[BaseDb, AsyncBaseDb]]):
         if db is None:
             raise ValueError("Company requires a database: pass AgentOS(db=...) or CompanyConfig(db=...).")
-        if not isinstance(db, PostgresDb) or db.db_engine.dialect.name != "postgresql":
-            raise ValueError("Company supports only synchronous PostgreSQL via PostgresDb.")
+        if not (
+            isinstance(db, PostgresDb)
+            and db.db_engine.dialect.name == "postgresql"
+            or isinstance(db, SqliteDb)
+            and db.db_engine.dialect.name == "sqlite"
+        ):
+            raise ValueError("Company supports synchronous PostgreSQL via PostgresDb and SQLite via SqliteDb.")
+        assert isinstance(db, (PostgresDb, SqliteDb))
+        if isinstance(db, SqliteDb) and (
+            db.db_engine.url.database in (None, "", ":memory:", "file::memory:")
+            or db.db_engine.url.query.get("mode") == "memory"
+        ):
+            raise ValueError("Company requires file-backed SQLite so worker threads share persistent storage.")
         self.db = db
         self._storage = ProductStorage(db)
 
@@ -55,6 +72,8 @@ class CompanyService:
 
     def _caller(self, action: str) -> str:
         authority = current_authorization()
+        if authority is None and _local_access.get():
+            return "local"
         principal = authority.context.principal_id if authority is not None else None
         if (
             authority is None
@@ -83,7 +102,7 @@ class CompanyService:
             created_at=now,
             updated_at=now,
         )
-        with self._storage.engine.begin() as connection:
+        with self._storage._write() as connection:
             self._storage._check_version(connection)
             self._caller("write")
             connection.execute(self._storage.products.insert().values(**result.model_dump()))
@@ -129,7 +148,7 @@ class CompanyService:
     def update_product(self, product_id: str, changes: ProductUpdate) -> Product:
         owner = self._caller("write")
         table = self._storage.products
-        with self._storage.engine.begin() as connection:
+        with self._storage._write() as connection:
             self._storage._check_version(connection)
             product = self._owned(connection, product_id, owner, lock=True)
             # A request may have waited on a concurrent writer. Recheck live policy
@@ -154,7 +173,7 @@ class CompanyService:
         owner = self._caller("delete")
         if isinstance(expected_version, bool) or not isinstance(expected_version, int) or expected_version < 1:
             raise ValueError("expected_version must be a positive integer")
-        with self._storage.engine.begin() as connection:
+        with self._storage._write() as connection:
             self._storage._check_version(connection)
             product = self._owned(connection, product_id, owner, lock=True)
             self._caller("delete")

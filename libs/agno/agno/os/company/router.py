@@ -1,7 +1,7 @@
 from functools import wraps
-from typing import List
+from typing import AsyncIterator, List
 
-from fastapi import APIRouter, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 
 from agno.os.company.schemas import Product, ProductCreate, ProductUpdate
 from agno.os.company.service import (
@@ -9,8 +9,10 @@ from agno.os.company.service import (
     CompanyService,
     ProductConflictError,
     ProductNotFoundError,
+    _local_access,
 )
 from agno.os.company.storage import CompanySchemaError
+from agno.os.middleware.jwt import AuthMiddleware
 
 
 def _http_errors(function):
@@ -32,8 +34,26 @@ def _http_errors(function):
     return wrapped
 
 
-def get_company_router(service: CompanyService) -> APIRouter:
-    router = APIRouter(prefix="/company/v1/products", tags=["Company"])
+def get_company_router(service: CompanyService, *, auth_enabled: bool = True) -> APIRouter:
+    async def local_access(request: Request) -> AsyncIterator[None]:
+        # Also recognize auth manually installed on a base app, including routes
+        # excluded from that middleware. Missing authority must not open them.
+        middleware_auth = any(
+            isinstance(middleware.cls, type) and issubclass(middleware.cls, AuthMiddleware)
+            for middleware in request.app.user_middleware
+        )
+        token = _local_access.set(
+            not auth_enabled
+            and not middleware_auth
+            and not getattr(request.state, "authenticated", False)
+            and not getattr(request.state, "authorization_enabled", False)
+        )
+        try:
+            yield
+        finally:
+            _local_access.reset(token)
+
+    router = APIRouter(prefix="/company/v1/products", tags=["Company"], dependencies=[Depends(local_access)])
 
     @router.post("", response_model=Product, status_code=201)
     @_http_errors

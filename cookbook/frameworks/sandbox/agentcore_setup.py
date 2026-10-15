@@ -8,7 +8,9 @@ storage, then prints the runtime ARN to pass as the sandbox image.
   .venv/bin/python cookbook/frameworks/sandbox/agentcore_setup.py teardown --name agno-sandbox
 
 Every resource it creates carries the given name. Set AWS_PROFILE and AWS_REGION
-first. The role may call Bedrock models, so a Claude harness needs no API key.
+first. The role may call Claude models on Bedrock, so a Claude harness needs no
+API key. Code inside the sandbox can use the role too, so anything the role allows,
+an agent can do: keep it to the models you run.
 
 Without permission to create ECR repositories or IAM roles, have an
 administrator create them, with the role's trust and policy from create_role
@@ -31,6 +33,11 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 import boto3
+
+# AgentCore ends a session after this long whatever the sandbox asks for, so
+# AgentCoreSandbox(lifetime=...) must not exceed MAX_LIFETIME.
+IDLE_TIMEOUT = 900
+MAX_LIFETIME = 3600
 
 
 def find_repository(ecr: Any, name: str, create: bool) -> Dict[str, Any]:
@@ -116,9 +123,11 @@ def create_role(
                     "bedrock:InvokeModelWithResponseStream",
                     "bedrock:CountTokens",
                 ],
+                # Claude models only. Cross-region inference profiles route to the
+                # model in other regions, so the foundation model is allowed in each.
                 "Resource": [
-                    "arn:aws:bedrock:*::foundation-model/*",
-                    "arn:aws:bedrock:*:*:inference-profile/*",
+                    "arn:aws:bedrock:*::foundation-model/anthropic.claude-*",
+                    f"arn:aws:bedrock:{region}:{account}:inference-profile/*.anthropic.claude-*",
                 ],
             },
         ],
@@ -142,7 +151,10 @@ def deploy_runtime(control: Any, name: str, image: str, role: str) -> str:
         roleArn=role,
         networkConfiguration={"networkMode": "PUBLIC"},
         # The provider bounds each allocation itself; these are the outer limits.
-        lifecycleConfiguration={"idleRuntimeSessionTimeout": 900, "maxLifetime": 3600},
+        lifecycleConfiguration={
+            "idleRuntimeSessionTimeout": IDLE_TIMEOUT,
+            "maxLifetime": MAX_LIFETIME,
+        },
     )
     existing = [
         r
@@ -197,6 +209,10 @@ def deploy(
         build_and_push(ecr, image)
     role = role_arn or create_role(iam, name, account, region, repository)
     print("Runtime ARN:", deploy_runtime(control, name, image, role))
+    print(
+        f"Runtime maxLifetime: {MAX_LIFETIME} s, idle timeout: {IDLE_TIMEOUT} s."
+        f" Keep AgentCoreSandbox(lifetime=...) at or below {MAX_LIFETIME}."
+    )
 
 
 def teardown(

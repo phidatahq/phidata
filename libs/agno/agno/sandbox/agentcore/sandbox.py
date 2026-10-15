@@ -9,11 +9,12 @@ import random
 import shlex
 import threading
 import time
-from typing import TYPE_CHECKING, Any, Dict, Mapping, Optional, Sequence, Set
+from typing import TYPE_CHECKING, Any, Dict, Mapping, Optional, Sequence
 from uuid import uuid4
 
 from agno.sandbox.agentcore.server import _MAX_STAGED
 from agno.sandbox.base import ExecResult, Sandbox, SandboxError, SandboxHandle, _identity
+from agno.utils.log import log_debug
 
 if TYPE_CHECKING:
     from agno.sandbox.checkpoint import CheckpointStore
@@ -106,7 +107,11 @@ class AgentCoreSandbox(Sandbox):
     ``lifetime`` is enforced inside the microVM: at the deadline the computer
     refuses work, ends the agent's processes and exits, so a turn still running
     then dies with it. Set it from the coordinator's own turn budget rather than
-    relying on the one-hour default.
+    relying on the one-hour default. AgentCore also ends every session at the
+    runtime's maxLifetime, which this class cannot read: keep ``lifetime`` at or
+    below it, or AgentCore ends the microVM first and every later lookup of that
+    generation pays for a replacement microVM and its stop. agentcore_setup.py
+    prints the value it gave the runtime.
 
     Passed as sandbox= on ClaudeAgent or CodexAgent, each turn runs on a new
     generation restored from the last checkpoint. ``execution_timeout`` bounds one
@@ -175,9 +180,10 @@ class AgentCoreSandbox(Sandbox):
 
         self._data = client(request_timeout)
         self._commands = client(_COMMAND_READ_TIMEOUT)
-        # Sessions this object stopped. Calling one again would only start an
-        # unclaimed replacement microVM.
-        self._stopped: Set[str] = set()
+        # Sessions this object stopped, with when, oldest first. Calling one again
+        # would only start an unclaimed replacement microVM. An entry is dropped once
+        # a lifetime has passed: by then the claimed microVM has exited anyway.
+        self._stopped: Dict[str, float] = {}
         # A claim retrying through throttling must not land after a stop of the same
         # session; both hold that session's lock for their whole request.
         self._session_locks: Dict[str, threading.Lock] = {}
@@ -213,6 +219,7 @@ class AgentCoreSandbox(Sandbox):
             except Exception as error:
                 if _error_code(error) not in retryable or attempt == _ATTEMPTS - 1:
                     raise
+                log_debug(f"AgentCore {_error_code(error)}, retrying (attempt {attempt + 1} of {_ATTEMPTS})")
                 # Full jitter spreads a burst of throttled creates across the window.
                 time.sleep(random.uniform(0, min(8.0, 0.5 * 2**attempt)))
 
@@ -252,6 +259,7 @@ class AgentCoreSandbox(Sandbox):
     ) -> Any:
         """Invoke an operation on the computer a handle names, and no other."""
         if handle.provider_ref in self._stopped:
+            log_debug(f"AgentCore sandbox {handle.provider_ref} was stopped here; refusing {operation}")
             raise SandboxError("Sandbox is not running")
         try:
             return await _thread(
@@ -314,13 +322,14 @@ class AgentCoreSandbox(Sandbox):
         agent_id: Optional[str] = None,
         generation: int = 1,
         env: Optional[Mapping[str, str]] = None,
+        for_create: bool = False,
     ) -> Optional[SandboxHandle]:
         """The claimed computer of a generation, or None if it has none.
 
-        Unlike aget, this leaves an unclaimed microVM running. The coordinator looks
-        a generation up just before creating it, and the create then claims the
-        microVM this call started instead of waiting for another. One that no create
-        claims ends at the runtime's idle timeout.
+        A lookup of a generation with no claimed computer starts a microVM. With
+        ``for_create``, this leaves it running, and the create that follows claims it
+        instead of waiting for another. Otherwise no create will claim it, so this
+        stops it rather than let it idle until the runtime's idle timeout.
         """
         values = _identity(session_id, agent_id, generation, env)
         name = self._name(session_id, agent_id, generation)
@@ -328,28 +337,15 @@ class AgentCoreSandbox(Sandbox):
             return None
         reply = await _thread(self._invoke, name, "peek")
         if not reply["claimed"]:
-            if reply["retired"]:
-                # A lookup through aget or a stale handle retired it, so no create could claim it.
+            # A retired microVM was reached through aget or a stale handle, and no
+            # create can claim it.
+            if reply["retired"] or not for_create:
                 await self._stop(name, record=False)
             return None
         handle = self._handle(name, reply["metadata"], reply["incarnation"])
         if handle.config_digest != self._digest(session_id, agent_id, generation, values):
             raise SandboxError("Existing generation has different compute configuration")
         return handle
-
-    async def _owned(self, handle: SandboxHandle) -> SandboxHandle:
-        current = await self.aget(handle.provider_ref)
-        if current is None:
-            raise SandboxError("Sandbox is not running")
-        if (current.name, current.agent_id, current.session_id, current.generation, current.config_digest) != (
-            handle.name,
-            handle.agent_id,
-            handle.session_id,
-            handle.generation,
-            handle.config_digest,
-        ):
-            raise SandboxError("Sandbox identity changed; refusing the operation")
-        return current
 
     async def acreate(
         self,
@@ -490,6 +486,22 @@ class AgentCoreSandbox(Sandbox):
             raise SandboxError("AgentCore command stream ended without an exit status")
         return int(stop.get("exitCode", -1)), "".join(stdout), "".join(stderr), stop.get("status") == "TIMED_OUT"
 
+    def _record_stop(self, provider_ref: str) -> None:
+        now = time.monotonic()
+        self._stopped.pop(provider_ref, None)
+        self._stopped[provider_ref] = now
+        expired = []
+        for name, stopped_at in self._stopped.items():
+            if now - stopped_at < self.lifetime:
+                break
+            expired.append(name)
+        with self._locks_guard:
+            for name in expired:
+                del self._stopped[name]
+                lock = self._session_locks.get(name)
+                if lock is not None and not lock.locked():
+                    del self._session_locks[name]
+
     def _session_lock(self, provider_ref: str) -> threading.Lock:
         with self._locks_guard:
             return self._session_locks.setdefault(provider_ref, threading.Lock())
@@ -497,6 +509,7 @@ class AgentCoreSandbox(Sandbox):
     def _claim(self, provider_ref: str, metadata: Mapping[str, str], env: Mapping[str, str]) -> Any:
         with self._session_lock(provider_ref):
             if provider_ref in self._stopped:
+                log_debug(f"AgentCore sandbox {provider_ref} was stopped here; refusing claim")
                 raise SandboxError("Sandbox generation is not running; recovery requires a new generation")
             return self._invoke(provider_ref, "claim", metadata=dict(metadata), env=dict(env), lifetime=self.lifetime)
 
@@ -508,7 +521,8 @@ class AgentCoreSandbox(Sandbox):
                 # revive the generation. A microVM never claimed has no generation
                 # to protect, so the next create may start a fresh one.
                 if record:
-                    self._stopped.add(provider_ref)
+                    self._record_stop(provider_ref)
+                log_debug(f"Stopping AgentCore sandbox {provider_ref}" + ("" if record else " (never claimed)"))
                 try:
                     self._call(
                         self._data.stop_runtime_session,
@@ -523,6 +537,12 @@ class AgentCoreSandbox(Sandbox):
 
         # StopRuntimeSession returns once AgentCore has terminated the microVM.
         await _thread(stop)
+        if not record:
+            # Nothing guards a session that was never claimed, so its lock can go.
+            with self._locks_guard:
+                lock = self._session_locks.get(provider_ref)
+                if lock is not None and not lock.locked() and provider_ref not in self._stopped:
+                    del self._session_locks[provider_ref]
 
     async def astop(self, handle: SandboxHandle) -> None:
         await self._stop(handle.provider_ref)

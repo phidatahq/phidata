@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any, Mapping, Optional, Sequence
 from uuid import uuid4
 
-from agno.sandbox.agentcore.sandbox import AgentCoreSandbox
+from agno.sandbox.agentcore.sandbox import AgentCoreSandbox, _Refusal
 from agno.sandbox.agentcore.server import _MAX_TRANSFER
 from agno.sandbox.base import SandboxError, SandboxHandle, _sync
 from agno.sandbox.checkpoint import (
@@ -124,7 +124,6 @@ class AgentCoreCheckpointTransfer:
         exclude: Sequence[str] = AGENTCORE_NATIVE_EXCLUSIONS,
     ) -> CheckpointRef:
         self._check_exclusions(exclude)
-        await self.provider._owned(handle)
         name = uuid4().hex
         try:
             exported = await self.provider._invoke_for(
@@ -161,12 +160,13 @@ class AgentCoreCheckpointTransfer:
 
     async def arestore(self, handle: SandboxHandle, reference: CheckpointRef) -> Mapping[str, Any]:
         name = uuid4().hex
-        # Checked before the stop-on-failure block: a stale handle must not stop the
-        # computer that now holds this session.
-        await self.provider._owned(handle)
+        # The computer is left alone until a request reaches it, so a missing or
+        # invalid checkpoint never stops it.
+        sent = False
         try:
             async with self.store.aopen_archive(reference) as checkpoint:
                 state = await self.archive.avalidate(checkpoint)
+                sent = True
                 await self._push(handle, name, checkpoint)
             reply = await self.provider._invoke_for(
                 handle, "import", idempotent=False, slow=True, name=name, limits=asdict(self.archive.limits)
@@ -174,9 +174,13 @@ class AgentCoreCheckpointTransfer:
             if reply["state"] != state:
                 raise SandboxError("Restored manifest differs from the verified checkpoint")
             return state
-        except BaseException:
-            # A partially restored computer must never execute another turn.
-            await asyncio.shield(self.provider.astop(handle))
+        except BaseException as error:
+            # The server checks the handle's identity on every call, and a stale handle
+            # must not stop the computer that now holds this session. Otherwise a
+            # partially restored computer must never execute another turn.
+            stale = isinstance(error, _Refusal) and error.code == "identity"
+            if sent and not stale:
+                await asyncio.shield(self.provider.astop(handle))
             raise
 
     def restore(self, handle: SandboxHandle, reference: CheckpointRef) -> Mapping[str, Any]:

@@ -393,6 +393,7 @@ class DockerSandbox(Sandbox):
         agent_id: Optional[str] = None,
         generation: int = 1,
         env: Optional[Mapping[str, str]] = None,
+        for_create: bool = False,
     ) -> Optional[SandboxHandle]:
         values = _identity(session_id, agent_id, generation, env)
         handle = await self.aget(self._name(session_id, agent_id, generation))

@@ -394,7 +394,7 @@ class SandboxCoordinator:
                 # No SDK execution can start before this binding commits. An
                 # unbound allocation is a crashed provisioning attempt: replace
                 # it before retrying restore, never restore over uncertain files.
-                orphan = await self.provider.afind(session_id, **allocation)
+                orphan = await self.provider.afind(session_id, for_create=True, **allocation)
                 if orphan is not None:
                     await self.provider.adestroy(orphan)
                 handle = await self.provider.acreate(session_id, **allocation)

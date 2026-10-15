@@ -1333,16 +1333,23 @@ class PostgresDb(BaseDb):
                 return False
             runs_table = self._get_table(table_type="runs")
             transcripts_table = self._get_table(table_type="transcripts")
+            bindings_table = self._get_table(table_type="sandbox_bindings")
             compactions_table = self._get_table(table_type="compactions")
 
             with self.Session() as sess, sess.begin():
-                from agno.db.session_resources import assert_session_resources_released
+                from agno.db.session_resources import assert_session_resources_released, sandbox_bindings_query
 
-                protected = select(table.c.session_data).where(table.c.session_id == session_id)
-                if user_id is not None:
-                    protected = protected.where(table.c.user_id == user_id)
-                for data in (sess.execute(protected.with_for_update())).scalars():
-                    assert_session_resources_released(data)
+                if bindings_table is not None:
+                    # Session before binding, the sandbox store's order, so a running turn cannot deadlock this.
+                    held = select(table.c.session_id).where(table.c.session_id == session_id)
+                    if user_id is not None:
+                        held = held.where(table.c.user_id == user_id)
+                    sess.execute(held.with_for_update())
+                    protected = sandbox_bindings_query(
+                        bindings_table, self.db_schema + "." + self.session_table_name, [session_id], user_id
+                    )
+                    for record in (sess.execute(protected)).scalars():
+                        assert_session_resources_released(record)
                 delete_stmt = table.delete().where(table.c.session_id == session_id)
                 if user_id is not None:
                     delete_stmt = delete_stmt.where(table.c.user_id == user_id)
@@ -1397,6 +1404,7 @@ class PostgresDb(BaseDb):
                 return
             runs_table = self._get_table(table_type="runs")
             transcripts_table = self._get_table(table_type="transcripts")
+            bindings_table = self._get_table(table_type="sandbox_bindings")
             compactions_table = self._get_table(table_type="compactions")
 
             with self.Session() as sess, sess.begin():
@@ -1404,17 +1412,21 @@ class PostgresDb(BaseDb):
                 # cascade below removes stored payloads, which no filter on the
                 # sessions table would stop it from doing for another user's
                 # session id.
-                select_stmt = select(table.c.session_id, table.c.session_data).where(
-                    table.c.session_id.in_(session_ids)
-                )
+                from agno.db.session_resources import assert_session_resources_released, sandbox_bindings_query
+
+                select_stmt = select(table.c.session_id).where(table.c.session_id.in_(session_ids))
                 if user_id is not None:
                     select_stmt = select_stmt.where(table.c.user_id == user_id)
-                from agno.db.session_resources import assert_session_resources_released
-
-                protected_rows = (sess.execute(select_stmt.with_for_update())).all()
-                for row in protected_rows:
-                    assert_session_resources_released(row[1])
-                deletable_ids = [row[0] for row in protected_rows]
+                # Session before binding, the sandbox store's order, so a running turn cannot deadlock this.
+                deletable_ids = [
+                    row[0] for row in sess.execute(select_stmt.order_by(table.c.session_id).with_for_update())
+                ]
+                if bindings_table is not None:
+                    protected = sandbox_bindings_query(
+                        bindings_table, self.db_schema + "." + self.session_table_name, session_ids, user_id
+                    )
+                    for record in (sess.execute(protected)).scalars():
+                        assert_session_resources_released(record)
                 # Stored payloads are cascaded only for sessions this delete
                 # was allowed to remove. An unscoped delete has no other user
                 # to protect, so it also cleans up after a session whose row

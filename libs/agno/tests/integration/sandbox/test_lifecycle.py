@@ -4,12 +4,13 @@ import asyncio
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import select, update
+from sqlalchemy import create_engine, select, text, update
 
 from agno.db.postgres import AsyncPostgresDb
 from agno.db.session_resources import SessionResourcesPending
 from agno.sandbox.artifacts import SandboxArtifacts, SandboxSessionNotFound
 from agno.sandbox.base import SandboxError
+from agno.sandbox.checkpoint import CheckpointObjectNotFound
 from agno.sandbox.lifecycle import SandboxLifecycle, SandboxRecoveryDeleted
 from agno.sandbox.postgres import SandboxSessionBusy
 from tests.integration.sandbox.test_coordinator import IMAGE, URL, binding, run
@@ -30,7 +31,67 @@ async def delete(db, session_id, bulk=False, user_id="user"):
     return await asyncio.to_thread(method, **kwargs, user_id=user_id)
 
 
-async def test_delete_recovery_then_conversation_and_never_reuse_identity(system):
+async def contend_with_turn(store, operation):
+    """Hold a turn's session and run locks, start operation, then take the binding as the turn would."""
+    engine = create_engine(URL)
+    connection = engine.connect()
+    transaction = connection.begin()
+    try:
+        connection.execute(text("SET LOCAL lock_timeout = '10s'"))
+        store._hold_session(connection, "session")
+        store._lock_run(connection, "first")
+        task = asyncio.create_task(operation())
+        await asyncio.sleep(0.5)
+        await asyncio.to_thread(
+            connection.execute, select(store.bindings).where(store._key("session")).with_for_update()
+        )
+        transaction.commit()
+    finally:
+        connection.close()
+        engine.dispose()
+    return await task
+
+
+@pytest.mark.parametrize("bulk", [False, True])
+async def test_session_delete_follows_turn_lock_order(system, bulk):
+    coordinator, spec, _ = system
+    await run(coordinator, spec)
+    await SandboxLifecycle(coordinator).adelete_recovery(agent_id="agent", session_id="session", user_id="user")
+    store = coordinator.store
+    await contend_with_turn(store, lambda: delete(store.db, "session", bulk=bulk))
+    assert await store._transaction(lambda c: c.execute(select(store.sessions)).first()) is None
+
+
+async def test_recovery_deletion_follows_turn_lock_order(system):
+    coordinator, spec, _ = system
+    await run(coordinator, spec)
+    lifecycle = SandboxLifecycle(coordinator)
+    result = await contend_with_turn(
+        coordinator.store,
+        lambda: lifecycle.adelete_recovery(agent_id="agent", session_id="session", user_id="user"),
+    )
+    assert result["recovery_deleted"]
+
+
+async def test_stop_claim_follows_turn_lock_order(system):
+    coordinator, spec, _ = system
+    await run(coordinator, spec)
+    await contend_with_turn(
+        coordinator.store,
+        lambda: coordinator.store._aclaim_stop(
+            agent_id=spec.agent_id,
+            session_id=spec.session_id,
+            user_id="user",
+            run_id="first",
+            queue_attempt=None,
+            status="CANCELLED",
+            reason="Sandbox computer retired",
+        ),
+    )
+    assert (await binding(coordinator))["record"]["phase"] == "idle"
+
+
+async def test_delete_recovery_then_conversation_and_recreated_session_starts_fresh(system):
     coordinator, spec, _ = system
     await run(coordinator, spec)
     await run(coordinator, spec, "second")
@@ -40,13 +101,17 @@ async def test_delete_recovery_then_conversation_and_never_reuse_identity(system
     result = await lifecycle.adelete_recovery(agent_id="agent", session_id="session", user_id="user")
     assert result["conversation_retained"] and result["recovery_deleted"]
     assert all(not value.exists() for value in objects)
-    assert (await binding(coordinator))["record"]["phase"] == "deleted"
+    retired = (await binding(coordinator))["record"]
+    assert retired["phase"] == "deleted"
     assert await lifecycle.adelete_recovery(agent_id="agent", session_id="session", user_id="user") == result
     with pytest.raises(SandboxRecoveryDeleted):
         await run(coordinator, spec, "third")
     assert await delete(coordinator.store.db, "session") is True
-    with pytest.raises(SandboxRecoveryDeleted):
-        await run(coordinator, spec, "fourth")
+    # Deleting the conversation cascades the binding, so the same id starts from a fresh one.
+    await run(coordinator, spec, "fourth")
+    fresh = (await binding(coordinator))["record"]
+    assert fresh["phase"] == "idle" and fresh["incarnation"] != retired["incarnation"]
+    assert fresh["checkpoint"] and fresh["last_run_id"] == "fourth"
 
 
 async def test_delete_recovery_removes_checkpoint_of_deleted_run(system):
@@ -78,7 +143,7 @@ async def test_delete_recovery_removes_rolled_back_staged_checkpoint(system, mon
     assert (await binding(coordinator))["record"]["staged_checkpoint"]
     monkeypatch.setattr(coordinator.provider, "adestroy", destroy)
     lifecycle = SandboxLifecycle(coordinator)
-    await lifecycle.aretire(spec, user_id="user")
+    await lifecycle.aretire(spec.session_id, agent_id=spec.agent_id, user_id="user", env=spec.env)
     record = (await binding(coordinator))["record"]
     assert record["staged_checkpoint"] is None and record["checkpoint"] is None
     objects = list(coordinator.transfer.store.root.iterdir())
@@ -94,7 +159,7 @@ async def test_unavailable_storage_keeps_deletion_pending(system):
     offline = root.with_name("objects-offline")
     root.rename(offline)
     lifecycle = SandboxLifecycle(coordinator)
-    with pytest.raises(FileNotFoundError):
+    with pytest.raises(CheckpointObjectNotFound):
         await lifecycle.adelete_recovery(agent_id="agent", session_id="session", user_id="user")
     assert (await binding(coordinator))["record"]["phase"] == "deleting"
     offline.rename(root)
@@ -113,7 +178,7 @@ async def test_unmounted_storage_keeps_deletion_pending(system):
         path.rename(volume / path.name)
     lifecycle = SandboxLifecycle(coordinator)
     for _ in range(2):
-        with pytest.raises(FileNotFoundError):
+        with pytest.raises(CheckpointObjectNotFound):
             await lifecycle.adelete_recovery(agent_id="agent", session_id="session", user_id="user")
     record = (await binding(coordinator))["record"]
     assert record["phase"] == "deleting" and len(record["deletion_references"]) == 2
@@ -128,21 +193,22 @@ async def test_claimed_object_on_unmounted_storage_keeps_deletion_pending(system
     await run(coordinator, spec)
     root = coordinator.transfer.store.root
     lifecycle = SandboxLifecycle(coordinator)
-    original = lifecycle._remove_object
+    objects = coordinator.transfer.store
+    original = objects.adelete
 
-    def crash(path):
+    async def crash(reference):
         raise OSError("crash before unlink")
 
-    monkeypatch.setattr(lifecycle, "_remove_object", crash)
+    monkeypatch.setattr(objects, "adelete", crash)
     with pytest.raises(OSError, match="crash"):
         await lifecycle.adelete_recovery(agent_id="agent", session_id="session", user_id="user")
     assert (await binding(coordinator))["record"]["claimed_references"]
-    monkeypatch.setattr(lifecycle, "_remove_object", original)
+    monkeypatch.setattr(objects, "adelete", original)
     volume = tmp_path / "volume"
     volume.mkdir()
     for path in root.iterdir():
         path.rename(volume / path.name)
-    with pytest.raises(FileNotFoundError):
+    with pytest.raises(CheckpointObjectNotFound):
         await lifecycle.adelete_recovery(agent_id="agent", session_id="session", user_id="user")
     assert (await binding(coordinator))["record"]["phase"] == "deleting"
     for path in volume.iterdir():
@@ -151,7 +217,7 @@ async def test_claimed_object_on_unmounted_storage_keeps_deletion_pending(system
     assert not list(root.iterdir())
 
 
-async def test_retry_restores_marker_lost_to_stale_session_write(system):
+async def test_stale_session_write_cannot_strand_conversation_deletion(system):
     coordinator, spec, _ = system
     await run(coordinator, spec)
     store = coordinator.store
@@ -167,9 +233,9 @@ async def test_retry_restores_marker_lost_to_stale_session_write(system):
             update(store.sessions).where(store.sessions.c.session_id == "session").values(session_data=stale)
         )
     )
-    with pytest.raises(SessionResourcesPending):
-        await delete(store.db, "session")
-    await lifecycle.adelete_recovery(agent_id="agent", session_id="session", user_id="user")
+    assert (await lifecycle.adelete_recovery(agent_id="agent", session_id="session", user_id="user"))[
+        "recovery_deleted"
+    ]
     assert await delete(store.db, "session") is True
 
 
@@ -190,16 +256,17 @@ async def test_partial_storage_delete_is_retryable_without_restoring_execution(s
     await run(coordinator, spec)
     await run(coordinator, spec, "second")
     lifecycle = SandboxLifecycle(coordinator)
-    original = lifecycle._remove_object
+    objects = coordinator.transfer.store
+    original = objects.adelete
     calls = []
 
-    def fail_after_first(path):
-        calls.append(path.name)
+    async def fail_after_first(reference):
+        calls.append(reference.sha256)
         if len(calls) == 2:
             raise OSError("storage outage")
-        return original(path)
+        return await original(reference)
 
-    monkeypatch.setattr(lifecycle, "_remove_object", fail_after_first)
+    monkeypatch.setattr(objects, "adelete", fail_after_first)
     with pytest.raises(OSError):
         await lifecycle.adelete_recovery(agent_id="agent", session_id="session", user_id="user")
     assert (await binding(coordinator))["record"]["phase"] == "deleting"
@@ -207,7 +274,7 @@ async def test_partial_storage_delete_is_retryable_without_restoring_execution(s
         await run(coordinator, spec, "third")
     with pytest.raises(SessionResourcesPending):
         await delete(coordinator.store.db, "session")
-    monkeypatch.setattr(lifecycle, "_remove_object", original)
+    monkeypatch.setattr(objects, "adelete", original)
     assert (await lifecycle.adelete_recovery(agent_id="agent", session_id="session", user_id="user"))[
         "recovery_deleted"
     ]
@@ -227,7 +294,7 @@ async def test_active_delete_is_refused_and_retirement_preserves_checkpoint(syst
     lifecycle = SandboxLifecycle(coordinator)
     with pytest.raises(SandboxSessionBusy):
         await lifecycle.adelete_recovery(agent_id="agent", session_id="session", user_id="user")
-    await lifecycle.aretire(spec, user_id="user")
+    await lifecycle.aretire(spec.session_id, agent_id=spec.agent_id, user_id="user", env=spec.env)
     await asyncio.gather(task, return_exceptions=True)
     artifacts = SandboxArtifacts(coordinator.store, coordinator.transfer.store)
     assert (
@@ -276,7 +343,11 @@ async def test_sync_lifecycle_api_requires_sync_database(system):
         with pytest.raises(TypeError, match="async"):
             lifecycle.delete_recovery(agent_id="agent", session_id="session", user_id="user")
     else:
-        assert (await asyncio.to_thread(lifecycle.retire, spec, user_id="user"))["recovery_preserved"]
+        assert (
+            await asyncio.to_thread(
+                lifecycle.retire, spec.session_id, agent_id=spec.agent_id, user_id="user", env=spec.env
+            )
+        )["recovery_preserved"]
         assert (
             await asyncio.to_thread(lifecycle.delete_recovery, agent_id="agent", session_id="session", user_id="user")
         )["recovery_deleted"]

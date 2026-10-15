@@ -3,15 +3,17 @@
 from __future__ import annotations
 
 import asyncio
+import tempfile
 from contextlib import suppress
+from dataclasses import asdict
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Mapping, Optional
 from uuid import uuid4
 
 from agno.exceptions import InputCheckError
 from agno.sandbox.artifacts import SandboxSessionNotFound
-from agno.sandbox.base import SandboxError, SandboxSpec
-from agno.sandbox.checkpoint import CheckpointArchive, CheckpointRef, _fsync_directory, _thread
+from agno.sandbox.base import SandboxError
+from agno.sandbox.checkpoint import CheckpointArchive, CheckpointObjectNotFound, CheckpointRef
 from agno.sandbox.coordinator import SandboxCoordinator
 from agno.sandbox.postgres import SandboxLeaseLost, SandboxSessionBusy
 
@@ -23,8 +25,9 @@ class SandboxRecoveryDeleted(InputCheckError, SandboxError, ValueError):
 class SandboxLifecycle:
     """Retire compute separately from deleting published workspace/native recovery.
 
-    Recovery deletion keeps conversation history and permanently retires the
-    session identity. Unreferenced uploads require a separate storage retention
+    Recovery deletion keeps conversation history and retires the session identity
+    until that history is deleted; a recreated session then starts fresh.
+    Unreferenced uploads require a separate storage retention
     policy. It does not erase provider logs, external tool effects or backups.
     """
 
@@ -32,7 +35,14 @@ class SandboxLifecycle:
         self.coordinator = coordinator
         self.store = coordinator.store
 
-    async def aretire(self, spec: SandboxSpec, *, user_id: Optional[str] = None) -> Dict[str, Any]:
+    async def aretire(
+        self,
+        session_id: str,
+        *,
+        agent_id: str,
+        user_id: Optional[str] = None,
+        env: Optional[Mapping[str, str]] = None,
+    ) -> Dict[str, Any]:
         from sqlalchemy import select
 
         from agno.run.cancel import acancel_run
@@ -41,8 +51,8 @@ class SandboxLifecycle:
             lambda c: (
                 c.execute(
                     select(self.store.bindings).where(
-                        self.store._key(spec.session_id),
-                        self.store.bindings.c.agent_id == spec.agent_id,
+                        self.store._key(session_id),
+                        self.store.bindings.c.agent_id == agent_id,
                         self.store.bindings.c.user_id == user_id,
                     )
                 )
@@ -53,27 +63,27 @@ class SandboxLifecycle:
         if row is None:
             raise SandboxSessionNotFound("Sandbox session not found")
         if row["record"]["phase"] == "idle":
-            return {"session_id": spec.session_id, "compute_retired": True, "recovery_preserved": True}
+            return {"session_id": session_id, "compute_retired": True, "recovery_preserved": True}
         if row["record"]["phase"] in ("deleting", "deleted"):
             raise SandboxRecoveryDeleted("Sandbox recovery is being deleted or was deleted")
         await acancel_run(row["run_id"])
         with suppress(SandboxLeaseLost):
             await self.coordinator._aterminate(
-                spec,
+                session_id,
+                agent_id=agent_id,
                 run_id=row["run_id"],
                 user_id=user_id,
                 queue_attempt=row["queue_attempt"],
                 status="CANCELLED",
                 reason="Sandbox computer retired",
+                env=env,
             )
 
         async def confirmed() -> None:
             while True:
                 current = await self.store._transaction(
                     lambda c: (
-                        c.execute(select(self.store.bindings).where(self.store._key(spec.session_id)))
-                        .mappings()
-                        .first()
+                        c.execute(select(self.store.bindings).where(self.store._key(session_id))).mappings().first()
                     )
                 )
                 if current is None or current["record"]["incarnation"] != row["record"]["incarnation"]:
@@ -89,20 +99,38 @@ class SandboxLifecycle:
         except asyncio.TimeoutError as error:
             raise SandboxError("Computer retirement is still pending; retry reconciliation") from error
         return {
-            "session_id": spec.session_id,
+            "session_id": session_id,
             "retired_run_id": row["run_id"],
             "compute_retired": True,
             "recovery_preserved": True,
         }
 
-    def retire(self, spec: SandboxSpec, *, user_id: Optional[str] = None) -> Dict[str, Any]:
-        return self.store._sync(self.aretire, spec, user_id=user_id)
+    def retire(
+        self,
+        session_id: str,
+        *,
+        agent_id: str,
+        user_id: Optional[str] = None,
+        env: Optional[Mapping[str, str]] = None,
+    ) -> Dict[str, Any]:
+        return self.store._sync(self.aretire, session_id, agent_id=agent_id, user_id=user_id, env=env)
 
     async def _begin_delete(self, agent_id: str, session_id: str, user_id: Optional[str]) -> Dict[str, Any]:
         from sqlalchemy import select, update
 
         def begin(connection: Any) -> Dict[str, Any]:
             assert self.store.sessions is not None and self.store.runs is not None
+            # The store's session -> run -> binding order, so a running turn cannot deadlock with this.
+            self.store._hold_session(connection, session_id)
+            runs = (
+                connection.execute(
+                    select(self.store.runs.c.run_data)
+                    .where(self.store.runs.c.session_id == session_id)
+                    .with_for_update()
+                )
+                .scalars()
+                .all()
+            )
             row = (
                 connection.execute(select(self.store.bindings).where(self.store._key(session_id)).with_for_update())
                 .mappings()
@@ -115,24 +143,6 @@ class SandboxLifecycle:
                 return record
             if record["phase"] != "idle" or record.get("computer") is not None:
                 raise SandboxSessionBusy(row["run_id"] or "")
-            runs = (
-                connection.execute(
-                    select(self.store.runs.c.run_data)
-                    .where(self.store.runs.c.session_id == session_id)
-                    .with_for_update()
-                )
-                .scalars()
-                .all()
-            )
-            session = (
-                connection.execute(
-                    select(self.store.sessions).where(self.store.sessions.c.session_id == session_id).with_for_update()
-                )
-                .mappings()
-                .first()
-            )
-            if session is None or (session["session_data"] or {}).get("_sandbox_incarnation") != record["incarnation"]:
-                raise SandboxSessionNotFound("Sandbox session incarnation changed")
             references = {}
             for value in [
                 record.get("checkpoint"),
@@ -154,34 +164,35 @@ class SandboxLifecycle:
 
         return await self.store._transaction(begin)
 
-    def _owned_object(
-        self, reference: CheckpointRef, identity: Dict[str, Any], claimed: List[str], witness: Optional[str]
-    ) -> Optional[Path]:
+    async def _owned_object(
+        self,
+        reference: CheckpointRef,
+        identity: Dict[str, Any],
+        claimed: List[str],
+        witness: Optional[Dict[str, Any]],
+    ) -> bool:
+        """True when the object is present and owned; False when this cleanup already deleted it."""
         objects = self.coordinator.transfer.store
         try:
-            path = objects.verify(reference)
-        except FileNotFoundError:
-            # Missing proves deletion only for a claimed object while its volume's witness file is still present.
-            if reference.sha256 in claimed and witness is not None and (objects.root / witness).is_file():
-                return None
+            async with objects.aopen_archive(reference) as source:
+                binding = (await CheckpointArchive().avalidate(source)).get("binding") or {}
+        except CheckpointObjectNotFound:
+            # Missing proves deletion only for a claimed object while its storage still holds the witness.
+            if reference.sha256 in claimed and witness is not None:
+                await objects.averify(CheckpointRef(**witness))
+                return False
             raise
-        binding = CheckpointArchive().validate(path).get("binding") or {}
         if any(binding.get(key) != value for key, value in identity.items()):
             raise SandboxError("Refusing to delete another session's checkpoint")
-        return path
+        return True
 
-    def _write_witness(self, witness: str, path: Path) -> None:
-        root = self.coordinator.transfer.store.root
-        (root / witness).touch(exist_ok=True)
-        _fsync_directory(root)
-        if (root / witness).stat().st_dev != path.stat().st_dev:
-            raise SandboxError("Checkpoint storage changed during recovery deletion")
+    async def _write_witness(self) -> Dict[str, Any]:
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "witness"
+            source.write_text("agno-recovery-deletion-witness " + uuid4().hex)
+            return asdict(await self.coordinator.transfer.store.aput(source))
 
-    def _remove_object(self, path: Path) -> None:
-        path.unlink()
-        _fsync_directory(path.parent)
-
-    async def _claim_object(self, session_id: str, incarnation: Any, sha256: str, witness: str) -> None:
+    async def _claim_object(self, session_id: str, incarnation: Any, sha256: str, witness: Dict[str, Any]) -> None:
         from sqlalchemy import select, update
 
         def claim(connection: Any) -> None:
@@ -207,24 +218,41 @@ class SandboxLifecycle:
     ) -> Dict[str, Any]:
         from sqlalchemy import select, update
 
-        # A deleted session still runs finish() so a retry restores a marker lost to a stale session write.
+        # A deleted session still runs finish() so a retry reconciles run/session copies and the witness.
         record = await self._begin_delete(agent_id, session_id, user_id)
         identity = dict(agent_id=agent_id, session_id=session_id, user_id=user_id, incarnation=record["incarnation"])
+        objects = self.coordinator.transfer.store
         claimed = list(record.get("claimed_references", []))
         witness = record.get("deletion_witness")
         for value in record["deletion_references"]:
             reference = CheckpointRef(**value)
-            path = await _thread(self._owned_object, reference, identity, claimed, witness)
-            if path is None:
+            if not await self._owned_object(reference, identity, claimed, witness):
                 continue
             if reference.sha256 not in claimed:
-                witness = witness or ".recovery-delete-" + uuid4().hex
-                await _thread(self._write_witness, witness, path)
+                witness = witness or await self._write_witness()
+                # Both readable after the witness exists, so a retry can trust the witness for this object.
+                await objects.averify(CheckpointRef(**witness))
+                await objects.averify(reference)
                 await self._claim_object(session_id, record["incarnation"], reference.sha256, witness)
-            await _thread(self._remove_object, path)
+            await objects.adelete(reference)
 
         def finish(connection: Any) -> None:
             assert self.store.runs is not None and self.store.sessions is not None
+            # Session, then runs, then binding: the store's order, since this rewrites all three.
+            session = (
+                connection.execute(
+                    select(self.store.sessions).where(self.store.sessions.c.session_id == session_id).with_for_update()
+                )
+                .mappings()
+                .first()
+            )
+            runs = (
+                connection.execute(
+                    select(self.store.runs).where(self.store.runs.c.session_id == session_id).with_for_update()
+                )
+                .mappings()
+                .all()
+            )
             row = (
                 connection.execute(select(self.store.bindings).where(self.store._key(session_id)).with_for_update())
                 .mappings()
@@ -233,26 +261,9 @@ class SandboxLifecycle:
             current = self.store._json(row["record"])
             if current["incarnation"] != record["incarnation"] or current["phase"] not in ("deleting", "deleted"):
                 raise SandboxError("Recovery deletion lost its session tombstone")
-            runs = (
-                connection.execute(
-                    select(self.store.runs).where(self.store.runs.c.session_id == session_id).with_for_update()
-                )
-                .mappings()
-                .all()
-            )
-            session = (
-                connection.execute(
-                    select(self.store.sessions).where(self.store.sessions.c.session_id == session_id).with_for_update()
-                )
-                .mappings()
-                .first()
-            )
-            if session is not None:
-                data = dict(session["session_data"] or {})
-                if data.get("_sandbox_incarnation") != record["incarnation"]:
-                    raise SandboxError("Session changed during recovery deletion")
+            if session is not None and "sandbox" in (session["session_data"] or {}):
+                data = dict(session["session_data"])
                 data.pop("sandbox", None)
-                data["_sandbox_recovery_deleted"] = record["incarnation"]
                 connection.execute(
                     update(self.store.sessions)
                     .where(self.store.sessions.c.session_id == session_id)
@@ -285,8 +296,8 @@ class SandboxLifecycle:
 
         await self.store._transaction(finish)
         if witness is not None:
-            with suppress(FileNotFoundError):
-                (self.coordinator.transfer.store.root / witness).unlink()
+            with suppress(OSError, SandboxError):
+                await objects.adelete(CheckpointRef(**witness))
         return {"session_id": session_id, "recovery_deleted": True, "conversation_retained": True}
 
     def delete_recovery(self, *, agent_id: str, session_id: str, user_id: Optional[str] = None) -> Dict[str, Any]:

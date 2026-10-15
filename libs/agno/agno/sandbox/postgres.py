@@ -1023,6 +1023,9 @@ class _SandboxStore:
             raise ValueError("Queue termination requires ERROR or CANCELLED")
 
         def stop(connection: Connection) -> Any:
+            # Session, then run, then binding, as in _locked; a missing row locks nothing.
+            self._hold_session(connection, session_id)
+            self._lock_run(connection, run_id)
             # Insert an idle binding to serialize even a never-started run with
             # its first coordinator. A plain SELECT cannot lock an absent row.
             try:

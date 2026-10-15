@@ -13,7 +13,7 @@ from agno.sandbox.checkpoint import CheckpointObjectNotFound, _name
 
 
 def add_sandbox_artifact_routes(router: APIRouter, os: Any) -> None:
-    async def resolve(request: Request, agent_id: str, session_id: str) -> Any:
+    async def resolve_coordinator(request: Request, agent_id: str, session_id: str) -> Any:
         from agno.agents.base import BaseExternalAgent
 
         agent = next(
@@ -27,7 +27,6 @@ def add_sandbox_artifact_routes(router: APIRouter, os: Any) -> None:
         if agent is None:
             raise HTTPException(404, "Sandbox agent not found")
         from agno.sandbox import _harness
-        from agno.sandbox.artifacts import SandboxArtifacts
 
         session = await agent.aget_session(session_id, user_id=get_scoped_user_id(request))
         if session is None:
@@ -42,7 +41,13 @@ def add_sandbox_artifact_routes(router: APIRouter, os: Any) -> None:
             # session has no storage a replica could read: the same unavailable storage reported
             # below. Its other ValueError, a non-Postgres db, is already refused at OS startup.
             raise HTTPException(503, "Checkpoint storage is unavailable") from error
-        return SandboxArtifacts(coordinator.store, coordinator.transfer.store), session.user_id
+        return agent, coordinator, session.user_id
+
+    async def resolve(request: Request, agent_id: str, session_id: str) -> Any:
+        from agno.sandbox.artifacts import SandboxArtifacts
+
+        _, coordinator, user_id = await resolve_coordinator(request, agent_id, session_id)
+        return SandboxArtifacts(coordinator.store, coordinator.transfer.store), user_id
 
     async def call(operation: Any) -> Any:
         from agno.sandbox.artifacts import SandboxArtifactNotFound, SandboxSessionNotFound
@@ -120,20 +125,17 @@ def add_sandbox_artifact_routes(router: APIRouter, os: Any) -> None:
         )
 
     async def lifecycle(request: Request, agent_id: str, session_id: str) -> Any:
-        _, user_id = await resolve(request, agent_id, session_id)
         from agno.sandbox.lifecycle import SandboxLifecycle
 
-        agent = next(
-            value
-            for value in os.agents
-            if getattr(value, "_sandbox_execution", False) is True and value.get_id() == agent_id
-        )
-        return SandboxLifecycle(agent.coordinator), agent, user_id
+        agent, coordinator, user_id = await resolve_coordinator(request, agent_id, session_id)
+        return SandboxLifecycle(coordinator), agent, user_id
 
     @router.post("/agents/{agent_id}/sessions/{session_id}/sandbox/retire", tags=["Agents"], dependencies=dependencies)
     async def retire_sandbox(request: Request, agent_id: str, session_id: str) -> Any:
         operations, agent, user_id = await lifecycle(request, agent_id, session_id)
-        return await call(operations.aretire(agent._spec(session_id), user_id=user_id))
+        from agno.sandbox import _harness
+
+        return await call(operations.aretire(session_id, agent_id=agent_id, user_id=user_id, env=_harness.env(agent)))
 
     @router.delete(
         "/agents/{agent_id}/sessions/{session_id}/sandbox/recovery", tags=["Agents"], dependencies=dependencies

@@ -38,7 +38,7 @@ async def test_api_retirement_preserves_last_checkpoint(service):
     first = await client.post(
         "/agents/coder/runs", data={"message": "first", "session_id": "session", "stream": "false"}
     )
-    agent.runtime_config = {"delay": 10}
+    agent.delay = 10
     second = await client.post(
         "/agents/coder/runs",
         data={"message": "second", "session_id": "session", "stream": "false", "background": "true"},
@@ -62,6 +62,7 @@ async def test_api_retirement_preserves_last_checkpoint(service):
 
 
 async def test_accepted_submission_racing_deletion_fails_without_allocation(service, monkeypatch):
+    from agno.sandbox import _harness
     from agno.sandbox.lifecycle import SandboxLifecycle
 
     client, agent, app, handles = service
@@ -69,15 +70,15 @@ async def test_accepted_submission_racing_deletion_fails_without_allocation(serv
         "/agents/coder/runs", data={"message": "first", "session_id": "session", "stream": "false"}
     )
     assert first.status_code == 200
-    check = agent.coordinator.store._acheck_acceptance
+    check = _harness.coordinator(agent).store._acheck_acceptance
 
     async def delete_after_check(agent_id, session_id, user_id):
         await check(agent_id, session_id, user_id)
-        await SandboxLifecycle(agent.coordinator).adelete_recovery(
+        await SandboxLifecycle(_harness.coordinator(agent)).adelete_recovery(
             agent_id=agent_id, session_id=session_id, user_id=user_id
         )
 
-    monkeypatch.setattr(agent.coordinator.store, "_acheck_acceptance", delete_after_check)
+    monkeypatch.setattr(_harness.coordinator(agent).store, "_acheck_acceptance", delete_after_check)
     accepted = await client.post(
         "/agents/coder/runs",
         data={"message": "racing", "session_id": "session", "stream": "false", "background": "true"},

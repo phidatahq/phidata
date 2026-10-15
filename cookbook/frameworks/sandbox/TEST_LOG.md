@@ -309,3 +309,13 @@ Coordinator review follow-up: native transcript-mirror warnings and lost pre-che
 **Result:** Passed. The background turn COMPLETED with a checkpoint on the run row; the streamed turn returned four events ending in RunCompleted with the file name from turn 1; no containers were left running and the server log had no errors.
 
 ---
+
+### sandbox_attachments.py
+
+**Status:** FAIL
+
+**Description:** A sandboxed ClaudeAgent given a 32x32 red PNG and a text file through `run(images=..., files=...)`, then a second turn with no attachments that asks about the file from turn 1. Real Docker with a runtime image built from this branch, a throwaway Postgres, claude-sonnet-4-6 with ANTHROPIC_API_KEY. Run from a scratch copy that only adds `subnet="10.213.0.0/22"`, because another local Docker network already uses the default 172.30.0.0/22.
+
+**Result:** Turn 1 COMPLETED and answered "The image is red and the release date is 2026-11-02", so both attachments reached Claude Code inside the container. Turn 2 failed before running: restoring turn 1's checkpoint into the new container returned `getent unable to find entry "1000:1000" in passwd database` from Docker. The same error occurs on unmodified `feat/sandbox` for any second turn on this machine (15 October 2026, Docker Desktop 27.4), so it is a local Docker issue, not the attachment change; turn 2 still needs a run on a host where checkpoint restore works. An earlier run with a 1x1 red pixel was answered "orange", so the example now uses a 32x32 image.
+
+---

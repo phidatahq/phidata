@@ -21,9 +21,9 @@ from agno.db.postgres import PostgresDb
 from agno.media import File, Image
 from agno.sandbox.docker import DockerSandbox
 
-# A 1x1 red PNG, so the example needs no image on disk.
-RED_PIXEL = base64.b64decode(
-    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg=="
+# A 32x32 solid red PNG, so the example needs no image on disk.
+RED_SQUARE = base64.b64decode(
+    "iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAIAAAD8GO2jAAAAJ0lEQVR42u3NsQkAAAjAsP7/tF7hIASyp6lTCQQCgUAgEAgEgi/BAjLD/C5w/SM9AAAAAElFTkSuQmCC"
 )
 
 agent = ClaudeAgent(
@@ -48,7 +48,7 @@ first = agent.run(
     "What colour is the attached image, and what is the release date in the attached notes? "
     "Answer in one line.",
     session_id=session_id,
-    images=[Image(content=RED_PIXEL, format="png")],
+    images=[Image(content=RED_SQUARE, format="png")],
     files=[
         File(
             content=b"Release date: 2026-11-02\nOwner: platform team\n",

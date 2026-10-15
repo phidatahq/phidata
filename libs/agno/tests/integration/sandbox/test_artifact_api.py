@@ -512,3 +512,73 @@ async def test_a_failed_capture_leaves_the_previous_checkpoint_served(service):
     assert served.headers["x-agno-run-id"] == first
     status = await client.get("/agents/coder/sessions/session/sandbox")
     assert status.json()["last_completed_run_id"] == first and status.json()["phase"] == "idle"
+
+
+async def test_an_unresolvable_checkpoint_store_is_reported_as_unavailable_storage(tmp_path):
+    """A read whose agent has no store a queue replica could use must not answer as a server fault.
+
+    The harness refuses a host-local default once a queue worker is active, so resolution raises
+    for an authorized request on a real session. That is this session's checkpoint storage being
+    unavailable, which this surface already reports, not an unhandled error.
+    """
+    from uuid import uuid4
+
+    import httpx
+    from sqlalchemy import select
+
+    from agno.job_queue.config import QueueConfig, RedisCoordination
+    from agno.os import AgentOS
+    from agno.sandbox.postgres import _SandboxStore
+
+    monkeypatched = tmp_path / "harness-default"
+    original_default = _harness._DEFAULT_CHECKPOINTS
+    _harness._DEFAULT_CHECKPOINTS = monkeypatched
+    # Short: Postgres caps generated index names at 63 characters.
+    suffix = uuid4().hex[:6]
+    unconfigured = _unconfigured(suffix)
+    db = unconfigured.db
+    queue = QueueConfig(
+        durable=True,
+        db=db,
+        poll_interval=0.05,
+        redis=RedisCoordination(url=REDIS, key_prefix="unresolvable-" + suffix),
+    )
+    app = AgentOS(id="unresolvable-" + suffix, agents=[unconfigured], db=db, queue=queue, telemetry=False).get_app()
+    store = _SandboxStore(db)
+
+    def write(connection):
+        if connection.execute(select(store.sessions)).first() is None:
+            connection.execute(
+                store.sessions.insert().values(
+                    session_id="session",
+                    session_type="agent",
+                    agent_id=unconfigured.get_id(),
+                    user_id="owner",
+                    session_data={},
+                    created_at=1,
+                )
+            )
+
+    try:
+        await store._transaction(write)
+        async with app.router.lifespan_context(app):
+            # raise_app_exceptions=False: observe the response a real client receives, since the
+            # transport otherwise re-raises what the server already answered.
+            transport = httpx.ASGITransport(app=app, raise_app_exceptions=False)
+            async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+                base = "/agents/" + unconfigured.get_id() + "/sessions/session/sandbox"
+                for path, params in (
+                    (base, None),
+                    (base + "/artifacts", None),
+                    (base + "/artifact", {"path": "a.txt"}),
+                ):
+                    response = await client.get(path, params=params)
+                    assert response.status_code == 503, (path, response.status_code, response.text)
+                    assert response.json()["detail"] == "Checkpoint storage is unavailable"
+                # A session this caller does not own is still refused before any of that.
+                missing = await client.get(base.replace("/session/", "/other-session/"))
+                assert missing.status_code == 404, missing.text
+    finally:
+        _harness._DEFAULT_CHECKPOINTS = original_default
+        db.db_engine.dispose()
+    assert not monkeypatched.exists(), "resolution must not create a default store directory here"

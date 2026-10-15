@@ -35,7 +35,13 @@ def add_sandbox_artifact_routes(router: APIRouter, os: Any) -> None:
         assert_session_matches_component(session, "agents", agent_id)
         # The coordinator a turn would execute with, so a read resolves the same effective
         # checkpoint store that wrote the archive. Building one allocates no compute.
-        coordinator = _harness.coordinator(agent)
+        try:
+            coordinator = _harness.coordinator(agent)
+        except ValueError as error:
+            # The harness refuses a host-local default store while a queue worker runs, so this
+            # session has no storage a replica could read: the same unavailable storage reported
+            # below. Its other ValueError, a non-Postgres db, is already refused at OS startup.
+            raise HTTPException(503, "Checkpoint storage is unavailable") from error
         return SandboxArtifacts(coordinator.store, coordinator.transfer.store), session.user_id
 
     async def call(operation: Any) -> Any:

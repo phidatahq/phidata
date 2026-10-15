@@ -986,9 +986,9 @@ class GeminiInteractions(Model):
             status = getattr(stream_event, "status", None)
             if status:
                 stream_state["status"] = status
-            iid = getattr(stream_event, "interaction_id", None)
-            if iid:
-                stream_state["interaction_id"] = iid
+            status_interaction_id = getattr(stream_event, "interaction_id", None)
+            if status_interaction_id:
+                stream_state["interaction_id"] = status_interaction_id
 
         elif isinstance(stream_event, interaction_types.ErrorEvent):
             stream_state["completed"] = True
@@ -1080,7 +1080,7 @@ class GeminiInteractions(Model):
                 # payload arrives on subsequent _RESULT_DELTA_TYPES deltas;
                 # we emit ToolExecution on this index's StepStop.
                 pending_results = stream_state.setdefault("pending_results", {})
-                pending = {
+                pending: Dict[str, Any] = {
                     "call_id": step.call_id,
                     "text_parts": [],
                     "is_error": getattr(step, "is_error", None),

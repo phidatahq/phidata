@@ -122,10 +122,8 @@ class Claude(AnthropicClaude):
         # Each model instance gets its own connection, preventing HTTP/2 stream saturation
         # when multiple models (main agent, MemoryManager, etc.) run concurrently.
 
-        # Close the previous client before creating a new one to avoid leaking
-        # connection pools when session-based credential refresh forces recreation.
-        if self.session and self.client is not None and not self.client.is_closed():
-            self.client.close()
+        # Session-backed clients are returned without caching. An explicitly
+        # supplied client remains caller-owned and must not be closed here.
 
         # Use a local variable so concurrent callers on the same model
         # instance cannot overwrite each other's client via self.client.
@@ -157,10 +155,8 @@ class Claude(AnthropicClaude):
         # Each model instance gets its own connection, preventing HTTP/2 stream saturation
         # when multiple models (main agent, MemoryManager, etc.) run concurrently.
 
-        # Close the previous client before creating a new one to avoid leaking
-        # connection pools when session-based credential refresh forces recreation.
-        if self.session and self.async_client is not None and not self.async_client.is_closed():
-            self.async_client.close()
+        # Session-backed clients are returned without caching. An explicitly
+        # supplied client remains caller-owned and must not be closed here.
 
         # Use a local variable so concurrent callers on the same model
         # instance cannot overwrite each other's client via self.async_client.

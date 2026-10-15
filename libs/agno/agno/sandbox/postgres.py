@@ -207,7 +207,7 @@ class _SandboxStore:
             .mappings()
             .one_or_none()
         )
-        now = connection.execute(select(func.clock_timestamp())).scalar_one()
+        now: datetime = connection.execute(select(func.clock_timestamp())).scalar_one()
         if (
             row is None
             or (row["agent_id"], row["user_id"], row["run_id"], row["epoch"], row["owner"], row["queue_attempt"])
@@ -337,7 +337,7 @@ class _SandboxStore:
                         "Existing conversation has no sandbox checkpoint; start a new session or migrate explicitly"
                     )
             record = dict(row["record"])
-            now = connection.execute(select(func.clock_timestamp())).scalar_one()
+            now: datetime = connection.execute(select(func.clock_timestamp())).scalar_one()
             active = record["phase"] != "idle"
             if not active and str(run["status"]).upper() in ("COMPLETED", "CANCELLED", "ERROR"):
                 raise SandboxRunFinished(dict(run["run_data"]))
@@ -409,7 +409,7 @@ class _SandboxStore:
 
         def renew(connection: Connection) -> SandboxState:
             self._locked(connection, lease)
-            now = connection.execute(select(func.clock_timestamp())).scalar_one()
+            now: datetime = connection.execute(select(func.clock_timestamp())).scalar_one()
             row = (
                 connection.execute(
                     update(self.bindings)
@@ -702,7 +702,7 @@ class _SandboxStore:
         if row["run_data"].get("input") != value.get("input"):
             raise SandboxError("Run identity already exists with different input")
         if row["run_index"] is None:
-            index = connection.execute(
+            index: int = connection.execute(
                 select(func.coalesce(func.max(self.runs.c.run_index), -1) + 1).where(
                     self.runs.c.session_id == value["session_id"]
                 )

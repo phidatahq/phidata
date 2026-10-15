@@ -73,9 +73,11 @@ except ImportError:
     )
 
 try:
-    from google.genai.types import ToolParallelAiSearch
+    from google.genai.types import ToolParallelAiSearch as _ToolParallelAiSearch
 except ImportError:
-    ToolParallelAiSearch = None
+    ToolParallelAiSearch: Optional[Type[Any]] = None
+else:
+    ToolParallelAiSearch = _ToolParallelAiSearch
 
 
 @dataclass
@@ -931,7 +933,7 @@ class Gemini(Model):
         merged: List[Content] = []
         for msg in formatted_messages:
             if merged and merged[-1].role == msg.role:
-                merged[-1].parts.extend(msg.parts)
+                merged[-1].parts = (merged[-1].parts or []) + (msg.parts or [])
             else:
                 merged.append(msg)
 

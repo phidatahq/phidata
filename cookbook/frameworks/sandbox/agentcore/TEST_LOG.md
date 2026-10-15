@@ -123,13 +123,3 @@ Paced at 20 creates per second with two-minute turns: 1,000 of 1,000 sessions co
 **Description:** The AgentCore agent served by AgentOS with a durable queue (local Postgres and Redis) and an explicit checkpoint store, driven over HTTP against the staging runtime with `us.anthropic.claude-sonnet-5` through Bedrock and no API key. Turn 1 was a streamed submission; turn 2 a background submission with `stream=false`, polled to completion.
 
 **Result:** Passed. Turn 1 streamed RunStarted, two tool calls, content and RunCompleted with "hello". Turn 2 ran on a new microVM restored from turn 1's checkpoint, COMPLETED, and replied "hello.py". The server log had no errors or warnings.
-
-### warm_turns.py --provider agentcore
-
-**Status:** PASS
-
-**Description:** Four fixture turns of one session through the coordinator on the agno_sandbox_proto runtime in the staging account, with provider creates and transfer restores counted per turn.
-
-**Result:** Passed: turn 1 cold 8.2s, turn 2 warm 3.3s on the same microVM with nothing restored, turn 3 warm 3.4s, turn 4 cold 6.5s on a new microVM restored from turn 3's checkpoint after the shortened warm window ended. The checkpoint held all four turns and the retire call stopped the microVM. The same two turns on the committed branch head were cold both times, 5.8s for turn 2 with a restore and a new generation. Full results for both providers are in docker/TEST_LOG.md.
-
----

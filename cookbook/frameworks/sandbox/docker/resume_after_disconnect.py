@@ -87,9 +87,6 @@ async def main() -> None:
         print(
             f"The committed workspace records the turn {runs} time: its work ran once, across both coordinators"
         )
-        await SandboxCoordinator(db, sandbox, transfer).aretire_computer(
-            session_id, agent_id=turn["agent_id"]
-        )
 
 
 if __name__ == "__main__":

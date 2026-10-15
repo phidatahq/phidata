@@ -838,3 +838,211 @@ async def test_cancelled_duplicate_claim_keeps_the_live_lease(store, monkeypatch
         await duplicate
     monkeypatch.setattr(store, "_state", to_state)
     assert (await store.aget(held.lease)).lease == held.lease
+
+
+async def test_atomic_admission_does_not_leave_a_rejected_run(store):
+    await seed(store)
+    await claim(store)
+    value = {
+        **result((await claim(store)).lease)["run"],
+        "run_id": "rejected",
+        "status": "RUNNING",
+        "input": {"input_content": "new"},
+    }
+    with pytest.raises(SandboxSessionBusy):
+        await claim(store, run_id="rejected", prepared_run=value)
+    assert await store._transaction(lambda c: c.execute(select(store.runs.c.run_id)).scalars().all()) == ["run"]
+
+
+async def test_existing_non_sandbox_history_requires_explicit_migration(store):
+    await seed(store)
+    await store._transaction(lambda c: c.execute(update(store.runs).values(status="COMPLETED")))
+    value = {"run_id": "new", "session_id": "session", "agent_id": "agent", "user_id": "user", "status": "RUNNING"}
+    with pytest.raises(SandboxError, match="migrate explicitly"):
+        await claim(store, run_id="new", prepared_run=value)
+    assert await store._transaction(lambda c: c.execute(select(store.bindings)).first()) is None
+    assert await store._transaction(lambda c: c.execute(select(store.runs.c.run_id)).scalars().all()) == ["run"]
+
+
+async def test_cancelled_provider_operation_drains_before_releasing_ownership_rows(store):
+    await seed(store)
+    state = await claim(store)
+    entered, release = asyncio.Event(), asyncio.Event()
+
+    async def operation(record):
+        entered.set()
+        await release.wait()
+        record["drained"] = True
+        return record
+
+    active = asyncio.create_task(store._aoperation(state.lease, operation))
+    await entered.wait()
+    active.cancel()
+    contender = asyncio.create_task(claim(store, owner="other"))
+    await asyncio.sleep(0.05)
+    assert not active.done() and not contender.done()
+    release.set()
+    with pytest.raises(asyncio.CancelledError):
+        await active
+    with pytest.raises(SandboxSessionBusy):
+        await contender
+    assert (await store.aget(state.lease)).record["drained"] is True
+
+
+async def test_compute_cannot_replace_service_input_or_metadata(store):
+    await seed(store)
+    initial = await store._transaction(lambda c: dict(c.execute(select(store.runs.c.run_data)).scalar_one()))
+    initial.update(input={"input_content": "original"}, metadata={"tenant": "trusted"})
+    await store._transaction(lambda c: c.execute(update(store.runs).values(run_data=initial)))
+    state = await claim(store)
+    await store.aset_computer(state.lease, computer(state))
+    output = result(state.lease)
+    output["run"].update(input={"input_content": "forged"}, metadata={"tenant": "forged", "warnings": []})
+    await store.astage_result(state.lease, output)
+    await store.astage_checkpoint(state.lease, REF)
+    await store.aconfirm_stopped(state.lease, "ref")
+    committed = await store.acommit(state.lease)
+    assert committed["input"] == {"input_content": "original"}
+    assert committed["metadata"]["tenant"] == "trusted"
+    assert committed["metadata"]["sandbox"]["native_metadata"]["tenant"] == "forged"
+
+
+async def test_long_provider_operation_keeps_its_lease(store):
+    await seed(store)
+    state = await claim(store, lease_seconds=1)
+
+    async def slow(record):
+        # Longer than the lease; the heartbeat cannot renew while this holds the row.
+        await asyncio.sleep(1.5)
+        return record
+
+    await store._aoperation(state.lease, slow)
+    assert (await store.aget(state.lease)).lease == state.lease
+
+
+@pytest.mark.parametrize("status", ["RUNNING", "PAUSED"])
+async def test_first_binding_waits_for_a_turn_running_outside_the_sandbox(store, status):
+    await seed(store)
+    await store._transaction(lambda c: c.execute(update(store.runs).values(status=status)))
+    await seed(store, run_id="second")
+    with pytest.raises(SandboxSessionBusy) as busy:
+        await claim(store, run_id="second")
+    assert busy.value.run_id == "run"
+    assert await store._transaction(lambda c: c.execute(select(store.bindings)).first()) is None
+
+
+async def test_first_binding_ignores_runs_still_queued(store):
+    await seed(store)
+    await store._transaction(lambda c: c.execute(update(store.runs).values(status="PENDING")))
+    await seed(store, run_id="second")
+    assert (await claim(store, run_id="second")).record["phase"] == "executing"
+
+
+async def test_admission_takes_the_core_run_index_lock(store):
+    await seed(store)
+    value = {**result((await claim(store)).lease)["run"], "run_id": "queued", "status": "PENDING"}
+    engine = create_engine(URL)
+    holder = await asyncio.to_thread(engine.connect)
+    key = "SELECT pg_advisory_lock(hashtext('agno_run_index'), hashtext('session'))"
+    await asyncio.to_thread(lambda: holder.exec_driver_sql(key))
+    try:
+        admission = asyncio.create_task(store.aprepare(value))
+        await asyncio.sleep(0.5)
+        # Core run saves hold this lock while picking the next index; admission must wait for it too.
+        assert not admission.done()
+
+        # Core takes the lock before writing the run row. Admission must not hold that row while it waits,
+        # or a core save of the same run waits on admission while holding the lock admission needs.
+        def core_save_of_the_same_run():
+            with engine.connect() as connection:
+                transaction = connection.begin()
+                connection.exec_driver_sql("SET LOCAL lock_timeout = '500ms'")
+                connection.execute(
+                    store.runs.insert().values(
+                        run_id="queued",
+                        session_id="session",
+                        run_type="agent",
+                        agent_id="agent",
+                        user_id="user",
+                        status="PENDING",
+                        created_at=1,
+                        run_data=value,
+                    )
+                )
+                transaction.rollback()
+
+        await asyncio.to_thread(core_save_of_the_same_run)
+    finally:
+        await asyncio.to_thread(
+            lambda: holder.exec_driver_sql("SELECT pg_advisory_unlock(hashtext('agno_run_index'), hashtext('session'))")
+        )
+    await admission
+    await asyncio.to_thread(holder.close)
+    engine.dispose()
+    indexes = await store._transaction(lambda c: c.execute(select(store.runs.c.run_index)).scalars().all())
+    assert len(set(indexes)) == len(indexes)
+
+
+async def test_later_claim_waits_for_a_run_outside_the_sandbox(store):
+    lease = await staged(store)
+    await store.astage_checkpoint(lease, REF)
+    await store.aconfirm_stopped(lease, "ref")
+    await store.acommit(lease)
+    # A normal run in the same session, after the session's first sandbox turn.
+    await seed(store, run_id="outside")
+    await seed(store, run_id="second")
+    with pytest.raises(SandboxSessionBusy) as caught:
+        await claim(store, run_id="second")
+    assert caught.value.run_id == "outside"
+
+
+async def test_paused_run_is_not_restarted_in_a_sandbox(store):
+    await seed(store)
+    # Paused for a continuation: running it again would discard the pending requirements.
+    await store._transaction(lambda c: c.execute(update(store.runs).values(status="PAUSED")))
+    with pytest.raises(SandboxError, match="paused"):
+        await claim(store)
+    assert await store._transaction(lambda c: c.execute(select(store.bindings)).first()) is None
+
+
+async def stamp_attempt(store, attempt, run_id="run"):
+    # What the durable queue does before re-driving a run: record the new attempt on its row.
+    def write(connection):
+        data = connection.execute(select(store.runs.c.run_data).where(store.runs.c.run_id == run_id)).scalar_one()
+        connection.execute(
+            store.runs.update().where(store.runs.c.run_id == run_id).values(run_data={**data, "queue_attempt": attempt})
+        )
+
+    await store._transaction(write)
+
+
+async def failed_attempt(store, retryable):
+    await seed(store, attempt=1)
+    state = await claim(store, queue_attempt=1)
+    await store.abegin_stop(state.lease, status="ERROR", reason="restore did not land", retryable=retryable)
+    await store.afinish_stop(state.lease)
+    await stamp_attempt(store, 2)
+
+
+async def test_retryable_error_reopens_on_a_newer_queue_attempt(store):
+    await failed_attempt(store, retryable=True)
+    state = await claim(store, owner="retry", queue_attempt=2)
+    assert state.record["phase"] == "executing"
+    run = (await rows(store))[0]
+    assert run["status"] == "RUNNING" and run["run_data"]["status"] == "RUNNING"
+    assert "retryable" not in (run["run_data"].get("metadata") or {}) and run["run_data"].get("content") is None
+
+
+async def test_error_stays_final_without_a_retryable_newer_attempt(store):
+    await failed_attempt(store, retryable=False)
+    with pytest.raises(SandboxRunFinished):
+        await claim(store, owner="retry", queue_attempt=2)
+    assert (await rows(store))[0]["status"] == "ERROR"
+
+
+async def test_retryable_error_is_not_reopened_by_the_failed_attempt(store):
+    await failed_attempt(store, retryable=True)
+    # Undo the stamp: the attempt that failed asks again, e.g. after a lost acknowledgement.
+    await stamp_attempt(store, 1)
+    with pytest.raises(SandboxRunFinished):
+        await claim(store, owner="retry", queue_attempt=1)

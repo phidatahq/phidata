@@ -369,6 +369,20 @@ class DockerSandbox(Sandbox):
             raise SandboxError("Sandbox identity changed; refusing the operation")
         return current
 
+    async def afind(
+        self,
+        session_id: str,
+        *,
+        agent_id: Optional[str] = None,
+        generation: int = 1,
+        env: Optional[Mapping[str, str]] = None,
+    ) -> Optional[SandboxHandle]:
+        values = _identity(session_id, agent_id, generation, env)
+        handle = await self.aget(self._name(session_id, agent_id, generation))
+        if handle is not None and handle.config_digest != self._digest(session_id, agent_id, generation, values):
+            raise SandboxError("Existing generation has different compute configuration")
+        return handle
+
     async def acreate(
         self,
         session_id: str,

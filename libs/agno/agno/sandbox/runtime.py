@@ -22,6 +22,8 @@ from pathlib import Path
 from typing import Any, Dict, Iterator, Optional
 
 from agno.sandbox.base import SandboxError
+from agno.sandbox.protocol import NATIVE_SESSION_KEYS
+from agno.sandbox.protocol import validate_request as _validate
 
 _VERSION = 1
 # The bearer token the host must present to this container's server. The server reads it
@@ -53,38 +55,9 @@ def _job(root: Path, execution_id: str) -> Path:
     return root / "jobs" / hashlib.sha256(execution_id.encode()).hexdigest()
 
 
-def _validate(request: Dict[str, Any]) -> None:
-    if type(request.get("version")) is not int or request["version"] != _VERSION:
-        raise ValueError("Unsupported runtime protocol version")
-    for key in ("execution_id", "run_id", "session_id", "agent_id"):
-        if not isinstance(request.get(key), str) or not request[key] or len(request[key]) > 256:
-            raise ValueError("Runtime requires bounded string identities")
-    if request.get("sdk") not in ("claude", "codex", "fixture"):
-        raise ValueError("Unsupported runtime SDK")
-    if not isinstance(request.get("input"), str) or not isinstance(request.get("config", {}), dict):
-        raise ValueError("Runtime input must be text and configuration must be JSON")
-    if request["sdk"] == "fixture" and os.environ.get("AGNO_SANDBOX_TEST_RUNTIME") != "1":
-        raise ValueError("The fixture runtime is disabled")
-    if {"db", "cwd", "id", "retries", "env", "client_options", "options", "keep_uploads"} & set(
-        request.get("config", {})
-    ):
-        raise ValueError("Runtime owns database, workspace, identity, process environment and retry configuration")
-    timeout = request.get("execution_timeout", 900)
-    if not isinstance(timeout, (float, int)) or not math.isfinite(timeout) or not 0 < timeout <= 86400:
-        raise ValueError("Runtime execution timeout must be between 0 and 86400 seconds")
-    expected = request.get("native_session_id")
-    if expected is not None and (not isinstance(expected, str) or not expected or len(expected) > 256):
-        raise ValueError("Runtime native_session_id must be a bounded native session id or null")
-    if len(_encode(request)) > _MAX_REQUEST:
-        raise ValueError("Runtime request exceeds its limit")
-
-
 class NativeStateMissing(SandboxError):
     """The sandbox does not hold the native conversation the caller expects. The model never
     ran; the caller treats this as a failed restore, not a failed turn."""
-
-
-_NATIVE_KEYS = {"claude": "claude_sdk_session_id", "codex": "codex_thread_id"}
 
 
 def _check_native_session_id(agent: Any, request: Dict[str, Any]) -> None:
@@ -95,7 +68,11 @@ def _check_native_session_id(agent: Any, request: Dict[str, Any]) -> None:
     if expected is None:
         return
     session = agent.get_session(request["session_id"], user_id=request.get("user_id"))
-    found = (session.session_data or {}).get(_NATIVE_KEYS[request["sdk"]]) if session is not None else None
+    found = (session.session_data or {}).get(NATIVE_SESSION_KEYS[request["sdk"]]) if session is not None else None
+    _require_native(expected, found)
+
+
+def _require_native(expected: str, found: Optional[str]) -> None:
     if found != expected:
         raise NativeStateMissing(
             "Sandbox native state does not match the session: expected "
@@ -180,6 +157,16 @@ def _append(directory: Path, event: Dict[str, Any]) -> None:
 
 
 async def _fixture(directory: Path, request: Dict[str, Any]) -> Dict[str, Any]:
+    # A stand-in native conversation: its id lives in the checkpointed native root, like an SDK's.
+    native = directory.parent.parent / "native"
+    native.mkdir(exist_ok=True)
+    marker = native / "fixture-session"
+    found = marker.read_text() if marker.exists() else None
+    if request.get("native_session_id") is not None:
+        _require_native(request["native_session_id"], found)
+    if found is None:
+        found = hashlib.sha256(request["session_id"].encode() + os.urandom(16)).hexdigest()[:32]
+        marker.write_text(found)
     workspace = Path(os.environ.get("AGNO_SANDBOX_WORKSPACE", "/workspace"))
     workspace.mkdir(exist_ok=True)
     with (workspace / "fixture-effects.txt").open("a") as stream:
@@ -209,7 +196,7 @@ async def _fixture(directory: Path, request: Dict[str, Any]) -> Dict[str, Any]:
         "session": {
             "session_id": request["session_id"],
             "user_id": request.get("user_id"),
-            "session_data": {"fixture": True},
+            "session_data": {"fixture": True, NATIVE_SESSION_KEYS["fixture"]: found},
         },
     }
 
@@ -229,6 +216,7 @@ def _agent(request: Dict[str, Any], native: Path) -> Any:
         keep_uploads=True,
         require_native_resume=True,
         strict_persistence=True,
+        store_events=True,
     )
     if request["sdk"] == "claude":
         from agno.agents.claude import ClaudeAgent

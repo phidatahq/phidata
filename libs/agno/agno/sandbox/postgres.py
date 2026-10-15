@@ -16,13 +16,15 @@ from typing import Any, Awaitable, Callable, Dict, Optional, Tuple, TypeVar, Uni
 from uuid import uuid4
 
 from agno.db.postgres import AsyncPostgresDb, PostgresDb
+from agno.exceptions import SessionBusyError
 from agno.sandbox.base import SandboxError, SandboxHandle, _sync
 from agno.sandbox.checkpoint import CheckpointRef
+from agno.sandbox.protocol import NATIVE_SESSION_KEYS
 from agno.utils.log import log_warning
 from agno.utils.string import sanitize_postgres_strings
 
 try:
-    from sqlalchemy import Table, func, select, update
+    from sqlalchemy import Table, func, select, text, update
     from sqlalchemy.dialects.postgresql import insert
     from sqlalchemy.engine import Connection
     from sqlalchemy.exc import IntegrityError
@@ -101,10 +103,9 @@ class SandboxLeaseLost(SandboxError):
     """The caller no longer owns this session or queue attempt."""
 
 
-class SandboxSessionBusy(SandboxError):
+class SandboxSessionBusy(SessionBusyError, SandboxError):
     def __init__(self, run_id: str) -> None:
-        self.run_id = run_id
-        super().__init__("A sandbox session already has an active run; wait or reconcile that run")
+        super().__init__("A sandbox session already has an active run; wait or reconcile that run", run_id=run_id)
 
 
 class SandboxRunFinished(SandboxError):
@@ -324,13 +325,17 @@ class _SandboxStore:
             self._json(row["record"]),
         )
 
-    def _write_record(self, connection: Connection, lease: SandboxLease, record: Dict[str, Any]) -> SandboxState:
+    def _write_record(
+        self, connection: Connection, lease: SandboxLease, record: Dict[str, Any], *, extend: bool = False
+    ) -> SandboxState:
+        values: Dict[str, Any] = {"record": self._json(record)}
+        if extend:
+            # Only for a writer that held the binding row lock throughout, so nobody else could own it.
+            now = connection.execute(select(func.clock_timestamp())).scalar_one()
+            values["expires_at"] = now + timedelta(seconds=record.get("lease_seconds", 60))
         row = (
             connection.execute(
-                update(self.bindings)
-                .where(self._key(lease.session_id))
-                .values(record=self._json(record))
-                .returning(self.bindings)
+                update(self.bindings).where(self._key(lease.session_id)).values(**values).returning(self.bindings)
             )
             .mappings()
             .one()
@@ -347,6 +352,7 @@ class _SandboxStore:
         owner: str,
         queue_attempt: Optional[int] = None,
         lease_seconds: float = 60,
+        prepared_run: Optional[Dict[str, Any]] = None,
     ) -> SandboxState:
         """Own the session for ``run_id``; always continue with the returned state's lease.
 
@@ -364,12 +370,29 @@ class _SandboxStore:
         if not math.isfinite(lease_seconds) or not 0 < lease_seconds <= 3600:
             raise ValueError("Lease duration must be between 0 and 3600 seconds")
 
+        prepared: Optional[Dict[str, Any]] = None
+        if prepared_run is not None:
+            prepared = self._json(prepared_run)
+            if (
+                prepared.get("agent_id"),
+                prepared.get("session_id"),
+                prepared.get("user_id"),
+                prepared.get("run_id"),
+                prepared.get("queue_attempt"),
+            ) != (agent_id, session_id, user_id, run_id, queue_attempt):
+                raise ValueError("Prepared run does not match the requested lease")
         opened_turn = False
         reused_lease = False
 
         def claim(connection: Connection) -> SandboxState:
             nonlocal opened_turn, reused_lease
+            if prepared is not None:
+                # A new session needs its row before it can be held; inserting it locks no existing row.
+                self._insert_session(connection, prepared)
             self._hold_session(connection, session_id)
+            if prepared is not None:
+                # Session, then run, then binding: the prepared run is written and locked before the binding.
+                self._prepare_service_run(connection, prepared)
             self._lock_run(connection, run_id)
             try:
                 connection.execute(
@@ -403,11 +426,66 @@ class _SandboxStore:
                 raise SandboxLeaseLost("Sandbox session ownership is immutable")
             candidate = SandboxLease(agent_id, session_id, user_id, run_id, row["epoch"], owner, queue_attempt)
             run, _ = self._service_run(connection, candidate)
+            if row["epoch"] == 0:
+                # A first binding on a session with finished runs has no checkpoint to continue from.
+                historical = connection.execute(
+                    select(self.runs.c.run_id)
+                    .where(
+                        (self.runs.c.session_id == session_id)
+                        & (self.runs.c.run_id != run_id)
+                        & self.runs.c.status.in_(_FINISHED)
+                    )
+                    .limit(1)
+                ).first()
+                if historical is not None:
+                    raise SandboxError(
+                        "Existing conversation has no sandbox checkpoint; start a new session or migrate explicitly"
+                    )
             record = dict(row["record"])
             now = connection.execute(select(func.clock_timestamp())).scalar_one()
             active = record["phase"] != "idle"
-            if not active and str(run["status"]).upper() in _FINISHED:
+            # A retryable failure this binding recorded for an earlier queue attempt of this run: the
+            # queue's next attempt runs the turn again instead of reading back the stored error.
+            failed = record.get("retryable_failure") or {}
+            reopen = (
+                not active
+                and str(run["status"]).upper() == "ERROR"
+                and (run["run_data"].get("metadata") or {}).get("retryable") is True
+                and failed.get("run_id") == run_id
+                and queue_attempt is not None
+                and failed.get("queue_attempt") is not None
+                and queue_attempt > failed["queue_attempt"]
+            )
+            if reopen:
+                reopened = {**run["run_data"], "status": "RUNNING", "content": None}
+                reopened["metadata"] = {
+                    key: value for key, value in (reopened.get("metadata") or {}).items() if key != "retryable"
+                }
+                connection.execute(
+                    update(self.runs)
+                    .where(self.runs.c.run_id == run_id)
+                    .values(status="RUNNING", run_data=self._json(reopened), updated_at=int(time.time()))
+                )
+            elif not active and str(run["status"]).upper() in _FINISHED:
                 raise SandboxRunFinished(dict(run["run_data"]))
+            if not active and str(run["status"]).upper() == "PAUSED":
+                # A paused run waits for its continuation; executing it again would discard that state.
+                raise SandboxError("A paused run must be continued, not started again in a sandbox")
+            if not active:
+                # Starting a turn on an idle session, first or later: another run that is running or
+                # paused outside the sandbox would execute alongside it. Queued (PENDING) runs wait for
+                # the binding instead.
+                running = connection.execute(
+                    select(self.runs.c.run_id)
+                    .where(
+                        (self.runs.c.session_id == session_id)
+                        & (self.runs.c.run_id != run_id)
+                        & self.runs.c.status.in_(["RUNNING", "PAUSED"])
+                    )
+                    .limit(1)
+                ).first()
+                if running is not None:
+                    raise SandboxSessionBusy(running[0])
             if active and row["run_id"] != run_id:
                 raise SandboxSessionBusy(row["run_id"])
             newer_attempt = (
@@ -430,10 +508,24 @@ class _SandboxStore:
                     stopped_ref=None,
                     stop_status=None,
                     stop_reason=None,
+                    stop_retryable=False,
                     execution_id=uuid4().hex,
                     result=None,
                     staged_checkpoint=None,
+                    staged_identity=None,
+                    request_hash=None,
+                    retryable_failure=None,
                 )
+            if active and str(run["status"]).upper() in _FINISHED:
+                # Finished elsewhere while this turn was active: retire its compute and release the session.
+                record.update(
+                    phase="stopping",
+                    stop_status="CANCELLED" if str(run["status"]).upper() == "CANCELLED" else "ERROR",
+                    stop_reason="Service run was finished elsewhere",
+                )
+                if record.get("computer") is None:
+                    record["computer_stopped"] = True
+            record["lease_seconds"] = lease_seconds
             updated = (
                 connection.execute(
                     update(self.bindings)
@@ -499,13 +591,14 @@ class _SandboxStore:
             raise ValueError("Lease duration must be between 0 and 3600 seconds")
 
         def renew(connection: Connection) -> SandboxState:
-            self._locked(connection, lease)
+            record = dict(self._locked(connection, lease)["record"])
+            record["lease_seconds"] = lease_seconds
             now = connection.execute(select(func.clock_timestamp())).scalar_one()
             row = (
                 connection.execute(
                     update(self.bindings)
                     .where(self._key(lease.session_id))
-                    .values(expires_at=now + timedelta(seconds=lease_seconds))
+                    .values(expires_at=now + timedelta(seconds=lease_seconds), record=self._json(record))
                     .returning(self.bindings)
                 )
                 .mappings()
@@ -639,10 +732,16 @@ class _SandboxStore:
             run = dict(previous_run["run_data"])
             run.update({key: value for key, value in result["run"].items() if key in _RUNTIME_RUN_FIELDS})
             run["queue_attempt"] = lease.queue_attempt
+            native_metadata = result["run"].get("metadata") or {}
             run["metadata"] = {
                 **(previous_run["run_data"].get("metadata") or {}),
+                **{
+                    key: native_metadata[key]
+                    for key in ("warnings", "attempts", "retryable", "error_type")
+                    if key in native_metadata
+                },
                 "sandbox": {
-                    "native_metadata": result["run"].get("metadata") or {},
+                    "native_metadata": native_metadata,
                     "epoch": lease.epoch,
                     "generation": record["generation"],
                     "checkpoint": record["staged_checkpoint"],
@@ -666,9 +765,13 @@ class _SandboxStore:
                 .where(self.sessions.c.session_id == lease.session_id)
                 .values(session_data=self._json(session_data), updated_at=int(time.time()))
             )
+            native = result["session"].get("session_data") or {}
             record.update(
                 phase="idle",
                 checkpoint=record["staged_checkpoint"],
+                # Native conversation ids the checkpoint holds; the next turn requires exactly these.
+                native={key: native[key] for key in NATIVE_SESSION_KEYS.values() if native.get(key)},
+                checkpoint_identity=record.get("staged_identity"),
                 last_run_id=lease.run_id,
                 result=None,
                 staged_checkpoint=None,
@@ -689,7 +792,9 @@ class _SandboxStore:
     def commit(self, lease: SandboxLease) -> Dict[str, Any]:
         return self._sync(self.acommit, lease)
 
-    async def abegin_stop(self, lease: SandboxLease, *, status: str, reason: str) -> SandboxState:
+    async def abegin_stop(
+        self, lease: SandboxLease, *, status: str, reason: str, retryable: bool = False
+    ) -> SandboxState:
         """Fence cancellation/failure before destroying compute; takeover only reconciles it."""
         if status not in ("ERROR", "CANCELLED") or not isinstance(reason, str) or len(reason) > 8192:
             raise ValueError("Shutdown requires a bounded error or cancellation reason")
@@ -701,15 +806,15 @@ class _SandboxStore:
                 return self._state(row)
             if record["phase"] not in ("executing", "finalizing"):
                 raise SandboxError("Only an active execution can be stopped")
-            record.update(phase="stopping", stop_status=status, stop_reason=reason)
+            record.update(phase="stopping", stop_status=status, stop_reason=reason, stop_retryable=retryable)
             if record.get("computer") is None:
                 record["computer_stopped"] = True
             return self._write_record(connection, lease, record)
 
         return await self._transaction(begin)
 
-    def begin_stop(self, lease: SandboxLease, *, status: str, reason: str) -> SandboxState:
-        return self._sync(self.abegin_stop, lease, status=status, reason=reason)
+    def begin_stop(self, lease: SandboxLease, *, status: str, reason: str, retryable: bool = False) -> SandboxState:
+        return self._sync(self.abegin_stop, lease, status=status, reason=reason, retryable=retryable)
 
     async def afinish_stop(self, lease: SandboxLease) -> Dict[str, Any]:
         """Release the session after confirmed cleanup, keeping the previous recovery boundary.
@@ -726,25 +831,36 @@ class _SandboxStore:
             # A run another writer already finished keeps its stored outcome; the binding is still
             # released so the session is not left busy. The previous checkpoint stays the recovery point.
             if str(previous_run["status"]).upper() not in _FINISHED:
+                staged = (record.get("result") or {}).get("run") or {}
+                for key in ("tools", "messages", "metrics"):
+                    if key in staged:
+                        run[key] = staged[key]
                 run["status"] = record["stop_status"]
                 # Like core run termination: the reason fills content only when there is none.
                 if not run.get("content"):
                     run["content"] = record["stop_reason"]
                 sandbox = {
+                    "native_metadata": staged.get("metadata") or {},
                     "recovery_run_id": record.get("last_run_id"),
                     "workspace_rolled_back": True,
                     "execution_id": record["execution_id"],
                     "stop_reason": record["stop_reason"],
                 }
-                staged = (record.get("result") or {}).get("run") or {}
                 if staged.get("content") is not None:
                     sandbox["runtime_content"] = staged["content"]
-                run["metadata"] = {**(run.get("metadata") or {}), "sandbox": sandbox}
+                run["metadata"] = {
+                    **(run.get("metadata") or {}),
+                    "retryable": record.get("stop_retryable", False),
+                    "sandbox": sandbox,
+                }
                 connection.execute(
                     update(self.runs)
                     .where(self.runs.c.run_id == lease.run_id)
                     .values(status=run["status"], run_data=self._json(run), updated_at=int(time.time()))
                 )
+                if record.get("stop_retryable"):
+                    # Lets the queue's next attempt of this run reopen it.
+                    record["retryable_failure"] = {"run_id": lease.run_id, "queue_attempt": lease.queue_attempt}
             record.update(phase="idle", result=None, staged_checkpoint=None)
             connection.execute(
                 update(self.bindings)
@@ -757,3 +873,123 @@ class _SandboxStore:
 
     def finish_stop(self, lease: SandboxLease) -> Dict[str, Any]:
         return self._sync(self.afinish_stop, lease)
+
+    def _prepare_service_run(self, connection: Connection, value: Dict[str, Any]) -> None:
+        if value.get("status") not in ("PENDING", "RUNNING"):
+            raise ValueError("A prepared sandbox run cannot be terminal")
+        for key in ("run_id", "session_id", "agent_id"):
+            if not isinstance(value.get(key), str) or not value[key] or len(value[key]) > 256:
+                raise ValueError("Sandbox runs require bounded service identities")
+        # The lock core run saves take, so a concurrent save cannot pick the same index. Taken before the
+        # run row, in core's order: holding the row while waiting for it would deadlock a core save.
+        connection.execute(
+            text("SELECT pg_advisory_xact_lock(hashtext('agno_run_index'), hashtext(:sid))"),
+            {"sid": value["session_id"]},
+        )
+        self._insert_session(connection, value)
+        connection.execute(
+            insert(self.runs)
+            .values(
+                run_id=value["run_id"],
+                session_id=value["session_id"],
+                agent_id=value["agent_id"],
+                user_id=value.get("user_id"),
+                run_type="agent",
+                status=value["status"],
+                run_data=value,
+                created_at=value.get("created_at", int(time.time())),
+            )
+            .on_conflict_do_nothing()
+        )
+        lease = SandboxLease(
+            value["agent_id"],
+            value["session_id"],
+            value.get("user_id"),
+            value["run_id"],
+            0,
+            "prepare",
+            value.get("queue_attempt"),
+        )
+        row, _ = self._service_run(connection, lease)
+        if row["run_data"].get("input") != value.get("input"):
+            raise SandboxError("Run identity already exists with different input")
+        if row["run_index"] is None:
+            index = connection.execute(
+                select(func.coalesce(func.max(self.runs.c.run_index), -1) + 1).where(
+                    self.runs.c.session_id == value["session_id"]
+                )
+            ).scalar_one()
+            connection.execute(update(self.runs).where(self.runs.c.run_id == value["run_id"]).values(run_index=index))
+
+    def _insert_session(self, connection: Connection, value: Dict[str, Any]) -> None:
+        connection.execute(
+            insert(self.sessions)
+            .values(
+                session_id=value["session_id"],
+                agent_id=value["agent_id"],
+                user_id=value.get("user_id"),
+                session_type="agent",
+                created_at=int(time.time()),
+                session_data={},
+            )
+            .on_conflict_do_nothing()
+        )
+
+    async def aprepare(self, run: Dict[str, Any]) -> None:
+        """Insert an accepted queued run without rewriting existing session recovery metadata."""
+        value = self._json(run)
+        await self._transaction(lambda connection: self._prepare_service_run(connection, value))
+
+    def prepare(self, run: Dict[str, Any]) -> None:
+        self._sync(self.aprepare, run)
+
+    async def _aoperation(
+        self, lease: SandboxLease, operation: Callable[[Dict[str, Any]], Awaitable[Dict[str, Any]]]
+    ) -> SandboxState:
+        # Hold the ownership rows through a bounded provider mutation. A concurrent
+        # takeover waits until it drains, then checks ownership against the DB clock.
+        # This closes the check-then-act gap between a lease read and provider calls.
+        async def perform() -> SandboxState:
+            await self._ensure_tables()
+            if isinstance(self.db, AsyncPostgresDb):
+                async with self.db.db_engine.begin() as connection:
+                    row = await connection.run_sync(lambda c: self._locked(c, lease))
+                    record = await operation(self._json(row["record"]))
+                    # Extend the lease with the commit: the heartbeat could not renew it during the call.
+                    return await connection.run_sync(lambda c: self._write_record(c, lease, record, extend=True))
+            sync_connection = await asyncio.to_thread(self.db.db_engine.connect)
+            sync_transaction = await asyncio.to_thread(sync_connection.begin)
+            try:
+                row = await asyncio.to_thread(self._locked, sync_connection, lease)
+                record = await operation(self._json(row["record"]))
+                state = await asyncio.to_thread(lambda: self._write_record(sync_connection, lease, record, extend=True))
+                await asyncio.to_thread(sync_transaction.commit)
+                return state
+            except BaseException:
+                await asyncio.to_thread(sync_transaction.rollback)
+                raise
+            finally:
+                await asyncio.to_thread(sync_connection.close)
+
+        task = asyncio.create_task(perform())
+        try:
+            return await asyncio.shield(task)
+        except asyncio.CancelledError:
+            # Closing a transaction while its provider operation still runs would
+            # let the next owner mutate that same computer concurrently.
+            await _drain(task)
+            raise
+
+    async def arelinquish(self, lease: SandboxLease) -> None:
+        """Detach the coordinator after draining its control calls; preserve ongoing execution."""
+
+        def release(connection: Connection) -> None:
+            self._locked(connection, lease)
+            connection.execute(
+                update(self.bindings).where(self._key(lease.session_id)).values(expires_at=func.clock_timestamp())
+            )
+
+        await self._transaction(release)
+
+    def relinquish(self, lease: SandboxLease) -> None:
+        self._sync(self.arelinquish, lease)

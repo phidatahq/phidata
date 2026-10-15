@@ -250,3 +250,32 @@ No model calls in the load run. Requests and daemon calls per turn are what scal
 
 ---
 
+### session_computer.py
+
+**Status:** PASS
+
+**Description:** Three runs on one session through the public coordinator API, real Docker and local Postgres 18, fixture runtime. After each turn the example reads back, with public calls only, the run row (`db.get_run`), the session (`db.get_session`) and the checkpoint opened from the checkpoint store.
+
+**Result:** Passed. Turn 1 ran on generation N with a checkpoint whose workspace held turn 1; turn 2 ran on generation N+1, restored it, passed the native conversation check, and its checkpoint held turns 1 and 2. Retrying turn 2 returned the stored result, and the session still pointed at the same checkpoint. Store and coordinator integration suites: 96 passed, 2 skipped (cancellation tests that apply to PostgresDb only). These runs used a local-only workaround for Docker 27.4, where restoring with `docker cp --archive` fails with `getent unable to find entry "1000:1000"` (as does `feat/sandbox`'s own `test_transfer.py`): a passwd entry for uid 1000 in the image and a numeric `--user`. It is not part of the change.
+---
+
+### resume_after_disconnect.py
+
+**Status:** PASS
+
+**Description:** A ten-second fixture turn whose caller task is cancelled after five seconds, then a second coordinator asks for the same run id and input. The example opens the committed checkpoint and counts the run id in the workspace, which the fixture appends once per execution.
+
+**Result:** Passed: the second coordinator returned COMPLETED after 11.0s, and the committed workspace recorded the turn once, so its work ran once across both coordinators. An earlier version with a six-second turn and a three-second disconnect judged reattachment by elapsed time; that was unreliable, because a disconnect during container setup lets the second coordinator start the turn itself. Same Docker workaround as above.
+---
+
+### cancel_turn.py
+
+**Status:** PASS
+
+**Description:** Turn 1 completes; turn 2 (six seconds) is cancelled after three seconds with `acancel_run`; turn 3 runs on the same session. Same environment and Docker workaround as above.
+
+**Result:** Passed: turn 2 ended CANCELLED and turn 3 completed from turn 1's checkpoint, passing the native conversation check against turn 1's id. The coordinator does not register runs with the cancellation manager, so the cancel logs "not yet registered, storing cancellation intent"; the stored intent is honored.
+
+---
+
+Coordinator review follow-up: native transcript-mirror warnings and lost pre-checkpoint compute cannot publish success or trigger model execution retries. Tool audit history is retained on failure. Runtime output cannot replace the original submitted input or trusted service metadata. Added 2 real mirror-warning cases and 2 metadata/input boundary cases; final store suite: 32 passed. Focused finalization/mirror cases: 4 passed. Required scripts passed again.

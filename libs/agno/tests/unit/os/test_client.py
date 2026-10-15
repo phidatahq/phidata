@@ -144,7 +144,7 @@ async def test_get_config():
         config = await client.aget_config()
 
         mock_get.assert_called_once_with("/config", headers=None)
-        assert config.os_chat_enabled is False  # Older servers omit the optional capability field.
+        assert config.os_manager_enabled is False  # Older servers omit the optional capability field.
         assert config.os_id == "test-os"
         assert config.name == "Test OS"
 

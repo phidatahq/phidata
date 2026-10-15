@@ -116,7 +116,7 @@ def get_base_router(
                         "example": {
                             "id": "demo",
                             "description": "Example AgentOS configuration",
-                            "os_chat_enabled": False,
+                            "os_manager_enabled": False,
                             "available_models": [
                                 {"id": "gpt-4", "provider": "openai"},
                                 {"id": "claude-3-sonnet", "provider": "anthropic"},
@@ -207,7 +207,7 @@ def get_base_router(
             available_models=_collect_unique_models(os),
             os_database=os.db.id if os.db else None,
             databases=list({db.id for db_id, dbs in os.dbs.items() for db in dbs}),
-            os_chat_enabled=os.manager is not None,
+            os_manager_enabled=os.manager is not None,
             chat=os.config.chat if os.config else None,
             manifest=os.config.manifest if os.config else None,
             session=os._get_session_config(),

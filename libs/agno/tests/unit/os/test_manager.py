@@ -340,9 +340,9 @@ def test_config_reports_os_chat_capability(db, monkeypatch, manager_enabled, com
     client = TestClient(app)
     response = client.get("/config")
     assert response.status_code == 200, response.text
-    assert response.json()["os_chat_enabled"] is bool(manager_enabled)
+    assert response.json()["os_manager_enabled"] is bool(manager_enabled)
     os.resync(app)
-    assert client.get("/config").json()["os_chat_enabled"] is bool(manager_enabled)
+    assert client.get("/config").json()["os_manager_enabled"] is bool(manager_enabled)
 
 
 def test_manager_serves_over_the_ordinary_planes(db):

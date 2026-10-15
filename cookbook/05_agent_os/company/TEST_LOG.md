@@ -68,7 +68,7 @@ The required publication gate is not satisfied; passing Company tests do not wai
 
 **Status:** PASS (focused tests); repository validation retains the baseline failure above.
 
-**Description:** `GET /config` now reports `os_chat_enabled`. Tested OS Manager omitted,
+**Description:** `GET /config` now reports `os_manager_enabled`. Tested OS Manager omitted,
 explicitly disabled, enabled through the registry, and explicitly configured, both with
 and without Company. Verified route resync, no Company database connection during config
 discovery, and older-server client compatibility. No Product Manager is implemented.
@@ -81,3 +81,7 @@ baseline mypy errors with no added diagnostics. The approved baseline exception 
 No Manager implementation or Product service/storage behavior changed.
 
 ---
+
+Naming correction: the field is `os_manager_enabled`. After preserving the concurrent
+merge of main, all eight configuration/resync cases and the older-server client test
+passed (9 total). Format passed; validation retained the same 33 baseline diagnostics.

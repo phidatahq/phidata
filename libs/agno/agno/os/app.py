@@ -2204,9 +2204,12 @@ class AgentOS:
 
         middleware_kwargs["excluded_route_paths"] = excluded_route_paths
 
-        middleware_kwargs["resolved_scope_mappings"] = fastapi_app.state.scope_mappings
+        class _AppAuthMiddleware(AuthMiddleware):
+            def _set_scope_mappings(self, scope_mappings: Optional[Dict[str, List[str]]]) -> None:
+                self.scope_mappings = fastapi_app.state.scope_mappings
+                self.service_account_scope_mappings = self.scope_mappings
 
-        fastapi_app.add_middleware(AuthMiddleware, **middleware_kwargs)
+        fastapi_app.add_middleware(_AppAuthMiddleware, **middleware_kwargs)
 
     def _admin_api_routers(self) -> List[Any]:
         """The admin-API routers to mount, so there is never a manual ``include_router``.

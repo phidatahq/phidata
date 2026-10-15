@@ -110,14 +110,20 @@ def test_assembly_builds_one_map_for_all_consumers(tmp_path, monkeypatch, compan
     build.assert_called_once_with(company=company)
 
 
-@pytest.mark.parametrize("mappings", [{}, {"GET /custom": ["custom:read"]}])
-def test_resolved_mappings_are_used_without_enabling_authorization(mappings):
-    middleware = AuthMiddleware(app=None, security_key="test-key", resolved_scope_mappings=mappings)
-    assert middleware.authorization is None
-    assert middleware.scope_mappings is mappings
-    assert middleware.service_account_scope_mappings is mappings
+def test_shared_map_does_not_enable_jwt_authorization(tmp_path):
+    from agno.os.settings import AgnoAPISettings
 
-
-def test_resolved_and_additive_mappings_cannot_be_combined():
-    with pytest.raises(ValueError, match="Provide either scope_mappings or resolved_scope_mappings"):
-        AuthMiddleware(app=None, security_key="test-key", resolved_scope_mappings={}, scope_mappings={})
+    app = AgentOS(
+        db=SqliteDb(db_file=str(tmp_path / "key-only.db")),
+        company=CompanyConfig(),
+        settings=AgnoAPISettings(os_security_key="test-key"),
+        telemetry=False,
+    ).get_app()
+    with TestClient(app) as client:
+        assert client.get("/company/products", headers={"Authorization": "Bearer test-key"}).status_code == 200
+        middleware = app.middleware_stack
+        while not isinstance(middleware, AuthMiddleware):
+            middleware = middleware.app
+        assert middleware.authorization is False
+        assert middleware.scope_mappings is app.state.scope_mappings
+        assert middleware.service_account_scope_mappings is app.state.scope_mappings

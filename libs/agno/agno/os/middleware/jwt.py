@@ -605,7 +605,6 @@ class AuthMiddleware(BaseHTTPMiddleware):
         service_account_verifier: Optional["ServiceAccountVerifier"] = None,
         security_key: Optional[str] = None,
         cors_origin_policy: Optional[OriginPolicy] = None,
-        resolved_scope_mappings: Optional[Dict[str, List[str]]] = None,
     ):
         """
         Initialize the JWT middleware.
@@ -645,9 +644,6 @@ class AuthMiddleware(BaseHTTPMiddleware):
                            If provided, mappings are ADDITIVE to default scope mappings (overrides on conflict).
                            Use empty list [] to explicitly allow access without scopes for a route.
                            Format: {"POST /agents/*/runs": ["agents:run"], "GET /public": []}
-            resolved_scope_mappings: Complete route-to-scope map assembled by AgentOS, shared with
-                service-account authentication and the scope catalog. Used as-is without merging
-                defaults. Cannot be combined with scope_mappings; does not enable authorization.
             excluded_route_paths: List of route paths to exclude from JWT/RBAC checks
             admin_scope: The scope that grants admin access (default: "agent_os:admin")
             service_account_verifier: Verifier for service account tokens (agno_pat_...).
@@ -730,19 +726,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
         if scope_mappings is not None and self.authorization is None:
             self.authorization = True
 
-        if resolved_scope_mappings is not None:
-            if scope_mappings is not None:
-                raise ValueError("Provide either scope_mappings or resolved_scope_mappings, not both")
-            self.scope_mappings = resolved_scope_mappings
-            self.service_account_scope_mappings = resolved_scope_mappings
-        else:
-            # Standalone middleware keeps additive defaults. Service-account ACLs
-            # apply even when JWT authorization is disabled.
-            mappings = get_default_scope_mappings()
-            if scope_mappings is not None:
-                mappings.update(scope_mappings)
-            self.scope_mappings = mappings if self.authorization else (scope_mappings or {})
-            self.service_account_scope_mappings = mappings
+        self._set_scope_mappings(scope_mappings)
 
         self.service_account_verifier = service_account_verifier
         # Static credential for non-JWT deployments (OS_SECURITY_KEY). Only consulted
@@ -781,6 +765,15 @@ class AuthMiddleware(BaseHTTPMiddleware):
         )
         self.admin_scope = admin_scope or AgentOSScope.ADMIN.value
         self.user_isolation = user_isolation
+
+    def _set_scope_mappings(self, scope_mappings: Optional[Dict[str, List[str]]]) -> None:
+        """Merge standalone middleware overrides with the default route scopes."""
+        mappings = get_default_scope_mappings()
+        if scope_mappings is not None:
+            mappings.update(scope_mappings)
+        self.scope_mappings = mappings if self.authorization else (scope_mappings or {})
+        # Service-account ACLs apply even when JWT authorization is disabled.
+        self.service_account_scope_mappings = mappings
 
     def _get_default_excluded_routes(self) -> List[str]:
         """Get default routes that should be excluded from RBAC checks."""

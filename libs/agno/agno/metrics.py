@@ -27,6 +27,32 @@ if TYPE_CHECKING:
     from agno.models.response import ModelResponse
 
 
+def coerce_token_count(value: Any) -> int:
+    """Coerce a provider-reported token count into a usable non-negative ``int``.
+
+    OpenAI-compatible endpoints may report optional usage fields with a
+    non-numeric placeholder (for example ``"N/A"``) or as numeric strings. A
+    value left as-is only breaks later, when the metrics are summed, aborting an
+    otherwise successful run, so an unusable value is treated as zero instead.
+    """
+    if isinstance(value, bool):
+        return 0
+    if isinstance(value, int):
+        return max(value, 0)
+    if isinstance(value, float):
+        return max(int(value), 0)
+    if isinstance(value, str):
+        text = value.strip()
+        try:
+            return max(int(text), 0)
+        except ValueError:
+            try:
+                return max(int(float(text)), 0)
+            except ValueError:
+                return 0
+    return 0
+
+
 # ---------------------------------------------------------------------------
 # Base Metrics
 # ---------------------------------------------------------------------------

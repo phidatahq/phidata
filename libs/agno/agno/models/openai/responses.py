@@ -9,7 +9,7 @@ from typing_extensions import Literal
 
 from agno.exceptions import ContextWindowExceededError, ModelAuthenticationError, ModelProviderError
 from agno.media import File
-from agno.metrics import MessageMetrics
+from agno.metrics import MessageMetrics, coerce_token_count
 from agno.models.base import Model
 from agno.models.message import Citations, Message, UrlCitation
 from agno.models.openai.types import ReasoningEffort, ReasoningSummary, ServiceTier, Verbosity
@@ -1550,15 +1550,15 @@ class OpenAIResponses(Model):
         """
         metrics = MessageMetrics()
 
-        metrics.input_tokens = response_usage.input_tokens or 0
-        metrics.output_tokens = response_usage.output_tokens or 0
-        metrics.total_tokens = response_usage.total_tokens or 0
+        metrics.input_tokens = coerce_token_count(response_usage.input_tokens)
+        metrics.output_tokens = coerce_token_count(response_usage.output_tokens)
+        metrics.total_tokens = coerce_token_count(response_usage.total_tokens)
 
         if input_tokens_details := response_usage.input_tokens_details:
-            metrics.cache_read_tokens = input_tokens_details.cached_tokens
-            metrics.cache_write_tokens = getattr(input_tokens_details, "cache_write_tokens", 0) or 0
+            metrics.cache_read_tokens = coerce_token_count(input_tokens_details.cached_tokens)
+            metrics.cache_write_tokens = coerce_token_count(getattr(input_tokens_details, "cache_write_tokens", 0))
 
         if output_tokens_details := response_usage.output_tokens_details:
-            metrics.reasoning_tokens = output_tokens_details.reasoning_tokens
+            metrics.reasoning_tokens = coerce_token_count(output_tokens_details.reasoning_tokens)
 
         return metrics

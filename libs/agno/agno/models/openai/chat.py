@@ -9,7 +9,7 @@ from pydantic import BaseModel
 
 from agno.exceptions import ContextWindowExceededError, ModelAuthenticationError, ModelProviderError
 from agno.media import Audio
-from agno.metrics import MessageMetrics
+from agno.metrics import MessageMetrics, coerce_token_count
 from agno.models.base import Model
 from agno.models.message import Citations, Message, UrlCitation
 from agno.models.openai.types import ReasoningEffort, ServiceTier, Verbosity
@@ -1018,20 +1018,20 @@ class OpenAIChat(Model):
 
         metrics = MessageMetrics()
 
-        metrics.input_tokens = response_usage.prompt_tokens or 0
-        metrics.output_tokens = response_usage.completion_tokens or 0
-        metrics.total_tokens = response_usage.total_tokens or 0
+        metrics.input_tokens = coerce_token_count(response_usage.prompt_tokens)
+        metrics.output_tokens = coerce_token_count(response_usage.completion_tokens)
+        metrics.total_tokens = coerce_token_count(response_usage.total_tokens)
 
         # Add the prompt_tokens_details field
         if prompt_token_details := response_usage.prompt_tokens_details:
-            metrics.audio_input_tokens = prompt_token_details.audio_tokens or 0
-            metrics.cache_read_tokens = prompt_token_details.cached_tokens or 0
-            metrics.cache_write_tokens = getattr(prompt_token_details, "cache_write_tokens", 0) or 0
+            metrics.audio_input_tokens = coerce_token_count(prompt_token_details.audio_tokens)
+            metrics.cache_read_tokens = coerce_token_count(prompt_token_details.cached_tokens)
+            metrics.cache_write_tokens = coerce_token_count(getattr(prompt_token_details, "cache_write_tokens", 0))
 
         # Add the completion_tokens_details field
         if completion_tokens_details := response_usage.completion_tokens_details:
-            metrics.audio_output_tokens = completion_tokens_details.audio_tokens or 0
-            metrics.reasoning_tokens = completion_tokens_details.reasoning_tokens or 0
+            metrics.audio_output_tokens = coerce_token_count(completion_tokens_details.audio_tokens)
+            metrics.reasoning_tokens = coerce_token_count(completion_tokens_details.reasoning_tokens)
 
         metrics.audio_total_tokens = metrics.audio_input_tokens + metrics.audio_output_tokens
         metrics.cost = getattr(response_usage, "cost", None)

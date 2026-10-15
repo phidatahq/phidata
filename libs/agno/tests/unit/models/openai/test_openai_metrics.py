@@ -10,6 +10,7 @@ import pytest
 from openai.types.completion_usage import CompletionUsage
 from openai.types.responses import ResponseUsage
 
+from agno.metrics import coerce_token_count
 from agno.models.openai.chat import OpenAIChat
 from agno.models.openai.responses import OpenAIResponses
 
@@ -171,3 +172,111 @@ def test_openai_get_metrics_preserves_cache_writes(
     assert metrics.output_tokens == 50
     assert metrics.total_tokens == 15050
     assert metrics.reasoning_tokens == 7
+
+
+class MockDetailTokens:
+    """Detail object whose token fields may hold non-numeric placeholders."""
+
+    def __init__(self, **tokens):
+        self.__dict__.update(tokens)
+
+
+@pytest.mark.parametrize(
+    "raw_value,expected",
+    [
+        ("N/A", 0),
+        ("", 0),
+        ("unknown", 0),
+        (None, 0),
+        ("42", 42),
+        (" 42 ", 42),
+        ("42.0", 42),
+        (7.9, 7),
+        (0, 0),
+        (True, 0),
+        (-5, 0),
+    ],
+)
+def test_coerce_token_count_normalises_provider_values(raw_value, expected):
+    assert coerce_token_count(raw_value) == expected
+
+
+@pytest.mark.parametrize(
+    "model_class,usage_class,input_field,output_field",
+    [
+        (OpenAIChat, CompletionUsage, "prompt_tokens", "completion_tokens"),
+        (OpenAIResponses, ResponseUsage, "input_tokens", "output_tokens"),
+    ],
+)
+def test_openai_get_metrics_tolerates_non_numeric_usage_fields(model_class, usage_class, input_field, output_field):
+    """A non-numeric usage field must not abort metrics calculation (#10930)."""
+    usage = usage_class.construct(
+        **{
+            input_field: "N/A",
+            output_field: "N/A",
+            "total_tokens": "N/A",
+            f"{input_field}_details": {"cached_tokens": "N/A", "cache_write_tokens": "N/A"},
+            f"{output_field}_details": {"reasoning_tokens": "N/A"},
+        }
+    )
+
+    metrics = model_class()._get_metrics(usage)
+
+    assert metrics.input_tokens == 0
+    assert metrics.output_tokens == 0
+    assert metrics.total_tokens == 0
+    assert metrics.cache_read_tokens == 0
+    assert metrics.cache_write_tokens == 0
+    assert metrics.reasoning_tokens == 0
+
+
+def test_openai_get_metrics_audio_totals_survive_placeholder_values():
+    """The audio-total addition is where the non-numeric placeholder raised (#10930)."""
+    model = OpenAIChat(id="gpt-4o")
+    usage = MockCompletionUsage(
+        prompt_tokens=12,
+        completion_tokens=8,
+        total_tokens=20,
+        prompt_tokens_details=MockDetailTokens(audio_tokens=0, cached_tokens="N/A"),
+        completion_tokens_details=MockDetailTokens(audio_tokens="N/A", reasoning_tokens="N/A"),
+    )
+
+    metrics = model._get_metrics(usage)  # type: ignore[arg-type]
+
+    assert metrics.audio_input_tokens == 0
+    assert metrics.audio_output_tokens == 0
+    assert metrics.audio_total_tokens == 0
+    # The valid fields of the same response are still reported.
+    assert metrics.input_tokens == 12
+    assert metrics.output_tokens == 8
+    assert metrics.total_tokens == 20
+
+
+def test_openai_get_metrics_coerces_numeric_string_token_counts():
+    """Gateways that report counts as strings still yield integer metrics."""
+    model = OpenAIChat(id="gpt-4o")
+    usage = MockCompletionUsage(prompt_tokens="120", completion_tokens="30", total_tokens="150")
+
+    metrics = model._get_metrics(usage)  # type: ignore[arg-type]
+
+    assert metrics.input_tokens == 120
+    assert metrics.output_tokens == 30
+    assert metrics.total_tokens == 150
+
+
+def test_openai_get_metrics_result_is_summable_after_placeholder_fields():
+    """Metrics carrying a placeholder must stay addable for downstream aggregation."""
+    model = OpenAIChat(id="gpt-4o")
+    usage = MockCompletionUsage(
+        prompt_tokens="N/A",
+        completion_tokens=8,
+        total_tokens="N/A",
+        prompt_tokens_details=MockDetailTokens(audio_tokens="N/A", cached_tokens="N/A"),
+        completion_tokens_details=MockDetailTokens(audio_tokens="N/A", reasoning_tokens="N/A"),
+    )
+
+    metrics = model._get_metrics(usage)  # type: ignore[arg-type]
+    combined = metrics + metrics
+
+    assert combined.input_tokens == 0
+    assert combined.output_tokens == 16

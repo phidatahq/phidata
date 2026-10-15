@@ -3,6 +3,7 @@ import contextlib
 import json
 import weakref
 from dataclasses import dataclass
+from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, AsyncGenerator, Dict, List, Optional, Union
 from uuid import uuid4
 
@@ -51,6 +52,7 @@ from agno.os.job_queue import (
     resolve_queue_scope,
     ticket_status_to_api,
     validate_seam_input,
+    wake_queue_worker,
 )
 from agno.os.middleware.user_scope import (
     MISSING_USER_IDENTITY,
@@ -83,6 +85,7 @@ from agno.os.utils import (
     afinalize_continue_stream,
     allow_draft_preview,
     amark_continue_stream_running,
+    factory_row_handle,
     find_factory_by_id,
     format_sse_event,
     get_request_kwargs,
@@ -377,7 +380,23 @@ async def handle_workflow_via_websocket(
                 return
             assert queue_worker is not None  # narrowed by ws_submit_queueable
             queued_run_id = str(uuid4())
-            queued_ws_payload["scope"] = resolve_queue_scope(workflow_id, os.workflows, os.db, scoped_user_id, version)
+            # The WebSocket has no request.state: hand the scope the same claims
+            # and scopes the factory branch above built its TrustedContext from
+            ws_trusted_state = SimpleNamespace(
+                claims=(ws_user_context or {}).get("payload", {}),
+                scopes=(ws_user_context or {}).get("scopes", frozenset()),
+            )
+            queued_ws_payload["scope"] = resolve_queue_scope(
+                workflow_id,
+                os.workflows,
+                os.db,
+                scoped_user_id,
+                version,
+                state=ws_trusted_state,
+                context_user_id=user_id,
+                session_id=session_id,
+                factory_input=factory_input,
+            )
             job = QueuedJob(
                 id=queued_run_id,
                 component_type="workflow",
@@ -413,6 +432,7 @@ async def handle_workflow_via_websocket(
                 await aprepare_accepted_or_abort(
                     queue_worker, workflow, "workflow", queued_run_id, session_id, user_id, user_message
                 )
+                wake_queue_worker(queue_worker)
             except HTTPException as he:
                 await websocket.send_text(json.dumps({"event": "error", "error": str(he.detail)}))
                 return
@@ -1839,7 +1859,15 @@ def get_workflow_router(
                     queued_run_id = str(uuid4())
                     queued_session_id = session_id  # non-empty: defaulted at the top of the endpoint
                     queued_stream_payload["scope"] = resolve_queue_scope(
-                        workflow_id, os.workflows, os.db, scoped_user_id, version
+                        workflow_id,
+                        os.workflows,
+                        os.db,
+                        scoped_user_id,
+                        version,
+                        state=request.state,
+                        context_user_id=user_id,
+                        session_id=queued_session_id,
+                        factory_input=factory_input,
                     )
                     job = QueuedJob(
                         id=queued_run_id,
@@ -1895,6 +1923,7 @@ def get_workflow_router(
                     await aprepare_accepted_or_abort(
                         queue_worker, workflow, "workflow", queued_run_id, queued_session_id, user_id, message
                     )
+                    wake_queue_worker(queue_worker)
                     return StreamingResponse(queued_run_tail_streamer(queued_run_id), media_type="text/event-stream")
                 if queue_worker is not None:
                     log_warning(
@@ -1939,7 +1968,17 @@ def get_workflow_router(
                 validate_seam_input(workflow, message)
                 queued_run_id = str(uuid4())
                 queued_session_id = session_id  # non-empty: defaulted at the top of the endpoint
-                queued_payload["scope"] = resolve_queue_scope(workflow_id, os.workflows, os.db, scoped_user_id, version)
+                queued_payload["scope"] = resolve_queue_scope(
+                    workflow_id,
+                    os.workflows,
+                    os.db,
+                    scoped_user_id,
+                    version,
+                    state=request.state,
+                    context_user_id=user_id,
+                    session_id=queued_session_id,
+                    factory_input=factory_input,
+                )
                 job = QueuedJob(
                     id=queued_run_id,
                     component_type="workflow",
@@ -1985,6 +2024,7 @@ def get_workflow_router(
                 await aprepare_accepted_or_abort(
                     queue_worker, workflow, "workflow", queued_run_id, queued_session_id, user_id, message
                 )
+                wake_queue_worker(queue_worker)
                 return JSONResponse(
                     status_code=202,
                     content={"run_id": queued_run_id, "session_id": queued_session_id, "status": "PENDING"},
@@ -2661,10 +2701,9 @@ def get_workflow_router(
         session_id: str = Query(..., description="Session ID for the run"),
         factory_input: Optional[str] = Query(
             None,
-            description="JSON object with factory-specific parameters for dynamic workflow reconstruction",
+            description="Ignored; kept for compatibility. Reading a run no longer invokes the factory",
         ),
     ):
-        user_id = getattr(request.state, "user_id", None)
         if hasattr(request.state, "session_id") and request.state.session_id is not None:
             if session_id and session_id != request.state.session_id:
                 log_warning("Session ID parameter passed in both request state and query params, using request state")
@@ -2673,16 +2712,7 @@ def get_workflow_router(
         # Factory workflows: resolve to get a real workflow for session lookup
         factory = find_factory_by_id(workflow_id, os.workflows)
         if factory:
-            workflow = await resolve_workflow(  # type: ignore[assignment]
-                workflow_id,
-                os.workflows,
-                factory.db,
-                request=request,
-                user_id=user_id,
-                session_id=session_id,
-                factory_input=factory_input,
-                published_only=False,
-            )
+            workflow = factory_row_handle(factory)  # type: ignore[assignment]
         else:
             try:
                 workflow = get_workflow_by_id(

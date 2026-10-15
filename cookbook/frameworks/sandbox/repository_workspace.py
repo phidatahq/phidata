@@ -1,4 +1,4 @@
-"""Run Product Engineer in a checkout pinned by the caller; no host workspace is mounted."""
+"""Run Codex in a checkout pinned by the caller; no host workspace is mounted."""
 
 from os import environ
 
@@ -7,9 +7,9 @@ from agno.db.postgres import PostgresDb
 from agno.sandbox.checkpoint import FileCheckpointStore
 from agno.sandbox.docker import DockerSandbox
 
-engineer = CodexAgent(
-    id="product-engineer",
-    name="Product Engineer",
+codex = CodexAgent(
+    id="codex",
+    name="Codex",
     db=PostgresDb(db_url=environ["SANDBOX_DATABASE_URL"]),
     sandbox=DockerSandbox(
         image=environ["SANDBOX_IMAGE"],
@@ -22,11 +22,14 @@ engineer = CodexAgent(
 )
 
 if __name__ == "__main__":
-    result = engineer.run(
+    result = codex.run(
         "Inspect this application and report what would be required to upgrade AgentOS.",
         repository={
             "url": environ["REPOSITORY_URL"],
             "commit": environ["REPOSITORY_COMMIT"],
+        },
+        workspace_files={
+            "brief.md": "Inspect the application and report actual checks."
         },
         session_id=environ["ENGINEER_SESSION_ID"],
     )

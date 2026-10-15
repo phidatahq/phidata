@@ -38,6 +38,14 @@ export ANTHROPIC_API_KEY=...   # or CLAUDE_CODE_OAUTH_TOKEN
 
 `sandbox_claude_agentos.py` serves the same agent through AgentOS with a durable queue (Postgres and Redis). Every API request submits to the queue, a dropped connection does not cancel the turn, and a second request on the same session waits for the first. It names its checkpoint store explicitly: with a queue, any replica may run the next attempt, so the default host-local store is refused.
 
+## Attachments
+
+```bash
+.venv/bin/python cookbook/frameworks/sandbox/sandbox_attachments.py
+```
+
+`run`/`arun` on a sandboxed `ClaudeAgent` or `CodexAgent` accept `images=` and `files=`, and the AgentOS run route accepts them as uploads (`-F files=@photo.png`). Only bytes cross into the sandbox: each attachment is written under `/workspace/.agno/uploads/<run_id>/` and named in the prompt, and the turn's checkpoint keeps it, so later turns on a new computer can still read it. Images given without a format take one from their file suffix or byte signature. A request carries at most 16 attachments and 512 KiB in total. URLs, media references and, over HTTP, server file paths are refused; audio and video are rejected. Queued runs store the attachments with the submission, so a retry sends the same bytes, and reusing an idempotency key with different attachments returns 409.
+
 ## A live Claude session in a sandbox
 
 ```bash
@@ -251,4 +259,4 @@ curl -X POST http://localhost:7777/agents/coder/runs \
 
 Keep the returned run ID. Reconnect with `POST /agents/coder/runs/{run_id}/resume` using form fields `session_id` and optionally `last_event_index`; cancel with `POST /agents/coder/runs/{run_id}/cancel?session_id=example`. Reusing an idempotency key requires the same session ID, input and options. Conflicting submissions return 409. Streaming terminal success follows the durable checkpoint commit. Retained indexed events support replay after the live Redis view expires; content deltas follow the agent's `events_to_skip` policy.
 
-Agent settings travel to the sandbox as JSON, including structured-output schemas; callbacks, native option objects (`options`, `client_options`) and host paths (`cwd`, `codex_bin`) are rejected when the agent is constructed. Running a native `Agent` inside a sandbox is not supported yet: `Agent(sandbox=...)` raises. File/image inputs, step replay/fork, version-pinned instances and arbitrary per-turn SDK options are explicitly rejected pending checkpoint-aware integrations. Do not use the ordinary session deletion API to retire sandbox resources; coordinated lifecycle/retention is a separate follow-up. A failed checkpoint upload retries finalization without repeating the model. If the configured queue attempts are exhausted, compute is removed and the turn fails visibly while retaining the previous checkpoint. External effects can still repeat after execution crashes and need application idempotency.
+Agent settings travel to the sandbox as JSON, including structured-output schemas; callbacks, native option objects (`options`, `client_options`) and host paths (`cwd`, `codex_bin`) are rejected when the agent is constructed. Running a native `Agent` inside a sandbox is not supported yet: `Agent(sandbox=...)` raises. Images and files are accepted (see Attachments); audio and video inputs, step replay/fork, version-pinned instances and arbitrary per-turn SDK options are rejected. Do not use the ordinary session deletion API to retire sandbox resources; coordinated lifecycle/retention is a separate follow-up. A failed checkpoint upload retries finalization without repeating the model. If the configured queue attempts are exhausted, compute is removed and the turn fails visibly while retaining the previous checkpoint. External effects can still repeat after execution crashes and need application idempotency.

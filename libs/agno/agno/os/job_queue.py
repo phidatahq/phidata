@@ -2044,6 +2044,7 @@ class QueueWorker:
             # be guaranteed. Continuation legs are excluded - their PAUSED
             # row exists by definition, or acontinue_run fails honestly.
             try:
+                media = (payload.get("kwargs") or {}).get("media")
                 await aprepare_queued_run(
                     component_for_stamp,
                     job.get("component_type", ""),
@@ -2051,6 +2052,8 @@ class QueueWorker:
                     session_id=job["session_id"],
                     user_id=job.get("user_id"),
                     input=payload.get("input"),
+                    # Only a sandboxed agent's pending row records attachments.
+                    **({"media": media} if media and getattr(component_for_stamp, "sandbox", None) is not None else {}),
                 )
             except Exception as e:
                 log_error(
@@ -2715,7 +2718,13 @@ async def _aappend_pending_run(
 
 
 async def aprepare_queued_run(
-    component: Any, component_type: str, run_id: str, session_id: str, user_id: Optional[str], input: Any
+    component: Any,
+    component_type: str,
+    run_id: str,
+    session_id: str,
+    user_id: Optional[str],
+    input: Any,
+    media: Optional[List[Dict[str, Any]]] = None,
 ) -> None:
     """Persist the PENDING run row after a successful enqueue so pollers find
     the run immediately. Idempotent: if a worker already started (and possibly
@@ -2735,7 +2744,8 @@ async def aprepare_queued_run(
 
     prepare_hook = component_hook(component, "_aprepare_pending_run")
     if component_type == "agent" and prepare_hook is not None:
-        await prepare_hook(run_id, session_id, user_id, input, queued=True)
+        # Sandbox runs record their attachments on the pending row so the claim sees the same input.
+        await prepare_hook(run_id, session_id, user_id, input, queued=True, **({"media": media} if media else {}))
     elif component_type == "agent":
         from agno.agent._session import asave_run, asave_session
         from agno.agent._storage import aread_or_create_session, update_metadata
@@ -2865,6 +2875,7 @@ async def aprepare_accepted_or_abort(
     session_id: str,
     user_id: Optional[str],
     input: Any,
+    media: Optional[List[Dict[str, Any]]] = None,
 ) -> None:
     """Post-enqueue prepare under the acceptance invariant: once the ticket
     committed, every response must either ACKNOWLEDGE the durable acceptance
@@ -2885,7 +2896,9 @@ async def aprepare_accepted_or_abort(
       lie - the work happens anyway.
     """
     try:
-        await aprepare_queued_run(component, component_type, run_id, session_id, user_id, input)
+        await aprepare_queued_run(
+            component, component_type, run_id, session_id, user_id, input, **({"media": media} if media else {})
+        )
     except Exception as e:
         cancelled = False
         with contextlib.suppress(Exception):

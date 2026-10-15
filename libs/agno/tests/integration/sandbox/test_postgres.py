@@ -1,8 +1,8 @@
 """Real PostgreSQL fencing and atomic recovery publication; no model calls."""
 
 import asyncio
-import threading
 import os
+import threading
 import time
 from dataclasses import replace
 from datetime import timedelta
@@ -10,6 +10,9 @@ from uuid import uuid4
 
 import pytest
 import pytest_asyncio
+from sqlalchemy import create_engine, delete, event, func, select, text, update
+from sqlalchemy.dialects.postgresql import insert
+
 from agno.db.postgres import AsyncPostgresDb, PostgresDb
 from agno.sandbox.base import SandboxError, SandboxHandle
 from agno.sandbox.checkpoint import CheckpointRef
@@ -20,7 +23,6 @@ from agno.sandbox.postgres import (
     _SandboxStore,
 )
 from agno.session import AgentSession
-from sqlalchemy import create_engine, delete, event, func, select, text, update
 
 URL = os.environ.get("AGNO_TEST_SANDBOX_DB_URL")
 pytestmark = [pytest.mark.asyncio, pytest.mark.skipif(not URL, reason="Set AGNO_TEST_SANDBOX_DB_URL")]
@@ -354,6 +356,37 @@ async def test_shutdown_intent_is_durable_and_requires_cleanup(store):
     assert (await store.afinish_stop(state.lease))["status"] == "CANCELLED"
     _, session, binding = await rows(store)
     assert "sandbox" not in session["session_data"] and binding["record"]["checkpoint"] is None
+
+
+@pytest.mark.parametrize("stored", [None, "PAUSED"])
+async def test_cancelled_stop_records_the_executing_stage(store, stored):
+    await seed(store, attempt=1)
+    if stored is not None:
+        run_data = await store._transaction(lambda c: c.execute(select(store.runs.c.run_data)).scalar_one())
+        await store._transaction(
+            lambda c: c.execute(update(store.runs).values(run_data={**run_data, "cancellation_stage": stored}))
+        )
+    await claim(store, queue_attempt=1)
+    # The queue's active path and the coordinator's own cancel both end in afinish_stop.
+    stopping = await store._aclaim_stop(
+        agent_id="agent",
+        session_id="session",
+        user_id="user",
+        run_id="run",
+        queue_attempt=1,
+        status="CANCELLED",
+        reason="cancelled",
+    )
+    run = await store.afinish_stop(stopping.lease)
+    assert run["cancellation_stage"] == (stored or "EXECUTING")
+    assert (await rows(store))[0]["run_data"]["cancellation_stage"] == (stored or "EXECUTING")
+
+
+async def test_errored_stop_records_no_cancellation_stage(store):
+    await seed(store)
+    state = await claim(store)
+    await store.abegin_stop(state.lease, status="ERROR", reason="failed")
+    assert "cancellation_stage" not in await store.afinish_stop(state.lease)
 
 
 async def test_external_cancellation_wins_over_staged_success(store):
@@ -1208,3 +1241,59 @@ async def test_interrupted_cancel_is_not_rewritten_as_error(store):
     )
     assert second.record["stop_status"] == "CANCELLED"
     assert (await store.afinish_stop(second.lease))["status"] == "CANCELLED"
+
+
+async def test_queue_termination_racing_a_claim_does_not_deadlock(store):
+    from agno.run.status_persist import RunPersistOutcome
+
+    await seed(store, attempt=1)
+    engine = create_engine(URL)
+    claimer = await asyncio.to_thread(engine.connect)
+    transaction = await asyncio.to_thread(claimer.begin)
+
+    def lock(statement):
+        return lambda: claimer.execute(statement)
+
+    try:
+        # A claim's lock order: session (KEY SHARE), then run, then binding.
+        await asyncio.to_thread(lock(text("SET LOCAL lock_timeout = '10s'")))
+        await asyncio.to_thread(
+            lock(
+                select(store.sessions.c.session_id)
+                .where(store.sessions.c.session_id == "session")
+                .with_for_update(read=True, key_share=True)
+            )
+        )
+        await asyncio.to_thread(lock(select(store.runs.c.run_id).where(store.runs.c.run_id == "run").with_for_update()))
+        stop = asyncio.create_task(
+            store._aclaim_stop(
+                agent_id="agent",
+                session_id="session",
+                user_id="user",
+                run_id="run",
+                queue_attempt=1,
+                status="CANCELLED",
+                reason="cancelled",
+            )
+        )
+        await asyncio.sleep(1)
+        await asyncio.to_thread(
+            lock(
+                insert(store.bindings)
+                .values(
+                    namespace=store.namespace,
+                    session_id="session",
+                    agent_id="agent",
+                    user_id="user",
+                    epoch=0,
+                    record={"phase": "idle", "generation": 1, "checkpoint": None, "incarnation": "claim"},
+                )
+                .on_conflict_do_nothing()
+            )
+        )
+        await asyncio.to_thread(transaction.commit)
+    finally:
+        await asyncio.to_thread(claimer.close)
+        engine.dispose()
+    assert await stop == RunPersistOutcome.UPDATED
+    assert (await rows(store))[0]["status"] == "CANCELLED"

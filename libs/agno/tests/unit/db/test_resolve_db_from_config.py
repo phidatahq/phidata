@@ -15,6 +15,7 @@ that have needed follow-up fixes on PR #7508:
 
 from unittest.mock import Mock
 
+import pytest
 from sqlalchemy import create_engine
 
 from agno.db.postgres.postgres import PostgresDb
@@ -254,3 +255,27 @@ class TestDbTableNameKeys:
             f"In BaseDb but missing from constant: {table_params - set(DB_TABLE_NAME_KEYS)}\n"
             f"In constant but missing from BaseDb: {set(DB_TABLE_NAME_KEYS) - table_params}"
         )
+
+
+@pytest.mark.parametrize("adapter", [SqliteDb, PostgresDb])
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"products_table": "override_products", "members_table": "override_members"},
+        {"session_table": "override_sessions"},
+    ],
+)
+@pytest.mark.parametrize("partial", [False, True])
+def test_registry_reload_preserves_company_tables(adapter, overrides, partial):
+    engine = create_engine("sqlite:///:memory:")
+    source = adapter(db_engine=engine, products_table="tenant_products", members_table="tenant_members")
+    data = {"id": source.id, **overrides} if partial else {**source.to_dict(), **overrides}
+    try:
+        reloaded = resolve_db_from_config(data, registry=_FakeRegistry(source))
+        assert reloaded is not source
+        assert reloaded.db_engine is engine
+        assert reloaded.products_table_name == overrides.get("products_table", "tenant_products")
+        assert reloaded.members_table_name == overrides.get("members_table", "tenant_members")
+        assert reloaded.session_table_name == overrides.get("session_table", source.session_table_name)
+    finally:
+        engine.dispose()

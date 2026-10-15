@@ -2480,6 +2480,7 @@ class AsyncBaseDb(ABC):
         return {
             "id": self.id,
             "session_table": self.session_table_name,
+            "job_table": self.job_table_name,
             "runs_table": self.runs_table_name,
             "memory_table": self.memory_table_name,
             "metrics_table": self.metrics_table_name,
@@ -2505,6 +2506,7 @@ class AsyncBaseDb(ABC):
         keys = (
             "id",
             "session_table",
+            "job_table",
             "runs_table",
             "memory_table",
             "metrics_table",

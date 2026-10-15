@@ -101,3 +101,41 @@ class TestPostgresDbFromDictRoundTrip:
         assert restored.approvals_table_name == "custom_approvals"
         assert restored.schedules_table_name == "custom_schedules"
         assert restored.schedule_runs_table_name == "custom_schedule_runs"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("create_schema", [False, True])
+async def test_async_postgres_roundtrip_preserves_jobs_and_schema_policy(create_schema):
+    from agno.db.postgres import AsyncPostgresDb
+
+    # Engines are real, but serialization must not open any connections.
+    original = AsyncPostgresDb(
+        db_url="postgresql+psycopg://localhost/company_roundtrip",
+        db_schema="tenant",
+        job_table="tenant_jobs",
+        products_table="tenant_products",
+        members_table="tenant_members",
+        create_schema=create_schema,
+    )
+    restored = AsyncPostgresDb.from_dict(original.to_dict())
+    try:
+        assert restored.job_table_name == "tenant_jobs"
+        assert restored.create_schema is create_schema
+        assert restored.db_schema == "tenant"
+        assert restored.products_table_name == "tenant_products"
+        assert restored.members_table_name == "tenant_members"
+    finally:
+        await original.close()
+        await restored.close()
+
+
+@pytest.mark.asyncio
+async def test_async_postgres_roundtrip_defaults_when_options_omitted():
+    from agno.db.postgres import AsyncPostgresDb
+
+    restored = AsyncPostgresDb.from_dict({"db_url": "postgresql+psycopg://localhost/company_roundtrip"})
+    try:
+        assert restored.job_table_name == "agno_jobs"
+        assert restored.create_schema is True
+    finally:
+        await restored.close()

@@ -36,6 +36,8 @@ DB_TABLE_NAME_KEYS: frozenset = frozenset(
         "component_configs_table",
         "component_links_table",
         "learnings_table",
+        "products_table",
+        "members_table",
         "schedules_table",
         "schedule_runs_table",
         "approvals_table",
@@ -1085,7 +1087,6 @@ def _clone_db_with_table_overrides(
     Returns ``None`` if the source db type is not recognized, so the
     caller can decide how to fall back.
     """
-    overrides: Dict[str, Any] = {key: db_data[key] for key in DB_TABLE_NAME_KEYS if key in db_data}
 
     def _accepted_by(cls: Any) -> Dict[str, Any]:
         """Only pass table overrides the adapter's constructor accepts: not
@@ -1094,6 +1095,10 @@ def _clone_db_with_table_overrides(
         and silently drop ALL overrides via the fallback."""
         import inspect as _inspect
 
+        # Stored configs can contain only an id and a few table overrides.
+        # Preserve unspecified names, after recognizing a supported adapter.
+        table_config = {**source_db.to_dict(), **db_data}
+        overrides: Dict[str, Any] = {key: table_config[key] for key in DB_TABLE_NAME_KEYS if key in table_config}
         try:
             params = _inspect.signature(cls.__init__).parameters
         except (TypeError, ValueError):

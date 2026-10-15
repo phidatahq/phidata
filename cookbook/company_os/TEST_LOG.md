@@ -62,3 +62,50 @@ by file and diagnostic (ignoring shifted line numbers) shows no added or removed
 errors. The full validation gate is not green. The PR remains draft.
 
 ---
+
+
+## Review follow-up — October 15, 2026
+
+### Database configuration regressions
+
+**Status:** PASS
+
+**Description:** Added full and partial registry-reload cases for SQLite and
+PostgreSQL, explicit Company table overrides, unrelated session-table overrides,
+and async PostgreSQL round trips with nondefault jobs table and schema policy.
+
+**Result:** Before fixing, the existing table-name whitelist test and six new
+cases failed. Partial configuration probes then exposed two additional failing
+reload cases. All now pass: unspecified registered table names survive cloning,
+Company overrides are applied, and `job_table` / `create_schema` survive async
+PostgreSQL serialization. The unsupported-adapter fallback remains covered.
+
+---
+
+### Combined Company and related regression selection
+
+**Status:** PASS
+
+**Description:** Company unit/integration tests plus database config resolution,
+serialization, table resolution, PostgreSQL unit tests, migration utilities,
+schema-version signatures, and AgentOS information/MCP routing tests.
+
+**Result:** 201 passed, 28 existing regression skips. All 46 Company tests ran,
+including disposable PostgreSQL 16 and SQLite, sync and async. The model-free
+`products.py` cookbook also passed again.
+
+---
+
+### api.py
+
+**Status:** PASS
+
+**Description:** Started the persistent SQLite API on localhost and used the CLI
+to mint Alice/Bob test tokens. Exercised the README workflow over real HTTP.
+
+**Result:** Anonymous request 401; Product creation 200; Bob's initial read 404;
+adding Bob 200; Bob's read 200; Bob's archive 403; Alice's archive 200/version 2;
+stale restore 409; current restore 200/version 3; member removal 204; revoked
+Bob's read 404. Server shut down cleanly. No model or provider calls were made.
+
+---

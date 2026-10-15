@@ -6233,6 +6233,7 @@ class AsyncPostgresDb(AsyncBaseDb):
         data = super().to_dict()
         data["db_url"] = self.db_url
         data["db_schema"] = self.db_schema
+        data["create_schema"] = self.create_schema
         return data
 
     @classmethod
@@ -6242,6 +6243,8 @@ class AsyncPostgresDb(AsyncBaseDb):
             id=data.get("id"),
             db_url=data.get("db_url"),
             db_schema=data.get("db_schema"),
+            create_schema=data.get("create_schema", True),
+            job_table=data.get("job_table"),
             session_table=data.get("session_table"),
             runs_table=data.get("runs_table"),
             memory_table=data.get("memory_table"),

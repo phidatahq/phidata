@@ -1000,7 +1000,7 @@ async def test_mcp_preserves_ordinary_studio_access_and_enforces_manager_tools(t
     monkeypatch.setattr(dependencies, "get_http_request", lambda: request)
     async with Client(build_mcp_server(os)) as client:
         if manager_target:
-            with pytest.raises(Exception, match="Agent platform-builder-internal not found"):
+            with pytest.raises(Exception, match="reserved for OS Manager"):
                 await client.call_tool("run_agent", {"agent_id": builder.id, "message": "List models"})
             assert builder.model.calls == 0
             result = await client.call_tool("run_team", {"team_id": MANAGER_TEAM_ID, "message": "List models"})

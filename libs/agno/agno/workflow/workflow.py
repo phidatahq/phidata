@@ -46,7 +46,7 @@ from agno.media.storage.base import AsyncMediaStorage, MediaStorage
 from agno.metrics import RunMetrics, SessionMetrics
 from agno.models.message import Message
 from agno.registry import Registry
-from agno.registry._reserved import RESERVED_MANAGER_IDS
+from agno.registry._reserved import RESERVED_MANAGER_IDS, _reserved_manager_id_message
 from agno.run import CancellationStage, RunContext, RunStatus
 from agno.run.agent import (
     RunCancelledEvent as AgentRunCancelledEvent,
@@ -11961,12 +11961,13 @@ def get_workflow_by_id(
         Workflow instance or None.
 
     Raises:
-        ComponentRehydrationError: If strict and a registry reference cannot be resolved.
+        ComponentRehydrationError: If the ID is reserved for OS Manager, or if strict
+            and a registry reference cannot be resolved.
     """
     from agno.exceptions import ComponentRehydrationError
 
     if id in RESERVED_MANAGER_IDS:
-        return None
+        raise ComponentRehydrationError(_reserved_manager_id_message(id))
 
     try:
         from agno.utils.component_scope import component_owner_scope

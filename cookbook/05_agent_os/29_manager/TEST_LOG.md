@@ -566,3 +566,22 @@ Tests used disposable data and scripted models; no live model, hosted docs,
 PostgreSQL or frontend rendering checks were performed.
 
 ---
+
+
+### Clear reserved-ID lookup errors
+
+**Status:** PASS
+
+**Description:** Explicit reserved-ID catalog loads now raise the existing
+ComponentRehydrationError. REST returns HTTP 422 with the ID and guidance to use
+OS Manager or choose a different ID. Tests cover strict/non-strict loaders,
+sync/async OS lookup, REST detail, run, continuation, polling and cancellation,
+MCP refusal, and unchanged listing exclusions and ordinary missing-ID behavior.
+
+**Result:** Focused manager, authorization and scheduler suites: **441 passed**.
+Broad affected suite: **7,890 passed, 32 skipped** (counts overlap). Required
+format and validation scripts passed using the same isolated validation
+dependencies described above. Optional Telegram files remain excluded; tests use
+disposable data and scripted models, with no live provider or frontend calls.
+
+---

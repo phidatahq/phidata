@@ -5,3 +5,11 @@ BUILDER_ID = "platform-builder-internal"
 OPERATOR_ID = "platform-manager-internal"
 RESERVED_MEMBER_IDS = frozenset({BUILDER_ID, OPERATOR_ID})
 RESERVED_MANAGER_IDS = RESERVED_MEMBER_IDS | {MANAGER_TEAM_ID}
+
+
+def _reserved_manager_id_message(component_id: str) -> str:
+    return (
+        f"Component ID '{component_id}' is reserved for OS Manager. "
+        f"Use the '{MANAGER_TEAM_ID}' team for manager requests, "
+        "or choose a different ID for your component."
+    )

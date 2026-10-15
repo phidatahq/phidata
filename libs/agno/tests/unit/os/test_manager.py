@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 
 from agno.agent import Agent
 from agno.db.sqlite import AsyncSqliteDb, SqliteDb
+from agno.exceptions import ComponentRehydrationError
 from agno.models.base import Model
 from agno.models.message import MessageMetrics
 from agno.models.response import ModelResponse
@@ -17,6 +18,7 @@ from agno.offload.tools import get_read_result_function
 from agno.os import AgentOS, OSManager
 from agno.os.config import AgentOSConfig, Manifest
 from agno.os.manager.config import BUILDER_ID, MANAGER_TEAM_ID, MANAGER_TEAM_NAME, OPERATOR_ID
+from agno.os.utils import AgnoHTTPException
 from agno.registry import Registry
 from agno.run import RunContext
 from agno.tools.agentos import AgentOSTools
@@ -80,7 +82,7 @@ def test_manager_execution_accepts_ordinary_run_grants(db, workspace, identity, 
     family = "teams" if target == MANAGER_TEAM_ID else "agents"
     client = TestClient(os.get_app())
     response = client.post(f"/{family}/{target}/runs", headers=headers, data={"message": "hello", "stream": "false"})
-    assert response.status_code == (200 if target == MANAGER_TEAM_ID else 404), response.text
+    assert response.status_code == (200 if target == MANAGER_TEAM_ID else 422), response.text
     ordinary = client.post("/agents/ordinary/runs", headers=headers, data={"message": "hello", "stream": "false"})
     assert ordinary.status_code == 200, ordinary.text
     scheduled = client.post(
@@ -325,7 +327,7 @@ def test_manager_serves_over_the_ordinary_planes(db):
     sessions = client.get("/sessions?type=team").json()["data"]
     assert [s["session_id"] for s in sessions] == [run.json()["session_id"]]
     member = client.post(f"/agents/{OPERATOR_ID}/runs", data={"message": "status", "stream": "false"})
-    assert member.status_code == 404, member.text
+    assert member.status_code == 422, member.text
 
 
 def test_diagnostics_report_sync_async_and_required_env(db, monkeypatch):
@@ -962,7 +964,7 @@ def test_internal_identity_metadata_reaches_discovery_detail_and_runs(db, worksp
         rows.append(team)
         assert not team.get("members")
         for cid in (BUILDER_ID, OPERATOR_ID):
-            assert client.get(f"/agents/{cid}").status_code == 404
+            assert client.get(f"/agents/{cid}").status_code == 422
         for row in rows:
             if row["id"] == "ordinary":
                 assert row.get("metadata") in (None, ordinary_metadata)
@@ -972,7 +974,7 @@ def test_internal_identity_metadata_reaches_discovery_detail_and_runs(db, worksp
         assert [member.id for member in os.manager.members] == [BUILDER_ID, OPERATOR_ID]
     for family, cid in (("teams", MANAGER_TEAM_ID), ("agents", OPERATOR_ID)):
         run = client.post(f"/{family}/{cid}/runs", data={"message": "hello", "stream": "false"})
-        assert run.status_code == (200 if family == "teams" else 404)
+        assert run.status_code == (200 if family == "teams" else 422)
         if family == "teams":
             assert run.json()["metadata"]["_agno"] == {"internal": True, "id": cid}
 
@@ -1217,14 +1219,17 @@ def test_specialists_are_absent_from_public_config_and_cannot_start_or_continue(
     assert member_id not in config["manifest"]
     assert [agent["id"] for agent in client.get("/agents").json()] == ["ordinary"]
     assert not client.get(f"/teams/{MANAGER_TEAM_ID}").json().get("members")
-    assert client.get(f"/agents/{member_id}").status_code == 404
+    assert client.get(f"/agents/{member_id}").status_code == 422
     for endpoint, data in (
         (f"/agents/{member_id}/runs", {"message": "run", "stream": "false"}),
         (f"/agents/{member_id}/runs", {"message": "run", "stream": "true"}),
         (f"/agents/{member_id}/runs/old-run/continue", {"input": "continue", "stream": "false"}),
     ):
         response = client.post(endpoint, data=data)
-        assert response.status_code == 404, response.text
+        assert response.status_code == 422, response.text
+        assert member_id in response.json()["detail"]
+        assert "reserved for OS Manager" in response.json()["detail"]
+        assert MANAGER_TEAM_ID in response.json()["detail"]
     assert client.post("/agents/ordinary/runs", data={"message": "Hi", "stream": "false"}).status_code == 200
 
 
@@ -1245,7 +1250,7 @@ async def test_mcp_config_hides_specialists_but_manager_delegates(db):
         result = await client.call_tool("run_team", {"team_id": MANAGER_TEAM_ID, "message": "Answer"})
         assert not result.is_error
         for member_id in (BUILDER_ID, OPERATOR_ID):
-            with pytest.raises(Exception, match="not found"):
+            with pytest.raises(Exception, match="reserved for OS Manager"):
                 await client.call_tool("run_agent", {"agent_id": member_id, "message": "Answer"})
 
 
@@ -1275,9 +1280,11 @@ async def test_legacy_catalog_rows_cannot_restore_public_specialists(db, manager
     client = TestClient(os.get_app())
     assert [agent["id"] for agent in client.get("/agents").json()] == ["stored-ordinary"]
     for member_id in (BUILDER_ID, OPERATOR_ID):
-        assert client.get(f"/agents/{member_id}").status_code == 404
-        assert get_agent_by_id(member_id, db=db, published_only=False) is None
-        assert await get_agent_by_id_async(member_id, db=db, published_only=False) is None
+        assert client.get(f"/agents/{member_id}").status_code == 422
+        with pytest.raises(AgnoHTTPException, match="reserved for OS Manager"):
+            get_agent_by_id(member_id, db=db, published_only=False)
+        with pytest.raises(AgnoHTTPException, match="reserved for OS Manager"):
+            await get_agent_by_id_async(member_id, db=db, published_only=False)
     assert get_agent_by_id("stored-ordinary", db=db) is not None
     assert await get_agent_by_id_async("stored-ordinary", db=db) is not None
     async with Client(build_mcp_server(os)) as mcp:
@@ -1339,7 +1346,8 @@ def test_manager_runner_refuses_legacy_specialists(db, enabled, use_async):
 
 
 @pytest.mark.parametrize("kind", ["agent", "team", "workflow"])
-def test_catalog_cannot_restore_framework_manager_ids(db, kind):
+@pytest.mark.parametrize("strict", [False, True])
+def test_catalog_cannot_restore_framework_manager_ids(db, kind, strict):
     from importlib import import_module
 
     from agno.registry._reserved import RESERVED_MANAGER_IDS
@@ -1349,9 +1357,13 @@ def test_catalog_cannot_restore_framework_manager_ids(db, kind):
     for component_id in RESERVED_MANAGER_IDS:
         _store_manager_test_component(db, kind, component_id)
         for version in (None, 1):
-            assert (
-                getattr(module, f"get_{kind}_by_id")(db=db, id=component_id, registry=registry, version=version) is None
-            )
+            with pytest.raises(ComponentRehydrationError, match="reserved for OS Manager") as exc:
+                getattr(module, f"get_{kind}_by_id")(
+                    db=db, id=component_id, registry=registry, version=version, strict=strict
+                )
+            assert component_id in str(exc.value)
+            assert MANAGER_TEAM_ID in str(exc.value)
+            assert "choose a different ID" in str(exc.value)
         assert db.get_component(component_id) is not None  # No implicit migration/deletion.
     _store_manager_test_component(db, kind, "ordinary")
     assert [c.id for c in getattr(module, f"get_{kind}s")(db=db, registry=registry)] == ["ordinary"]
@@ -1488,7 +1500,7 @@ def test_manager_member_confirmation_continues_through_manager(db, stream):
         req["tool_execution"]["confirmed"] = True
     assert (
         client.post(f"/agents/{OPERATOR_ID}/runs/{data['run_id']}/continue", data={"stream": "false"}).status_code
-        == 404
+        == 422
     )
     resumed = client.post(
         f"/teams/{MANAGER_TEAM_ID}/runs/{data['run_id']}/continue",
@@ -1511,3 +1523,47 @@ async def test_team_detail_hides_only_framework_owned_members():
     assert (await TeamResponse.from_team(team)).members
     member._registry_excluded = True
     assert not (await TeamResponse.from_team(team)).members
+
+
+@pytest.mark.parametrize("kind", ["agent", "team", "workflow"])
+@pytest.mark.parametrize("manager_enabled", [False, True])
+def test_reserved_catalog_ids_have_clear_rest_errors(db, kind, manager_enabled):
+    os = AgentOS(
+        db=db,
+        manager=OSManager(model=OfflineModel(), access_docs=False) if manager_enabled else False,
+        telemetry=False,
+    )
+    _store_manager_test_component(db, kind, OPERATOR_ID)
+    client = TestClient(os.get_app())
+    path = f"/{kind}s/{OPERATOR_ID}"
+    # Detail and run-management routes have different error handling. Both must
+    # preserve the explanation rather than turning this into a 404 or 500.
+    responses = [
+        client.get(path),
+        client.get(f"{path}/runs/missing", params={"session_id": "missing"}),
+        client.post(f"{path}/runs/missing/cancel"),
+    ]
+    for response in responses:
+        assert response.status_code == 422, response.text
+        assert OPERATOR_ID in response.json()["detail"]
+        assert "reserved for OS Manager" in response.json()["detail"]
+        assert MANAGER_TEAM_ID in response.json()["detail"]
+        assert "choose a different ID" in response.json()["detail"]
+    assert client.get(f"/{kind}s/missing").status_code == 404
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("kind", ["agent", "team", "workflow"])
+async def test_reserved_catalog_errors_match_sync_and_async_os_lookup(db, kind):
+    from agno.os import utils
+    from agno.registry._reserved import RESERVED_MANAGER_IDS
+
+    for component_id in RESERVED_MANAGER_IDS:
+        with pytest.raises(AgnoHTTPException, match="reserved for OS Manager") as sync_error:
+            getattr(utils, f"get_{kind}_by_id")(component_id, db=db)
+        with pytest.raises(AgnoHTTPException, match="reserved for OS Manager") as async_error:
+            await getattr(utils, f"get_{kind}_by_id_async")(component_id, db=db)
+        assert sync_error.value.status_code == async_error.value.status_code == 422
+        assert sync_error.value.detail == async_error.value.detail
+    assert getattr(utils, f"get_{kind}_by_id")("missing", db=db) is None
+    assert await getattr(utils, f"get_{kind}_by_id_async")("missing", db=db) is None

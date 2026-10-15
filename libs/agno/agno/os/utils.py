@@ -25,7 +25,7 @@ from agno.media import File as FileMedia
 from agno.models.message import Message
 from agno.os.config import AgentOSConfig
 from agno.registry import Registry, ToolSource
-from agno.registry._reserved import RESERVED_MEMBER_IDS
+from agno.registry._reserved import RESERVED_MANAGER_IDS, RESERVED_MEMBER_IDS, _reserved_manager_id_message
 from agno.remote.base import RemoteDb, RemoteKnowledge
 from agno.run.agent import RunOutputEvent
 from agno.run.base import RunStatus
@@ -1571,7 +1571,9 @@ def get_agent_by_id(
     """
     # These members are callable only through their owning manager team. This also
     # prevents old catalog rows from restoring a standalone public endpoint.
-    if agent_id is None or agent_id in RESERVED_MEMBER_IDS:
+    if agent_id in RESERVED_MEMBER_IDS:
+        raise AgnoHTTPException(ComponentRehydrationError(_reserved_manager_id_message(agent_id)))
+    if agent_id is None:
         return None
 
     # Try to get the agent from the list of agents
@@ -1609,7 +1611,9 @@ def get_agent_by_id(
                 published_only=published_only,
             )
             return db_agent
-        except ComponentRehydrationError:
+        except ComponentRehydrationError as exc:
+            if agent_id in RESERVED_MANAGER_IDS:
+                raise AgnoHTTPException(exc) from exc
             # Broken is not "not found": propagate so the caller can refuse loudly.
             raise
         except Exception:
@@ -1632,7 +1636,9 @@ async def get_agent_by_id_async(
     published_only: bool = True,
 ) -> Optional[Union[Agent, RemoteAgent, AgentProtocol]]:
     """Async variant of get_agent_by_id that supports async factories."""
-    if agent_id is None or agent_id in RESERVED_MEMBER_IDS:
+    if agent_id in RESERVED_MEMBER_IDS:
+        raise AgnoHTTPException(ComponentRehydrationError(_reserved_manager_id_message(agent_id)))
+    if agent_id is None:
         return None
 
     if agents:
@@ -1669,7 +1675,9 @@ async def get_agent_by_id_async(
                 published_only=published_only,
             )
             return db_agent
-        except ComponentRehydrationError:
+        except ComponentRehydrationError as exc:
+            if agent_id in RESERVED_MANAGER_IDS:
+                raise AgnoHTTPException(exc) from exc
             # Broken is not "not found": propagate so the caller can refuse loudly.
             raise
         except Exception:
@@ -1746,7 +1754,9 @@ def get_team_by_id(
                 published_only=published_only,
             )
             return db_team
-        except ComponentRehydrationError:
+        except ComponentRehydrationError as exc:
+            if team_id in RESERVED_MANAGER_IDS:
+                raise AgnoHTTPException(exc) from exc
             # Broken is not "not found": propagate so the caller can refuse loudly.
             raise
         except Exception:
@@ -1800,7 +1810,9 @@ async def get_team_by_id_async(
                 published_only=published_only,
             )
             return db_team
-        except ComponentRehydrationError:
+        except ComponentRehydrationError as exc:
+            if team_id in RESERVED_MANAGER_IDS:
+                raise AgnoHTTPException(exc) from exc
             # Broken is not "not found": propagate so the caller can refuse loudly.
             raise
         except Exception:
@@ -1882,7 +1894,9 @@ def get_workflow_by_id(
                 published_only=published_only,
             )
             return db_workflow
-        except ComponentRehydrationError:
+        except ComponentRehydrationError as exc:
+            if workflow_id in RESERVED_MANAGER_IDS:
+                raise AgnoHTTPException(exc) from exc
             # Broken is not "not found": propagate so the caller can refuse loudly.
             raise
         except Exception:
@@ -1938,7 +1952,9 @@ async def get_workflow_by_id_async(
                 published_only=published_only,
             )
             return db_workflow
-        except ComponentRehydrationError:
+        except ComponentRehydrationError as exc:
+            if workflow_id in RESERVED_MANAGER_IDS:
+                raise AgnoHTTPException(exc) from exc
             # Broken is not "not found": propagate so the caller can refuse loudly.
             raise
         except Exception:
@@ -3003,6 +3019,8 @@ async def resolve_agent(
             # Broken is not "not found": answer with the error's own status so
             # the refusal survives on caller-supplied apps with no handlers.
             raise HTTPException(status_code=e.status_code, detail=str(e))
+        except HTTPException:
+            raise
         except Exception as e:
             logger.error(f"Error resolving agent '{agent_id}': {e}")
             raise HTTPException(status_code=500, detail=f"Error resolving agent: {e}")
@@ -3087,6 +3105,8 @@ async def resolve_team(
             # Broken is not "not found": answer with the error's own status so
             # the refusal survives on caller-supplied apps with no handlers.
             raise HTTPException(status_code=e.status_code, detail=str(e))
+        except HTTPException:
+            raise
         except Exception as e:
             logger.error(f"Error resolving team '{team_id}': {e}")
             raise HTTPException(status_code=500, detail=f"Error resolving team: {e}")
@@ -3166,6 +3186,8 @@ async def resolve_workflow(
             # Broken is not "not found": answer with the error's own status so
             # the refusal survives on caller-supplied apps with no handlers.
             raise HTTPException(status_code=e.status_code, detail=str(e))
+        except HTTPException:
+            raise
         except Exception as e:
             logger.error(f"Error resolving workflow '{workflow_id}': {e}")
             raise HTTPException(status_code=500, detail=f"Error resolving workflow: {e}")

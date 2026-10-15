@@ -30,7 +30,7 @@ from agno.eval.base import BaseEval
 from agno.filters import FilterExpr
 from agno.guardrails import BaseGuardrail
 from agno.knowledge.protocol import KnowledgeProtocol
-from agno.registry._reserved import RESERVED_MANAGER_IDS
+from agno.registry._reserved import RESERVED_MANAGER_IDS, _reserved_manager_id_message
 
 if TYPE_CHECKING:
     from agno.learn.machine import LearningMachine
@@ -1915,12 +1915,13 @@ def get_team_by_id(
         Team instance or None.
 
     Raises:
-        ComponentRehydrationError: If strict and a member or registry reference cannot be resolved.
+        ComponentRehydrationError: If the ID is reserved for OS Manager, or if strict
+            and a member or registry reference cannot be resolved.
     """
     from agno.exceptions import ComponentRehydrationError
 
     if id in RESERVED_MANAGER_IDS:
-        return None
+        raise ComponentRehydrationError(_reserved_manager_id_message(id))
 
     try:
         from agno.utils.component_scope import component_owner_scope

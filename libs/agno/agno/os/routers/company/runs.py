@@ -132,6 +132,15 @@ def get_company_runs_router(os: Any) -> APIRouter:
                 },
                 status_code=202,
             )
+        # Queue retention does not erase idempotency: the Task session's run row
+        # remains the authority after the ticket has been cleaned up.
+        if value.get("job_id"):
+            prior_run = await _call(run_database(value), "get_run", run_id, deserialize=False)
+            if prior_run is not None and prior_run["session_id"] == value["session_id"]:
+                return JSONResponse(
+                    {"run_id": run_id, "session_id": value["session_id"], "status": prior_run["status"]},
+                    status_code=202,
+                )
         if value["status"] not in {"ready", "in_progress"} or not value.get("executor_id"):
             raise HTTPException(409, "Only accepted work can be started")
         run_db = getattr(component, "db", None)
@@ -153,9 +162,16 @@ def get_company_runs_router(os: Any) -> APIRouter:
         )
         if value.get("job_id") and value["job_id"] != run_id:
             previous = await queue.store.get_job(value["job_id"])
-            if previous is None or previous["status"] not in {"failed", "cancelled", "completed"}:
+            previous_status = previous["status"] if previous else None
+            if previous is None:
+                previous_run = await _call(run_db, "get_run", value["job_id"], deserialize=False)
+                if previous_run:
+                    previous_status = {"ERROR": "failed", "CANCELLED": "cancelled", "COMPLETED": "completed"}.get(
+                        previous_run["status"]
+                    )
+            if previous_status not in {"failed", "cancelled", "completed"}:
                 raise HTTPException(409, "The previous Task run is still active")
-            if previous["status"] == "completed" and not any(
+            if previous_status == "completed" and not any(
                 entry.get("from") == "in_review" and entry.get("target") == "in_progress"
                 for entry in value["transitions"]
             ):
@@ -220,12 +236,32 @@ def get_company_runs_router(os: Any) -> APIRouter:
         )
 
     async def company_run(run_id: str, request: Request):
-        job = await worker(request).store.get_job(run_id)
+        queue = getattr(request.app.state, "queue_worker", None)
+        job = await queue.store.get_job(run_id) if queue is not None else None
         task_id = (job.get("payload") or {}).get("company_task_id") if job else None
-        if not task_id:
-            raise HTTPException(404, "Company run not found")
-        value = await task(task_id)
-        return job, value
+        if task_id:
+            value = await task(task_id)
+            return job, value
+        # Ordinary run rows outlive their queue tickets. Resolve their owning
+        # Task through its indexed session, without introducing a run ledger.
+        stores = {id(store): store for group in os.dbs.values() for store in group}
+        for store in stores.values():
+            row = await _call(store, "get_run", run_id, deserialize=False)
+            if row is None:
+                continue
+            tasks, _ = await _call(db, "get_tasks", session_id=row["session_id"], limit=1)
+            if not tasks:
+                continue
+            value = tasks[0]
+            kind = row["run_type"]
+            return {
+                "id": run_id,
+                "session_id": row["session_id"],
+                "component_type": kind,
+                "component_id": row.get(kind + "_id"),
+                "status": row["status"].lower(),
+            }, value
+        raise HTTPException(404, "Company run not found")
 
     @router.get("/runs/{run_id}")
     async def get_run(run_id: str, request: Request, _: bool = Depends(auth)):

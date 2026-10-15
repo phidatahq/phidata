@@ -85,7 +85,7 @@ def test_sqlite_up_after_provenance_revert_restores_everything():
 
     assert set(SCHEDULE_PROVENANCE_COLUMNS) <= _table_columns(db_file, SCHEDULES_TABLE)
     assert PROVENANCE_INDEXES <= _table_indexes(db_file, SCHEDULES_TABLE)
-    assert db.get_latest_schema_version(SCHEDULES_TABLE) == "3.0.0"
+    assert db.get_latest_schema_version(SCHEDULES_TABLE) == MigrationManager(db).latest_schema_version.public
 
 
 def test_sqlite_revert_tolerates_a_partly_migrated_table():

@@ -1881,6 +1881,7 @@ class BaseDb(ABC):
         status: Optional[str] = None,
         project_id: Optional[str] = None,
         failed: Optional[bool] = None,
+        session_id: Optional[str] = None,
     ) -> Tuple[List[Dict[str, Any]], int]:
         """List Tasks and their total, filtering by owner before pagination."""
         raise NotImplementedError("Company tasks not supported by the configured database")
@@ -3735,6 +3736,7 @@ class AsyncBaseDb(ABC):
         status: Optional[str] = None,
         project_id: Optional[str] = None,
         failed: Optional[bool] = None,
+        session_id: Optional[str] = None,
     ) -> Tuple[List[Dict[str, Any]], int]:
         """List Tasks and their total, filtering by owner before pagination."""
         raise NotImplementedError("Company tasks not supported by the configured database")

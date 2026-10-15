@@ -25,6 +25,13 @@ def _executor(registry: Any, executor_type: Optional[str], executor_id: Optional
     component = getattr(registry, "get_" + executor_type)(executor_id) if registry is not None else None
     if component is None:
         raise ValueError("Task executor is missing from the registry")
+    if not accepting:
+        from agno.agent import RemoteAgent
+        from agno.team import RemoteTeam
+        from agno.workflow import RemoteWorkflow
+
+        if isinstance(component, (RemoteAgent, RemoteTeam, RemoteWorkflow)):
+            raise ValueError("Task execution requires a local executor supported by the durable queue")
     _validate_executor_tools(component)
     return component
 

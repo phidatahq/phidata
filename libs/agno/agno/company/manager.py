@@ -214,6 +214,7 @@ class CompanyManager:
         status: Optional[str] = None,
         project_id: Optional[str] = None,
         failed: Optional[bool] = None,
+        session_id: Optional[str] = None,
     ) -> Tuple[List[Dict[str, Any]], int]:
         """List across Products, filtering status and owner before pagination."""
         if limit < 1 or page < 1:
@@ -227,6 +228,7 @@ class CompanyManager:
             status=status,
             project_id=project_id,
             failed=failed,
+            session_id=session_id,
         )
 
     def update_task(self, task_id: str, user_id: Optional[str] = None, **fields: Any) -> Optional[Dict[str, Any]]:
@@ -606,6 +608,7 @@ class AsyncCompanyManager:
         status: Optional[str] = None,
         project_id: Optional[str] = None,
         failed: Optional[bool] = None,
+        session_id: Optional[str] = None,
     ) -> Tuple[List[Dict[str, Any]], int]:
         """List across Products, filtering status and owner before pagination."""
         if limit < 1 or page < 1:
@@ -619,6 +622,7 @@ class AsyncCompanyManager:
             status=status,
             project_id=project_id,
             failed=failed,
+            session_id=session_id,
         )
 
     async def update_task(self, task_id: str, user_id: Optional[str] = None, **fields: Any) -> Optional[Dict[str, Any]]:

@@ -594,7 +594,7 @@ def get_default_scope_mappings(*, company: bool = False) -> Dict[str, List[str]]
                 "POST /company/tasks/*/restore": ["tasks:delete"],
                 "POST /company/tasks/*/transitions": ["tasks:write"],
                 # Company execution and attention reuse Task access; executor routes check run permission too.
-                "POST /company/tasks/*/runs": ["tasks:write"],
+                "POST /company/tasks/*/runs": ["tasks:write", "wiki:read"],
                 "GET /company/runs/*": ["tasks:read"],
                 "POST /company/runs/*/cancel": ["tasks:write"],
                 "GET /company/attention": ["tasks:read"],

@@ -2,13 +2,13 @@
 
 from typing import Any
 
-from sqlalchemy import Column, MetaData, Table, inspect
+from sqlalchemy import Column, Index, MetaData, Table, inspect
 from sqlalchemy.schema import CreateColumn, CreateIndex
 
 from agno.db.base import AsyncBaseDb, BaseDb
 
 
-def _migrate(connection: Any, db: Any, table_name: str, revert: bool = False) -> bool:
+def _migrate(connection: Any, db: Any, table_name: str) -> bool:
     schema = getattr(db, "db_schema", None) if connection.dialect.name == "postgresql" else None
     inspector = inspect(connection)
     if not inspector.has_table(table_name, schema=schema):
@@ -21,26 +21,22 @@ def _migrate(connection: Any, db: Any, table_name: str, revert: bool = False) ->
     table = Table(table_name, MetaData(), schema=schema)
     for name in names:
         definition: Any = TASKS_TABLE_SCHEMA[name]
-        table.append_column(Column(name, definition["type"], nullable=True, index=definition.get("index", False)))
+        table.append_column(Column(name, definition["type"], nullable=True))
+    for name in ("session_id", "job_id"):
+        Index(f"idx_{table_name}_{name}", table.c[name])
     existing = {column["name"] for column in inspector.get_columns(table_name, schema=schema)}
-    quote = connection.dialect.identifier_preparer.quote
     qualified = connection.dialect.identifier_preparer.format_table(table)
     changed = False
     for column in table.columns:
-        if revert:
-            if column.name in existing:
-                connection.exec_driver_sql(f"ALTER TABLE {qualified} DROP COLUMN {quote(column.name)}")
-                changed = True
-        elif column.name not in existing:
+        if column.name not in existing:
             ddl = str(CreateColumn(column).compile(dialect=connection.dialect))
             connection.exec_driver_sql(f"ALTER TABLE {qualified} ADD COLUMN {ddl}")
             changed = True
-    if not revert:
-        indexes = {index["name"] for index in inspector.get_indexes(table_name, schema=schema)}
-        for index in table.indexes:
-            if index.name not in indexes:
-                connection.execute(CreateIndex(index))
-                changed = True
+    indexes = {index["name"] for index in inspector.get_indexes(table_name, schema=schema)}
+    for index in table.indexes:
+        if index.name not in indexes:
+            connection.execute(CreateIndex(index))
+            changed = True
     return changed
 
 

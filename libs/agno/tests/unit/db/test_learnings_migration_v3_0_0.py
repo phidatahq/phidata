@@ -96,7 +96,9 @@ class TestRekeyRunsWithTheOtherMigrations:
 
         await MigrationManager(db).up()
 
-        assert db.get_latest_schema_version(db.learnings_table_name) == "3.0.0"
+        assert (
+            db.get_latest_schema_version(db.learnings_table_name) == MigrationManager(db).latest_schema_version.public
+        )
 
     async def test_a_table_already_at_the_new_version_is_left_alone(self, db: SqliteDb) -> None:
         legacy_id = _seed_legacy(db, "acme", ALICE, ALICE, "renewal at 50k")
@@ -234,7 +236,10 @@ class TestTheRekeyRunsOnAnAsyncDb:
 
         await MigrationManager(async_db).up()
 
-        assert await async_db.get_latest_schema_version(async_db.learnings_table_name) == "3.0.0"
+        assert (
+            await async_db.get_latest_schema_version(async_db.learnings_table_name)
+            == MigrationManager(async_db).latest_schema_version.public
+        )
 
     async def test_the_rekey_has_no_reverse(self, async_db: AsyncSqliteDb) -> None:
         from agno.db.migrations.versions import v3_0_0

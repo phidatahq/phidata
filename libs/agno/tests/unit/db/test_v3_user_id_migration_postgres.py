@@ -135,7 +135,7 @@ async def test_async_postgres_schedules_migration_adds_provenance_columns(schema
         idx = _table_indexes(schema)
         assert f"idx_{SCHEDULES_TABLE}_managed_by" in idx
         assert f"idx_{SCHEDULES_TABLE}_target_id" in idx
-        assert await db.get_latest_schema_version(SCHEDULES_TABLE) == "3.0.0"
+        assert await db.get_latest_schema_version(SCHEDULES_TABLE) == MigrationManager(db).latest_schema_version.public
 
         created = await db.create_schedule(_schedule_row("after-migration"))
         assert created["id"] == "sched-after-migration"

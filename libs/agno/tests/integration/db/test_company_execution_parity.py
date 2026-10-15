@@ -244,3 +244,115 @@ async def test_queue_reconciliation_projects_completion_after_restart(system, mo
     assert (await execute(restarted))["status"] == "completed"
     assert (await client.get(path)).json()["status"] == "in_review"
     assert (await client.get(path + "/runs")).json()["meta"]["total_count"] == 1
+
+
+@pytest.mark.asyncio
+async def test_existing_task_table_migrates_idempotently(system):
+    from sqlalchemy import Column, MetaData, Table, inspect
+
+    from agno.company.execution import _call
+    from agno.db.migrations.manager import MigrationManager
+    from agno.db.sqlite.schemas import TASKS_TABLE_SCHEMA
+
+    client, db, worker, os, components = system
+    name = "custom_company_tasks"
+    new_columns = {"session_id", "job_id", "evidence", "result"}
+    schema = getattr(db, "db_schema", None)
+    table = Table(name, MetaData(), schema=schema)
+    # A real populated table from before execution, using portable JSON for legacy columns.
+    for key, definition in TASKS_TABLE_SCHEMA.items():
+        if key not in new_columns:
+            table.append_column(
+                Column(
+                    key,
+                    definition["type"],
+                    primary_key=definition.get("primary_key", False),
+                    nullable=definition.get("nullable", True),
+                )
+            )
+
+    def create(conn):
+        if schema:
+            conn.execute(text('CREATE SCHEMA IF NOT EXISTS "' + schema + '"'))
+        table.create(conn)
+        conn.execute(
+            table.insert().values(
+                id="existing", title="Keep this", product_id="product", status="backlog", created_at=1, transitions=[]
+            )
+        )
+
+    if isinstance(db, AsyncBaseDb):
+        async with db.db_engine.begin() as conn:
+            await conn.run_sync(create)
+    else:
+        with db.db_engine.begin() as conn:
+            create(conn)
+    db.tasks_table_name = name
+    await _call(db, "upsert_schema_version", name, "3.0.0")
+    await MigrationManager(db).up(table_type="tasks")
+    await MigrationManager(db).up(table_type="tasks")
+    value = await _call(db, "get_task", "existing")
+    assert value["title"] == "Keep this" and new_columns <= set(value)
+    assert all(value[key] is None for key in new_columns)
+    assert await _call(db, "get_latest_schema_version", name) == "3.1.4"
+
+    def inspect_table(conn):
+        return inspect(conn).get_indexes(name, schema=schema)
+
+    if isinstance(db, AsyncBaseDb):
+        async with db.db_engine.connect() as conn:
+            indexes = await conn.run_sync(inspect_table)
+    else:
+        with db.db_engine.connect() as conn:
+            indexes = inspect_table(conn)
+    assert {f"idx_{name}_session_id", f"idx_{name}_job_id"} <= {index["name"] for index in indexes}
+
+
+@pytest.mark.asyncio
+async def test_results_cannot_cross_revoked_acceptance(system):
+    from agno.company.execution import _call
+    from agno.db.schemas.tasks import task_run_id
+
+    client, db, worker, os, _ = system
+    value = await accepted(client)
+    reserved = await _call(db, "start_task_run", value["id"], 1, value["transitions"])
+    await _call(db, "transition_task", value["id"], "backlog", "Withdraw")
+    await _call(db, "transition_task", value["id"], "ready", "New scope", executor_type="agent", executor_id="writer")
+    await _call(db, "transition_task", value["id"], "in_progress", "Manual work")
+    assert (
+        await _call(
+            db,
+            "complete_task_run",
+            value["id"],
+            task_run_id(value["id"], 1),
+            {"status": "COMPLETED", "content": "stale"},
+            expected_transitions=reserved["transitions"],
+        )
+        is None
+    )
+    saved = await _call(db, "get_task", value["id"])
+    assert saved["status"] == "in_progress" and saved["result"] is None
+
+
+@pytest.mark.asyncio
+async def test_run_history_and_duplicate_survive_ticket_retention(system):
+    client, db, worker, os, _ = system
+    value = await accepted(client)
+    path = f"/company/tasks/{value['id']}"
+    response = await client.post(path + "/runs")
+    run_id = response.json()["run_id"]
+    assert (await execute(worker))["status"] == "completed"
+    table = worker.config.db._get_table("jobs")
+    with worker.config.db.Session() as session, session.begin():
+        session.execute(table.delete().where(table.c.id == run_id))
+    assert (await client.post(path + "/runs")).json()["run_id"] == run_id
+    response = await client.get(f"/company/runs/{run_id}")
+    assert response.status_code == 200 and response.json()["status"] == "COMPLETED", response.text
+    assert (
+        await client.post(path + "/transitions", json={"target": "in_progress", "reason": "Revise draft"})
+    ).status_code == 200
+    revision = await client.post(path + "/runs", json={"attempt": 2})
+    assert revision.status_code == 202, revision.text
+    assert revision.json()["run_id"] != run_id
+    os.registry.agents.clear()
+    assert (await client.get(path + "/runs")).json()["meta"]["total_count"] == 2

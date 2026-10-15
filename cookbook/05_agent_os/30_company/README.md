@@ -49,8 +49,8 @@ The HTTP routes use `/company/projects` and `/company/tasks`, with the same
 CRUD, paging, soft delete and restore conventions as Products, plus
 `POST /{id}/transitions`. Task Ready requests include `executor_type` and
 `executor_id`; the API applies the scheduler's caller run-permission check.
-These examples manage records only and do not execute agents. Registry
-validation and run dispatch arrive with execution support.
+Acceptance also validates the executor against the registry. Direct Python callers
+pass `registry=Registry(...)` to their Company manager.
 
 Project and Task HTTP reads are company-wide for callers with the resource's
 read scope, matching Products. Edits and transitions are collaborative: callers with the resource write
@@ -108,7 +108,7 @@ machine. It has no acceptance, completion, owner, Sources or scheduler tools.
 CompanyTools can be published explicitly with `MCPConfig(tools=[...])`, following
 the existing MCP toolkit convention. Direct MCP calls have the same write fence.
 The examples make no provider calls; they do not demonstrate live model quality.
-Execution, attention, Routines and Sources are outside this delivery.
+Routines and Sources are outside this delivery.
 
 Optional Company tool arguments accept `null` for omission. Empty strings are
 normalized to omission as well; omitted pagination uses 20 results on page 1.
@@ -120,3 +120,48 @@ from its connection details. Reuse those details (or an explicit stable `id`)
 after restart and across replicas so saved run database references resolve.
 This does not rewrite references saved with older randomly generated IDs;
 retaining a known old ID explicitly is necessary for those references.
+
+
+
+## Execution and attention
+
+`06_execute_tasks.py` starts an accepted workflow Task through its ordinary run
+route and the durable queue, waits for In review, reads paged history and checks
+attention. It makes no provider calls. Start PostgreSQL with
+`./cookbook/scripts/run_pgvector.sh`, then run:
+
+```bash
+.venv/bin/python cookbook/05_agent_os/30_company/06_execute_tasks.py
+COMPANY_DB=postgres .venv/bin/python cookbook/05_agent_os/30_company/06_execute_tasks.py
+```
+
+The default stores Company records and sessions in temporary SQLite, with a
+PostgreSQL queue. `COMPANY_DB=postgres` uses PostgreSQL for both. The example
+creates and removes its own database schema. `COMPANY_QUEUE_DB_URL` overrides
+the local PostgreSQL URL. SQLite follows the queue's existing development
+fallback; use PostgreSQL session storage for production attempt fencing.
+
+POST `/company/tasks/{id}/runs` accepts `{"attempt": 1}` (the default). Repeating
+that attempt returns the first run. A new attempt increments the number; after
+success, first transition In review to In progress to request revisions. Each
+Task retains one session. GET on the same route returns ordinary session runs
+with `limit` and `page`. GET `/company/runs/{id}` reads an individual run and
+POST `/company/runs/{id}/cancel` uses the executor's existing cancellation route.
+
+Start rechecks the registry, `tasks:write`, `wiki:read` and the executor's run
+permission. Registry-only executors receive their ordinary routes when Company
+is enabled. Each executor needs a run database, and execution requires
+`QueueConfig(durable=True)`. An existing session retains the normal run route's
+ownership checks. Engineering executors cannot be started yet.
+
+Executor input contains only the Task brief, its evidence and the current
+company and Product wiki pages. Queue retries and restart recovery use the
+existing queue policy. Results are saved on the Task; success moves it to
+`in_review`. Failure leaves the Task visible with an error result. Executors
+cannot acquire scheduler mutation authority.
+
+GET `/company/attention?product_id=...` returns `proposals`, `in_review` and
+`failed` counts using the Task list filters. Omitting Product counts all work.
+Attention and run reads are company-wide with `tasks:read`; Task lists also
+accept `failed=true`. Existing databases add the Task execution columns with
+`MigrationManager(db).up(table_type="tasks")` (await this migration coroutine).

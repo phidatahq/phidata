@@ -8240,6 +8240,7 @@ class SqliteDb(BaseDb):
         status: Optional[str] = None,
         project_id: Optional[str] = None,
         failed: Optional[bool] = None,
+        session_id: Optional[str] = None,
     ) -> Tuple[List[Dict[str, Any]], int]:
         if limit < 1 or page < 1:
             raise ValueError("limit and page must be positive")
@@ -8252,6 +8253,8 @@ class SqliteDb(BaseDb):
             stmt = stmt.where(
                 predicate if failed else or_(table.c.result.is_(None), table.c.result["status"].as_string() != "ERROR")
             )
+        if session_id is not None:
+            stmt = stmt.where(table.c.session_id == session_id)
         if product_id is not None:
             stmt = stmt.where(table.c.product_id == product_id)
         if status is not None:

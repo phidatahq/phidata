@@ -2587,6 +2587,19 @@ class FunctionCall(BaseModel):
         self.function._save_to_cache(cache_file, result_to_cache)
 
     def execute(self) -> FunctionExecutionResult:
+        """Run the function with the caller authority appropriate to its owning component."""
+        from agno.run.authorization import _authorized_tool_result, _tool_authorization
+
+        with _tool_authorization(self.function) as authority:
+            outcome = self._execute()
+            if outcome.status == "success":
+                original_result = outcome.result
+                outcome.result = _authorized_tool_result(original_result, authority)
+                if self.result is original_result:
+                    self.result = outcome.result
+            return outcome
+
+    def _execute(self) -> FunctionExecutionResult:
         """Runs the function call."""
         from inspect import isgenerator, isgeneratorfunction
 
@@ -2606,6 +2619,12 @@ class FunctionCall(BaseModel):
         # Check cache if enabled and not a generator function
         cached_result = None
         cacheable = self.function.cache_results and not isgeneratorfunction(self.function.entrypoint)
+        if cacheable and getattr(self.function.entrypoint, "_agno_authorization_sensitive", False):
+            from agno.run.authorization import authorization_for
+
+            # Re-decide permission before serving a result after grants change.
+            # An entrypoint cache hit would otherwise skip its authorization check.
+            cacheable = authorization_for(self.function._run_context) is None
         if cacheable and _has_injected_media(entrypoint_args):
             log_debug(f"Skipping cache for {self.function.name}: the call carries attached media")
             cacheable = False
@@ -2771,7 +2790,7 @@ class FunctionCall(BaseModel):
         with the same treatment of cached_result and raw_results.
         """
         from functools import reduce
-        from inspect import isasyncgenfunction, iscoroutinefunction
+        from inspect import isasyncgenfunction, isawaitable, iscoroutinefunction
 
         async def execute_entrypoint_async(name, func, args):
             """Execute the entrypoint function asynchronously."""
@@ -2823,9 +2842,15 @@ class FunctionCall(BaseModel):
                 hook_args = self._build_hook_args(hook, name, next_func, args)
 
                 if iscoroutinefunction(hook):
-                    return await self._safe_hook_call_async(hook, hook_args)
+                    result = await self._safe_hook_call_async(hook, hook_args)
                 else:
-                    return self._safe_hook_call(hook, hook_args)
+                    result = self._safe_hook_call(hook, hook_args)
+                # Sync middleware commonly returns ``next_func(...)``
+                # directly. In an async execution chain that value is a
+                # coroutine and remains this wrapper's responsibility.
+                if isawaitable(result):
+                    result = await result
+                return result
 
             return wrapper
 
@@ -2840,6 +2865,19 @@ class FunctionCall(BaseModel):
         return chain
 
     async def aexecute(self) -> FunctionExecutionResult:
+        """Run the function asynchronously with its owning component's caller authority."""
+        from agno.run.authorization import _authorized_tool_result, _tool_authorization
+
+        with _tool_authorization(self.function) as authority:
+            outcome = await self._aexecute()
+            if outcome.status == "success":
+                original_result = outcome.result
+                outcome.result = _authorized_tool_result(original_result, authority)
+                if self.result is original_result:
+                    self.result = outcome.result
+            return outcome
+
+    async def _aexecute(self) -> FunctionExecutionResult:
         """Runs the function call asynchronously."""
         from inspect import isasyncgen, isasyncgenfunction, iscoroutinefunction, isgenerator, isgeneratorfunction
 
@@ -2864,6 +2902,12 @@ class FunctionCall(BaseModel):
         cacheable = self.function.cache_results and not (
             isasyncgenfunction(self.function.entrypoint) or isgeneratorfunction(self.function.entrypoint)
         )
+        if cacheable and getattr(self.function.entrypoint, "_agno_authorization_sensitive", False):
+            from agno.run.authorization import authorization_for
+
+            # Re-decide permission before serving a result after grants change.
+            # An entrypoint cache hit would otherwise skip its authorization check.
+            cacheable = authorization_for(self.function._run_context) is None
         if cacheable and _has_injected_media(entrypoint_args):
             log_debug(f"Skipping cache for {self.function.name}: the call carries attached media")
             cacheable = False

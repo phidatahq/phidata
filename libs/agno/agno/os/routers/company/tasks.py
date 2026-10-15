@@ -1,4 +1,4 @@
-"""Company-wide task reads with owner-scoped writes, following Products."""
+"""Collaborative Company task reads, edits and lifecycle transitions."""
 
 import asyncio
 from typing import Any, Dict, Literal, Optional, Union
@@ -100,15 +100,12 @@ def get_tasks_router(db: Optional[Union[BaseDb, AsyncBaseDb]], settings: AgnoAPI
         return task
 
     @router.patch("/tasks/{task_id}", response_model=TaskResponse)
-    async def update_task(
-        task_id: str, body: TaskUpdate, request: Request, _: bool = Depends(auth_dependency)
-    ) -> Dict[str, Any]:
-        user_id = get_scoped_user_id(request)
-        existing = await _writable(task_id, user_id)
+    async def update_task(task_id: str, body: TaskUpdate, _: bool = Depends(auth_dependency)) -> Dict[str, Any]:
+        existing = await _writable(task_id, None)
         fields = body.model_dump(exclude_unset=True)
         if not fields:
             return existing
-        task = await _call("update_task", task_id, user_id=user_id, **fields)
+        task = await _call("update_task", task_id, user_id=None, **fields)
         if task is None:
             raise HTTPException(status_code=409, detail="Task changed while updating")
         return task
@@ -135,8 +132,7 @@ def get_tasks_router(db: Optional[Union[BaseDb, AsyncBaseDb]], settings: AgnoAPI
     async def transition_task(
         task_id: str, body: TaskTransition, request: Request, _: bool = Depends(auth_dependency)
     ) -> Dict[str, Any]:
-        user_id = get_scoped_user_id(request)
-        await _writable(task_id, user_id)
+        await _writable(task_id, None)
         if body.target == "ready":
             assert body.executor_type is not None  # Validated by TaskTransition.
             resource = {"agent": "agents", "team": "teams", "workflow": "workflows", "engineering": "engineering"}[
@@ -147,7 +143,7 @@ def get_tasks_router(db: Optional[Union[BaseDb, AsyncBaseDb]], settings: AgnoAPI
             "transition_task",
             task_id,
             **body.model_dump(),
-            user_id=user_id,
+            user_id=None,
             accepted_by=getattr(request.state, "user_id", None),
         )
         if record is None:

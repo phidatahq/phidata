@@ -267,7 +267,7 @@ async def test_stale_acceptance_cannot_overwrite_a_backlog_roundtrip(db, monkeyp
 @pytest.mark.asyncio
 @pytest.mark.parametrize("resource", ["projects", "tasks"])
 @pytest.mark.parametrize("isolation", [False, True])
-async def test_http_shared_reads_and_owner_scoped_writes(db, resource, isolation):
+async def test_http_collaborative_work_and_owner_scoped_deletion(db, resource, isolation):
     import jwt
     from httpx import ASGITransport, AsyncClient
 
@@ -333,12 +333,10 @@ async def test_http_shared_reads_and_owner_scoped_writes(db, resource, isolation
         ]
         assert all(page["meta"]["total_count"] == 2 for page in pages)
         assert {page["data"][0]["id"] for page in pages} == {own["id"], other["id"]}
-        assert (await client.patch(path, json={field: "Renamed"}, headers=headers("bob"))).status_code == (
-            403 if isolation else 200
-        )
+        assert (await client.patch(path, json={field: "Renamed"}, headers=headers("bob"))).status_code == 200
         if resource == "tasks":
-            # Project assignment uses shared visibility while the Task write remains scoped.
-            own_path = root + "/" + own["id"]
+            # Collaborators can assign another creator's Task to a shared Project.
+            own_path = path
             assert (await client.patch(own_path, json={"project_id": None}, headers=headers("bob"))).status_code == 200
             assert (
                 await client.patch(own_path, json={"project_id": project["id"]}, headers=headers("bob"))
@@ -346,9 +344,24 @@ async def test_http_shared_reads_and_owner_scoped_writes(db, resource, isolation
             target = {"target": "ready", "executor_type": "agent", "executor_id": "writer", "reason": "Accept"}
         else:
             target = {"target": "active", "reason": "Accept"}
-        assert (await client.post(path + "/transitions", json=target, headers=headers("bob"))).status_code == (
-            403 if isolation else 200
+        accepted = await client.post(path + "/transitions", json=target, headers=headers("bob"))
+        assert accepted.status_code == 200, accepted.text
+        assert accepted.json()["user_id"] == "alice"
+        assert accepted.json()["transitions"][-1]["user_id"] == "bob"
+        if resource == "tasks":
+            assert accepted.json()["accepted_by"] == "bob"
+            assert (await client.patch(path, json={field: "Frozen"}, headers=headers("bob"))).status_code == 409
+            returned = await client.post(
+                path + "/transitions", json={"target": "backlog", "reason": "Clarify scope"}, headers=headers("bob")
+            )
+            assert returned.status_code == 200
+            assert returned.json()["accepted_by"] is None
+            assert (await client.patch(path, json={field: "Rescoped"}, headers=headers("bob"))).status_code == 200
+        cancelled = await client.post(
+            path + "/transitions", json={"target": "cancelled", "reason": "Stop"}, headers=headers("bob")
         )
+        assert cancelled.status_code == 200
+        assert cancelled.json()["transitions"][-1]["user_id"] == "bob"
         assert (await client.delete(path, headers=headers("alice"))).status_code == 204
         assert (await client.get(path, headers=headers("bob"))).status_code == 404
         assert (await client.get(path, params={"include_deleted": True}, headers=headers("bob"))).status_code == 200

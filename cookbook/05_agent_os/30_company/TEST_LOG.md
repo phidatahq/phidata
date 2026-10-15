@@ -90,3 +90,23 @@ filters, shared Product/Project assignment, and owner-scoped writes and
 transitions across sync/async SQLite and PostgreSQL.
 
 ---
+
+### 02_manage_projects.py — collaborative HTTP edits and transitions follow-up
+
+**Status:** PASS
+
+**Description:** Reran the Project cookbook after allowing resource-authorized callers to edit and transition another creator's Project through HTTP.
+
+**Result:** `Company projects lifecycle passed`. The cookbook checks direct-manager lifecycle, owner filtering, deletion, and restoration; separate HTTP regressions verify collaboration.
+
+---
+
+### 03_manage_tasks.py — collaborative HTTP edits and transitions follow-up
+
+**Status:** PASS
+
+**Description:** Reran the Task cookbook after allowing resource-authorized callers to edit Backlog Tasks and perform lifecycle transitions through HTTP.
+
+**Result:** `Accepted scope is protected` and `Company tasks lifecycle passed`. Separate HTTP regressions verify cross-user acceptance, cancellation, returning to Backlog, attribution, and executor authorization.
+
+---

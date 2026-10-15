@@ -83,7 +83,7 @@ def test_isolation_off_allows_scoped_readers_and_writers(make_client):
     assert c.post(path + "/restore", headers=headers("bob")).status_code == 200
 
 
-def test_isolation_on_shares_reads_and_scopes_writes(make_client):
+def test_isolation_on_shares_reads_and_edits_but_scopes_deletion(make_client):
     c = make_client(True)
     a = create(c, "alice")
     own = {create(c, "bob") for _ in range(3)}
@@ -98,14 +98,16 @@ def test_isolation_on_shares_reads_and_scopes_writes(make_client):
     before = c.get(path, headers=headers("alice")).json()
     assert c.get(path, headers=headers("bob")).json() == before
     for method, suffix, body in [
-        ("patch", "", {"title": "stolen"}),
         ("delete", "", None),
         ("post", "/restore", None),
-        ("post", "/transitions", {"target": "cancelled", "reason": "Stop"}),
     ]:
         response = c.request(method, path + suffix, json=body, headers=headers("bob"))
         assert response.status_code == 403, response.text
     assert c.get(path, headers=headers("alice")).json() == before
+    edited = c.patch(path, json={"title": "Collaborative work"}, headers=headers("bob", ["tasks:write"]))
+    assert edited.status_code == 200, edited.text
+    assert edited.json()["title"] == "Collaborative work"
+    assert edited.json()["user_id"] == "alice"
     assert c.delete(path, headers=headers("alice")).status_code == 204
     assert c.get(path + "?include_deleted=true", headers=headers("bob")).status_code == 200
     assert c.post(path + "/restore", headers=headers("bob")).status_code == 403
@@ -141,7 +143,7 @@ def test_scopes_apply_to_every_route(make_client, isolation):
         ("post", path + "/restore", None, ["tasks:write"]),
         ("post", path + "/transitions", {"target": "cancelled", "reason": "Stop"}, ["tasks:read"]),
     ]:
-        assert c.request(method, url, json=body, headers=headers("alice", scopes)).status_code == 403
+        assert c.request(method, url, json=body, headers=headers("bob", scopes)).status_code == 403
     assert c.get("/company/tasks").status_code == 401
 
 
@@ -213,8 +215,9 @@ def test_task_scopes_catalog_is_opt_in(enabled, tmp_path):
 
 
 @pytest.mark.parametrize("kind,scope", [("agent", "agents"), ("team", "teams"), ("workflow", "workflows")])
-def test_ready_requires_accepting_callers_executor_scope(make_client, kind, scope):
-    c = make_client(False)
+@pytest.mark.parametrize("isolation", [False, True])
+def test_ready_requires_accepting_callers_executor_scope(make_client, kind, scope, isolation):
+    c = make_client(isolation)
     path = "/company/tasks/" + create(c, "alice")
     body = {"target": "ready", "reason": "Accept", "executor_type": kind, "executor_id": "writer"}
     for scopes in [["tasks:write"], ["tasks:write", scope + ":other:run"], ["tasks:read", scope + ":run"]]:
@@ -350,3 +353,58 @@ async def test_run_target_permission_with_async_managed_roles(tmp_path, resource
                 assert accepted.status_code == 201, accepted.text
     finally:
         await db.close()
+
+
+@pytest.mark.parametrize("target", ["backlog", "cancelled"])
+@pytest.mark.parametrize("start", ["ready", "in_progress", "in_review"])
+def test_collaborators_return_or_cancel_accepted_tasks(make_client, start, target):
+    c = make_client(True)
+    path = "/company/tasks/" + create(c, "alice")
+    writer = headers("bob", ["tasks:write"])
+    accepted = c.post(
+        path + "/transitions",
+        json={"target": "ready", "reason": "Accept", "executor_type": "agent", "executor_id": "writer"},
+        headers=headers("bob", ["tasks:write", "agents:writer:run"]),
+    )
+    assert accepted.status_code == 200, accepted.text
+    assert accepted.json()["accepted_by"] == "bob"
+    assert accepted.json()["user_id"] == "alice"
+    progress = {"ready": [], "in_progress": ["in_progress"], "in_review": ["in_progress", "in_review"]}
+    for next_state in progress[start]:
+        advanced = c.post(path + "/transitions", json={"target": next_state, "reason": "Progress"}, headers=writer)
+        assert advanced.status_code == 200, advanced.text
+    assert c.patch(path, json={"brief": "Changed"}, headers=writer).status_code == 409
+    changed = c.post(path + "/transitions", json={"target": target, "reason": "Team decision"}, headers=writer)
+    assert changed.status_code == 200, changed.text
+    record = changed.json()
+    assert record["status"] == target
+    assert record["user_id"] == "alice"
+    assert record["transitions"][-1]["user_id"] == "bob"
+    if target == "backlog":
+        assert all(record[key] is None for key in ("executor_type", "executor_id", "accepted_by", "accepted_at"))
+        edited = c.patch(path, json={"brief": "Clarified scope"}, headers=writer)
+        assert edited.status_code == 200
+        assert edited.json()["brief"] == "Clarified scope"
+    else:
+        assert (
+            c.post(path + "/transitions", json={"target": "backlog", "reason": "Reopen"}, headers=writer).status_code
+            == 409
+        )
+
+
+@pytest.mark.parametrize(
+    "targets", [["cancelled"], ["ready", "in_progress", "in_review", "in_progress", "in_review", "done"]]
+)
+def test_collaborators_complete_or_cancel_backlog_work(make_client, targets):
+    c = make_client(True)
+    path = "/company/tasks/" + create(c, "alice")
+    for target in targets:
+        body = {"target": target, "reason": "Team decision"}
+        if target == "ready":
+            body.update(executor_type="agent", executor_id="writer")
+        response = c.post(
+            path + "/transitions", json=body, headers=headers("bob", ["tasks:write", "agents:writer:run"])
+        )
+        assert response.status_code == 200, response.text
+        assert response.json()["user_id"] == "alice"
+        assert response.json()["transitions"][-1]["user_id"] == "bob"

@@ -83,7 +83,7 @@ def test_isolation_off_allows_scoped_readers_and_writers(make_client):
     assert c.post(path + "/restore", headers=headers("bob")).status_code == 200
 
 
-def test_isolation_on_shares_reads_and_scopes_writes(make_client):
+def test_isolation_on_shares_reads_and_edits_but_scopes_deletion(make_client):
     c = make_client(True)
     a = create(c, "alice")
     own = {create(c, "bob") for _ in range(3)}
@@ -98,14 +98,16 @@ def test_isolation_on_shares_reads_and_scopes_writes(make_client):
     before = c.get(path, headers=headers("alice")).json()
     assert c.get(path, headers=headers("bob")).json() == before
     for method, suffix, body in [
-        ("patch", "", {"name": "stolen"}),
         ("delete", "", None),
         ("post", "/restore", None),
-        ("post", "/transitions", {"target": "cancelled", "reason": "Stop"}),
     ]:
         response = c.request(method, path + suffix, json=body, headers=headers("bob"))
         assert response.status_code == 403, response.text
     assert c.get(path, headers=headers("alice")).json() == before
+    edited = c.patch(path, json={"name": "Collaborative work"}, headers=headers("bob", ["projects:write"]))
+    assert edited.status_code == 200, edited.text
+    assert edited.json()["name"] == "Collaborative work"
+    assert edited.json()["user_id"] == "alice"
     assert c.delete(path, headers=headers("alice")).status_code == 204
     assert c.get(path + "?include_deleted=true", headers=headers("bob")).status_code == 200
     assert c.post(path + "/restore", headers=headers("bob")).status_code == 403
@@ -141,7 +143,7 @@ def test_scopes_apply_to_every_route(make_client, isolation):
         ("post", path + "/restore", None, ["projects:write"]),
         ("post", path + "/transitions", {"target": "cancelled", "reason": "Stop"}, ["projects:read"]),
     ]:
-        assert c.request(method, url, json=body, headers=headers("alice", scopes)).status_code == 403
+        assert c.request(method, url, json=body, headers=headers("bob", scopes)).status_code == 403
     assert c.get("/company/projects").status_code == 401
 
 
@@ -210,3 +212,27 @@ def test_project_scopes_catalog_is_opt_in(enabled, tmp_path):
     assert response.status_code == 200
     projects = {item["raw"] for item in response.json() if item["namespace"] == "projects"}
     assert projects == (set(ALL_SCOPES) if enabled else set())
+
+
+@pytest.mark.parametrize("targets", [["active", "done"], ["cancelled"], ["active", "cancelled"]])
+def test_collaborators_transition_projects_and_preserve_creator(make_client, targets):
+    c = make_client(True)
+    path = "/company/projects/" + create(c, "alice")
+    for target in targets:
+        response = c.post(
+            path + "/transitions",
+            json={"target": target, "reason": "Team decision"},
+            headers=headers("bob", ["projects:write"]),
+        )
+        assert response.status_code == 200, response.text
+        assert response.json()["status"] == target
+        assert response.json()["user_id"] == "alice"
+        assert response.json()["transitions"][-1]["user_id"] == "bob"
+    assert (
+        c.post(
+            path + "/transitions",
+            json={"target": "active", "reason": "Reopen"},
+            headers=headers("bob", ["projects:write"]),
+        ).status_code
+        == 409
+    )

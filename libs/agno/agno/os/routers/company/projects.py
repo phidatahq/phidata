@@ -1,4 +1,4 @@
-"""Company-wide project reads with owner-scoped writes, following Products."""
+"""Collaborative Company project reads, edits and lifecycle transitions."""
 
 import asyncio
 from typing import Any, Dict, Literal, Optional, Union
@@ -112,14 +112,13 @@ def get_projects_router(db: Optional[Union[BaseDb, AsyncBaseDb]], settings: Agno
 
     @router.patch("/projects/{project_id}", response_model=ProjectResponse)
     async def update_project(
-        project_id: str, body: ProjectUpdate, request: Request, _: bool = Depends(auth_dependency)
+        project_id: str, body: ProjectUpdate, _: bool = Depends(auth_dependency)
     ) -> Dict[str, Any]:
-        user_id = get_scoped_user_id(request)
-        existing = await _writable(project_id, user_id)
+        existing = await _writable(project_id, None)
         fields = body.model_dump(exclude_unset=True)
         if not fields:
             return existing
-        project = await _call("update_project", project_id, user_id=user_id, **fields)
+        project = await _call("update_project", project_id, user_id=None, **fields)
         if project is None:
             raise HTTPException(status_code=404, detail="Project not found")
         return project
@@ -146,13 +145,12 @@ def get_projects_router(db: Optional[Union[BaseDb, AsyncBaseDb]], settings: Agno
     async def transition_project(
         project_id: str, body: ProjectTransition, request: Request, _: bool = Depends(auth_dependency)
     ) -> Dict[str, Any]:
-        user_id = get_scoped_user_id(request)
-        await _writable(project_id, user_id)
+        await _writable(project_id, None)
         record = await _call(
             "transition_project",
             project_id,
             **body.model_dump(),
-            user_id=user_id,
+            user_id=None,
             accepted_by=getattr(request.state, "user_id", None),
         )
         if record is None:

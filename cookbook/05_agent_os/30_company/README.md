@@ -53,9 +53,13 @@ These examples manage records only and do not execute agents. Registry
 validation and run dispatch arrive with execution support.
 
 Project and Task HTTP reads are company-wide for callers with the resource's
-read scope, matching Products. With user isolation enabled, writes and
-transitions require ownership; a visible foreign record returns 403. Admins
-and callers on deployments with isolation disabled retain unscoped writes.
+read scope, matching Products. Edits and transitions are collaborative: callers with the resource write
+scope can update or transition another creator's work, even with user isolation
+enabled. This includes cancellation and returning Tasks to Backlog. The creator
+stays unchanged, and transition history records the acting caller. Ready still
+requires the caller's executor run permission; accepted Tasks must return to
+Backlog before editing. Delete and restore remain owner-scoped when user
+isolation is enabled, with the existing admin bypass.
 New work can use another owner's Product or Project, with the Task and
 Project still required to belong to the same Product. Manager and storage
 methods retain explicit owner filters for direct callers.

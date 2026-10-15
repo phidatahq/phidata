@@ -1,6 +1,6 @@
 import json
 import socket
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest
@@ -101,6 +101,18 @@ def test_toolkit_registers_functions_by_flag():
         "web_search",
     ]
     assert KeenableTools().name == "keenable_tools"
+
+
+def test_toolkit_registers_async_variants_by_flag():
+    """Each sync function has an async variant under the same name, for agent.arun()."""
+    assert [f.name for f in KeenableTools().async_functions.values()] == ["web_search"]
+    assert [f.name for f in KeenableTools(enable_search=False, enable_fetch=True).async_functions.values()] == [
+        "fetch_url_content"
+    ]
+    assert sorted(f.name for f in KeenableTools(all=True).async_functions.values()) == [
+        "fetch_url_content",
+        "web_search",
+    ]
 
 
 def test_search_returns_markdown():
@@ -316,3 +328,79 @@ def test_base_url_must_be_https():
 def test_base_url_allows_loopback_http():
     tools = KeenableTools(base_url="http://localhost:8080")
     assert tools._resolved_base_url() == "http://localhost:8080"
+
+
+def _async_post(**kwargs):
+    return patch("agno.tools.keenable.httpx.AsyncClient.post", new_callable=AsyncMock, **kwargs)
+
+
+def _async_get(**kwargs):
+    return patch("agno.tools.keenable.httpx.AsyncClient.get", new_callable=AsyncMock, **kwargs)
+
+
+@pytest.mark.asyncio
+async def test_aweb_search_is_keyless_by_default():
+    with _async_post(return_value=_response()) as mock_post:
+        output = await KeenableTools().aweb_search("small language models")
+
+    assert mock_post.call_args.args[0] == "https://api.keenable.ai/v1/search/public"
+    assert mock_post.call_args.kwargs["json"] == {"query": "small language models", "mode": "pro"}
+    headers = mock_post.call_args.kwargs["headers"]
+    assert "X-API-Key" not in headers
+    assert headers["X-Keenable-Title"] == "Agno"
+    assert "[First result](https://example.com/first)" in output
+    assert "About the first result." in output
+
+
+@pytest.mark.asyncio
+async def test_aweb_search_uses_keyed_endpoint_and_json_format():
+    with _async_post(return_value=_response()) as mock_post:
+        output = await KeenableTools(api_key="test_key", format="json", max_results=1).aweb_search("query")
+
+    assert mock_post.call_args.args[0] == "https://api.keenable.ai/v1/search"
+    assert mock_post.call_args.kwargs["headers"]["X-API-Key"] == "test_key"
+    assert [r["url"] for r in json.loads(output)["results"]] == ["https://example.com/first"]
+
+
+@pytest.mark.asyncio
+async def test_aweb_search_surfaces_rate_limit():
+    body = {"message": "too many requests"}
+    with _async_post(return_value=_response(status_code=429, body=body)):
+        output = await KeenableTools().aweb_search("query")
+
+    assert "Keenable rate limit exceeded (429)" in output
+    assert "too many requests" in output
+
+
+@pytest.mark.asyncio
+async def test_aweb_search_surfaces_transport_error():
+    with _async_post(side_effect=httpx.ConnectError("boom")):
+        assert "Error performing search: boom" in await KeenableTools().aweb_search("query")
+
+
+@pytest.mark.asyncio
+async def test_aweb_search_rejects_empty_query():
+    with _async_post() as mock_post:
+        assert "non-empty search query" in await KeenableTools().aweb_search("   ")
+
+    mock_post.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_afetch_url_content_returns_content():
+    with _async_get(return_value=_response(body=FETCH_BODY)) as mock_get:
+        output = await KeenableTools(enable_fetch=True).afetch_url_content("https://example.com/article")
+
+    assert mock_get.call_args.args[0] == "https://api.keenable.ai/v1/fetch/public"
+    assert mock_get.call_args.kwargs["params"] == {"url": "https://example.com/article"}
+    assert output == "## An article\n\nThe article body as markdown."
+
+
+@pytest.mark.asyncio
+async def test_afetch_url_content_rejects_internal_dns_names(monkeypatch):
+    monkeypatch.setattr("agno.tools.keenable.socket.getaddrinfo", lambda *args, **kwargs: _addrinfo("10.0.0.7"))
+    with _async_get() as mock_get:
+        output = await KeenableTools(enable_fetch=True).afetch_url_content("https://vault.service.consul/v1/secrets")
+
+    assert "private/internal host: 'vault.service.consul'" in output
+    mock_get.assert_not_called()

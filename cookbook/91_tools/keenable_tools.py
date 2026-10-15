@@ -8,6 +8,8 @@ Keenable is keyless by default: with no KEENABLE_API_KEY set, these examples run
 as-is against the public endpoints. Set KEENABLE_API_KEY to lift rate limits.
 """
 
+import asyncio
+
 from agno.agent import Agent
 from agno.tools.keenable import KeenableTools
 
@@ -75,4 +77,16 @@ if __name__ == "__main__":
         "Search for the Agno documentation, then read the most relevant page and "
         "summarize it",
         markdown=True,
+    )
+
+    print("\n" + "=" * 80)
+    print("ASYNC")
+    print("=" * 80)
+
+    # agent.aprint_response() runs the toolkit's async variants
+    asyncio.run(
+        agent_all.aprint_response(
+            "Search for what is new in Python 3.13 and read the official release notes",
+            markdown=True,
+        )
     )

@@ -1,8 +1,9 @@
+import asyncio
 import ipaddress
 import json
 import socket
 from os import getenv
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Any, Callable, Dict, List, Literal, Optional, Tuple, Union
 from urllib.parse import urlsplit
 
 import httpx
@@ -73,12 +74,16 @@ class KeenableTools(Toolkit):
         self.timeout: int = timeout
 
         tools: List[Any] = []
+        # Async variants are registered under the same names, for agent.arun() and agent.aprint_response().
+        async_tools: List[Tuple[Callable[..., Any], str]] = []
         if enable_search or all:
             tools.append(self.web_search)
+            async_tools.append((self.aweb_search, "web_search"))
         if enable_fetch or all:
             tools.append(self.fetch_url_content)
+            async_tools.append((self.afetch_url_content, "fetch_url_content"))
 
-        super().__init__(name="keenable_tools", tools=tools, **kwargs)
+        super().__init__(name="keenable_tools", tools=tools, async_tools=async_tools, **kwargs)
 
     def web_search(self, query: str, max_results: Optional[int] = None) -> str:
         """Use this function to search the web for a given query.
@@ -93,22 +98,124 @@ class KeenableTools(Toolkit):
         Returns:
             str: Search results as markdown or JSON, depending on the toolkit format.
         """
-        if not query or not query.strip():
-            return "Error: a non-empty search query is required."
-
         limit = self.max_results if max_results is None else max_results
-        if limit < 0:
-            return "Error: max_results cannot be negative."
+        args_error = self._search_args_error(query, limit)
+        if args_error:
+            return args_error
 
-        payload: Dict[str, Any] = {"query": query, "mode": SEARCH_MODE}
         try:
-            url = f"{self._resolved_base_url()}{self._path('/v1/search/public', '/v1/search')}"
+            url = self._search_endpoint()
             log_debug(f"Searching Keenable for: {query}")
-            response = httpx.post(url, json=payload, headers=self._headers(), timeout=self.timeout)
+            response = httpx.post(url, json=self._search_payload(query), headers=self._headers(), timeout=self.timeout)
         except (httpx.HTTPError, ValueError) as e:
             log_error(f"Keenable search failed: {e}")
             return f"Error performing search: {e}"
 
+        return self._parse_search_response(query, response, limit)
+
+    async def aweb_search(self, query: str, max_results: Optional[int] = None) -> str:
+        """Use this function to search the web for a given query.
+
+        Searches the live web through the Keenable API and returns ranked results.
+
+        Args:
+            query (str): Query to search for.
+            max_results (Optional[int]): Maximum number of results to return.
+                Defaults to the toolkit's max_results.
+
+        Returns:
+            str: Search results as markdown or JSON, depending on the toolkit format.
+        """
+        limit = self.max_results if max_results is None else max_results
+        args_error = self._search_args_error(query, limit)
+        if args_error:
+            return args_error
+
+        try:
+            url = self._search_endpoint()
+            log_debug(f"Searching Keenable for: {query}")
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                response = await client.post(url, json=self._search_payload(query), headers=self._headers())
+        except (httpx.HTTPError, ValueError) as e:
+            log_error(f"Keenable search failed: {e}")
+            return f"Error performing search: {e}"
+
+        return self._parse_search_response(query, response, limit)
+
+    def fetch_url_content(self, url: str) -> str:
+        """Use this function to read the content of a web page.
+
+        Fetches a URL through the Keenable API and returns the page's main content
+        as clean markdown, without boilerplate such as navigation or ads.
+
+        Args:
+            url (str): URL of the page to fetch.
+
+        Returns:
+            str: The page content as markdown, prefixed with its title.
+        """
+        target_error = self._fetch_target_error(url)
+        if target_error:
+            return target_error
+
+        try:
+            endpoint = self._fetch_endpoint()
+            log_debug(f"Fetching page content from Keenable: {url}")
+            response = httpx.get(endpoint, params={"url": url}, headers=self._headers(), timeout=self.timeout)
+        except (httpx.HTTPError, ValueError) as e:
+            log_error(f"Keenable fetch failed: {e}")
+            return f"Error fetching page content: {e}"
+
+        return self._parse_fetch_response(url, response)
+
+    async def afetch_url_content(self, url: str) -> str:
+        """Use this function to read the content of a web page.
+
+        Fetches a URL through the Keenable API and returns the page's main content
+        as clean markdown, without boilerplate such as navigation or ads.
+
+        Args:
+            url (str): URL of the page to fetch.
+
+        Returns:
+            str: The page content as markdown, prefixed with its title.
+        """
+        # The target check resolves the hostname, so keep the blocking lookup off the event loop.
+        target_error = await asyncio.to_thread(self._fetch_target_error, url)
+        if target_error:
+            return target_error
+
+        try:
+            endpoint = self._fetch_endpoint()
+            log_debug(f"Fetching page content from Keenable: {url}")
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                response = await client.get(endpoint, params={"url": url}, headers=self._headers())
+        except (httpx.HTTPError, ValueError) as e:
+            log_error(f"Keenable fetch failed: {e}")
+            return f"Error fetching page content: {e}"
+
+        return self._parse_fetch_response(url, response)
+
+    @staticmethod
+    def _search_args_error(query: str, limit: int) -> Optional[str]:
+        if not query or not query.strip():
+            return "Error: a non-empty search query is required."
+        if limit < 0:
+            return "Error: max_results cannot be negative."
+        return None
+
+    def _search_endpoint(self) -> str:
+        return f"{self._resolved_base_url()}{self._path('/v1/search/public', '/v1/search')}"
+
+    def _fetch_endpoint(self) -> str:
+        return f"{self._resolved_base_url()}{self._path('/v1/fetch/public', '/v1/fetch')}"
+
+    @staticmethod
+    def _search_payload(query: str) -> Dict[str, Any]:
+        return {"query": query, "mode": SEARCH_MODE}
+
+    def _parse_search_response(self, query: str, response: httpx.Response, limit: int) -> str:
+        """Turn a Keenable search response into markdown or JSON for the agent."""
         error = self._error_message(response)
         if error:
             log_error(error)
@@ -144,30 +251,8 @@ class KeenableTools(Toolkit):
             markdown += f"{result['content']}\n\n"
         return markdown
 
-    def fetch_url_content(self, url: str) -> str:
-        """Use this function to read the content of a web page.
-
-        Fetches a URL through the Keenable API and returns the page's main content
-        as clean markdown, without boilerplate such as navigation or ads.
-
-        Args:
-            url (str): URL of the page to fetch.
-
-        Returns:
-            str: The page content as markdown, prefixed with its title.
-        """
-        target_error = self._fetch_target_error(url)
-        if target_error:
-            return target_error
-
-        try:
-            endpoint = f"{self._resolved_base_url()}{self._path('/v1/fetch/public', '/v1/fetch')}"
-            log_debug(f"Fetching page content from Keenable: {url}")
-            response = httpx.get(endpoint, params={"url": url}, headers=self._headers(), timeout=self.timeout)
-        except (httpx.HTTPError, ValueError) as e:
-            log_error(f"Keenable fetch failed: {e}")
-            return f"Error fetching page content: {e}"
-
+    def _parse_fetch_response(self, url: str, response: httpx.Response) -> str:
+        """Turn a Keenable fetch response into the page's markdown, under its title."""
         error = self._error_message(response)
         if error:
             log_error(error)

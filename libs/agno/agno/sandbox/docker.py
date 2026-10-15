@@ -9,6 +9,7 @@ import math
 import os
 import secrets
 import tempfile
+import threading
 import weakref
 from contextlib import suppress
 from pathlib import Path
@@ -45,13 +46,19 @@ async def _close_with_loop(owner: "weakref.ReferenceType[DockerSandbox]", client
         await loop.create_future()
     finally:
         sandbox = owner()
-        if sandbox is not None and sandbox._http.get(loop, (None,))[0] is client:
-            del sandbox._http[loop]
+        if sandbox is not None:
+            with sandbox._http_lock:
+                if sandbox._http.get(loop, (None,))[0] is client:
+                    del sandbox._http[loop]
         await client.aclose()
 
 
-def _cancel_closers(clients: Dict[asyncio.AbstractEventLoop, Tuple[Any, "asyncio.Task[None]"]]) -> None:
-    for loop, (_, task) in list(clients.items()):
+def _cancel_closers(
+    clients: Dict[asyncio.AbstractEventLoop, Tuple[Any, "asyncio.Task[None]"]], lock: threading.Lock
+) -> None:
+    with lock:
+        entries = list(clients.items())
+    for loop, (_, task) in entries:
         with suppress(RuntimeError):
             loop.call_soon_threadsafe(task.cancel)
 
@@ -135,8 +142,10 @@ class DockerSandbox(Sandbox):
         self.env = dict(env) if env is not None else None
         self.execution_timeout = execution_timeout
         self._http: Dict[asyncio.AbstractEventLoop, Tuple[Any, "asyncio.Task[None]"]] = {}
+        # Sync calls from several threads share the cache, and each loop's closer removes its own entry.
+        self._http_lock = threading.Lock()
         # A sandbox discarded while its loop still runs closes its clients on that loop.
-        weakref.finalize(self, _cancel_closers, self._http)
+        weakref.finalize(self, _cancel_closers, self._http, self._http_lock)
         self._network_ready = False
 
     def checkpoint_transfer(self, store: "CheckpointStore") -> "CheckpointTransfer":
@@ -373,17 +382,18 @@ class DockerSandbox(Sandbox):
         import httpx
 
         loop = asyncio.get_running_loop()
-        for stale in [item for item in self._http if item.is_closed()]:
-            del self._http[stale]
-        entry = self._http.get(loop)
-        if entry is None:
-            limits = httpx.Limits(max_connections=4096, max_keepalive_connections=1024)
-            client = httpx.AsyncClient(limits=limits, timeout=httpx.Timeout(15.0, read=60.0))
-            # asyncio.run cancels pending tasks before closing its loop, so each sync call closes its client.
-            closer = loop.create_task(_close_with_loop(weakref.ref(self), client))
-            _CLOSERS.add(closer)
-            closer.add_done_callback(_CLOSERS.discard)
-            entry = self._http[loop] = (client, closer)
+        with self._http_lock:
+            for stale in [item for item in self._http if item.is_closed()]:
+                del self._http[stale]
+            entry = self._http.get(loop)
+            if entry is None:
+                limits = httpx.Limits(max_connections=4096, max_keepalive_connections=1024)
+                client = httpx.AsyncClient(limits=limits, timeout=httpx.Timeout(15.0, read=60.0))
+                # asyncio.run cancels pending tasks before closing its loop, so each sync call closes its client.
+                closer = loop.create_task(_close_with_loop(weakref.ref(self), client))
+                _CLOSERS.add(closer)
+                closer.add_done_callback(_CLOSERS.discard)
+                entry = self._http[loop] = (client, closer)
         return entry[0]
 
     async def _await_runtime(self, handle: SandboxHandle) -> None:

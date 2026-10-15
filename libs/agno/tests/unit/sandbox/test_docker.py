@@ -559,6 +559,37 @@ def test_sync_calls_close_their_http_client_and_leave_no_cache(monkeypatch):
     assert not sandbox._http
 
 
+def test_concurrent_sync_calls_share_the_client_cache_safely(monkeypatch):
+    from concurrent.futures import ThreadPoolExecutor
+
+    import httpx
+
+    real_client = httpx.AsyncClient
+
+    def client(**kwargs):
+        transport = httpx.MockTransport(lambda request: httpx.Response(200, json={"ok": True}))
+        return real_client(transport=transport, **kwargs)
+
+    monkeypatch.setattr(httpx, "AsyncClient", client)
+    sandbox = ServedDocker()
+    monkeypatch.setattr(sandbox, "_http_client", lambda: DockerSandbox._http_client(sandbox))
+    handle = sandbox.create("session")
+
+    def calls(_):
+        for _ in range(100):
+            sandbox.rpc(handle, "poll", b'{"execution_id": "e", "cursor": 0}')
+
+    # Switch threads often so pruning and closers interleave.
+    interval = sys.getswitchinterval()
+    sys.setswitchinterval(1e-6)
+    try:
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            list(pool.map(calls, range(8)))
+    finally:
+        sys.setswitchinterval(interval)
+    assert not sandbox._http
+
+
 @pytest.mark.asyncio
 async def test_a_running_loop_reuses_one_http_client(monkeypatch):
     sandbox = ServedDocker()

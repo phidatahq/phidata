@@ -45,8 +45,6 @@ agent_os = AgentOS(
         learning=memory,
         # Platform Manager reads this directory in tools mode; env and credential files are excluded.
         root=Path(__file__).parent,
-        # Opt in to Agno docs lookup; requires a network connection.
-        docs=True,
         instructions=notes.instructions(),
     ),
 )

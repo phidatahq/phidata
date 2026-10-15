@@ -23,6 +23,8 @@ from agno.tools.agentos import AgentOSTools
 from agno.tools.studio import StudioTools
 from agno.tools.studio_runner import StudioRunnerTools
 
+pytestmark = pytest.mark.usefixtures("unavailable_manager_docs")
+
 
 @pytest.mark.parametrize("identity", ["jwt", "managed_role", "service_account", "service_account_open"])
 @pytest.mark.parametrize("admin", [False, True])
@@ -987,8 +989,8 @@ def test_manager_model_is_buildable_without_leaking_privileged_tools(db, declare
     assert not restored.tools
 
 
-@pytest.mark.parametrize("enabled", [False, True])
-def test_docs_mcp_is_opt_in_private_and_uses_os_lifecycle(db, monkeypatch, enabled):
+@pytest.mark.parametrize("enabled", [None, False, True])
+def test_docs_mcp_defaults_on_is_private_and_uses_os_lifecycle(db, monkeypatch, enabled):
     from agno.tools.mcp import MCPTools
 
     calls = []
@@ -1003,7 +1005,10 @@ def test_docs_mcp_is_opt_in_private_and_uses_os_lifecycle(db, monkeypatch, enabl
 
     monkeypatch.setattr(MCPTools, "connect", connect)
     monkeypatch.setattr(MCPTools, "close", close)
-    os = AgentOS(db=db, manager=OSManager(model=OfflineModel(), docs=enabled), telemetry=False)
+    config = OSManager(model=OfflineModel(), **({} if enabled is None else {"access_docs": enabled}))
+    assert config.access_docs is (enabled is not False)
+    enabled = config.access_docs
+    os = AgentOS(db=db, manager=config, telemetry=False)
     docs = [tool for tool in manager_member(os, OPERATOR_ID).tools if isinstance(tool, MCPTools)]
     assert len(docs) == int(enabled)
     assert not os.registry.tools
@@ -1034,3 +1039,108 @@ def test_reserved_ids_rejected_on_resync_before_mirror_filtering(db, enabled, lo
         os.teams = [*(os.teams or []), Team(id="ordinary-team", members=[imposter], model=OfflineModel())]
     with pytest.raises(ValueError, match="reserved for the manager"):
         os.resync(app)
+
+
+@pytest.mark.parametrize("failure", [OSError, TimeoutError])
+def test_docs_outage_is_nonfatal_cleans_up_and_recovers(db, monkeypatch, failure):
+    from unittest.mock import AsyncMock
+
+    from agno.tools.function import Function
+    from agno.tools.mcp import MCPTools
+
+    available = False
+    attempts = []
+    partial_sessions = []
+    offered_tools = []
+
+    class ObservingModel(OfflineModel):
+        async def ainvoke(self, *args, **kwargs):
+            offered_tools.append({tool.get("function", {}).get("name") for tool in kwargs.get("tools") or []})
+            return self.invoke()
+
+    async def connect(tool):
+        attempts.append(tool.url)
+        if not available:
+            partial = AsyncMock()
+            partial_sessions.append(partial)
+            tool._session_context = partial
+            tool.session = object()
+            raise failure("Docs temporarily unavailable")
+        tool.functions["search_agno_docs"] = Function(
+            name="search_agno_docs", entrypoint=lambda: "Documentation result"
+        )
+        tool._initialized = True
+
+    monkeypatch.setattr(MCPTools, "_connect", connect)
+    os = AgentOS(db=db, manager=OSManager(model=ObservingModel()), telemetry=False)
+    docs = os.mcp_tools[0]
+    operator = manager_member(os, OPERATOR_ID)
+    with TestClient(os.get_app()) as client:
+        # Startup succeeds even after a partially established connection fails.
+        assert attempts == ["https://docs.agno.com/mcp"]
+        assert not docs.initialized and docs.session is None
+        assert docs._session_context is None
+        for target in (f"agents/{OPERATOR_ID}", f"teams/{MANAGER_TEAM_ID}"):
+            response = client.post(f"/{target}/runs", data={"message": "Hi", "stream": "false"})
+            assert response.status_code == 200, response.text
+            assert response.json()["content"] == "local answer"
+        assert len(attempts) >= 2
+        assert all("search_agno_docs" not in names for names in offered_tools)
+        assert "run_diagnostics" in offered_tools[0]
+        for partial in partial_sessions:
+            partial.__aexit__.assert_awaited_once_with(None, None, None)
+        assert not docs.initialized and not docs.functions
+        assert any(isinstance(tool, AgentOSTools) for tool in operator.tools)
+
+        # A later async run reconnects without restarting AgentOS.
+        available = True
+        response = client.post(f"/agents/{OPERATOR_ID}/runs", data={"message": "Hi", "stream": "false"})
+        assert response.status_code == 200, response.text
+        assert "search_agno_docs" in docs.functions
+        assert "search_agno_docs" in offered_tools[-1]
+        os.resync(os.get_app())
+        assert not os.registry.tools
+
+
+def test_missing_optional_mcp_dependency_does_not_prevent_manager_startup(db, monkeypatch):
+    import builtins
+
+    from agno.utils import log
+
+    original_import = builtins.__import__
+    warnings = []
+    attempted = []
+
+    def without_mcp(name, *args, **kwargs):
+        if name == "agno.tools.mcp":
+            attempted.append(name)
+            raise ImportError("mcp is not installed")
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", without_mcp)
+    monkeypatch.setattr(log, "log_warning", warnings.append)
+    os = AgentOS(db=db, manager=OSManager(model=OfflineModel()), telemetry=False)
+    assert attempted == ["agno.tools.mcp"]
+    assert any("install agno[mcp]" in message for message in warnings)
+    assert not os.mcp_tools
+    with TestClient(os.get_app()) as client:
+        response = client.post(f"/agents/{OPERATOR_ID}/runs", data={"message": "Hi", "stream": "false"})
+        assert response.status_code == 200, response.text
+
+    attempted.clear()
+    warnings.clear()
+    AgentOS(db=db, manager=OSManager(model=OfflineModel(), access_docs=False), telemetry=False)
+    assert not attempted and not warnings
+
+
+@pytest.mark.asyncio
+async def test_docs_connection_does_not_swallow_cancellation(db, monkeypatch):
+    from agno.tools.mcp import MCPTools
+
+    async def cancelled(tool):
+        raise asyncio.CancelledError()
+
+    monkeypatch.setattr(MCPTools, "_connect", cancelled)
+    os = AgentOS(db=db, manager=OSManager(model=OfflineModel()), telemetry=False)
+    with pytest.raises(asyncio.CancelledError):
+        await os.mcp_tools[0].connect()

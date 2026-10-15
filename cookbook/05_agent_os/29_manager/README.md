@@ -94,7 +94,7 @@ cannot override that role. Production tokens should come from your identity prov
 | `model` | First registry model | Shared by the manager and both members; also available for builds. |
 | `name` | `OS Manager` | Display name only; the ID and member composition are fixed. |
 | `root` | `None` | Platform Manager's read-only source directory or constrained workspace provider. |
-| `docs` | `False` | Connects Platform Manager to Agno's documentation MCP server. |
+| `access_docs` | `True` | Gives Platform Manager access to Agno docs. Connection failures are nonfatal; set `False` for offline deployments. |
 | `tools`, `knowledge`, `learning` | Empty / `None` | Extra resources for the lead team; not automatically available for builds. |
 | `instructions` | `None` | Appends instructions to the lead team's existing prompt. |
 | `required_env` | Empty | Names whose presence diagnostics checks; values are never returned. |
@@ -131,7 +131,7 @@ composition are fixed. Its members are:
 
 - **Platform Builder** (`platform-builder-internal`): creates components and schedules.
 - **Platform Manager** (`platform-manager-internal`): checks activity, runs diagnostics,
-  reads source when `root` is set, and queries Agno documentation when `docs=True`.
+  reads source when `root` is set, and queries Agno documentation by default.
 
 The team and its members use the normal UI, REST and MCP routes. Ordinary run
 grants, including `teams:os-manager-internal:run`, let a user talk to the manager. Access
@@ -184,10 +184,15 @@ for credential files. A supplied `WorkspaceContextProvider` is copied into tools
 mode. Its model, prompt and custom tools are not used. Additional exclusions are
 supported; `allow_paths` and custom `!` exemptions are rejected.
 
-Enable Agno documentation access with `OSManager(model=model, root="./", docs=True)`.
-Docs are opt-in and use the existing MCP connection lifecycle; enabling them
-requires network access to `https://docs.agno.com/mcp`. The docs tools remain
-private to Platform Manager and are not added to the build palette.
+Platform Manager has Agno documentation access by default through
+`https://docs.agno.com/mcp`. No extra configuration is needed. If the docs server
+is unavailable, the connection failure is logged and AgentOS starts normally;
+Platform Manager can still use its other tools. A later async run retries the connection.
+If the optional MCP dependency is missing, a warning explains how to install it.
+
+Use `OSManager(model=model, access_docs=False)` to disable docs access in offline
+or restricted-network deployments. The docs tools remain private to Platform
+Manager and are not added to the build palette.
 
 Agent and team responses expose their built-in identity through existing metadata:
 
@@ -199,8 +204,8 @@ Each member carries its own reserved ID in the same place. This is a UI marker,
 not an authorization grant. Ordinary application metadata is unchanged.
 
 This unreleased API replaces `ManagerConfig` with `OSManager`, `workspace` with
-`root`, and the earlier manager IDs with the fixed IDs above. Update client IDs
-and permission grants accordingly. Existing sessions under earlier IDs are not
+`root`, `docs` with `access_docs` (now enabled by default), and the earlier manager
+IDs with the fixed IDs above. Update client IDs and permission grants accordingly. Existing sessions under earlier IDs are not
 migrated automatically. Run access, component discovery (`teams:read` or
 `agents:read`), and session access (`sessions:read` plus ownership restrictions)
 remain separate permissions.

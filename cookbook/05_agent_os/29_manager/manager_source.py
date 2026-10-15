@@ -3,9 +3,10 @@
 Ask: "Read basic_manager.py and explain how this OS is configured."
 Then: "Check the Agno docs and explain how to add a knowledge base."
 
-Requires OPENAI_API_KEY for conversations and network access for docs MCP.
+Requires OPENAI_API_KEY for conversations. Agno docs access is enabled by default;
+if the docs server is unavailable, the manager continues with its other tools.
 Source tools can read/search this directory, but cannot edit files or run code.
-Set docs=False to use source tools without connecting to the documentation server.
+Set access_docs=False to use source tools without connecting to the documentation server.
 
 Run:
     .venvs/demo/bin/python cookbook/05_agent_os/29_manager/manager_source.py
@@ -23,7 +24,6 @@ agent_os = AgentOS(
     manager=OSManager(
         model=OpenAIResponses(id="gpt-5.6-luna"),
         root=Path(__file__).parent,
-        docs=True,
     ),
 )
 app = agent_os.get_app()

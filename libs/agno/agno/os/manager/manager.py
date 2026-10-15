@@ -227,10 +227,17 @@ def _build_manager(agent_os: "AgentOS", config: OSManager) -> _Manager:
     if workspace is not None:
         operator_tools.extend(workspace.get_tools())
         operator_instructions.append(workspace.instructions())
-    if config.docs:
-        from agno.tools.mcp import MCPTools
+    if config.access_docs:
+        try:
+            from agno.tools.mcp import MCPTools
+        except ImportError:
+            from agno.utils.log import log_warning
 
-        operator_tools.append(MCPTools(url="https://docs.agno.com/mcp"))
+            log_warning("Agno docs access is unavailable: install agno[mcp] to enable it.")
+        else:
+            # MCPTools.connect logs connection failures and cleans up partial sessions.
+            # Unavailable MCP tools are skipped during runs, leaving platform tools usable.
+            operator_tools.append(MCPTools(url="https://docs.agno.com/mcp"))
 
     operator = Agent(
         id=OPERATOR_ID,

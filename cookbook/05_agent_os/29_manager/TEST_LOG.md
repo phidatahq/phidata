@@ -380,3 +380,104 @@ These results supersede the earlier configurable-ID and Platform Engineer descri
 ---
 
 **Final broad result:** 6,321 passed, 24 skipped in 285.85 seconds. The selection includes OS, Studio/runner, scheduler, workspace, operational tools, run, registry, workflow helpers and authorization/service-account integration regressions. The final required formatting and validation scripts passed. This selection overlaps the 291 focused tests above. Three unrelated Telegram files were excluded for missing optional dependencies.
+
+
+## Default documentation access, 2026-10-15
+
+All checks used temporary SQLite data and blocked live model calls. The docs
+connection was forced to fail locally; no hosted docs request was made.
+
+### basic_manager.py
+
+**Status:** PASS
+
+**Description:** Constructed the example with default `access_docs=True` and
+entered its FastAPI lifespan while the docs connection raised `OSError`.
+
+**Result:** Startup completed and the config endpoint responded normally
+(including authentication enforcement for the regular-user example). Platform
+Manager retained its documentation toolkit without exposing it to the registry.
+
+---
+
+### manager_builds_agents.py
+
+**Status:** PASS
+
+**Description:** Constructed the example with default `access_docs=True` and
+entered its FastAPI lifespan while the docs connection raised `OSError`.
+
+**Result:** Startup completed and the config endpoint responded normally
+(including authentication enforcement for the regular-user example). Platform
+Manager retained its documentation toolkit without exposing it to the registry.
+
+---
+
+### manager_source.py
+
+**Status:** PASS
+
+**Description:** Constructed the example with default `access_docs=True` and
+entered its FastAPI lifespan while the docs connection raised `OSError`.
+
+**Result:** Startup completed and the config endpoint responded normally
+(including authentication enforcement for the regular-user example). Platform
+Manager retained its documentation toolkit without exposing it to the registry.
+
+---
+
+### manager_with_resources.py
+
+**Status:** PASS
+
+**Description:** Constructed the example with default `access_docs=True` and
+entered its FastAPI lifespan while the docs connection raised `OSError`.
+
+**Result:** Startup completed and the config endpoint responded normally
+(including authentication enforcement for the regular-user example). Platform
+Manager retained its documentation toolkit without exposing it to the registry.
+
+---
+
+### manager_user_access.py
+
+**Status:** PASS
+
+**Description:** Constructed the example with default `access_docs=True` and
+entered its FastAPI lifespan while the docs connection raised `OSError`.
+
+**Result:** Startup completed and the config endpoint responded normally
+(including authentication enforcement for the regular-user example). Platform
+Manager retained its documentation toolkit without exposing it to the registry.
+
+---
+
+### check_manager_permissions.py
+
+**Status:** PASS
+
+**Description:** Ran all seven HTTP checks with default docs access enabled and
+the docs server simulated as unavailable.
+
+**Result:** All seven checks passed. Discovery, session reads, invalid-token
+rejection and denied publishing retain their existing behavior. No model calls.
+
+---
+
+### Documentation availability regressions
+
+**Status:** PASS
+
+**Description:** Verified default-on and explicit opt-out, connection errors and
+timeouts, partial-session cleanup, continued manager/operator runs, unavailable
+tools omitted from model requests, recovery on a later async run, registry
+exclusion after recovery, a missing optional MCP dependency, and cancellation
+propagation. Existing manager and permission suites use simulated docs outages.
+
+**Result:** 230 manager/permission tests passed. Required format and validation
+scripts passed, including mypy for 1,126 framework and 21 CLI files. The broader
+AgentOS/MCP unit suite passed with **4,075 passed, 23 skipped**. Three unrelated
+Telegram files were excluded because their optional dependency is unavailable.
+The broader count includes the manager/permission tests; counts are not additive.
+
+---

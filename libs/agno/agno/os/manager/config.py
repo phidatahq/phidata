@@ -33,8 +33,9 @@ class OSManager:
         root: Directory or WorkspaceContextProvider for Platform Manager to read.
             Default file exclusions apply. Extra exclusions are allowed; custom
             exemptions and allow_paths are not. Omit to disable source access.
-        docs: Connect Platform Manager to the Agno documentation MCP server.
-            Disabled by default; enabling it requires network access.
+        access_docs: Give Platform Manager access to the Agno documentation MCP
+            server. Enabled by default. Connection failures are nonfatal; pass
+            False to disable documentation access in offline deployments.
         offload_tool_results: Offload large tool results for the manager and its members.
             Enabled by default on SQLite and PostgreSQL. Pass False to disable or
             a ResultStore to customize its settings.
@@ -49,7 +50,7 @@ class OSManager:
     knowledge: Optional[Any] = None
     learning: Optional[Any] = None
     root: Optional[Union[str, Path, Any]] = None
-    docs: bool = False
+    access_docs: bool = True
     offload_tool_results: Optional[Union[bool, "ResultStore"]] = True
     instructions: Optional[str] = None
     required_env: Tuple[str, ...] = ()

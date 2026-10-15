@@ -35,6 +35,8 @@ from agno.run.authorization import (
 from agno.scheduler.manager import ScheduleManager
 from agno.tools.studio import StudioTools
 
+pytestmark = pytest.mark.usefixtures("unavailable_manager_docs")
+
 SECRET = "manager-action-test-key-at-least-32-characters"
 
 

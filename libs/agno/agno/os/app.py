@@ -3,7 +3,7 @@ import contextlib
 from contextlib import asynccontextmanager
 from functools import partial
 from os import getenv
-from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Literal, Optional, Set, Union
+from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Literal, Optional, Sequence, Set, Union
 from uuid import uuid4
 
 from fastapi import APIRouter, FastAPI, HTTPException
@@ -106,6 +106,9 @@ if TYPE_CHECKING:
     from agno.os.authz.user_directory import UserDirectory
     from agno.os.company.config import CompanyConfig
     from agno.os.company.service import CompanyService
+    from agno.os.diagnostics import DiagnosticReport
+    from agno.os.manager import OSManager
+    from agno.os.manager.manager import _Manager
     from agno.os.schema import FileSystemConfig
 
 
@@ -331,6 +334,7 @@ class AgentOS:
         internal_service_token: Optional[str] = None,
         public: Optional[Any] = None,
         company: Optional["CompanyConfig"] = None,
+        manager: Optional[Union[bool, "OSManager"]] = None,
     ):
         """Initialize AgentOS.
 
@@ -349,6 +353,7 @@ class AgentOS:
             workflows: List of workflows to include in the OS
             knowledge: List of knowledge bases to include in the OS
             interfaces: List of interfaces to include in the OS
+            manager: Adds an OS Manager team to the OS.
             a2a_interface: Whether to expose the OS agents and teams in an A2A server
             config: Configuration file path or AgentOSConfig instance
             settings: API settings for the OS
@@ -376,7 +381,7 @@ class AgentOS:
             base_app: Optional base FastAPI app to use for the AgentOS. All routes and middleware will be added to this app.
             on_route_conflict: What to do when a route conflict is detected in case a custom base_app is provided.
             auto_provision_dbs: Whether to automatically provision databases
-            company: Optional Company records with an explicit PostgreSQL database.
+            company: Optional Company records; defaults to the AgentOS PostgreSQL database.
                 Requires verified JWT authorization; migrations are an explicit operator step.
             authorization: The authorization setup. Prefer ``Authorization(...)`` -- one object for
                 verification, roles, the user directory, audit, and the admin API (see
@@ -561,9 +566,12 @@ class AgentOS:
             from agno.os.company.service import CompanyService
 
             if not isinstance(company, CompanyConfig):
-                raise ValueError("company must be CompanyConfig(db=...) or None")
+                raise ValueError("company must be CompanyConfig(...) or None")
             if not self.authorization:
                 raise ValueError("Company requires AgentOS authorization with verified JWT identities")
+            from dataclasses import replace
+
+            company = replace(company, db=company.db if company.db is not None else self.db)
             self.company = CompanyService(company, user_directory=self.user_directory)
             from agno.os.company.runtime import CompanyRuntime
 
@@ -628,6 +636,34 @@ class AgentOS:
         # the caller's app in place, so preparing twice would double routes/lifespans).
         self._base_app_prepared: bool = False
 
+        # Create the manager using this OS's registry and database, then initialize
+        # it with the other components. Keep its members and tools out of the registry
+        # so Studio cannot add them to new components.
+        from agno.os.manager import OSManager
+        from agno.os.manager.manager import _build_manager
+
+        self._manager: Optional["_Manager"] = None
+        if manager is not None and not isinstance(manager, (bool, OSManager)):
+            raise TypeError("AgentOS.manager must be True, False, None, or OSManager")
+        if manager:
+            manager_config = manager if isinstance(manager, OSManager) else OSManager()
+            if self.registry is None:
+                self.registry = Registry()
+            self._manager = _build_manager(self, manager_config)
+            self.agents = [*(self.agents or []), *self._manager.agents]
+            self.teams = [*(self.teams or []), self._manager.team]
+            self._apply_manager_manifest()
+
+        if self.company is not None and self.company._config.model is None:
+            from dataclasses import replace
+
+            if self.registry is not None and self.registry.models:
+                self.company._config = replace(self.company._config, model=self.registry.models[0])
+            else:
+                log_warning(
+                    "Company has no model: manual APIs are available; configure a registry model to enable Product Manager"
+                )
+
         self._initialize_agents()
         self._initialize_teams()
         self._initialize_workflows()
@@ -656,6 +692,65 @@ class AgentOS:
 
         if self.tracing:
             self._setup_tracing()
+
+    @property
+    def manager(self) -> Optional[Team]:
+        """The OS Manager team, or None when disabled. Supports run() and arun()."""
+        return self._manager.team if self._manager is not None else None
+
+    def _owned_by_manager(self, component: Any) -> bool:
+        """True for the manager's team and members; they are served but never enter the registry."""
+        return (getattr(component, "_registry_excluded", False) is True) or (
+            self._manager is not None and self._manager.owns(component)
+        )
+
+    def _apply_manager_manifest(self) -> None:
+        """Set default UI descriptions and prompts without replacing application settings."""
+        from agno.os.config import AgentOSConfig
+
+        if self._manager is None:
+            return
+        if self.config is None:
+            self.config = AgentOSConfig()
+        manifest = dict(self.config.manifest or {})
+        for component_id, entry in self._manager.manifest().items():
+            manifest.setdefault(component_id, entry)
+        self.config.manifest = manifest
+
+    def run_diagnostics(
+        self,
+        *,
+        required_env: Optional[Sequence[str]] = None,
+        network_probe: bool = False,
+        public_url: Optional[str] = None,
+    ) -> "DiagnosticReport":
+        """Run the model-free diagnostics: database, authorization, component ids, registry names,
+        interfaces, scheduler, MCP and required environment variables. ``required_env`` defaults to the
+        manager's configuration when a manager exists."""
+        from agno.os.diagnostics import run_diagnostics
+
+        return run_diagnostics(
+            self, required_env=self._diagnostics_env(required_env), network_probe=network_probe, public_url=public_url
+        )
+
+    async def arun_diagnostics(
+        self,
+        *,
+        required_env: Optional[Sequence[str]] = None,
+        network_probe: bool = False,
+        public_url: Optional[str] = None,
+    ) -> "DiagnosticReport":
+        """Async variant of run_diagnostics."""
+        from agno.os.diagnostics import arun_diagnostics
+
+        return await arun_diagnostics(
+            self, required_env=self._diagnostics_env(required_env), network_probe=network_probe, public_url=public_url
+        )
+
+    def _diagnostics_env(self, required_env: Optional[Sequence[str]]) -> Sequence[str]:
+        if required_env is not None:
+            return required_env
+        return self._manager.config.required_env if self._manager is not None else ()
 
     @property
     def mcp(self) -> bool:
@@ -882,7 +977,7 @@ class AgentOS:
             self._mount_mcp_app(app)
 
     def _add_built_in_routes(self, app: FastAPI) -> None:
-        """Add all AgentOSbuilt-in routes to the given app."""
+        """Add all AgentOS built-in routes to the given app."""
         # Always add the home router: explicit routes win over the root MCP Mount, and
         # without it GET / falls through to the MCP app's plain-text 404.
         self._add_router(app, get_home_router(self))
@@ -937,6 +1032,12 @@ class AgentOS:
         Raises:
             ValueError: If duplicate IDs are found within the same entity type
         """
+        from agno.os.manager.manager import _raise_if_reserved_ids
+
+        _raise_if_reserved_ids(
+            [*(self.agents or []), *(self.teams or []), *(self.workflows or [])],
+            owned=self._manager.components if self._manager is not None else (),
+        )
         duplicate_ids: List[str] = []
 
         for entities in [self.agents, self.teams, self.workflows]:
@@ -1099,6 +1200,24 @@ class AgentOS:
         """
         if self.registry is None:
             self.registry = Registry()
+        from agno.os.manager.manager import _raise_if_reserved_ids
+
+        # Check before filtering mirrors, including nested application members and
+        # registry entries appended since construction. Framework copies stay excluded.
+        _raise_if_reserved_ids(
+            [
+                component
+                for component in [
+                    *self._iter_component_carriers(),
+                    *self.registry.agents,
+                    *self.registry.teams,
+                    *self.registry.workflows,
+                ]
+                if not getattr(component, "_registry_excluded", False)
+            ]
+        )
+        if self._manager is not None:
+            self.registry.exclude_components(self._manager.components)
 
         # Name the db behind the component catalog outright, including when
         # there is none. A Studio toolkit given no db of its own resolves this
@@ -1148,7 +1267,7 @@ class AgentOS:
             existing_agents = {aid: a for a in self.registry.agents if (aid := getattr(a, "id", None)) is not None}
             for agent in self._agents:
                 agent_id = getattr(agent, "id", None)
-                if agent_id is None:
+                if agent_id is None or self._owned_by_manager(agent):
                     continue
                 existing_agent = existing_agents.get(agent_id)
                 if existing_agent is not None:
@@ -1168,7 +1287,7 @@ class AgentOS:
             existing_teams = {tid: t for t in self.registry.teams if (tid := getattr(t, "id", None)) is not None}
             for team in self._teams:
                 team_id = getattr(team, "id", None)
-                if team_id is None:
+                if team_id is None or self._owned_by_manager(team):
                     continue
                 existing_team = existing_teams.get(team_id)
                 if existing_team is not None:
@@ -1219,7 +1338,13 @@ class AgentOS:
         if self.registry is None:
             self.registry = Registry()
 
+        manager_owners: List[Union[Agent, Team]] = [*self._agents, *self._teams]
+        manager_knowledge = [owner.knowledge for owner in manager_owners if self._owned_by_manager(owner)]
         for kb in self.knowledge_instances or []:
+            # Keep manager-only knowledge out of the registry. Knowledge declared
+            # on the OS or another component is still shared with the registry.
+            if any(kb is private for private in manager_knowledge):
+                continue
             self.registry.add_knowledge(kb, mirrored=True)
         for kb in self.knowledge or []:
             self.registry.add_knowledge(kb, mirrored=True)
@@ -1351,6 +1476,8 @@ class AgentOS:
         }
 
         def _register(owner: Any, owner_type: str) -> None:
+            if registry.is_component_excluded(owner):
+                return
             owner_id = getattr(owner, "id", None)
 
             mm = getattr(owner, "memory_manager", None)
@@ -1413,7 +1540,12 @@ class AgentOS:
             self.registry = Registry()
 
         try:
-            collect_components_from_os(self._agents, self._teams, self._workflows, self.registry)
+            collect_components_from_os(
+                [a for a in self._agents if not self._owned_by_manager(a)],
+                [t for t in self._teams if not self._owned_by_manager(t)],
+                self._workflows,
+                self.registry,
+            )
         except Exception as e:
             log_debug(f"Registry auto-population skipped: {e}")
 
@@ -1844,6 +1976,10 @@ class AgentOS:
         # agno cannot amend. Fail fast (with the exact paths) rather than 401 connector
         # discovery. (Only agno's own AuthMiddleware is inspected; see the method docstring.)
         self._check_mcp_auth_middleware_composition(fastapi_app)
+
+        from agno.os.authz.run_context import RunAuthorizationMiddleware
+
+        fastapi_app.add_middleware(RunAuthorizationMiddleware, authorization_app=fastapi_app)
 
         # Add trailing slash normalization middleware
         from agno.os.middleware.trailing_slash import TrailingSlashMiddleware

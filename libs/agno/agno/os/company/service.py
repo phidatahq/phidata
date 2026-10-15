@@ -57,6 +57,8 @@ class CompanyService:
     def __init__(self, config: CompanyConfig, user_directory: Any = None):
         self._config = config
         self.product_manager: Optional["Agent"] = None
+        if config.db is None:
+            raise ValueError("Company requires a PostgreSQL database: set AgentOS(db=...) or CompanyConfig(db=...)")
         self._engine = config.db.db_engine
         self._users = user_directory
         self._runtime: Any = None

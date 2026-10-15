@@ -131,3 +131,22 @@ def test_builtin_http_and_durable_task_runs_keep_initiating_users_access(setup):
             time.sleep(0.02)
         assert result.status_code == 200, result.text
         assert "Documentation" in str(result.json()["content"])
+
+
+def test_model_default_override_and_resolution_is_stable(setup):
+    from agno.registry import Registry
+
+    db, _, _ = setup
+    first, second = ProductModel(), ProductModel()
+    first.id, second.id = "first", "second"
+    auth = Authorization(verification_keys=[KEY], algorithm="HS256")
+    config = CompanyConfig()
+    registry = Registry(models=[first, second])
+    os = AgentOS(db=db, registry=registry, company=config, authorization=auth)
+    assert os.company.product_manager.model is first
+    assert config.db is None and config.model is None
+    registry.models.reverse()
+    os.resync(os.get_app())
+    assert os.company.product_manager.model is first
+    overridden = AgentOS(db=db, registry=registry, company=CompanyConfig(model=first), authorization=auth)
+    assert overridden.company.product_manager.model is first

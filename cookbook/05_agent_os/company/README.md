@@ -19,16 +19,16 @@ from agno.os import AgentOS, CompanyConfig
 
 db = PostgresDb(db_url=database_url)
 agent_os = AgentOS(
+    db=db,
     authorization=authorization,
-    company=CompanyConfig(db=db),
+    company=CompanyConfig(),
 )
 app = agent_os.get_app()
 ```
 
 Products, Projects and Tasks are dynamic API records. Omit `company` to leave the
 capability disabled, including its routes, descriptor and background work. Manual
-Company records need no model, manager or runtime database. The explicit Company
-database may differ from AgentOS's runtime database.
+Company records need no model, manager or runtime database. Company defaults to `AgentOS.db`; pass `CompanyConfig(db=...)` to use a separate PostgreSQL database.
 
 ## Enable the built-in Product Manager
 
@@ -53,9 +53,8 @@ Python Company tool calls still require trusted execution context; use AgentOS r
 for authenticated Company work. No custom agent definition is needed.
 
 One reusable Product Manager handles the Products the caller may access. Creating a
-Product creates no agent. Omit `CompanyConfig.model` for model-free manual use; the
-`product_manager` property is then None. There is no implicit model selection or call
-at construction. The built-in uses the AgentOS database, falling back to the explicit
+Product creates no agent. Company uses its explicit model or the first model in the registry. With neither,
+manual APIs remain available and `product_manager` is None. No model calls occur at construction. The built-in uses the AgentOS database, falling back to the explicit
 Company database when no runtime database is configured. Durable execution still needs
 `AgentOS(db=...)` and its durable queue.
 

@@ -1390,6 +1390,16 @@ def find_factory_by_id(
     return None
 
 
+def factory_row_handle(factory: Union[AgentFactory, TeamFactory, WorkflowFactory]) -> Union[Agent, Team, Workflow]:
+    """A component bound to the factory's id and db, for reading and writing its
+    run rows without invoking the factory (no request context, no input)."""
+    if isinstance(factory, AgentFactory):
+        return Agent(id=factory.id, db=factory.db)
+    if isinstance(factory, TeamFactory):
+        return Team(id=factory.id, db=factory.db, members=[])
+    return Workflow(id=factory.id, db=factory.db)
+
+
 def draft_preview_identity(request: Any) -> tuple:
     """(actor, privileged) for the draft-preview gate.
 
@@ -2428,7 +2438,7 @@ def collect_components_from_agent(agent: Any, registry: Registry, visited: Set[i
     ``visited`` tracks already-walked agents/teams/workflows (by object id) to
     avoid redundant work and infinite recursion on cyclic composition graphs.
     """
-    if id(agent) in visited:
+    if id(agent) in visited or registry.is_component_excluded(agent):
         return
     visited.add(id(agent))
 
@@ -2459,7 +2469,7 @@ def collect_components_from_agent(agent: Any, registry: Registry, visited: Set[i
 
 def collect_components_from_team(team: Any, registry: Registry, visited: Set[int]) -> None:
     """Add a team's components to the registry, recursing into all of its members."""
-    if id(team) in visited:
+    if id(team) in visited or registry.is_component_excluded(team):
         return
     visited.add(id(team))
 
@@ -2491,7 +2501,7 @@ def collect_components_from_team(team: Any, registry: Registry, visited: Set[int
 
 def collect_components_from_workflow(workflow: Any, registry: Registry, visited: Set[int]) -> None:
     """Add a workflow's components (coordinator agent and step tree) to the registry."""
-    if id(workflow) in visited:
+    if id(workflow) in visited or registry.is_component_excluded(workflow):
         return
     visited.add(id(workflow))
 

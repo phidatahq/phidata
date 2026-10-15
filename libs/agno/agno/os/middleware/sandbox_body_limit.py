@@ -5,9 +5,10 @@ from typing import Any, Collection, Optional
 
 from starlette.responses import JSONResponse
 
-# A sandboxed run is capped at a 1 MiB runtime request (message, options and base64 attachments together), and form
-# encoding can at worst triple the text of a urlencoded body, so 3 MiB is the largest body the route could ever have
-# accepted. 4 MiB leaves headroom over that and over multipart framing, so no request it used to accept is refused.
+# A transport limit of its own, not a bound the attachment limits imply: the route never limited the raw body. The
+# largest request written the usual way (uploads, or JSON fields as json.dumps and a minimal url-encoder write them)
+# that still fits the 1 MiB runtime request is about 3 MiB, and 4 MiB sits above that. A body padded with whitespace,
+# \u escapes or percent-encoded bytes can carry the same attachments in more bytes, and is refused.
 MAX_SANDBOX_REQUEST_BODY = 4 * 1024 * 1024
 
 _RUN_ROUTE = re.compile(r"/agents/([^/]+)/runs/?$")
@@ -58,6 +59,7 @@ class SandboxRunBodyLimit:
 
         received = 0
         exceeded = False
+        started = False
 
         async def bounded_receive() -> Any:
             nonlocal received, exceeded
@@ -72,7 +74,9 @@ class SandboxRunBodyLimit:
             return message
 
         async def guarded_send(message: Any) -> None:
+            nonlocal started
             if not exceeded:
+                started = started or message["type"] == "http.response.start"
                 await send(message)
 
         try:
@@ -81,5 +85,6 @@ class SandboxRunBodyLimit:
             # The parser failing on the truncated body is the limit's doing, not a server error.
             if not exceeded:
                 raise
-        if exceeded:
+        # An app that already began its response cannot be given a second one; the server ends that response early.
+        if exceeded and not started:
             await reject(scope, receive, send)

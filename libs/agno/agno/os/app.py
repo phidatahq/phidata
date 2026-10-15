@@ -1897,6 +1897,18 @@ class AgentOS:
                 origin_policy=origin_policy,
             )
 
+        # A sandboxed run's body is bounded by the bytes received, before the framework parses it. Registered before
+        # authentication so it runs inside it: an unauthenticated caller is turned away with a 401, never a 413.
+        sandboxed_ids = [
+            entry.get_id()
+            for entry in self.agents or []
+            if isinstance(entry, BaseExternalAgent) and entry.sandbox is not None
+        ]
+        if sandboxed_ids:
+            from agno.os.middleware.sandbox_body_limit import SandboxRunBodyLimit
+
+            fastapi_app.add_middleware(SandboxRunBodyLimit, agent_ids=sandboxed_ids)
+
         auth_configured = self._auth_configured()
         if auth_configured:
             # In JWT mode the security key is ignored (JWT takes precedence), matching
@@ -1946,17 +1958,6 @@ class AgentOS:
                 )
             validate_mcp_routes(fastapi_app, routing_config, self._mcp_app)
             fastapi_app.add_middleware(MCPRoutingMiddleware, config=routing_config)
-
-        # A sandboxed run's body is bounded by the bytes received, before the framework parses it.
-        sandboxed_ids = [
-            entry.get_id()
-            for entry in self.agents or []
-            if isinstance(entry, BaseExternalAgent) and entry.sandbox is not None
-        ]
-        if sandboxed_ids:
-            from agno.os.middleware.sandbox_body_limit import SandboxRunBodyLimit
-
-            fastapi_app.add_middleware(SandboxRunBodyLimit, agent_ids=sandboxed_ids)
 
         # Preflights and auth/admission failures use the same configured CORS policy.
         cors = [middleware for middleware in fastapi_app.user_middleware if _is_cors_middleware(middleware)]

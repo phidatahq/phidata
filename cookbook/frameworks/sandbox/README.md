@@ -47,6 +47,8 @@ export ANTHROPIC_API_KEY=...   # or CLAUDE_CODE_OAUTH_TOKEN
 
 `sandbox_claude_agentcore.py` is the same agent with `sandbox=AgentCoreSandbox(runtime_arn, env=...)`, so each turn runs in an AgentCore microVM instead of a local container. Claude reaches Bedrock through the runtime's execution role: the sandbox's `env` sets `CLAUDE_CODE_USE_BEDROCK` and `AWS_REGION`, and no API key goes into the microVM. Deploy the runtime with `agentcore_setup.py` and set `AGENTCORE_RUNTIME_ARN` first.
 
+`sandbox_claude_agentcore_agentos.py` serves that agent through AgentOS with a durable queue, as `sandbox_claude_agentos.py` does for Docker. AgentOS, the queue and the database stay on your host; only the turns run on AgentCore.
+
 `sandbox_claude_agentos.py` serves the same agent through AgentOS with a durable queue (Postgres and Redis). Every API request submits to the queue, a dropped connection does not cancel the turn, and a second request on the same session waits for the first. It names its checkpoint store explicitly: with a queue, any replica may run the next attempt, so the default host-local store is refused.
 
 ## A live Claude session in a sandbox

@@ -24,7 +24,7 @@ from agno.run.cancel import acancel_run
 from agno.sandbox.checkpoint import FileCheckpointStore
 from agno.sandbox.coordinator import SandboxCoordinator
 from agno.sandbox.docker import DockerSandbox
-from agno.sandbox.transfer import DockerCheckpointTransfer
+from agno.sandbox.docker import DockerCheckpointTransfer
 
 db = PostgresDb(
     db_url=os.getenv(

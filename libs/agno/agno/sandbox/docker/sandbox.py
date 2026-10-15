@@ -116,7 +116,7 @@ class DockerSandbox(Sandbox):
         self._network_ready = False
 
     def checkpoint_transfer(self, store: "CheckpointStore") -> "CheckpointTransfer":
-        from agno.sandbox.transfer import DockerCheckpointTransfer
+        from agno.sandbox.docker.transfer import DockerCheckpointTransfer
 
         return DockerCheckpointTransfer(self, store)
 

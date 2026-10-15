@@ -276,3 +276,41 @@ def test_sync_stream_forwards_attachments_through_the_same_admission():
             )
         )
     assert len(claims) == 1
+
+
+def _staged_names(tmp_path, wire):
+    from agno.agents._media import stage_media
+
+    return [item.name for item in stage_media(tmp_path / "workspace", "run", decode_media(wire))]
+
+
+def test_local_image_without_format_is_staged_under_its_file_extension(tmp_path):
+    path = tmp_path / "diagram.PNG"
+    path.write_bytes(b"not a real png")
+    wire = encode_media(images=[Image(filepath=str(path))])
+    assert _staged_names(tmp_path, wire) == ["image-1.png"]
+    assert encode_media(images=decode_media(wire)["images"]) == wire
+
+
+@pytest.mark.parametrize(
+    "content, extension",
+    [
+        (b"\x89PNG\r\n\x1a\nrest", "png"),
+        (b"\xff\xd8\xffrest", "jpg"),
+        (b"GIF89arest", "gif"),
+        (b"RIFF\x00\x00\x00\x00WEBPrest", "webp"),
+        (b"unknown", "bin"),
+    ],
+)
+def test_inline_image_without_format_is_staged_under_its_signature_extension(tmp_path, content, extension):
+    wire = encode_media(images=[Image(content=content)])
+    assert _staged_names(tmp_path, wire) == ["image-1." + extension]
+    assert encode_media(images=decode_media(wire)["images"]) == wire
+
+
+def test_file_with_an_image_type_is_rejected_with_a_clear_message():
+    with pytest.raises(ValueError, match="images="):
+        encode_media(files=[File(content=b"png", format="png")])
+    wire = [{"kind": "file", "content": base64.b64encode(b"png").decode(), "name": "a.png", "mime_type": "image/png"}]
+    with pytest.raises(ValueError, match="images="):
+        validate_media(wire)

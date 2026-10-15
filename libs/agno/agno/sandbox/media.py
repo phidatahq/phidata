@@ -4,6 +4,7 @@ import base64
 import hashlib
 import os
 import stat
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence
 
 from agno.agents._media import _mime_for, _name_for
@@ -12,6 +13,7 @@ from agno.media import File, Image
 MAX_MEDIA_BYTES = 512 * 1024
 MAX_MEDIA_ITEMS = 16
 _MAX_BASE64 = MAX_MEDIA_BYTES * 4 // 3 + 4
+_IMAGE_SIGNATURES = ((b"\x89PNG\r\n\x1a\n", "png"), (b"\xff\xd8\xff", "jpg"), (b"GIF87a", "gif"), (b"GIF89a", "gif"))
 
 
 def encode_media(
@@ -48,6 +50,11 @@ def encode_media(
             total += len(content)
             if total > MAX_MEDIA_BYTES:
                 raise ValueError("Sandbox attachments exceed 512 KiB total")
+            if kind == "image":
+                # Image has no name field, so name it from its format exactly as the rebuilt image will be.
+                item = item.model_copy(
+                    update={"filepath": None, "format": item.format or _image_format(item.filepath, content)}
+                )
             value = {"kind": kind, "content": base64.b64encode(content).decode(), "name": _name_for(item, kind, index)}
             mime = _mime_for(item)
             if mime is not None:
@@ -57,6 +64,17 @@ def encode_media(
             result.append(value)
     validate_media(result)
     return result
+
+
+def _image_format(filepath: Any, content: bytes) -> Optional[str]:
+    """An image's file suffix, else its byte signature, so the harness sees a real image extension."""
+    if filepath:
+        suffix = Path(str(filepath)).suffix.lstrip(".").lower()
+        if suffix:
+            return suffix
+    if content[:4] == b"RIFF" and content[8:12] == b"WEBP":
+        return "webp"
+    return next((fmt for signature, fmt in _IMAGE_SIGNATURES if content.startswith(signature)), None)
 
 
 def validate_media(value: Any) -> None:
@@ -81,6 +99,10 @@ def validate_media(value: Any) -> None:
         for key in ("mime_type", "format"):
             if key in item and (not isinstance(item[key], str) or len(item[key]) > 128):
                 raise ValueError("Attachment media metadata must be bounded strings")
+        if item["kind"] == "file" and "mime_type" in item and item["mime_type"] not in File.valid_mime_types():
+            raise ValueError(
+                f"Sandbox file attachments must be documents, not {item['mime_type']}; pass images in images="
+            )
         raw = item.get("content")
         if not isinstance(raw, str) or len(raw) > _MAX_BASE64:
             raise ValueError("Sandbox media content must be bounded base64")

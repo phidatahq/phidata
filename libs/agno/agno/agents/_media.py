@@ -81,7 +81,12 @@ def _rollback_files(paths: Sequence[Path]) -> None:
 
 def _safe_name(name: str) -> str:
     cleaned = re.sub(r"[^A-Za-z0-9._-]+", "_", name).strip("._") or "file"
-    return cleaned[:120]
+    if len(cleaned) <= 120:
+        return cleaned
+    suffix = Path(cleaned).suffix
+    if len(suffix) > 16:
+        suffix = ""
+    return cleaned[: 120 - len(suffix)] + suffix
 
 
 def _mime_for(item: Any) -> Optional[str]:
@@ -228,7 +233,7 @@ def cleanup_run_media(workspace: Optional[Any], run_id: str, staged: Sequence[St
 
 def media_prompt_block(staged: Sequence[StagedMedia]) -> str:
     """The lines appended to the prompt so the harness knows what was attached and where."""
-    if not staged: 
+    if not staged:
         return ""
     lines = ["", "Attached files. Read them before answering; images and PDFs can be opened with the file tools:"]
     for item in staged:

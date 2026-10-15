@@ -7,8 +7,10 @@ Try: Change the owner filters, transition reason, or target state.
 
 from tempfile import TemporaryDirectory
 
+from agno.agent import Agent
 from agno.company import CompanyManager
 from agno.db.sqlite import SqliteDb
+from agno.registry import Registry
 
 # ---------------------------------------------------------------------------
 # Create and manage work
@@ -16,7 +18,8 @@ from agno.db.sqlite import SqliteDb
 if __name__ == "__main__":
     with TemporaryDirectory() as directory:
         db = SqliteDb(db_file=directory + "/company.db")
-        manager = CompanyManager(db)
+        writer = Agent(id="writer", db=db)
+        manager = CompanyManager(db, registry=Registry(agents=[writer]))
         product = manager.create("SDK", user_id="alice")
         first = manager.create_task(product["id"], "Ship release", user_id="alice")
         manager.create_task(product["id"], "Plan next release", user_id="bob")

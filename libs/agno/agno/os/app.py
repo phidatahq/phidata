@@ -628,7 +628,10 @@ class AgentOS:
         self._product_manager: Optional[Agent] = None
         self.product_manager_unavailable_reason: Optional[str] = None
         if self.company is not None:
+            from agno.company.execution import _mount_executors
             from agno.company.product_manager import _build_product_manager
+
+            _mount_executors(self)
 
             company_model = self.company.model
             if company_model is None and self.registry is not None and self.registry.models:

@@ -67,7 +67,9 @@ def test_no_model_manual_api_and_disabled_company(tmp_path, caplog):
 @pytest.mark.parametrize("use_async", [False, True])
 async def test_tools_identity_fence_and_learning(tmp_path, use_async):
     db = SqliteDb(db_file=str(tmp_path / "tools.db"))
-    manager = CompanyManager(db)
+    from agno.agent import Agent
+
+    manager = CompanyManager(db, registry=Registry(agents=[Agent(id="writer")]))
     product = manager.create("SDK", user_id="alice")
     tools = CompanyTools(db, user_isolation=True)
     alice = RunContext(run_id="r", session_id="s", user_id="alice")

@@ -266,7 +266,7 @@ class CompanyManager:
         executor_id: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
         """Apply an explicit transition; the caller enforces platform authorization."""
-        if target == "ready" and self.registry is not None:
+        if target == "ready":
             from agno.company.execution import _executor
 
             _executor(self.registry, executor_type, executor_id, accepting=True)
@@ -658,7 +658,7 @@ class AsyncCompanyManager:
         executor_id: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
         """Apply an explicit transition; the caller enforces platform authorization."""
-        if target == "ready" and self.registry is not None:
+        if target == "ready":
             from agno.company.execution import _executor
 
             _executor(self.registry, executor_type, executor_id, accepting=True)

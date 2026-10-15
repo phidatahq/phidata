@@ -8,6 +8,7 @@ from uuid import uuid4
 
 from agno.db.base import AsyncBaseDb
 from agno.registry._reserved import RESERVED_MEMBER_IDS
+from agno.run.authorization import RunAuthorization
 
 # Trusted, request-local handoff to the existing run routes. It never comes from
 # a request field, tool argument, session state or run metadata.
@@ -171,9 +172,6 @@ def _validate_executor_tools(component: Any) -> None:
                 pending.append(child)
 
 
-from agno.run.authorization import RunAuthorization
-
-
 class _ExecutorAuthorization(RunAuthorization):
     """Attenuate the caller's authority for Company execution and its delegation."""
 
@@ -203,3 +201,22 @@ class _ExecutorAuthorization(RunAuthorization):
 
     def snapshot(self) -> Dict[str, Any]:
         return {**super().snapshot(), "company_executor": True}
+
+
+def _mount_executors(os: Any) -> None:
+    """Expose registry executors through the normal routes when Company is enabled."""
+    if os.registry is None:
+        return
+    for resource in ("agents", "teams", "workflows"):
+        served = list(getattr(os, resource) or [])
+        by_id = {getattr(component, "id", None): component for component in served}
+        for component in getattr(os.registry, resource):
+            component_id = getattr(component, "id", None)
+            if component_id in RESERVED_MEMBER_IDS:
+                continue
+            if component_id in by_id:
+                if by_id[component_id] is not component:
+                    raise ValueError("Company requires one executor per registered type and id")
+            else:
+                served.append(component)
+        setattr(os, resource, served)

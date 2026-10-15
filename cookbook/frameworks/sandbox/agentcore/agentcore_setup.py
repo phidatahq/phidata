@@ -4,8 +4,8 @@ Builds the ARM64 sandbox image from the Dockerfile, pushes it to an ECR
 repository, creates an execution role and a PUBLIC runtime without session
 storage, then prints the runtime ARN to pass as the sandbox image.
 
-  .venv/bin/python cookbook/frameworks/sandbox/agentcore_setup.py deploy --name agno-sandbox
-  .venv/bin/python cookbook/frameworks/sandbox/agentcore_setup.py teardown --name agno-sandbox
+  .venv/bin/python cookbook/frameworks/sandbox/agentcore/agentcore_setup.py deploy --name agno-sandbox
+  .venv/bin/python cookbook/frameworks/sandbox/agentcore/agentcore_setup.py teardown --name agno-sandbox
 
 Every resource it creates carries the given name. Set AWS_PROFILE and AWS_REGION
 first. The role may call Claude models on Bedrock, so a Claude harness needs no
@@ -53,7 +53,7 @@ def build_and_push(ecr: Any, image: str) -> None:
     subprocess.run(
         [
             sys.executable,
-            str(Path(__file__).with_name("build_image.py")),
+            str(Path(__file__).resolve().parent.parent / "build_image.py"),
             "--platform",
             "linux/arm64",
             "--tag",

@@ -4,7 +4,7 @@ Each session is created, runs one fixture turn, runs one command and is
 destroyed. The fixture makes no model calls. Set AGENTCORE_RUNTIME_ARN to a
 runtime deployed by agentcore_setup.py.
 
-  .venv/bin/python cookbook/frameworks/sandbox/agentcore_load.py --sessions 100
+  .venv/bin/python cookbook/frameworks/sandbox/agentcore/agentcore_load.py --sessions 100
 
 AgentCore's default quota is 25 new sessions per second per account, so large
 bursts are throttled; the provider retries those rejections with jitter.

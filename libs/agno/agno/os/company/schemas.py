@@ -298,3 +298,10 @@ class TaskSchedule(Input):
         if not validate_timezone(self.timezone):
             raise ValueError("Use a valid IANA time zone")
         return self
+
+
+class FileWrite(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    path: str = Field(min_length=1, max_length=1000)
+    content: str = Field(max_length=1_000_000)
+    expected_version: int = Field(ge=0)

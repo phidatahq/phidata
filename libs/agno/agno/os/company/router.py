@@ -19,6 +19,7 @@ from agno.os.company.schemas import (
     Comment,
     CommentCreate,
     CompanySetup,
+    FileWrite,
     ListQuery,
     MemberCreate,
     MemberPatch,
@@ -126,6 +127,47 @@ def get_company_router(service: CompanyService) -> APIRouter:
     ) -> Any:
         headers.pop("version", None)
         return _etag(response, await service.asetup_agentos(principal=principal, data=data, **headers))
+
+    @router.get("/files")
+    async def list_files(
+        product_id: Optional[UUID] = None,
+        directory: str = "",
+        query: str = "",
+        after: str = "",
+        limit: int = 50,
+        principal: Principal = Depends(principal_from_request),
+    ) -> Any:
+        return await service.files.alist(
+            principal=principal,
+            product_id=str(product_id) if product_id else None,
+            directory=directory,
+            query=query,
+            after=after,
+            limit=limit,
+        )
+
+    @router.get("/files/content")
+    async def read_file(
+        path: str, product_id: Optional[UUID] = None, principal: Principal = Depends(principal_from_request)
+    ) -> Any:
+        return await service.files.aread(
+            principal=principal, product_id=str(product_id) if product_id else None, path=path
+        )
+
+    @router.put("/files/content")
+    async def write_file(
+        data: FileWrite,
+        product_id: Optional[UUID] = None,
+        principal: Principal = Depends(principal_from_request),
+        headers: dict = Depends(mutation_headers),
+    ) -> Any:
+        return await service.files.awrite(
+            principal=principal,
+            product_id=str(product_id) if product_id else None,
+            **data.model_dump(),
+            idempotency_key=headers["idempotency_key"],
+            request_id=headers["request_id"],
+        )
 
     @router.get("/me", response_model=Caller)
     async def me(principal: Principal = Depends(principal_from_request)) -> Any:

@@ -180,3 +180,14 @@ nullable `source: {url, commit}` for the accepted immutable execution source.
 Ready acceptance for a repository Task requires a sandboxed CodexAgent or
 ClaudeAgent and installed sandbox repository workspace support. Repository Tasks
 must belong to a Project so execution always has a review boundary.
+
+## Files
+
+- `GET /company/v1/files?product_id=<id>&directory=&query=&after=&limit=50` lists or searches files; follow `next_cursor` with `after`.
+- `GET /company/v1/files/content?product_id=<id>&path=brief.md` returns content and version.
+- `PUT /company/v1/files/content?product_id=<id>` accepts `{ "path": "brief.md", "content": "...", "expected_version": 0 }` and `Idempotency-Key`.
+
+Omit `product_id` for Company-wide files. Product members share files; readers cannot
+write. A stale version returns 412. Replaying the same write rechecks current access.
+Task results are runtime-owned and cannot be overwritten by file tools. Files retain
+exact whitespace. Company files are not exposed through agent-level filesystem routes.

@@ -189,7 +189,8 @@ def test_engineering_claim_rejects_tampering_and_revoked_membership(setup, monke
         runtime._claim_context(job)
 
 
-def test_docker_ready_review_and_revision_use_real_repository_checkpoint(setup, monkeypatch, tmp_path):
+@pytest.mark.parametrize("sdk", ["codex", "claude"])
+def test_docker_ready_review_and_revision_use_real_repository_checkpoint(setup, monkeypatch, tmp_path, sdk):
     """Credential-free runtime: real Docker/Git/queue/checkpoint, no model-generated code."""
     import os as environment
 
@@ -215,7 +216,9 @@ def test_docker_ready_review_and_revision_use_real_repository_checkpoint(setup, 
         env={"AGNO_SANDBOX_TEST_RUNTIME": "1"},
         checkpoints=FileCheckpointStore(tmp_path / "checkpoints"),
     )
-    engineer = CodexAgent(id="codex", name="engineering agent", db=os.db, sandbox=provider)
+    from agno.agents.claude import ClaudeAgent
+
+    engineer = (CodexAgent if sdk == "codex" else ClaudeAgent)(id=sdk, name=sdk.title(), db=os.db, sandbox=provider)
     # Use the sandbox's explicit fixture protocol, while exercising the real registered adapter path.
     monkeypatch.setattr(engineer, "_sandbox_runtime", "fixture")
     os.agents.append(engineer)
@@ -226,6 +229,15 @@ def test_docker_ready_review_and_revision_use_real_repository_checkpoint(setup, 
     async def remember(*args, **kwargs):
         handle = await create(*args, **kwargs)
         handles.append(handle)
+        prepared = await provider.aexec(
+            handle,
+            [
+                "python",
+                "-c",
+                "from pathlib import Path; p=Path('/workspace/output'); p.mkdir(exist_ok=True); (p/'checks.md').write_text('Credential-free fixture output')",
+            ],
+        )
+        assert prepared.exit_code == 0, prepared.stderr
         return handle
 
     monkeypatch.setattr(provider, "acreate", remember)
@@ -250,6 +262,13 @@ def test_docker_ready_review_and_revision_use_real_repository_checkpoint(setup, 
                 ),
                 **mutation(principal=caller()),
             )
+            service.files.write(
+                product_id=product["id"],
+                path="brief.md",
+                content="Pinned product context",
+                expected_version=0,
+                **mutation(principal=caller()),
+            )
             task = accept_ready(service, task)
             tick(client, service)
             # Container startup, checkout and checkpointing may exceed the ordinary model fixture's ten seconds.
@@ -265,6 +284,19 @@ def test_docker_ready_review_and_revision_use_real_repository_checkpoint(setup, 
             first = service.list_runs(principal=caller(), task_id=task["id"])["data"][0]
             result = service.get_task_result(principal=caller(), task_id=task["id"], run_id=first["run_id"])
             assert result["source"] == task["source"] and result["status"] == "completed"
+            saved = service.files.read(
+                principal=caller(),
+                product_id=product["id"],
+                path=f"tasks/{task['id']}/results/{first['run_id']}/checks.md",
+            )
+            assert saved["content"] == "Credential-free fixture output"
+            service.files.write(
+                product_id=product["id"],
+                path="brief.md",
+                content="New input for later Tasks",
+                expected_version=1,
+                **mutation(principal=caller()),
+            )
             revised = service.transition_task(
                 task_id=task["id"],
                 version=current["version"],
@@ -308,6 +340,8 @@ def test_docker_ready_review_and_revision_use_real_repository_checkpoint(setup, 
                 ["git", "rev-parse", "HEAD"], cwd=restored / "workspace/repository", text=True
             ).strip()
             assert actual == task["source"]["commit"]
+            assert (restored / "workspace/context/product/brief.md").read_text() == "Pinned product context"
+            assert (restored / "workspace/output/checks.md").read_text() == "Credential-free fixture output"
             assert json.loads((restored / "native/repository.json").read_text()) == task["source"]
             assert (restored / "workspace/fixture-effects.txt").read_text().splitlines() == [
                 first["run_id"],

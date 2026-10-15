@@ -5,7 +5,7 @@ from typing import Any
 
 from sqlalchemy import text
 
-VERSION = 7
+VERSION = 8
 
 
 def migrate(db: Any) -> None:
@@ -15,6 +15,8 @@ def migrate(db: Any) -> None:
     from agno.os.company.migrations.v006 import SQL as AUTOMATION_SQL
     from agno.os.company.migrations.v007 import SQL as REPOSITORY_SQL
 
+    if db is None:
+        raise ValueError("Pass the resolved Company PostgreSQL database to migrate")
     CompanyConfig(db=db)
     with db.db_engine.begin() as conn:
         conn.execute(text("SELECT pg_advisory_xact_lock(741927103)"))
@@ -30,6 +32,14 @@ def migrate(db: Any) -> None:
         if version == 6:
             conn.exec_driver_sql(REPOSITORY_SQL)
             version = 7
+        if version == 7:
+            from agno.fs.db import DbFileSystem
+
+            files = DbFileSystem(db=db, db_schema="agno_company", table_name="files")
+            files.metadata.create_all(conn)
+            conn.exec_driver_sql("ALTER TABLE agno_company.activity ALTER COLUMN product_id DROP NOT NULL")
+            conn.exec_driver_sql("INSERT INTO agno_company.schema_version(version) VALUES (8)")
+            version = 8
         if version != VERSION:
             raise RuntimeError(
                 "Unsupported Company prototype schema; upgrade with its original migration tooling or use a fresh database. No data was changed"

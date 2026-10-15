@@ -145,3 +145,13 @@ suites passed: 334 passed, 1 optional compatibility test skipped.
 **Result:** Disposable PostgreSQL persistence, database defaults, override precedence,
 unsupported database rejection, queue authority restoration and Manager permissions
 passed. Format and validation scripts passed. No live provider calls.
+
+### files.py — October 15, 2026
+
+**Status:** PASS
+
+**Description:** Ran the shared-files cookbook with the local source tree and a disposable migrated PostgreSQL database. No model calls.
+
+**Result:** Created a version-1 Product brief and read identical content through a fresh service instance. Seven database integration tests cover permissions, concurrent edits, idempotency, audit rollback, quota recovery, input snapshots, HTTP and tools. Docker recovery is recorded separately after the combined build.
+
+---

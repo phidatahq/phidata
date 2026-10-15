@@ -242,3 +242,22 @@ The initial repository adapter supports GitHub HTTPS only. It does not automatic
 publish a branch/PR, install arbitrary application dependencies, merge, or deploy;
 provide the trusted runtime image and review the engineer's proposed commands.
 Model quality and application-specific compatibility still need a live pilot.
+
+## Shared files
+
+Company files use the resolved Company PostgreSQL database and the existing Agno
+filesystem table format. Apply Company migrations explicitly before serving. Each
+Product has a shared file scope protected by its membership; omitting `product_id`
+selects Company-wide context, writable only through Company administration.
+
+Use `company.files.list/read/write` or their async variants. Writes require the
+version read (`0` creates a file), an idempotency key and request id. File writes,
+retry receipts and audit entries commit together. Files are text with a 1 MB per-file
+and 20 MB per-scope limit. Run `files.py` for a persistent, model-free example.
+
+CompanyTools exposes the same file operations under verified execution context.
+Engineering dispatch pins up to 100 relevant files / 250 KB. Revisions retain that
+snapshot. With sandbox file support installed, context appears under
+`/workspace/context`; write text deliverables under `/workspace/output`. The runtime
+saves bounded outputs and the run result under the Task's immutable `results/` paths.
+Source changes still belong in the repository. File contents cannot grant permissions.

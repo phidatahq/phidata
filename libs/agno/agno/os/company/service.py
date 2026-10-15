@@ -61,6 +61,9 @@ class CompanyService:
         if config.db is None:
             raise ValueError("Company requires a PostgreSQL database: set AgentOS(db=...) or CompanyConfig(db=...)")
         self._engine = config.db.db_engine
+        from agno.os.company.files import CompanyFiles
+
+        self.files = CompanyFiles(self)
         self._users = user_directory
         self._runtime: Any = None
         if user_directory is not None and getattr(user_directory, "_db_is_async", False):

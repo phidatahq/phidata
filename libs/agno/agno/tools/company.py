@@ -30,6 +30,9 @@ class CompanyTools(Toolkit):
 
     def __init__(self, **kwargs: Any):
         names = (
+            "list_files",
+            "read_file",
+            "write_file",
             "list_products",
             "create_product",
             "list_work",
@@ -343,3 +346,75 @@ class CompanyTools(Toolkit):
     ) -> Dict[str, Any]:
         service, principal = self._context(agent, _agno_run_context)
         return await service.aget_task_result(task_id=task_id, run_id=run_id, principal=principal)
+
+    def list_files(
+        self,
+        agent: Any,
+        product_id: Optional[str] = None,
+        directory: str = "",
+        query: str = "",
+        after: str = "",
+        _agno_run_context: Optional[RunContext] = None,
+    ) -> Dict[str, Any]:
+        """List or search permitted Company files. Follow next_cursor to read another page."""
+        service, principal = self._context(agent, _agno_run_context)
+        return service.files.list(
+            principal=principal, product_id=product_id, directory=directory, query=query, after=after
+        )
+
+    async def alist_files(
+        self,
+        agent: Any,
+        product_id: Optional[str] = None,
+        directory: str = "",
+        query: str = "",
+        after: str = "",
+        _agno_run_context: Optional[RunContext] = None,
+    ) -> Dict[str, Any]:
+        return await asyncio.to_thread(self.list_files, agent, product_id, directory, query, after, _agno_run_context)
+
+    def read_file(
+        self, path: str, agent: Any, product_id: Optional[str] = None, _agno_run_context: Optional[RunContext] = None
+    ) -> Dict[str, Any]:
+        """Read a Company file and its version before proposing changes."""
+        service, principal = self._context(agent, _agno_run_context)
+        return service.files.read(principal=principal, product_id=product_id, path=path)
+
+    async def aread_file(
+        self, path: str, agent: Any, product_id: Optional[str] = None, _agno_run_context: Optional[RunContext] = None
+    ) -> Dict[str, Any]:
+        return await asyncio.to_thread(self.read_file, path, agent, product_id, _agno_run_context)
+
+    def write_file(
+        self,
+        product_id: str,
+        path: str,
+        content: str,
+        expected_version: int,
+        request_key: str,
+        agent: Any,
+        _agno_run_context: Optional[RunContext] = None,
+    ) -> Dict[str, Any]:
+        """Save a Product file. Use version 0 for new files and the version read for edits."""
+        service, principal = self._context(agent, _agno_run_context)
+        return service.files.write(
+            product_id=product_id,
+            path=path,
+            content=content,
+            expected_version=expected_version,
+            **self._mutation(principal, request_key),
+        )
+
+    async def awrite_file(
+        self,
+        product_id: str,
+        path: str,
+        content: str,
+        expected_version: int,
+        request_key: str,
+        agent: Any,
+        _agno_run_context: Optional[RunContext] = None,
+    ) -> Dict[str, Any]:
+        return await asyncio.to_thread(
+            self.write_file, product_id, path, content, expected_version, request_key, agent, _agno_run_context
+        )

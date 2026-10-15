@@ -1880,6 +1880,7 @@ class BaseDb(ABC):
         product_id: Optional[str] = None,
         status: Optional[str] = None,
         project_id: Optional[str] = None,
+        failed: Optional[bool] = None,
     ) -> Tuple[List[Dict[str, Any]], int]:
         """List Tasks and their total, filtering by owner before pagination."""
         raise NotImplementedError("Company tasks not supported by the configured database")
@@ -1895,6 +1896,27 @@ class BaseDb(ABC):
     def restore_task(self, task_id: str, user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """Restore a deleted Task within the owner scope; otherwise return None."""
         raise NotImplementedError("Company tasks not supported by the configured database")
+
+    def start_task_run(
+        self,
+        task_id: str,
+        attempt: int,
+        expected_transitions: List[Dict[str, Any]],
+        user_id: Optional[str] = None,
+        run_db_id: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Reserve a Task attempt conditionally; user_id records the starting caller."""
+        raise NotImplementedError("Company execution not supported by this database")
+
+    def complete_task_run(
+        self,
+        task_id: str,
+        job_id: str,
+        result: Dict[str, Any],
+        expected_transitions: Optional[List[Dict[str, Any]]] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Save a completed run's result and move its still-current Task to review."""
+        raise NotImplementedError("Company execution not supported by this database")
 
     def transition_task(
         self,
@@ -3712,6 +3734,7 @@ class AsyncBaseDb(ABC):
         product_id: Optional[str] = None,
         status: Optional[str] = None,
         project_id: Optional[str] = None,
+        failed: Optional[bool] = None,
     ) -> Tuple[List[Dict[str, Any]], int]:
         """List Tasks and their total, filtering by owner before pagination."""
         raise NotImplementedError("Company tasks not supported by the configured database")
@@ -3727,6 +3750,27 @@ class AsyncBaseDb(ABC):
     async def restore_task(self, task_id: str, user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """Restore a deleted Task within the owner scope; otherwise return None."""
         raise NotImplementedError("Company tasks not supported by the configured database")
+
+    async def start_task_run(
+        self,
+        task_id: str,
+        attempt: int,
+        expected_transitions: List[Dict[str, Any]],
+        user_id: Optional[str] = None,
+        run_db_id: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Reserve a Task attempt conditionally; user_id records the starting caller."""
+        raise NotImplementedError("Company execution not supported by this database")
+
+    async def complete_task_run(
+        self,
+        task_id: str,
+        job_id: str,
+        result: Dict[str, Any],
+        expected_transitions: Optional[List[Dict[str, Any]]] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Save a completed run's result and move its still-current Task to review."""
+        raise NotImplementedError("Company execution not supported by this database")
 
     async def transition_task(
         self,

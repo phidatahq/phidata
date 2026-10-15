@@ -318,6 +318,13 @@ def store_serializes_sessions(store: Any) -> bool:
     return getattr(store, "serializes_sessions", False) is True
 
 
+def _new_queued_run_id() -> str:
+    """Allocate an ordinary run id, preserving a trusted Task attempt reservation."""
+    from agno.company.execution import _queued_run_id
+
+    return _queued_run_id()
+
+
 async def aenqueue_ticket(queue_worker: Any, job: Dict[str, Any], component: Any = None) -> Dict[str, Any]:
     """Accept a ticket, marking it for per-session order when queue_per_session is on.
 
@@ -326,6 +333,9 @@ async def aenqueue_ticket(queue_worker: Any, job: Dict[str, Any], component: Any
     from agno.run.authorization import stamp_authorization
 
     job = {**job, "payload": stamp_authorization(job.get("payload"), include_trusted=True)}
+    from agno.company.execution import _stamp_ticket
+
+    job = await _stamp_ticket(job)
     config = queue_worker.config
     if config.queue_per_session or getattr(component, "one_turn_per_session", False) is True:
         job = {**job, "payload": {**(job.get("payload") or {}), "serialize_session": True}}
@@ -635,6 +645,7 @@ class QueueWorker:
         from uuid import uuid4
 
         self.authorization_app = authorization_app
+        self._company_db: Any = None
         self.store = store
         self.resolve_component = resolve_component
         self.config = config
@@ -1099,6 +1110,10 @@ class QueueWorker:
                 )
                 continue
             await self._terminate_stream_view(job)
+            if self._company_db is not None:
+                from agno.company.execution import _project_run
+
+                await _project_run(self, job, "failed", error)
             await self.store.settle_swept_job(job["id"], self.worker_id, "failed", error)
             log_warning(f"Job queue: swept job {job['id']} to failed ({error})")
 
@@ -1164,6 +1179,10 @@ class QueueWorker:
                     await asyncio.shield(
                         get_event_stream().complete_run(job["id"], terminal, generation=job.get("attempt"))
                     )
+            if self._company_db is not None:
+                from agno.company.execution import _project_run
+
+                await _project_run(self, job, ticket_status)
             settled = await self.store.settle_swept_job(job["id"], self.worker_id, ticket_status)
             if settled:
                 log_warning(
@@ -1906,6 +1925,12 @@ class QueueWorker:
         refreshing the lock the moment we return, so the ticket is collected
         once the lease expires - but it must be LOUD, never silent."""
         try:
+            if self._company_db is not None and status in {"completed", "failed"}:
+                from agno.company.execution import _project_run
+
+                job = await self.store.get_job(job_id)
+                if job is not None and job.get("locked_by") == self.worker_id and job.get("attempt") == attempt:
+                    await _project_run(self, job, status, error)
             call = self.store.complete_job(job_id, self.worker_id, attempt, status, error)
             applied = bool(await (asyncio.shield(call) if shielded else call))
         except Exception as e:
@@ -1930,6 +1955,12 @@ class QueueWorker:
         the ticket is left RUNNING for the sweep rather than silently
         assumed requeued."""
         try:
+            if self._company_db is not None:
+                from agno.company.execution import _project_run
+
+                job = await self.store.get_job(job_id)
+                if job is not None and job.get("locked_by") == self.worker_id and job.get("attempt") == attempt:
+                    await _project_run(self, job, "failed", error)
             call = self.store.retry_or_fail_job(job_id, self.worker_id, attempt, error, delay)
             outcome = await (asyncio.shield(call) if shielded else call)
         except Exception as e:
@@ -1970,6 +2001,10 @@ class QueueWorker:
                 AUTHORIZATION_KEY, {"context": {}, "service_account": True, "enforce_tools": False}
             )
             authority = restore_authorization(self.authorization_app, snapshot)
+            if payload.get("company_task_id") or (snapshot or {}).get("company_executor"):
+                from agno.company.execution import _ExecutorAuthorization
+
+                authority = _ExecutorAuthorization(authority)
             with authorization_scope(lambda: authority):
                 await self._execute_claimed_inner(job, ownership)
 
@@ -2172,6 +2207,10 @@ class QueueWorker:
                     # revisits. Honor the row instead.
                     await self._ahonor_terminal_row(component, job)
                     return
+            if payload.get("company_task_id"):
+                from agno.company.execution import _check_task
+
+                await _check_task(self, job)
             if is_stream:
                 execution = self._execute_streaming(component, job)
             elif payload.get("continue"):
@@ -3148,6 +3187,7 @@ async def queue_lifespan(app: Any, agent_os: Any):
         auto_provision=getattr(agent_os, "auto_provision_dbs", True),
         authorization_app=app,
     )
+    worker._company_db = getattr(agent_os, "_company_db", None)
     app.state.queue_worker = worker
     set_active_queue_worker(worker)
     try:

@@ -15,8 +15,9 @@ class CompanyManager:
     that owner. On create it records the accountable owner.
     """
 
-    def __init__(self, db: BaseDb):
+    def __init__(self, db: BaseDb, registry: Any = None):
         self.db = db
+        self.registry = registry
 
     def create(
         self,
@@ -167,11 +168,12 @@ class CompanyManager:
         project_id: Optional[str] = None,
         user_id: Optional[str] = None,
         scoped_user_id: Optional[str] = None,
+        evidence: Optional[List[Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
         """Create task work; scoped_user_id filters parents while user_id records the creator."""
         from agno.db.schemas.tasks import validate_task_fields
 
-        fields = {"title": title, "brief": brief, "project_id": project_id}
+        fields = {"title": title, "brief": brief, "project_id": project_id, "evidence": evidence}
         validate_task_fields(fields)
         if self.db.get_product(product_id, user_id=scoped_user_id) is None:
             raise LookupError("Product not found")
@@ -187,6 +189,7 @@ class CompanyManager:
                 "product_id": product_id,
                 "id": str(uuid4()),
                 "status": "backlog",
+                "session_id": str(uuid4()),
                 "user_id": user_id,
                 "transitions": [],
                 "created_at": int(time.time()),
@@ -210,6 +213,7 @@ class CompanyManager:
         product_id: Optional[str] = None,
         status: Optional[str] = None,
         project_id: Optional[str] = None,
+        failed: Optional[bool] = None,
     ) -> Tuple[List[Dict[str, Any]], int]:
         """List across Products, filtering status and owner before pagination."""
         if limit < 1 or page < 1:
@@ -222,6 +226,7 @@ class CompanyManager:
             product_id=product_id,
             status=status,
             project_id=project_id,
+            failed=failed,
         )
 
     def update_task(self, task_id: str, user_id: Optional[str] = None, **fields: Any) -> Optional[Dict[str, Any]]:
@@ -261,6 +266,10 @@ class CompanyManager:
         executor_id: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
         """Apply an explicit transition; the caller enforces platform authorization."""
+        if target == "ready" and self.registry is not None:
+            from agno.company.execution import _executor
+
+            _executor(self.registry, executor_type, executor_id, accepting=True)
         return self.db.transition_task(
             task_id,
             target,
@@ -270,6 +279,38 @@ class CompanyManager:
             executor_type=executor_type,
             executor_id=executor_id,
         )
+
+    def start_task_run(
+        self,
+        task_id: str,
+        attempt: int,
+        expected_transitions: List[Dict[str, Any]],
+        user_id: Optional[str] = None,
+        run_db_id: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Reserve accepted work; HTTP validates run authority before calling this method."""
+        return self.db.start_task_run(task_id, attempt, expected_transitions, user_id=user_id, run_db_id=run_db_id)
+
+    def complete_task_run(
+        self,
+        task_id: str,
+        job_id: str,
+        result: Dict[str, Any],
+        expected_transitions: Optional[List[Dict[str, Any]]] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Project the ordinary run result onto the current Task attempt."""
+        return self.db.complete_task_run(task_id, job_id, result, expected_transitions=expected_transitions)
+
+    def attention(self, product_id: Optional[str] = None) -> Dict[str, int]:
+        """Company-wide counts over the same filters used by the Task list."""
+        counts = {}
+        for name, filters in (
+            ("proposals", {"status": "backlog"}),
+            ("in_review", {"status": "in_review"}),
+            ("failed", {"failed": True}),
+        ):
+            _, counts[name] = self.list_tasks(product_id=product_id, limit=1, **filters)
+        return counts
 
     def get_wiki(self, product_id: Optional[str] = None):
         """Return a Product or company wiki; reads are company-wide.
@@ -366,8 +407,9 @@ class AsyncCompanyManager:
     that owner. On create it records the accountable owner.
     """
 
-    def __init__(self, db: AsyncBaseDb):
+    def __init__(self, db: AsyncBaseDb, registry: Any = None):
         self.db = db
+        self.registry = registry
 
     async def create(
         self,
@@ -518,11 +560,12 @@ class AsyncCompanyManager:
         project_id: Optional[str] = None,
         user_id: Optional[str] = None,
         scoped_user_id: Optional[str] = None,
+        evidence: Optional[List[Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
         """Create task work; scoped_user_id filters parents while user_id records the creator."""
         from agno.db.schemas.tasks import validate_task_fields
 
-        fields = {"title": title, "brief": brief, "project_id": project_id}
+        fields = {"title": title, "brief": brief, "project_id": project_id, "evidence": evidence}
         validate_task_fields(fields)
         if await self.db.get_product(product_id, user_id=scoped_user_id) is None:
             raise LookupError("Product not found")
@@ -538,6 +581,7 @@ class AsyncCompanyManager:
                 "product_id": product_id,
                 "id": str(uuid4()),
                 "status": "backlog",
+                "session_id": str(uuid4()),
                 "user_id": user_id,
                 "transitions": [],
                 "created_at": int(time.time()),
@@ -561,6 +605,7 @@ class AsyncCompanyManager:
         product_id: Optional[str] = None,
         status: Optional[str] = None,
         project_id: Optional[str] = None,
+        failed: Optional[bool] = None,
     ) -> Tuple[List[Dict[str, Any]], int]:
         """List across Products, filtering status and owner before pagination."""
         if limit < 1 or page < 1:
@@ -573,6 +618,7 @@ class AsyncCompanyManager:
             product_id=product_id,
             status=status,
             project_id=project_id,
+            failed=failed,
         )
 
     async def update_task(self, task_id: str, user_id: Optional[str] = None, **fields: Any) -> Optional[Dict[str, Any]]:
@@ -612,6 +658,10 @@ class AsyncCompanyManager:
         executor_id: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
         """Apply an explicit transition; the caller enforces platform authorization."""
+        if target == "ready" and self.registry is not None:
+            from agno.company.execution import _executor
+
+            _executor(self.registry, executor_type, executor_id, accepting=True)
         return await self.db.transition_task(
             task_id,
             target,
@@ -621,6 +671,40 @@ class AsyncCompanyManager:
             executor_type=executor_type,
             executor_id=executor_id,
         )
+
+    async def start_task_run(
+        self,
+        task_id: str,
+        attempt: int,
+        expected_transitions: List[Dict[str, Any]],
+        user_id: Optional[str] = None,
+        run_db_id: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Reserve accepted work; HTTP validates run authority before calling this method."""
+        return await self.db.start_task_run(
+            task_id, attempt, expected_transitions, user_id=user_id, run_db_id=run_db_id
+        )
+
+    async def complete_task_run(
+        self,
+        task_id: str,
+        job_id: str,
+        result: Dict[str, Any],
+        expected_transitions: Optional[List[Dict[str, Any]]] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Project the ordinary run result onto the current Task attempt."""
+        return await self.db.complete_task_run(task_id, job_id, result, expected_transitions=expected_transitions)
+
+    async def attention(self, product_id: Optional[str] = None) -> Dict[str, int]:
+        """Company-wide counts over the same filters used by the Task list."""
+        counts = {}
+        for name, filters in (
+            ("proposals", {"status": "backlog"}),
+            ("in_review", {"status": "in_review"}),
+            ("failed", {"failed": True}),
+        ):
+            _, counts[name] = await self.list_tasks(product_id=product_id, limit=1, **filters)
+        return counts
 
     async def get_wiki(self, product_id: Optional[str] = None):
         """Return a Product or company wiki; reads are company-wide.

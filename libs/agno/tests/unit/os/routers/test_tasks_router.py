@@ -5,15 +5,27 @@ import asyncio
 import pytest
 from fastapi.testclient import TestClient
 
+from agno.agent import Agent
 from agno.db.in_memory import InMemoryDb
 from agno.db.sqlite import AsyncSqliteDb, SqliteDb
 from agno.os import AgentOS, CompanyConfig
+from agno.team import Team
+from agno.workflow import Workflow
 
 
 @pytest.fixture(params=[False, True], ids=["sync", "async"])
 def client(request, tmp_path):
     db = (AsyncSqliteDb if request.param else SqliteDb)(db_file=str(tmp_path / "work.db"))
-    with TestClient(AgentOS(db=db, company=CompanyConfig(), telemetry=False).get_app()) as client:
+    with TestClient(
+        AgentOS(
+            agents=[Agent(id="writer")],
+            teams=[Team(id="writer", members=[])],
+            workflows=[Workflow(id="writer", steps=[])],
+            db=db,
+            company=CompanyConfig(),
+            telemetry=False,
+        ).get_app()
+    ) as client:
         yield client
     if request.param:
         asyncio.run(db.close())
@@ -102,7 +114,15 @@ def test_cross_product_status_pagination(client):
 
 @pytest.mark.parametrize("db", [None, InMemoryDb()])
 def test_unsupported_database(db):
-    c = TestClient(AgentOS(company=CompanyConfig(db=db), telemetry=False).get_app())
+    c = TestClient(
+        AgentOS(
+            agents=[Agent(id="writer")],
+            teams=[Team(id="writer", members=[])],
+            workflows=[Workflow(id="writer", steps=[])],
+            company=CompanyConfig(db=db),
+            telemetry=False,
+        ).get_app()
+    )
     for method, path, body in [
         ("get", "/company/tasks", None),
         ("get", "/company/tasks/missing", None),

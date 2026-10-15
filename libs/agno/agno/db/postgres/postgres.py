@@ -25,9 +25,10 @@ from agno.db.base import (
 )
 from agno.db.migrations.manager import MigrationManager
 from agno.db.postgres.engine import _engine_options
-from agno.db.postgres.schemas import get_table_schema_definition
+from agno.db.postgres.schemas import default_sandbox_table_name, get_table_schema_definition
 from agno.db.postgres.utils import (
     apply_sorting,
+    is_foreign_key_violation,
     bulk_upsert_metrics,
     calculate_date_metrics,
     create_schema,
@@ -203,6 +204,7 @@ class PostgresDb(BaseDb):
             create_schema (bool): Whether to automatically create the database schema if it doesn't exist.
                 Set to False if schema is managed externally (e.g., via migrations). Defaults to True.
             sandbox_table (Optional[str]): Name of the table to store sandbox session leases and recovery state.
+                Defaults to "<session_table>_sandbox_bindings"; it serves exactly one session table.
 
         Raises:
             ValueError: If neither db_url nor db_engine is provided.
@@ -257,7 +259,8 @@ class PostgresDb(BaseDb):
         self.db_schema: str = db_schema if db_schema is not None else "ai"
         self.metadata: MetaData = MetaData(schema=self.db_schema)
         self.create_schema: bool = create_schema
-        self.sandbox_table_name: str = sandbox_table or "agno_sandbox_bindings"
+        # The bindings table has a foreign key to one session table, so each gets its own.
+        self.sandbox_table_name: str = sandbox_table or default_sandbox_table_name(self.session_table_name)
 
         # Initialize database session
         self.Session: scoped_session = scoped_session(sessionmaker(bind=self.db_engine, expire_on_commit=False))
@@ -378,6 +381,7 @@ class PostgresDb(BaseDb):
                 db_schema=self.db_schema,
                 schedules_table_name=self.schedules_table_name,
                 session_table_name=self.session_table_name,
+                runs_table_name=self.runs_table_name,
             ).copy()
 
             # Register FK parent tables on the metadata first, so SQLAlchemy
@@ -1275,6 +1279,11 @@ class PostgresDb(BaseDb):
             return deleted
 
         except Exception as e:
+            if is_foreign_key_violation(e):
+                # The sandbox bindings table references the run a turn holds; the run stays
+                # until that turn ends, or until its session is deleted.
+                log_warning(f"Run {run_id} was not deleted: an active sandbox turn still holds it")
+                return False
             log_error(f"Error deleting run: {str(e)}")
             raise e
 
@@ -1296,6 +1305,10 @@ class PostgresDb(BaseDb):
             log_debug(f"Successfully deleted {result.rowcount} runs")
 
         except Exception as e:
+            if is_foreign_key_violation(e):
+                # One statement, so none of the runs were deleted.
+                log_warning("Runs were not deleted: an active sandbox turn still holds one of them")
+                return
             log_error(f"Error deleting runs: {str(e)}")
             raise e
 

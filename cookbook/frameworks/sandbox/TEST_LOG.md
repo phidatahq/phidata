@@ -250,25 +250,32 @@ No model calls in the load run. Requests and daemon calls per turn are what scal
 
 ---
 
-### durable_completion.py
-
-**Status:** PASS
-
-**Description:** Step-by-step walkthrough against local Postgres 18 (pgvector image), with fixture output and a real archive, no model calls or compute. The store is built from `PostgresDb` with no setup call; its lease table is created on first use. Turn 1 stays RUNNING after the result is staged and after checkpoint/cleanup staging, then commit marks it COMPLETED and points the session at the checkpoint in one transaction. Turn 2 survives a session rename upserted mid-turn, a coordinator whose 1 s lease lapses is taken over at a higher epoch and its late write is refused, and cancelling turn 2 leaves turn 1's checkpoint as the session's recovery point.
-
-**Result:** Passed; every printed state matched the expected step. Companion integration suite: 31 passed and 1 skipped across PostgresDb and AsyncPostgresDb (the cancellation drain applies to PostgresDb only), including independent owners, tables created on first use by four racing stores, a core `upsert_session` overwriting `session_data` mid-run without stranding the lease, runtime output unable to rewrite input, lineage or service metadata, lease expiry, queue attempt fencing, transaction rollback, lost acknowledgement, immutable staged output, a recreated session with the same id, created_at and run id starting from a fresh binding while the old lease is refused, a cancelled call waiting for its sync transaction, external cancellation, and sync entry points. Provider shutdown and archive verification remain coordinator responsibilities.
-
----
-
 ### session_computer.py
 
 **Status:** PASS
 
-**Description:** Two credential-free runtime turns on real Docker and Postgres, using the synchronous coordinator API. The second turn restores the previous files into different compute. Both computers are retired after durable publication.
+**Description:** Three runs on one session through the public coordinator API, real Docker and local Postgres 18, fixture runtime. After each turn the example reads back, with public calls only, the run row (`db.get_run`), the session (`db.get_session`) and the checkpoint opened from the checkpoint store.
 
-**Result:** Cookbook passed. Integrated failure cases cover lost start/cleanup/commit acknowledgements, checkpoint outages, compute loss before checkpointing, identity mismatch on restore, unchanged configuration on reattach, cancellation, same-session contention, and terminal-event ordering. Real Postgres regressions additionally cover atomic rejection with no phantom run, explicit migration for older non-sandbox history, and cancellation drainage while a provider operation holds ownership rows. Self-review caught destructive RunOutput parsing during terminal event construction and fixed it by copying the input dictionary. No live models or hosted providers were used. Final counts are recorded in the PR validation notes.
+**Result:** Passed. Turn 1 ran on generation N with a checkpoint whose workspace held turn 1; turn 2 ran on generation N+1, restored it, passed the native conversation check, and its checkpoint held turns 1 and 2. Retrying turn 2 returned the stored result, and the session still pointed at the same checkpoint. Store and coordinator integration suites: 96 passed, 2 skipped (cancellation tests that apply to PostgresDb only). These runs used a local-only workaround for Docker 27.4, where restoring with `docker cp --archive` fails with `getent unable to find entry "1000:1000"` (as does `feat/sandbox`'s own `test_transfer.py`): a passwd entry for uid 1000 in the image and a numeric `--user`. It is not part of the change.
+---
 
-**Port onto feat/sandbox:** Re-run after porting the coordinator to the `Sandbox` provider API and the internal store, on Docker 27.4 with local Postgres 18. Coordinator suite: 32 passed across PostgresDb and AsyncPostgresDb, including two new native-continuity cases: the next turn sends the committed `native_session_id`, and a restore that loses the native state ends as an error before the model runs, with the previous checkpoint kept. Without the coordinator passing the id, that second case completed on a new conversation. Store suite: 39 passed, 1 skipped. Both cookbooks passed. On this Docker version, restoring with `docker cp --archive` fails with `getent unable to find entry "1000:1000"`, and `feat/sandbox`'s own `test_transfer.py` fails the same way. These runs used a local-only workaround (a passwd entry for uid 1000 in the image and a numeric `--user`) that is not part of this change.
+### resume_after_disconnect.py
+
+**Status:** PASS
+
+**Description:** A ten-second fixture turn whose caller task is cancelled after five seconds, then a second coordinator asks for the same run id and input. The example opens the committed checkpoint and counts the run id in the workspace, which the fixture appends once per execution.
+
+**Result:** Passed: the second coordinator returned COMPLETED after 11.0s, and the committed workspace recorded the turn once, so its work ran once across both coordinators. An earlier version with a six-second turn and a three-second disconnect judged reattachment by elapsed time; that was unreliable, because a disconnect during container setup lets the second coordinator start the turn itself. Same Docker workaround as above.
+---
+
+### cancel_turn.py
+
+**Status:** PASS
+
+**Description:** Turn 1 completes; turn 2 (six seconds) is cancelled after three seconds with `acancel_run`; turn 3 runs on the same session. Same environment and Docker workaround as above.
+
+**Result:** Passed: turn 2 ended CANCELLED and turn 3 completed from turn 1's checkpoint, passing the native conversation check against turn 1's id. The coordinator does not register runs with the cancellation manager, so the cancel logs "not yet registered, storing cancellation intent"; the stored intent is honored.
+
 ---
 
 Coordinator review follow-up: native transcript-mirror warnings and lost pre-checkpoint compute cannot publish success or trigger model execution retries. Tool audit history is retained on failure. Runtime output cannot replace the original submitted input or trusted service metadata. Added 2 real mirror-warning cases and 2 metadata/input boundary cases; final store suite: 32 passed. Focused finalization/mirror cases: 4 passed. Required scripts passed again.

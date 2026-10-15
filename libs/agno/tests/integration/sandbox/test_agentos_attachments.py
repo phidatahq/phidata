@@ -15,7 +15,7 @@ from sqlalchemy import func, select
 from agno.media import File
 from agno.sandbox import _harness
 from agno.sandbox.checkpoint import CheckpointRef
-from tests.integration.sandbox.test_agentos import IMAGE, REDIS, URL, queued_rows, settled
+from tests.integration.sandbox.test_agentos import IMAGE, REDIS, URL, settled
 from tests.integration.sandbox.test_agentos import service as _service_fixture
 
 service = _service_fixture
@@ -35,6 +35,14 @@ def all_rows(agent):
     table = agent.db._get_table("jobs")
     with agent.db.db_engine.begin() as connection:
         return connection.execute(select(func.count()).select_from(table)).scalar_one()
+
+
+def queued_rows(agent, key):
+    table = agent.db._get_table("jobs")
+    with agent.db.db_engine.begin() as connection:
+        return connection.execute(
+            select(func.count()).select_from(table).where(table.c.idempotency_key == key)
+        ).scalar_one()
 
 
 async def post(client, *, message="look", session="session", files=None, headers=None, **form):
@@ -155,10 +163,12 @@ async def test_two_turns_keep_each_turns_bytes_under_the_same_filename_across_re
     assert len({handle.provider_ref for handle in handles}) == 3
 
 
-# --- shared idempotency with attachments ----------------------------------------------------------------------
+# --- idempotency with attachments ----------------------------------------------------------------------
 
 
-async def test_a_duplicate_upload_returns_the_original_run_and_keeps_the_accepted_bytes(service):
+async def test_an_identical_retry_returns_the_original_run_and_a_changed_one_is_refused_keeping_the_accepted_bytes(
+    service,
+):
     client, agent, app, handles = service
     headers = {"Idempotency-Key": "upload"}
     original = await post(
@@ -180,8 +190,9 @@ async def test_a_duplicate_upload_returns_the_original_run_and_keeps_the_accepte
         headers=headers,
         files=[("files", ("a.txt", b"original", "text/plain"))],
     )
-    for retry in (same, changed, other_session):
-        assert retry.status_code == 202 and retry.json()["run_id"] == run_id, retry.text
+    assert same.status_code == 202 and same.json()["run_id"] == run_id, same.text
+    # A retry that changes the attachments or the session is a different submission under the same key.
+    assert (changed.status_code, other_session.status_code) == (409, 409), (changed.text, other_session.text)
     stored = await agent.aget_run_output(run_id, "session")
     assert [file.get_content_bytes() for file in stored.input.files] == [b"original"]
     assert queued_rows(agent, "upload") == 1 and len(handles) == 1
@@ -225,24 +236,6 @@ async def test_the_same_key_and_upload_under_two_users_are_two_independent_runs(
     alice = await agent.aget_run_output(runs["alice"], "alice-session", user_id="alice")
     assert [file.get_content_bytes() for file in alice.input.files] == [b"alice's bytes"]
     assert await agent.aget_run_output(runs["alice"], "alice-session", user_id="bob") is None
-
-
-async def test_another_component_cannot_reuse_the_key_of_an_upload(service):
-    client, agent, app, handles = service
-    first = await post(
-        client,
-        background="true",
-        headers={"Idempotency-Key": "cross-upload"},
-        files=[("files", ("c.txt", b"x", "text/plain"))],
-    )
-    assert (await settled(app, first.json()["run_id"]))["status"] == "completed"
-    crossed = await client.post(
-        "/agents/other/runs",
-        data={"message": "m", "session_id": "session", "stream": "false", "background": "true"},
-        files=[("files", ("c.txt", b"x", "text/plain"))],
-        headers={"Idempotency-Key": "cross-upload"},
-    )
-    assert crossed.status_code == 409 and queued_rows(agent, "cross-upload") == 1 and len(handles) == 1
 
 
 # --- Python callers --------------------------------------------------------------------------------------------

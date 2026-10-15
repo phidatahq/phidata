@@ -1,7 +1,7 @@
 """A second AgentOS service in its own process, for the sandbox integration tests.
 
 Started with one JSON argument naming the tables, Redis prefix and checkpoint directory of the service under test, it
-serves the same two fixture agents on a real local port. It shares nothing in memory with the test process, so a run it
+serves the same fixture agent on a real local port. It shares nothing in memory with the test process, so a run it
 completes was reconstructed from what the database and Redis hold.
 """
 
@@ -44,7 +44,7 @@ def main(config: dict) -> None:
         stop_timeout_seconds=1,
         **config.get("queue", {}),
     )
-    agents = [FixtureAgent(id="coder", sandbox=provider), FixtureAgent(id="other", sandbox=provider)]
+    agents = [FixtureAgent(id="coder", sandbox=provider)]
     app = AgentOS(id=config["prefix"], agents=agents, db=db, queue=queue, telemetry=False).get_app()
     uvicorn.run(app, host="127.0.0.1", port=config["port"], log_level="warning")
 

@@ -379,28 +379,63 @@ async def test_a_read_resolves_the_same_checkpoint_store_a_turn_would(service):
     assert status.status_code == 200 and status.json()["has_checkpoint"] is True
 
 
-async def test_an_unconfigured_sandbox_falls_back_to_the_harness_default_store(service):
-    """With no checkpoints= the harness picks a host-local default; a read must use that same one.
-
-    This covers the default branch of the configuration, not a second mechanism of our own.
-    """
+def _unconfigured(suffix):
+    """A sandbox-backed agent with no checkpoints= of its own."""
     from agno.db.postgres import PostgresDb
-    from agno.sandbox.checkpoint import FileCheckpointStore
     from agno.sandbox.docker import DockerSandbox
     from agno.sandbox.fixture import FixtureAgent
 
-    _, existing, _, _ = service
-    unconfigured = FixtureAgent(
-        id="unconfigured",
-        sandbox=DockerSandbox(IMAGE, namespace="unconfigured", env={"AGNO_SANDBOX_TEST_RUNTIME": "1"}),
-        db=PostgresDb(db_url=URL, session_table="unconfigured_sessions", sandbox_table="unconfigured_bindings"),
+    agent = FixtureAgent(
+        id="unconfigured-" + suffix,
+        sandbox=DockerSandbox(IMAGE, namespace="unconfigured-" + suffix, env={"AGNO_SANDBOX_TEST_RUNTIME": "1"}),
+        db=PostgresDb(
+            db_url=URL,
+            session_table="unconfigured_sessions_" + suffix,
+            sandbox_table="unconfigured_bindings_" + suffix,
+        ),
     )
+    assert agent.sandbox.checkpoints is None
+    return agent
+
+
+async def test_an_unconfigured_sandbox_is_refused_while_a_queue_worker_runs(service):
+    """A durable queue hands retries to any replica, and none can read this host's default directory.
+
+    The harness refuses that configuration instead of letting recovery fail later, so there is no
+    effective store for a read to resolve either. An artifact read must not invent one.
+    """
+    _, existing, _, _ = service
+    unconfigured = _unconfigured("queued")
+    try:
+        with pytest.raises(ValueError, match="other queue replicas cannot read"):
+            _harness.coordinator(unconfigured)
+        # The configured agent in the same process is unaffected.
+        assert _harness.coordinator(existing).transfer.store is existing.sandbox.checkpoints
+    finally:
+        unconfigured.db.db_engine.dispose()
+
+
+async def test_without_a_queue_worker_the_default_store_is_the_harness_default(tmp_path, monkeypatch):
+    """With no checkpoints= and no queue, the harness uses its own default; a read must use that one.
+
+    This covers the default branch of the existing configuration, not a second mechanism of our
+    own. It takes no `service`, because that fixture runs a queue worker, which the branch above
+    covers. The default directory is redirected so the run never touches a real home directory.
+    """
+    from agno.os.job_queue import get_active_queue_worker
+    from agno.sandbox.checkpoint import FileCheckpointStore
+
+    assert get_active_queue_worker() is None, "this branch requires no active queue worker"
+    monkeypatch.setattr(_harness, "_DEFAULT_CHECKPOINTS", tmp_path / "harness-default")
+    unconfigured = _unconfigured("solo")
     try:
         coordinator = _harness.coordinator(unconfigured)
-        assert unconfigured.sandbox.checkpoints is None
-        assert isinstance(coordinator.transfer.store, FileCheckpointStore)
-        assert coordinator.transfer.store.root == _harness._DEFAULT_CHECKPOINTS
-        assert coordinator.transfer.store is not _harness.coordinator(existing).transfer.store
+        store = coordinator.transfer.store
+        assert isinstance(store, FileCheckpointStore)
+        assert store.root == _harness._DEFAULT_CHECKPOINTS
+        # The read uses the coordinator the agent already has, so it opens this same object.
+        assert _harness.coordinator(unconfigured).transfer.store is store
+        assert SandboxArtifacts(coordinator.store, store).objects is store
     finally:
         unconfigured.db.db_engine.dispose()
 

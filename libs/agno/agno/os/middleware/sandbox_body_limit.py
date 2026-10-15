@@ -19,8 +19,10 @@ class SandboxRunBodyLimit:
 
     Form parsing reads the whole body, spooling every uploaded file to disk, before an attachment limit can reject
     it. This counts the body as it arrives, so it holds with a missing or understated Content-Length and with chunked
-    transfer, and it stops delivering the body to the app once the limit is passed. It applies to POST
-    ``/agents/{id}/runs`` for the given agent ids only.
+    transfer. Once the limit is crossed it requests no further chunks and the app is given none; the chunk that
+    crossed it was already delivered by the server and can itself exceed the limit. It is added before
+    AuthMiddleware, which therefore wraps it and sees the request first. It applies to POST ``/agents/{id}/runs``
+    for the given agent ids only.
     """
 
     def __init__(self, app: Any, *, agent_ids: Collection[str], max_bytes: int = MAX_SANDBOX_REQUEST_BODY) -> None:

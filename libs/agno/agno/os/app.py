@@ -1897,8 +1897,9 @@ class AgentOS:
                 origin_policy=origin_policy,
             )
 
-        # A sandboxed run's body is bounded by the bytes received, before the framework parses it. Registered before
-        # authentication so it runs inside it: an unauthenticated caller is turned away with a 401, never a 413.
+        # A sandboxed run's body is bounded by the bytes received, before the framework parses it. Middleware added
+        # later runs earlier, so adding this one before AuthMiddleware makes it run after authentication: an
+        # unauthenticated caller is turned away with a 401, never a 413.
         sandboxed_ids = [
             entry.get_id()
             for entry in self.agents or []

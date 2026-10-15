@@ -3,13 +3,28 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum
 from functools import cached_property
-from typing import TYPE_CHECKING, Any, Callable, Dict, Iterator, List, Optional, Set, Tuple, Type, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Dict,
+    FrozenSet,
+    Iterable,
+    Iterator,
+    List,
+    Optional,
+    Set,
+    Tuple,
+    Type,
+    Union,
+)
 from uuid import uuid4
 
 from pydantic import BaseModel, ValidationError
 
 from agno.db.base import BaseDb
 from agno.models.base import Model
+from agno.registry._reserved import RESERVED_MANAGER_IDS
 from agno.tools.function import RUNTIME_ONLY_FIELDS, Function, isolated_runtime_value
 from agno.tools.toolkit import Toolkit
 from agno.utils.log import log_warning
@@ -122,6 +137,60 @@ class Registry:
     # has no db that can serve the catalog.
     component_db: Optional[BaseDb] = field(default=None, init=False, repr=False)
     component_db_declared: bool = field(default=False, init=False, repr=False)
+
+    # Served framework components may be runnable without being building blocks.
+    # IDs keep that boundary intact when a caller supplies a per-run copy.
+    _excluded_component_ids: Set[str] = field(default_factory=lambda: set(RESERVED_MANAGER_IDS), init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        for component in [*self.agents, *self.teams, *self.workflows]:
+            component_id = getattr(component, "id", None)
+            if component_id in RESERVED_MANAGER_IDS and not getattr(component, "_registry_excluded", False):
+                raise ValueError(f"Duplicate IDs reserved for the manager: {component_id}")
+        self.exclude_components(
+            [
+                component
+                for component in [*self.agents, *self.teams, *self.workflows]
+                if self.is_component_excluded(component)
+            ]
+        )
+
+    @property
+    def excluded_component_ids(self) -> FrozenSet[str]:
+        """Ids that are served but are never building blocks, and cannot be minted by Studio."""
+        return frozenset(self._excluded_component_ids)
+
+    def is_component_excluded(self, component: Any) -> bool:
+        """True for a component marked excluded, or one carrying an excluded id (a per-run copy included)."""
+        return (getattr(component, "_registry_excluded", False) is True) or getattr(
+            component, "id", None
+        ) in self._excluded_component_ids
+
+    def reserve_component_ids(self, component_ids: Iterable[str]) -> None:
+        """Exclude ids before any component carries them, so they cannot be minted or composed."""
+        self._excluded_component_ids.update(component_id for component_id in component_ids if component_id)
+
+    def exclude_components(self, components: Iterable[Any]) -> None:
+        """Mark components as served but not buildable, and drop any mirror of them from this registry.
+
+        The mark travels with deep copies, so a per-run copy stays excluded too.
+        """
+        components = list(components)
+        for component in components:
+            if hasattr(component, "_registry_excluded"):
+                component._registry_excluded = True
+        self.reserve_component_ids(component.id for component in components if getattr(component, "id", None))
+        # Keep supplied lists live unless an exclusion requires a filtered copy.
+        # Never remove components from a served list supplied by the caller.
+        agents = [agent for agent in self.agents if not self.is_component_excluded(agent)]
+        if len(agents) != len(self.agents):
+            self.agents = agents
+        teams = [team for team in self.teams if not self.is_component_excluded(team)]
+        if len(teams) != len(self.teams):
+            self.teams = teams
+        workflows = [workflow for workflow in self.workflows if not self.is_component_excluded(workflow)]
+        if len(workflows) != len(self.workflows):
+            self.workflows = workflows
 
     @cached_property
     def _entrypoint_lookup(self) -> Dict[EntrypointKey, EntrypointSource]:

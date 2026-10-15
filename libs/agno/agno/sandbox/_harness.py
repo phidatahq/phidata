@@ -53,8 +53,9 @@ _HOST_ONLY = frozenset(
         "thread_kwargs",
     }
 )
-# Model API keys forwarded from the host unless the sandbox's env sets them.
-_HARNESS_ENV_KEYS = {"claude": ("ANTHROPIC_API_KEY",), "codex": ("OPENAI_API_KEY",)}
+# Model credentials forwarded from the host unless the sandbox's env sets them. Claude Code
+# authenticates with either an API key or a Claude Code OAuth token.
+_HARNESS_ENV_KEYS = {"claude": ("ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN"), "codex": ("OPENAI_API_KEY",)}
 _DEFAULT_CHECKPOINTS = Path.home() / ".agno" / "sandbox" / "checkpoints"
 
 _coordinators: "weakref.WeakKeyDictionary[Sandbox, List[Tuple[Any, SandboxCoordinator]]]" = weakref.WeakKeyDictionary()
@@ -120,10 +121,16 @@ def coordinator(agent: "BaseExternalAgent") -> "SandboxCoordinator":
         from agno.sandbox.checkpoint import FileCheckpointStore
 
         if get_active_queue_worker() is not None:
-            log_warning(
-                f"Sandbox checkpoints default to {_DEFAULT_CHECKPOINTS}, which other replicas cannot read and "
-                "which does not survive losing this host; pass checkpoints= to the sandbox"
+            # A durable queue hands retries to any replica, and a replica cannot restore from this
+            # host's disk; refusing here is cheaper than a recovery that fails later somewhere else.
+            raise ValueError(
+                f"Sandbox checkpoints default to {_DEFAULT_CHECKPOINTS}, which other queue replicas cannot "
+                "read and which does not survive losing this host; pass checkpoints= to the sandbox"
             )
+        log_warning(
+            f"Sandbox checkpoints default to {_DEFAULT_CHECKPOINTS}; pass checkpoints= to the sandbox before "
+            "running more than one host"
+        )
         store = FileCheckpointStore(_DEFAULT_CHECKPOINTS)
     result = SandboxCoordinator(agent.db, sandbox, sandbox.checkpoint_transfer(store))  # type: ignore[arg-type]
     built.append((agent.db, result))
@@ -259,7 +266,7 @@ async def astream(agent: "BaseExternalAgent", input: Any, **kwargs: Any) -> Asyn
     execution = _execution(agent, input, kwargs)
     await aregister_run(execution["run_id"])
     runner = coordinator(agent)
-    iterator = runner._astream(kwargs.get("session_id") or str(uuid4()), **execution)
+    iterator = runner.astream(kwargs.get("session_id") or str(uuid4()), **execution)
     events: List[Dict[str, Any]] = []
     skipped = {event.value for event in agent.events_to_skip or []}
     try:

@@ -5,10 +5,12 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import threading
 from contextlib import suppress
 from copy import deepcopy
 from dataclasses import asdict
-from typing import Any, AsyncGenerator, Dict, Mapping, Optional, Union
+from queue import Queue
+from typing import Any, AsyncGenerator, Dict, Iterator, Mapping, Optional, Union
 from uuid import uuid4
 
 from agno.db.postgres import AsyncPostgresDb, PostgresDb
@@ -72,7 +74,7 @@ class SandboxCoordinator:
         execution_timeout: float = 900,
     ) -> RunOutput:
         result = None
-        async for value in self._astream(
+        async for value in self.astream(
             session_id,
             agent_id=agent_id,
             run_id=run_id,
@@ -181,7 +183,63 @@ class SandboxCoordinator:
             with suppress(SandboxLeaseLost):
                 await self.store.arelinquish(state.lease)
 
-    async def _astream(
+    def stream(
+        self,
+        session_id: str,
+        *,
+        agent_id: str,
+        run_id: str,
+        input: str,
+        sdk: str,
+        user_id: Optional[str] = None,
+        agent_name: Optional[str] = None,
+        config: Optional[Dict[str, Any]] = None,
+        env: Optional[Mapping[str, str]] = None,
+        queue_attempt: Optional[int] = None,
+        execution_timeout: float = 900,
+    ) -> Iterator[Any]:
+        """Synchronous ``astream``: the turn runs on its own loop in a worker thread and events
+        arrive as they are produced. Stopping early detaches this caller like any disconnect."""
+        if isinstance(self.store.db, AsyncPostgresDb):
+            raise TypeError("Use astream with AsyncPostgresDb")
+        done = object()
+        items: "Queue[Any]" = Queue()
+
+        async def pump() -> None:
+            try:
+                async for value in self.astream(
+                    session_id,
+                    agent_id=agent_id,
+                    run_id=run_id,
+                    input=input,
+                    sdk=sdk,
+                    user_id=user_id,
+                    agent_name=agent_name,
+                    config=config,
+                    env=env,
+                    queue_attempt=queue_attempt,
+                    execution_timeout=execution_timeout,
+                ):
+                    items.put(value)
+            except BaseException as error:
+                items.put(error)
+            finally:
+                items.put(done)
+
+        worker = threading.Thread(target=lambda: asyncio.run(pump()), name="sandbox-stream", daemon=True)
+        worker.start()
+        try:
+            while True:
+                item = items.get()
+                if item is done:
+                    return
+                if isinstance(item, BaseException):
+                    raise item
+                yield item
+        finally:
+            worker.join()
+
+    async def astream(
         self,
         session_id: str,
         *,
@@ -196,6 +254,12 @@ class SandboxCoordinator:
         queue_attempt: Optional[int] = None,
         execution_timeout: float = 900,
     ) -> AsyncGenerator[Any, None]:
+        """Run one turn and yield its events as they arrive, then the committed ``RunOutput`` last.
+
+        The same turn as ``arun``: the run output is yielded only once the result and recovery
+        checkpoint are stored, so a consumer that sees it can rely on it. Cancelling the consumer
+        detaches it; the turn keeps running and a later call with the same run id reattaches.
+        """
         if not isinstance(input, str) or sdk not in ("claude", "codex", "fixture"):
             raise ValueError("Sandbox runtime requires text input and a supported SDK")
         # Validate before any allocation, including JSON serializability and limits.

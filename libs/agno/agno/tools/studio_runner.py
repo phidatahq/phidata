@@ -99,7 +99,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Literal, Optional, Set, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Literal, Optional, Sequence, Set, Tuple
 from uuid import uuid4
 
 from agno.db.schemas.scheduler import (
@@ -108,7 +108,9 @@ from agno.db.schemas.scheduler import (
     strip_reserved_run_metadata,
 )
 from agno.exceptions import ComponentPinError, ComponentRehydrationError
+from agno.registry._reserved import RESERVED_MANAGER_IDS, RESERVED_MEMBER_IDS
 from agno.run import RunContext
+from agno.run.authorization import arequire_permission, authorization_for, require_permission, requires_permission
 from agno.run.cancel import aregister_member_run, register_member_run
 from agno.run.utils import run_status_string, serialized_paused_requirements
 from agno.tools.toolkit import Toolkit
@@ -284,9 +286,9 @@ class StudioRunnerTools(Toolkit):
         self,
         registry: Optional["Registry"] = None,
         db: Optional["BaseDb"] = None,
-        include_agents: Optional[List["Agent"]] = None,
-        include_teams: Optional[List["Team"]] = None,
-        include_workflows: Optional[List["Workflow"]] = None,
+        include_agents: Optional[Sequence["Agent"]] = None,
+        include_teams: Optional[Sequence["Team"]] = None,
+        include_workflows: Optional[Sequence["Workflow"]] = None,
         run_agents: bool = True,
         run_teams: bool = True,
         run_workflows: bool = True,
@@ -412,11 +414,12 @@ class StudioRunnerTools(Toolkit):
         alongside the database, so what can be run can be found.
         Lookups that are not dispatch (get, edit, members, steps) see the full
         set either way."""
-        if self.include_agents is not None:
-            return list(self.include_agents)
-        if for_dispatch and not self.include_all_components:
+        if for_dispatch and not self.include_all_components and self.include_agents is None:
             return []
-        return list(self.registry.agents) if self.registry is not None else []
+        agents = (
+            self.include_agents if self.include_agents is not None else (self.registry.agents if self.registry else [])
+        )
+        return [agent for agent in agents if getattr(agent, "id", None) not in RESERVED_MEMBER_IDS]
 
     def _iter_teams(self, for_dispatch: bool = False) -> List["Team"]:
         """Code-defined teams: passed-in list, else registry (see _iter_agents)."""
@@ -442,6 +445,8 @@ class StudioRunnerTools(Toolkit):
         Split into an exact tier and a name tier so cross-type callers
         (StudioTools._resolve_members) can try exact ids across both types
         before any name matching."""
+        if agent_id in RESERVED_MEMBER_IDS:
+            return None
         agent = self._find_agent_by_exact_id(agent_id, for_dispatch=for_dispatch, actor=actor)
         if agent is not None:
             return agent
@@ -970,7 +975,7 @@ class StudioRunnerTools(Toolkit):
         return wf
 
     def _db_component_exists(self, component_type: str, component_id: str, actor: Optional[str] = None) -> bool:
-        if self.db is None:
+        if self.db is None or component_id in RESERVED_MANAGER_IDS:
             return False
         from agno.db.base import ComponentType
 
@@ -1005,7 +1010,11 @@ class StudioRunnerTools(Toolkit):
         while True:
             try:
                 rows, total = self.db.list_components(
-                    component_type=component_type_enum, limit=_NAME_LOOKUP_PAGE, offset=offset, user_id=actor
+                    component_type=component_type_enum,
+                    limit=_NAME_LOOKUP_PAGE,
+                    offset=offset,
+                    user_id=actor,
+                    exclude_component_ids=set(RESERVED_MANAGER_IDS),
                 )
             except NotImplementedError:
                 # Not every db adapter implements component storage; degrade to
@@ -2165,7 +2174,7 @@ class StudioRunnerTools(Toolkit):
         type; a mismatch returns None so that, e.g., a team id never loads as an
         Agent.
         """
-        if self.db is None:
+        if self.db is None or component_id in RESERVED_MANAGER_IDS:
             return None
         try:
             component_row = self.db.get_component(component_id, component_type=component_type, user_id=actor)
@@ -2228,6 +2237,7 @@ class StudioRunnerTools(Toolkit):
             rows, total = self.db.list_components(
                 component_type=ComponentType(component_type),
                 limit=limit if limit is not None else self.list_limit,
+                exclude_component_ids=set(RESERVED_MANAGER_IDS),
                 user_id=user_id,
             )
         except NotImplementedError:
@@ -2252,6 +2262,7 @@ class StudioRunnerTools(Toolkit):
     # Discovery
     # ------------------------------------------------------------------
 
+    @requires_permission()
     def list_agents(self, _agno_run_context: Optional[RunContext] = None) -> str:
         """List agents this runner can run, newest first.
 
@@ -2270,8 +2281,10 @@ class StudioRunnerTools(Toolkit):
                 sibling list tools before concluding a component does not
                 exist).
         """
-        return self._list_payload("agent", "agents", actor=getattr(_agno_run_context, "user_id", None))
+        payload = self._list_payload("agent", "agents", actor=getattr(_agno_run_context, "user_id", None))
+        return self._authorized_listing(payload, "agents", _agno_run_context)
 
+    @requires_permission()
     def list_teams(self, _agno_run_context: Optional[RunContext] = None) -> str:
         """List teams this runner can run, newest first.
 
@@ -2290,8 +2303,10 @@ class StudioRunnerTools(Toolkit):
                 sibling list tools before concluding a component does not
                 exist).
         """
-        return self._list_payload("team", "teams", actor=getattr(_agno_run_context, "user_id", None))
+        payload = self._list_payload("team", "teams", actor=getattr(_agno_run_context, "user_id", None))
+        return self._authorized_listing(payload, "teams", _agno_run_context)
 
+    @requires_permission()
     def list_workflows(self, _agno_run_context: Optional[RunContext] = None) -> str:
         """List workflows this runner can run, newest first.
 
@@ -2310,7 +2325,30 @@ class StudioRunnerTools(Toolkit):
                 sibling list tools before concluding a component does not
                 exist).
         """
-        return self._list_payload("workflow", "workflows", actor=getattr(_agno_run_context, "user_id", None))
+        payload = self._list_payload("workflow", "workflows", actor=getattr(_agno_run_context, "user_id", None))
+        return self._authorized_listing(payload, "workflows", _agno_run_context)
+
+    @staticmethod
+    def _authorized_listing(payload: str, family: str, run_context: Optional[RunContext]) -> str:
+        from dataclasses import replace
+
+        authority = authorization_for(run_context)
+        if authority is None:
+            return payload
+        data = json.loads(payload)
+        if family in data:
+            visible = [
+                item
+                for item in data[family]
+                if authority.provider.check(
+                    replace(authority.context, resource_type=family, resource_id=item["id"], action="read")
+                )
+            ]
+            data[family] = visible
+            data["count"] = data["total"] = len(visible)
+            # Global sibling counts disclose resources this caller cannot read.
+            data.pop("other_components", None)
+        return json.dumps(data)
 
     def _list_payload(self, component_type: str, key: str, actor: Optional[str] = None) -> str:
         admitted = self._admitted_code_components(component_type)
@@ -2612,6 +2650,7 @@ class StudioRunnerTools(Toolkit):
         hint = self._cross_namespace_hint(component_type, identifier, actor=actor)
         return f"{component_type.capitalize()} not found: {identifier}{hint}"
 
+    @requires_permission()
     def run_agent(
         self,
         agent_id: str,
@@ -2654,6 +2693,7 @@ class StudioRunnerTools(Toolkit):
         if agent is None:
             return json.dumps({"error": self._not_found_message("agent", agent_id, actor=actor)})
         component_id = getattr(agent, "id", None) or agent_id
+        require_permission("agents", "run", component_id, _agno_run_context)
         try:
             running = self._dedup([*inherited, *self._caller_tokens(_agno_agent, _agno_team)])
             target = self._require_no_cycle(running, inherited, "agent", component_id)
@@ -2676,6 +2716,7 @@ class StudioRunnerTools(Toolkit):
             logger.exception("Failed to run agent")
             return json.dumps({"error": str(e) or type(e).__name__})
 
+    @requires_permission()
     def run_team(
         self,
         team_id: str,
@@ -2718,6 +2759,7 @@ class StudioRunnerTools(Toolkit):
         if team is None:
             return json.dumps({"error": self._not_found_message("team", team_id, actor=actor)})
         component_id = getattr(team, "id", None) or team_id
+        require_permission("teams", "run", component_id, _agno_run_context)
         try:
             running = self._dedup([*inherited, *self._caller_tokens(_agno_agent, _agno_team)])
             target = self._require_no_cycle(running, inherited, "team", component_id)
@@ -2740,6 +2782,7 @@ class StudioRunnerTools(Toolkit):
             logger.exception("Failed to run team")
             return json.dumps({"error": str(e) or type(e).__name__})
 
+    @requires_permission()
     def run_workflow(
         self,
         workflow_id: str,
@@ -2782,6 +2825,7 @@ class StudioRunnerTools(Toolkit):
         if wf is None:
             return json.dumps({"error": self._not_found_message("workflow", workflow_id, actor=actor)})
         component_id = getattr(wf, "id", None) or workflow_id
+        require_permission("workflows", "run", component_id, _agno_run_context)
         try:
             running = self._dedup([*inherited, *self._caller_tokens(_agno_agent, _agno_team)])
             target = self._require_no_cycle(running, inherited, "workflow", component_id)
@@ -2804,6 +2848,7 @@ class StudioRunnerTools(Toolkit):
             logger.exception("Failed to run workflow")
             return json.dumps({"error": str(e) or type(e).__name__})
 
+    @requires_permission()
     async def arun_agent(
         self,
         agent_id: str,
@@ -2849,6 +2894,7 @@ class StudioRunnerTools(Toolkit):
                 {"error": await asyncio.to_thread(self._not_found_message, "agent", agent_id, actor=actor)}
             )
         component_id = getattr(agent, "id", None) or agent_id
+        await arequire_permission("agents", "run", component_id, _agno_run_context)
         try:
             running = self._dedup([*inherited, *self._caller_tokens(_agno_agent, _agno_team)])
             target = self._require_no_cycle(running, inherited, "agent", component_id)
@@ -2871,6 +2917,7 @@ class StudioRunnerTools(Toolkit):
             logger.exception("Failed to run agent")
             return json.dumps({"error": str(e) or type(e).__name__})
 
+    @requires_permission()
     async def arun_team(
         self,
         team_id: str,
@@ -2913,6 +2960,7 @@ class StudioRunnerTools(Toolkit):
             # The probe reads the DB; keep it off the event loop like resolution.
             return json.dumps({"error": await asyncio.to_thread(self._not_found_message, "team", team_id, actor=actor)})
         component_id = getattr(team, "id", None) or team_id
+        await arequire_permission("teams", "run", component_id, _agno_run_context)
         try:
             running = self._dedup([*inherited, *self._caller_tokens(_agno_agent, _agno_team)])
             target = self._require_no_cycle(running, inherited, "team", component_id)
@@ -2935,6 +2983,7 @@ class StudioRunnerTools(Toolkit):
             logger.exception("Failed to run team")
             return json.dumps({"error": str(e) or type(e).__name__})
 
+    @requires_permission()
     async def arun_workflow(
         self,
         workflow_id: str,
@@ -2979,6 +3028,7 @@ class StudioRunnerTools(Toolkit):
                 {"error": await asyncio.to_thread(self._not_found_message, "workflow", workflow_id, actor=actor)}
             )
         component_id = getattr(wf, "id", None) or workflow_id
+        await arequire_permission("workflows", "run", component_id, _agno_run_context)
         try:
             running = self._dedup([*inherited, *self._caller_tokens(_agno_agent, _agno_team)])
             target = self._require_no_cycle(running, inherited, "workflow", component_id)
@@ -3001,6 +3051,7 @@ class StudioRunnerTools(Toolkit):
             logger.exception("Failed to run workflow")
             return json.dumps({"error": str(e) or type(e).__name__})
 
+    @requires_permission()
     async def alist_agents(self, _agno_run_context: Optional[RunContext] = None) -> str:
         """List agents this runner can run, newest first.
 
@@ -3019,8 +3070,9 @@ class StudioRunnerTools(Toolkit):
                 sibling list tools before concluding a component does not
                 exist).
         """
-        return await asyncio.to_thread(self.list_agents, _agno_run_context=_agno_run_context)
+        return await self._alist_authorized("agent", "agents", _agno_run_context)
 
+    @requires_permission()
     async def alist_teams(self, _agno_run_context: Optional[RunContext] = None) -> str:
         """List teams this runner can run, newest first.
 
@@ -3039,8 +3091,9 @@ class StudioRunnerTools(Toolkit):
                 sibling list tools before concluding a component does not
                 exist).
         """
-        return await asyncio.to_thread(self.list_teams, _agno_run_context=_agno_run_context)
+        return await self._alist_authorized("team", "teams", _agno_run_context)
 
+    @requires_permission()
     async def alist_workflows(self, _agno_run_context: Optional[RunContext] = None) -> str:
         """List workflows this runner can run, newest first.
 
@@ -3059,7 +3112,30 @@ class StudioRunnerTools(Toolkit):
                 sibling list tools before concluding a component does not
                 exist).
         """
-        return await asyncio.to_thread(self.list_workflows, _agno_run_context=_agno_run_context)
+        return await self._alist_authorized("workflow", "workflows", _agno_run_context)
+
+    async def _alist_authorized(self, component_type: str, family: str, run_context: Optional[RunContext]) -> str:
+        from dataclasses import replace
+
+        payload = await asyncio.to_thread(
+            self._list_payload, component_type, family, actor=getattr(run_context, "user_id", None)
+        )
+        authority = authorization_for(run_context)
+        if authority is None:
+            return payload
+        data = json.loads(payload)
+        if family in data:
+            visible = [
+                item
+                for item in data[family]
+                if await authority.provider.acheck(
+                    replace(authority.context, resource_type=family, resource_id=item["id"], action="read")
+                )
+            ]
+            data[family] = visible
+            data["count"] = data["total"] = len(visible)
+            data.pop("other_components", None)
+        return json.dumps(data)
 
     # ------------------------------------------------------------------
     # Result shaping

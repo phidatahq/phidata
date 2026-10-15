@@ -19,6 +19,8 @@ from agno.os.routers.schedules.schema import (
 )
 from agno.os.schema import PaginatedResponse, PaginationInfo
 from agno.os.scopes import AgentOSScope, has_required_scopes
+from agno.run.authorization import stamp_authorization
+from agno.tools.scheduler import _manager_member_refusal
 from agno.utils.log import log_info
 
 # Valid DB method names that _db_call can invoke
@@ -77,6 +79,10 @@ def get_schedule_router(
         run endpoint needs the matching ``<type>:run`` scope, any other target is admin-only.
         """
         from agno.os.auth import build_insufficient_permissions_detail, caller_scopes_are_authoritative
+
+        private_target = _manager_member_refusal(endpoint)
+        if private_target:
+            raise HTTPException(status_code=409, detail=private_target)
 
         if not getattr(request.state, "authorization_enabled", False):
             return
@@ -258,7 +264,7 @@ def get_schedule_router(
             "description": body.description,
             "method": body.method,
             "endpoint": body.endpoint,
-            "payload": body.payload,
+            "payload": stamp_authorization(body.payload),
             "cron_expr": body.cron_expr,
             "timezone": body.timezone,
             "timeout_seconds": body.timeout_seconds,
@@ -315,7 +321,8 @@ def get_schedule_router(
 
         # Re-check when the target changes, so a schedule can't be repointed at a component
         # the caller may not run.
-        if "endpoint" in updates or "method" in updates:
+        execution_changed = any(key in updates for key in ("endpoint", "method", "payload"))
+        if execution_changed:
             _require_endpoint_permission(
                 request,
                 updates.get("endpoint", existing["endpoint"]),
@@ -370,6 +377,10 @@ def get_schedule_router(
             if dup is not None:
                 raise HTTPException(status_code=409, detail=f"Schedule with name '{updates['name']}' already exists")
 
+        # Timing and descriptive edits must not replace the saved execution identity.
+        # Only changes checked against the target above acquire the editor's authority.
+        if execution_changed:
+            updates["payload"] = stamp_authorization(updates.get("payload", existing.get("payload")))
         try:
             result = await _db_call("update_schedule", schedule_id, user_id=scoped_user_id, **updates)
         except Exception as e:

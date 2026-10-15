@@ -289,3 +289,23 @@ Coordinator review follow-up: native transcript-mirror warnings and lost pre-che
 **Result:** `test_agentos.py` 12 passed (foreground, background, streaming, idempotency, same-session admission, retained replay, finalization-only retry, active and between-attempt cancellation, retry exhaustion, SDK background, missing queue, detached SDK cancel). `test_coordinator.py` 32 passed and `test_postgres.py` 55 passed, 1 skipped, both adapters. Docker 27.4 needed the same local-only workaround as the coordinator PR (passwd entry for uid 1000 in the image, numeric `--user`), not committed. No model calls.
 
 ---
+
+### sandbox_claude.py
+
+**Status:** PASS
+
+**Description:** The smallest sandboxed agent: a ClaudeAgent with PostgresDb and sandbox=DockerSandbox(image), two turns on a new session, no AgentOS. Real Docker, local Postgres, claude-sonnet-4-6 authenticated with CLAUDE_CODE_OAUTH_TOKEN forwarded from the process environment.
+
+**Result:** Passed. Turn 1 wrote and ran hello.py and replied "hello"; turn 2, on a fresh container restored from turn 1's checkpoint, named the file. Both runs COMPLETED. print_response on the same agent also renders both turns and their status line.
+
+---
+
+### sandbox_claude_agentos.py
+
+**Status:** PASS
+
+**Description:** The same agent served through AgentOS with a durable queue (Postgres and Redis) and an explicit checkpoint store, driven over HTTP: a background submission polled to completion, then a streamed second turn on the same session.
+
+**Result:** Passed. The background turn COMPLETED with a checkpoint on the run row; the streamed turn returned four events ending in RunCompleted with the file name from turn 1; no containers were left running and the server log had no errors.
+
+---

@@ -104,6 +104,8 @@ if TYPE_CHECKING:
     from agno.os.authz.authorization import Authorization
     from agno.os.authz.provider import AuthorizationProvider
     from agno.os.authz.user_directory import UserDirectory
+    from agno.os.company.config import CompanyConfig
+    from agno.os.company.service import CompanyService
     from agno.os.diagnostics import DiagnosticReport
     from agno.os.manager import OSManager
     from agno.os.manager.manager import _Manager
@@ -331,6 +333,7 @@ class AgentOS:
         internal_service_token: Optional[str] = None,
         public: Optional[Any] = None,
         manager: Optional[Union[bool, "OSManager"]] = None,
+        company: Optional["CompanyConfig"] = None,
     ):
         """Initialize AgentOS.
 
@@ -350,6 +353,8 @@ class AgentOS:
             knowledge: List of knowledge bases to include in the OS
             interfaces: List of interfaces to include in the OS
             manager: Adds an OS Manager team to the OS.
+            company: Opt-in Company Products. Inherits db unless CompanyConfig supplies an override.
+                Initialize Company storage explicitly before serving requests.
             a2a_interface: Whether to expose the OS agents and teams in an A2A server
             config: Configuration file path or AgentOSConfig instance
             settings: API settings for the OS
@@ -423,7 +428,7 @@ class AgentOS:
             scheduler_base_url: Base URL for scheduler HTTP calls (default: http://127.0.0.1:7777)
             internal_service_token: Token for scheduler-to-OS auth (auto-generated if not provided)
         """
-        if not agents and not workflows and not teams and not knowledge and not db:
+        if not agents and not workflows and not teams and not knowledge and not db and company is None:
             raise ValueError("Either agents, teams, workflows, knowledge bases or a database must be provided.")
 
         self.config = load_yaml_config(config) if isinstance(config, str) else config
@@ -457,6 +462,14 @@ class AgentOS:
         self.version = version
         self.description = description
         self.db = db
+        self.company: Optional["CompanyService"] = None
+        if company is not None:
+            from agno.os.company.config import CompanyConfig
+            from agno.os.company.service import CompanyService
+
+            if not isinstance(company, CompanyConfig):
+                raise TypeError("AgentOS.company must be a CompanyConfig")
+            self.company = CompanyService(company.db if company.db is not None else db)
         self.checkpoint = checkpoint
 
         self.telemetry = telemetry
@@ -910,6 +923,11 @@ class AgentOS:
                 ("/service-accounts", "Service Accounts"),
             ]:
                 updated_routers.append(_get_disabled_feature_router(prefix, tag, "db"))
+        if self.company is not None:
+            from agno.os.company.router import get_company_router
+
+            updated_routers.append(get_company_router(self.company))
+
         # Registry router
         if self.registry is not None:
             updated_routers.append(get_registry_router(registry=self.registry))
@@ -1725,6 +1743,11 @@ class AgentOS:
                 ("/service-accounts", "Service Accounts"),
             ]:
                 routers.append(_get_disabled_feature_router(prefix, tag, "db"))
+
+        if self.company is not None:
+            from agno.os.company.router import get_company_router
+
+            routers.append(get_company_router(self.company))
 
         # Registry router
         if self.registry is not None:

@@ -509,6 +509,12 @@ def get_default_scope_mappings() -> Dict[str, List[str]]:
         "POST /service-accounts": ["service_accounts:write"],
         "GET /service-accounts": ["service_accounts:read"],
         "DELETE /service-accounts/*": ["service_accounts:delete"],
+        # Company permissions are additionally restricted by Product ownership in the service.
+        "GET /company/v1/products": ["company:read"],
+        "GET /company/v1/products/*": ["company:read"],
+        "POST /company/v1/products": ["company:write"],
+        "PATCH /company/v1/products/*": ["company:write"],
+        "DELETE /company/v1/products/*": ["company:delete"],
         # Schedule endpoints
         "GET /schedules": ["schedules:read"],
         "GET /schedules/*": ["schedules:read"],

@@ -315,6 +315,8 @@ class BaseDb(ABC):
         learnings_table: Optional[str] = None,
         schedules_table: Optional[str] = None,
         products_table: Optional[str] = None,
+        projects_table: Optional[str] = None,
+        tasks_table: Optional[str] = None,
         schedule_runs_table: Optional[str] = None,
         job_table: Optional[str] = None,
         approvals_table: Optional[str] = None,
@@ -354,6 +356,8 @@ class BaseDb(ABC):
         self.learnings_table_name = learnings_table or "agno_learnings"
         self.schedules_table_name = schedules_table or "agno_schedules"
         self.products_table_name = products_table or "agno_company_products"
+        self.projects_table_name = projects_table or "agno_company_projects"
+        self.tasks_table_name = tasks_table or "agno_company_tasks"
         self.schedule_runs_table_name = schedule_runs_table or "agno_schedule_runs"
         self.job_table_name = job_table or "agno_jobs"
         self.tool_results_table_name = "agno_tool_results"
@@ -450,6 +454,8 @@ class BaseDb(ABC):
             "learnings_table": self.learnings_table_name,
             "schedules_table": self.schedules_table_name,
             "products_table": self.products_table_name,
+            "projects_table": self.projects_table_name,
+            "tasks_table": self.tasks_table_name,
             "schedule_runs_table": self.schedule_runs_table_name,
             "approvals_table": self.approvals_table_name,
             "auth_tokens_table": self.auth_tokens_table_name,
@@ -482,6 +488,8 @@ class BaseDb(ABC):
             learnings_table=data.get("learnings_table"),
             schedules_table=data.get("schedules_table"),
             products_table=data.get("products_table"),
+            projects_table=data.get("projects_table"),
+            tasks_table=data.get("tasks_table"),
             schedule_runs_table=data.get("schedule_runs_table"),
             approvals_table=data.get("approvals_table"),
             auth_tokens_table=data.get("auth_tokens_table"),
@@ -1802,6 +1810,103 @@ class BaseDb(ABC):
         """Restore a deleted Product within the owner scope; otherwise return None."""
         raise NotImplementedError("Company products not supported by the configured database")
 
+    # --- Projects (Optional) ---
+
+    def create_project(self, project_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Create a Project; project_data carries its owner and timestamps."""
+        raise NotImplementedError("Company projects not supported by the configured database")
+
+    def get_project(
+        self, project_id: str, user_id: Optional[str] = None, include_deleted: bool = False
+    ) -> Optional[Dict[str, Any]]:
+        """Read a Project. None user_id is unscoped; a string filters by owner."""
+        raise NotImplementedError("Company projects not supported by the configured database")
+
+    def get_projects(
+        self,
+        user_id: Optional[str] = None,
+        limit: int = 20,
+        page: int = 1,
+        include_deleted: bool = False,
+        product_id: Optional[str] = None,
+        status: Optional[str] = None,
+    ) -> Tuple[List[Dict[str, Any]], int]:
+        """List Projects and their total, filtering by owner before pagination."""
+        raise NotImplementedError("Company projects not supported by the configured database")
+
+    def update_project(self, project_id: str, user_id: Optional[str] = None, **fields: Any) -> Optional[Dict[str, Any]]:
+        """Update descriptive fields on an active Project within the owner scope."""
+        raise NotImplementedError("Company projects not supported by the configured database")
+
+    def delete_project(self, project_id: str, user_id: Optional[str] = None) -> bool:
+        """Soft-delete an active Project within the owner scope."""
+        raise NotImplementedError("Company projects not supported by the configured database")
+
+    def restore_project(self, project_id: str, user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        """Restore a deleted Project within the owner scope; otherwise return None."""
+        raise NotImplementedError("Company projects not supported by the configured database")
+
+    def transition_project(
+        self,
+        project_id: str,
+        target: str,
+        reason: str,
+        user_id: Optional[str] = None,
+        accepted_by: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Transition a visible Project and record the caller and reason."""
+        raise NotImplementedError("Company projects not supported by the configured database")
+
+    # --- Tasks (Optional) ---
+
+    def create_task(self, task_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Create a Task; task_data carries its owner and timestamps."""
+        raise NotImplementedError("Company tasks not supported by the configured database")
+
+    def get_task(
+        self, task_id: str, user_id: Optional[str] = None, include_deleted: bool = False
+    ) -> Optional[Dict[str, Any]]:
+        """Read a Task. None user_id is unscoped; a string filters by owner."""
+        raise NotImplementedError("Company tasks not supported by the configured database")
+
+    def get_tasks(
+        self,
+        user_id: Optional[str] = None,
+        limit: int = 20,
+        page: int = 1,
+        include_deleted: bool = False,
+        product_id: Optional[str] = None,
+        status: Optional[str] = None,
+        project_id: Optional[str] = None,
+    ) -> Tuple[List[Dict[str, Any]], int]:
+        """List Tasks and their total, filtering by owner before pagination."""
+        raise NotImplementedError("Company tasks not supported by the configured database")
+
+    def update_task(self, task_id: str, user_id: Optional[str] = None, **fields: Any) -> Optional[Dict[str, Any]]:
+        """Update descriptive fields on an active Task within the owner scope."""
+        raise NotImplementedError("Company tasks not supported by the configured database")
+
+    def delete_task(self, task_id: str, user_id: Optional[str] = None) -> bool:
+        """Soft-delete an active Task within the owner scope."""
+        raise NotImplementedError("Company tasks not supported by the configured database")
+
+    def restore_task(self, task_id: str, user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        """Restore a deleted Task within the owner scope; otherwise return None."""
+        raise NotImplementedError("Company tasks not supported by the configured database")
+
+    def transition_task(
+        self,
+        task_id: str,
+        target: str,
+        reason: str,
+        user_id: Optional[str] = None,
+        accepted_by: Optional[str] = None,
+        executor_type: Optional[str] = None,
+        executor_id: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Transition a visible task with a reason, recording acceptance for Tasks."""
+        raise NotImplementedError("Company tasks not supported by the configured database")
+
     # --- Schedules (Optional) ---
     # These methods are optional. Override in subclasses to enable scheduler persistence.
     # ``user_id`` scopes the user-facing reads, updates and deletes; ``claim_due_schedule`` and
@@ -2402,6 +2507,8 @@ class AsyncBaseDb(ABC):
         learnings_table: Optional[str] = None,
         schedules_table: Optional[str] = None,
         products_table: Optional[str] = None,
+        projects_table: Optional[str] = None,
+        tasks_table: Optional[str] = None,
         schedule_runs_table: Optional[str] = None,
         job_table: Optional[str] = None,
         approvals_table: Optional[str] = None,
@@ -2434,6 +2541,8 @@ class AsyncBaseDb(ABC):
         self.learnings_table_name = learnings_table or "agno_learnings"
         self.schedules_table_name = schedules_table or "agno_schedules"
         self.products_table_name = products_table or "agno_company_products"
+        self.projects_table_name = projects_table or "agno_company_projects"
+        self.tasks_table_name = tasks_table or "agno_company_tasks"
         self.schedule_runs_table_name = schedule_runs_table or "agno_schedule_runs"
         self.job_table_name = job_table or "agno_jobs"
         self.tool_results_table_name = "agno_tool_results"
@@ -2480,6 +2589,8 @@ class AsyncBaseDb(ABC):
             "learnings_table": self.learnings_table_name,
             "schedules_table": self.schedules_table_name,
             "products_table": self.products_table_name,
+            "projects_table": self.projects_table_name,
+            "tasks_table": self.tasks_table_name,
             "schedule_runs_table": self.schedule_runs_table_name,
             "job_table": self.job_table_name,
             "approvals_table": self.approvals_table_name,
@@ -2505,6 +2616,8 @@ class AsyncBaseDb(ABC):
             learnings_table=data.get("learnings_table"),
             schedules_table=data.get("schedules_table"),
             products_table=data.get("products_table"),
+            projects_table=data.get("projects_table"),
+            tasks_table=data.get("tasks_table"),
             schedule_runs_table=data.get("schedule_runs_table"),
             job_table=data.get("job_table"),
             approvals_table=data.get("approvals_table"),
@@ -3526,6 +3639,105 @@ class AsyncBaseDb(ABC):
     async def restore_product(self, product_id: str, user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """Restore a deleted Product within the owner scope; otherwise return None."""
         raise NotImplementedError("Company products not supported by the configured database")
+
+    # --- Projects (Optional) ---
+
+    async def create_project(self, project_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Create a Project; project_data carries its owner and timestamps."""
+        raise NotImplementedError("Company projects not supported by the configured database")
+
+    async def get_project(
+        self, project_id: str, user_id: Optional[str] = None, include_deleted: bool = False
+    ) -> Optional[Dict[str, Any]]:
+        """Read a Project. None user_id is unscoped; a string filters by owner."""
+        raise NotImplementedError("Company projects not supported by the configured database")
+
+    async def get_projects(
+        self,
+        user_id: Optional[str] = None,
+        limit: int = 20,
+        page: int = 1,
+        include_deleted: bool = False,
+        product_id: Optional[str] = None,
+        status: Optional[str] = None,
+    ) -> Tuple[List[Dict[str, Any]], int]:
+        """List Projects and their total, filtering by owner before pagination."""
+        raise NotImplementedError("Company projects not supported by the configured database")
+
+    async def update_project(
+        self, project_id: str, user_id: Optional[str] = None, **fields: Any
+    ) -> Optional[Dict[str, Any]]:
+        """Update descriptive fields on an active Project within the owner scope."""
+        raise NotImplementedError("Company projects not supported by the configured database")
+
+    async def delete_project(self, project_id: str, user_id: Optional[str] = None) -> bool:
+        """Soft-delete an active Project within the owner scope."""
+        raise NotImplementedError("Company projects not supported by the configured database")
+
+    async def restore_project(self, project_id: str, user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        """Restore a deleted Project within the owner scope; otherwise return None."""
+        raise NotImplementedError("Company projects not supported by the configured database")
+
+    async def transition_project(
+        self,
+        project_id: str,
+        target: str,
+        reason: str,
+        user_id: Optional[str] = None,
+        accepted_by: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Transition a visible Project and record the caller and reason."""
+        raise NotImplementedError("Company projects not supported by the configured database")
+
+    # --- Tasks (Optional) ---
+
+    async def create_task(self, task_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Create a Task; task_data carries its owner and timestamps."""
+        raise NotImplementedError("Company tasks not supported by the configured database")
+
+    async def get_task(
+        self, task_id: str, user_id: Optional[str] = None, include_deleted: bool = False
+    ) -> Optional[Dict[str, Any]]:
+        """Read a Task. None user_id is unscoped; a string filters by owner."""
+        raise NotImplementedError("Company tasks not supported by the configured database")
+
+    async def get_tasks(
+        self,
+        user_id: Optional[str] = None,
+        limit: int = 20,
+        page: int = 1,
+        include_deleted: bool = False,
+        product_id: Optional[str] = None,
+        status: Optional[str] = None,
+        project_id: Optional[str] = None,
+    ) -> Tuple[List[Dict[str, Any]], int]:
+        """List Tasks and their total, filtering by owner before pagination."""
+        raise NotImplementedError("Company tasks not supported by the configured database")
+
+    async def update_task(self, task_id: str, user_id: Optional[str] = None, **fields: Any) -> Optional[Dict[str, Any]]:
+        """Update descriptive fields on an active Task within the owner scope."""
+        raise NotImplementedError("Company tasks not supported by the configured database")
+
+    async def delete_task(self, task_id: str, user_id: Optional[str] = None) -> bool:
+        """Soft-delete an active Task within the owner scope."""
+        raise NotImplementedError("Company tasks not supported by the configured database")
+
+    async def restore_task(self, task_id: str, user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        """Restore a deleted Task within the owner scope; otherwise return None."""
+        raise NotImplementedError("Company tasks not supported by the configured database")
+
+    async def transition_task(
+        self,
+        task_id: str,
+        target: str,
+        reason: str,
+        user_id: Optional[str] = None,
+        accepted_by: Optional[str] = None,
+        executor_type: Optional[str] = None,
+        executor_id: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Transition a visible task with a reason, recording acceptance for Tasks."""
+        raise NotImplementedError("Company tasks not supported by the configured database")
 
     # --- Schedules (Optional) ---
     # These methods are optional. Override in subclasses to enable scheduler persistence.

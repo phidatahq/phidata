@@ -38,6 +38,8 @@ DB_TABLE_NAME_KEYS: frozenset = frozenset(
         "learnings_table",
         "schedules_table",
         "products_table",
+        "projects_table",
+        "tasks_table",
         "schedule_runs_table",
         "approvals_table",
         "auth_tokens_table",

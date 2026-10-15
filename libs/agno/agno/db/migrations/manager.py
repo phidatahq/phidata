@@ -59,6 +59,8 @@ class MigrationManager:
             "components": "components_table_name",
             "schedules": "schedules_table_name",
             "products": "products_table_name",
+            "projects": "projects_table_name",
+            "tasks": "tasks_table_name",
             "schedule_runs": "schedule_runs_table_name",
             "learnings": "learnings_table_name",
         }
@@ -171,6 +173,8 @@ class MigrationManager:
             "components": "components_table_name",
             "schedules": "schedules_table_name",
             "products": "products_table_name",
+            "projects": "projects_table_name",
+            "tasks": "tasks_table_name",
             "schedule_runs": "schedule_runs_table_name",
             "learnings": "learnings_table_name",
         }

@@ -893,8 +893,12 @@ class AgentOS:
         ]
         if self.company is not None:
             from agno.os.routers.company.products import get_products_router
+            from agno.os.routers.company.projects import get_projects_router
+            from agno.os.routers.company.tasks import get_tasks_router
 
             updated_routers.append(get_products_router(db=self._company_db, settings=self.settings))
+            updated_routers.append(get_projects_router(db=self._company_db, settings=self.settings))
+            updated_routers.append(get_tasks_router(db=self._company_db, settings=self.settings))
         # Routes that require a database
         if self.db is not None:
             if isinstance(self.db, BaseDb):
@@ -1711,8 +1715,12 @@ class AgentOS:
         ]
         if self.company is not None:
             from agno.os.routers.company.products import get_products_router
+            from agno.os.routers.company.projects import get_projects_router
+            from agno.os.routers.company.tasks import get_tasks_router
 
             routers.append(get_products_router(db=self._company_db, settings=self.settings))
+            routers.append(get_projects_router(db=self._company_db, settings=self.settings))
+            routers.append(get_tasks_router(db=self._company_db, settings=self.settings))
         # Routes that require a database
         if self.db is not None:
             if isinstance(self.db, BaseDb):

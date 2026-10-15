@@ -159,6 +159,37 @@ async def test_restore_applies_the_captured_native_root_mode(tmp_path):
     assert provider.aexec.call_args.args[1][-1].endswith("n.chmod(0o700)")
 
 
+@pytest.mark.asyncio
+async def test_restore_copies_without_archive_mode_and_pins_sandbox_ownership(tmp_path, monkeypatch):
+    # Archive mode makes the daemon resolve the "1000:1000" container user as a passwd name and fail.
+    exported(tmp_path / "workspace.tar", "workspace", [("workspace/app.py", tarfile.REGTYPE, b"x")])
+    exported(tmp_path / "native.tar", "native", [])
+    provider = DockerSandbox("python:test", namespace="test")
+    provider.aexec = AsyncMock(return_value=SimpleNamespace(exit_code=0))
+    transfer = DockerCheckpointTransfer(provider, FileCheckpointStore(tmp_path / "objects"))
+    transfer._combine(
+        {"workspace": tmp_path / "workspace.tar", "native": tmp_path / "native.tar"}, tmp_path / "result.tar", {}, []
+    )
+    transfer._check_mounts = transfer._pause = transfer._unpause = AsyncMock()
+    reference = transfer.store.put(tmp_path / "result.tar")
+    calls = []
+
+    async def spawn(*args, stdin, **kwargs):
+        with tarfile.open(fileobj=io.BytesIO(stdin.read())) as archive:
+            calls.append((args, [(member.name, member.uid, member.gid) for member in archive]))
+        empty = SimpleNamespace(read=AsyncMock(return_value=b""))
+        return SimpleNamespace(stdout=empty, stderr=empty, returncode=0, wait=AsyncMock(return_value=0))
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", spawn)
+    handle = SandboxHandle("id", "name", "a", "s", 1, "running", "digest")
+    await transfer.arestore(handle, reference)
+    assert [args[1:] for args, _ in calls] == [
+        ("container", "cp", "-", "id:/workspace"),
+        ("container", "cp", "-", "id:/runtime/native"),
+    ]
+    assert calls[0][1] == [("app.py", 1000, 1000)]
+
+
 def test_capture_combine_rejects_wrong_export_root(tmp_path):
     exported(tmp_path / "workspace.tar", "other", [])
     transfer = DockerCheckpointTransfer(

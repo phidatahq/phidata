@@ -84,6 +84,8 @@ class DockerCheckpointTransfer:
     ) -> None:
         # Never ask Docker to extract an untrusted archive on the control-plane
         # host. Capture writes raw bytes; restore sends a validated/repacked tar.
+        # No --archive: on extract it chowns to the container's configured user, which the daemon
+        # resolves as a name in its own passwd and so fails for "uid:gid"; the repacked tar pins ownership.
         stream = input_file.open("rb") if input_file is not None else None
         target = output.open("xb") if output is not None else None
         process = None
@@ -93,7 +95,6 @@ class DockerCheckpointTransfer:
                 self.provider.docker_binary,
                 "container",
                 "cp",
-                "--archive",
                 source,
                 destination,
                 stdin=stream if stream is not None else asyncio.subprocess.DEVNULL,

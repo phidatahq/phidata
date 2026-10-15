@@ -488,7 +488,9 @@ def get_roles_router(
         """
         from agno.os.scopes import get_default_scope_mappings
 
-        mappings = get_default_scope_mappings(company=getattr(request.app.state, "company_enabled", False))
+        mappings = getattr(request.app.state, "scope_mappings", None)
+        if mappings is None:
+            mappings = get_default_scope_mappings()
         raws = {scope for required in mappings.values() for scope in required}
         raws.add("agent_os:admin")
         return [AvailableScopeItem.from_raw(r) for r in sorted(raws)]

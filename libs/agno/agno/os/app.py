@@ -1824,7 +1824,15 @@ class AgentOS:
                     content=_error_body(detail, exc),
                 )
 
-        fastapi_app.state.company_enabled = self.company is not None
+        from agno.os.scopes import get_default_scope_mappings
+
+        scope_mappings = get_default_scope_mappings(company=self.company is not None)
+        # Use each interface's actual mount prefix. Interfaces that authenticate
+        # their own requests are excluded from the central authorization layer.
+        for interface in self.interfaces:
+            if not getattr(interface, "authenticates_own_requests", False):
+                scope_mappings.update(interface.get_scope_mappings())
+        fastapi_app.state.scope_mappings = scope_mappings
 
         # Update CORS middleware
         origin_policy = update_cors_middleware(
@@ -2196,29 +2204,7 @@ class AgentOS:
 
         middleware_kwargs["excluded_route_paths"] = excluded_route_paths
 
-        # Interface routes are authorization-gated by the scope entries each interface
-        # declares (Interface.get_scope_mappings), merged here against its ACTUAL mount
-        # prefix. This covers operator-configurable prefixes (A2A/AGUI(prefix=...)) and
-        # subclasses, which the default scope map (keyed on default prefixes) cannot -- an
-        # interface that runs entities but has no scope entry falls through to the
-        # unmapped-route default (allow). Self-authenticating interfaces are excluded from
-        # the auth layer entirely, so their mappings are irrelevant here.
-        interface_mappings: Dict[str, List[str]] = {}
-        if self.company is not None:
-            from agno.os.scopes import get_default_scope_mappings
-
-            interface_mappings.update(get_default_scope_mappings(company=True))
-        for interface in self.interfaces:
-            if getattr(interface, "authenticates_own_requests", False):
-                continue
-            interface_mappings.update(interface.get_scope_mappings())
-        if interface_mappings:
-            # middleware_kwargs carries no scope_mappings today (AuthorizationConfig has no
-            # such field); the merge is defensive so that if one is ever threaded through,
-            # it wins over interface defaults instead of being clobbered.
-            merged = dict(middleware_kwargs.get("scope_mappings") or {})
-            interface_mappings.update(merged)
-            middleware_kwargs["scope_mappings"] = interface_mappings
+        middleware_kwargs["resolved_scope_mappings"] = fastapi_app.state.scope_mappings
 
         fastapi_app.add_middleware(AuthMiddleware, **middleware_kwargs)
 

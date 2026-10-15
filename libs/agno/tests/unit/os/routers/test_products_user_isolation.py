@@ -176,23 +176,31 @@ def test_service_account_scopes_on_company_routes(tmp_path, authorization):
     assert client.patch("/company/products/missing", json={"name": "Forbidden"}, headers=auth).status_code == 403
     assert client.delete("/company/products/missing", headers=auth).status_code == 403
     assert client.post("/company/products/missing/restore", headers=auth).status_code == 403
+
+    from fastapi import HTTPException, Request
+
+    from agno.os.auth import _authenticate_service_account
+
+    request = Request({"type": "http", "app": app, "method": "POST", "path": "/company/products", "headers": []})
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(_authenticate_service_account(request, token))
+    assert exc.value.status_code == 403
     db.close()
 
 
 @pytest.mark.parametrize("enabled", [False, True])
-def test_product_scopes_catalog_is_opt_in(enabled):
+def test_product_scopes_catalog_is_opt_in(enabled, tmp_path):
     from unittest.mock import MagicMock
-
-    from fastapi import FastAPI
 
     from agno.os.authz.admin_router import get_roles_router
 
     router = get_roles_router(MagicMock())
-    app = FastAPI()
-    app.state.company_enabled = enabled
+    db = SqliteDb(db_file=str(tmp_path / "catalog.db"))
+    app = AgentOS(db=db, company=CompanyConfig() if enabled else None, telemetry=False).get_app()
     app.dependency_overrides[router.dependencies[0].dependency] = lambda: "admin"
     app.include_router(router)
-    response = TestClient(app).get("/authz/scopes")
+    with TestClient(app) as client:
+        response = client.get("/authz/scopes")
     assert response.status_code == 200
     products = {item["raw"] for item in response.json() if item["namespace"] == "products"}
     assert products == (set(ALL_SCOPES) if enabled else set())

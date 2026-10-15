@@ -10,7 +10,11 @@ from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from agno.db.schemas.jobs import QueuedJob
-from agno.os.job_queue import aprepare_accepted_or_abort, normalize_idempotency_key
+from agno.os.job_queue import (
+    aprepare_accepted_or_abort,
+    ensure_duplicate_matches_component,
+    normalize_idempotency_key,
+)
 
 
 async def enqueue_sandbox_run(
@@ -58,14 +62,12 @@ async def enqueue_sandbox_run(
         raise HTTPException(status_code=429, detail="Job queue is full")
     if accepted["reason"] == "duplicate":
         existing = accepted.get("job")
-        if existing is None or any(
-            existing.get(key) != job.get(key) for key in ("component_type", "component_id", "user_id", "session_id")
-        ):
-            raise HTTPException(status_code=409, detail="Idempotency-Key belongs to a different submission scope")
-        # The store stamps its own fields (such as session_seq) onto the payload; compare what was submitted.
-        stored = existing.get("payload") or {}
-        if {key: stored.get(key) for key in payload} != payload:
-            raise HTTPException(status_code=409, detail="Idempotency-Key already has different input or options")
+        if existing is None:
+            raise HTTPException(
+                status_code=409,
+                detail="Idempotency-Key was already used but the original run could not be retrieved",
+            )
+        ensure_duplicate_matches_component(existing, "agent", job["component_id"])
         return existing
     from agno.os.event_streams import get_event_stream
     from agno.run.base import RunStatus

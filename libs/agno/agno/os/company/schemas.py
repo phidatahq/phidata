@@ -229,7 +229,7 @@ class Comment(BaseModel):
 
 class Activity(BaseModel):
     id: UUID
-    product_id: UUID
+    product_id: Optional[UUID] = None
     subject_type: str
     subject_id: UUID
     actor_id: str
@@ -265,7 +265,7 @@ class ListQuery(Input):
     owner_id: Optional[str] = Field(default=None, max_length=200)
     assignee_id: Optional[str] = Field(default=None, max_length=200)
     direct: bool = False
-    subject_type: Optional[Literal["product", "project", "task", "membership", "comment"]] = None
+    subject_type: Optional[Literal["product", "project", "task", "membership", "comment", "file"]] = None
     subject_id: Optional[UUID] = None
 
     @model_validator(mode="after")

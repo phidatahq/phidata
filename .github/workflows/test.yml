@@ -15,8 +15,7 @@ on:
       - "v2.6.0"
       - "feat/v2.7" # Sub-PRs into the release branch get the same gate
       - "feat/v3.0" # Sub-PRs into the 3.0 line get the same gate
-      - "codex/company-manual"
-      - "codex/company-ready-review"
+      - "codex/company-*" # Validate each Company slice in the review stack
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

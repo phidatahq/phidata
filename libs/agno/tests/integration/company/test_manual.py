@@ -18,6 +18,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 
+from agno.db.postgres import PostgresDb
 from agno.db.sqlite import SqliteDb
 from agno.os import AgentOS, Authorization, CompanyConfig
 from agno.os.authz.scope_provider import ScopeAuthorizationProvider
@@ -650,3 +651,17 @@ def test_accepted_task_association_preserves_review_and_counts(setup):
         service.update_task(
             task_id=task["id"], version=task["version"], data=TaskPatch(project_id=project["id"]), **mutation()
         )
+
+
+def test_company_inherits_database_and_explicit_override_wins(setup):
+    db, _, _ = setup
+    auth = Authorization(verification_keys=[KEY], algorithm="HS256")
+    inherited = AgentOS(db=db, company=CompanyConfig(), authorization=auth)
+    assert inherited.company._engine is db.db_engine
+    other = PostgresDb(db_url="postgresql+psycopg://unused:unused@localhost/unused")
+    explicit = AgentOS(db=other, company=CompanyConfig(db=db), authorization=auth)
+    assert explicit.company._engine is db.db_engine
+    with pytest.raises(ValueError, match="PostgreSQL database"):
+        AgentOS(company=CompanyConfig(), authorization=auth)
+    with pytest.raises(ValueError, match="PostgresDb"):
+        AgentOS(db=SqliteDb(db_url="sqlite:///:memory:"), company=CompanyConfig(), authorization=auth)

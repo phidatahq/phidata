@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -403,6 +403,9 @@ class Agent:
     callable_tools_cache_key: Optional[Callable[..., Optional[str]]] = None
     # Custom cache key function for knowledge callable factory
     callable_knowledge_cache_key: Optional[Callable[..., Optional[str]]] = None
+
+    # Keep this agent out of the registry while allowing it to run.
+    _registry_excluded: bool = field(default=False, init=False, repr=False, compare=False)
 
     def __init__(
         self,

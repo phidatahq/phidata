@@ -89,7 +89,7 @@ def test_repository_requires_sandbox_before_ready(setup):
         data=ProductPatch(repository=Repository(url="https://github.com/example/application")),
         **mutation(principal=caller()),
     )
-    with pytest.raises(CompanyError, match="sandboxed Product Engineer"):
+    with pytest.raises(CompanyError, match="sandboxed engineering agent"):
         accept_ready(os.company, task)
     assert os.company.get_task(principal=caller(), task_id=task["id"])["status"] == "backlog"
 
@@ -104,9 +104,7 @@ def engineering_work(setup, monkeypatch):
     from agno.os.company.schemas import ProjectCreate, TaskCreate
 
     os, _ = runtime_os(setup)
-    engineer = CodexAgent(
-        id="product-engineer", name="Product Engineer", db=os.db, sandbox=DockerSandbox(image="fixture")
-    )
+    engineer = CodexAgent(id="codex", name="engineering agent", db=os.db, sandbox=DockerSandbox(image="fixture"))
     os.agents.append(engineer)
     service = os.company
     source = {"url": "https://github.com/example/application", "commit": "a" * 40}
@@ -144,7 +142,7 @@ def test_engineering_pins_source_serializes_product_and_reuses_task_session(setu
         **mutation(principal=caller()),
     )
     second = accept_ready(service, second)
-    with pytest.raises(CompanyError, match="Another Product Engineer"):
+    with pytest.raises(CompanyError, match="Another engineering agent"):
         runtime._reserve(caller(), second["id"], second["version"], "second", "", "ready")
     assert service.get_task(principal=caller(), task_id=second["id"])["status"] == "ready"
     with pytest.raises(CompanyError, match="accepted Tasks"):
@@ -217,7 +215,7 @@ def test_docker_ready_review_and_revision_use_real_repository_checkpoint(setup, 
         env={"AGNO_SANDBOX_TEST_RUNTIME": "1"},
         checkpoints=FileCheckpointStore(tmp_path / "checkpoints"),
     )
-    engineer = CodexAgent(id="product-engineer", name="Product Engineer", db=os.db, sandbox=provider)
+    engineer = CodexAgent(id="codex", name="engineering agent", db=os.db, sandbox=provider)
     # Use the sandbox's explicit fixture protocol, while exercising the real registered adapter path.
     monkeypatch.setattr(engineer, "_sandbox_runtime", "fixture")
     os.agents.append(engineer)

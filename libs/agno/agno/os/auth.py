@@ -93,9 +93,7 @@ def resolve_authorization_provider(app_or_request: Any) -> AuthorizationProvider
     """
     app = getattr(app_or_request, "app", app_or_request)
     provider = getattr(getattr(app, "state", None), "authorization_provider", None)
-    if provider is not None:
-        return provider
-    return _default_authorization_provider()
+    return provider if provider is not None else _default_authorization_provider()
 
 
 def _store_default_role(role_store: Any) -> Optional[str]:

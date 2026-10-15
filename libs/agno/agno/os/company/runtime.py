@@ -44,7 +44,7 @@ class CompanyRuntime:
 
             if not agent.cwd or not Path(agent.cwd).is_dir():
                 raise CompanyError(
-                    409, "workspace_required", "Configure an explicit workspace for the Product Engineer"
+                    409, "workspace_required", "Configure an explicit workspace for the engineering agent"
                 )
         if getattr(agent, "_registry_excluded", False) or agent.id in (
             "platform-manager",
@@ -77,7 +77,7 @@ class CompanyRuntime:
             or getattr(agent, "sandbox", None) is None
             or isinstance(getattr(agent, "sandbox", None), str)
         ):
-            raise CompanyError(409, "sandbox_required", "Repository work requires a sandboxed Product Engineer")
+            raise CompanyError(409, "sandbox_required", "Repository work requires a sandboxed engineering agent")
         try:
             from importlib import import_module
 
@@ -166,7 +166,7 @@ class CompanyRuntime:
                 ).scalar()
                 if busy:
                     raise CompanyError(
-                        409, "product_busy", "Another Product Engineer Task is running; this Task remains Ready"
+                        409, "product_busy", "Another engineering agent Task is running; this Task remains Ready"
                     )
             elif product.get("repository") and project:
                 self._require_engineer(agent)
@@ -190,7 +190,7 @@ class CompanyRuntime:
                 raise CompanyError(
                     409,
                     "engineer_changed",
-                    "Continue with the original Product Engineer and user, or create a new Task",
+                    "Continue with the original engineering agent and user, or create a new Task",
                 )
             prior_result = None
             if previous:
@@ -462,7 +462,7 @@ class CompanyRuntime:
             if row["payload"].get("kwargs", {}).get("repository"):
                 self._require_engineer(self._agent(principal, row["agent_id"]))
                 if (task["agent_id"] or product["agent_id"]) != row["agent_id"]:
-                    raise CompanyError(403, "dispatch_revoked", "Product Engineer assignment changed")
+                    raise CompanyError(403, "dispatch_revoked", "engineering agent assignment changed")
                 if job["payload"].get("kwargs") != row["payload"].get("kwargs"):
                     raise CompanyError(403, "dispatch_mismatch", "Repository source changed after acceptance")
             if task["project_id"]:

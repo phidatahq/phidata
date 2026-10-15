@@ -58,6 +58,8 @@ class CompanyService:
     def __init__(self, config: CompanyConfig, user_directory: Any = None):
         self._config = config
         self.product_manager: Optional["Agent"] = None
+        if config.db is None:
+            raise ValueError("Company requires a PostgreSQL database: set AgentOS(db=...) or CompanyConfig(db=...)")
         self._engine = config.db.db_engine
         self._users = user_directory
         self._runtime: Any = None
@@ -883,7 +885,7 @@ class CompanyService:
                         raise CompanyError(
                             409,
                             "worker_required",
-                            "Configure a sandboxed Product Engineer before accepting repository work",
+                            "Configure a sandboxed engineering agent before accepting repository work",
                         )
                     agent = self._runtime._agent(principal, record["agent_id"] or product["agent_id"])
                     self._runtime._require_engineer(agent)

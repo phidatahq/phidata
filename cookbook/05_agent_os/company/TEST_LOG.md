@@ -132,3 +132,16 @@ fixture harness, not model-generated changes. No PR was merged or deployment mad
 Uses Product Engineer naming, sandbox provider configuration and OSManager(root=...).
 Construction is checked both with and without the optional Manager in the combined
 source tree. Running its lifespan may dispatch accepted work and make provider calls.
+
+
+## Merged Manager and database defaults — 15 October 2026
+
+**Status:** PASS
+
+**Description:** Refreshed against main with the merged Manager. Company inherits
+AgentOS.db unless explicitly overridden. The Company, Manager and run authorization
+suites passed: 334 passed, 1 optional compatibility test skipped.
+
+**Result:** Disposable PostgreSQL persistence, database defaults, override precedence,
+unsupported database rejection, queue authority restoration and Manager permissions
+passed. Format and validation scripts passed. No live provider calls.

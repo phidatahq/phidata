@@ -19,16 +19,16 @@ from agno.os import AgentOS, CompanyConfig
 
 db = PostgresDb(db_url=database_url)
 agent_os = AgentOS(
+    db=db,
     authorization=authorization,
-    company=CompanyConfig(db=db),
+    company=CompanyConfig(),
 )
 app = agent_os.get_app()
 ```
 
 Products, Projects and Tasks are dynamic API records. Omit `company` to leave the
 capability disabled, including its routes, descriptor and background work. Manual
-Company records need no model, manager or runtime database. The explicit Company
-database may differ from AgentOS's runtime database.
+Company records need no model, manager or runtime database. Company defaults to `AgentOS.db`; pass `CompanyConfig(db=...)` to use a separate PostgreSQL database.
 
 ## Enable the built-in Product Manager
 
@@ -53,14 +53,13 @@ Python Company tool calls still require trusted execution context; use AgentOS r
 for authenticated Company work. No custom agent definition is needed.
 
 One reusable Product Manager handles the Products the caller may access. Creating a
-Product creates no agent. Omit `CompanyConfig.model` for model-free manual use; the
-`product_manager` property is then None. There is no implicit model selection or call
-at construction. The built-in uses the AgentOS database, falling back to the explicit
+Product creates no agent. Company uses its explicit model or the first model in the registry. With neither,
+manual APIs remain available and `product_manager` is None. No model calls occur at construction. The built-in uses the AgentOS database, falling back to the explicit
 Company database when no runtime database is configured. Durable execution still needs
 `AgentOS(db=...)` and its durable queue.
 
 Choose a Product's default `agent_id`; a Task can override it. Select `product-manager-internal`
-for housekeeping or add Product Engineer through `agents=[...]` for implementation work.
+for housekeeping or add engineering agent through `agents=[...]` for implementation work.
 Execution requires permission to run that agent as well as Product membership. Enabling
 the built-in does not assign it to existing Products or Tasks. An existing custom agent
 named `product-manager-internal` must be renamed or removed when enabling the built-in.
@@ -173,7 +172,7 @@ login; they do not construct Company identities.
 - `app.py`: model-free server for manual work.
 - `manual.py`: repeatable local operator exercise for human review.
 - `with_agents.py`: built-in Product Manager, durable queue and scheduler; optional OS Manager
-  and sandboxed Product Engineer. Set `PLATFORM_ROOT` for Platform Manager's read-only
+  and sandboxed engineering agent. Set `PLATFORM_ROOT` for Platform Manager's read-only
   source context. Starting with accepted Ready or due recurring Tasks can dispatch
   work and make model calls. See the setup instructions below.
 
@@ -186,7 +185,7 @@ Frontend implementation belongs in the Agno OS repository. See [API.md](API.md)
 for integration details and [TEST_LOG.md](TEST_LOG.md) for executed checks and limits.
 
 
-## AgentOS Product and Product Engineer
+## AgentOS Product and engineering agent
 
 Company setup is explicit and authenticated. After applying migrations, send
 `POST /company/v1/setup` with a human token and an Idempotency-Key:
@@ -194,7 +193,7 @@ Company setup is explicit and authenticated. After applying migrations, send
 ```json
 {
   "repository": {"url": "https://github.com/your-company/your-agentos-app", "branch": "main"},
-  "agent_id": "product-engineer"
+  "agent_id": "codex"
 }
 ```
 
@@ -224,12 +223,12 @@ change that execution identity or pick up a new base commit. Repository changes
 are blocked while accepted work is Ready, In progress or In review.
 
 Successful execution remains In review. Human acceptance or verified merge of the
-reviewer-linked exact PR revision completes it. Product Engineer reports evidence;
+reviewer-linked exact PR revision completes it. engineering agent reports evidence;
 it does not merge or deploy. Recurring Product Tasks can discover work and draft
 Projects/Tasks through Product Manager; repository implementation requires human
 Ready acceptance. There is no separate Project Manager or Task Manager.
 
-`with_agents.py` enables Product Engineer when `SANDBOX_IMAGE` and
+`with_agents.py` enables engineering agent when `SANDBOX_IMAGE` and
 `SANDBOX_CHECKPOINTS` are set. The image needs the sandbox repository workspace
 runtime, Git and the application's toolchain. Checkpoints must be on storage
 reachable by all queue replicas. Public GitHub repositories work without a Git
@@ -237,7 +236,7 @@ credential. For private repositories configure a narrowly scoped `GITHUB_TOKEN`
 in the provider environment; CompanyConfig's token is used only for source/PR
 verification and is never forwarded to compute. No host database or queue
 credentials belong in that environment. `OSManager.root` is read-only source
-context, independent of the Product Engineer checkout.
+context, independent of the engineering agent checkout.
 
 The initial repository adapter supports GitHub HTTPS only. It does not automatically
 publish a branch/PR, install arbitrary application dependencies, merge, or deploy;

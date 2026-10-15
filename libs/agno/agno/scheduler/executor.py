@@ -324,7 +324,11 @@ class ScheduleExecutor:
             return await self._company._execute_schedule(schedule)
         method = (schedule.method or "POST").upper()
         endpoint = schedule.endpoint
-        payload = schedule.payload or {}
+        from agno.run.authorization import AUTHORIZATION_HEADER, AUTHORIZATION_KEY
+
+        payload = dict(schedule.payload or {})
+        has_authority = AUTHORIZATION_KEY in payload
+        snapshot = payload.pop(AUTHORIZATION_KEY, None)
         timeout_seconds = schedule.timeout_seconds or self.timeout
         url = f"{self.base_url}{endpoint}"
 
@@ -334,6 +338,8 @@ class ScheduleExecutor:
         headers: Dict[str, str] = {
             "Authorization": f"Bearer {self.internal_service_token}",
         }
+        if has_authority:
+            headers[AUTHORIZATION_HEADER] = json.dumps(snapshot, ensure_ascii=True)
         if schedule.user_id is not None:
             # Percent-encoded: header values must be latin-1, and padded ids stay distinct from bare ones
             headers[SCHEDULE_OWNER_HEADER] = quote(schedule.user_id, safe="")

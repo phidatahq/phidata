@@ -426,8 +426,6 @@ Coordinator review follow-up: native transcript-mirror warnings and lost pre-che
 
 ---
 
----
-
 ### sandbox_claude_agentcore.py
 
 **Status:** PASS

@@ -37,6 +37,10 @@ def validate_request(request: Dict[str, Any]) -> None:
         "codex_bin",
     } & set(request.get("config", {})):
         raise ValueError("Runtime owns database, workspace, identity, process environment and retry configuration")
+    if "_repository" in request.get("config", {}):
+        from agno.sandbox.repository import validate_repository
+
+        validate_repository(request["config"]["_repository"])
     timeout = request.get("execution_timeout", 900)
     if not isinstance(timeout, (float, int)) or not math.isfinite(timeout) or not 0 < timeout <= 86400:
         raise ValueError("Runtime execution timeout must be between 0 and 86400 seconds")

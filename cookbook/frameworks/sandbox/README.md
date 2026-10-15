@@ -230,3 +230,25 @@ curl -X POST http://localhost:7777/agents/coder/runs \
 Keep the returned run ID. Reconnect with `POST /agents/coder/runs/{run_id}/resume` using form fields `session_id` and optionally `last_event_index`; cancel with `POST /agents/coder/runs/{run_id}/cancel?session_id=example`. Reusing an idempotency key requires the same session ID, input and options. Conflicting submissions return 409. Streaming terminal success follows the durable checkpoint commit. Retained indexed events support replay after the live Redis view expires; content deltas follow the agent's `events_to_skip` policy.
 
 Agent settings travel to the sandbox as JSON, including structured-output schemas; callbacks, native option objects (`options`, `client_options`) and host paths (`cwd`, `codex_bin`) are rejected when the agent is constructed. Running a native `Agent` inside a sandbox is not supported yet: `Agent(sandbox=...)` raises. File/image inputs, step replay/fork, version-pinned instances and arbitrary per-turn SDK options are explicitly rejected pending checkpoint-aware integrations. Do not use the ordinary session deletion API to retire sandbox resources; coordinated lifecycle/retention is a separate follow-up. A failed checkpoint upload retries finalization without repeating the model. If the configured queue attempts are exhausted, compute is removed and the turn fails visibly while retaining the previous checkpoint. External effects can still repeat after execution crashes and need application idempotency.
+
+## Pinned repository workspaces
+
+`repository_workspace.py` runs Product Engineer (a regular CodexAgent) with
+`repository={"url": "https://github.com/owner/repository", "commit": "<40-character SHA>"}`.
+ClaudeAgent accepts the same run option. Both sync and async runs use the same
+sandbox runtime preparation. Supply the same repository and commit on later turns
+of that session. The runtime prepares `/workspace/repository` before starting the
+model; it verifies the checkout SHA and records its source in the native checkpoint.
+Subsequent turns preserve commits, dirty files and the native conversation. A
+missing or mismatched source checkpoint fails before the model starts.
+
+Build an image with this runtime and Git. Use `network="isolated"` for GitHub/model
+access. Set `SANDBOX_DATABASE_URL`, `SANDBOX_IMAGE`, `SANDBOX_CHECKPOINTS`,
+`REPOSITORY_URL`, `REPOSITORY_COMMIT` and `ENGINEER_SESSION_ID`, then run the cookbook.
+It makes a model call. Checkpoint storage must be accessible to all queue replicas.
+The initial adapter accepts GitHub HTTPS URLs only, without embedded credentials,
+and full immutable commit SHAs. A private repository can use `GITHUB_TOKEN` in the
+sandbox provider's environment. Credentials are never stored in the repository URL
+or source marker; Git errors are redacted. Branch resolution, Task acceptance and
+human completion review belong to Company. This runtime does not create PRs, merge
+or deploy. The prepared application's toolchain belongs in the trusted runtime image.

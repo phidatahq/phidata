@@ -185,13 +185,18 @@ def submission(agent: "BaseExternalAgent", input: Any, kwargs: Dict[str, Any]) -
     extra = {key: value for key, value in kwargs.items() if value is not None}
     for key in ("run_id", "session_id", "user_id", "yield_run_output", "stream_events", "background_tasks"):
         extra.pop(key, None)
-    unknown = set(extra) - {"output_schema"}
+    unknown = set(extra) - {"output_schema", "repository"}
     if unknown:
         raise ValueError("Unsupported sandbox run options: " + ", ".join(sorted(unknown)))
     schema = extra.get("output_schema", agent.output_schema)
     agent._check_output_schema(schema)
     if schema is not None and not isinstance(schema, dict):
         schema = schema.model_json_schema()
+    config = _config(agent, schema)
+    if extra.get("repository") is not None:
+        from agno.sandbox.repository import validate_repository
+
+        config["_repository"] = validate_repository(extra["repository"])
     runtime = agent._sandbox_runtime
     validate_request(
         dict(
@@ -202,11 +207,11 @@ def submission(agent: "BaseExternalAgent", input: Any, kwargs: Dict[str, Any]) -
             session_id="validate",
             sdk="claude" if runtime == "fixture" else runtime,
             input=input,
-            config=_config(agent, schema),
+            config=config,
             execution_timeout=_sandbox(agent).execution_timeout,
         )
     )
-    return {"output_schema": schema} if schema is not None else {}
+    return {"config": config, "output_schema": schema}
 
 
 def _execution(agent: "BaseExternalAgent", input: Any, kwargs: Dict[str, Any]) -> Dict[str, Any]:
@@ -222,7 +227,7 @@ def _execution(agent: "BaseExternalAgent", input: Any, kwargs: Dict[str, Any]) -
         sdk=agent._sandbox_runtime,
         user_id=kwargs.get("user_id"),
         agent_name=agent.name,
-        config=_config(agent, options.get("output_schema")),
+        config=options["config"],
         env=env(agent),
         queue_attempt=owner.attempt if owner is not None else None,
         execution_timeout=_sandbox(agent).execution_timeout,

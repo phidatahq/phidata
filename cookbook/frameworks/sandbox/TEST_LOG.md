@@ -282,3 +282,16 @@ Coordinator review follow-up: native transcript-mirror warnings and lost pre-che
 **Result:** `test_agentos.py` 12 passed (foreground, background, streaming, idempotency, same-session admission, retained replay, finalization-only retry, active and between-attempt cancellation, retry exhaustion, SDK background, missing queue, detached SDK cancel). `test_coordinator.py` 32 passed and `test_postgres.py` 55 passed, 1 skipped, both adapters. Docker 27.4 needed the same local-only workaround as the coordinator PR (passwd entry for uid 1000 in the image, numeric `--user`), not committed. No model calls.
 
 ---
+
+## Pinned repository workspace — 15 October 2026
+
+### repository_workspace.py and repository runtime tests
+
+**Status:** PASS for runtime preparation and deterministic integration; no live model run.
+
+Real Git tests verify checkout at the requested commit, checkpoint source identity,
+working-file preservation on resume, malformed/credential-bearing URL rejection and
+failure when source identity is missing. Sandbox, model and database regression tests
+passed (758 tests before the final documentation pass). A combined Company integration
+executed two fixture turns through real Docker, public GitHub checkout, PostgreSQL and
+checkpoint restore. Model-generated application changes remain a separate pilot.

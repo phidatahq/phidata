@@ -7,7 +7,6 @@ credentials. Its journal reports execution finished, not durable run completion.
 from __future__ import annotations
 
 import argparse
-from contextlib import suppress
 import asyncio
 import fcntl
 import hashlib
@@ -17,7 +16,7 @@ import os
 import subprocess
 import sys
 import time
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from pathlib import Path
 from typing import Any, Dict, Iterator, Optional
 
@@ -208,9 +207,10 @@ def _agent(request: Dict[str, Any], native: Path) -> Any:
     # database. It has no network credentials and is checkpointed after SDK drain.
     db = SqliteDb(db_file=str(native / "history.db"))
     config = dict(request.get("config", {}))
+    repository = config.pop("_repository", None)
     config.update(
         id=request["agent_id"],
-        cwd="/workspace",
+        cwd="/workspace/repository" if repository else "/workspace",
         db=db,
         retries=0,
         keep_uploads=True,
@@ -228,6 +228,19 @@ def _agent(request: Dict[str, Any], native: Path) -> Any:
 
 
 async def _execute(directory: Path, request: Dict[str, Any]) -> Dict[str, Any]:
+    if (directory.parent.parent / "native" / "repository.json").exists() and not request.get("config", {}).get(
+        "_repository"
+    ):
+        raise ValueError("Continue this session with its pinned repository")
+    if request.get("config", {}).get("_repository") is not None:
+        from agno.sandbox.repository import _aprepare
+
+        await _aprepare(
+            request["config"]["_repository"],
+            Path(os.environ.get("AGNO_SANDBOX_WORKSPACE", "/workspace")),
+            directory.parent.parent / "native",
+            resume=request.get("native_session_id") is not None,
+        )
     if request["sdk"] == "fixture":
         return await _fixture(directory, request)
     from agno.run.agent import RunOutput

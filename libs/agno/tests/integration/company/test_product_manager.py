@@ -55,12 +55,10 @@ def test_builtin_is_reused_across_products_and_resync_without_mutating_callers(s
     manager = os.company.product_manager
     assert agents == []
     assert isinstance(manager, Agent)
-    assert manager.id == "product-manager" and manager.db is setup[0]
+    assert manager.id == "product-manager-internal" and manager.db is setup[0]
     assert callable(manager.run) and callable(manager.arun)
     assert [t.name for t in manager.tools] == ["company"]
-    assert {"set_review_pull_request", "transition_task", "create_product", "set_schedule"}.isdisjoint(
-        manager.tools[0].get_functions()
-    )
+    assert {"set_review_pull_request", "transition_task", "set_schedule"}.isdisjoint(manager.tools[0].get_functions())
     app = os.get_app()
     for _ in range(2):
         os.resync(app)
@@ -84,7 +82,7 @@ def test_manual_company_does_not_create_product_manager(setup):
 
 
 def test_builtin_rejects_conflicting_custom_agent_id(setup):
-    custom = Agent(id="product-manager", model=LocalModel())
+    custom = Agent(id="product-manager-internal", model=LocalModel())
     agents = [custom]
     with pytest.raises(ValueError, match="built-in Product Manager"):
         builtin_os(setup, agents=agents)
@@ -97,16 +95,20 @@ def test_builtin_http_and_durable_task_runs_keep_initiating_users_access(setup):
     assert os.company.product_manager.db is original.db
     with TestClient(os.get_app()) as client:
         product = os.company.create_product(
-            data=ProductCreate(name="Documentation", agent_id="product-manager"), **mutation(principal=caller())
+            data=ProductCreate(name="Documentation", agent_id="product-manager-internal"),
+            **mutation(principal=caller()),
         )
         client.headers["Authorization"] = "Bearer " + token(scopes=(*SCOPES, "agents:run"))
-        response = client.post("/agents/product-manager/runs", data={"message": "List my Products", "stream": "false"})
+        response = client.post(
+            "/agents/product-manager-internal/runs", data={"message": "List my Products", "stream": "false"}
+        )
         assert response.status_code == 200, response.text
         assert "Documentation" in response.json()["content"]
         # A different caller may run the same built-in but cannot see this Product.
         client.headers["Authorization"] = "Bearer " + token(who="mallory", scopes=(*SCOPES, "agents:run"))
         denied = client.post(
-            "/agents/product-manager/runs", data={"message": "List my Products", "stream": "false", "user_id": "alice"}
+            "/agents/product-manager-internal/runs",
+            data={"message": "List my Products", "stream": "false", "user_id": "alice"},
         )
         assert denied.status_code == 200, denied.text
         assert "Documentation" not in denied.json()["content"]
@@ -131,3 +133,14 @@ def test_builtin_http_and_durable_task_runs_keep_initiating_users_access(setup):
             time.sleep(0.02)
         assert result.status_code == 200, result.text
         assert "Documentation" in str(result.json()["content"])
+
+
+def test_builtin_summary_metadata_and_reserved_id_when_disabled(setup):
+    from agno.os.schema import AgentSummaryResponse
+
+    os = builtin_os(setup)
+    assert AgentSummaryResponse.from_agent(os.company.product_manager).metadata == {
+        "_agno": {"internal": True, "id": "product-manager-internal"}
+    }
+    with pytest.raises(ValueError, match="reserves id"):
+        AgentOS(agents=[Agent(id="product-manager-internal", model=LocalModel())])

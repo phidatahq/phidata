@@ -261,7 +261,7 @@ def test_pr_link_is_human_review_only_and_merge_is_audited_once(setup, monkeypat
                 task_id=task["id"],
                 version=task["version"],
                 data=PullRequestReview(url=URL, head_sha=SHA),
-                **mutation(principal=replace(caller(), agent_id="agent:product-manager")),
+                **mutation(principal=replace(caller(), agent_id="agent:product-manager-internal")),
             )
         client.headers["Authorization"] = "Bearer " + token(scopes=(*SCOPES, "agents:run"))
         response = client.put(
@@ -403,7 +403,9 @@ def test_v5_upgrade_does_not_silently_run_legacy_ready_tasks(setup):
             "automation_error",
         ):
             conn.exec_driver_sql("ALTER TABLE agno_company.tasks DROP COLUMN " + name)
-        conn.exec_driver_sql("DELETE FROM agno_company.schema_version WHERE version=6")
+        conn.exec_driver_sql("ALTER TABLE agno_company.tasks DROP COLUMN source")
+        conn.exec_driver_sql("ALTER TABLE agno_company.products DROP COLUMN repository, DROP COLUMN builtin")
+        conn.exec_driver_sql("DELETE FROM agno_company.schema_version WHERE version>=6")
     migrate(db)
     migrate(db)
     current = service.get_task(principal=principal(), task_id=task["id"])
@@ -444,7 +446,7 @@ def test_failed_ready_run_requires_deliberate_retry(setup, monkeypatch):
 def test_ready_progression_composes_with_manager(setup, tmp_path):
     import agno.os as os_module
 
-    manager_config = getattr(os_module, "ManagerConfig", None)
+    manager_config = getattr(os_module, "OSManager", None)
     if manager_config is None:
         pytest.skip("Combine with Manager to test composition")
     from test_execution import LocalModel
@@ -457,7 +459,7 @@ def test_ready_progression_composes_with_manager(setup, tmp_path):
         company=CompanyConfig(db=setup[0], model=LocalModel()),
         user_directory=setup[1],
         authorization=Authorization(verification_keys=[KEY], algorithm="HS256", audience="company-test"),
-        manager=manager_config(model=LocalModel(), workspace=str(tmp_path)),
+        manager=manager_config(model=LocalModel(), root=str(tmp_path)),
         queue=QueueConfig(durable=True, poll_interval=0.02),
         scheduler=True,
         scheduler_poll_interval=1,
@@ -465,10 +467,9 @@ def test_ready_progression_composes_with_manager(setup, tmp_path):
     product_manager = os.company.product_manager
     assert product_manager is not None
     assert {m.id for m in os.manager.members} == {
-        "platform-manager",
-        "platform-builder",
-        "platform-engineer",
-        "product-manager",
+        "platform-manager-internal",
+        "platform-builder-internal",
+        "product-manager-internal",
     }
     app = os.get_app()
     os.resync(app)

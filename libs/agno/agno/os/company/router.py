@@ -18,6 +18,7 @@ from agno.os.company.schemas import (
     Caller,
     Comment,
     CommentCreate,
+    CompanySetup,
     ListQuery,
     MemberCreate,
     MemberPatch,
@@ -115,6 +116,16 @@ def _etag(response: Response, result: dict) -> dict:
 
 def get_company_router(service: CompanyService) -> APIRouter:
     router = APIRouter(prefix="/company/v1", tags=["Company"], route_class=CompanyRoute)
+
+    @router.post("/setup", response_model=Product)
+    async def setup_agentos(
+        data: CompanySetup,
+        response: Response,
+        headers: dict = Depends(mutation_headers),
+        principal: Principal = Depends(principal_from_request),
+    ) -> Any:
+        headers.pop("version", None)
+        return _etag(response, await service.asetup_agentos(principal=principal, data=data, **headers))
 
     @router.get("/me", response_model=Caller)
     async def me(principal: Principal = Depends(principal_from_request)) -> Any:

@@ -171,7 +171,7 @@ def test_company_tools_identity_scope_summary_and_human_review(setup):
     _, _, service = setup
     product, project, task = journey(service)
     tools = CompanyTools()
-    agent = SimpleNamespace(id="product-manager")
+    agent = SimpleNamespace(id="product-manager-internal")
     context = RunContext(run_id="manager-run", session_id="manager-session", user_id="alice")
     with pytest.raises(CompanyError, match="verified"):
         tools.list_products(agent, context)
@@ -199,7 +199,7 @@ def test_company_tools_identity_scope_summary_and_human_review(setup):
         assert summary["instructions"] == project["instructions"] and summary["summary"] == "Two setup checks remain"
         with pytest.raises(CompanyError, match="Tasks changed"):
             tools.update_summary(project["id"], summary["version"], "Stale", {task["id"]: 1}, "stale", agent, context)
-        agent_principal = replace(principal(), agent_id="agent:product-manager", product_id=product["id"])
+        agent_principal = replace(principal(), agent_id="agent:product-manager-internal", product_id=product["id"])
         with pytest.raises(CompanyError, match="human"):
             service.transition_task(
                 task_id=task["id"], version=1, data=Transition(to_status="ready"), **mutation(principal=agent_principal)
@@ -212,7 +212,9 @@ def test_company_tools_identity_scope_summary_and_human_review(setup):
     finally:
         current_company.reset(scope)
     activity = service.list_activity(principal=principal())["data"]
-    assert any(a["actor_id"] == "agent:product-manager" and a["initiating_principal_id"] == "alice" for a in activity)
+    assert any(
+        a["actor_id"] == "agent:product-manager-internal" and a["initiating_principal_id"] == "alice" for a in activity
+    )
 
 
 def test_recurring_task_schedule_adapter_pause_group_and_fresh_sessions(setup):
@@ -407,7 +409,7 @@ def test_housekeeping_uses_worker_context_and_preserves_human_plan(setup):
 def test_manager_team_delegates_company_tools_with_verified_identity(setup, tmp_path):
     import agno.os as os_module
 
-    manager_config = getattr(os_module, "ManagerConfig", None)
+    manager_config = getattr(os_module, "OSManager", None)
     if manager_config is None:
         pytest.skip("Combine with Manager to test composition")
 
@@ -419,7 +421,7 @@ def test_manager_team_delegates_company_tools_with_verified_identity(setup, tmp_
                 return ModelResponse(role="assistant", content=str(responses[-1].content))
             name = "delegate_task_to_member" if "delegate_task_to_member" in tools else "list_products"
             arguments = (
-                {"member_id": "product-manager", "task": "List the Company Products"}
+                {"member_id": "product-manager-internal", "task": "List the Company Products"}
                 if name == "delegate_task_to_member"
                 else {}
             )
@@ -445,22 +447,21 @@ def test_manager_team_delegates_company_tools_with_verified_identity(setup, tmp_
         company=CompanyConfig(db=db, model=DelegateModel()),
         user_directory=users,
         authorization=Authorization(verification_keys=[KEY], algorithm="HS256", audience="company-test"),
-        manager=manager_config(model=DelegateModel(), workspace=str(tmp_path)),
+        manager=manager_config(model=DelegateModel(), root=str(tmp_path)),
         queue=QueueConfig(durable=True, poll_interval=0.02),
     )
     product_manager = os.company.product_manager
     assert product_manager is not None
     assert {m.id for m in os.manager.members} == {
-        "platform-manager",
-        "platform-builder",
-        "platform-engineer",
-        "product-manager",
+        "platform-manager-internal",
+        "platform-builder-internal",
+        "product-manager-internal",
     }
     assert all(t.name == "company" for t in product_manager.tools)
     with TestClient(os.get_app()) as client:
         client.headers["Authorization"] = "Bearer " + token(scopes=(*SCOPES, "agents:run"))
         direct = client.post(
-            "/agents/product-manager/runs", data={"message": "List the Company Products", "stream": "false"}
+            "/agents/product-manager-internal/runs", data={"message": "List the Company Products", "stream": "false"}
         )
         assert direct.status_code == 200, direct.text
         assert "Documentation" in direct.json()["content"]

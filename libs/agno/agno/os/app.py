@@ -945,6 +945,10 @@ class AgentOS:
             seen_ids: set[str] = set()
             for entity in entities:
                 entity_id = entity.id
+                if entity_id == "product-manager-internal" and (
+                    self.company is None or entity is not self.company.product_manager
+                ):
+                    raise ValueError("The built-in Product Manager reserves id 'product-manager-internal'")
                 if entity_id is None:
                     continue
                 if entity_id in seen_ids:

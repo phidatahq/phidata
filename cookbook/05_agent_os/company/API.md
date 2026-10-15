@@ -124,7 +124,7 @@ Worker dispatch additionally checks `agents:{id}:run` or the provider's equivale
 Company access grants no platform or builder access.
 
 Set `CompanyConfig(db=db, model=model)` to register the framework Product Manager as
-`product-manager`. It uses the existing agent list/detail/run APIs and automatically
+`product-manager-internal`. It uses the existing agent list/detail/run APIs and automatically
 joins an enabled OS Manager Team. It is reusable across Products; membership checks
 remain per caller and Product. Omit `model` to keep Company manual and model-free.
 The OS Manager requires platform administration; direct Product Manager execution
@@ -167,3 +167,16 @@ before starting this release. A fresh database uses the current initializer; ver
 pilot databases receive the Ready/review upgrade without enrolling existing Ready
 Tasks. Reaccept those Tasks after returning to Backlog. Legacy In-review Tasks remain
 manually acceptable; a fresh review is needed for automatic PR completion.
+
+
+### Authenticated setup and repository source
+
+`POST /company/v1/setup` accepts optional `repository: {url, branch}` and `agent_id`.
+It requires a verified human with Company administration and an Idempotency-Key.
+It returns the single built-in AgentOS Product; subsequent calls never reset it.
+Products now include nullable `repository` and `builtin` fields. Product create/
+patch support `repository`; only humans configure it. Tasks and run results include
+nullable `source: {url, commit}` for the accepted immutable execution source.
+Ready acceptance for a repository Task requires a sandboxed CodexAgent or
+ClaudeAgent and installed sandbox repository workspace support. Repository Tasks
+must belong to a Project so execution always has a review boundary.

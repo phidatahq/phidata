@@ -108,3 +108,27 @@ human review boundaries and repeated resync. Composition required retaining both
 additive exports/constructor fields in `os/__init__.py` and `os/app.py`. Neither the
 Manager PR nor the concurrent primary checkout was changed. Future Manager changes
 need another compatibility run.
+
+## Product Engineer slice — 15 October 2026
+
+### Authenticated setup, planning and execution
+
+**Status:** PASS (deterministic providers; live model behavior not exercised).
+
+Company setup creates one human-owned AgentOS Product and preserves edits across
+repeat/concurrent calls. Product Manager creates Products under the caller's
+administration grant without choosing owner/worker/repository authority. Repository
+Tasks pin source on Ready, serialize engineering per Product, and reuse Task sessions
+for revisions. Revoked users and tampered queued source are rejected.
+
+A disposable composition with OS Manager 7e6bf110 and sandbox 56ee4ad plus the
+repository extension passed the Company and Manager regression suite. Two real
+Docker runs used GitHub checkout, durable PostgreSQL queueing, checkpoint restore
+into a fresh container and In-review persistence. They used the credential-free
+fixture harness, not model-generated changes. No PR was merged or deployment made.
+
+### with_agents.py
+
+Uses Product Engineer naming, sandbox provider configuration and OSManager(root=...).
+Construction is checked both with and without the optional Manager in the combined
+source tree. Running its lifespan may dispatch accepted work and make provider calls.

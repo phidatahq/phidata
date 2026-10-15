@@ -30,22 +30,28 @@ class CompanyRuntime:
 
     def _agent(self, principal: Principal, agent_id: Optional[str]) -> Any:
         from agno.agent import Agent
+        from agno.agents.claude import ClaudeAgent
         from agno.agents.codex import CodexAgent
 
         agent = next((a for a in self.os.agents or [] if a.id == agent_id), None)
-        if agent is None or not isinstance(agent, (Agent, CodexAgent)) or agent.db is None:
+        if agent is None or not isinstance(agent, (Agent, CodexAgent, ClaudeAgent)) or agent.db is None:
             raise CompanyError(
-                409, "worker_required", "Select a registered Agent or CodexAgent with persistent storage"
+                409, "worker_required", "Select a registered Agent, CodexAgent or ClaudeAgent with persistent storage"
             )
-        if isinstance(agent, CodexAgent):
+        sandbox = getattr(agent, "sandbox", None)
+        if isinstance(agent, (CodexAgent, ClaudeAgent)) and (sandbox is None or isinstance(sandbox, str)):
             from pathlib import Path
 
             if not agent.cwd or not Path(agent.cwd).is_dir():
-                raise CompanyError(409, "workspace_required", "Configure an explicit workspace for the coding agent")
+                raise CompanyError(
+                    409, "workspace_required", "Configure an explicit workspace for the Product Engineer"
+                )
         if getattr(agent, "_registry_excluded", False) or agent.id in (
             "platform-manager",
             "platform-builder",
             "platform-engineer",
+            "platform-manager-internal",
+            "platform-builder-internal",
         ):
             raise CompanyError(403, "platform_worker", "Platform specialists cannot be Company task workers")
         if not principal.provider.check(
@@ -61,6 +67,42 @@ class CompanyRuntime:
         ):
             raise CompanyError(403, "worker_forbidden", "This worker is not authorized for the caller")
         return agent
+
+    def _require_engineer(self, agent: Any) -> None:
+        from agno.agents.claude import ClaudeAgent
+        from agno.agents.codex import CodexAgent
+
+        if (
+            not isinstance(agent, (CodexAgent, ClaudeAgent))
+            or getattr(agent, "sandbox", None) is None
+            or isinstance(getattr(agent, "sandbox", None), str)
+        ):
+            raise CompanyError(409, "sandbox_required", "Repository work requires a sandboxed Product Engineer")
+        try:
+            from importlib import import_module
+
+            import_module("agno.sandbox.repository")
+        except ImportError as exc:
+            raise CompanyError(
+                409,
+                "sandbox_upgrade_required",
+                "Install sandbox repository workspace support before running repository work",
+            ) from exc
+
+    def _source(self, conn: Any, product: Dict[str, Any], task: Dict[str, Any]) -> Dict[str, str]:
+        from agno.os.company.repository import _resolve_commit
+
+        previous = _row(
+            conn,
+            "SELECT payload FROM agno_company.task_runs WHERE task_id=:id AND NOT skipped ORDER BY created_at DESC LIMIT 1",
+            id=task["id"],
+        )
+        source = previous["payload"].get("kwargs", {}).get("repository") if previous else None
+        if source:
+            if source["url"] != product["repository"]["url"]:
+                raise CompanyError(409, "source_changed", "Create a new Task when changing repositories")
+            return source
+        return _resolve_commit(product["repository"], self.service._config.github_token)
 
     def _reserve(
         self, principal: Principal, task_id: str, version: int, key: str, message: str, trigger: str
@@ -105,6 +147,29 @@ class CompanyRuntime:
             if not task["instructions"]:
                 raise CompanyError(409, "instructions_required", "Add instructions before running the Task")
             agent = self._agent(principal, task["agent_id"] or product["agent_id"])
+            repository = None
+            if product.get("repository") and getattr(agent, "sandbox", None) is not None:
+                self._require_engineer(agent)
+                if not project or not task.get("source") or not task["accepted_by"]:
+                    raise CompanyError(
+                        409,
+                        "acceptance_required",
+                        "Repository work requires a Project Task accepted as Ready by a human",
+                    )
+                repository = task["source"]
+                if repository["url"] != product["repository"]["url"]:
+                    raise CompanyError(409, "source_changed", "Accept this repository again before execution")
+                busy = _query(
+                    conn,
+                    "SELECT 1 FROM agno_company.task_runs r JOIN agno_company.tasks t ON t.id=r.task_id WHERE t.product_id=:id AND NOT r.released AND r.payload->'kwargs' ? 'repository' LIMIT 1",
+                    id=product["id"],
+                ).scalar()
+                if busy:
+                    raise CompanyError(
+                        409, "product_busy", "Another Product Engineer Task is running; this Task remains Ready"
+                    )
+            elif product.get("repository") and project:
+                self._require_engineer(agent)
             active = _row(conn, "SELECT id FROM agno_company.task_runs WHERE task_id=:id AND NOT released", id=task_id)
             if active and trigger != "schedule":
                 raise CompanyError(409, "run_active", "This Task already has an active run")
@@ -114,8 +179,19 @@ class CompanyRuntime:
                 id=task_id,
             )
             session_id = (
-                previous["session_id"] if project and previous and previous["agent_id"] == agent.id else str(uuid4())
+                previous["session_id"]
+                if project
+                and previous
+                and previous["agent_id"] == agent.id
+                and previous["initiating_principal_id"] == principal.id
+                else str(uuid4())
             )
+            if repository and previous and previous["session_id"] != session_id:
+                raise CompanyError(
+                    409,
+                    "engineer_changed",
+                    "Continue with the original Product Engineer and user, or create a new Task",
+                )
             prior_result = None
             if previous:
                 prior_agent = next((a for a in self.os.agents or [] if a.id == previous["agent_id"]), None)
@@ -152,7 +228,13 @@ class CompanyRuntime:
                 agent=agent.id,
                 who=principal.id,
                 principal=_json(self._saved(principal)),
-                payload=_json({"input": _json(prompt), "kwargs": {}, "scope": {"source": "registry"}}),
+                payload=_json(
+                    {
+                        "input": _json(prompt),
+                        "kwargs": {"repository": repository} if repository else {},
+                        "scope": {"source": "registry"},
+                    }
+                ),
                 hash=request_hash,
                 session=session_id,
                 trigger=trigger,
@@ -281,6 +363,7 @@ class CompanyRuntime:
             "created_at": row["created_at"],
             "result_url": "/company/v1/tasks/" + str(row["task_id"]) + "/runs/" + str(row["id"]),
             "status": "skipped" if row["skipped"] else status,
+            "source": row["payload"].get("kwargs", {}).get("repository"),
         }
 
     async def alist_runs(self, *, principal: Principal, task_id: str) -> Dict[str, Any]:
@@ -376,6 +459,12 @@ class CompanyRuntime:
                 or job["session_id"] != row["session_id"]
             ):
                 raise CompanyError(403, "dispatch_mismatch", "Task execution does not match its saved authority")
+            if row["payload"].get("kwargs", {}).get("repository"):
+                self._require_engineer(self._agent(principal, row["agent_id"]))
+                if (task["agent_id"] or product["agent_id"]) != row["agent_id"]:
+                    raise CompanyError(403, "dispatch_revoked", "Product Engineer assignment changed")
+                if job["payload"].get("kwargs") != row["payload"].get("kwargs"):
+                    raise CompanyError(403, "dispatch_mismatch", "Repository source changed after acceptance")
             if task["project_id"]:
                 parent = _row(conn, "SELECT state FROM agno_company.projects WHERE id=:id", id=task["project_id"])
                 if parent is None or parent["state"] != "active":
@@ -662,6 +751,7 @@ class CompanyRuntime:
                 run_id=str(row["id"]), session_id=row["session_id"], user_id=row["initiating_principal_id"]
             )
         result["content"] = getattr(output, "content", None)
+        result["source"] = row["payload"].get("kwargs", {}).get("repository")
         return result
 
     def get_task_result(self, **kwargs: Any) -> Dict[str, Any]:

@@ -46,8 +46,8 @@ agent_os = AgentOS(
 )
 ```
 
-AgentOS builds and serves `product-manager` with its Company tools and instructions.
-It is available at the ordinary `/agents/product-manager/runs` endpoint and as
+AgentOS builds and serves `product-manager-internal` with its Company tools and instructions.
+It is available at the ordinary `/agents/product-manager-internal/runs` endpoint and as
 `agent_os.company.product_manager`, an ordinary Agent with `run` and `arun`. Direct
 Python Company tool calls still require trusted execution context; use AgentOS routes
 for authenticated Company work. No custom agent definition is needed.
@@ -59,11 +59,11 @@ at construction. The built-in uses the AgentOS database, falling back to the exp
 Company database when no runtime database is configured. Durable execution still needs
 `AgentOS(db=...)` and its durable queue.
 
-Choose a Product's default `agent_id`; a Task can override it. Select `product-manager`
-for housekeeping or add a coding worker through `agents=[...]` for implementation work.
+Choose a Product's default `agent_id`; a Task can override it. Select `product-manager-internal`
+for housekeeping or add Product Engineer through `agents=[...]` for implementation work.
 Execution requires permission to run that agent as well as Product membership. Enabling
 the built-in does not assign it to existing Products or Tasks. An existing custom agent
-named `product-manager` must be renamed or removed when enabling the built-in.
+named `product-manager-internal` must be renamed or removed when enabling the built-in.
 
 With the AgentOS Manager feature installed, configure its normal `manager=` option.
 The built-in Product Manager automatically joins the Team beside Platform Manager,
@@ -83,7 +83,7 @@ CompanyTools remains available for custom agents with distinct IDs.
 
 | Action | Endpoint under `/company/v1` | Body |
 | --- | --- | --- |
-| Create a Product | `POST /products` | `{"name":"Documentation","agent_id":"product-manager"}` |
+| Create a Product | `POST /products` | `{"name":"Documentation","agent_id":"product-manager-internal"}` |
 | Add a direct Task | `POST /products/{id}/tasks` | `{"title":"Refresh project summaries","instructions":"Read current Tasks and refresh each generated summary."}` |
 | Run it | `POST /tasks/{id}/runs` | `{}` |
 | Make it recurring | `PUT /tasks/{id}/schedule` | `{"cron":"0 9 * * 1-5","timezone":"Europe/London"}` |
@@ -159,8 +159,8 @@ python -c 'import agno; print(agno.__file__)'
 python -m agno.os.company.migrations
 ```
 
-The migration command uses one base initializer and one Ready/review upgrade
-(version 6). It preserves version-5 pilot records and does not automatically enroll
+The migration command uses one base initializer, a Ready/review upgrade, and a repository
+upgrade (version 7). It preserves version-5 pilot records and does not automatically enroll
 existing Ready Tasks; return them to Backlog and accept Ready again. Re-running the
 command is safe. Older prototypes are rejected without changes: migrate them with
 the tooling from their original revision, or use a fresh development database.
@@ -173,18 +173,73 @@ login; they do not construct Company identities.
 - `app.py`: model-free server for manual work.
 - `manual.py`: repeatable local operator exercise for human review.
 - `with_agents.py`: built-in Product Manager, durable queue and scheduler; optional OS Manager
-  and Codex worker. Set `PLATFORM_WORKSPACE` to the source directory for Platform
-  Engineer. With existing accepted Ready or due recurring Tasks, starting the server
-  can dispatch work and make model calls.
+  and sandboxed Product Engineer. Set `PLATFORM_ROOT` for Platform Manager's read-only
+  source context. Starting with accepted Ready or due recurring Tasks can dispatch
+  work and make model calls. See the setup instructions below.
 
-For the coding pilot, set `CODING_WORKSPACE` to a dedicated disposable Git worktree
-and assign `coding-agent` to one Project Task. The example serializes execution.
-Company currently uses the worker's configured workspace; it does not provision
-or sandbox workspaces per Task. Use a dedicated worker/worktree for this pilot.
 Company observes PR merges; it never performs them or deploys changes. Apply migration
-v6 before starting this release. Existing Ready Tasks are not silently enrolled:
+v7 before starting this release. Existing Ready Tasks are not silently enrolled:
 return them to Backlog and accept Ready again. Existing In-review Tasks can still be
 accepted explicitly; request revision and start a fresh review before using a PR link.
 
 Frontend implementation belongs in the Agno OS repository. See [API.md](API.md)
 for integration details and [TEST_LOG.md](TEST_LOG.md) for executed checks and limits.
+
+
+## AgentOS Product and Product Engineer
+
+Company setup is explicit and authenticated. After applying migrations, send
+`POST /company/v1/setup` with a human token and an Idempotency-Key:
+
+```json
+{
+  "repository": {"url": "https://github.com/your-company/your-agentos-app", "branch": "main"},
+  "agent_id": "product-engineer"
+}
+```
+
+This creates one **AgentOS** Product owned by that human. Repeating setup returns
+it without changing its name, repository, memberships or worker. Setup is never
+triggered by a GET or server restart. An empty `{}` creates a planning-only Product;
+its owner can configure repository and worker later. Existing installations upgrade
+explicitly from schema 6 to 7 without dropping records.
+
+The built-in Product Manager can create Products for the initiating human with
+Company administration. It cannot select a repository or worker, assign someone
+else as owner, grant access, accept Ready or approve Done. Its reserved ID is now
+`product-manager-internal`; update grants and client references to that ID.
+The summary metadata uses `_agno: {internal: true, id: ...}` for display only.
+
+For repository work, use a Project for the bounded outcome and as few Tasks as
+needed. The human reviews the Task's instructions/version and selected Product
+Engineer before accepting Ready. Acceptance resolves the Product branch to a full
+commit SHA, returned as `source`. The sandbox runtime fetches that exact commit
+before the model starts. A task cannot fall back to the service's local checkout.
+
+Only one repository Task runs per Product at a time. Other Ready Tasks remain
+queued for a later scheduler tick. Different Tasks get separate sandbox sessions.
+Revisions reuse their original engineer, user, source commit and checkpoint,
+including uncommitted files and native conversation state. Start a new Task to
+change that execution identity or pick up a new base commit. Repository changes
+are blocked while accepted work is Ready, In progress or In review.
+
+Successful execution remains In review. Human acceptance or verified merge of the
+reviewer-linked exact PR revision completes it. Product Engineer reports evidence;
+it does not merge or deploy. Recurring Product Tasks can discover work and draft
+Projects/Tasks through Product Manager; repository implementation requires human
+Ready acceptance. There is no separate Project Manager or Task Manager.
+
+`with_agents.py` enables Product Engineer when `SANDBOX_IMAGE` and
+`SANDBOX_CHECKPOINTS` are set. The image needs the sandbox repository workspace
+runtime, Git and the application's toolchain. Checkpoints must be on storage
+reachable by all queue replicas. Public GitHub repositories work without a Git
+credential. For private repositories configure a narrowly scoped `GITHUB_TOKEN`
+in the provider environment; CompanyConfig's token is used only for source/PR
+verification and is never forwarded to compute. No host database or queue
+credentials belong in that environment. `OSManager.root` is read-only source
+context, independent of the Product Engineer checkout.
+
+The initial repository adapter supports GitHub HTTPS only. It does not automatically
+publish a branch/PR, install arbitrary application dependencies, merge, or deploy;
+provide the trusted runtime image and review the engineer's proposed commands.
+Model quality and application-specific compatibility still need a live pilot.

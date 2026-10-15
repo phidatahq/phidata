@@ -18,6 +18,7 @@ from agno.os.company.migrations import VERSION
 from agno.os.company.policy import CompanyError, Principal
 from agno.os.company.schemas import (
     CommentCreate,
+    CompanySetup,
     ListQuery,
     MemberCreate,
     MemberPatch,
@@ -108,7 +109,8 @@ class CompanyService:
 
     def _allowed(self, principal: Principal, action: str, product_id: Optional[str] = None) -> bool:
         if principal.agent_id and (
-            action not in ("read", "write") or (principal.product_id and product_id != principal.product_id)
+            action not in ("read", "write", "bootstrap")
+            or (principal.product_id and product_id != principal.product_id)
         ):
             return False
         try:
@@ -372,17 +374,42 @@ class CompanyService:
         product_id: Optional[str] = None,
         version: Optional[int] = None,
         member_id: Optional[str] = None,
+        _builtin: Optional[str] = None,
     ) -> Dict[str, Any]:
         if not 1 <= len(idempotency_key) <= 200 or not 1 <= len(request_id) <= 200:
             raise CompanyError(
                 422, "invalid_request_id", "Request and idempotency identifiers must be 1-200 characters"
             )
         body = data.model_dump(mode="json", exclude_unset=action == "edit")
-        if principal.agent_id and (action not in ("create", "edit", "comment", "summary") or kind == "product"):
+        if (
+            principal.agent_id
+            and kind == "product"
+            and (
+                action != "create"
+                or body.get("owner_id") not in (None, principal.id)
+                or body.get("agent_id")
+                or body.get("repository")
+                or _builtin
+            )
+        ):
+            raise CompanyError(
+                403,
+                "human_required",
+                "Agents may create Products for the initiating human without selecting execution authority",
+            )
+        if principal.agent_id and (action not in ("create", "edit", "comment", "summary")):
             raise CompanyError(403, "human_required", "This management or review action requires a human")
-        operation = f"{kind}.{action}"
+        operation = "product.setup" if _builtin else f"{kind}.{action}"
         payload_hash = hashlib.sha256(_json([record_id, product_id, member_id, version, body]).encode()).hexdigest()
         with self._transaction(principal) as conn:
+            if _builtin:
+                if not self._allowed(principal, "bootstrap"):
+                    raise CompanyError(403, "forbidden", "Company administration is required for setup")
+                _query(conn, "SELECT pg_advisory_xact_lock(741927104)")
+                existing = _row(conn, "SELECT * FROM agno_company.products WHERE builtin=:builtin", builtin=_builtin)
+                if existing:
+                    existing_product = self._product(conn, principal, str(existing["id"]))
+                    return json.loads(_json(self._present(conn, principal, "product", existing, existing_product)))
             lock_key = int.from_bytes(
                 hashlib.sha256(_json([principal.id, operation, idempotency_key]).encode()).digest()[:8],
                 "big",
@@ -476,6 +503,17 @@ class CompanyService:
                 ).scalar()
                 if active:
                     raise CompanyError(409, "run_active", "Stop or finish the active run before changing the Task")
+            if kind == "product" and action == "edit" and "repository" in body:
+                if _query(
+                    conn,
+                    "SELECT 1 FROM agno_company.tasks WHERE product_id=:id AND status IN ('ready','in_progress','in_review') LIMIT 1",
+                    id=record_id,
+                ).scalar():
+                    raise CompanyError(
+                        409,
+                        "work_active",
+                        "Finish or return accepted Tasks to Backlog before changing their repository",
+                    )
             if body.get("agent_id"):
                 if self._runtime is None:
                     raise CompanyError(409, "worker_required", "Configure a registered AgentOS worker first")
@@ -499,6 +537,8 @@ class CompanyService:
                     + str(_query(conn, "SELECT nextval('agno_company.record_keys')").scalar()),
                 }
                 if kind == "product":
+                    if _builtin:
+                        values["builtin"] = _builtin
                     values["owner_id"] = body["owner_id"] or principal.id
                     self._human(principal, values["owner_id"])
                 else:
@@ -754,10 +794,12 @@ class CompanyService:
 
     def _insert(self, conn: Any, table: str, values: Dict[str, Any]) -> Dict[str, Any]:
         expressions = [
-            f"CAST(:{key} AS jsonb)" if key in ("evidence", "delta", "result") else f":{key}" for key in values
+            f"CAST(:{key} AS jsonb)" if key in ("evidence", "delta", "result", "repository") else f":{key}"
+            for key in values
         ]
         params = {
-            key: _json(value) if key in ("evidence", "delta", "result") else value for key, value in values.items()
+            key: _json(value) if key in ("evidence", "delta", "result", "repository") else value
+            for key, value in values.items()
         }
         result = _row(
             conn,
@@ -776,6 +818,8 @@ class CompanyService:
                 in (
                     "evidence",
                     "summary_sources",
+                    "repository",
+                    "source",
                     "schedule",
                     "schedule_principal",
                     "ready_principal",
@@ -793,6 +837,8 @@ class CompanyService:
             in (
                 "evidence",
                 "summary_sources",
+                "repository",
+                "source",
                 "schedule",
                 "schedule_principal",
                 "ready_principal",
@@ -832,6 +878,16 @@ class CompanyService:
                     )
                 self._member(conn, principal, str(product["id"]), record["accountable_owner_id"])
                 changes.update(accepted_by=principal.id, accepted_at=datetime.now(timezone.utc))
+                if product.get("repository"):
+                    if self._runtime is None:
+                        raise CompanyError(
+                            409,
+                            "worker_required",
+                            "Configure a sandboxed Product Engineer before accepting repository work",
+                        )
+                    agent = self._runtime._agent(principal, record["agent_id"] or product["agent_id"])
+                    self._runtime._require_engineer(agent)
+                    changes["source"] = self._runtime._source(conn, product, record)
                 if self._runtime is not None:
                     changes.update(
                         ready_principal=self._runtime._saved(principal),
@@ -990,6 +1046,29 @@ class CompanyService:
 
     async def alist_activity(self, **kwargs: Any) -> Dict[str, Any]:
         return await asyncio.to_thread(self.list_activity, **kwargs)
+
+    def setup_agentos(
+        self, *, principal: Principal, data: CompanySetup, request_id: str, idempotency_key: str
+    ) -> Dict[str, Any]:
+        """Create the default AgentOS Product once during authenticated setup."""
+        if principal.agent_id:
+            raise CompanyError(403, "human_required", "Company setup requires a human")
+        return self._mutate(
+            principal=principal,
+            kind="product",
+            action="create",
+            _builtin="agentos",
+            data=ProductCreate(
+                name="AgentOS",
+                instructions="Develop and maintain this AgentOS application. Keep changes small, test them, and present results for human review.",
+                **data.model_dump(),
+            ),
+            request_id=request_id,
+            idempotency_key=idempotency_key,
+        )
+
+    async def asetup_agentos(self, **kwargs: Any) -> Dict[str, Any]:
+        return await asyncio.to_thread(self.setup_agentos, **kwargs)
 
     def create_product(
         self, *, principal: Principal, data: ProductCreate, request_id: str, idempotency_key: str

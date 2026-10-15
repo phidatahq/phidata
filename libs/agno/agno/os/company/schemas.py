@@ -26,7 +26,24 @@ class PullRequestReview(Input):
     head_sha: str = Field(pattern=r"^[0-9a-f]{40}$")
 
 
+class Repository(Input):
+    url: str = Field(max_length=500, pattern=r"^https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
+    branch: str = Field(default="main", min_length=1, max_length=200, pattern=r"^[A-Za-z0-9_./-]+$")
+
+    @model_validator(mode="after")
+    def valid_path(self) -> "Repository":
+        if any(part in (".", "..") for part in self.url.split("/")[-2:]):
+            raise ValueError("Use a GitHub repository URL")
+        return self
+
+
+class CompanySetup(Input):
+    repository: Optional[Repository] = None
+    agent_id: Optional[str] = Field(default=None, min_length=1, max_length=200)
+
+
 class ProductCreate(Input):
+    repository: Optional[Repository] = None
     agent_id: Optional[str] = Field(default=None, min_length=1, max_length=200)
     name: str = Field(min_length=1, max_length=200)
     instructions: str = Field(default="", max_length=10000)
@@ -45,12 +62,14 @@ class Patch(Input):
                 "assignee_id",
                 "project_id",
                 "agent_id",
+                "repository",
             ):
                 raise ValueError(f"{field} cannot be null")
         return self
 
 
 class ProductPatch(Patch):
+    repository: Optional[Repository] = None
     agent_id: Optional[str] = Field(default=None, min_length=1, max_length=200)
     name: Optional[str] = Field(default=None, min_length=1, max_length=200)
     instructions: Optional[str] = Field(default=None, max_length=10000)
@@ -141,6 +160,8 @@ class Record(BaseModel):
 
 
 class Product(Record):
+    repository: Optional[Repository] = None
+    builtin: Optional[Literal["agentos"]] = None
     name: str
     agent_id: Optional[str] = None
     instructions: str
@@ -165,6 +186,7 @@ class Project(Record):
 
 
 class Task(Record):
+    source: Optional[Dict[str, str]] = None
     product_id: UUID
     project_id: Optional[UUID] = None
     title: str

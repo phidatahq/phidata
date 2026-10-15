@@ -7,7 +7,15 @@ from uuid import UUID, uuid4
 
 from agno.os.company.context import current_company
 from agno.os.company.policy import CompanyError
-from agno.os.company.schemas import CommentCreate, ListQuery, ProjectCreate, ProjectSummary, TaskCreate, TaskPatch
+from agno.os.company.schemas import (
+    CommentCreate,
+    ListQuery,
+    ProductCreate,
+    ProjectCreate,
+    ProjectSummary,
+    TaskCreate,
+    TaskPatch,
+)
 from agno.run import RunContext
 from agno.tools import Toolkit
 
@@ -23,6 +31,7 @@ class CompanyTools(Toolkit):
     def __init__(self, **kwargs: Any):
         names = (
             "list_products",
+            "create_product",
             "list_work",
             "get_work",
             "create_project",
@@ -55,6 +64,30 @@ class CompanyTools(Toolkit):
 
     def _mutation(self, principal: Any, key: str) -> Dict[str, Any]:
         return {"principal": principal, "idempotency_key": key, "request_id": str(uuid4())}
+
+    def create_product(
+        self,
+        name: str,
+        instructions: str,
+        request_key: str,
+        agent: Any,
+        _agno_run_context: Optional[RunContext] = None,
+    ) -> Dict[str, Any]:
+        """Create a Product owned by the initiating human. Requires Company administration."""
+        service, principal = self._context(agent, _agno_run_context)
+        return service.create_product(
+            data=ProductCreate(name=name, instructions=instructions), **self._mutation(principal, request_key)
+        )
+
+    async def acreate_product(
+        self,
+        name: str,
+        instructions: str,
+        request_key: str,
+        agent: Any,
+        _agno_run_context: Optional[RunContext] = None,
+    ) -> Dict[str, Any]:
+        return await asyncio.to_thread(self.create_product, name, instructions, request_key, agent, _agno_run_context)
 
     def list_products(self, agent: Any, _agno_run_context: Optional[RunContext] = None) -> Dict[str, Any]:
         """List Products the initiating user can access."""

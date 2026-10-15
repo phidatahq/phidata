@@ -271,6 +271,8 @@ class AgentSummaryResponse(BaseModel):
         # satisfy AgentProtocol structurally and predate the rename; drop it with the framework alias.
         sdk = getattr(agent, "sdk", None) or getattr(agent, "framework", None)
         metadata = {"sdk": sdk} if sdk else None
+        if getattr(agent, "_company_builtin", False):
+            metadata = {**(metadata or {}), "_agno": {"internal": True, "id": agent.id}}
         if isinstance(agent, AgentFactory):
             return cls(
                 id=agent.id,

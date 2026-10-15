@@ -13,7 +13,7 @@ import threading
 import weakref
 from contextlib import suppress
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, Mapping, Optional, Sequence, Set, Tuple
+from typing import TYPE_CHECKING, Any, Dict, Mapping, Optional, Sequence, Tuple
 
 from agno.sandbox.base import ExecResult, Sandbox, SandboxError, SandboxHandle, _identity, _sync
 
@@ -36,14 +36,13 @@ _RUNTIME_READY_SECONDS = 15.0
 _RUNNER = Path(__file__).with_name("_exec.py").read_text()
 
 
-# The loop holds tasks only weakly; this keeps each client's closer alive until it runs.
-_CLOSERS: Set["asyncio.Task[None]"] = set()
-
-
 async def _close_with_loop(owner: "weakref.ReferenceType[DockerSandbox]", client: Any) -> None:
     loop = asyncio.get_running_loop()
     try:
-        await loop.create_future()
+        while True:
+            # The loop holds tasks only weakly; this pending timer is what keeps the closer alive,
+            # and closing the loop drops it, so nothing outlives the loop.
+            await asyncio.sleep(3600)
     except GeneratorExit:
         # Collected after its loop closed; no loop is left to close the client on.
         raise
@@ -63,11 +62,8 @@ def _cancel_closers(
     with lock:
         entries = list(clients.items())
     for loop, (_, task) in entries:
-        try:
+        with suppress(RuntimeError):
             loop.call_soon_threadsafe(task.cancel)
-        except RuntimeError:
-            # A closed loop can never run the closer; stop retaining it.
-            _CLOSERS.discard(task)
 
 
 class DockerSandbox(Sandbox):
@@ -391,16 +387,13 @@ class DockerSandbox(Sandbox):
         loop = asyncio.get_running_loop()
         with self._http_lock:
             for stale in [item for item in self._http if item.is_closed()]:
-                # A loop closed with its closer still pending can never run it; stop retaining it.
-                _CLOSERS.discard(self._http.pop(stale)[1])
+                del self._http[stale]
             entry = self._http.get(loop)
             if entry is None:
                 limits = httpx.Limits(max_connections=4096, max_keepalive_connections=1024)
                 client = httpx.AsyncClient(limits=limits, timeout=httpx.Timeout(15.0, read=60.0))
                 # asyncio.run cancels pending tasks before closing its loop, so each sync call closes its client.
                 closer = loop.create_task(_close_with_loop(weakref.ref(self), client))
-                _CLOSERS.add(closer)
-                closer.add_done_callback(_CLOSERS.discard)
                 entry = self._http[loop] = (client, closer)
         return entry[0]
 

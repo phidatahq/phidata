@@ -590,27 +590,10 @@ def test_concurrent_sync_calls_share_the_client_cache_safely(monkeypatch):
     assert not sandbox._http
 
 
-def test_a_loop_closed_without_cancelling_tasks_is_not_retained():
-    from agno.sandbox.docker import _CLOSERS
-
-    sandbox = ServedDocker()
-    loop = asyncio.new_event_loop()
-
-    async def client():
-        DockerSandbox._http_client(sandbox)
-        await asyncio.sleep(0)
-
-    loop.run_until_complete(client())
-    closer = sandbox._http[loop][1]
-    loop.close()
-    asyncio.run(client())
-    assert closer not in _CLOSERS and loop not in sandbox._http
-
-
-def test_a_sandbox_discarded_after_its_loop_closed_releases_the_closer():
+@pytest.mark.parametrize("order", ["close then reuse", "close then discard", "discard then close"])
+def test_a_loop_closed_without_cancelling_tasks_does_not_retain_its_closer(order):
     import gc
-
-    from agno.sandbox.docker import _CLOSERS
+    import weakref
 
     sandbox = ServedDocker()
     loop = asyncio.new_event_loop()
@@ -620,11 +603,19 @@ def test_a_sandbox_discarded_after_its_loop_closed_releases_the_closer():
         await asyncio.sleep(0)
 
     loop.run_until_complete(client(sandbox))
-    closer = sandbox._http[loop][1]
-    loop.close()
-    del sandbox
+    closer = weakref.ref(sandbox._http[loop][1])
+    if order == "discard then close":
+        del sandbox
+        gc.collect()
+        loop.close()
+    else:
+        loop.close()
+        if order == "close then reuse":
+            asyncio.run(client(sandbox))
+        else:
+            del sandbox
     gc.collect()
-    assert closer not in _CLOSERS
+    assert closer() is None
 
 
 @pytest.mark.asyncio

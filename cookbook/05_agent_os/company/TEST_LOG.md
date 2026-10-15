@@ -165,3 +165,13 @@ passed. Format and validation scripts passed. No live provider calls.
 **Result:** Two cases passed: Ready pickup, output import, In review hold, human revision, replacement container, original input snapshot and source SHA restored. Initial fixture incorrectly populated the replacement workspace before restore; the runtime rejected it. Corrected fixture leaves replacements empty. The combined non-Docker suite passed 702 tests; these two cases cover its Docker skips.
 
 ---
+
+### Standalone Task lifecycle — October 15, 2026
+
+**Status:** PASS
+
+**Description:** Standalone non-recurring Tasks now require Ready acceptance and retain In review until a human completes them or an approved PR merge is verified. Recurring Tasks retain schedule-based execution and fresh sessions. Agents cannot rewrite an authorized recurring Task.
+
+**Result:** Company regression suite: 89 passed, four optional sandbox cases skipped on the standalone branch. Three focused policy/migration cases pass, including preserving existing direct work without inventing acceptance. Final combined validation is recorded in the release handoff.
+
+---

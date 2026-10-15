@@ -1,6 +1,6 @@
 # Company API
 
-Company mounts `/company/v1` only with `AgentOS(company=CompanyConfig(db=...))`.
+Company mounts `/company/v1` only with `AgentOS(db=db, company=CompanyConfig())`.
 It uses AgentOS authentication and authorization. PostgreSQL is required for
 Company; apply the explicit migration command before serving a new schema version.
 
@@ -17,7 +17,7 @@ field. Products carry `name`; Projects and Tasks carry `title`.
 | Task | `product_id`, nullable `project_id`, nullable `status`, `accountable_owner_id`, optional `assignee_id` and `agent_id`, `state`, `evidence`, `schedule`, `schedule_id`, `review_pull_request`, `review_started_at`, `automation_error` |
 
 `state` is active or archived. Project status is derived as empty, active or
-completed. Task status is null for direct work; Non-recurring Tasks use backlog, ready,
+completed. Task status is null for recurring work; all non-recurring Tasks use backlog, ready,
 in_progress, in_review or done. Product and Project counts exclude archived Tasks.
 Completion requires a nonempty Project with every unarchived Task Done.
 
@@ -48,8 +48,8 @@ message and request ID. No hard-delete operation is exposed.
 
 `POST /tasks/{id}/runs` accepts `{}` or `{"message":"Revision direction"}` and
 returns 202 with stable `run_id`, `session_id`, status and `result_url`. A durable
-queue must be running. Project work must be Ready or In progress; direct work has
-no board transition. Tasks and their Products/Projects must be active.
+queue must be running. Non-recurring work must be Ready or In progress. Recurring
+work uses its human-configured schedule and has no board transition. Tasks and their Products/Projects must be active.
 
 `GET /tasks/{id}/runs` returns the latest 100 attempts, including skipped scheduled
 occurrences. `GET /tasks/{id}/runs/{run_id}` reads the linked runtime result.
@@ -69,10 +69,10 @@ saved configuration and owner before dispatch, then tracks actual completion.
 Only direct Tasks recur. Pause before grouping. Overlap is skipped rather than
 queued; recovery preserves overdue schedule time and executes one coalesced tick.
 
-Configure a registered Agent or CodexAgent with persistent runtime storage. Product
+Configure a registered Agent, CodexAgent or ClaudeAgent with persistent runtime storage. Product
 default agents and Task overrides must be authorized for the configuring caller.
-Platform specialists are not eligible Company workers. Codex needs an explicit
-existing workspace; workspace allocation and containment are deployment concerns.
+Platform specialists are not eligible Company workers. Repository work requires
+a sandboxed CodexAgent or ClaudeAgent; a host checkout is not used.
 
 ## Automatic progression and PR review
 
@@ -162,7 +162,7 @@ operation and automatic workspace provisioning require separate deployment valid
 Cancellation covers queued and executing work. Cancellation before queue acceptance
 is durable and prevents startup recovery or a request retry from dispatching that run.
 While an executing worker stops, its status may remain running; poll until terminal.
-Cancelling a run does not mark its Project Task Done. Apply the migration command
+Cancelling a run does not mark its Task Done. Apply the migration command
 before starting this release. A fresh database uses the current initializer; version-5
 pilot databases receive the Ready/review upgrade without enrolling existing Ready
 Tasks. Reaccept those Tasks after returning to Backlog. Legacy In-review Tasks remain

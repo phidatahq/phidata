@@ -20,6 +20,7 @@ from agno.os.routers.schedules.schema import (
 from agno.os.schema import PaginatedResponse, PaginationInfo
 from agno.os.scopes import AgentOSScope, has_required_scopes
 from agno.run.authorization import stamp_authorization
+from agno.tools.scheduler import _manager_member_refusal
 from agno.utils.log import log_info
 
 # Valid DB method names that _db_call can invoke
@@ -78,6 +79,10 @@ def get_schedule_router(
         run endpoint needs the matching ``<type>:run`` scope, any other target is admin-only.
         """
         from agno.os.auth import build_insufficient_permissions_detail, caller_scopes_are_authoritative
+
+        private_target = _manager_member_refusal(endpoint)
+        if private_target:
+            raise HTTPException(status_code=409, detail=private_target)
 
         if not getattr(request.state, "authorization_enabled", False):
             return

@@ -41,6 +41,7 @@ from agno.eval.base import BaseEval
 from agno.filters import FilterExpr
 from agno.guardrails import BaseGuardrail
 from agno.knowledge.protocol import KnowledgeProtocol
+from agno.registry._reserved import RESERVED_MANAGER_IDS, _reserved_manager_id_message
 
 if TYPE_CHECKING:
     from agno.compaction.types import CompactionResult
@@ -1878,10 +1879,14 @@ def get_agent_by_id(
         Agent instance or None.
 
     Raises:
-        ComponentRehydrationError: If strict and a registry reference cannot be resolved.
+        ComponentRehydrationError: If the ID is reserved for OS Manager, or if strict
+            and a registry reference cannot be resolved.
     """
     from agno.exceptions import ComponentRehydrationError
     from agno.utils.log import log_error
+
+    if id in RESERVED_MANAGER_IDS:
+        raise ComponentRehydrationError(_reserved_manager_id_message(id))
 
     try:
         # Only resolve the agent if owned by this user, unowned (shared), or published.
@@ -1957,6 +1962,7 @@ def get_agents(
     """
     from agno.utils.log import log_error
 
+    exclude_component_ids = set(exclude_component_ids or ()) | RESERVED_MANAGER_IDS
     agents: List[Agent] = []
     try:
         # The DB default page is one small page and the catalog can exceed it

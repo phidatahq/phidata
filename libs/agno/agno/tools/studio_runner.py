@@ -108,6 +108,7 @@ from agno.db.schemas.scheduler import (
     strip_reserved_run_metadata,
 )
 from agno.exceptions import ComponentPinError, ComponentRehydrationError
+from agno.registry._reserved import RESERVED_MANAGER_IDS, RESERVED_MEMBER_IDS
 from agno.run import RunContext
 from agno.run.authorization import arequire_permission, authorization_for, require_permission, requires_permission
 from agno.run.cancel import aregister_member_run, register_member_run
@@ -413,11 +414,12 @@ class StudioRunnerTools(Toolkit):
         alongside the database, so what can be run can be found.
         Lookups that are not dispatch (get, edit, members, steps) see the full
         set either way."""
-        if self.include_agents is not None:
-            return list(self.include_agents)
-        if for_dispatch and not self.include_all_components:
+        if for_dispatch and not self.include_all_components and self.include_agents is None:
             return []
-        return list(self.registry.agents) if self.registry is not None else []
+        agents = (
+            self.include_agents if self.include_agents is not None else (self.registry.agents if self.registry else [])
+        )
+        return [agent for agent in agents if getattr(agent, "id", None) not in RESERVED_MEMBER_IDS]
 
     def _iter_teams(self, for_dispatch: bool = False) -> List["Team"]:
         """Code-defined teams: passed-in list, else registry (see _iter_agents)."""
@@ -443,6 +445,8 @@ class StudioRunnerTools(Toolkit):
         Split into an exact tier and a name tier so cross-type callers
         (StudioTools._resolve_members) can try exact ids across both types
         before any name matching."""
+        if agent_id in RESERVED_MEMBER_IDS:
+            return None
         agent = self._find_agent_by_exact_id(agent_id, for_dispatch=for_dispatch, actor=actor)
         if agent is not None:
             return agent
@@ -971,7 +975,7 @@ class StudioRunnerTools(Toolkit):
         return wf
 
     def _db_component_exists(self, component_type: str, component_id: str, actor: Optional[str] = None) -> bool:
-        if self.db is None:
+        if self.db is None or component_id in RESERVED_MANAGER_IDS:
             return False
         from agno.db.base import ComponentType
 
@@ -1006,7 +1010,11 @@ class StudioRunnerTools(Toolkit):
         while True:
             try:
                 rows, total = self.db.list_components(
-                    component_type=component_type_enum, limit=_NAME_LOOKUP_PAGE, offset=offset, user_id=actor
+                    component_type=component_type_enum,
+                    limit=_NAME_LOOKUP_PAGE,
+                    offset=offset,
+                    user_id=actor,
+                    exclude_component_ids=set(RESERVED_MANAGER_IDS),
                 )
             except NotImplementedError:
                 # Not every db adapter implements component storage; degrade to
@@ -2166,7 +2174,7 @@ class StudioRunnerTools(Toolkit):
         type; a mismatch returns None so that, e.g., a team id never loads as an
         Agent.
         """
-        if self.db is None:
+        if self.db is None or component_id in RESERVED_MANAGER_IDS:
             return None
         try:
             component_row = self.db.get_component(component_id, component_type=component_type, user_id=actor)
@@ -2229,6 +2237,7 @@ class StudioRunnerTools(Toolkit):
             rows, total = self.db.list_components(
                 component_type=ComponentType(component_type),
                 limit=limit if limit is not None else self.list_limit,
+                exclude_component_ids=set(RESERVED_MANAGER_IDS),
                 user_id=user_id,
             )
         except NotImplementedError:

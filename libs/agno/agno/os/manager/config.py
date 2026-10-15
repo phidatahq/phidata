@@ -20,7 +20,8 @@ class OSManager:
     """Configure the OS manager and its resources.
 
     When authorization is enforced, ordinary component run grants allow access.
-    Built-in tools check the caller's permissions for each operation.
+    Protected tools check the caller's permissions during manager execution
+    and delegated work. Ordinary agents retain their existing tool permissions.
     Direct Python calls and bound interfaces are trusted application entry points.
 
     Args:

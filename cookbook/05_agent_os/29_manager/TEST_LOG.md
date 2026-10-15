@@ -481,3 +481,38 @@ Telegram files were excluded because their optional dependency is unavailable.
 The broader count includes the manager/permission tests; counts are not additive.
 
 ---
+
+
+## Existing StudioTools compatibility, 2026-10-15
+
+### Existing agents and manager permissions
+
+**Status:** PASS
+
+**Description:** Compared a model-free, authenticated StudioTools agent with
+only `agents:legacy:run` against base `160d246d6e`, earlier PR revision
+`0be962ef8a`, and the compatibility fix. No manager was enabled in the probe.
+
+**Result:** Base and fixed code both list registry models and publish an agent.
+The earlier PR revision denied both operations. Permanent tests cover JWTs,
+managed roles and PATs with manager omitted, None, False and enabled, as well as
+shared tools, delegation in both directions, MCP, caches, queues, schedules,
+streaming tools and post-hook result preservation. Manager operation checks remain
+active through delegated and deferred execution. No live models or services.
+
+---
+
+### check_manager_permissions.py and permission regressions
+
+**Status:** PASS
+
+**Description:** The actual regular-user cookbook's seven HTTP checks and its
+session-ownership regression run in the permission suite with docs offline.
+
+**Result:** Focused manager, authorization and tool execution suites: **486 passed**.
+Required format/validation scripts passed, including 1,126 framework and 21 CLI
+files checked by mypy. Final broad affected suite: **6,589 passed, 24 skipped**.
+The broader count includes the focused tests; counts are not additive. Three
+unrelated Telegram files were excluded for their missing optional dependency.
+
+---

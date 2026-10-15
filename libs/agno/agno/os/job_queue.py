@@ -1818,7 +1818,9 @@ class QueueWorker:
 
             payload = job.get("payload") or {}
             authority_payload = payload.get("continue") or payload
-            snapshot = authority_payload.get(AUTHORIZATION_KEY, {"context": {}, "service_account": True})
+            snapshot = authority_payload.get(
+                AUTHORIZATION_KEY, {"context": {}, "service_account": True, "enforce_tools": False}
+            )
             authority = restore_authorization(self.authorization_app, snapshot)
             with authorization_scope(lambda: authority):
                 await self._execute_claimed_inner(job, ownership)

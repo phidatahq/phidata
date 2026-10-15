@@ -2587,6 +2587,19 @@ class FunctionCall(BaseModel):
         self.function._save_to_cache(cache_file, result_to_cache)
 
     def execute(self) -> FunctionExecutionResult:
+        """Run the function with the caller authority appropriate to its owning component."""
+        from agno.run.authorization import _authorized_tool_result, _tool_authorization
+
+        with _tool_authorization(self.function) as authority:
+            outcome = self._execute()
+            if outcome.status == "success":
+                original_result = outcome.result
+                outcome.result = _authorized_tool_result(original_result, authority)
+                if self.result is original_result:
+                    self.result = outcome.result
+            return outcome
+
+    def _execute(self) -> FunctionExecutionResult:
         """Runs the function call."""
         from inspect import isgenerator, isgeneratorfunction
 
@@ -2852,6 +2865,19 @@ class FunctionCall(BaseModel):
         return chain
 
     async def aexecute(self) -> FunctionExecutionResult:
+        """Run the function asynchronously with its owning component's caller authority."""
+        from agno.run.authorization import _authorized_tool_result, _tool_authorization
+
+        with _tool_authorization(self.function) as authority:
+            outcome = await self._aexecute()
+            if outcome.status == "success":
+                original_result = outcome.result
+                outcome.result = _authorized_tool_result(original_result, authority)
+                if self.result is original_result:
+                    self.result = outcome.result
+            return outcome
+
+    async def _aexecute(self) -> FunctionExecutionResult:
         """Runs the function call asynchronously."""
         from inspect import isasyncgen, isasyncgenfunction, iscoroutinefunction, isgenerator, isgeneratorfunction
 

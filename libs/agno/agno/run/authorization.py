@@ -3,6 +3,8 @@
 Authority is supplied by trusted application code, never by model arguments,
 session state or run metadata. Context variables preserve it across delegation
 and asyncio thread workers without changing every component's run signature.
+Request identity alone does not tighten existing tool permissions. Manager tool
+execution activates operation checks, which then follow its delegated work.
 """
 
 from __future__ import annotations
@@ -11,7 +13,7 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, replace
 from functools import wraps
-from inspect import iscoroutinefunction, signature
+from inspect import isasyncgen, iscoroutinefunction, isgenerator, signature
 from typing import TYPE_CHECKING, Any, Callable, Dict, Iterator, Literal, Optional, overload
 
 if TYPE_CHECKING:
@@ -24,6 +26,10 @@ class RunAuthorization:
     context: AuthorizationContext
     # PATs use their own ACL even when the application uses managed roles.
     service_account: bool = False
+    # Requests carry identity without changing existing tools' permission contract.
+    # Manager tool execution activates checks for its nested work. Explicit
+    # RunAuthorization instances enforce by default for trusted Python callers.
+    enforce_tools: bool = True
 
     def _decision(self, resource: str, action: str, resource_id: Optional[str]):
         ctx = replace(self.context, resource_type=resource, resource_id=resource_id, action=action)
@@ -52,7 +58,11 @@ class RunAuthorization:
     def snapshot(self) -> Dict[str, Any]:
         from dataclasses import asdict
 
-        return {"context": asdict(self.context), "service_account": self.service_account}
+        return {
+            "context": asdict(self.context),
+            "service_account": self.service_account,
+            "enforce_tools": self.enforce_tools,
+        }
 
 
 _AUTHORITY: ContextVar[Optional[Callable[[], Optional[RunAuthorization]]]] = ContextVar(
@@ -74,12 +84,20 @@ def authorization_scope(factory: Callable[[], Optional[RunAuthorization]]) -> It
         _AUTHORITY.reset(token)
 
 
-def authorization_for(run_context: Any = None) -> Optional[RunAuthorization]:
+def _caller_authorization(run_context: Any = None) -> Optional[RunAuthorization]:
     # An active request/worker always wins over a stale RunContext on a resume.
     if _AUTHORITY.get() is not None:
         return current_authorization()
     value = getattr(run_context, "authorization", None)
     return value if isinstance(value, RunAuthorization) else None
+
+
+def authorization_for(run_context: Any = None) -> Optional[RunAuthorization]:
+    """Return authority only when operation checks are active for this execution."""
+    authority = _caller_authorization(run_context)
+    if authority is None:
+        return None
+    return authority if authority.enforce_tools else None
 
 
 def require_permission(resource: str, action: str, resource_id: Optional[str] = None, run_context: Any = None) -> None:
@@ -97,7 +115,7 @@ async def arequire_permission(
 
 
 def requires_permission(resource: Optional[str] = None, action: Optional[str] = None) -> Callable:
-    """Gate a toolkit operation without exposing permission inputs to the model."""
+    """Gate an operation inside an enforced caller scope without model-supplied authority."""
 
     def decorate(function: Callable) -> Callable:
         sig = signature(function)
@@ -110,8 +128,8 @@ def requires_permission(resource: Optional[str] = None, action: Optional[str] = 
 
             @wraps(function)
             async def bound_async(*args: Any, **kwargs: Any) -> Any:
-                authority = authorization_for(context(args, kwargs))
-                if authority is not None and resource is not None and action is not None:
+                authority = _caller_authorization(context(args, kwargs))
+                if authority is not None and authority.enforce_tools and resource is not None and action is not None:
                     await authority.arequire(resource, action)
                 with authorization_scope(lambda: authority):
                     return await function(*args, **kwargs)
@@ -121,8 +139,8 @@ def requires_permission(resource: Optional[str] = None, action: Optional[str] = 
 
         @wraps(function)
         def sync_call(*args: Any, **kwargs: Any) -> Any:
-            authority = authorization_for(context(args, kwargs))
-            if authority is not None and resource is not None and action is not None:
+            authority = _caller_authorization(context(args, kwargs))
+            if authority is not None and authority.enforce_tools and resource is not None and action is not None:
                 authority.require(resource, action)
             with authorization_scope(lambda: authority):
                 return function(*args, **kwargs)
@@ -131,6 +149,61 @@ def requires_permission(resource: Optional[str] = None, action: Optional[str] = 
         return sync_call
 
     return decorate
+
+
+@contextmanager
+def _tool_authorization(function: Any) -> Iterator[Optional[RunAuthorization]]:
+    """Activate operation checks for manager tools and preserve them through delegation."""
+    authority = _caller_authorization(function._run_context)
+    if authority is not None and not authority.enforce_tools:
+        from agno.registry._reserved import RESERVED_MANAGER_IDS
+
+        # These IDs are framework-reserved across registration and rehydration.
+        # Unlike metadata, they survive per-run component copies without a new flag.
+        owners = (function._agent, function._team)
+        if any(getattr(owner, "id", None) in RESERVED_MANAGER_IDS for owner in owners):
+            authority = replace(authority, enforce_tools=True)
+    with authorization_scope(lambda: authority):
+        yield authority
+
+
+def _authorized_tool_result(result: Any, authority: Optional[RunAuthorization]) -> Any:
+    """Keep lazy tool work authorized without leaking its scope to the consumer."""
+    if authority is None or not authority.enforce_tools:
+        return result
+    if isgenerator(result):
+
+        def iterate():
+            try:
+                while True:
+                    with authorization_scope(lambda: authority):
+                        try:
+                            value = next(result)
+                        except StopIteration:
+                            return
+                    yield value
+            finally:
+                with authorization_scope(lambda: authority):
+                    result.close()
+
+        return iterate()
+    if isasyncgen(result):
+
+        async def aiterate():
+            try:
+                while True:
+                    with authorization_scope(lambda: authority):
+                        try:
+                            value = await result.__anext__()
+                        except StopAsyncIteration:
+                            return
+                    yield value
+            finally:
+                with authorization_scope(lambda: authority):
+                    await result.aclose()
+
+        return aiterate()
+    return result
 
 
 AUTHORIZATION_KEY = "_agno_authorization"

@@ -149,10 +149,11 @@ to the manager does not grant its tools additional permissions:
 - Platform-wide operational aggregates remain administrator-only because these
   queries do not provide a per-user view.
 
-These checks also apply when the protected built-in toolkits are attached to
-other authenticated agents. Existing callers with only an agent's run grant need
-the corresponding tool permissions; ordinary agent runs without these tools keep
-their existing permission requirements.
+Operation checks apply during manager execution and to work it delegates.
+Existing agents using StudioTools or other platform toolkits retain their existing
+run-permission behavior when called directly, whether the manager is omitted,
+disabled, or enabled alongside them. Calling that same agent through OS Manager
+keeps the manager caller's operation checks active. Shared toolkits are not mutated.
 
 These decisions use the configured authorization provider, including managed
 roles and custom policies. JWT claims cannot override those policies. Service
@@ -165,8 +166,10 @@ snapshot. The executor uses that snapshot for the target and its tools, rather
 than its internal transport credential. Managed policies are consulted when the
 schedule runs. Token-scope grants are captured when the schedule is saved; edit
 or delete the schedule to change them. Existing schedules without a snapshot
-cannot use platform tools on an authenticated deployment; recreate or edit them
-as an authorized caller.
+retain ordinary agents' existing behavior. A manager target cannot use protected
+tools without a caller snapshot; recreate or edit that schedule as an authorized
+caller. Work scheduled from inside a manager tool retains operation checks when
+it executes later, even if its target is an ordinary agent.
 
 Direct Python calls, security-key access, unauthenticated deployments and interfaces
 bound directly to the team are trusted application entry points. Expose those only

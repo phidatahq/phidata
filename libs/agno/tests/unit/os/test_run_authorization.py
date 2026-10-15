@@ -687,3 +687,350 @@ def test_regular_user_cookbook_permissions_and_session_history(tmp_path, monkeyp
     assert client.get(f"/sessions/{other.session_id}", headers=alice_headers).status_code == 404
     # Do not retain the temporary app across unrelated cookbook imports.
     monkeypatch.delitem(sys.modules, "manager_user_access")
+
+
+@pytest.mark.parametrize("manager_mode", ["omitted", "none", "disabled", "enabled"])
+@pytest.mark.parametrize("identity", ["jwt", "managed_role", "service_account"])
+@pytest.mark.parametrize("operation", ["list_models", "create_agent"])
+def test_existing_studio_agents_keep_run_only_permissions(tmp_path, manager_mode, identity, operation):
+    db = SqliteDb(db_file=str(tmp_path / "legacy.db"))
+    registry = Registry(models=[ScriptedModel()])
+    studio = StudioTools(registry=registry, db=db, create_agents=True)
+    arguments = (
+        {}
+        if operation == "list_models"
+        else {"name": "Built by legacy agent", "instructions": "Answer plainly", "publish": True}
+    )
+    legacy = Agent(id="legacy", model=ScriptedModel(operation, arguments), tools=[studio])
+    scopes = ["agents:legacy:run"]
+    auth = Authorization(verification_keys=[SECRET], algorithm="HS256", audience="test")
+    token_headers = headers(scopes)
+    if identity == "managed_role":
+        auth.define_role("legacy-user", scopes)
+        auth.assign("alice", "legacy-user")
+        token_headers = headers([])
+    elif identity == "service_account":
+        from agno.db.schemas.service_accounts import ServiceAccount
+        from agno.os.service_accounts import generate_token
+
+        token, hashed, prefix = generate_token()
+        db.create_service_account(
+            ServiceAccount(id="legacy", name="legacy", token_hash=hashed, token_prefix=prefix, scopes=scopes).to_dict()
+        )
+        token_headers = {"Authorization": f"Bearer {token}"}
+    kwargs = (
+        {}
+        if manager_mode == "omitted"
+        else {
+            "manager": OSManager(model=ScriptedModel())
+            if manager_mode == "enabled"
+            else None
+            if manager_mode == "none"
+            else False
+        }
+    )
+    os = AgentOS(db=db, registry=registry, agents=[legacy], authorization=auth, telemetry=False, **kwargs)
+    response = TestClient(os.get_app()).post(
+        "/agents/legacy/runs", headers=token_headers, data={"message": "Use studio", "stream": "false"}
+    )
+    assert response.status_code == 200, response.text
+    assert "Permission required" not in response.text
+    result = json.loads(response.json()["content"])
+    assert result["ok"], result
+    if operation == "list_models":
+        assert result["data"]["models"][0]["id"] == "fixture"
+    else:
+        assert len(db.list_components()[0]) == 1
+
+
+@pytest.mark.parametrize("allowed", [False, True])
+def test_manager_dispatch_keeps_checks_on_existing_studio_agent(tmp_path, allowed):
+    db = SqliteDb(db_file=str(tmp_path / "nested.db"))
+    registry = Registry(models=[ScriptedModel()])
+    studio = StudioTools(registry=registry, db=db)
+    legacy = Agent(id="legacy", model=ScriptedModel("list_models"), tools=[studio])
+    os = AgentOS(
+        db=db,
+        registry=registry,
+        agents=[legacy],
+        manager=OSManager(model=ScriptedModel("run_agent", {"agent_id": "legacy", "message": "List models"})),
+        authorization=Authorization(verification_keys=[SECRET], algorithm="HS256", audience="test"),
+        telemetry=False,
+    )
+    client = TestClient(os.get_app())
+    scopes = ["teams:os-manager-internal:run", "agents:legacy:run"] + (["registry:read"] if allowed else [])
+    response = client.post(
+        "/teams/os-manager-internal/runs", headers=headers(scopes), data={"message": "List models", "stream": "false"}
+    )
+    assert response.status_code == 200, response.text
+    assert ("Permission required: registry:read" in response.text) is not allowed
+    # A manager delegation must not permanently tighten an ordinary agent or its shared toolkit.
+    response = client.post(
+        "/agents/legacy/runs",
+        headers=headers(["agents:legacy:run"]),
+        data={"message": "List models", "stream": "false"},
+    )
+    assert response.status_code == 200, response.text
+    assert json.loads(response.json()["content"])["ok"]
+
+
+@pytest.mark.parametrize("allowed", [False, True])
+def test_ordinary_runner_cannot_bypass_manager_operation_checks(tmp_path, allowed):
+    from agno.tools.studio_runner import StudioRunnerTools
+
+    os = make_os(tmp_path, ScriptedModel())
+    operator = next(member for member in os.manager.members if member.id == OPERATOR_ID)
+    operator.model = ScriptedModel("run_diagnostics")
+    legacy = Agent(
+        id="legacy",
+        model=ScriptedModel("run_agent", {"agent_id": OPERATOR_ID, "message": "Diagnose"}),
+        tools=[StudioRunnerTools(db=os.db, include_agents=[operator])],
+    )
+    os.agents.append(legacy)
+    app = os.get_app()
+    os.resync(app)
+    scopes = ["agents:legacy:run"] + (["config:read"] if allowed else [])
+    response = TestClient(app).post(
+        "/agents/legacy/runs", headers=headers(scopes), data={"message": "Diagnose", "stream": "false"}
+    )
+    assert response.status_code == 200, response.text
+    assert ("Permission required: config:read" in response.text) is not allowed
+    assert operator.model.calls > 0
+
+
+@pytest.mark.parametrize("use_async", [False, True])
+def test_shared_studio_tool_keeps_manager_checks_without_affecting_ordinary_agent(tmp_path, use_async):
+    from agno.tools.function import Function, FunctionCall
+
+    os = make_os(tmp_path, ScriptedModel())
+    builder = next(member for member in os.manager.members if member.id == "platform-builder-internal")
+    studio = builder.tools[0]
+    fn = Function.from_callable(studio.list_models)
+    fn._agent = builder
+    fn.cache_results = True
+    fn.cache_dir = str(tmp_path / "cache")
+    # A trusted call may prime the same tool's cache.
+    assert FunctionCall(function=fn, arguments={}).execute().status == "success"
+    caller = authority(["agents:legacy:run"])
+    caller.enforce_tools = False
+    with authorization_scope(lambda: caller):
+        call = FunctionCall(function=fn, arguments={})
+        outcome = asyncio.run(call.aexecute()) if use_async else call.execute()
+        assert outcome.status == "failure" and "registry:read" in outcome.error
+        assert current_authorization() is caller and not caller.enforce_tools
+        fn._agent = Agent(id="legacy")
+        call = FunctionCall(function=fn, arguments={})
+        outcome = asyncio.run(call.aexecute()) if use_async else call.execute()
+        assert outcome.status == "success"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("snapshot_mode", ["legacy", "ordinary", "manager"])
+async def test_queue_keeps_legacy_tools_compatible_and_manager_tools_protected(tmp_path, monkeypatch, snapshot_mode):
+    from agno.tools.function import FunctionCall
+
+    os = make_os(tmp_path, ScriptedModel())
+    worker = QueueWorker(SimpleNamespace(), lambda *args: None, QueueConfig(), authorization_app=os.get_app())
+    builder = next(member for member in os.manager.members if member.id == "platform-builder-internal")
+    manager_function = builder.tools[0].functions["list_models"].model_copy(deep=False)
+    manager_function._agent = builder
+    ordinary_studio = StudioTools(registry=os.registry, db=os.db)
+    payload = {}
+    if snapshot_mode != "legacy":
+        caller = authority([])
+        caller.enforce_tools = snapshot_mode == "manager"
+        payload[AUTHORIZATION_KEY] = caller.snapshot()
+
+    async def execute(job, ownership):
+        if snapshot_mode == "manager":
+            with pytest.raises(PermissionError, match="registry:read"):
+                ordinary_studio.list_models()
+        else:
+            assert json.loads(ordinary_studio.list_models())["ok"]
+        outcome = await FunctionCall(function=manager_function, arguments={}).aexecute()
+        assert outcome.status == "failure" and "registry:read" in outcome.error
+
+    monkeypatch.setattr(worker, "_execute_claimed_inner", execute)
+    await worker._execute_claimed({"id": "job", "attempt": 1, "payload": payload})
+    assert current_authorization() is None
+
+
+@pytest.mark.parametrize("manager_owned", [False, True])
+@pytest.mark.parametrize("allowed", [False, True])
+@pytest.mark.parametrize("use_async", [False, True])
+def test_lazy_tool_work_keeps_authority_without_leaking_it(manager_owned, allowed, use_async):
+    from agno.run.authorization import require_permission
+    from agno.tools.function import Function, FunctionCall
+
+    observed = []
+
+    def values():
+        try:
+            observed.append(current_authorization().enforce_tools)
+            yield "first"
+            require_permission("registry", "read")
+            yield "second"
+        finally:
+            observed.append(current_authorization().enforce_tools)
+
+    async def avalues():
+        try:
+            observed.append(current_authorization().enforce_tools)
+            yield "first"
+            require_permission("registry", "read")
+            yield "second"
+        finally:
+            observed.append(current_authorization().enforce_tools)
+
+    fn = Function.from_callable(avalues if use_async else values)
+    fn._agent = Agent(id=OPERATOR_ID if manager_owned else "ordinary")
+    caller = authority(["registry:read"] if allowed else [])
+    caller.enforce_tools = False
+    with authorization_scope(lambda: caller):
+        call = FunctionCall(function=fn, arguments={})
+        if use_async:
+
+            async def run():
+                outcome = await call.aexecute()
+                assert await outcome.result.__anext__() == "first"
+                assert current_authorization() is caller
+                if manager_owned and not allowed:
+                    with pytest.raises(PermissionError, match="registry:read"):
+                        await outcome.result.__anext__()
+                else:
+                    assert await outcome.result.__anext__() == "second"
+                await outcome.result.aclose()
+
+            asyncio.run(run())
+        else:
+            outcome = call.execute()
+            assert next(outcome.result) == "first"
+            assert current_authorization() is caller
+            if manager_owned and not allowed:
+                with pytest.raises(PermissionError, match="registry:read"):
+                    next(outcome.result)
+            else:
+                assert next(outcome.result) == "second"
+            outcome.result.close()
+        assert current_authorization() is caller
+        assert observed == [manager_owned, manager_owned]
+
+
+@pytest.mark.parametrize("allowed", [False, True])
+def test_shared_custom_decorated_tool_is_protected_only_in_manager_execution(tmp_path, allowed):
+    from agno.run.authorization import requires_permission
+
+    @requires_permission("registry", "read")
+    def inspect_registry() -> str:
+        return "REGISTRY_SENTINEL"
+
+    legacy = Agent(id="legacy", model=ScriptedModel("inspect_registry"), tools=[inspect_registry])
+    os = AgentOS(
+        db=SqliteDb(db_file=str(tmp_path / "shared.db")),
+        agents=[legacy],
+        manager=OSManager(model=ScriptedModel("inspect_registry"), tools=[inspect_registry]),
+        authorization=Authorization(verification_keys=[SECRET], algorithm="HS256", audience="test"),
+        telemetry=False,
+    )
+    client = TestClient(os.get_app())
+    scopes = ["teams:os-manager-internal:run", "agents:legacy:run"] + (["registry:read"] if allowed else [])
+    response = client.post(
+        "/teams/os-manager-internal/runs", headers=headers(scopes), data={"message": "Inspect", "stream": "false"}
+    )
+    assert response.status_code == 200
+    assert ("REGISTRY_SENTINEL" in response.text) is allowed
+    response = client.post(
+        "/agents/legacy/runs", headers=headers(scopes), data={"message": "Inspect", "stream": "false"}
+    )
+    assert response.status_code == 200
+    assert "REGISTRY_SENTINEL" in response.text
+
+
+@pytest.mark.parametrize("snapshot_mode", ["legacy", "ordinary", "manager"])
+def test_scheduled_runs_keep_ordinary_tools_compatible_but_protect_manager(tmp_path, snapshot_mode):
+    from agno.tools.function import FunctionCall
+
+    os = make_os(tmp_path, ScriptedModel())
+    request = SimpleNamespace(
+        app=os.get_app(),
+        state=SimpleNamespace(is_internal_service=True, authorization_enabled=True),
+        headers={},
+    )
+    if snapshot_mode != "legacy":
+        caller = authority([])
+        caller.enforce_tools = snapshot_mode == "manager"
+        request.headers[AUTHORIZATION_HEADER] = json.dumps(caller.snapshot())
+    builder = next(member for member in os.manager.members if member.id == "platform-builder-internal")
+    fn = builder.tools[0].functions["list_models"].model_copy(deep=False)
+    fn._agent = builder
+    with authorization_scope(lambda: request_authorization(request)):
+        outcome = FunctionCall(function=fn, arguments={}).execute()
+        assert outcome.status == "failure" and "registry:read" in outcome.error
+        if snapshot_mode == "manager":
+            with pytest.raises(PermissionError, match="registry:read"):
+                builder.tools[0].list_models()
+        else:
+            assert json.loads(builder.tools[0].list_models())["ok"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("manager_target", [False, True])
+async def test_mcp_preserves_ordinary_studio_access_and_enforces_manager_tools(tmp_path, monkeypatch, manager_target):
+    from fastmcp import Client
+    from fastmcp.server import dependencies
+
+    from agno.os.mcp import build_mcp_server
+
+    os = make_os(tmp_path, ScriptedModel())
+    studio = StudioTools(registry=os.registry, db=os.db)
+    legacy = Agent(id="legacy", model=ScriptedModel("list_models"), tools=[studio])
+    os.agents.append(legacy)
+    builder = next(member for member in os.manager.members if member.id == "platform-builder-internal")
+    builder.model = ScriptedModel("list_models")
+    app = os.get_app()
+    os.resync(app)
+    request = SimpleNamespace(
+        app=app,
+        scope={},
+        headers={},
+        state=SimpleNamespace(
+            authenticated=True,
+            authorization_enabled=True,
+            user_id="alice",
+            claims={"sub": "alice"},
+            scopes=["agents:run"],
+        ),
+    )
+    monkeypatch.setattr(dependencies, "get_http_request", lambda: request)
+    async with Client(build_mcp_server(os)) as client:
+        result = await client.call_tool(
+            "run_agent", {"agent_id": builder.id if manager_target else "legacy", "message": "List models"}
+        )
+    assert not result.is_error
+    text = " ".join(block.text for block in result.content if hasattr(block, "text"))
+    assert ("Permission required: registry:read" in text) is manager_target
+    if not manager_target:
+        assert "fixture" in text
+
+
+@pytest.mark.parametrize("use_async", [False, True])
+@pytest.mark.parametrize("manager_owned", [False, True])
+def test_authorization_scope_preserves_post_hook_result_mutations(use_async, manager_owned):
+    from agno.tools.function import Function, FunctionCall
+
+    def answer() -> str:
+        return "entrypoint result"
+
+    def post_hook(fc):
+        fc.result = "post-hook result"
+
+    fn = Function(name="answer", entrypoint=answer, post_hook=post_hook)
+    fn._agent = Agent(id=OPERATOR_ID if manager_owned else "ordinary")
+    caller = authority([])
+    caller.enforce_tools = False
+    with authorization_scope(lambda: caller):
+        call = FunctionCall(function=fn, arguments={})
+        outcome = asyncio.run(call.aexecute()) if use_async else call.execute()
+        assert outcome.status == "success"
+        assert outcome.result == "entrypoint result"
+        assert call.result == "post-hook result"

@@ -19,7 +19,10 @@ def restore_authorization(app: Any, snapshot: Optional[Dict[str, Any]]) -> Optio
         _default_authorization_provider() if snapshot.get("service_account") else resolve_authorization_provider(app)
     )
     return RunAuthorization(
-        provider, AuthorizationContext(**snapshot["context"]), bool(snapshot.get("service_account"))
+        provider,
+        AuthorizationContext(**snapshot["context"]),
+        bool(snapshot.get("service_account")),
+        enforce_tools=snapshot.get("enforce_tools", True),
     )
 
 
@@ -38,7 +41,7 @@ def request_authorization(request: Any) -> Optional[RunAuthorization]:
         # platform tools must not inherit the executor's broad transport scopes.
         from agno.os.auth import _default_authorization_provider
 
-        return RunAuthorization(_default_authorization_provider(), AuthorizationContext())
+        return RunAuthorization(_default_authorization_provider(), AuthorizationContext(), enforce_tools=False)
     is_service_account = getattr(request.state, "service_account_name", None) is not None
     if not is_service_account and not getattr(request.state, "authorization_enabled", False):
         return None
@@ -46,6 +49,7 @@ def request_authorization(request: Any) -> Optional[RunAuthorization]:
         _provider_for(request),
         _authorization_context(request),
         is_service_account,
+        enforce_tools=False,
     )
 
 

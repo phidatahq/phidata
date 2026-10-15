@@ -265,6 +265,38 @@ PRODUCTS_TABLE_SCHEMA = {
     "deleted_at": {"type": BigInteger, "nullable": True},
 }
 
+TASKS_TABLE_SCHEMA = {
+    "id": {"type": String, "primary_key": True},
+    "title": {"type": String, "nullable": False, "index": True},
+    "brief": {"type": Text, "nullable": True},
+    "user_id": {"type": String, "nullable": True, "index": True},
+    "transitions": {"type": JSON, "nullable": True},
+    "created_at": {"type": BigInteger, "nullable": False, "index": True},
+    "updated_at": {"type": BigInteger, "nullable": True},
+    "deleted_at": {"type": BigInteger, "nullable": True},
+    "product_id": {"type": String, "nullable": False, "index": True},
+    "status": {"type": String, "nullable": False, "index": True},
+    "project_id": {"type": String, "nullable": True, "index": True},
+    "executor_type": {"type": String, "nullable": True},
+    "executor_id": {"type": String, "nullable": True},
+    "accepted_by": {"type": String, "nullable": True},
+    "accepted_at": {"type": BigInteger, "nullable": True},
+}
+
+PROJECTS_TABLE_SCHEMA = {
+    "id": {"type": String, "primary_key": True},
+    "name": {"type": String, "nullable": False, "index": True},
+    "outcome": {"type": Text, "nullable": True},
+    "user_id": {"type": String, "nullable": True, "index": True},
+    "transitions": {"type": JSON, "nullable": True},
+    "created_at": {"type": BigInteger, "nullable": False, "index": True},
+    "updated_at": {"type": BigInteger, "nullable": True},
+    "deleted_at": {"type": BigInteger, "nullable": True},
+    "product_id": {"type": String, "nullable": False, "index": True},
+    "status": {"type": String, "nullable": False, "index": True},
+    "target_date": {"type": BigInteger, "nullable": True},
+}
+
 
 SCHEDULE_TABLE_SCHEMA = {
     "id": {"type": String, "primary_key": True, "nullable": False},
@@ -516,6 +548,8 @@ def get_table_schema_definition(
         "learnings": LEARNINGS_TABLE_SCHEMA,
         "schedules": SCHEDULE_TABLE_SCHEMA,
         "products": PRODUCTS_TABLE_SCHEMA,
+        "projects": PROJECTS_TABLE_SCHEMA,
+        "tasks": TASKS_TABLE_SCHEMA,
         "tool_results": TOOL_RESULTS_TABLE_SCHEMA,
         "compactions": COMPACTIONS_TABLE_SCHEMA,
         "transcripts": TRANSCRIPTS_TABLE_SCHEMA,

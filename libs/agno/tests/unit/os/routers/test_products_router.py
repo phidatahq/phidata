@@ -120,7 +120,9 @@ def test_database_resolution_once_and_override(tmp_path):
         agent_os.resync(client.app)
         client.app.openapi_schema = None
         paths = {
-            path: methods for path, methods in client.app.openapi()["paths"].items() if path.startswith("/company")
+            path: methods
+            for path, methods in client.app.openapi()["paths"].items()
+            if path.startswith("/company/products")
         }
         assert sum(len(methods) for methods in paths.values()) == 6
         assert client.get("/company/products").status_code == 200

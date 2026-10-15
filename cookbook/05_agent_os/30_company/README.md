@@ -30,3 +30,24 @@ The HTTP layer derives ownership from authenticated identity. With isolation
 on, another owner's Product is invisible and returns 404, including on writes.
 With isolation off, callers with the required scope can read and change every
 Product. Admins bypass owner isolation.
+
+## Work records
+
+| File | Demonstrates |
+| --- | --- |
+| `02_manage_projects.py` | Product-contained Projects, owner filtering, explicit transitions, soft delete and restore. |
+| `03_manage_tasks.py` | Backlog proposals, executor acceptance, frozen scope, rescoping, review and completion. |
+
+Projects start `proposed` and move to `active`, then `done`. Tasks start
+`backlog` and move through `ready`, `in_progress`, `in_review`, and `done`.
+Either can be `cancelled` from any non-terminal state. Each transition takes
+`target` and a non-empty `reason`; history is returned on the record. Tasks
+may return to Backlog to clear acceptance and change scope, and In review may
+return to In progress for revisions. Terminal states cannot transition.
+
+The HTTP routes use `/company/projects` and `/company/tasks`, with the same
+CRUD, paging, soft delete and restore conventions as Products, plus
+`POST /{id}/transitions`. Task Ready requests include `executor_type` and
+`executor_id`; the API applies the scheduler's caller run-permission check.
+These examples manage records only and do not execute agents. Registry
+validation and run dispatch arrive with execution support.

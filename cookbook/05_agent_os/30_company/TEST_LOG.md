@@ -19,3 +19,39 @@ Soft delete, include_deleted and restore passed
 ```
 
 ---
+
+
+### 02_manage_projects.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/02_manage_projects.py`
+on October 15, 2026 using SQLite and the development environment. Tested two
+owners, unscoped and scoped listing, reasoned Project transitions, status
+filtering, soft delete and restore without a model.
+
+**Result:** All assertions passed; output: `Company projects lifecycle passed`.
+
+---
+
+### 03_manage_tasks.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/03_manage_tasks.py`
+on October 15, 2026 using SQLite and the development environment. Tested
+Backlog creation, executor and acceptor recording, frozen scope, returning to
+Backlog and clearing acceptance, review/completion, filtering, delete and
+restore. This example manages records without executing a model.
+
+**Result:** All assertions passed. Output:
+
+```text
+Accepted scope is protected
+Company tasks lifecycle passed
+```
+
+---
+
+The existing `01_manage_products.py` was also rerun successfully with its
+original output and assertions unchanged.

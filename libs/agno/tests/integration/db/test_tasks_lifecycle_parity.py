@@ -1,0 +1,264 @@
+"""Work lifecycle parity on PostgreSQL and SQLite, sync and native async."""
+
+import inspect
+import time
+from uuid import uuid4
+
+import pytest
+import pytest_asyncio
+from sqlalchemy import text
+
+from agno.company import AsyncCompanyManager, CompanyManager
+from agno.db.base import AsyncBaseDb
+from agno.db.postgres import AsyncPostgresDb, PostgresDb
+from agno.db.sqlite import AsyncSqliteDb, SqliteDb
+
+
+@pytest_asyncio.fixture(params=["sqlite", "async_sqlite", "postgres", "async_postgres"])
+async def db(request, tmp_path):
+    backend = request.param
+    suffix = uuid4().hex[:12]
+    kwargs = {
+        "products_table": "products_" + suffix,
+        "projects_table": "projects_" + suffix,
+        "tasks_table": "tasks_" + suffix,
+    }
+    if "postgres" in backend:
+        kwargs.update(db_url="postgresql+psycopg://ai:ai@localhost:5532/ai", db_schema="products_" + suffix)
+        cls = AsyncPostgresDb if backend.startswith("async") else PostgresDb
+    else:
+        kwargs.update(db_file=str(tmp_path / "products.db"))
+        cls = AsyncSqliteDb if backend.startswith("async") else SqliteDb
+    database = cls(**kwargs)
+    try:
+        yield database
+    finally:
+        if "postgres" in backend:
+            # Only this fixture's randomly named schema is removed.
+            if isinstance(database, AsyncBaseDb):
+                async with database.db_engine.begin() as conn:
+                    await conn.execute(text('DROP SCHEMA IF EXISTS "' + database.db_schema + '" CASCADE'))
+            else:
+                with database.db_engine.begin() as conn:
+                    conn.execute(text('DROP SCHEMA IF EXISTS "' + database.db_schema + '" CASCADE'))
+        await call(database.close)
+
+
+async def call(fn, *args, **kwargs):
+    result = fn(*args, **kwargs)
+    return await result if inspect.isawaitable(result) else result
+
+
+def manager(db):
+    return AsyncCompanyManager(db) if isinstance(db, AsyncBaseDb) else CompanyManager(db)
+
+
+@pytest.mark.asyncio
+async def test_lifecycle_and_owner_guards(db):
+    m = manager(db)
+    assert await call(m.list_tasks) == ([], 0)
+    parent = await call(m.create, "SDK", user_id="alice")
+    record = await call(m.create_task, parent["id"], "Ship", user_id="alice", scoped_user_id="alice")
+    rid = record["id"]
+    assert record["status"] == "backlog"
+    assert await call(m.get_task, rid, user_id="bob") is None
+    assert await call(m.update_task, rid, user_id="bob", brief="No") is None
+    assert await call(m.delete_task, rid, user_id="bob") is False
+    assert await call(m.transition_task, rid, "cancelled", "Stop", user_id="bob") is None
+    changed = await call(m.update_task, rid, brief="Changed")
+    assert changed["brief"] == "Changed"
+    assert changed["updated_at"] >= record["created_at"]
+    with pytest.raises(ValueError):
+        await call(m.transition_task, rid, "done", "Skip")
+    with pytest.raises(ValueError):
+        await call(m.transition_task, rid, "cancelled", " ")
+    states = ["ready", "in_progress", "in_review", "done"]
+    for state in states:
+        kwargs = {"executor_type": "agent", "executor_id": "writer"} if state == "ready" else {}
+        result = await call(m.transition_task, rid, state, "Reviewed", accepted_by="reviewer", **kwargs)
+        assert result["status"] == state
+    assert [entry["target"] for entry in result["transitions"]] == states
+    assert all(entry["user_id"] == "reviewer" for entry in result["transitions"])
+    with pytest.raises(ValueError):
+        await call(m.transition_task, rid, "cancelled", "Terminal")
+    assert await call(m.restore_task, rid) is None
+    assert await call(m.delete_task, rid)
+    assert await call(m.get_task, rid) is None
+    assert await call(m.update_task, rid, brief="Deleted") is None
+    assert await call(m.get_task, rid, include_deleted=True)
+    assert (await call(m.list_tasks))[1] == 0
+    assert (await call(m.list_tasks, include_deleted=True))[1] == 1
+    assert await call(m.restore_task, rid, user_id="bob") is None
+    assert (await call(m.restore_task, rid))["status"] == "done"
+    assert await call(m.get_task, "missing") is None
+    assert await call(m.transition_task, "missing", "cancelled", "Missing") is None
+
+
+@pytest.mark.asyncio
+async def test_filters_and_stable_paging(db):
+    m = manager(db)
+    parents = [await call(m.create, "A"), await call(m.create, "B")]
+    now = int(time.time())
+    for i, owner in enumerate(["alice", "bob", "alice", None, "alice", "bob"]):
+        await call(
+            db.create_task,
+            {
+                "id": str(i),
+                "product_id": parents[i % 2]["id"],
+                "title": "Same",
+                "status": "backlog",
+                "user_id": owner,
+                "created_at": now,
+                "transitions": [],
+            },
+        )
+    await call(m.transition_task, "0", "cancelled", "Stop")
+    pages = [await call(m.list_tasks, user_id="alice", status="backlog", limit=1, page=p) for p in [1, 2]]
+    assert [p[1] for p in pages] == [2, 2]
+    assert [p[0][0]["id"] for p in pages] == ["4", "2"]
+    assert (await call(m.list_tasks, product_id=parents[1]["id"]))[1] == 3
+    assert (await call(m.list_tasks, status="cancelled"))[1] == 1
+    assert (await call(m.list_tasks, user_id="absent")) == ([], 0)
+
+
+@pytest.mark.asyncio
+async def test_validation_parent_visibility_and_immutable_fields(db):
+    m = manager(db)
+    parent = await call(m.create, "SDK", user_id="alice")
+    with pytest.raises(LookupError):
+        await call(m.create_task, parent["id"], "Hidden", user_id="bob", scoped_user_id="bob")
+    record = await call(m.create_task, parent["id"], "Work")
+    for fields in [
+        {"status": "done"},
+        {"id": "other"},
+        {"product_id": "other"},
+        {"created_at": 0},
+        {"deleted_at": 1},
+        {"title": None},
+        {"brief": []},
+    ]:
+        with pytest.raises(ValueError):
+            await call(m.update_task, record["id"], **fields)
+        with pytest.raises(ValueError):
+            await call(db.update_task, record["id"], **fields)
+    for kwargs in [{"limit": 0}, {"page": 0}]:
+        with pytest.raises(ValueError):
+            await call(m.list_tasks, **kwargs)
+        with pytest.raises(ValueError):
+            await call(db.get_tasks, **kwargs)
+
+
+@pytest.mark.asyncio
+async def test_custom_table_migrations_and_configuration_roundtrip(db):
+    m = manager(db)
+    parent = await call(m.create, "SDK")
+    record = await call(m.create_task, parent["id"], "Roundtrip", user_id="alice")
+    assert await call(db.table_exists, db.tasks_table_name)
+    assert not await call(db.table_exists, "agno_company_tasks")
+    assert await call(db.get_latest_schema_version, db.tasks_table_name)
+    data = db.to_dict()
+    assert data["tasks_table"] == db.tasks_table_name
+    reopened = type(db).from_dict(data)
+    try:
+        assert reopened.tasks_table_name == db.tasks_table_name
+        assert await call(reopened.get_task, record["id"], user_id="alice") == record
+    finally:
+        await call(reopened.close)
+
+
+@pytest.mark.asyncio
+async def test_task_acceptance_and_project_consistency(db):
+    m = manager(db)
+    a = await call(m.create, "A")
+    b = await call(m.create, "B")
+    project = await call(m.create_project, b["id"], "Other")
+    with pytest.raises(ValueError):
+        await call(m.create_task, a["id"], "Wrong", project_id=project["id"])
+    task = await call(m.create_task, a["id"], "Work")
+    with pytest.raises(ValueError):
+        await call(m.update_task, task["id"], project_id=project["id"])
+    ready = await call(
+        m.transition_task,
+        task["id"],
+        "ready",
+        "Accepted",
+        accepted_by="alice",
+        executor_type="team",
+        executor_id="writers",
+    )
+    assert ready["accepted_by"] == "alice"
+    assert ready["accepted_at"] >= task["created_at"]
+    with pytest.raises(ValueError, match="Backlog"):
+        await call(m.update_task, task["id"], brief="Changed")
+    assert await call(db.update_task, task["id"], brief="Bypass") is None
+    backlog = await call(m.transition_task, task["id"], "backlog", "Rescope", accepted_by="alice")
+    assert all(backlog[k] is None for k in ["executor_id", "executor_type", "accepted_at", "accepted_by"])
+    assert (await call(m.update_task, task["id"], brief="Changed"))["brief"] == "Changed"
+
+
+@pytest.mark.asyncio
+async def test_stale_acceptance_cannot_overwrite_a_backlog_roundtrip(db, monkeypatch):
+    import agno.db.schemas.tasks as task_schema
+
+    m = manager(db)
+    parent = await call(m.create, "SDK")
+    task = await call(m.create_task, parent["id"], "Work")
+    # Capture the observed row at the SQL validation boundary. The later writer
+    # sees Backlog again, but must not overwrite the intervening history.
+    original = task_schema.task_transition_fields
+    if isinstance(db, AsyncBaseDb):
+        # Native async concurrency is covered by the same SQL predicate. Use
+        # two async transactions below instead of reentering the event loop.
+        import asyncio
+
+        observed = asyncio.Event()
+        resume = asyncio.Event()
+        first = True
+        original_execute = db.async_session_factory.class_.execute
+
+        async def execute(session, statement, *args, **kwargs):
+            nonlocal first
+            result = await original_execute(session, statement, *args, **kwargs)
+            if (
+                first
+                and statement.is_select
+                and getattr(statement, "selected_columns", None) is not None
+                and "executor_type" in statement.selected_columns
+            ):
+                first = False
+                observed.set()
+                await resume.wait()
+            return result
+
+        monkeypatch.setattr(db.async_session_factory.class_, "execute", execute)
+        pending = asyncio.create_task(
+            m.transition_task(task["id"], "ready", "Stale", executor_type="agent", executor_id="stale")
+        )
+        await asyncio.wait_for(observed.wait(), timeout=5)
+        await m.transition_task(task["id"], "ready", "Current", executor_type="agent", executor_id="current")
+        await m.transition_task(task["id"], "backlog", "Rescope")
+        resume.set()
+        assert await asyncio.wait_for(pending, timeout=5) is None
+    else:
+        first = True
+
+        def intervening(existing, *args, **kwargs):
+            nonlocal first
+            if first:
+                first = False
+                from concurrent.futures import ThreadPoolExecutor
+
+                # Sync adapters use thread-scoped Sessions; the competing writer
+                # needs its own thread to represent a separate transaction.
+                with ThreadPoolExecutor(max_workers=1) as pool:
+                    pool.submit(
+                        m.transition_task, task["id"], "ready", "Current", executor_type="agent", executor_id="current"
+                    ).result(timeout=5)
+                    pool.submit(m.transition_task, task["id"], "backlog", "Rescope").result(timeout=5)
+            return original(existing, *args, **kwargs)
+
+        monkeypatch.setattr(task_schema, "task_transition_fields", intervening)
+        assert m.transition_task(task["id"], "ready", "Stale", executor_type="agent", executor_id="stale") is None
+    saved = await call(m.get_task, task["id"])
+    assert saved["status"] == "backlog" and saved["executor_id"] is None
+    assert [entry["reason"] for entry in saved["transitions"]] == ["Current", "Rescope"]

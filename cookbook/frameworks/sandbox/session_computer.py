@@ -1,8 +1,11 @@
-"""Run several turns of one session, each on a fresh computer, and see what each turn leaves behind.
+"""Run several turns of one session, warm and cold, and see what each turn leaves behind.
 
-For every turn the coordinator creates a container, restores the session's last
-checkpoint into it, runs the turn, saves a new checkpoint, removes the container,
-and only then marks the run completed. After each turn this example reads back
+The first turn of a session runs on a new container. When a turn completes the
+coordinator saves a checkpoint, pauses the container and only then marks the run
+completed; the next turn resumes that container with nothing to restore. A
+container that is gone or past its warm window is replaced by a new one restored
+from the checkpoint, so the checkpoint is always the recovery point. After each
+turn this example reads back
 what that left, using only public calls: the run row and the session in Postgres,
 and the checkpoint itself, opened from the checkpoint store.
 
@@ -73,11 +76,14 @@ with TemporaryDirectory() as directory:
     )
     describe(first.run_id, checkpoints, root)
 
-    print("Turn 2: a fresh computer, restored from turn 1's checkpoint.")
+    print("Turn 2: turn 1's computer, resumed from its pause; nothing restored.")
     second = coordinator.run(
         session_id, run_id=session_id + "-2", input="Revise the draft", **turn
     )
     describe(second.run_id, checkpoints, root)
+    print(
+        "  the same generation as turn 1, so no restore happened; its checkpoint was still captured."
+    )
     print("  turn 2 completing also means it found turn 1's native conversation.")
 
     print("Retrying turn 2, say after a lost response:")
@@ -86,3 +92,9 @@ with TemporaryDirectory() as directory:
     )
     print(f"  {retry.status}, the stored result; the turn did not run again.")
     describe(second.run_id, checkpoints, root)
+
+    print(
+        "Done: the computer kept warm for a next turn is removed; the checkpoint stays."
+    )
+    removed = coordinator.retire_computer(session_id, agent_id=turn["agent_id"])
+    print(f"  removed a warm computer: {removed}")

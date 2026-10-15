@@ -443,3 +443,23 @@ Coordinator review follow-up: native transcript-mirror warnings and lost pre-che
 **Description:** The AgentCore agent served by AgentOS with a durable queue (local Postgres and Redis) and an explicit checkpoint store, driven over HTTP against the staging runtime with `us.anthropic.claude-sonnet-5` through Bedrock and no API key. Turn 1 was a streamed submission; turn 2 a background submission with `stream=false`, polled to completion.
 
 **Result:** Passed. Turn 1 streamed RunStarted, two tool calls, content and RunCompleted with "hello". Turn 2 ran on a new microVM restored from turn 1's checkpoint, COMPLETED, and replied "hello.py". The server log had no errors or warnings.
+
+### Warm turns: session_computer.py, cancel_turn.py, resume_after_disconnect.py
+
+**Status:** PASS
+
+**Description:** The coordinator now keeps a turn's computer warm after the checkpoint is captured (paused on Docker) and the next turn resumes it instead of restoring; computers that are gone, expired, cancelled or failed are replaced on a fresh generation from the checkpoint. The three coordinator cookbooks ran against real Docker and local Postgres with the fixture runtime, and each now retires its warm computer at the end.
+
+**Result:** Passed. session_computer.py: turn 2 ran on turn 1's generation with nothing restored, its checkpoint held both turns, the retry returned the stored result, and the retire call removed the paused container. cancel_turn.py and resume_after_disconnect.py behaved as before; the cancelled turn retired its computer and turn 3 restored from turn 1's checkpoint. No containers were left behind. Coordinator integration suite: 71 passed, 1 skipped, including the new warm-path tests (resume, lost computer, expired window, cancel, retire, sweep). AgentOS, store and transfer suites: 123 passed, 14 skipped; sandbox unit suite: 357 passed.
+
+---
+
+### warm_turns.py
+
+**Status:** PASS
+
+**Description:** Four fixture turns of one session through the coordinator, on Docker and on AgentCore (the agno_sandbox_proto runtime in the staging account), counting provider creates and transfer restores per turn and reading the run's metadata.sandbox.resumed flag. The warm window is shortened before turn 3 and turn 4 runs after it ends.
+
+**Result:** Passed on both providers. Docker: turn 1 cold 1.3s, turn 2 warm 1.2s, turn 3 warm 1.0s, turn 4 cold 1.7s with a restore and a new generation. AgentCore: turn 1 cold 8.2s, turn 2 warm 3.3s on the same microVM, turn 3 warm 3.4s, turn 4 cold 6.5s on a new microVM restored from turn 3's checkpoint. On both, turn 4's checkpoint held all four turns, and the retire call removed the computer turn 4 left warm. A direct coordinator call with the default 900s turn budget against a 900s AgentCore lifetime stays cold by design, since the lifetime guard refuses a resume that cannot fit the turn; the cookbook uses a 300s budget against an 1800s lifetime.
+
+---

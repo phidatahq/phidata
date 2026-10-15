@@ -708,3 +708,32 @@ async def test_cancellation_does_not_overwrite_a_recorded_stop(system, monkeypat
     monkeypatch.setattr("agno.run.cancel.ais_cancelled", cancelled)
     output = await run(coordinator, spec)
     assert output.status == RunStatus.error and output.content == "original failure"
+
+
+async def test_retryable_restore_failure_runs_again_on_the_next_queue_attempt(system, monkeypatch):
+    coordinator, spec, root = system
+    store = coordinator.store
+    await run(coordinator, spec)
+    restore = coordinator.transfer.arestore
+
+    async def lose_native(handle, reference):
+        state = await restore(handle, reference)
+        await coordinator.provider.aexec(handle, ["rm", "-f", "/runtime/native/fixture-session"])
+        return state
+
+    monkeypatch.setattr(coordinator.transfer, "arestore", lose_native)
+    failed = await run(coordinator, spec, "second", queue_attempt=1)
+    assert failed.status == RunStatus.error and failed.metadata["retryable"] is True
+    monkeypatch.setattr(coordinator.transfer, "arestore", restore)
+
+    # The durable queue stamps attempt 2 on the run row, then re-drives the same run id.
+    def stamp(connection):
+        data = connection.execute(select(store.runs.c.run_data).where(store.runs.c.run_id == "second")).scalar_one()
+        connection.execute(
+            store.runs.update().where(store.runs.c.run_id == "second").values(run_data={**data, "queue_attempt": 2})
+        )
+
+    await store._transaction(stamp)
+    retried = await run(coordinator, spec, "second", queue_attempt=2)
+    assert retried.status == RunStatus.completed
+    assert await recovered_effects(coordinator, root) == ["first", "second"]

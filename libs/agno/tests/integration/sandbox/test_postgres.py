@@ -1003,3 +1003,46 @@ async def test_paused_run_is_not_restarted_in_a_sandbox(store):
     with pytest.raises(SandboxError, match="paused"):
         await claim(store)
     assert await store._transaction(lambda c: c.execute(select(store.bindings)).first()) is None
+
+
+async def stamp_attempt(store, attempt, run_id="run"):
+    # What the durable queue does before re-driving a run: record the new attempt on its row.
+    def write(connection):
+        data = connection.execute(select(store.runs.c.run_data).where(store.runs.c.run_id == run_id)).scalar_one()
+        connection.execute(
+            store.runs.update().where(store.runs.c.run_id == run_id).values(run_data={**data, "queue_attempt": attempt})
+        )
+
+    await store._transaction(write)
+
+
+async def failed_attempt(store, retryable):
+    await seed(store, attempt=1)
+    state = await claim(store, queue_attempt=1)
+    await store.abegin_stop(state.lease, status="ERROR", reason="restore did not land", retryable=retryable)
+    await store.afinish_stop(state.lease)
+    await stamp_attempt(store, 2)
+
+
+async def test_retryable_error_reopens_on_a_newer_queue_attempt(store):
+    await failed_attempt(store, retryable=True)
+    state = await claim(store, owner="retry", queue_attempt=2)
+    assert state.record["phase"] == "executing"
+    run = (await rows(store))[0]
+    assert run["status"] == "RUNNING" and run["run_data"]["status"] == "RUNNING"
+    assert "retryable" not in (run["run_data"].get("metadata") or {}) and run["run_data"].get("content") is None
+
+
+async def test_error_stays_final_without_a_retryable_newer_attempt(store):
+    await failed_attempt(store, retryable=False)
+    with pytest.raises(SandboxRunFinished):
+        await claim(store, owner="retry", queue_attempt=2)
+    assert (await rows(store))[0]["status"] == "ERROR"
+
+
+async def test_retryable_error_is_not_reopened_by_the_failed_attempt(store):
+    await failed_attempt(store, retryable=True)
+    # Undo the stamp: the attempt that failed asks again, e.g. after a lost acknowledgement.
+    await stamp_attempt(store, 1)
+    with pytest.raises(SandboxRunFinished):
+        await claim(store, owner="retry", queue_attempt=1)

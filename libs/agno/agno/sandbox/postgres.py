@@ -444,7 +444,29 @@ class _SandboxStore:
             record = dict(row["record"])
             now = connection.execute(select(func.clock_timestamp())).scalar_one()
             active = record["phase"] != "idle"
-            if not active and str(run["status"]).upper() in _FINISHED:
+            # A retryable failure this binding recorded for an earlier queue attempt of this run: the
+            # queue's next attempt runs the turn again instead of reading back the stored error.
+            failed = record.get("retryable_failure") or {}
+            reopen = (
+                not active
+                and str(run["status"]).upper() == "ERROR"
+                and (run["run_data"].get("metadata") or {}).get("retryable") is True
+                and failed.get("run_id") == run_id
+                and queue_attempt is not None
+                and failed.get("queue_attempt") is not None
+                and queue_attempt > failed["queue_attempt"]
+            )
+            if reopen:
+                reopened = {**run["run_data"], "status": "RUNNING", "content": None}
+                reopened["metadata"] = {
+                    key: value for key, value in (reopened.get("metadata") or {}).items() if key != "retryable"
+                }
+                connection.execute(
+                    update(self.runs)
+                    .where(self.runs.c.run_id == run_id)
+                    .values(status="RUNNING", run_data=self._json(reopened), updated_at=int(time.time()))
+                )
+            elif not active and str(run["status"]).upper() in _FINISHED:
                 raise SandboxRunFinished(dict(run["run_data"]))
             if not active and str(run["status"]).upper() == "PAUSED":
                 # A paused run waits for its continuation; executing it again would discard that state.
@@ -492,6 +514,7 @@ class _SandboxStore:
                     staged_checkpoint=None,
                     staged_identity=None,
                     request_hash=None,
+                    retryable_failure=None,
                 )
             if active and str(run["status"]).upper() in _FINISHED:
                 # Finished elsewhere while this turn was active: retire its compute and release the session.
@@ -835,6 +858,9 @@ class _SandboxStore:
                     .where(self.runs.c.run_id == lease.run_id)
                     .values(status=run["status"], run_data=self._json(run), updated_at=int(time.time()))
                 )
+                if record.get("stop_retryable"):
+                    # Lets the queue's next attempt of this run reopen it.
+                    record["retryable_failure"] = {"run_id": lease.run_id, "queue_attempt": lease.queue_attempt}
             record.update(phase="idle", result=None, staged_checkpoint=None)
             connection.execute(
                 update(self.bindings)

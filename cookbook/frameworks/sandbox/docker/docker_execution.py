@@ -1,4 +1,4 @@
-"""Run without model credentials: python cookbook/frameworks/sandbox/docker_execution.py."""
+"""Run without model credentials: python cookbook/frameworks/sandbox/docker/docker_execution.py."""
 
 import os
 from uuid import uuid4

@@ -2620,7 +2620,9 @@ class AgentOS:
             {
                 id(db): db
                 for db in chain(
-                    chain.from_iterable(self.dbs.values()), chain.from_iterable(self.knowledge_dbs.values())
+                    chain.from_iterable(self.dbs.values()),
+                    chain.from_iterable(self.knowledge_dbs.values()),
+                    [self._company_db] if self._company_db is not None else [],
                 )
             }.values()
         )

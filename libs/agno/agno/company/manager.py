@@ -25,7 +25,7 @@ class CompanyManager:
         metadata: Optional[Dict[str, Any]] = None,
         user_id: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Create a Product without requiring a model."""
+        """Create a Product."""
         fields = {"name": name, "purpose": purpose, "metadata": metadata}
         validate_product_fields(fields)
         return self.db.create_product(
@@ -84,7 +84,7 @@ class AsyncCompanyManager:
         metadata: Optional[Dict[str, Any]] = None,
         user_id: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Create a Product without requiring a model."""
+        """Create a Product."""
         fields = {"name": name, "purpose": purpose, "metadata": metadata}
         validate_product_fields(fields)
         return await self.db.create_product(

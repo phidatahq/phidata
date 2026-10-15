@@ -1,9 +1,9 @@
-"""Products HTTP behavior, assembly and unsupported database contracts."""
+"""Products HTTP behavior, assembly and unsupported database handling."""
 
 import asyncio
 import importlib
 import threading
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from fastapi import FastAPI, HTTPException
@@ -128,6 +128,29 @@ def test_database_resolution_once_and_override(tmp_path):
     override.close()
 
 
+@pytest.mark.parametrize("async_db", [False, True], ids=["sync", "async"])
+@pytest.mark.parametrize("configuration", ["inherited", "shared", "override", "company_only"])
+def test_company_database_closed_once_on_shutdown(tmp_path, monkeypatch, async_db, configuration):
+    cls = AsyncSqliteDb if async_db else SqliteDb
+    os_db = None if configuration == "company_only" else cls(db_file=str(tmp_path / "os.db"))
+    company_db = os_db if configuration in {"inherited", "shared"} else cls(db_file=str(tmp_path / "company.db"))
+    close_mocks = []
+    for db in {id(db): db for db in (os_db, company_db) if db is not None}.values():
+        close = AsyncMock(wraps=db.close) if async_db else MagicMock(wraps=db.close)
+        monkeypatch.setattr(db, "close", close)
+        close_mocks.append(close)
+    config = CompanyConfig(db=None if configuration == "inherited" else company_db)
+    with TestClient(AgentOS(db=os_db, company=config, telemetry=False).get_app()) as client:
+        response = client.post("/company/products", json={"name": "SDK"})
+        assert response.status_code == 201, response.text
+        for close in close_mocks:
+            close.assert_not_called()
+    for close in close_mocks:
+        close.assert_called_once_with()
+        if async_db:
+            close.assert_awaited_once_with()
+
+
 def test_import_without_company_changes_no_routes_tables_or_scopes(tmp_path):
     db = SqliteDb(db_file=str(tmp_path / "disabled.db"))
     with TestClient(AgentOS(db=db, telemetry=False).get_app()) as client:
@@ -222,8 +245,7 @@ def test_sync_database_does_not_run_on_event_loop(tmp_path):
 
 
 def test_visible_foreign_owner_is_forbidden():
-    # Products have no sharing stage. If a storage adapter returns a visible
-    # foreign row, the same second ownership guard as components still refuses it.
+    # A visible foreign row still requires an ownership check.
     with pytest.raises(HTTPException) as exc:
         _require_write_ownership({"user_id": "alice"}, "bob")
     assert exc.value.status_code == 403

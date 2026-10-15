@@ -8,10 +8,12 @@ import pytest
 import pytest_asyncio
 from sqlalchemy import text
 
+from agno.agent import Agent
 from agno.company import AsyncCompanyManager, CompanyManager
 from agno.db.base import AsyncBaseDb
 from agno.db.postgres import AsyncPostgresDb, PostgresDb
 from agno.db.sqlite import AsyncSqliteDb, SqliteDb
+from agno.db.utils import db_from_dict
 
 
 @pytest_asyncio.fixture(params=["sqlite", "async_sqlite", "postgres", "async_postgres"])
@@ -155,11 +157,18 @@ async def test_custom_table_and_shared_schema_version(db):
 
 
 @pytest.mark.asyncio
-async def test_configuration_roundtrip(db):
+@pytest.mark.parametrize("loader", ["adapter", "resolver", "agent"])
+async def test_configuration_roundtrip(db, loader):
     product = await call(manager(db).create, "Roundtrip", user_id="alice")
     data = db.to_dict()
     assert data["products_table"] == db.products_table_name
-    reopened = type(db).from_dict(data)
+    if loader == "adapter":
+        reopened = type(db).from_dict(data)
+    elif loader == "resolver":
+        reopened = db_from_dict(data)
+    else:
+        reopened = Agent.from_dict(Agent(db=db, telemetry=False).to_dict()).db
+    assert type(reopened) is type(db)
     try:
         assert reopened.products_table_name == db.products_table_name
         assert await call(reopened.get_product, product["id"], user_id="alice") == product

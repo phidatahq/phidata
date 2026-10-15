@@ -8951,7 +8951,7 @@ class PostgresDb(BaseDb):
         if table is None:
             raise RuntimeError("Failed to get or create products table")
         with self.Session() as sess, sess.begin():
-            result = sess.execute(table.insert().values(**product_data).returning(table)).fetchone()
+            result = sess.execute(table.insert().values(**product_data).returning(table)).one()
             return dict(result._mapping)
 
     def get_product(

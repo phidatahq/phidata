@@ -2,7 +2,7 @@
 Manage Company Products
 =======================
 
-Create Products, scope reads by owner, soft-delete and restore without a model.
+Create Products, scope reads by owner, soft-delete and restore.
 
 Prerequisites: Install Agno and sqlalchemy in the development environment.
 Run: .venv/bin/python cookbook/05_agent_os/30_company/01_manage_products.py

@@ -9,11 +9,7 @@ from agno.models.base import Model
 
 @dataclass
 class CompanyConfig:
-    """Company resources. An omitted database inherits AgentOS.db at assembly.
-
-    The optional model is retained for future Product Manager support; Products
-    do not require or invoke a model.
-    """
+    """Company resources. An omitted database inherits AgentOS.db at assembly."""
 
     db: Optional[Union[BaseDb, AsyncBaseDb]] = None
     model: Optional[Model] = None

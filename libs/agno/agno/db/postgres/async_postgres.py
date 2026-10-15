@@ -6193,7 +6193,7 @@ class AsyncPostgresDb(AsyncBaseDb):
         if table is None:
             raise RuntimeError("Failed to get or create products table")
         async with self.async_session_factory() as sess, sess.begin():
-            result = (await sess.execute(table.insert().values(**product_data).returning(table))).fetchone()
+            result = (await sess.execute(table.insert().values(**product_data).returning(table))).one()
             return dict(result._mapping)
 
     async def get_product(

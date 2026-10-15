@@ -1,6 +1,6 @@
 # Company Products
 
-Manage standing responsibilities with SQLite for development, without a model.
+Manage standing responsibilities with SQLite for development.
 PostgreSQL is supported for production, with the same sync and async methods.
 
 | File | What it teaches |
@@ -16,7 +16,6 @@ Run with the development environment:
 For HTTP access, configure `AgentOS(db=db, company=CompanyConfig())` using
 `AgentOS` and `CompanyConfig` from `agno.os`. An explicit `CompanyConfig(db=...)`
 overrides the OS database. Omitting Company leaves its routes and scopes absent.
-The model option is stored but unused by Products.
 
 The routes are `GET` and `POST /company/products`, `GET`, `PATCH` and
 `DELETE /company/products/{id}`, and `POST /company/products/{id}/restore`.
@@ -30,4 +29,4 @@ a total. `user_id=None` is unscoped; a string filters by owner before paging.
 The HTTP layer derives ownership from authenticated identity. With isolation
 on, another owner's Product is invisible and returns 404, including on writes.
 With isolation off, callers with the required scope can read and change every
-Product. Admins bypass owner isolation. No model calls are made.
+Product. Admins bypass owner isolation.

@@ -185,6 +185,25 @@ def _config(agent: "BaseExternalAgent", output_schema: Any) -> Dict[str, Any]:
     return config
 
 
+def _media_wire(extra: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """The canonical attachment wire for a submission.
+
+    ``media`` carries Image/File objects from a Python caller or the HTTP router, whose bytes are read
+    here once; ``sandbox_media`` is the wire a queue worker replays from the ticket and is validated again.
+    """
+    from agno.sandbox.media import encode_media, validate_media
+
+    objects, replayed = extra.get("media"), extra.get("sandbox_media")
+    if objects and replayed:
+        raise ValueError("Sandbox attachments are given either as media or as sandbox_media, not both")
+    if replayed:
+        validate_media(replayed)
+        return list(replayed)
+    if objects:
+        return encode_media(images=objects.get("images"), files=objects.get("files"))
+    return []
+
+
 def submission(agent: "BaseExternalAgent", input: Any, kwargs: Dict[str, Any]) -> Dict[str, Any]:
     """Validate one submission and return the run options it carries."""
     from agno.sandbox.protocol import validate_request
@@ -194,9 +213,10 @@ def submission(agent: "BaseExternalAgent", input: Any, kwargs: Dict[str, Any]) -
     extra = {key: value for key, value in kwargs.items() if value is not None}
     for key in ("run_id", "session_id", "user_id", "yield_run_output", "stream_events", "background_tasks"):
         extra.pop(key, None)
-    unknown = set(extra) - {"output_schema"}
+    unknown = set(extra) - {"output_schema", "media", "sandbox_media"}
     if unknown:
         raise ValueError("Unsupported sandbox run options: " + ", ".join(sorted(unknown)))
+    wire = _media_wire(extra)
     schema = extra.get("output_schema", agent.output_schema)
     agent._check_output_schema(schema)
     if schema is not None and not isinstance(schema, dict):
@@ -213,18 +233,24 @@ def submission(agent: "BaseExternalAgent", input: Any, kwargs: Dict[str, Any]) -
             input=input,
             config=_config(agent, schema),
             execution_timeout=_sandbox(agent).execution_timeout,
+            **({"media": wire} if wire else {}),
         )
     )
-    return {"output_schema": schema} if schema is not None else {}
+    options: Dict[str, Any] = {"output_schema": schema} if schema is not None else {}
+    if wire:
+        options["sandbox_media"] = wire
+    return options
 
 
 def _execution(agent: "BaseExternalAgent", input: Any, kwargs: Dict[str, Any]) -> Dict[str, Any]:
     from agno.run.concurrency import get_worker_ownership
+    from agno.sandbox.media import decode_media
 
     options = submission(agent, input, kwargs)
     run_id = kwargs.get("run_id") or str(uuid4())
     owner = get_worker_ownership(run_id)
     return dict(
+        **decode_media(options.get("sandbox_media", [])),
         agent_id=agent.get_id(),
         run_id=run_id,
         input=input,
@@ -284,16 +310,30 @@ async def astream(agent: "BaseExternalAgent", input: Any, **kwargs: Any) -> Asyn
             await acleanup_run(execution["run_id"])
 
 
+async def _ticket_media(run_id: str) -> List[Dict[str, Any]]:
+    """The attachment wire the accepted ticket for this run carries (the ticket id is the run id)."""
+    from agno.os.job_queue import get_active_queue_worker
+
+    worker = get_active_queue_worker()
+    job = await worker.store.get_job(run_id) if worker is not None else None
+    return list(((job or {}).get("payload") or {}).get("kwargs", {}).get("sandbox_media") or [])
+
+
 async def aprepare_pending_run(
     agent: "BaseExternalAgent", run_id: str, session_id: str, user_id: Optional[str], input: Any
 ) -> RunOutput:
+    from agno.sandbox.media import decode_media
+
+    # The store refuses to claim a run whose input differs from this row's, and the coordinator writes the
+    # attachments at claim time, so they are written here too, from the same canonical wire.
+    media = decode_media(await _ticket_media(run_id))
     run = RunOutput(
         run_id=run_id,
         session_id=session_id,
         agent_id=agent.get_id(),
         user_id=user_id,
         agent_name=agent.name,
-        input=RunInput(input_content=input),
+        input=RunInput(input_content=input, **media),
         # The user's turn is part of the history even if the run never produces output, as on
         # the host path; the runtime's messages replace these when the turn completes.
         messages=[Message(role="user", content=str(input), created_at=int(time.time()))],

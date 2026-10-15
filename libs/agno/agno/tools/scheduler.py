@@ -27,8 +27,7 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 from urllib.parse import unquote, urlsplit
 
 from agno.db.schemas.scheduler import RUN_ENDPOINT_RE, Schedule, match_run_endpoint
-from agno.registry import Registry
-from agno.registry._visibility import _is_public
+from agno.registry._reserved import RESERVED_MEMBER_IDS
 from agno.run import RunContext
 from agno.run.authorization import public_payload, requires_permission
 from agno.scheduler.manager import ScheduleManager
@@ -36,16 +35,12 @@ from agno.tools.toolkit import Toolkit
 from agno.utils.log import log_debug, logger
 
 
-def _private_endpoint_refusal(endpoint: str, registry: Optional[Registry] = None) -> Optional[str]:
+def _manager_member_refusal(endpoint: str) -> Optional[str]:
     """Validate the path the HTTP server will resolve, including encoded IDs and queries."""
     path = posixpath.normpath(unquote(urlsplit(endpoint).path))
     parts = path.strip("/").split("/")
-    if (
-        len(parts) >= 2
-        and parts[0] in ("agents", "teams", "workflows")
-        and not _is_public(parts[0][:-1], parts[1], registry)
-    ):
-        return "Schedule target is internal; select a public component instead."
+    if len(parts) >= 2 and parts[0] in ("agents", "teams", "workflows") and parts[1] in RESERVED_MEMBER_IDS:
+        return "Manager specialists are internal. Schedule OS Manager instead."
     return None
 
 
@@ -476,13 +471,11 @@ class SchedulerTools(Toolkit):
         include_teams: Optional[Sequence[Any]] = None,
         include_workflows: Optional[Sequence[Any]] = None,
         db_resolver: Optional[Callable[[], Any]] = None,
-        registry: Optional[Registry] = None,
         **kwargs: Any,
     ):
         # With a resolver and no db yet, the manager is built lazily on first
         # access: the embedding StudioTools may learn its db only after
         # AgentOS fills the shared registry.
-        self.registry = registry
         self._db_resolver = db_resolver
         self._manager: Optional[ScheduleManager] = (
             ScheduleManager(db=db) if db is not None or db_resolver is None else None
@@ -612,7 +605,7 @@ class SchedulerTools(Toolkit):
         resolved_endpoint = endpoint or self.default_endpoint
         if not resolved_endpoint:
             return json.dumps({"error": "No endpoint provided and no default_endpoint configured"})
-        private_target = _private_endpoint_refusal(resolved_endpoint, self.registry)
+        private_target = _manager_member_refusal(resolved_endpoint)
         if private_target:
             return json.dumps({"error": private_target, "error_type": "target_internal"})
 
@@ -798,7 +791,7 @@ class SchedulerTools(Toolkit):
             existing = self.manager.get(schedule_id, user_id=self._owner(run_context))
             if existing is None:
                 return json.dumps({"error": f"Schedule not found: {schedule_id}"})
-            private_target = _private_endpoint_refusal(existing.endpoint, self.registry)
+            private_target = _manager_member_refusal(existing.endpoint)
             if private_target:
                 return json.dumps({"error": private_target, "error_type": "target_internal"})
             # A schedule aimed at an archived component can only 404 at fire
@@ -912,7 +905,7 @@ class SchedulerTools(Toolkit):
             schedule = self.manager.get(schedule_id, user_id=owner)
             if schedule is None:
                 return json.dumps({"error": f"Schedule not found: {schedule_id}"})
-            private_target = _private_endpoint_refusal(schedule.endpoint, self.registry)
+            private_target = _manager_member_refusal(schedule.endpoint)
             if private_target:
                 return json.dumps({"error": private_target, "error_type": "target_internal"})
             if not schedule.enabled:
@@ -992,7 +985,7 @@ class SchedulerTools(Toolkit):
         resolved_endpoint = endpoint or self.default_endpoint
         if not resolved_endpoint:
             return json.dumps({"error": "No endpoint provided and no default_endpoint configured"})
-        private_target = _private_endpoint_refusal(resolved_endpoint, self.registry)
+        private_target = _manager_member_refusal(resolved_endpoint)
         if private_target:
             return json.dumps({"error": private_target, "error_type": "target_internal"})
 
@@ -1178,7 +1171,7 @@ class SchedulerTools(Toolkit):
             existing = await self.manager.aget(schedule_id, user_id=self._owner(run_context))
             if existing is None:
                 return json.dumps({"error": f"Schedule not found: {schedule_id}"})
-            private_target = _private_endpoint_refusal(existing.endpoint, self.registry)
+            private_target = _manager_member_refusal(existing.endpoint)
             if private_target:
                 return json.dumps({"error": private_target, "error_type": "target_internal"})
             # A schedule aimed at an archived component can only 404 at fire
@@ -1292,7 +1285,7 @@ class SchedulerTools(Toolkit):
             schedule = await self.manager.aget(schedule_id, user_id=owner)
             if schedule is None:
                 return json.dumps({"error": f"Schedule not found: {schedule_id}"})
-            private_target = _private_endpoint_refusal(schedule.endpoint, self.registry)
+            private_target = _manager_member_refusal(schedule.endpoint)
             if private_target:
                 return json.dumps({"error": private_target, "error_type": "target_internal"})
             if not schedule.enabled:

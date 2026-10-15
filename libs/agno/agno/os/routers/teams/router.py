@@ -98,7 +98,6 @@ from agno.os.utils import (
     stamped_component_version,
 )
 from agno.registry import Registry
-from agno.registry._visibility import _public_os_components
 from agno.run.agent import RunOutput
 from agno.run.base import RunStatus
 from agno.run.team import RunErrorEvent as TeamRunErrorEvent
@@ -689,7 +688,7 @@ def get_team_router(
 
         team = await resolve_team(
             team_id,
-            _public_os_components(os, "team"),
+            os.teams,
             os.db,
             registry,
             version=version,
@@ -826,7 +825,7 @@ def get_team_router(
                     and getattr(team, "db", None) is not None
                     and payload_is_queueable(queued_stream_payload)
                     and not (base64_images or base64_audios or base64_videos or document_files)
-                    and component_is_queueable(team, team_id, _public_os_components(os, "team"), os.db)
+                    and component_is_queueable(team, team_id, os.teams, os.db)
                 )
                 if stream_queueable:
                     # 202/stream-accept must honor input_schema like the inline path (400)
@@ -836,7 +835,7 @@ def get_team_router(
                     queued_session_id = session_id  # non-empty: defaulted at the top of the endpoint
                     queued_stream_payload["scope"] = resolve_queue_scope(
                         team_id,
-                        _public_os_components(os, "team"),
+                        os.teams,
                         os.db,
                         scoped_user_id,
                         version,
@@ -936,7 +935,7 @@ def get_team_router(
             # time: a plain registry instance, or a db-backed (components API
             # / version-pinned) team replayed from the scope on the ticket.
             # Factory-backed teams need request context and never queue.
-            team_is_queueable = component_is_queueable(team, team_id, _public_os_components(os, "team"), os.db)
+            team_is_queueable = component_is_queueable(team, team_id, os.teams, os.db)
             queued_payload = {
                 "input": message,
                 "kwargs": kwargs,
@@ -955,7 +954,7 @@ def get_team_router(
                 queued_session_id = session_id  # non-empty: defaulted at the top of the endpoint
                 queued_payload["scope"] = resolve_queue_scope(
                     team_id,
-                    _public_os_components(os, "team"),
+                    os.teams,
                     os.db,
                     scoped_user_id,
                     version,
@@ -1144,7 +1143,7 @@ def get_team_router(
         # Factory teams: cancel is static, no team instance needed.
         # Non-admin callers must still prove session ownership before we apply
         # a global cancellation intent keyed solely on run_id.
-        factory = find_factory_by_id(team_id, _public_os_components(os, "team"))
+        factory = find_factory_by_id(team_id, os.teams)
         if factory:
             from agno.team._run import acancel_run
 
@@ -1183,7 +1182,7 @@ def get_team_router(
         try:
             team = get_team_by_id(
                 team_id=team_id,
-                teams=_public_os_components(os, "team"),
+                teams=os.teams,
                 db=os.db,
                 registry=registry,
                 create_fresh=True,
@@ -1278,7 +1277,7 @@ def get_team_router(
             if not session_id:
                 raise HTTPException(status_code=400, detail=SESSION_ID_REQUIRED)
 
-        factory = find_factory_by_id(team_id, _public_os_components(os, "team"))
+        factory = find_factory_by_id(team_id, os.teams)
         if factory:
             if scoped_user_id is not None:
                 assert session_id is not None
@@ -1308,7 +1307,7 @@ def get_team_router(
 
         team = get_team_by_id(
             team_id=team_id,
-            teams=_public_os_components(os, "team"),
+            teams=os.teams,
             db=os.db,
             registry=registry,
             create_fresh=True,
@@ -1436,11 +1435,11 @@ def get_team_router(
             raise HTTPException(status_code=400, detail="Invalid JSON in requirements field")
 
         # Factory teams: re-invoke factory to get a real team for continue
-        factory = find_factory_by_id(team_id, _public_os_components(os, "team"))
+        factory = find_factory_by_id(team_id, os.teams)
         if factory:
             team = await resolve_team(  # type: ignore[assignment]
                 team_id,
-                _public_os_components(os, "team"),
+                os.teams,
                 factory.db,
                 request=request,
                 user_id=user_id,
@@ -1451,7 +1450,7 @@ def get_team_router(
             try:
                 team = get_team_by_id(
                     team_id=team_id,
-                    teams=_public_os_components(os, "team"),
+                    teams=os.teams,
                     db=os.db,
                     registry=registry,
                     create_fresh=True,
@@ -1519,7 +1518,7 @@ def get_team_router(
                 try:
                     stamped_team = get_team_by_id(
                         team_id=team_id,
-                        teams=_public_os_components(os, "team"),
+                        teams=os.teams,
                         db=os.db,
                         registry=registry,
                         version=stamped_version,
@@ -1580,7 +1579,7 @@ def get_team_router(
                 "continue_from": continue_from_value,
                 "kwargs": kwargs,
             }
-            team_is_queueable = component_is_queueable(team, team_id, _public_os_components(os, "team"), os.db)
+            team_is_queueable = component_is_queueable(team, team_id, os.teams, os.db)
             if (
                 queue_worker is not None
                 # LIVE, unlike the submit gates' dead twin: the teams continue
@@ -1797,7 +1796,7 @@ def get_team_router(
         try:
             team = get_team_by_id(
                 team_id=team_id,
-                teams=_public_os_components(os, "team"),
+                teams=os.teams,
                 db=os.db,
                 registry=registry,
                 create_fresh=True,
@@ -1938,16 +1937,14 @@ def get_team_router(
                     detail=build_insufficient_permissions_detail(required_scopes),
                 )
 
-            accessible_teams = await afilter_resources_by_access(
-                request, _public_os_components(os, "team") or [], "teams"
-            )
+            accessible_teams = await afilter_resources_by_access(request, os.teams or [], "teams")
         else:
-            accessible_teams = _public_os_components(os, "team") or []
+            accessible_teams = os.teams or []
 
         teams = []
         for team in accessible_teams:
             if isinstance(team, Team):
-                teams.append(await TeamResponse.from_team(team=team, is_component=False, registry=registry))
+                teams.append(await TeamResponse.from_team(team=team, is_component=False))
             elif isinstance(team, TeamFactory):
                 teams.append(TeamResponse.from_factory(team))
             elif isinstance(team, RemoteTeam):
@@ -1961,9 +1958,7 @@ def get_team_router(
             # above renders. The registry is a superset - it also carries
             # rehydration context this route never lists - so subtracting it
             # would drop a stored team with nothing left to list it back.
-            exclude_ids = {
-                tid for t in _public_os_components(os, "team") or [] if (tid := getattr(t, "id", None)) is not None
-            }
+            exclude_ids = {tid for t in os.teams or [] if (tid := getattr(t, "id", None)) is not None}
             db_teams = get_teams(
                 db=os.db,
                 registry=registry,
@@ -1977,7 +1972,7 @@ def get_team_router(
                 if getattr(request.state, "authorization_enabled", False):
                     db_teams = await afilter_resources_by_access(request, db_teams, "teams")
                 for db_team in db_teams:
-                    team_response = await TeamResponse.from_team(team=db_team, is_component=True, registry=registry)
+                    team_response = await TeamResponse.from_team(team=db_team, is_component=True)
                     teams.append(team_response)
 
         return teams
@@ -2069,14 +2064,14 @@ def get_team_router(
     )
     async def get_team(team_id: str, request: Request) -> TeamResponse:
         # Factory teams: return factory metadata directly
-        factory = find_factory_by_id(team_id, _public_os_components(os, "team"))
+        factory = find_factory_by_id(team_id, os.teams)
         if factory:
             return TeamResponse.from_factory(factory)
 
         try:
             team = get_team_by_id(
                 team_id=team_id,
-                teams=_public_os_components(os, "team"),
+                teams=os.teams,
                 db=os.db,
                 registry=registry,
                 create_fresh=True,
@@ -2096,7 +2091,7 @@ def get_team_router(
         if isinstance(team, RemoteTeam):
             return await team.get_team_config()
         else:
-            return await TeamResponse.from_team(team=team, registry=registry)
+            return await TeamResponse.from_team(team=team)
 
     @router.get(
         "/teams/{team_id}/runs/{run_id}",
@@ -2120,14 +2115,14 @@ def get_team_router(
         session_id: str = Query(..., description="Session ID for the run"),
     ):
         # Factory teams
-        factory = find_factory_by_id(team_id, _public_os_components(os, "team"))
+        factory = find_factory_by_id(team_id, os.teams)
         if factory:
             team = factory_row_handle(factory)  # type: ignore[assignment]
         else:
             try:
                 team = get_team_by_id(
                     team_id=team_id,
-                    teams=_public_os_components(os, "team"),
+                    teams=os.teams,
                     db=os.db,
                     registry=registry,
                     create_fresh=True,
@@ -2215,14 +2210,14 @@ def get_team_router(
         run_id: str,
         session_id: str = Query(..., description="Session ID for the run"),
     ):
-        factory = find_factory_by_id(team_id, _public_os_components(os, "team"))
+        factory = find_factory_by_id(team_id, os.teams)
         if factory:
             team = factory_row_handle(factory)  # type: ignore[assignment]
         else:
             try:
                 team = get_team_by_id(
                     team_id=team_id,
-                    teams=_public_os_components(os, "team"),
+                    teams=os.teams,
                     db=os.db,
                     registry=registry,
                     create_fresh=True,
@@ -2280,14 +2275,14 @@ def get_team_router(
         message_index: int,
         session_id: str = Query(..., description="Session ID for the run"),
     ):
-        factory = find_factory_by_id(team_id, _public_os_components(os, "team"))
+        factory = find_factory_by_id(team_id, os.teams)
         if factory:
             team = factory_row_handle(factory)  # type: ignore[assignment]
         else:
             try:
                 team = get_team_by_id(
                     team_id=team_id,
-                    teams=_public_os_components(os, "team"),
+                    teams=os.teams,
                     db=os.db,
                     registry=registry,
                     create_fresh=True,
@@ -2345,14 +2340,14 @@ def get_team_router(
         from agno.os.schema import TeamRunSchema
 
         # Factory teams
-        factory = find_factory_by_id(team_id, _public_os_components(os, "team"))
+        factory = find_factory_by_id(team_id, os.teams)
         if factory:
             team = factory_row_handle(factory)  # type: ignore[assignment]
         else:
             try:
                 team = get_team_by_id(
                     team_id=team_id,
-                    teams=_public_os_components(os, "team"),
+                    teams=os.teams,
                     db=os.db,
                     registry=registry,
                     create_fresh=True,

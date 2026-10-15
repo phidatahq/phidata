@@ -542,157 +542,27 @@ PostgreSQL or hosted docs requests were made.
 ---
 
 
-## Private manager specialists, 2026-10-15
+## Private OS Manager members, 2026-10-15
 
-### Public discovery, execution and session replay
-
-**Status:** PASS
-
-**Description:** Added 11 cases covering config and REST/MCP discovery, direct
-specialist run and continuation refusal, resync, legacy catalog rows with the
-manager enabled and disabled, schedule retargeting, and streaming/nonstreaming
-delegation with structured reports retained in session history. Updated existing
-permission cases to exercise private members through OS Manager.
-
-**Result:** The focused manager and permission suite passed **307 tests**. Two
-additional HTTP session-replay checks passed after strengthening the assertions.
-Tests preserve ordinary StudioTools behavior and exercise allowed and denied
-manager actions under JWTs, managed roles and service accounts. Direct specialist
-requests are refused even for admins. No live model, hosted docs or PostgreSQL
-calls were made.
-
-### check_manager_permissions.py
+### Manager discovery, dispatch and legacy records
 
 **Status:** PASS
 
-**Description:** The actual cookbook's seven HTTP checks and session-ownership
-regression ran as part of the manager suite with temporary SQLite data and docs
-offline.
+**Description:** Only OS Manager is served. Tests cover REST/MCP discovery and
+standalone refusal, resync, legacy catalog rows in the manager's own runner,
+exact/name/version lookup, stored composition, queued replay and schedule
+disable/delete/retarget. Native delegation, structured tool results, confirmation,
+continuation, permissions and session history remain covered. This adds no public
+visibility API or chart dependency.
 
-**Result:** OS Manager remains discoverable and runnable with its existing
-permissions; invalid callers and access to another user's session remain refused.
-The README now documents the public-team-only contract and migration of direct
-specialist calls and schedules.
+**Result:** Focused manager, authorization and scheduler suites: **429 passed**.
+Broad affected suite: **7,878 passed, 32 skipped** (counts overlap). The existing
+permission cookbook's seven HTTP assertions run in that suite. Required format
+and validation scripts passed, including Ruff and mypy for 1,126 framework files
+and 21 CLI files. Validation used isolated dependencies because the shared dev
+environment has unrelated SDK typing errors; unrelated baseline formatter changes
+were restored. Optional Telegram files were excluded for an unavailable dependency.
+Tests used disposable data and scripted models; no live model, hosted docs,
+PostgreSQL or frontend rendering checks were performed.
 
-### Repository validation
-
-**Status:** PASS
-
-**Description:** Ran the required format and validation scripts using the
-development environment with isolated validation dependencies.
-
-**Result:** Formatting, Ruff, cookbook patterns, and mypy passed (1,126 framework
-files and 21 CLI files). Unrelated baseline formatter changes were removed.
-
-**Broad affected suite:** 6,606 passed, 24 skipped. This covers AgentOS,
-Studio/runner, scheduler, workspace, operational tools, run/registry, and
-authorization/service-account integration tests. Three unrelated Telegram test
-files were excluded because their optional dependency is unavailable. The broad
-count overlaps the focused suite; counts are not additive.
-
-
-## Shared component exposure policy, 2026-10-15 (superseded API)
-
-### Generic policies, dispatch and migration
-
-**Status:** PASS
-
-**Description:** Replaced specialist-specific surface checks with trusted, typed
-`ComponentPolicy` rules shared by AgentOS, catalog loaders, runner lookups,
-stored composition and schedules. Regressions cover application-owned private
-agents, teams and workflows; ID/name/version lookup; framework legacy rows with
-manager enabled and disabled; factories; REST/MCP/A2A; queued replay; public but
-noncomposable components; resync; and delegated confirmation/continuation with
-session history retained. Schedule checks include encoded paths, query strings,
-dot segments, continuation routes and migration of existing records.
-
-**Result:** Broad affected suite: **7,895 passed, 32 skipped**. The final focused
-policy and scheduler suite passed **196 tests**, including 40 policy cases and
-the last path-normalization and Studio message-edit regressions. These counts
-overlap and are not additive. Three Telegram test files were excluded for their
-unavailable optional dependency. Localhost tests ran outside the filesystem
-sandbox. No live model, hosted docs or PostgreSQL requests were made.
-
-### private_members.py
-
-**Status:** PASS
-
-**Description:** Executed the actual cookbook with temporary SQLite data and
-FastAPI TestClient. It checks private-agent discovery, member summaries, direct
-run refusal and schedule refusal without calling a model.
-
-**Result:** All assertions passed. The public research team retains its private
-member for native delegation.
-
-### Repository validation
-
-**Status:** PASS
-
-**Description:** Ran `scripts/format.sh` and `scripts/validate.sh`; validation used
-the existing isolated dependency environment after the ordinary development
-environment reported unrelated SDK typing errors.
-
-**Result:** Ruff, import sorting, cookbook patterns and mypy passed (1,127
-framework files and 21 CLI files). Unrelated baseline formatter edits were removed.
-
-
-## Minimal internal-component configuration, 2026-10-15
-
-### private_members.py and regression suites
-
-**Status:** PASS
-
-**Description:** Replaced the policy object and composition setting with one
-`Registry.internal_components` set of `(type, id)` entries. Removed automatic
-tool-registry rebinding and duplicate public-roster properties. Retained shared
-visibility checks, stale-row refusal, native delegation and existing registry
-exclusion behavior. Applications pass their shared registry explicitly.
-
-**Result:** Focused manager, authorization, visibility and schedule tests:
-**333 passed**. The cookbook's real HTTP assertions passed with temporary SQLite
-data and no model call. The shared development environment installs the primary
-checkout, so cookbook verification used `PYTHONPATH=libs/agno` in this worktree.
-
-Broad affected suite: **7,897 passed, 32 skipped**. Counts overlap the focused
-suite and are not additive. Three optional Telegram files were excluded for an
-unavailable dependency; localhost fixtures ran with local network access.
-
-Required format and validation scripts passed, including mypy for 1,127 framework
-files and 21 CLI files, using the existing isolated validation dependencies.
-Unrelated baseline formatter changes were removed. No live model, hosted-docs,
-PostgreSQL or frontend-browser validation is claimed.
-
-
-## Optional manager charts with offloaded source data, 2026-10-15
-
-### manager_charts.py
-
-**Status:** PASS (initialization with the pending chart dependency)
-
-**Description:** Loaded the actual cookbook against ChartTools from PR #8295,
-head `fd54deebc249537d1f560f684188f3449b602ef3`, in a temporary directory. The
-chart toolkit is attached only to OS Manager. Offloading remains enabled on the
-manager and both members. No model calls were made.
-
-**Result:** Cookbook initialization passed. This example requires ChartTools to
-be installed; it does not run on the current branch without that pending module.
-Frontend chart rendering and live-model behavior remain unverified.
-
-### Delegation, offload readback, chart response and replay
-
-**Status:** PASS
-
-**Description:** Four scripted integration cases exercise sync/async and
-streaming/nonstreaming runs. Platform Manager's large JSON report is offloaded;
-OS Manager receives its result id, searches beyond the preview, reads only the
-chart rows, calls the real chart toolkit and returns its block unchanged. The
-checks compare original numeric values (including zero), final output, streamed
-content and persisted session replay. No full report enters either model's
-messages; the full source remains readable in the result store.
-
-**Result:** Against the pinned chart dependency: **31 passed** (27 toolkit tests
-and 4 manager integration cases). The current branch's manager suite passes
-**161 tests**, with the four chart cases explicitly skipped until ChartTools
-lands. The dependency was loaded from a temporary directory and was not copied
-into this PR. Required format and validation scripts passed using the existing
-isolated validation dependencies (mypy: 1,127 framework and 21 CLI files).
+---

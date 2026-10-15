@@ -30,7 +30,7 @@ from agno.eval.base import BaseEval
 from agno.filters import FilterExpr
 from agno.guardrails import BaseGuardrail
 from agno.knowledge.protocol import KnowledgeProtocol
-from agno.registry._visibility import _catalog_allowed, _catalog_exclusions
+from agno.registry._reserved import RESERVED_MANAGER_IDS
 
 if TYPE_CHECKING:
     from agno.learn.machine import LearningMachine
@@ -1919,7 +1919,7 @@ def get_team_by_id(
     """
     from agno.exceptions import ComponentRehydrationError
 
-    if not _catalog_allowed("team", id, registry):
+    if id in RESERVED_MANAGER_IDS:
         return None
 
     try:
@@ -2009,7 +2009,7 @@ def get_teams(
     Returns:
         List of Team instances loaded from the database
     """
-    exclude_component_ids = set(exclude_component_ids or ()) | _catalog_exclusions("team", registry)
+    exclude_component_ids = set(exclude_component_ids or ()) | RESERVED_MANAGER_IDS
     teams: List[Team] = []
     try:
         from agno.utils.component_scope import component_owner_scope

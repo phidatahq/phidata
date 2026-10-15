@@ -89,7 +89,6 @@ from agno.os.utils import (
     update_cors_middleware,
 )
 from agno.registry import Registry
-from agno.registry._visibility import _public_manifest, _public_os_components
 from agno.remote.base import RemoteDb, RemoteKnowledge
 from agno.team import RemoteTeam, Team, TeamFactory
 from agno.utils.log import log_debug, log_error, log_info, log_warning
@@ -667,10 +666,8 @@ class AgentOS:
         """The OS Manager team, or None when disabled. Supports run() and arun()."""
         return self._manager.team if self._manager is not None else None
 
-    def _excluded_from_registry(self, component: Any) -> bool:
-        """Whether a component and its resources are excluded from the build palette."""
-        if self.registry is not None and self.registry.is_component_excluded(component):
-            return True
+    def _owned_by_manager(self, component: Any) -> bool:
+        """True for the manager's team and members, which never enter the registry."""
         return (getattr(component, "_registry_excluded", False) is True) or (
             self._manager is not None and self._manager.owns(component)
         )
@@ -678,12 +675,13 @@ class AgentOS:
     def _apply_manager_manifest(self) -> None:
         """Set default UI descriptions and prompts without replacing application settings."""
         from agno.os.config import AgentOSConfig
+        from agno.registry._reserved import RESERVED_MEMBER_IDS
 
         if self._manager is None:
             return
         if self.config is None:
             self.config = AgentOSConfig()
-        manifest = _public_manifest(self.config.manifest or {}, self.registry)
+        manifest = {key: value for key, value in (self.config.manifest or {}).items() if key not in RESERVED_MEMBER_IDS}
         for component_id, entry in self._manager.manifest().items():
             manifest.setdefault(component_id, entry)
         self.config.manifest = manifest
@@ -879,8 +877,8 @@ class AgentOS:
             get_learnings_router(dbs=self.dbs, settings=self.settings),
             get_eval_router(
                 dbs=self.dbs,
-                agents=[c for c in _public_os_components(self, "agent") if isinstance(c, Agent)] or None,  # type: ignore[arg-type]
-                teams=[c for c in _public_os_components(self, "team") if isinstance(c, Team)] or None,  # type: ignore[arg-type]
+                agents=self._agents or None,  # type: ignore[arg-type]
+                teams=self._teams or None,  # type: ignore[arg-type]
             ),
             get_metrics_router(dbs=self.dbs),
             get_knowledge_router(knowledge_instances=self.knowledge_instances),
@@ -900,7 +898,6 @@ class AgentOS:
                     include_agents=self.agents,
                     include_teams=self.teams,
                     include_workflows=self.workflows,
-                    registry=self.registry,
                 )
             )
             updated_routers.append(get_approval_router(os_db=self.db, settings=self.settings))
@@ -983,14 +980,11 @@ class AgentOS:
             self._add_router(app, interface_router)
         if self.a2a_interface and not has_a2a_interface:
             from agno.os.interfaces.a2a import A2A
-            from agno.utils.live_sequence import LiveSequence
 
             a2a_interface = A2A(
-                agents=LiveSequence(lambda: [c for c in _public_os_components(self, "agent") if isinstance(c, Agent)]),  # type: ignore[arg-type]
-                teams=LiveSequence(lambda: [c for c in _public_os_components(self, "team") if isinstance(c, Team)]),  # type: ignore[arg-type]
-                workflows=LiveSequence(
-                    lambda: [c for c in _public_os_components(self, "workflow") if isinstance(c, Workflow)]
-                ),  # type: ignore[arg-type]
+                agents=self._agents or None,  # type: ignore[arg-type]
+                teams=self._teams or None,  # type: ignore[arg-type]
+                workflows=self._workflows or None,  # type: ignore[arg-type]
             )
             self.interfaces.append(a2a_interface)
             self._add_router(app, a2a_interface.get_router())
@@ -1182,7 +1176,8 @@ class AgentOS:
                 if not getattr(component, "_registry_excluded", False)
             ]
         )
-        self.registry.exclude_components(self._manager.components if self._manager is not None else [])
+        if self._manager is not None:
+            self.registry.exclude_components(self._manager.components)
 
         # Name the db behind the component catalog outright, including when
         # there is none. A Studio toolkit given no db of its own resolves this
@@ -1232,7 +1227,7 @@ class AgentOS:
             existing_agents = {aid: a for a in self.registry.agents if (aid := getattr(a, "id", None)) is not None}
             for agent in self._agents:
                 agent_id = getattr(agent, "id", None)
-                if agent_id is None or self._excluded_from_registry(agent):
+                if agent_id is None or self._owned_by_manager(agent):
                     continue
                 existing_agent = existing_agents.get(agent_id)
                 if existing_agent is not None:
@@ -1252,7 +1247,7 @@ class AgentOS:
             existing_teams = {tid: t for t in self.registry.teams if (tid := getattr(t, "id", None)) is not None}
             for team in self._teams:
                 team_id = getattr(team, "id", None)
-                if team_id is None or self._excluded_from_registry(team):
+                if team_id is None or self._owned_by_manager(team):
                     continue
                 existing_team = existing_teams.get(team_id)
                 if existing_team is not None:
@@ -1274,7 +1269,7 @@ class AgentOS:
             }
             for workflow in self._workflows:
                 workflow_id = getattr(workflow, "id", None)
-                if workflow_id is None or self._excluded_from_registry(workflow):
+                if workflow_id is None:
                     continue
                 existing_workflow = existing_workflows.get(workflow_id)
                 if existing_workflow is not None:
@@ -1304,7 +1299,7 @@ class AgentOS:
             self.registry = Registry()
 
         manager_owners: List[Union[Agent, Team]] = [*self._agents, *self._teams]
-        manager_knowledge = [owner.knowledge for owner in manager_owners if self._excluded_from_registry(owner)]
+        manager_knowledge = [owner.knowledge for owner in manager_owners if self._owned_by_manager(owner)]
         for kb in self.knowledge_instances or []:
             # Keep manager-only knowledge out of the registry. Knowledge declared
             # on the OS or another component is still shared with the registry.
@@ -1506,8 +1501,8 @@ class AgentOS:
 
         try:
             collect_components_from_os(
-                [a for a in self._agents if not self._excluded_from_registry(a)],
-                [t for t in self._teams if not self._excluded_from_registry(t)],
+                [a for a in self._agents if not self._owned_by_manager(a)],
+                [t for t in self._teams if not self._owned_by_manager(t)],
                 self._workflows,
                 self.registry,
             )
@@ -1696,8 +1691,8 @@ class AgentOS:
             get_learnings_router(dbs=self.dbs, settings=self.settings),
             get_eval_router(
                 dbs=self.dbs,
-                agents=[c for c in _public_os_components(self, "agent") if isinstance(c, Agent)] or None,  # type: ignore[arg-type]
-                teams=[c for c in _public_os_components(self, "team") if isinstance(c, Team)] or None,  # type: ignore[arg-type]
+                agents=self._agents or None,  # type: ignore[arg-type]
+                teams=self._teams or None,  # type: ignore[arg-type]
             ),
             get_metrics_router(dbs=self.dbs),
             get_knowledge_router(knowledge_instances=self.knowledge_instances),
@@ -1717,7 +1712,6 @@ class AgentOS:
                     include_agents=self.agents,
                     include_teams=self.teams,
                     include_workflows=self.workflows,
-                    registry=self.registry,
                 )
             )
             routers.append(get_approval_router(os_db=self.db, settings=self.settings))

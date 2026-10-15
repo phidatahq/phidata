@@ -8,11 +8,11 @@ if TYPE_CHECKING:
     from agno.offload import ResultStore
 
 from agno.registry._reserved import BUILDER_ID as BUILDER_ID
-from agno.registry._reserved import MANAGER_TEAM_ID, RESERVED_MANAGER_IDS
+from agno.registry._reserved import MANAGER_TEAM_ID
 from agno.registry._reserved import OPERATOR_ID as OPERATOR_ID
+from agno.registry._reserved import RESERVED_MEMBER_IDS as RESERVED_MEMBER_IDS
 
 MANAGER_TEAM_NAME = "OS Manager"
-RESERVED_MEMBER_IDS = RESERVED_MANAGER_IDS - {MANAGER_TEAM_ID}
 
 
 @dataclass
@@ -28,8 +28,7 @@ class OSManager:
         name: The manager team's display name.
         model: Model for the manager and its members. Uses the registry's first
             model if omitted. A model is required in one of these places.
-        tools: Extra tools for the manager team, such as charts or notebooks.
-            These are not added to its members or to the registry.
+        tools: Tools for the manager. These are not added to the registry.
         knowledge: Knowledge base the manager can search.
         learning: Learning machine for remembering users across sessions.
         root: Directory or WorkspaceContextProvider for Platform Manager to read.

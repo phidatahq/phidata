@@ -41,7 +41,7 @@ from agno.eval.base import BaseEval
 from agno.filters import FilterExpr
 from agno.guardrails import BaseGuardrail
 from agno.knowledge.protocol import KnowledgeProtocol
-from agno.registry._visibility import _catalog_allowed, _catalog_exclusions
+from agno.registry._reserved import RESERVED_MANAGER_IDS
 
 if TYPE_CHECKING:
     from agno.compaction.types import CompactionResult
@@ -1882,10 +1882,10 @@ def get_agent_by_id(
         ComponentRehydrationError: If strict and a registry reference cannot be resolved.
     """
     from agno.exceptions import ComponentRehydrationError
-
-    if not _catalog_allowed("agent", id, registry):
-        return None
     from agno.utils.log import log_error
+
+    if id in RESERVED_MANAGER_IDS:
+        return None
 
     try:
         # Only resolve the agent if owned by this user, unowned (shared), or published.
@@ -1961,7 +1961,7 @@ def get_agents(
     """
     from agno.utils.log import log_error
 
-    exclude_component_ids = set(exclude_component_ids or ()) | _catalog_exclusions("agent", registry)
+    exclude_component_ids = set(exclude_component_ids or ()) | RESERVED_MANAGER_IDS
     agents: List[Agent] = []
     try:
         # The DB default page is one small page and the catalog can exceed it

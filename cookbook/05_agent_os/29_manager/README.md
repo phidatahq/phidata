@@ -15,44 +15,6 @@ agent_os = AgentOS(
 )
 ```
 
-## Internal components
-
-OS Manager is public; its builder and operator are internal team members.
-Applications can also mark components internal with one registry setting:
-
-```python
-from agno.registry import Registry
-
-registry = Registry(internal_components={("agent", "researcher")})
-```
-
-Pass the same registry explicitly to `AgentOS` and any `StudioTools`,
-`StudioRunnerTools` or `SchedulerTools` that access these components. AgentOS does
-not rebind tools to a different registry. The component type keeps an agent's
-visibility independent of a team with the same ID.
-
-An internal component is omitted from public discovery and cannot be addressed
-through REST, MCP, the automatic A2A interface, runners or schedules. Stored
-teams and workflows cannot import it. A code-defined owning team can still
-delegate to the member and handle its confirmation and continuation. Member
-runs remain in the team's session history. Direct Python calls and explicitly
-configured custom interfaces remain application-owned.
-
-Framework-reserved IDs cannot be loaded from catalog rows, even with the manager
-disabled. Existing rows remain available for administrative cleanup; startup
-does not delete or archive them. Existing schedules can be disabled, deleted or
-repointed. Attempts to activate an internal target return HTTP 409 or the
-scheduler tool error `target_internal`. Queued execution checks visibility again.
-Private manifest entries are omitted from public config.
-
-Run the application-owned private-member example without a model call:
-
-```bash
-.venv/bin/python cookbook/05_agent_os/29_manager/private_members.py
-```
-
-It checks discovery, team details, direct-run refusal and schedule refusal.
-
 ## Try the examples
 
 From the repository root, set up the environment:
@@ -175,7 +137,7 @@ Only OS Manager is exposed in config, discovery, REST and MCP. Platform Builder
 and Platform Manager are internal members: they are absent from `/config`,
 `/agents` and the public team detail, and their standalone agent routes return
 404. OS Manager delegates to them; their child runs and tool results remain
-available inside its session for diagnostics and charts. Schedule the manager
+available inside its session for replay and diagnostics. Schedule the manager
 team, not either specialist. Ordinary run grants, including `teams:os-manager-internal:run`, let a user talk to the manager. Access
 to the manager does not grant its tools additional permissions:
 
@@ -250,7 +212,10 @@ not an authorization grant. Ordinary application metadata is unchanged.
 
 Clients that previously called a specialist directly should use
 `POST /teams/os-manager-internal/runs` or MCP `run_team` with that team ID.
-Existing direct-specialist schedules must be repointed to OS Manager.
+Existing direct-specialist schedules can be disabled, deleted or repointed to
+OS Manager; creating or re-enabling one returns HTTP 409. Old catalog rows do not
+restore specialist endpoints. Obsolete specialist manifest entries are omitted.
+Stored rows remain available for deliberate administrative cleanup.
 Ordinary application agents and teams keep their existing routes.
 
 This unreleased API replaces `ManagerConfig` with `OSManager`, `workspace` with
@@ -262,38 +227,6 @@ remain separate permissions.
 
 The resources example shares notebook files across users, while learning keeps
 user memory separate. It does not configure a knowledge base.
-
-## Charts and other manager tools
-
-`OSManager(tools=[...])` accepts additional tools for the public manager team.
-Platform Manager retrieves the evidence; OS Manager uses its presentation tools
-when composing the final answer. The tools stay out of its members and the build
-palette.
-
-For charts, use `manager_charts.py` after installing a version containing
-[ChartTools (PR #8295)](https://github.com/agno-agi/agno/pull/8295), which is pending
-merge:
-
-```python
-from agno.tools.chart import ChartTools
-
-manager_config = OSManager(
-    model=OpenAIResponses(id="gpt-5.6-luna"),
-    tools=[ChartTools()],
-    offload_tool_results=True,
-)
-```
-
-Pass this config to `AgentOS(db=db, manager=manager_config)`. Ask for a chart of
-recorded metrics, such as daily agent runs over seven days. An empty database
-should produce a no-data answer. Platform Manager supplies the relevant rows,
-units, date range and caveats; OS Manager calls the chart tool and includes its
-returned block unchanged in the final Markdown response.
-
-Large reports stay offloaded. OS Manager can read selected ranges using the
-stored result id shared by its member. The selected rows and compact chart still
-enter the model's context. Offloading avoids retaining the full tool-result text;
-it does not remove chart data from the final answer or from stored history.
 
 ## Large tool results
 

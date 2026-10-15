@@ -33,7 +33,6 @@ from agno.media.storage.base import AsyncMediaStorage, MediaStorage
 from agno.metrics import RunMetrics
 from agno.models.message import Message
 from agno.registry import Registry
-from agno.registry._visibility import _catalog_allowed
 from agno.run import RunContext
 from agno.run.agent import (
     RunCancelledEvent as AgentRunCancelledEvent,
@@ -399,8 +398,6 @@ class Step:
         # --- Handle Agent reconstruction ---
         if "agent_id" in config and config["agent_id"]:
             agent_id = config.get("agent_id")
-            if not _catalog_allowed("agent", agent_id, registry):
-                raise ComponentRehydrationError(f"Component '{agent_id}' is not available for composition")
             pinned = _pinned_version(agent_id, "step_agent")
 
             # An explicit pin resolves from the db first: the pin names one
@@ -509,8 +506,6 @@ class Step:
         # --- Handle Team reconstruction ---
         if "team_id" in config and config["team_id"]:
             team_id = config.get("team_id")
-            if not _catalog_allowed("team", team_id, registry):
-                raise ComponentRehydrationError(f"Component '{team_id}' is not available for composition")
             pinned = _pinned_version(team_id, "step_team")
 
             # An explicit pin resolves from the db first: the pin names one
@@ -647,8 +642,6 @@ class Step:
             )
         elif "workflow_id" in config and config["workflow_id"]:
             workflow_id = config.get("workflow_id")
-            if not _catalog_allowed("workflow", workflow_id, registry):
-                raise ComponentRehydrationError(f"Component '{workflow_id}' is not available for composition")
             if registry and workflow_id:
                 registry_workflow = registry.get_workflow(workflow_id)
                 if registry_workflow is not None:

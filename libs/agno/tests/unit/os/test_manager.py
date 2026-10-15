@@ -1302,124 +1302,212 @@ def test_schedule_cannot_be_retargeted_to_a_private_specialist(db, member_id):
     assert client.get(path).json()["endpoint"] == f"/teams/{MANAGER_TEAM_ID}/runs"
 
 
-@pytest.mark.parametrize("async_mode", [False, True])
-@pytest.mark.parametrize("stream", [False, True])
-def test_manager_charts_from_offloaded_member_data(db, async_mode, stream):
-    """The optional chart toolkit consumes selected data, while the full report stays offloaded."""
-    import re
+def _store_manager_test_component(db, kind, component_id, name=None):
+    from agno.db.base import ComponentType
 
-    ChartTools = pytest.importorskip("agno.tools.chart", reason="ChartTools PR #8295 has not landed").ChartTools
-    rows = [{"date": "2026-10-01", "runs": 3}, {"date": "2026-10-02", "runs": 0}, {"date": "2026-10-03", "runs": 8}]
-    payload = json.dumps({"details": ["detail " + "x" * 80] * 400, "chart_data": rows}, indent=2)
+    db.create_component_with_config(
+        component_id=component_id,
+        component_type=ComponentType(kind),
+        name=name or component_id,
+        config={"name": name or component_id, "model": {"id": "fixture", "provider": "test"}},
+        stage="published",
+    )
 
-    def fetch_metrics_report() -> str:
-        """Return the recorded fixture metrics."""
-        return payload
 
-    class ChartFlowModel(OfflineModel):
-        def __init__(self, member=False):
-            super().__init__()
-            self.member = member
-            self.calls = 0
-            self.result_id = None
+@pytest.mark.parametrize("enabled", [False, True])
+@pytest.mark.parametrize("use_async", [False, True])
+def test_manager_runner_refuses_legacy_specialists(db, enabled, use_async):
+    from agno.tools.studio_runner import StudioRunnerTools
 
-        def invoke(self, messages, *args, **kwargs):
-            self.calls += 1
-            assert all(payload not in str(message.content) for message in messages)
-            results = [message.content for message in messages if message.role == "tool"]
-            tool_args = {}
-            if self.member:
-                if self.calls == 1:
-                    tool_name = "fetch_metrics_report"
-                else:
-                    assert results[-1].startswith('<result id="res_')
-                    assert '"chart_data"' not in results[-1]  # Beyond the preview.
-                    result_id = re.search(r"res_[a-z0-9]+", results[-1]).group()
-                    return ModelResponse(
-                        role="assistant",
-                        content=f"Metrics: {result_id}. Search for chart_data. Units: runs; Oct 1-3, 2026.",
-                        response_usage=MessageMetrics(),
-                    )
-            elif self.calls == 1:
-                tool_name = "delegate_task_to_member"
-                tool_args = {"member_id": OPERATOR_ID, "task": "Get the recorded daily runs for a chart."}
-            elif self.calls == 2:
-                self.result_id = re.search(r"res_[a-z0-9]+", results[-1]).group()
-                tool_name = "search_result"
-                tool_args = {"result_id": self.result_id, "pattern": '"chart_data"'}
-            elif self.calls == 3:
-                line = int(re.search(r'(\d+):\s+"chart_data"', results[-1]).group(1))
-                assert line > 400
-                tool_name = "read_result"
-                tool_args = {"result_id": self.result_id, "start_line": line}
-            elif self.calls == 4:
-                selected = json.loads("{" + results[-1].split("\n", 1)[1])["chart_data"]
-                assert selected == rows
-                tool_name = "create_chart"
-                tool_args = {
-                    "chart_type": "line",
-                    "data": selected,
-                    "config": {"runs": "Agent runs"},
-                    "x_key": "date",
-                    "title": "Agent runs, October 1-3, 2026",
-                }
-            else:
-                assert results[-1].startswith("```chart\n")
-                return ModelResponse(role="assistant", content=results[-1], response_usage=MessageMetrics())
-            return ModelResponse(
-                role="assistant",
-                tool_calls=[
-                    {
-                        "id": f"chart-step-{self.calls}",
-                        "type": "function",
-                        "function": {"name": tool_name, "arguments": json.dumps(tool_args)},
-                    }
-                ],
-                response_usage=MessageMetrics(),
+    registry = Registry(models=[OfflineModel()])
+    os = AgentOS(db=db, registry=registry, manager=OSManager(access_docs=False) if enabled else False, telemetry=False)
+    for component_id in (BUILDER_ID, OPERATOR_ID):
+        _store_manager_test_component(db, "agent", component_id, "Legacy " + component_id)
+    _store_manager_test_component(db, "team", MANAGER_TEAM_ID)
+    _store_manager_test_component(db, "agent", "ordinary")
+    runner = (
+        os.manager.tools[0] if enabled else StudioRunnerTools(db=db, registry=registry, include_all_components=True)
+    )
+    for component_id in (BUILDER_ID, OPERATOR_ID):
+        for reference in (component_id, "Legacy " + component_id):
+            result = asyncio.run(runner.arun_agent(reference, "hi")) if use_async else runner.run_agent(reference, "hi")
+            assert "error" in json.loads(result)
+    data = json.loads(runner.list_agents())
+    assert data["count"] == data["total"] == 1
+    assert data["agents"][0]["id"] == "ordinary"
+    assert json.loads(runner.list_teams())["total"] == int(enabled)
+
+
+@pytest.mark.parametrize("kind", ["agent", "team", "workflow"])
+def test_catalog_cannot_restore_framework_manager_ids(db, kind):
+    from importlib import import_module
+
+    from agno.registry._reserved import RESERVED_MANAGER_IDS
+
+    registry = Registry(models=[OfflineModel()])
+    module = import_module(f"agno.{kind}.{kind}")
+    for component_id in RESERVED_MANAGER_IDS:
+        _store_manager_test_component(db, kind, component_id)
+        for version in (None, 1):
+            assert (
+                getattr(module, f"get_{kind}_by_id")(db=db, id=component_id, registry=registry, version=version) is None
             )
+        assert db.get_component(component_id) is not None  # No implicit migration/deletion.
+    _store_manager_test_component(db, kind, "ordinary")
+    assert [c.id for c in getattr(module, f"get_{kind}s")(db=db, registry=registry)] == ["ordinary"]
 
-        async def ainvoke(self, *args, **kwargs):
-            return self.invoke(*args, **kwargs)
 
-        def invoke_stream(self, *args, **kwargs):
-            yield self.invoke(*args, **kwargs)
+@pytest.mark.parametrize("use_async", [False, True])
+def test_scheduler_tools_refuse_legacy_manager_targets(db, use_async):
+    from agno.tools.scheduler import SchedulerTools
 
-        async def ainvoke_stream(self, *args, **kwargs):
-            yield self.invoke(*args, **kwargs)
+    scheduler = SchedulerTools(db=db)
+    args = dict(name="invalid", cron="0 0 * * *", endpoint=f"/agents/{OPERATOR_ID}/runs")
+    result = asyncio.run(scheduler.acreate_schedule(**args)) if use_async else scheduler.create_schedule(**args)
+    assert json.loads(result)["error_type"] == "target_internal"
+    old = scheduler.manager.create(name="old", cron="0 0 * * *", endpoint=args["endpoint"])
+    for method in ("enable_schedule", "trigger_schedule"):
+        result = getattr(scheduler, ("a" if use_async else "") + method)(old.id)
+        assert json.loads(asyncio.run(result) if use_async else result)["error_type"] == "target_internal"
+    assert json.loads(scheduler.disable_schedule(old.id))["status"] == "disabled"
+    assert json.loads(scheduler.delete_schedule(old.id))["status"] == "deleted"
 
-    charts = ChartTools()
-    os = AgentOS(db=db, manager=OSManager(model=OfflineModel(), tools=[charts], access_docs=False), telemetry=False)
-    app = os.get_app()
-    os.manager.model = ChartFlowModel()
+
+@pytest.mark.parametrize(
+    "target",
+    [
+        f"/agents/{OPERATOR_ID}/runs",
+        "/agents/%70latform-manager-internal/runs?source=schedule",
+        f"/agents/public/../{OPERATOR_ID}/runs",
+        f"/agents/{OPERATOR_ID}/runs/old/continue",
+    ],
+)
+def test_legacy_manager_schedules_can_be_migrated(db, target):
+    from agno.tools.scheduler import SchedulerTools
+
+    os = AgentOS(db=db, manager=OSManager(model=OfflineModel(), access_docs=False), telemetry=False)
+    client = TestClient(os.get_app())
+    data = {"name": "job", "cron_expr": "0 0 * * *", "endpoint": target, "payload": {"message": "hi"}}
+    assert client.post("/schedules", json=data).status_code == 409
+    old = SchedulerTools(db=db).manager.create(name="old", cron="0 0 * * *", endpoint=target)
+    path = f"/schedules/{old.id}"
+    for suffix in ("enable", "trigger"):
+        assert client.post(f"{path}/{suffix}").status_code == 409
+    assert client.patch(path, json={"payload": {"message": "replacement"}}).status_code == 409
+    assert client.patch(path, json={"endpoint": f"/teams/{MANAGER_TEAM_ID}/runs"}).status_code == 200
+    assert client.delete(path).status_code == 204
+
+
+@pytest.mark.parametrize("version", [None, 1])
+def test_stored_composition_cannot_restore_manager_member(db, version):
+    from agno.exceptions import ComponentRehydrationError
+    from agno.team import Team
+    from agno.workflow.step import Step
+
+    registry = Registry(models=[OfflineModel()])
+    _store_manager_test_component(db, "agent", OPERATOR_ID)
+    links = [{"link_kind": "member", "child_component_id": OPERATOR_ID, "child_version": version}]
+    with pytest.raises(ComponentRehydrationError):
+        Team.from_dict(
+            {"name": "stored", "members": [{"type": "agent", "agent_id": OPERATOR_ID}]},
+            db=db,
+            registry=registry,
+            links=links,
+            strict=True,
+        )
+    with pytest.raises(ComponentRehydrationError):
+        Step.from_dict({"name": "stored-step", "agent_id": OPERATOR_ID}, db=db, registry=registry, strict=True)
+
+
+@pytest.mark.asyncio
+async def test_queue_cannot_replay_standalone_manager_members(db):
+    from types import SimpleNamespace
+
+    from agno.job_queue.config import QueueConfig
+    from agno.job_queue.store import InMemoryQueueStore
+    from agno.os.job_queue import get_active_queue_worker, queue_lifespan
+
+    # A worker holding an old roster must still refuse a pre-existing direct job.
+    os = AgentOS(db=db, manager=OSManager(model=OfflineModel(), access_docs=False), telemetry=False)
+    host = SimpleNamespace(
+        db=db,
+        registry=os.registry,
+        agents=os.manager.members,
+        teams=[],
+        workflows=[],
+        queue=QueueConfig(durable=True, db=InMemoryQueueStore()),
+    )
+    async with queue_lifespan(SimpleNamespace(state=SimpleNamespace()), host):
+        worker = get_active_queue_worker()
+        for component_id in (BUILDER_ID, OPERATOR_ID):
+            for source in ("registry", "db", "factory"):
+                assert (
+                    await worker._aresolve_job_component(
+                        {
+                            "component_type": "agent",
+                            "component_id": component_id,
+                            "payload": {"scope": {"source": source, "version": 1}},
+                        }
+                    )
+                    is None
+                )
+
+
+@pytest.mark.parametrize("stream", [False, True])
+def test_manager_member_confirmation_continues_through_manager(db, stream):
+    from agno.tools import tool
+
+    calls = []
+
+    @tool(requires_confirmation=True)
+    def approved_action() -> str:
+        """Execute the local fixture action."""
+        calls.append(True)
+        return "action complete"
+
+    os = AgentOS(db=db, manager=OSManager(model=OfflineModel(), access_docs=False), telemetry=False)
     member = manager_member(os, OPERATOR_ID)
-    member.model = ChartFlowModel(member=True)
-    member.tools.append(fetch_metrics_report)
-    assert charts in os.manager.tools and charts not in os.registry.tools
-    assert all(charts not in child.tools and child.offload_tool_results is True for child in os.manager.members)
-    assert os.manager.offload_tool_results is True
-    args = dict(session_id="charts", user_id="alice", stream=stream)
-    if async_mode:
-
-        async def run():
-            if stream:
-                return [event async for event in os.manager.arun("Chart recorded daily runs", **args)]
-            return await os.manager.arun("Chart recorded daily runs", **args)
-
-        output = asyncio.run(run())
-    elif stream:
-        output = list(os.manager.run("Chart recorded daily runs", **args))
-    else:
-        output = os.manager.run("Chart recorded daily runs", **args)
-
-    replay = TestClient(app).get("/sessions/charts/runs")
-    assert replay.status_code == 200
-    lead = next(run for run in replay.json() if run.get("team_id") == MANAGER_TEAM_ID)
-    chart_result = next(tool["result"] for tool in lead["tools"] if tool["tool_name"] == "create_chart")
-    assert lead["content"] == chart_result
+    member.model = ManagerToolModel("approved_action", {})
+    member.tools.append(approved_action)
+    os.manager.model = ManagerToolModel(
+        "delegate_task_to_member", {"member_id": OPERATOR_ID, "task": "Perform the action"}
+    )
+    client = TestClient(os.get_app())
+    response = client.post(f"/teams/{MANAGER_TEAM_ID}/runs", data={"message": "act", "stream": str(stream).lower()})
+    assert response.status_code == 200
     if stream:
-        assert "".join(event.content or "" for event in output if event.event == "TeamRunContent") == chart_result
+        events = [json.loads(line[6:]) for line in response.text.splitlines() if line.startswith("data: ")]
+        data = next(event for event in events if event.get("event") == "TeamRunPaused")
     else:
-        assert output.content == chart_result
-    assert json.loads(chart_result.removeprefix("```chart\n").removesuffix("\n```"))["data"] == rows
-    stored = os.manager._result_store.read(os.manager.model.result_id, 1, 2)
-    assert '"details"' in stored.text  # The source remains readable, outside the chart's compact rows.
+        data = response.json()
+        assert data["status"] == "PAUSED"
+    assert calls == []
+    requirements = data["requirements"]
+    for req in requirements:
+        req["confirmation"] = True
+        req["tool_execution"]["confirmed"] = True
+    assert (
+        client.post(f"/agents/{OPERATOR_ID}/runs/{data['run_id']}/continue", data={"stream": "false"}).status_code
+        == 404
+    )
+    resumed = client.post(
+        f"/teams/{MANAGER_TEAM_ID}/runs/{data['run_id']}/continue",
+        data={"session_id": data["session_id"], "requirements": json.dumps(requirements), "stream": "false"},
+    )
+    assert resumed.status_code == 200, resumed.text
+    assert resumed.json()["status"] == "COMPLETED"
+    assert calls == [True]
+    history = client.get(f"/sessions/{data['session_id']}/runs").json()
+    assert any(run.get("agent_id") == OPERATOR_ID for run in history)
+
+
+@pytest.mark.asyncio
+async def test_team_detail_hides_only_framework_owned_members():
+    from agno.os.routers.teams.schema import TeamResponse
+    from agno.team import Team
+
+    member = Agent(id=OPERATOR_ID, model=OfflineModel())
+    team = Team(id="ordinary", members=[member], model=OfflineModel())
+    assert (await TeamResponse.from_team(team)).members
+    member._registry_excluded = True
+    assert not (await TeamResponse.from_team(team)).members

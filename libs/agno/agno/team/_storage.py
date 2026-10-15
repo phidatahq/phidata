@@ -37,7 +37,6 @@ from agno.metrics import RunMetrics, SessionMetrics
 from agno.models.base import Model
 from agno.models.message import Message
 from agno.models.utils import resolve_model
-from agno.registry._visibility import _catalog_allowed
 from agno.registry.registry import Registry
 from agno.run.agent import RunOutput
 from agno.run.team import (
@@ -1019,10 +1018,6 @@ def from_dict(
             member_type = member_data.get("type")
             if member_type == "agent":
                 agent_id = member_data["agent_id"]
-                if not _catalog_allowed("agent", agent_id, registry):
-                    if strict:
-                        raise ComponentRehydrationError(f"Component '{agent_id}' is not available for composition")
-                    continue
                 pinned = pinned_versions.get(agent_id)
                 try:
                     agent = (
@@ -1089,10 +1084,6 @@ def from_dict(
             elif member_type == "team":
                 # Handle nested teams as members
                 team_id = member_data["team_id"]
-                if not _catalog_allowed("team", team_id, registry):
-                    if strict:
-                        raise ComponentRehydrationError(f"Component '{team_id}' is not available for composition")
-                    continue
                 pinned = pinned_versions.get(team_id)
                 try:
                     nested_team = (

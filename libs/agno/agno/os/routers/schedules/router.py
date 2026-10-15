@@ -19,9 +19,8 @@ from agno.os.routers.schedules.schema import (
 )
 from agno.os.schema import PaginatedResponse, PaginationInfo
 from agno.os.scopes import AgentOSScope, has_required_scopes
-from agno.registry import Registry
 from agno.run.authorization import stamp_authorization
-from agno.tools.scheduler import _private_endpoint_refusal
+from agno.tools.scheduler import _manager_member_refusal
 from agno.utils.log import log_info
 
 # Valid DB method names that _db_call can invoke
@@ -43,7 +42,6 @@ def get_schedule_router(
     include_agents: Optional[Sequence[Any]] = None,
     include_teams: Optional[Sequence[Any]] = None,
     include_workflows: Optional[Sequence[Any]] = None,
-    registry: Optional[Registry] = None,
 ) -> APIRouter:
     """Factory that creates and returns the schedule router.
 
@@ -82,7 +80,7 @@ def get_schedule_router(
         """
         from agno.os.auth import build_insufficient_permissions_detail, caller_scopes_are_authoritative
 
-        private_target = _private_endpoint_refusal(endpoint, registry)
+        private_target = _manager_member_refusal(endpoint)
         if private_target:
             raise HTTPException(status_code=409, detail=private_target)
 

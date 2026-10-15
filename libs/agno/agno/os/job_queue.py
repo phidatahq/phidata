@@ -3021,9 +3021,9 @@ async def queue_lifespan(app: Any, agent_os: Any):
     async def resolve_component(
         component_type: str, component_id: str, scope: Optional[Dict[str, Any]] = None
     ) -> Optional[Union["QueueableComponent", UnbuildableComponent]]:
-        from agno.registry._visibility import _is_public
+        from agno.registry._reserved import RESERVED_MEMBER_IDS
 
-        if not _is_public(component_type, component_id, getattr(agent_os, "registry", None)):
+        if component_id in RESERVED_MEMBER_IDS:
             return None
         registry: Optional[Sequence["RegisteredComponent"]] = {
             "agent": agent_os.agents,

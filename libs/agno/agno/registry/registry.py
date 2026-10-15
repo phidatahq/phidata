@@ -12,7 +12,6 @@ from typing import (
     Iterable,
     Iterator,
     List,
-    Literal,
     Optional,
     Set,
     Tuple,
@@ -26,7 +25,6 @@ from pydantic import BaseModel, ValidationError
 from agno.db.base import BaseDb
 from agno.models.base import Model
 from agno.registry._reserved import RESERVED_MANAGER_IDS
-from agno.registry._visibility import _catalog_allowed, _component_kind
 from agno.tools.function import RUNTIME_ONLY_FIELDS, Function, isolated_runtime_value
 from agno.tools.toolkit import Toolkit
 from agno.utils.log import log_warning
@@ -134,9 +132,6 @@ class Registry:
     agents: List[Agent] = field(default_factory=list)
     teams: List[Team] = field(default_factory=list)
     workflows: List[Workflow] = field(default_factory=list)
-    # Internal identities cannot be discovered, dispatched or imported from the catalog.
-    # Share this registry explicitly with AgentOS and its platform tools.
-    internal_components: Set[Tuple[Literal["agent", "team", "workflow"], str]] = field(default_factory=set)
     # The db behind the component catalog, named by the AgentOS holding this
     # registry (see declare_component_db). None once declared means this OS
     # has no db that can serve the catalog.
@@ -156,8 +151,7 @@ class Registry:
             [
                 component
                 for component in [*self.agents, *self.teams, *self.workflows]
-                if getattr(component, "_registry_excluded", False) is True
-                or getattr(component, "id", None) in RESERVED_MANAGER_IDS
+                if self.is_component_excluded(component)
             ]
         )
 
@@ -168,11 +162,9 @@ class Registry:
 
     def is_component_excluded(self, component: Any) -> bool:
         """True for a component marked excluded, or one carrying an excluded id (a per-run copy included)."""
-        return (
-            not _catalog_allowed(_component_kind(component), getattr(component, "id", None), self)
-            or (getattr(component, "_registry_excluded", False) is True)
-            or getattr(component, "id", None) in self._excluded_component_ids
-        )
+        return (getattr(component, "_registry_excluded", False) is True) or getattr(
+            component, "id", None
+        ) in self._excluded_component_ids
 
     def reserve_component_ids(self, component_ids: Iterable[str]) -> None:
         """Exclude ids before any component carries them, so they cannot be minted or composed."""
@@ -839,24 +831,18 @@ class Registry:
 
     def get_agent(self, agent_id: str) -> Optional[Agent]:
         """Get an agent by id from the registry."""
-        if not _catalog_allowed("agent", agent_id, self):
-            return None
         if self.agents:
             return next((a for a in self.agents if getattr(a, "id", None) == agent_id), None)
         return None
 
     def get_team(self, team_id: str) -> Optional[Team]:
         """Get a team by id from the registry."""
-        if not _catalog_allowed("team", team_id, self):
-            return None
         if self.teams:
             return next((t for t in self.teams if getattr(t, "id", None) == team_id), None)
         return None
 
     def get_workflow(self, workflow_id: str) -> Optional[Workflow]:
         """Get a workflow by id from the registry."""
-        if not _catalog_allowed("workflow", workflow_id, self):
-            return None
         if self.workflows:
             return next((w for w in self.workflows if getattr(w, "id", None) == workflow_id), None)
         return None

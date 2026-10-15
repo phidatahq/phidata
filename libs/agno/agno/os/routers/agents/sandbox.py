@@ -39,6 +39,7 @@ async def enqueue_sandbox_run(
     from agno.sandbox import _harness
 
     options = _harness.submission(agent, input, kwargs)
+    await _harness.coordinator(agent).store._acheck_acceptance(agent.get_id(), session_id, user_id)
     payload = {"input": input, "kwargs": options, "stream": True, "serialize_session": True}
     if len(json.dumps(payload, allow_nan=False).encode()) > 1024 * 1024:
         raise ValueError("Sandbox submission exceeds 1 MiB")

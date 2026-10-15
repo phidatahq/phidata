@@ -318,3 +318,13 @@ Coordinator review follow-up: native transcript-mirror warnings and lost pre-che
 **Result:** Passed. The turn published a checkpoint and left no container; the script then printed the status, listed the two workspace files and wrote the completed run's exact bytes. Reads performed no provider or transfer operation and left the binding and run rows unchanged.
 
 ---
+
+### retire_recovery.py and explicit lifecycle operations
+
+**Status:** PASS
+
+**Description:** Real-server cookbook retires its fresh fixture session, downloads its retained artifact, purges published recovery checkpoints, then deletes conversation history. Postgres tests exercise both adapters, exact-owner scope, active-session refusal, partial storage cleanup retry, foreign-reference refusal, lost commit acknowledgement, bulk-delete atomicity and the permanent session tombstone. HTTP tests cover retirement/cancellation reconciliation and a submission racing deletion.
+
+**Result:** 197 focused database/sandbox/queue unit cases passed. Twenty lifecycle/database cases passed across both Postgres adapters; four lifecycle HTTP cases and twelve AgentOS regression cases passed after classifying retired-session input as a permanent queue failure. Required scripts passed in the established environment. Review fixed an early acknowledgement race with the queue cancellation worker. A test's ordinary-session fixture initially omitted its required creation timestamp and was corrected. No live model or hosted-provider calls. Unreferenced upload retention, warm reuse and fleet quotas are outside this published-checkpoint deletion slice.
+
+---

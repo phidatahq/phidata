@@ -1128,8 +1128,22 @@ class AsyncPostgresDb(AsyncBaseDb):
                 return False
             runs_table = await self._get_table(table_type="runs")
             transcripts_table = await self._get_table(table_type="transcripts")
+            bindings_table = await self._get_table(table_type="sandbox_bindings")
 
             async with self.async_session_factory() as sess, sess.begin():
+                from agno.db.session_resources import assert_session_resources_released, sandbox_bindings_query
+
+                if bindings_table is not None:
+                    # Session before binding, the sandbox store's order, so a running turn cannot deadlock this.
+                    held = select(table.c.session_id).where(table.c.session_id == session_id)
+                    if user_id is not None:
+                        held = held.where(table.c.user_id == user_id)
+                    await sess.execute(held.with_for_update())
+                    protected = sandbox_bindings_query(
+                        bindings_table, self.db_schema + "." + self.session_table_name, [session_id], user_id
+                    )
+                    for record in (await sess.execute(protected)).scalars():
+                        assert_session_resources_released(record)
                 delete_stmt = table.delete().where(table.c.session_id == session_id)
                 if user_id is not None:
                     delete_stmt = delete_stmt.where(table.c.user_id == user_id)
@@ -1157,6 +1171,10 @@ class AsyncPostgresDb(AsyncBaseDb):
             return True
 
         except Exception as e:
+            from agno.db.session_resources import SessionResourcesPending
+
+            if isinstance(e, SessionResourcesPending):
+                raise
             log_error(f"Error deleting session: {str(e)}")
             return False
 
@@ -1177,16 +1195,28 @@ class AsyncPostgresDb(AsyncBaseDb):
                 return
             runs_table = await self._get_table(table_type="runs")
             transcripts_table = await self._get_table(table_type="transcripts")
+            bindings_table = await self._get_table(table_type="sandbox_bindings")
 
             async with self.async_session_factory() as sess, sess.begin():
                 # The ids a user_id-scoped delete is allowed to touch. The
                 # cascade below removes stored payloads, which no filter on the
                 # sessions table would stop it from doing for another user's
                 # session id.
+                from agno.db.session_resources import assert_session_resources_released, sandbox_bindings_query
+
                 select_stmt = select(table.c.session_id).where(table.c.session_id.in_(session_ids))
                 if user_id is not None:
                     select_stmt = select_stmt.where(table.c.user_id == user_id)
-                deletable_ids = [row[0] for row in await sess.execute(select_stmt)]
+                # Session before binding, the sandbox store's order, so a running turn cannot deadlock this.
+                deletable_ids = [
+                    row[0] for row in await sess.execute(select_stmt.order_by(table.c.session_id).with_for_update())
+                ]
+                if bindings_table is not None:
+                    protected = sandbox_bindings_query(
+                        bindings_table, self.db_schema + "." + self.session_table_name, session_ids, user_id
+                    )
+                    for record in (await sess.execute(protected)).scalars():
+                        assert_session_resources_released(record)
                 # Stored payloads are cascaded only for sessions this delete
                 # was allowed to remove. An unscoped delete has no other user
                 # to protect, so it also cleans up after a session whose row
@@ -1216,6 +1246,10 @@ class AsyncPostgresDb(AsyncBaseDb):
                 self._run_object_cache.drop_session(deleted_id)
 
         except Exception as e:
+            from agno.db.session_resources import SessionResourcesPending
+
+            if isinstance(e, SessionResourcesPending):
+                raise
             log_error(f"Error deleting sessions: {str(e)}")
 
     async def _cascade_tool_results(self, session_ids: List[str]) -> None:

@@ -218,6 +218,18 @@ class _SandboxStore:
             raise SandboxError(f"Sandbox table {self.bindings.name} must have the primary key (namespace, session_id)")
         self._tables_ready = True
 
+    async def _acheck_acceptance(self, agent_id: str, session_id: str, user_id: Optional[str]) -> None:
+        def check(connection: Connection) -> None:
+            row = connection.execute(select(self.bindings).where(self._key(session_id))).mappings().first()
+            if row is None:
+                return
+            if row["agent_id"] != agent_id or row["user_id"] != user_id:
+                raise ValueError("Sandbox session is not available in this ownership scope")
+            if row["record"]["phase"] in ("deleting", "deleted"):
+                raise ValueError("Sandbox session identity is retired; use a new session ID")
+
+        await self._transaction(check)
+
     async def _transaction(
         self, operation: Callable[[Connection], _T], undo: Optional[Callable[[_T], Awaitable[None]]] = None
     ) -> _T:
@@ -328,6 +340,11 @@ class _SandboxStore:
     def _write_record(
         self, connection: Connection, lease: SandboxLease, record: Dict[str, Any], *, extend: bool = False
     ) -> SandboxState:
+        # Track every published archive so recovery deletion does not depend on run history.
+        staged = record.get("staged_checkpoint")
+        published = record.setdefault("published_checkpoints", [])
+        if staged and staged not in published:
+            published.append(staged)
         values: Dict[str, Any] = {"record": self._json(record)}
         if extend:
             # Only for a writer that held the binding row lock throughout, so nobody else could own it.
@@ -424,6 +441,10 @@ class _SandboxStore:
             )
             if row["agent_id"] != agent_id or row["user_id"] != user_id:
                 raise SandboxLeaseLost("Sandbox session ownership is immutable")
+            if row["record"]["phase"] in ("deleting", "deleted"):
+                from agno.sandbox.lifecycle import SandboxRecoveryDeleted
+
+                raise SandboxRecoveryDeleted("Sandbox recovery is being deleted or was deleted; use a new session ID")
             candidate = SandboxLease(agent_id, session_id, user_id, run_id, row["epoch"], owner, queue_attempt)
             run, _ = self._service_run(connection, candidate)
             if row["epoch"] == 0:
@@ -1002,6 +1023,9 @@ class _SandboxStore:
             raise ValueError("Queue termination requires ERROR or CANCELLED")
 
         def stop(connection: Connection) -> Any:
+            # Session, then run, then binding, as in _locked; a missing row locks nothing.
+            self._hold_session(connection, session_id)
+            self._lock_run(connection, run_id)
             # Insert an idle binding to serialize even a never-started run with
             # its first coordinator. A plain SELECT cannot lock an absent row.
             try:

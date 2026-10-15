@@ -369,3 +369,29 @@ async def test_direct_run_keeps_the_agent_name(service):
     result = await agent.arun("named", session_id="session", run_id="named")
     assert result.status == "COMPLETED" and result.agent_name == "Coder"
     assert (await agent.aget_run_output("named", "session")).agent_name == "Coder"
+
+
+async def test_remote_cancel_fences_the_worker_without_failing_its_ticket(service):
+    client, agent, app, handles = service
+    agent.delay = 20
+    app.state.queue_worker.config.max_attempts = 1
+    response = await client.post(
+        "/agents/coder/runs",
+        data={"message": "cancel", "session_id": "session", "stream": "false", "background": "true"},
+    )
+    run_id = response.json()["run_id"]
+
+    async def allocated():
+        while not handles:
+            await asyncio.sleep(0.05)
+
+    await asyncio.wait_for(allocated(), 10)
+    # No live handle here, so this takes the path a cancel on another replica takes: fence the
+    # worker's lease and retire its computer. The worker's attempt then fails with a lost lease
+    # or a dead transport, which must settle the ticket as cancelled, not failed.
+    await agent.acancel_run(run_id)
+    job = await settled(app, run_id)
+    assert job["status"] == "cancelled", job
+    assert (await agent.aget_run_output(run_id, "session")).status == "CANCELLED"
+    for handle in handles:
+        assert await _harness.coordinator(agent).provider.aget(handle.provider_ref) is None

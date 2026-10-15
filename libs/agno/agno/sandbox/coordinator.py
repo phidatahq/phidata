@@ -6,6 +6,7 @@ import asyncio
 import hashlib
 import json
 import threading
+import time
 from contextlib import suppress
 from copy import deepcopy
 from dataclasses import asdict
@@ -15,6 +16,7 @@ from uuid import uuid4
 
 from agno.db.postgres import AsyncPostgresDb, PostgresDb
 
+from agno.models.message import Message
 from agno.run.agent import (
     RunCancelledEvent,
     RunCompletedEvent,
@@ -297,6 +299,9 @@ class SandboxCoordinator:
             session_id=session_id,
             user_id=user_id,
             input=RunInput(input_content=input),
+            # The user's turn stays in the history of a run that is cancelled or fails before the
+            # runtime returns any messages; a completed turn's messages replace it.
+            messages=[Message(role="user", content=input, created_at=int(time.time()))],
             status=RunStatus.running,
         )
         prepared = run.to_dict()
@@ -513,6 +518,17 @@ class SandboxCoordinator:
                     committed = await self._finalize(lease)
             yield self._terminal(committed)
             yield RunOutput.from_dict(committed)
+        except Exception as error:
+            from agno.exceptions import RunCancelledException
+            from agno.run.cancel import ais_cancelled
+
+            # A cancel issued elsewhere, by the cancel endpoint or another replica, fences this
+            # lease and retires this computer, so this attempt fails with a lost lease or a dead
+            # transport. Report the cancellation the caller asked for rather than the failure it
+            # caused, so the queue settles its ticket as cancelled instead of failed.
+            if not isinstance(error, RunCancelledException) and await ais_cancelled(run_id):
+                raise RunCancelledException("Run cancelled elsewhere") from error
+            raise
         except asyncio.CancelledError:
             from agno.run.cancel import ais_cancelled
             from agno.run.concurrency import get_worker_ownership

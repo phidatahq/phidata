@@ -225,11 +225,12 @@ async def test_http_owner_isolation_and_override(db, tmp_path, isolation):
         assert await call(db.get_product, product["id"]) is not None
         assert not default.table_exists(default.products_table_name)
         path = "/company/products/" + product["id"]
+        # Reads are company-wide regardless of isolation; writes are owner-scoped under isolation.
         response = await client.get("/company/products?limit=1", headers=headers("bob"))
-        assert response.json()["meta"]["total_count"] == (0 if isolation else 1)
-        assert (await client.get(path, headers=headers("bob"))).status_code == (404 if isolation else 200)
+        assert response.json()["meta"]["total_count"] == 1
+        assert (await client.get(path, headers=headers("bob"))).status_code == 200
         assert (await client.patch(path, json={"purpose": "Updated"}, headers=headers("bob"))).status_code == (
-            404 if isolation else 200
+            403 if isolation else 200
         )
         assert (await client.delete(path, headers=headers("alice"))).status_code == 204
         assert (await client.get(path, headers=headers("alice"))).status_code == 404

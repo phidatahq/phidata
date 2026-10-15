@@ -80,29 +80,31 @@ def test_isolation_off_allows_scoped_readers_and_writers(make_client):
     assert c.post(path + "/restore", headers=headers("bob")).status_code == 200
 
 
-def test_isolation_on_filters_before_pagination_and_hides_foreign_writes(make_client):
+def test_isolation_on_shares_reads_and_scopes_writes(make_client):
     c = make_client(True)
     a = create(c, "alice")
     own = {create(c, "bob") for _ in range(3)}
+    # Reads are company-wide: bob sees alice's Product alongside his own, paged over all four.
     pages = [c.get("/company/products", params={"limit": 2, "page": p}, headers=headers("bob")).json() for p in (1, 2)]
-    assert [len(p["data"]) for p in pages] == [2, 1]
-    assert all(p["meta"]["total_count"] == 3 for p in pages)
-    assert {row["id"] for p in pages for row in p["data"]} == own
+    assert [len(p["data"]) for p in pages] == [2, 2]
+    assert all(p["meta"]["total_count"] == 4 for p in pages)
+    assert {row["id"] for p in pages for row in p["data"]} == own | {a}
     path = "/company/products/" + a
     before = c.get(path, headers=headers("alice")).json()
+    assert c.get(path, headers=headers("bob")).json() == before
+    # Writes are owner-scoped: a visible foreign Product is refused with 403, never 404.
     for method, suffix, body in [
-        ("get", "", None),
         ("patch", "", {"name": "stolen"}),
         ("delete", "", None),
         ("post", "/restore", None),
     ]:
         response = c.request(method, path + suffix, json=body, headers=headers("bob"))
-        assert response.status_code == 404, response.text
+        assert response.status_code == 403, response.text
     assert c.get(path, headers=headers("alice")).json() == before
     assert c.delete(path, headers=headers("alice")).status_code == 204
-    assert c.get(path + "?include_deleted=true", headers=headers("bob")).status_code == 404
-    assert c.post(path + "/restore", headers=headers("bob")).status_code == 404
-    assert c.get("/company/products?include_deleted=true", headers=headers("bob")).json()["meta"]["total_count"] == 3
+    assert c.get(path + "?include_deleted=true", headers=headers("bob")).status_code == 200
+    assert c.post(path + "/restore", headers=headers("bob")).status_code == 403
+    assert c.get("/company/products?include_deleted=true", headers=headers("bob")).json()["meta"]["total_count"] == 4
     assert c.post(path + "/restore", headers=headers("alice")).status_code == 200
 
 

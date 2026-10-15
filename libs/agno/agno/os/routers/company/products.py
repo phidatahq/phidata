@@ -1,4 +1,10 @@
-"""Product CRUD routes for the opt-in Company domain."""
+"""Product CRUD routes for the opt-in Company domain.
+
+Products are company-wide records: every caller with the read scope sees every
+Product, whether or not user isolation is on. Isolation scopes writes only, so a
+non-admin caller can change a Product only when they own it, as with published
+components.
+"""
 
 import asyncio
 from typing import Any, Dict, Literal, Optional, Union
@@ -15,8 +21,18 @@ from agno.os.settings import AgnoAPISettings
 
 
 def _require_write_ownership(existing: Dict[str, Any], user_id: Optional[str]) -> None:
-    """Check ownership only after the scoped read has established visibility."""
-    if user_id is not None and existing.get("user_id") != user_id:
+    """Refuse a scoped caller writing to a Product it does not own.
+
+    Reads are company-wide, so the row is always visible; a scoped caller that is
+    not the owner gets an honest 403 rather than a 404. An unscoped caller
+    (isolation off, or admin) may write to any Product.
+    """
+    if user_id is None:
+        return
+    owner = existing.get("user_id")
+    if owner is None:
+        raise HTTPException(status_code=403, detail="Cannot modify unowned product")
+    if owner != user_id:
         raise HTTPException(status_code=403, detail="Cannot modify product owned by another user")
 
 
@@ -42,7 +58,8 @@ def get_products_router(db: Optional[Union[BaseDb, AsyncBaseDb]], settings: Agno
             raise HTTPException(status_code=422, detail=str(exc))
 
     async def _writable(product_id: str, user_id: Optional[str], include_deleted: bool = False) -> Dict[str, Any]:
-        existing = await _call("get", product_id, user_id=user_id, include_deleted=include_deleted)
+        # Company-wide read first, then the ownership check against the scoped caller.
+        existing = await _call("get", product_id, user_id=None, include_deleted=include_deleted)
         if existing is None:
             raise HTTPException(status_code=404, detail="Product not found")
         _require_write_ownership(existing, user_id)
@@ -50,14 +67,12 @@ def get_products_router(db: Optional[Union[BaseDb, AsyncBaseDb]], settings: Agno
 
     @router.get("/products", response_model=PaginatedResponse[ProductResponse])
     async def list_products(
-        request: Request,
         limit: int = Query(20, ge=1, le=1000),
         page: int = Query(1, ge=1),
         include_deleted: bool = Query(False),
         _: bool = Depends(auth_dependency),
     ) -> PaginatedResponse[ProductResponse]:
-        user_id = get_scoped_user_id(request)
-        rows, total = await _call("list", user_id=user_id, limit=limit, page=page, include_deleted=include_deleted)
+        rows, total = await _call("list", user_id=None, limit=limit, page=page, include_deleted=include_deleted)
         return PaginatedResponse(
             data=[ProductResponse(**row) for row in rows],
             meta=PaginationInfo(page=page, limit=limit, total_count=total, total_pages=(total + limit - 1) // limit),
@@ -72,10 +87,9 @@ def get_products_router(db: Optional[Union[BaseDb, AsyncBaseDb]], settings: Agno
 
     @router.get("/products/{product_id}", response_model=ProductResponse)
     async def get_product(
-        product_id: str, request: Request, include_deleted: bool = Query(False), _: bool = Depends(auth_dependency)
+        product_id: str, include_deleted: bool = Query(False), _: bool = Depends(auth_dependency)
     ) -> Dict[str, Any]:
-        user_id = get_scoped_user_id(request)
-        product = await _call("get", product_id, user_id=user_id, include_deleted=include_deleted)
+        product = await _call("get", product_id, user_id=None, include_deleted=include_deleted)
         if product is None:
             raise HTTPException(status_code=404, detail="Product not found")
         return product

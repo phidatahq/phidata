@@ -567,6 +567,27 @@ async def test_a_running_loop_reuses_one_http_client(monkeypatch):
     assert list(sandbox._http) == [asyncio.get_running_loop()]
 
 
+@pytest.mark.asyncio
+async def test_a_discarded_sandbox_closes_its_client_on_a_running_loop():
+    import gc
+
+    loop = asyncio.get_running_loop()
+    errors = []
+    loop.set_exception_handler(lambda _, context: errors.append(context["message"]))
+    try:
+        sandbox = ServedDocker()
+        client = DockerSandbox._http_client(sandbox)
+        await asyncio.sleep(0)
+        del sandbox
+        gc.collect()
+        for _ in range(5):
+            await asyncio.sleep(0)
+    finally:
+        loop.set_exception_handler(None)
+    assert errors == []
+    assert client.is_closed
+
+
 def _create_args(provider):
     return next(call[0] for call in provider.calls if call[0][:2] == ("container", "create"))
 

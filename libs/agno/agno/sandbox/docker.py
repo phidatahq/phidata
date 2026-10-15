@@ -9,9 +9,10 @@ import math
 import os
 import secrets
 import tempfile
+import weakref
 from contextlib import suppress
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, Mapping, Optional, Sequence, Tuple
+from typing import TYPE_CHECKING, Any, Dict, Mapping, Optional, Sequence, Set, Tuple
 
 from agno.sandbox.base import ExecResult, Sandbox, SandboxError, SandboxHandle, _identity, _sync
 
@@ -32,6 +33,27 @@ _TOKEN_ENV = "AGNO_SANDBOX_RUNTIME_TOKEN"
 # How long create waits for a freshly started runtime server to answer /health.
 _RUNTIME_READY_SECONDS = 15.0
 _RUNNER = Path(__file__).with_name("_exec.py").read_text()
+
+
+# The loop holds tasks only weakly; this keeps each client's closer alive until it runs.
+_CLOSERS: Set["asyncio.Task[None]"] = set()
+
+
+async def _close_with_loop(owner: "weakref.ReferenceType[DockerSandbox]", client: Any) -> None:
+    loop = asyncio.get_running_loop()
+    try:
+        await loop.create_future()
+    finally:
+        sandbox = owner()
+        if sandbox is not None and sandbox._http.get(loop, (None,))[0] is client:
+            del sandbox._http[loop]
+        await client.aclose()
+
+
+def _cancel_closers(clients: Dict[asyncio.AbstractEventLoop, Tuple[Any, "asyncio.Task[None]"]]) -> None:
+    for loop, (_, task) in list(clients.items()):
+        with suppress(RuntimeError):
+            loop.call_soon_threadsafe(task.cancel)
 
 
 class DockerSandbox(Sandbox):
@@ -113,6 +135,8 @@ class DockerSandbox(Sandbox):
         self.env = dict(env) if env is not None else None
         self.execution_timeout = execution_timeout
         self._http: Dict[asyncio.AbstractEventLoop, Tuple[Any, "asyncio.Task[None]"]] = {}
+        # A sandbox discarded while its loop still runs closes its clients on that loop.
+        weakref.finalize(self, _cancel_closers, self._http)
         self._network_ready = False
 
     def checkpoint_transfer(self, store: "CheckpointStore") -> "CheckpointTransfer":
@@ -355,17 +379,11 @@ class DockerSandbox(Sandbox):
         if entry is None:
             limits = httpx.Limits(max_connections=4096, max_keepalive_connections=1024)
             client = httpx.AsyncClient(limits=limits, timeout=httpx.Timeout(15.0, read=60.0))
-
-            async def close_with_loop() -> None:
-                # asyncio.run cancels pending tasks before closing its loop, so each sync call closes its client.
-                try:
-                    await loop.create_future()
-                finally:
-                    if self._http.get(loop, (None,))[0] is client:
-                        del self._http[loop]
-                    await client.aclose()
-
-            entry = self._http[loop] = (client, loop.create_task(close_with_loop()))
+            # asyncio.run cancels pending tasks before closing its loop, so each sync call closes its client.
+            closer = loop.create_task(_close_with_loop(weakref.ref(self), client))
+            _CLOSERS.add(closer)
+            closer.add_done_callback(_CLOSERS.discard)
+            entry = self._http[loop] = (client, closer)
         return entry[0]
 
     async def _await_runtime(self, handle: SandboxHandle) -> None:

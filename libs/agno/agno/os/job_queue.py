@@ -323,6 +323,9 @@ async def aenqueue_ticket(queue_worker: Any, job: Dict[str, Any], component: Any
 
     A component that sets one_turn_per_session is always marked: a second concurrent turn
     on its session fails instead of waiting, so its order cannot depend on the flag."""
+    from agno.run.authorization import stamp_authorization
+
+    job = {**job, "payload": stamp_authorization(job.get("payload"), include_trusted=True)}
     config = queue_worker.config
     if config.queue_per_session or getattr(component, "one_turn_per_session", False) is True:
         job = {**job, "payload": {**(job.get("payload") or {}), "serialize_session": True}}
@@ -627,9 +630,11 @@ class QueueWorker:
         worker_id: Optional[str] = None,
         stop_timeout: int = _DEFAULT_STOP_TIMEOUT,
         auto_provision: bool = True,
+        authorization_app: Any = None,
     ) -> None:
         from uuid import uuid4
 
+        self.authorization_app = authorization_app
         self.store = store
         self.resolve_component = resolve_component
         self.config = config
@@ -1956,7 +1961,17 @@ class QueueWorker:
                 (job.get("payload") or {}).get("serialize_session") is True and store_serializes_sessions(self.store)
             ),
         ) as ownership:
-            await self._execute_claimed_inner(job, ownership)
+            from agno.os.authz.run_context import restore_authorization
+            from agno.run.authorization import AUTHORIZATION_KEY, authorization_scope
+
+            payload = job.get("payload") or {}
+            authority_payload = payload.get("continue") or payload
+            snapshot = authority_payload.get(
+                AUTHORIZATION_KEY, {"context": {}, "service_account": True, "enforce_tools": False}
+            )
+            authority = restore_authorization(self.authorization_app, snapshot)
+            with authorization_scope(lambda: authority):
+                await self._execute_claimed_inner(job, ownership)
 
     async def _await_with_timeout(self, execution: Any, ownership: Any) -> Any:
         """asyncio.wait_for with cause attribution: the cancellation cause is
@@ -2540,7 +2555,9 @@ async def acontinue_via_queue(
         # timed out after the pause write): the detached path can still
         # continue the run; the caller logs the bypass
         return None
-    continue_payload = dict(continue_payload)
+    from agno.run.authorization import stamp_authorization
+
+    continue_payload = stamp_authorization(continue_payload, include_trusted=True)
     if "stream_events" not in continue_payload:
         # Hoist the CONTINUE request's stream_events choice to where the
         # worker reads it (cont["stream_events"] wins over the submit
@@ -3125,6 +3142,7 @@ async def queue_lifespan(app: Any, agent_os: Any):
         config=config,
         stop_timeout=resolve_stop_timeout(config),
         auto_provision=getattr(agent_os, "auto_provision_dbs", True),
+        authorization_app=app,
     )
     app.state.queue_worker = worker
     set_active_queue_worker(worker)

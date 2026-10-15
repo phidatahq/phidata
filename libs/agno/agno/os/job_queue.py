@@ -1508,7 +1508,17 @@ class QueueWorker:
             )
             return None
         from agno.run.base import RunStatus
-        from agno.run.status_persist import RunPersistOutcome, apersist_run_status, component_hook, fallback_allowed
+        from agno.run.status_persist import (
+            RunPersistOutcome,
+            apersist_run_status,
+            component_hook,
+            fallback_allowed,
+            queue_terminal_writer,
+        )
+
+        terminal_writer = queue_terminal_writer(component)
+        if terminal_writer is not None:
+            return await terminal_writer(job, error, status, cancellation_stage)
 
         fields: Dict[str, Any] = {
             "status": RunStatus.cancelled.value if status == "cancelled" else RunStatus.error.value,
@@ -2252,10 +2262,13 @@ class QueueWorker:
             # manager): honour it - the ticket tombstones as cancelled
             if ownership is not None:
                 ownership.cancellation_cause = "user_cancel"
-            await self._asettle_ticket(job_id, attempt, "cancelled")
-            # Not gated: honouring the user's cancel on the ticket beats
-            # run-row terminality (leaving the job stale would re-execute a
-            # cancelled run) - but the divergence must be loud, not silent
+            from agno.run.status_persist import queue_terminal_writer
+
+            requires_cleanup = queue_terminal_writer(component) is not None
+            if not requires_cleanup:
+                await self._asettle_ticket(job_id, attempt, "cancelled")
+            # Ordinary components retain immediate ticket cancellation. A
+            # component with external compute must finish its cleanup first.
             from agno.run.base import CancellationStage
 
             # The stage is what the run was doing when cancelled. Before the
@@ -2274,6 +2287,12 @@ class QueueWorker:
                 cancellation_stage=stage,
             ):
                 log_error(f"Job queue: cancelled job {job_id} but its run row could not be terminalized")
+                if requires_cleanup:
+                    # Compute cleanup failed or its acknowledgement is unknown.
+                    # Preserve the claim for reconciliation before settlement.
+                    return
+            if requires_cleanup:
+                await self._asettle_ticket(job_id, attempt, "cancelled")
             await self._terminate_stream_view(job, status="cancelled")
         except asyncio.TimeoutError:
             error = f"Run exceeded timeout_seconds={self.config.timeout_seconds}"

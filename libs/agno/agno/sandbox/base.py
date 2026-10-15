@@ -5,7 +5,11 @@ import json
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
-from typing import Any, Coroutine, Dict, Mapping, Optional, Sequence
+from typing import TYPE_CHECKING, Any, Coroutine, Dict, Mapping, Optional, Sequence
+
+if TYPE_CHECKING:
+    from agno.sandbox.checkpoint import CheckpointStore
+    from agno.sandbox.transfer import CheckpointTransfer
 
 
 class SandboxError(RuntimeError):
@@ -80,7 +84,22 @@ class Sandbox(ABC):
     that paused it knows it is whole. Stop and destroy remain the cold path, after
     which recovery needs a new generation. Snapshot, preview and nested-container
     features are not implied.
+
+    Passed as sandbox= on ClaudeAgent or CodexAgent, the whole harness runs in a
+    computer from this sandbox each turn; checkpoints, env and execution_timeout
+    configure those turns.
     """
+
+    # Where session checkpoints are stored; None uses a local directory that survives only on this host.
+    checkpoints: Optional["CheckpointStore"] = None
+    # Variables for every harness computer, merged over the harness's model API key from the host.
+    env: Optional[Mapping[str, str]] = None
+    # Seconds one harness turn may run inside the computer.
+    execution_timeout: float = 900
+
+    def checkpoint_transfer(self, store: "CheckpointStore") -> "CheckpointTransfer":
+        """Return the transport that moves this sandbox's checkpoints to and from store."""
+        raise NotImplementedError(f"{type(self).__name__} cannot checkpoint harness sessions")
 
     @abstractmethod
     async def acreate(

@@ -55,3 +55,21 @@ Company tasks lifecycle passed
 
 The existing `01_manage_products.py` was also rerun successfully with its
 original output and assertions unchanged.
+
+
+### Rebase verification: all Company examples
+
+**Status:** PASS
+
+**Description:** Reran `01_manage_products.py`, `02_manage_projects.py`, and
+`03_manage_tasks.py` on October 15, 2026 after rebasing onto Products commit
+`850ebb87a6a78c73392fd3c0a998ce9c18f8a823`, including its database shutdown
+and async configuration reconstruction fixes. The new Project/Task inserts
+also use the same required-row return convention as Products.
+
+**Result:** All assertions passed. Products reported two unscoped records,
+one Alice-owned record, and successful archive/restore checks. Projects
+reported lifecycle success. Tasks reported protected accepted scope and
+lifecycle success.
+
+---

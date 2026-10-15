@@ -6302,7 +6302,7 @@ class AsyncPostgresDb(AsyncBaseDb):
         if table is None:
             raise RuntimeError("Failed to get or create projects table")
         async with self.async_session_factory() as sess, sess.begin():
-            result = (await sess.execute(table.insert().values(**project_data).returning(table))).fetchone()
+            result = (await sess.execute(table.insert().values(**project_data).returning(table))).one()
             return dict(result._mapping)
 
     async def get_project(
@@ -6433,7 +6433,7 @@ class AsyncPostgresDb(AsyncBaseDb):
         if table is None:
             raise RuntimeError("Failed to get or create tasks table")
         async with self.async_session_factory() as sess, sess.begin():
-            result = (await sess.execute(table.insert().values(**task_data).returning(table))).fetchone()
+            result = (await sess.execute(table.insert().values(**task_data).returning(table))).one()
             return dict(result._mapping)
 
     async def get_task(

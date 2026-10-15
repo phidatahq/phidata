@@ -9054,7 +9054,7 @@ class PostgresDb(BaseDb):
         if table is None:
             raise RuntimeError("Failed to get or create projects table")
         with self.Session() as sess, sess.begin():
-            result = sess.execute(table.insert().values(**project_data).returning(table)).fetchone()
+            result = sess.execute(table.insert().values(**project_data).returning(table)).one()
             return dict(result._mapping)
 
     def get_project(
@@ -9179,7 +9179,7 @@ class PostgresDb(BaseDb):
         if table is None:
             raise RuntimeError("Failed to get or create tasks table")
         with self.Session() as sess, sess.begin():
-            result = sess.execute(table.insert().values(**task_data).returning(table)).fetchone()
+            result = sess.execute(table.insert().values(**task_data).returning(table)).one()
             return dict(result._mapping)
 
     def get_task(

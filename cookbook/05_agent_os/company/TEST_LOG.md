@@ -54,3 +54,15 @@ verified PR merge acceptance are a separate slice, as is the built-in Product Ma
 The local tests above do not establish hosted deployment, frontend behavior or coding
 workspace isolation. Company uses each configured worker's workspace; operators must
 provide an appropriate isolated worker when needed.
+
+## Merged Manager and database defaults — 15 October 2026
+
+**Status:** PASS
+
+**Description:** Refreshed against main with the merged Manager. Company inherits
+AgentOS.db unless explicitly overridden. The Company, Manager and run authorization
+suites passed: 334 passed, 1 optional compatibility test skipped.
+
+**Result:** Disposable PostgreSQL persistence, database defaults, override precedence,
+unsupported database rejection, queue authority restoration and Manager permissions
+passed. Format and validation scripts passed. No live provider calls.

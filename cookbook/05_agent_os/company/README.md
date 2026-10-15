@@ -19,16 +19,16 @@ from agno.os import AgentOS, CompanyConfig
 
 db = PostgresDb(db_url=database_url)
 agent_os = AgentOS(
+    db=db,
     authorization=authorization,
-    company=CompanyConfig(db=db),
+    company=CompanyConfig(),
 )
 app = agent_os.get_app()
 ```
 
 Products, Projects and Tasks are dynamic API records. Omit `company` to leave the
 capability disabled, including its routes, descriptor and background work. Manual
-Company records need no model, manager or runtime database. The explicit Company
-database may differ from AgentOS's runtime database.
+Company records need no model, manager or runtime database. Company defaults to `AgentOS.db`; pass `CompanyConfig(db=...)` to use a separate PostgreSQL database.
 
 ## Add reusable workers
 
@@ -60,7 +60,7 @@ it. Execution requires permission to run that agent as well as Product membershi
 
 With the AgentOS Manager feature installed, configure its normal `manager=` option
 and add this ordinary agent to `agent_os.manager.members`. It sits beside Platform
-Manager, Platform Builder and, when configured, Platform Engineer. Product Manager
+Manager and Platform Builder. Product Manager
 gets CompanyTools, without platform toolkits. This composition is exercised by the
 manager compatibility test; it does not require changes to the manager implementation.
 

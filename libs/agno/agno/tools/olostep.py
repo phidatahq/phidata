@@ -13,6 +13,13 @@ except ImportError:
     raise ImportError("`olostep` not installed. Please install using `pip install olostep`")
 
 
+def _content_to_str(value: Any) -> str:
+    """Return scraped content as a string. The SDK parses JSON content into a dict."""
+    if isinstance(value, str):
+        return value
+    return json.dumps(value, ensure_ascii=False)
+
+
 class OlostepTools(Toolkit):
     """
     Olostep is a toolkit for web scraping, crawling, mapping, search,
@@ -27,6 +34,7 @@ class OlostepTools(Toolkit):
         answer_question (bool): Enable AI-powered answers grounded in live web data. Default: False.
         batch_scrape (bool): Enable concurrent batch scraping of multiple URLs. Default: False.
         all_tools (bool): Enable all tools at once. Default: False.
+        **kwargs: Extra arguments passed to the base Toolkit.
     """
 
     def __init__(
@@ -39,9 +47,8 @@ class OlostepTools(Toolkit):
         answer_question: bool = False,
         batch_scrape: bool = False,
         all_tools: bool = False,
+        **kwargs: Any,
     ) -> None:
-        super().__init__(name="olostep")
-
         self.api_key = api_key or os.getenv("OLOSTEP_API_KEY")
         if not self.api_key:
             log_error("OLOSTEP_API_KEY not set. Please set the OLOSTEP_API_KEY environment variable.")
@@ -52,18 +59,21 @@ class OlostepTools(Toolkit):
             scrape_url = crawl_website = map_website = True
             search_web = answer_question = batch_scrape = True
 
+        tools: List[Any] = []
         if scrape_url:
-            self.register(self.scrape_url)
+            tools.append(self.scrape_url)
         if crawl_website:
-            self.register(self.crawl_website)
+            tools.append(self.crawl_website)
         if map_website:
-            self.register(self.map_website)
+            tools.append(self.map_website)
         if search_web:
-            self.register(self.search_web)
+            tools.append(self.search_web)
         if answer_question:
-            self.register(self.answer_question)
+            tools.append(self.answer_question)
         if batch_scrape:
-            self.register(self.batch_scrape)
+            tools.append(self.batch_scrape)
+
+        super().__init__(name="olostep", tools=tools, **kwargs)
 
     def scrape_url(
         self,
@@ -98,9 +108,9 @@ class OlostepTools(Toolkit):
                        "@olostep/extract-calendars". Include "json" in formats when using this.
             llm_extract_prompt: Natural language instruction for LLM-based structured
                                 extraction (e.g. "Extract the event title, date, and venue").
-                                Costs 20 credits. Include "json" in formats.
-            llm_extract_schema: JSON string schema for LLM extraction
-                                (e.g. '{"title": "", "date": "", "venue": ""}').
+                                Costs 10 credits. Include "json" in formats.
+            llm_extract_schema: JSON string with a JSON Schema for LLM extraction
+                                (e.g. '{"type": "object", "properties": {"title": {"type": "string"}}}').
                                 Takes precedence over llm_extract_prompt if both provided.
 
         Returns:
@@ -119,7 +129,7 @@ class OlostepTools(Toolkit):
             }
 
             if country:
-                kwargs["country"] = country.lower()
+                kwargs["country"] = country
 
             if parser_id:
                 kwargs["parser"] = {"id": parser_id}
@@ -132,17 +142,25 @@ class OlostepTools(Toolkit):
                 kwargs["llm_extract"] = {"schema": schema}
             elif llm_extract_prompt:
                 kwargs["llm_extract"] = {"prompt": llm_extract_prompt}
+                # The API accepts a prompt, but the SDK's request validation only allows a schema.
+                kwargs["validate_request"] = False
 
             result = self.client.scrapes.create(**kwargs)
 
-            if "json" in fmt_list and result.json_content:
-                return result.json_content
-            if "markdown" in fmt_list and result.markdown_content:
-                return result.markdown_content
-            if "text" in fmt_list and result.text_content:
-                return result.text_content
-            if "html" in fmt_list and result.html_content:
-                return result.html_content
+            # The SDK only sets the content attributes the API returned.
+            json_content = getattr(result, "json_content", None)
+            markdown_content = getattr(result, "markdown_content", None)
+            text_content = getattr(result, "text_content", None)
+            html_content = getattr(result, "html_content", None)
+
+            if "json" in fmt_list and json_content:
+                return _content_to_str(json_content)
+            if "markdown" in fmt_list and markdown_content:
+                return markdown_content
+            if "text" in fmt_list and text_content:
+                return text_content
+            if "html" in fmt_list and html_content:
+                return html_content
 
             return "No content returned for the requested formats."
 
@@ -170,15 +188,15 @@ class OlostepTools(Toolkit):
 
         Args:
             url: The starting URL for the crawl (e.g. "https://docs.example.com").
-            max_pages: Maximum number of pages to crawl. Default: 20. Max: 1000.
+            max_pages: Maximum number of pages to crawl. Default: 20.
             max_depth: Maximum link depth from the start URL. None means no depth limit.
             include_urls: Comma-separated glob patterns for paths to include
                           (e.g. "/blog/**, /articles/**"). Only matching URLs are crawled.
             exclude_urls: Comma-separated glob patterns for paths to exclude
                           (e.g. "/admin/**, /login/**").
-            search_query: Filter crawled pages by relevance to this query
-                          (e.g. "pricing information"). Returns most relevant pages first.
-            top_n: When combined with search_query, limits to top N most relevant pages.
+            search_query: Only crawl pages relevant to this query
+                          (e.g. "pricing information").
+            top_n: Limit per-page exploration (top_n in the Olostep crawl API).
 
         Returns:
             JSON string — a list of objects with "url" and "markdown_content" fields.
@@ -207,10 +225,12 @@ class OlostepTools(Toolkit):
             for page in crawl.pages():
                 try:
                     content = page.retrieve(["markdown"])
-                    pages.append({
-                        "url": page.url,
-                        "markdown_content": content.markdown_content or "",
-                    })
+                    pages.append(
+                        {
+                            "url": page.url,
+                            "markdown_content": getattr(content, "markdown_content", None) or "",
+                        }
+                    )
                 except Exception as page_err:
                     log_error(f"Failed to retrieve content for {page.url}: {page_err}")
                     pages.append({"url": page.url, "markdown_content": ""})
@@ -296,13 +316,14 @@ class OlostepTools(Toolkit):
             result = self.client.searches.create(query=query)
 
             links: List[Dict[str, str]] = []
-            if result.result and result.result.links:
-                for link in result.result.links:
-                    links.append({
-                        "url": link.url or "",
-                        "title": link.title or "",
-                        "description": link.description or "",
-                    })
+            for link in result.links or []:
+                links.append(
+                    {
+                        "url": link.get("url") or "",
+                        "title": link.get("title") or "",
+                        "description": link.get("description") or "",
+                    }
+                )
 
             return json.dumps(links, ensure_ascii=False)
 
@@ -344,27 +365,26 @@ class OlostepTools(Toolkit):
             if json_schema:
                 try:
                     schema = json.loads(json_schema)
-                    kwargs["json"] = schema
                 except json.JSONDecodeError:
                     return "Error: json_schema must be a valid JSON string."
+                kwargs["json_format"] = schema
 
             answer = self.client.answers.create(**kwargs)
 
-            if json_schema and answer.result and answer.result.json_content:
+            content = _content_to_str(answer.json_content) if answer.json_content else ""
+            sources: List[str] = list(answer.sources or [])
+
+            if json_schema and content:
                 try:
-                    data = json.loads(answer.result.json_content)
-                    json_sources = answer.result.sources if answer.result.sources else []
-                    data["_sources"] = json_sources
-                    return json.dumps(data, ensure_ascii=False)
+                    data = json.loads(content)
+                    if isinstance(data, dict):
+                        data["_sources"] = sources
+                        return json.dumps(data, ensure_ascii=False)
                 except json.JSONDecodeError:
-                    return answer.result.json_content
+                    pass
+                return content
 
-            plain = answer.answer or ""
-            sources: List[str] = []
-            if answer.result and answer.result.sources:
-                sources = answer.result.sources
-
-            return json.dumps({"answer": plain, "sources": sources}, ensure_ascii=False)
+            return json.dumps({"answer": content, "sources": sources}, ensure_ascii=False)
 
         except Olostep_BaseError as e:
             return f"Olostep API error for task '{task}': {type(e).__name__}: {e}"
@@ -381,7 +401,7 @@ class OlostepTools(Toolkit):
         """
         Scrape multiple URLs concurrently in a single batch job.
 
-        Use this when you have a list of URLs (50–10,000) to scrape at once. Processing
+        Use this when you have a long list of URLs (up to 10,000) to scrape at once. Processing
         takes ~5–8 minutes regardless of batch size, making it far more efficient than
         individual scrapes for large lists. Best combined with map_website to first
         discover URLs then scrape them all.
@@ -422,25 +442,31 @@ class OlostepTools(Toolkit):
             for item in batch.items():
                 try:
                     content_obj = item.retrieve(fmt_list)
-                    if "json" in fmt_list and content_obj.json_content:
-                        content = content_obj.json_content
-                    elif "markdown" in fmt_list and content_obj.markdown_content:
-                        content = content_obj.markdown_content
-                    elif "text" in fmt_list and content_obj.text_content:
-                        content = content_obj.text_content
-                    elif "html" in fmt_list and content_obj.html_content:
-                        content = content_obj.html_content
+                    json_content = getattr(content_obj, "json_content", None)
+                    markdown_content = getattr(content_obj, "markdown_content", None)
+                    text_content = getattr(content_obj, "text_content", None)
+                    html_content = getattr(content_obj, "html_content", None)
+                    if "json" in fmt_list and json_content:
+                        content = _content_to_str(json_content)
+                    elif "markdown" in fmt_list and markdown_content:
+                        content = markdown_content
+                    elif "text" in fmt_list and text_content:
+                        content = text_content
+                    elif "html" in fmt_list and html_content:
+                        content = html_content
                     else:
                         content = ""
                 except Exception as item_err:
                     log_error(f"Failed to retrieve batch item {item.url}: {item_err}")
                     content = ""
 
-                results.append({
-                    "url": item.url,
-                    "custom_id": item.custom_id,
-                    "content": content,
-                })
+                results.append(
+                    {
+                        "url": item.url,
+                        "custom_id": item.custom_id,
+                        "content": content,
+                    }
+                )
 
             return json.dumps(results, ensure_ascii=False)
 

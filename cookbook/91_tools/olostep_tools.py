@@ -1,42 +1,55 @@
 """
-Olostep Tools - Examples
+This is an example of how to use the OlostepTools.
 
-pip install agno olostep openai
-export OLOSTEP_API_KEY=***
-export OPENAI_API_KEY=***
+Prerequisites:
+- Create an Olostep account and get an API key: https://www.olostep.com/dashboard/api-keys
+- Install the SDK:
+    pip install olostep
+- Set the API key as an environment variable:
+    export OLOSTEP_API_KEY=<your-api-key>
 """
 
 from agno.agent import Agent
-from agno.models.openai import OpenAIChat
 from agno.tools.olostep import OlostepTools
 
-# Example 1: Scrape a single URL
+# ---------------------------------------------------------------------------
+# Create Agents
+# ---------------------------------------------------------------------------
+
+# Scrape a single page (scrape_url is on by default)
 scrape_agent = Agent(
-    model=OpenAIChat(id="gpt-4o-mini"),
-    tools=[OlostepTools(scrape_url=True)],
+    tools=[OlostepTools()],
     markdown=True,
 )
-scrape_agent.print_response(
-    "Summarize the key features described at https://docs.olostep.com/get-started/welcome"
-)
 
-# Example 2: Web search + AI-powered answers
+# Web search and AI answers grounded in live web data
 research_agent = Agent(
-    model=OpenAIChat(id="gpt-4o"),
-    tools=[OlostepTools(search_web=True, answer_question=True)],
+    tools=[OlostepTools(scrape_url=False, search_web=True, answer_question=True)],
     markdown=True,
-)
-research_agent.print_response(
-    "What are the top web scraping APIs in 2025 and how do they compare on pricing?"
 )
 
-# Example 3: Map a site then batch scrape all discovered pages
+# Map a site, then scrape the pages that were found in one batch
 batch_agent = Agent(
-    model=OpenAIChat(id="gpt-4o"),
-    tools=[OlostepTools(map_website=True, batch_scrape=True)],
+    tools=[OlostepTools(scrape_url=False, map_website=True, batch_scrape=True)],
     markdown=True,
 )
-batch_agent.print_response(
-    "Map https://docs.olostep.com, find all feature pages, "
-    "then batch scrape them and give me a summary of every feature."
-)
+
+# ---------------------------------------------------------------------------
+# Run Agents
+# ---------------------------------------------------------------------------
+if __name__ == "__main__":
+    # Should use scrape_url
+    scrape_agent.print_response(
+        "Summarize the key features described at https://docs.olostep.com/get-started/welcome"
+    )
+
+    # Should use search_web and answer_question
+    research_agent.print_response(
+        "What are the top web scraping APIs and how do they compare on pricing?"
+    )
+
+    # Should use map_website, then batch_scrape
+    batch_agent.print_response(
+        "Map https://docs.olostep.com, pick the pages about features, "
+        "then batch scrape them and summarize each feature."
+    )

@@ -72,3 +72,14 @@ overlap within a poller, and shutdown cancels the check. A full evidence list no
 blocks verified completion; the merge proof remains in the audit event. Version-5
 upgrade preserves work without enrolling legacy Ready Tasks. GitHub responses are
 fixtures here; account type is not proof of physical human interaction.
+## Merged Manager and database defaults — 15 October 2026
+
+**Status:** PASS
+
+**Description:** Refreshed against main with the merged Manager. Company inherits
+AgentOS.db unless explicitly overridden. The Company, Manager and run authorization
+suites passed: 334 passed, 1 optional compatibility test skipped.
+
+**Result:** Disposable PostgreSQL persistence, database defaults, override precedence,
+unsupported database rejection, queue authority restoration and Manager permissions
+passed. Format and validation scripts passed. No live provider calls.

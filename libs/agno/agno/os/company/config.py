@@ -4,17 +4,19 @@ from typing import Any, Optional
 
 @dataclass(frozen=True)
 class CompanyConfig:
-    """Explicit Company database. PostgreSQL is the supported adapter.
+    """Company storage. Omit db to use the AgentOS PostgreSQL database.
 
     The service borrows its engine but owns the ``agno_company`` schema. Apply
     migrations explicitly before serving; constructing this config never connects.
     """
 
-    db: Any
+    db: Optional[Any] = None
     # Optional read-only GitHub credential for private pull requests and API rate limits.
     github_token: Optional[str] = field(default=None, repr=False)
 
     def __post_init__(self) -> None:
+        if self.db is None:
+            return
         from agno.db.postgres import PostgresDb
 
         if not isinstance(self.db, PostgresDb) or self.db.db_engine.dialect.name != "postgresql":

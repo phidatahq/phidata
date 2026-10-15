@@ -591,7 +591,7 @@ files were excluded because their optional dependency is unavailable. The broad
 count overlaps the focused suite; counts are not additive.
 
 
-## Shared component exposure policy, 2026-10-15
+## Shared component exposure policy, 2026-10-15 (superseded API)
 
 ### Generic policies, dispatch and migration
 
@@ -634,3 +634,30 @@ environment reported unrelated SDK typing errors.
 
 **Result:** Ruff, import sorting, cookbook patterns and mypy passed (1,127
 framework files and 21 CLI files). Unrelated baseline formatter edits were removed.
+
+
+## Minimal internal-component configuration, 2026-10-15
+
+### private_members.py and regression suites
+
+**Status:** PASS
+
+**Description:** Replaced the policy object and composition setting with one
+`Registry.internal_components` set of `(type, id)` entries. Removed automatic
+tool-registry rebinding and duplicate public-roster properties. Retained shared
+visibility checks, stale-row refusal, native delegation and existing registry
+exclusion behavior. Applications pass their shared registry explicitly.
+
+**Result:** Focused manager, authorization, visibility and schedule tests:
+**333 passed**. The cookbook's real HTTP assertions passed with temporary SQLite
+data and no model call. The shared development environment installs the primary
+checkout, so cookbook verification used `PYTHONPATH=libs/agno` in this worktree.
+
+Broad affected suite: **7,897 passed, 32 skipped**. Counts overlap the focused
+suite and are not additive. Three optional Telegram files were excluded for an
+unavailable dependency; localhost fixtures ran with local network access.
+
+Required format and validation scripts passed, including mypy for 1,127 framework
+files and 21 CLI files, using the existing isolated validation dependencies.
+Unrelated baseline formatter changes were removed. No live model, hosted-docs,
+PostgreSQL or frontend-browser validation is claimed.

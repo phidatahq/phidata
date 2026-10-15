@@ -30,7 +30,7 @@ from agno.eval.base import BaseEval
 from agno.filters import FilterExpr
 from agno.guardrails import BaseGuardrail
 from agno.knowledge.protocol import KnowledgeProtocol
-from agno.registry.component import _catalog_allowed, _catalog_exclusions
+from agno.registry._visibility import _catalog_allowed, _catalog_exclusions
 
 if TYPE_CHECKING:
     from agno.learn.machine import LearningMachine

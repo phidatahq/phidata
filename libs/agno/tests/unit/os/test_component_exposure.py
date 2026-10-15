@@ -15,7 +15,7 @@ from agno.models.message import MessageMetrics
 from agno.models.response import ModelResponse
 from agno.os import AgentOS, OSManager
 from agno.os.config import AgentOSConfig, Manifest
-from agno.registry import ComponentPolicy, Registry
+from agno.registry import Registry
 from agno.registry._reserved import BUILDER_ID, MANAGER_TEAM_ID, OPERATOR_ID
 from agno.team import Team
 from agno.tools import tool
@@ -89,7 +89,7 @@ def test_internal_catalog_resolution_refuses_ids_names_versions_and_metadata(db,
     from agno.os import utils
 
     model = FixtureModel()
-    registry = Registry(models=[model], component_policies=[ComponentPolicy(kind, "private", public=False)])
+    registry = Registry(models=[model], internal_components={(kind, "private")})
     store(db, kind, "private", "Private Display Name", metadata={"public": True, "_agno": {"internal": False}})
     store(db, kind, "ordinary")
     module = import_module(f"agno.{kind}.{kind}")
@@ -150,10 +150,10 @@ def test_application_policy_is_typed_and_filters_public_surfaces(db, resync):
     public_team = Team(id="same-id", name="Public Team", members=[private], model=FixtureModel())
     private_workflow = Workflow(id="private-flow", steps=[])
     registry = Registry(
-        component_policies=[
-            ComponentPolicy("agent", private.id, public=False),
-            ComponentPolicy("workflow", private_workflow.id, public=False),
-        ]
+        internal_components={
+            ("agent", private.id),
+            ("workflow", private_workflow.id),
+        }
     )
     os = AgentOS(
         agents=[private],
@@ -200,21 +200,20 @@ def test_policy_applies_before_factories_run(db, kind):
 
     factory_type = {"agent": AgentFactory, "team": TeamFactory, "workflow": WorkflowFactory}[kind]
     factory = factory_type(id="private", db=db, factory=forbidden)
-    registry = Registry(component_policies=[ComponentPolicy(kind, "private", public=False)])
+    registry = Registry(internal_components={(kind, "private")})
     args = {f"{kind}_id": "private", kind + "s": [factory], "registry": registry, "db": db}
     assert getattr(utils, f"get_{kind}_by_id")(**args) is None
     assert asyncio.run(getattr(utils, f"get_{kind}_by_id_async")(**args)) is None
     assert calls == []
 
 
-@pytest.mark.parametrize("public", [False, True])
 @pytest.mark.parametrize("version", [None, 1])
-def test_stored_team_and_workflow_cannot_import_noncomposable_components(db, public, version):
+def test_stored_team_and_workflow_cannot_import_internal_components(db, version):
     from agno.workflow.step import Step
 
     registry = Registry(
         models=[FixtureModel()],
-        component_policies=[ComponentPolicy("agent", "member", public=public, composable=False)],
+        internal_components={("agent", "member")},
     )
     store(db, "agent", "member")
     links = [{"link_kind": "member", "child_component_id": "member", "child_version": version}]
@@ -233,7 +232,7 @@ def test_stored_team_and_workflow_cannot_import_noncomposable_components(db, pub
 @pytest.mark.parametrize("use_async", [False, True])
 @pytest.mark.parametrize("suffix", ["", "?source=schedule", "/"])
 def test_scheduler_tools_refuse_private_targets_and_old_jobs(db, use_async, suffix):
-    registry = Registry(component_policies=[ComponentPolicy("agent", "private", public=False)])
+    registry = Registry(internal_components={("agent", "private")})
     scheduler = SchedulerTools(db=db, registry=registry)
     path = "/agents/%70rivate/runs" + suffix
     args = dict(name="invalid", cron="0 0 * * *", endpoint=path, payload='{"message":"hi"}')
@@ -257,7 +256,7 @@ def test_scheduler_tools_refuse_private_targets_and_old_jobs(db, use_async, suff
     ],
 )
 def test_http_schedule_conflicts_and_migration(db, target):
-    registry = Registry(component_policies=[ComponentPolicy("agent", "private", public=False)])
+    registry = Registry(internal_components={("agent", "private")})
     os = AgentOS(db=db, registry=registry, telemetry=False)
     client = TestClient(os.get_app())
     data = {"name": "job", "cron_expr": "0 0 * * *", "endpoint": target, "payload": {"message": "hi"}}
@@ -287,7 +286,7 @@ def test_internal_member_confirmation_continues_through_owner(db, stream):
         model=FixtureModel("delegate_task_to_member", {"member_id": "private", "task": "Perform the action"}),
         db=db,
     )
-    registry = Registry(component_policies=[ComponentPolicy("agent", "private", public=False)])
+    registry = Registry(internal_components={("agent", "private")})
     os = AgentOS(db=db, agents=[member], teams=[team], registry=registry, telemetry=False)
     client = TestClient(os.get_app())
     response = client.post("/teams/owner/runs", data={"message": "act", "stream": str(stream).lower()})
@@ -323,7 +322,7 @@ async def test_mcp_obeys_application_policy(db):
 
     private = Agent(id="private", model=FixtureModel())
     ordinary = Agent(id="ordinary", model=FixtureModel())
-    registry = Registry(component_policies=[ComponentPolicy("agent", "private", public=False)])
+    registry = Registry(internal_components={("agent", "private")})
     os = AgentOS(db=db, agents=[private, ordinary], registry=registry, telemetry=False)
     os.get_app()
     async with Client(build_mcp_server(os)) as client:
@@ -348,7 +347,7 @@ async def test_queue_rechecks_policy_before_replaying_old_jobs(db, kind):
     agent = Agent(id="private", model=FixtureModel(), db=db)
     team = Team(id="private", members=[agent], model=FixtureModel(), db=db)
     workflow = Workflow(id="private", steps=[agent], db=db)
-    registry = Registry(component_policies=[ComponentPolicy(kind, "private", public=False)])
+    registry = Registry(internal_components={(kind, "private")})
     os = SimpleNamespace(
         db=db,
         registry=registry,
@@ -374,46 +373,32 @@ async def test_queue_rechecks_policy_before_replaying_old_jobs(db, kind):
     assert agent.model.calls == team.model.calls == 0
 
 
-def test_hosted_tools_cannot_omit_or_replace_deployment_policy(db):
+def test_platform_tools_use_explicit_registry(db):
+    registry = Registry(internal_components={("agent", "private")})
     private = Agent(id="private", model=FixtureModel())
-    runner = StudioRunnerTools(include_agents=[private])
-    scheduler = SchedulerTools(db=db)
+    runner = StudioRunnerTools(registry=registry, include_agents=[private])
+    scheduler = SchedulerTools(db=db, registry=registry)
     caller = Agent(id="caller", model=FixtureModel(), tools=[runner, scheduler])
-    registry = Registry(component_policies=[ComponentPolicy("agent", "private", public=False)])
     os = AgentOS(db=db, agents=[private, caller], registry=registry, telemetry=False)
     os.get_app()
     assert runner.registry is scheduler.registry is registry
     assert "error" in json.loads(runner.run_agent("private", "hi"))
-    assert (
-        json.loads(
-            scheduler.create_schedule(
-                name="no", cron="0 0 * * *", endpoint="/agents/private/runs", payload='{"message":"hi"}'
-            )
-        )["error_type"]
-        == "target_internal"
+    result = scheduler.create_schedule(
+        name="no", cron="0 0 * * *", endpoint="/agents/private/runs", payload='{"message":"hi"}'
     )
-    runner.registry = Registry()
-    with pytest.raises(ValueError, match="share the AgentOS registry"):
-        os.resync(os.get_app())
+    assert json.loads(result)["error_type"] == "target_internal"
 
 
-def test_public_noncomposable_component_still_runs(db):
+def test_existing_registry_exclusion_keeps_public_dispatch(db):
     agent = Agent(id="run-only", model=FixtureModel())
-    registry = Registry(component_policies=[ComponentPolicy("agent", agent.id, composable=False)])
+    registry = Registry()
+    registry.exclude_components([agent])
     os = AgentOS(db=db, agents=[agent], registry=registry, telemetry=False)
     client = TestClient(os.get_app())
     assert client.post("/agents/run-only/runs", data={"message": "hi", "stream": "false"}).status_code == 200
     assert registry.get_agent(agent.id) is None
     runner = StudioRunnerTools(registry=registry, include_agents=[agent])
     assert json.loads(runner.run_agent(agent.id, "hi"))["content"] == "fixture completed"
-    from agno.tools.studio import StudioTools
-
-    studio = StudioTools(registry=registry, db=db, include_agents=[agent])
-    result = json.loads(
-        studio.create_team(name="wrapper", member_ids=[agent.id], instructions="Delegate", publish=True)
-    )
-    assert not result["ok"]
-    assert db.get_component("wrapper") is None
 
 
 def test_automatic_a2a_obeys_current_policy_after_resync(db):
@@ -425,7 +410,7 @@ def test_automatic_a2a_obeys_current_policy_after_resync(db):
     client = TestClient(app)
     path = "/a2a/agents/researcher/.well-known/agent-card.json"
     assert client.get(path).status_code == 200
-    registry.component_policies = [ComponentPolicy("agent", "researcher", public=False)]
+    registry.internal_components.add(("agent", "researcher"))
     os.resync(app)
     assert client.get(path).status_code == 404
     assert client.get("/agents").json() == []
@@ -436,7 +421,7 @@ def test_automatic_a2a_obeys_current_policy_after_resync(db):
 def test_studio_schedule_message_edits_obey_policy(db, use_async):
     from agno.tools.studio import StudioTools
 
-    registry = Registry(component_policies=[ComponentPolicy("agent", "private", public=False)])
+    registry = Registry(internal_components={("agent", "private")})
     studio = StudioTools(db=db, registry=registry, schedules=True)
     old = SchedulerTools(db=db).manager.create(
         name="old", cron="0 0 * * *", endpoint="/agents/private/runs", payload={"message": "original"}

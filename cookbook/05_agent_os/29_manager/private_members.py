@@ -13,15 +13,13 @@ from agno.agent import Agent
 from agno.db.sqlite import SqliteDb
 from agno.models.openai import OpenAIResponses
 from agno.os import AgentOS
-from agno.registry import ComponentPolicy, Registry
+from agno.registry import Registry
 from agno.team import Team
 from fastapi.testclient import TestClient
 
 
 def create_os(db: SqliteDb) -> AgentOS:
-    registry = Registry(
-        component_policies=[ComponentPolicy("agent", "researcher", public=False)]
-    )
+    registry = Registry(internal_components={("agent", "researcher")})
     researcher = Agent(
         id="researcher",
         name="Researcher",

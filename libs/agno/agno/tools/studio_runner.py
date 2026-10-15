@@ -108,7 +108,7 @@ from agno.db.schemas.scheduler import (
     strip_reserved_run_metadata,
 )
 from agno.exceptions import ComponentPinError, ComponentRehydrationError
-from agno.registry.component import _catalog_allowed, _catalog_exclusions, _is_public, _public_components
+from agno.registry._visibility import _catalog_allowed, _catalog_exclusions, _is_public, _public_components
 from agno.run import RunContext
 from agno.run.authorization import arequire_permission, authorization_for, require_permission, requires_permission
 from agno.run.cancel import aregister_member_run, register_member_run

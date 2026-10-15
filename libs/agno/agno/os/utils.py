@@ -25,7 +25,7 @@ from agno.media import File as FileMedia
 from agno.models.message import Message
 from agno.os.config import AgentOSConfig
 from agno.registry import Registry, ToolSource
-from agno.registry.component import _is_public
+from agno.registry._visibility import _is_public
 from agno.remote.base import RemoteDb, RemoteKnowledge
 from agno.run.agent import RunOutputEvent
 from agno.run.base import RunStatus

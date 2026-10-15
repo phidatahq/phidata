@@ -60,7 +60,7 @@ from agno.os.service_accounts import TOKEN_PREFIX as SERVICE_ACCOUNT_TOKEN_PREFI
 from agno.os.service_accounts import VerificationStatus
 from agno.os.settings import AgnoAPISettings
 from agno.os.utils import resolve_ws_jwt_config
-from agno.registry.component import _public_manifest, _public_os_components
+from agno.registry._visibility import _public_manifest, _public_os_components
 from agno.team.factory import TeamFactory
 from agno.utils.log import logger
 

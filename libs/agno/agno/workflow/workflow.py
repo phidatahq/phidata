@@ -46,7 +46,7 @@ from agno.media.storage.base import AsyncMediaStorage, MediaStorage
 from agno.metrics import RunMetrics, SessionMetrics
 from agno.models.message import Message
 from agno.registry import Registry
-from agno.registry.component import _catalog_allowed, _catalog_exclusions
+from agno.registry._visibility import _catalog_allowed, _catalog_exclusions
 from agno.run import CancellationStage, RunContext, RunStatus
 from agno.run.agent import (
     RunCancelledEvent as AgentRunCancelledEvent,

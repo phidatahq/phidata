@@ -13,7 +13,7 @@ from agno.os.schema import ModelResponse
 from agno.os.utils import (
     format_team_tools,
 )
-from agno.registry.component import _component_kind, _is_public
+from agno.registry._visibility import _component_kind, _is_public
 from agno.run import RunContext
 from agno.run.team import TeamRunOutput
 from agno.session import TeamSession

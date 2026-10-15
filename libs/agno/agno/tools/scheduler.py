@@ -28,7 +28,7 @@ from urllib.parse import unquote, urlsplit
 
 from agno.db.schemas.scheduler import RUN_ENDPOINT_RE, Schedule, match_run_endpoint
 from agno.registry import Registry
-from agno.registry.component import _is_public
+from agno.registry._visibility import _is_public
 from agno.run import RunContext
 from agno.run.authorization import public_payload, requires_permission
 from agno.scheduler.manager import ScheduleManager

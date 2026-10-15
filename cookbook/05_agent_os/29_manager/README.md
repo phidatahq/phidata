@@ -15,47 +15,35 @@ agent_os = AgentOS(
 )
 ```
 
-## Component exposure
+## Internal components
 
-OS Manager uses the same deployment policy available to application components:
+OS Manager is public; its builder and operator are internal team members.
+Applications can also mark components internal with one registry setting:
 
 ```python
-from agno.registry import ComponentPolicy, Registry
+from agno.registry import Registry
 
-registry = Registry(
-    component_policies=[
-        ComponentPolicy("agent", "researcher", public=False),
-        ComponentPolicy("team", "operations", composable=False),
-    ]
-)
+registry = Registry(internal_components={("agent", "researcher")})
 ```
 
-Pass this registry to `AgentOS` and to any standalone `StudioTools`,
-`StudioRunnerTools`, or `SchedulerTools` that access the same components.
-Hosted tools without a registry inherit it when component policies are configured;
-hosted tools explicitly bound to another registry are rejected. This avoids
-accidentally using a different exposure policy inside an agent's tools.
+Pass the same registry explicitly to `AgentOS` and any `StudioTools`,
+`StudioRunnerTools` or `SchedulerTools` that access these components. AgentOS does
+not rebind tools to a different registry. The component type keeps an agent's
+visibility independent of a team with the same ID.
 
-- `public=False` makes the identity internal. It is absent from public discovery,
-  cannot run through standalone REST/MCP/runner/schedule entry points, and cannot
-  be imported by a stored team or workflow. Its owning code-defined team still
-  delegates to its member object. Direct Python calls remain trusted application code.
-- `composable=False` keeps a public component runnable but removes it from the
-  build palette. OS Manager has this behavior; its specialists are internal.
-- Policies are typed: an agent and a team may share an ID without sharing an
-  application policy. Ordinary components keep their existing behavior by default.
-- Policies come from trusted Python configuration, not stored component metadata.
-  They constrain exposure; they do not grant the caller permission to use a component.
-- Catalog listings, exact IDs, display-name runner lookups and explicit versions
-  use the same rules. Framework-reserved IDs cannot be substituted with catalog
-  records, even when the manager is disabled. Rows remain available for deliberate
-  administrative inspection and cleanup; startup does not archive or delete them.
-- Schedules targeting an internal component return HTTP 409 (tools return
-  `target_internal`). Existing schedules can be disabled, deleted or repointed
-  through the HTTP API. Changing a target's visibility also blocks queue replay.
-- Private manifest entries are omitted from public config. Enabling OS Manager
-  removes obsolete specialist entries from its manifest. Member runs and tool
-  results remain in the owning team's session history for diagnostics and charts.
+An internal component is omitted from public discovery and cannot be addressed
+through REST, MCP, the automatic A2A interface, runners or schedules. Stored
+teams and workflows cannot import it. A code-defined owning team can still
+delegate to the member and handle its confirmation and continuation. Member
+runs remain in the team's session history. Direct Python calls and explicitly
+configured custom interfaces remain application-owned.
+
+Framework-reserved IDs cannot be loaded from catalog rows, even with the manager
+disabled. Existing rows remain available for administrative cleanup; startup
+does not delete or archive them. Existing schedules can be disabled, deleted or
+repointed. Attempts to activate an internal target return HTTP 409 or the
+scheduler tool error `target_internal`. Queued execution checks visibility again.
+Private manifest entries are omitted from public config.
 
 Run the application-owned private-member example without a model call:
 
@@ -63,9 +51,7 @@ Run the application-owned private-member example without a model call:
 .venv/bin/python cookbook/05_agent_os/29_manager/private_members.py
 ```
 
-It verifies discovery, team details, direct-run refusal and schedule refusal.
-To converse with its public research team, serve the returned AgentOS app with
-an OpenAI API key. Normal team confirmation and continuation use the team's route.
+It checks discovery, team details, direct-run refusal and schedule refusal.
 
 ## Try the examples
 

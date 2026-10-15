@@ -52,7 +52,7 @@ from agno.os.utils import (
     resolve_workflow,
     stamped_component_version,
 )
-from agno.registry.component import _public_os_components
+from agno.registry._visibility import _public_os_components
 from agno.remote.base import BaseRemote, RemoteDb
 from agno.run.agent import RunEvent, RunOutput
 from agno.run.team import TeamRunEvent, TeamRunOutput

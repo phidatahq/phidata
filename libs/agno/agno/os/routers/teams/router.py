@@ -98,7 +98,7 @@ from agno.os.utils import (
     stamped_component_version,
 )
 from agno.registry import Registry
-from agno.registry.component import _public_os_components
+from agno.registry._visibility import _public_os_components
 from agno.run.agent import RunOutput
 from agno.run.base import RunStatus
 from agno.run.team import RunErrorEvent as TeamRunErrorEvent

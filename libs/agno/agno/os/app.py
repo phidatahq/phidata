@@ -89,7 +89,7 @@ from agno.os.utils import (
     update_cors_middleware,
 )
 from agno.registry import Registry
-from agno.registry.component import _public_components, _public_manifest
+from agno.registry._visibility import _public_manifest, _public_os_components
 from agno.remote.base import RemoteDb, RemoteKnowledge
 from agno.team import RemoteTeam, Team, TeamFactory
 from agno.utils.log import log_debug, log_error, log_info, log_warning
@@ -639,7 +639,6 @@ class AgentOS:
 
         # Populate registry with code-defined agents/teams
         self._populate_registry()
-        self._bind_component_policy()
         self._warn_on_foreign_studio_registries()
         self._populate_registry_managers()
 
@@ -793,7 +792,6 @@ class AgentOS:
 
         # Populate registry with code-defined agents/teams
         self._populate_registry()
-        self._bind_component_policy()
         self._warn_on_foreign_studio_registries()
         self._populate_registry_managers()
 
@@ -881,8 +879,8 @@ class AgentOS:
             get_learnings_router(dbs=self.dbs, settings=self.settings),
             get_eval_router(
                 dbs=self.dbs,
-                agents=[c for c in self._public_agents if isinstance(c, Agent)] or None,  # type: ignore[arg-type]
-                teams=[c for c in self._public_teams if isinstance(c, Team)] or None,  # type: ignore[arg-type]
+                agents=[c for c in _public_os_components(self, "agent") if isinstance(c, Agent)] or None,  # type: ignore[arg-type]
+                teams=[c for c in _public_os_components(self, "team") if isinstance(c, Team)] or None,  # type: ignore[arg-type]
             ),
             get_metrics_router(dbs=self.dbs),
             get_knowledge_router(knowledge_instances=self.knowledge_instances),
@@ -988,9 +986,11 @@ class AgentOS:
             from agno.utils.live_sequence import LiveSequence
 
             a2a_interface = A2A(
-                agents=LiveSequence(lambda: [c for c in self._public_agents if isinstance(c, Agent)]),  # type: ignore[arg-type]
-                teams=LiveSequence(lambda: [c for c in self._public_teams if isinstance(c, Team)]),  # type: ignore[arg-type]
-                workflows=LiveSequence(lambda: [c for c in self._public_workflows if isinstance(c, Workflow)]),  # type: ignore[arg-type]
+                agents=LiveSequence(lambda: [c for c in _public_os_components(self, "agent") if isinstance(c, Agent)]),  # type: ignore[arg-type]
+                teams=LiveSequence(lambda: [c for c in _public_os_components(self, "team") if isinstance(c, Team)]),  # type: ignore[arg-type]
+                workflows=LiveSequence(
+                    lambda: [c for c in _public_os_components(self, "workflow") if isinstance(c, Workflow)]
+                ),  # type: ignore[arg-type]
             )
             self.interfaces.append(a2a_interface)
             self._add_router(app, a2a_interface.get_router())
@@ -1025,18 +1025,6 @@ class AgentOS:
 
         if duplicate_ids:
             raise ValueError(f"Duplicate IDs found in AgentOS: {', '.join(repr(id_) for id_ in duplicate_ids)}")
-
-    @property
-    def _public_agents(self) -> List[Any]:
-        return _public_components("agent", self.agents, self.registry)
-
-    @property
-    def _public_teams(self) -> List[Any]:
-        return _public_components("team", self.teams, self.registry)
-
-    @property
-    def _public_workflows(self) -> List[Any]:
-        return _public_components("workflow", self.workflows, self.registry)
 
     @property
     def _agents(self) -> List[Agent]:
@@ -1384,28 +1372,6 @@ class AgentOS:
         for workflow in self._workflows:
             yield from visit_steps(getattr(workflow, "steps", None))
 
-    def _bind_component_policy(self) -> None:
-        """Keep hosted platform tools on the deployment's trusted component policy."""
-        if self.registry is None or not self.registry.component_policies:
-            return
-        from agno.tools.scheduler import SchedulerTools
-        from agno.tools.studio import StudioTools
-        from agno.tools.studio_runner import StudioRunnerTools
-
-        for component in self._iter_component_carriers():
-            if not isinstance(getattr(component, "tools", None), list):
-                continue
-            for toolkit in component.tools:
-                if not isinstance(toolkit, (SchedulerTools, StudioTools, StudioRunnerTools)):
-                    continue
-                if toolkit.registry is None:
-                    toolkit.registry = self.registry
-                elif toolkit.registry is not self.registry:
-                    raise ValueError(
-                        "Component policies require hosted Studio, runner and scheduler tools "
-                        "to share the AgentOS registry. Pass registry=agent_os_registry to each toolkit."
-                    )
-
     def _warn_on_foreign_studio_registries(self) -> None:
         """Warn when a served component carries a Studio toolkit bound to a
         different Registry than the one this OS populates.
@@ -1730,8 +1696,8 @@ class AgentOS:
             get_learnings_router(dbs=self.dbs, settings=self.settings),
             get_eval_router(
                 dbs=self.dbs,
-                agents=[c for c in self._public_agents if isinstance(c, Agent)] or None,  # type: ignore[arg-type]
-                teams=[c for c in self._public_teams if isinstance(c, Team)] or None,  # type: ignore[arg-type]
+                agents=[c for c in _public_os_components(self, "agent") if isinstance(c, Agent)] or None,  # type: ignore[arg-type]
+                teams=[c for c in _public_os_components(self, "team") if isinstance(c, Team)] or None,  # type: ignore[arg-type]
             ),
             get_metrics_router(dbs=self.dbs),
             get_knowledge_router(knowledge_instances=self.knowledge_instances),

@@ -253,7 +253,18 @@ curl -X POST http://localhost:7777/agents/coder/runs \
 
 A sandboxed agent accepts images and files from Python (`agent.arun("...", files=[File(...)])`, with `images=`/`files=`, bytes or an explicit local file) and over HTTP. Over HTTP send multipart `files` uploads, and/or the JSON form fields `images` and `input_files`: arrays of objects with base64 `content` and optionally `format`, `mime_type` and, for files, `filename`. At most 16 attachments and 512 KiB of decoded bytes in total per request, inside the 1 MiB runtime request. Audio and video, service paths, remote URLs, media references, metadata, unknown keys, empty or unreadable uploads and a filename on an image are rejected with a 400 before anything is queued; images are named by the harness (`image-<n>.<format>`).
 
-The accepted bytes are stored once, as the canonical form in the queue ticket, so a worker on any replica rebuilds the same input after the submitting process is gone. The run starts with the files under `/workspace/.agno/uploads/<run_id>/`, they are part of the checkpoint, and a replacement computer restores them. The run's input keeps the bytes as well. This moves bytes only: it does not show that a model reads them. A duplicate `Idempotency-Key` returns the original run, so a retry cannot replace the accepted attachments.
+The request body of a run submission to a sandboxed agent is bounded by the bytes actually received: over 4 MiB it is refused with a 413 without reading further, whatever `Content-Length` says. The 512 KiB attachment limit is checked on the decoded bytes after that.
+
+The accepted attachments have one canonical representation, the base64 wire stored in the queue ticket, so a worker on any replica rebuilds the same input after the submitting process is gone. It is also copied, by the run, into other places with their own lifetimes:
+
+| Where | Removed by |
+| --- | --- |
+| Queue ticket (`payload.kwargs.sandbox_media`) | the worker's hourly retention pass once the ticket is terminal and older than `QueueConfig.retention_seconds` (default 24 hours); tickets that are queued, running or paused are kept; deleting a session does not remove its tickets |
+| Run input (pending and final run rows) | deleting the run or its session |
+| Workspace files and the checkpoint archive | the compute is removed after each turn; **no code removes checkpoint objects**: each turn publishes a new one, and superseded objects and those orphaned by a deleted session stay in the checkpoint store until you delete them with `CheckpointStore.delete` |
+| Request spool | closed with the request |
+
+Deleting a session removes its runs and its sandbox binding, so a session recreated under the same id starts from an empty workspace and cannot restore the old files. Deleting a session or its tickets is not secure erasure: the checkpoint objects hold the files, and the ticket's idempotency key stops deduplicating once the ticket is purged. Logs do not contain attachment bytes. A ticket whose attachments no longer validate when a worker replays it is failed once with the reason on the run and nothing is executed. This moves bytes only: it does not show that a model reads them. A duplicate `Idempotency-Key` returns the original run, so a retry cannot replace the accepted attachments.
 
 Keep the returned run ID. Reconnect with `POST /agents/coder/runs/{run_id}/resume` using form fields `session_id` and optionally `last_event_index`; cancel with `POST /agents/coder/runs/{run_id}/cancel?session_id=example`. Reusing an idempotency key requires the same session ID, input and options. Conflicting submissions return 409. Streaming terminal success follows the durable checkpoint commit. Retained indexed events support replay after the live Redis view expires; content deltas follow the agent's `events_to_skip` policy.
 

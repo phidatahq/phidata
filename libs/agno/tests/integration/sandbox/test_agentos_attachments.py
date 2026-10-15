@@ -569,3 +569,89 @@ async def test_a_real_socket_upload_over_the_bound_is_refused_and_the_server_sta
         process.terminate()
         process.wait(timeout=30)
     assert all_rows(agent) == 0 and handles == []
+
+
+# --- retention and deletion: what the existing mechanisms actually do ------------------------------------------------
+
+
+async def test_terminal_tickets_are_purged_by_the_queue_retention_but_pending_ones_keep_their_bytes(service):
+    client, agent, app, _ = service
+    done = await post(client, background="true", files=[("files", ("done.txt", b"done-marker-bytes", "text/plain"))])
+    assert (await settled(app, done.json()["run_id"]))["status"] == "completed"
+    await app.state.queue_worker.stop()
+    waiting = await post(
+        client, background="true", files=[("files", ("wait.txt", b"waiting-marker-bytes", "text/plain"))]
+    )
+    store = app.state.queue_worker.store
+    assert (await store.get_job(done.json()["run_id"]))["payload"]["kwargs"]["sandbox_media"]
+    # The worker's hourly retention pass is this call with its retention_seconds; 0 makes every terminal ticket due.
+    assert agent.db.cleanup_jobs(0) == 1
+    assert await store.get_job(done.json()["run_id"]) is None
+    assert (await store.get_job(waiting.json()["run_id"]))["payload"]["kwargs"]["sandbox_media"]
+    # The run's own input is a separate copy with its own lifetime.
+    kept = await agent.aget_run_output(done.json()["run_id"], "session")
+    assert [file.get_content_bytes() for file in kept.input.files] == [b"done-marker-bytes"]
+
+
+async def test_deleting_a_session_removes_its_runs_and_binding_and_a_recreated_session_starts_clean(service, tmp_path):
+    client, agent, _, _ = service
+    first = await post(client, files=[("files", ("old.txt", b"old-marker-bytes", "text/plain"))])
+    assert first.json()["status"] == "COMPLETED", first.text
+    coordinator = _harness.coordinator(agent)
+
+    def bindings(connection):
+        return connection.execute(select(func.count()).select_from(coordinator.store.bindings)).scalar_one()
+
+    assert await coordinator.store._transaction(bindings) == 1
+    assert agent.db.delete_session("session") is True
+    assert await agent.aget_run_output(first.json()["run_id"], "session") is None
+    assert await coordinator.store._transaction(bindings) == 0
+    # A new session under the same id restores nothing the deleted one held.
+    second = await post(client, files=[("files", ("new.txt", b"new-marker-bytes", "text/plain"))])
+    assert second.json()["status"] == "COMPLETED", second.text
+    uploads = (await workspace_after(agent, tmp_path)) / ".agno/uploads"
+    assert [path.name for path in uploads.iterdir()] == [second.json()["run_id"]]
+    assert not any(uploads.rglob("old.txt"))
+
+
+async def test_logs_never_contain_attachment_bytes(service):
+    import logging
+
+    client, _, app, _ = service
+    marker = b"log-marker-bytes-that-must-never-be-logged"
+    seen = []
+
+    class Collect(logging.Handler):
+        def emit(self, record):
+            seen.append(self.format(record))
+
+    handler = Collect(level=logging.DEBUG)
+    loggers = [logging.getLogger(name) for name in ("", "agno", "agno-team")]
+    for logger in loggers:
+        logger.addHandler(handler)
+    try:
+        ok = await post(client, files=[("files", ("log.txt", marker, "text/plain"))])
+        bad = await post(client, input_files=json.dumps([{"content": b64(marker), "surprise": 1}]))
+        empty = await post(client, files=[("files", ("empty.txt", b"", "text/plain"))])
+    finally:
+        for logger in loggers:
+            logger.removeHandler(handler)
+    assert ok.status_code == 200 and bad.status_code == 400 and empty.status_code == 400
+    text = "\n".join(seen)
+    assert text, "the handler saw no log records, so the check below would prove nothing"
+    assert marker.decode() not in text and b64(marker) not in text
+
+
+async def test_a_purged_ticket_no_longer_deduplicates_its_key(service):
+    client, agent, app, _ = service
+    headers = {"Idempotency-Key": "ages-out"}
+    files = [("files", ("a.txt", b"same upload", "text/plain"))]
+    first = await post(client, background="true", headers=headers, files=files)
+    assert (await settled(app, first.json()["run_id"]))["status"] == "completed"
+    assert (await post(client, background="true", headers=headers, files=files)).json()["run_id"] == first.json()[
+        "run_id"
+    ]
+    assert agent.db.cleanup_jobs(0) == 1
+    again = await post(client, background="true", headers=headers, files=files)
+    assert again.status_code == 202 and again.json()["run_id"] != first.json()["run_id"]
+    assert queued_rows(agent, "ages-out") == 1

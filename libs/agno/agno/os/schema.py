@@ -469,6 +469,11 @@ class ConfigResponse(BaseModel):
     )
     os_database: Optional[str] = Field(None, description="ID of the database used for the OS instance")
     databases: List[str] = Field(..., description="List of database IDs used by the components of the OS instance")
+    os_chat_enabled: bool = Field(
+        False,
+        description="Whether a built-in conversational manager is configured for OS chat. "
+        "This capability flag does not grant execution permissions.",
+    )
     chat: Optional[ChatConfig] = Field(None, description="Chat configuration")
     manifest: Optional[Dict[str, Manifest]] = Field(
         None,

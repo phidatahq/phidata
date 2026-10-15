@@ -31,6 +31,13 @@ tables or unsupported versions fail without automatic migrations or destructive 
 Omitting `company` adds no Company routes, imports, storage initialization, or background work.
 Other configured AgentOS features retain their own storage behavior.
 
+`GET /config` includes `os_chat_enabled`, a boolean the frontend can use to decide
+whether to show OS chat. It is true when OS Manager is configured, and false for
+manual Company Products alone: this slice does not include a Product/Company Manager.
+This reports configured capability, not caller execution permission; existing
+AgentOS authorization still applies. Older server responses that omit the field
+parse as false in the Python client.
+
 ## Access and concurrency
 
 - Creation assigns the authenticated caller as the immutable human owner. Owner IDs

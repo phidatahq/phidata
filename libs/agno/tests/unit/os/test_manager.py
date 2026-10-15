@@ -304,6 +304,36 @@ def test_manifest_defaults_yield_to_the_application_config(db):
     assert "platform-engineer" not in os.config.manifest
 
 
+@pytest.mark.parametrize("manager_enabled", [None, False, True, "explicit"])
+@pytest.mark.parametrize("company_enabled", [False, True])
+def test_config_reports_os_chat_capability(db, monkeypatch, manager_enabled, company_enabled):
+    from agno.db.postgres import PostgresDb
+    from agno.os import CompanyConfig
+
+    company_db = PostgresDb(db_url="postgresql+psycopg://unused:unused@127.0.0.1:1/unused")
+
+    def unexpected_connection(*args, **kwargs):
+        raise AssertionError("Config discovery must not connect to Company storage")
+
+    monkeypatch.setattr(company_db.db_engine, "connect", unexpected_connection)
+    model = OfflineModel()
+    manager = OSManager(model=model) if manager_enabled == "explicit" else manager_enabled
+    os = AgentOS(
+        db=db,
+        registry=Registry(models=[model]),
+        manager=manager,
+        company=CompanyConfig(db=company_db) if company_enabled else None,
+        telemetry=False,
+    )
+    app = os.get_app()
+    client = TestClient(app)
+    response = client.get("/config")
+    assert response.status_code == 200, response.text
+    assert response.json()["os_chat_enabled"] is bool(manager_enabled)
+    os.resync(app)
+    assert client.get("/config").json()["os_chat_enabled"] is bool(manager_enabled)
+
+
 def test_manager_serves_over_the_ordinary_planes(db):
     os = AgentOS(db=db, manager=OSManager(name="Jarvis", model=OfflineModel()), telemetry=False)
     client = TestClient(os.get_app())

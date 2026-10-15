@@ -63,3 +63,21 @@ cookbook pattern check pass. No unrelated fixes or weakened checks are included.
 The required publication gate is not satisfied; passing Company tests do not waive it.
 
 ---
+
+### OS chat capability follow-up
+
+**Status:** PASS (focused tests); repository validation retains the baseline failure above.
+
+**Description:** `GET /config` now reports `os_chat_enabled`. Tested OS Manager omitted,
+explicitly disabled, enabled through the registry, and explicitly configured, both with
+and without Company. Verified route resync, no Company database connection during config
+discovery, and older-server client compatibility. No Product Manager is implemented.
+
+**Result:** 207 tests passed across `test_manager.py`, `test_client.py`, and
+`test_config_queue_capabilities.py`. The earlier 442-test Product/regression run was on
+head `9e6ec23b489e9ffb294acf12d0ce0007ec24548a`; it was not rerun for this config-only follow-up.
+Both publication scripts ran again: format passed and validation returned the same 33
+baseline mypy errors with no added diagnostics. The approved baseline exception applies.
+No Manager implementation or Product service/storage behavior changed.
+
+---

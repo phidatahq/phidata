@@ -309,3 +309,12 @@ Coordinator review follow-up: native transcript-mirror warnings and lost pre-che
 **Result:** Passed. The background turn COMPLETED with a checkpoint on the run row; the streamed turn returned four events ending in RunCompleted with the file name from turn 1; no containers were left running and the server log had no errors.
 
 ---
+### download_artifact.py
+
+**Status:** PASS
+
+**Description:** Status, workspace listing and a bounded file download from a session's last completed checkpoint, over the AgentOS routes, after the turn's container is gone. Credential-free fixture harness, real Docker, local Postgres and Redis.
+
+**Result:** Passed. The turn published a checkpoint and left no container; the script then printed the status, listed the two workspace files and wrote the completed run's exact bytes. Reads performed no provider or transfer operation and left the binding and run rows unchanged.
+
+---

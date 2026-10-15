@@ -942,7 +942,7 @@ class AgentOS:
             from agno.os.company.router import get_company_router
 
             updated_routers.append(get_company_router(self.company))
-        app.openapi_schema = None
+            app.openapi_schema = None
 
         # Clear all previously existing routes
         app.router.routes = [

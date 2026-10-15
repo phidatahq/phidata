@@ -1,6 +1,6 @@
 """Company work with reusable agents, durable execution and recurring Tasks.
 
-Set ENABLE_MANAGER=true only with the AgentOS Manager feature installed.
+Set ENABLE_MANAGER=true to include OS Manager.
 Set CODING_WORKSPACE to a dedicated disposable worktree to enable the coding pilot.
 No agent runs merely by starting this server.
 """
@@ -58,11 +58,11 @@ if workspace:
 
 options = {}
 if environ.get("ENABLE_MANAGER", "false").lower() == "true":
-    from agno.os import ManagerConfig
+    from agno.os import OSManager
 
-    options["manager"] = ManagerConfig(
+    options["manager"] = OSManager(
         model=model,
-        workspace=environ.get("PLATFORM_WORKSPACE"),
+        root=environ.get("PLATFORM_ROOT"),
         instructions="Delegate Company work to Product Manager. Platform specialists manage the AgentOS runtime.",
     )
 

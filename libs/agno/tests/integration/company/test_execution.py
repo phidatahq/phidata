@@ -15,7 +15,7 @@ from agno.db.postgres import PostgresDb
 from agno.job_queue import QueueConfig
 from agno.models.base import Model
 from agno.models.response import ModelResponse
-from agno.os import AgentOS, Authorization, CompanyConfig
+from agno.os import AgentOS, Authorization, CompanyConfig, OSManager
 from agno.os.company.context import CompanyContext, current_company
 from agno.os.company.policy import CompanyError
 from agno.os.company.schemas import ProductCreate, TaskCreate, TaskSchedule, Transition
@@ -404,11 +404,19 @@ def test_housekeeping_uses_worker_context_and_preserves_human_plan(setup):
         assert fresh["counts"]["backlog"] == 1
 
 
-def test_manager_team_delegates_company_tools_with_verified_identity(setup, tmp_path):
-    platform = pytest.importorskip(
-        "agno.os.platform", reason="Run this compatibility test with the manager workstream combined"
-    )
+@pytest.mark.parametrize("agent_id", ["platform-manager-internal", "platform-builder-internal", "os-manager-internal"])
+def test_company_rejects_reserved_manager_workers(setup, agent_id):
+    from agno.os.company.runtime import CompanyRuntime
 
+    db, _, service = setup
+    worker = Agent(id=agent_id, db=db)
+    runtime = CompanyRuntime(service, SimpleNamespace(agents=[worker]))
+    with pytest.raises(CompanyError) as exc:
+        runtime._agent(principal(), agent_id)
+    assert exc.value.code == "platform_worker"
+
+
+def test_manager_team_delegates_company_tools_with_verified_identity(setup, tmp_path):
     class DelegateModel(LocalModel):
         def invoke(self, messages, **kwargs):
             tools = [t["function"]["name"] for t in kwargs.get("tools", []) or []]
@@ -451,14 +459,13 @@ def test_manager_team_delegates_company_tools_with_verified_identity(setup, tmp_
         company=CompanyConfig(db=db),
         user_directory=users,
         authorization=Authorization(verification_keys=[KEY], algorithm="HS256", audience="company-test"),
-        manager=platform.ManagerConfig(model=DelegateModel(), workspace=str(tmp_path)),
+        manager=OSManager(model=DelegateModel(), root=tmp_path, access_docs=False),
         queue=QueueConfig(durable=True, poll_interval=0.02),
     )
     os.manager.members.append(product_manager)
     assert {m.id for m in os.manager.members} == {
-        "platform-manager",
-        "platform-builder",
-        "platform-engineer",
+        "platform-manager-internal",
+        "platform-builder-internal",
         "product-manager",
     }
     assert all(t.name == "company" for t in product_manager.tools)

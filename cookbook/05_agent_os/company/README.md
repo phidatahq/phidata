@@ -58,7 +58,7 @@ The same Product Manager can manage every Product the caller may access. Creatin
 Product creates no agent. Choose a Product's default `agent_id`; a Task can override
 it. Execution requires permission to run that agent as well as Product membership.
 
-With the AgentOS Manager feature installed, configure its normal `manager=` option
+Configure `manager=OSManager(model=model)`
 and add this ordinary agent to `agent_os.manager.members`. It sits beside Platform
 Manager and Platform Builder. Product Manager
 gets CompanyTools, without platform toolkits. This composition is exercised by the
@@ -122,8 +122,8 @@ login; they do not construct Company identities.
 - `app.py`: model-free server for manual work.
 - `manual.py`: repeatable local operator exercise for human review.
 - `with_agents.py`: Product Manager, durable queue and scheduler; optional OS Manager
-  and Codex worker. Set `PLATFORM_WORKSPACE` to the source directory for Platform
-  Engineer. Starting it makes no model calls. Dispatching work does.
+  and Codex worker. Set `PLATFORM_ROOT` to the source directory for Platform
+  Manager to inspect. Starting it makes no model calls. Dispatching work does.
 
 For the coding pilot, set `CODING_WORKSPACE` to a dedicated disposable Git worktree
 and assign `coding-agent` to one Project Task. The example serializes execution.

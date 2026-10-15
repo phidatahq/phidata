@@ -7,7 +7,6 @@ Run against a migrated development database with COMPANY_DATABASE_URL set.
 from os import environ
 from uuid import uuid4
 
-import agno
 from agno.db.postgres import PostgresDb
 from agno.os import CompanyConfig, UserDirectory
 from agno.os.authz.scope_provider import ScopeAuthorizationProvider
@@ -17,7 +16,6 @@ from agno.os.company.service import CompanyService
 
 
 def main() -> None:
-    print(agno.__file__)
     db = PostgresDb(db_url=environ["COMPANY_DATABASE_URL"])
     users = UserDirectory(db=db, auto_provision=False)
     # Explicit operator bootstrap of a known human; no model writes or tokens.

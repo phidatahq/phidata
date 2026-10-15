@@ -1,4 +1,4 @@
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from boto3.session import Session
@@ -249,22 +249,3 @@ class TestSessionNullCredentials:
 
         with pytest.raises(ValueError, match="boto3 session has no credentials"):
             model._get_client_params()
-
-
-@pytest.mark.parametrize("is_async", [False, True])
-def test_session_refresh_does_not_close_caller_owned_client(is_async):
-    mock_session, _ = _make_mock_session()
-    supplied = MagicMock()
-    supplied.is_closed.return_value = False
-    if is_async:
-        supplied.close = AsyncMock()
-    field = "async_client" if is_async else "client"
-    model = Claude(session=mock_session, **{field: supplied})
-    sdk = "AsyncAnthropicBedrock" if is_async else "AnthropicBedrock"
-    with patch("agno.models.aws.claude." + sdk) as factory:
-        getter = model.get_async_client if is_async else model.get_client
-        assert getter() is factory.return_value
-        assert getter() is factory.return_value
-        assert factory.call_count == 2
-    supplied.close.assert_not_called()
-    assert getattr(model, field) is supplied

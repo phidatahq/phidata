@@ -807,7 +807,7 @@ class AsyncPostgresDb(AsyncBaseDb):
         result = await sess.execute(stmt)
         runs_by_session: Dict[str, List[Dict[str, Any]]] = {}
         for session_id, run_data in result.fetchall():
-            runs_by_session.setdefault(cast(str, session_id), []).append(run_data)
+            runs_by_session.setdefault(session_id, []).append(run_data)
         return runs_by_session
 
     async def get_run(
@@ -2215,7 +2215,7 @@ class AsyncPostgresDb(AsyncBaseDb):
                     runs_result = await sess.execute(runs_stmt)
                     runs_by_session: Dict[str, List[Dict[str, Any]]] = {}
                     for session_id, model, model_provider in runs_result.fetchall():
-                        runs_by_session.setdefault(cast(str, session_id), []).append(
+                        runs_by_session.setdefault(session_id, []).append(
                             {"model": model, "model_provider": model_provider}
                         )
 
@@ -4943,7 +4943,7 @@ class AsyncPostgresDb(AsyncBaseDb):
                         # A concurrent claim of another ticket in this session may have committed
                         # after the candidate scan; recheck under the session lock.
                         lock_key = session_claim_lock_key(table.fullname, dict(candidate_row))
-                        locked: bool = (
+                        locked = (
                             await sess.execute(text("SELECT pg_try_advisory_xact_lock(:key)"), {"key": lock_key})
                         ).scalar_one()
                         if not locked:

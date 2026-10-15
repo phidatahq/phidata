@@ -1273,11 +1273,11 @@ class Claude(Model):
                 file_ids: List[str] = []
                 for block in response.message.content:  # type: ignore
                     if block.type == "bash_code_execution_tool_result":
-                        outputs = getattr(getattr(block, "content", None), "content", None)
-                        if isinstance(outputs, list):
-                            for output_block in outputs:
-                                if hasattr(output_block, "file_id"):
-                                    file_ids.append(output_block.file_id)
+                        if hasattr(block, "content") and hasattr(block.content, "content"):
+                            if isinstance(block.content.content, list):
+                                for output_block in block.content.content:
+                                    if hasattr(output_block, "file_id"):
+                                        file_ids.append(output_block.file_id)
                 if file_ids:
                     model_response.provider_data = model_response.provider_data or {}
                     model_response.provider_data["file_ids"] = file_ids

@@ -66,3 +66,44 @@ suites passed: 334 passed, 1 optional compatibility test skipped.
 **Result:** Disposable PostgreSQL persistence, database defaults, override precedence,
 unsupported database rejection, queue authority restoration and Manager permissions
 passed. Format and validation scripts passed. No live provider calls.
+
+## Foundation scope cleanup — 15 October 2026
+
+### Company, Manager, authorization and scheduler regression suite
+
+**Status:** PASS
+
+**Description:** 577 tests passed with no skips against disposable PostgreSQL. The
+Manager delegation test now exercises the merged `OSManager` instead of skipping
+an obsolete module. Added coverage rejecting all current reserved Manager IDs as
+Company workers. Existing duplicate OpenAPI operation-ID warnings remain.
+
+**Result:** Company behavior passes with all database/model adapter changes removed.
+The PR changes only Company files and its AgentOS integration points.
+
+### manual.py and with_agents.py
+
+**Status:** PASS
+
+**Description:** Applied the migration and ran `manual.py` twice against a separate
+disposable database; both runs retained one completed Task. Constructed
+`with_agents.py` with OS Manager and an optional Codex workspace; verified Manager
+membership and Company routes without provider calls. Updated the example to
+`OSManager(root=...)` and removed obsolete Platform Engineer references.
+
+**Result:** Both examples passed. Initial smoke assertions incorrectly assumed the
+registered agent list excluded platform members and every FastAPI router had a
+`path`; corrected the checks to use the registered members and OpenAPI paths.
+
+### Format, validation and scope
+
+**Status:** PASS (CI dependency environment)
+
+**Description:** Required format and validation scripts passed in a fresh Python
+3.10 environment using the declared `agno[dev]` and workspace `agnoctl` dependencies,
+matching CI's dependency setup. Restored only unrelated formatter changes afterward.
+Verified the 11 extracted files match the PR base byte-for-byte.
+
+**Result:** The broader Python 3.12 development environment reports 33 mypy errors
+in unchanged files; the exact same errors reproduce on the unmodified base.
+These are recorded baseline/dependency issues, not fixes included in Company.

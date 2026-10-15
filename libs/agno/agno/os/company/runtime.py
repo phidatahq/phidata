@@ -12,6 +12,7 @@ from agno.os.authz.provider import AuthorizationContext
 from agno.os.company.context import CompanyContext, current_company
 from agno.os.company.policy import CompanyError, Principal
 from agno.os.company.service import _json, _query, _row
+from agno.registry._reserved import RESERVED_MANAGER_IDS
 
 
 class CompanyRuntime:
@@ -41,11 +42,7 @@ class CompanyRuntime:
 
             if not agent.cwd or not Path(agent.cwd).is_dir():
                 raise CompanyError(409, "workspace_required", "Configure an explicit workspace for the coding agent")
-        if getattr(agent, "_registry_excluded", False) or agent.id in (
-            "platform-manager",
-            "platform-builder",
-            "platform-engineer",
-        ):
+        if getattr(agent, "_registry_excluded", False) or agent.id in RESERVED_MANAGER_IDS:
             raise CompanyError(403, "platform_worker", "Platform specialists cannot be Company task workers")
         if not principal.provider.check(
             AuthorizationContext(

@@ -26,6 +26,7 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 from agno.db.schemas.scheduler import RUN_ENDPOINT_RE, Schedule, match_run_endpoint
 from agno.run import RunContext
+from agno.run.authorization import public_payload, requires_permission
 from agno.scheduler.manager import ScheduleManager
 from agno.tools.toolkit import Toolkit
 from agno.utils.log import log_debug, logger
@@ -563,6 +564,7 @@ class SchedulerTools(Toolkit):
         self._manager = value
         self._manager_pinned = True
 
+    @requires_permission("schedules", "write")
     def create_schedule(
         self,
         name: str,
@@ -680,6 +682,7 @@ class SchedulerTools(Toolkit):
             logger.exception("Failed to create schedule")
             return json.dumps({"error": str(e)})
 
+    @requires_permission("schedules", "read")
     def list_schedules(self, enabled_only: bool = False, run_context: Optional[RunContext] = None) -> str:
         """List all existing schedules.
 
@@ -709,6 +712,7 @@ class SchedulerTools(Toolkit):
             logger.exception("Failed to list schedules")
             return json.dumps({"error": str(e)})
 
+    @requires_permission("schedules", "read")
     def get_schedule(self, schedule_id: str, run_context: Optional[RunContext] = None) -> str:
         """Get details of a specific schedule by its ID.
 
@@ -732,13 +736,14 @@ class SchedulerTools(Toolkit):
                     "timezone": schedule.timezone,
                     "enabled": schedule.enabled,
                     "description": schedule.description,
-                    "payload": schedule.payload,
+                    "payload": public_payload(schedule.payload),
                 }
             )
         except Exception as e:
             logger.exception("Failed to get schedule")
             return json.dumps({"error": str(e)})
 
+    @requires_permission("schedules", "delete")
     def delete_schedule(self, schedule_id: str, run_context: Optional[RunContext] = None) -> str:
         """Delete a schedule by its ID. This permanently removes the schedule.
 
@@ -757,6 +762,7 @@ class SchedulerTools(Toolkit):
             logger.exception("Failed to delete schedule")
             return json.dumps({"error": str(e)})
 
+    @requires_permission("schedules", "write")
     def enable_schedule(self, schedule_id: str, run_context: Optional[RunContext] = None) -> str:
         """Enable a disabled schedule so it starts running again.
 
@@ -836,6 +842,7 @@ class SchedulerTools(Toolkit):
             logger.exception("Failed to enable schedule")
             return json.dumps({"error": str(e)})
 
+    @requires_permission("schedules", "write")
     def disable_schedule(self, schedule_id: str, run_context: Optional[RunContext] = None) -> str:
         """Disable a schedule so it stops running. Can be re-enabled later.
 
@@ -861,6 +868,7 @@ class SchedulerTools(Toolkit):
             logger.exception("Failed to disable schedule")
             return json.dumps({"error": str(e)})
 
+    @requires_permission("schedules", "write")
     def trigger_schedule(self, schedule_id: str, run_context: Optional[RunContext] = None) -> str:
         """Queue an enabled schedule to run now.
 
@@ -895,6 +903,7 @@ class SchedulerTools(Toolkit):
             logger.exception("Failed to trigger schedule")
             return json.dumps({"error": str(e)})
 
+    @requires_permission("schedules", "read")
     def get_schedule_runs(self, schedule_id: str, limit: int = 10, run_context: Optional[RunContext] = None) -> str:
         """Get the run history for a schedule.
 
@@ -926,6 +935,7 @@ class SchedulerTools(Toolkit):
     # Async tools
     # ------------------------------------------------------------------
 
+    @requires_permission("schedules", "write")
     async def acreate_schedule(
         self,
         name: str,
@@ -1043,6 +1053,7 @@ class SchedulerTools(Toolkit):
             logger.exception("Failed to create schedule")
             return json.dumps({"error": str(e)})
 
+    @requires_permission("schedules", "read")
     async def alist_schedules(self, enabled_only: bool = False, run_context: Optional[RunContext] = None) -> str:
         """List all existing schedules.
 
@@ -1072,6 +1083,7 @@ class SchedulerTools(Toolkit):
             logger.exception("Failed to list schedules")
             return json.dumps({"error": str(e)})
 
+    @requires_permission("schedules", "read")
     async def aget_schedule(self, schedule_id: str, run_context: Optional[RunContext] = None) -> str:
         """Get details of a specific schedule by its ID.
 
@@ -1095,13 +1107,14 @@ class SchedulerTools(Toolkit):
                     "timezone": schedule.timezone,
                     "enabled": schedule.enabled,
                     "description": schedule.description,
-                    "payload": schedule.payload,
+                    "payload": public_payload(schedule.payload),
                 }
             )
         except Exception as e:
             logger.exception("Failed to get schedule")
             return json.dumps({"error": str(e)})
 
+    @requires_permission("schedules", "delete")
     async def adelete_schedule(self, schedule_id: str, run_context: Optional[RunContext] = None) -> str:
         """Delete a schedule by its ID. This permanently removes the schedule.
 
@@ -1120,6 +1133,7 @@ class SchedulerTools(Toolkit):
             logger.exception("Failed to delete schedule")
             return json.dumps({"error": str(e)})
 
+    @requires_permission("schedules", "write")
     async def aenable_schedule(self, schedule_id: str, run_context: Optional[RunContext] = None) -> str:
         """Enable a disabled schedule so it starts running again.
 
@@ -1199,6 +1213,7 @@ class SchedulerTools(Toolkit):
             logger.exception("Failed to enable schedule")
             return json.dumps({"error": str(e)})
 
+    @requires_permission("schedules", "write")
     async def adisable_schedule(self, schedule_id: str, run_context: Optional[RunContext] = None) -> str:
         """Disable a schedule so it stops running. Can be re-enabled later.
 
@@ -1224,6 +1239,7 @@ class SchedulerTools(Toolkit):
             logger.exception("Failed to disable schedule")
             return json.dumps({"error": str(e)})
 
+    @requires_permission("schedules", "write")
     async def atrigger_schedule(self, schedule_id: str, run_context: Optional[RunContext] = None) -> str:
         """Queue an enabled schedule to run now.
 
@@ -1258,6 +1274,7 @@ class SchedulerTools(Toolkit):
             logger.exception("Failed to trigger schedule")
             return json.dumps({"error": str(e)})
 
+    @requires_permission("schedules", "read")
     async def aget_schedule_runs(
         self, schedule_id: str, limit: int = 10, run_context: Optional[RunContext] = None
     ) -> str:

@@ -51,6 +51,7 @@ from agno.os.job_queue import (
     resolve_queue_scope,
     ticket_status_to_api,
     validate_seam_input,
+    wake_queue_worker,
 )
 from agno.os.middleware.user_scope import (
     SESSION_ID_REQUIRED,
@@ -79,6 +80,7 @@ from agno.os.utils import (
     allow_draft_preview,
     amark_continue_stream_running,
     classify_upload_file,
+    factory_row_handle,
     find_factory_by_id,
     format_sse_event,
     get_request_kwargs,
@@ -832,7 +834,15 @@ def get_team_router(
                     queued_run_id = str(uuid4())
                     queued_session_id = session_id  # non-empty: defaulted at the top of the endpoint
                     queued_stream_payload["scope"] = resolve_queue_scope(
-                        team_id, os.teams, os.db, scoped_user_id, version
+                        team_id,
+                        os.teams,
+                        os.db,
+                        scoped_user_id,
+                        version,
+                        state=request.state,
+                        context_user_id=user_id,
+                        session_id=queued_session_id,
+                        factory_input=factory_input,
                     )
                     job = QueuedJob(
                         id=queued_run_id,
@@ -886,6 +896,7 @@ def get_team_router(
                     await aprepare_accepted_or_abort(
                         queue_worker, team, "team", queued_run_id, queued_session_id, user_id, message
                     )
+                    wake_queue_worker(queue_worker)
                     return StreamingResponse(queued_run_tail_streamer(queued_run_id), media_type="text/event-stream")
                 if queue_worker is not None:
                     log_warning(
@@ -941,7 +952,17 @@ def get_team_router(
                 validate_seam_input(team, message)
                 queued_run_id = str(uuid4())
                 queued_session_id = session_id  # non-empty: defaulted at the top of the endpoint
-                queued_payload["scope"] = resolve_queue_scope(team_id, os.teams, os.db, scoped_user_id, version)
+                queued_payload["scope"] = resolve_queue_scope(
+                    team_id,
+                    os.teams,
+                    os.db,
+                    scoped_user_id,
+                    version,
+                    state=request.state,
+                    context_user_id=user_id,
+                    session_id=queued_session_id,
+                    factory_input=factory_input,
+                )
                 job = QueuedJob(
                     id=queued_run_id,
                     component_type="team",
@@ -987,6 +1008,7 @@ def get_team_router(
                 await aprepare_accepted_or_abort(
                     queue_worker, team, "team", queued_run_id, queued_session_id, user_id, message
                 )
+                wake_queue_worker(queue_worker)
                 return JSONResponse(
                     status_code=202,
                     content={"run_id": queued_run_id, "session_id": queued_session_id, "status": "PENDING"},
@@ -2095,13 +2117,7 @@ def get_team_router(
         # Factory teams
         factory = find_factory_by_id(team_id, os.teams)
         if factory:
-            team = await resolve_team(  # type: ignore[assignment]
-                team_id,
-                os.teams,
-                factory.db,
-                session_id=session_id,
-                published_only=False,
-            )
+            team = factory_row_handle(factory)  # type: ignore[assignment]
         else:
             try:
                 team = get_team_by_id(
@@ -2196,13 +2212,7 @@ def get_team_router(
     ):
         factory = find_factory_by_id(team_id, os.teams)
         if factory:
-            team = await resolve_team(  # type: ignore[assignment]
-                team_id,
-                os.teams,
-                factory.db,
-                session_id=session_id,
-                published_only=False,
-            )
+            team = factory_row_handle(factory)  # type: ignore[assignment]
         else:
             try:
                 team = get_team_by_id(
@@ -2267,13 +2277,7 @@ def get_team_router(
     ):
         factory = find_factory_by_id(team_id, os.teams)
         if factory:
-            team = await resolve_team(  # type: ignore[assignment]
-                team_id,
-                os.teams,
-                factory.db,
-                session_id=session_id,
-                published_only=False,
-            )
+            team = factory_row_handle(factory)  # type: ignore[assignment]
         else:
             try:
                 team = get_team_by_id(
@@ -2338,13 +2342,7 @@ def get_team_router(
         # Factory teams
         factory = find_factory_by_id(team_id, os.teams)
         if factory:
-            team = await resolve_team(  # type: ignore[assignment]
-                team_id,
-                os.teams,
-                factory.db,
-                session_id=session_id,
-                published_only=False,
-            )
+            team = factory_row_handle(factory)  # type: ignore[assignment]
         else:
             try:
                 team = get_team_by_id(

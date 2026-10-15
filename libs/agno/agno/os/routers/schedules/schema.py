@@ -134,6 +134,13 @@ class ScheduleResponse(BaseModel):
     created_at: Optional[int] = None
     updated_at: Optional[int] = None
 
+    @field_validator("payload", mode="before")
+    @classmethod
+    def hide_authorization(cls, value: Any) -> Any:
+        from agno.run.authorization import public_payload
+
+        return public_payload(value)
+
 
 class ScheduleStateResponse(BaseModel):
     """Trimmed response for state-changing operations (enable/disable)."""

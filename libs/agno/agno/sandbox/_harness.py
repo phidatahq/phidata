@@ -9,12 +9,14 @@ from __future__ import annotations
 
 import json
 import os
+import time
 import weakref
 from dataclasses import MISSING, fields
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, AsyncGenerator, Dict, List, Optional, Tuple
 from uuid import uuid4
 
+from agno.models.message import Message
 from agno.run.agent import RunInput, RunOutput
 from agno.run.base import RunStatus
 from agno.sandbox.base import Sandbox, SandboxError
@@ -292,6 +294,9 @@ async def aprepare_pending_run(
         user_id=user_id,
         agent_name=agent.name,
         input=RunInput(input_content=input),
+        # The user's turn is part of the history even if the run never produces output, as on
+        # the host path; the runtime's messages replace these when the turn completes.
+        messages=[Message(role="user", content=str(input), created_at=int(time.time()))],
         status=RunStatus.pending,
     )
     await coordinator(agent).store.aprepare(run.to_dict())

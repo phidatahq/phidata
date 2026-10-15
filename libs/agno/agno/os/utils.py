@@ -25,7 +25,7 @@ from agno.media import File as FileMedia
 from agno.models.message import Message
 from agno.os.config import AgentOSConfig
 from agno.registry import Registry, ToolSource
-from agno.registry._reserved import RESERVED_MANAGER_IDS, RESERVED_MEMBER_IDS, _reserved_manager_id_message
+from agno.registry._reserved import RESERVED_MANAGER_IDS, _reserved_manager_id_message
 from agno.remote.base import RemoteDb, RemoteKnowledge
 from agno.run.agent import RunOutputEvent
 from agno.run.base import RunStatus
@@ -1569,9 +1569,9 @@ def get_agent_by_id(
         ComponentRehydrationError: If strict and a db-backed agent's references
             cannot be resolved
     """
-    # These members are callable only through their owning manager team. This also
-    # prevents old catalog rows from restoring a standalone public endpoint.
-    if agent_id in RESERVED_MEMBER_IDS:
+    # Reserved manager IDs cannot identify standalone public agents, including
+    # agents restored from an old catalog row.
+    if agent_id in RESERVED_MANAGER_IDS:
         raise AgnoHTTPException(ComponentRehydrationError(_reserved_manager_id_message(agent_id)))
     if agent_id is None:
         return None
@@ -1611,9 +1611,7 @@ def get_agent_by_id(
                 published_only=published_only,
             )
             return db_agent
-        except ComponentRehydrationError as exc:
-            if agent_id in RESERVED_MANAGER_IDS:
-                raise AgnoHTTPException(exc) from exc
+        except ComponentRehydrationError:
             # Broken is not "not found": propagate so the caller can refuse loudly.
             raise
         except Exception:
@@ -1636,7 +1634,7 @@ async def get_agent_by_id_async(
     published_only: bool = True,
 ) -> Optional[Union[Agent, RemoteAgent, AgentProtocol]]:
     """Async variant of get_agent_by_id that supports async factories."""
-    if agent_id in RESERVED_MEMBER_IDS:
+    if agent_id in RESERVED_MANAGER_IDS:
         raise AgnoHTTPException(ComponentRehydrationError(_reserved_manager_id_message(agent_id)))
     if agent_id is None:
         return None
@@ -1675,9 +1673,7 @@ async def get_agent_by_id_async(
                 published_only=published_only,
             )
             return db_agent
-        except ComponentRehydrationError as exc:
-            if agent_id in RESERVED_MANAGER_IDS:
-                raise AgnoHTTPException(exc) from exc
+        except ComponentRehydrationError:
             # Broken is not "not found": propagate so the caller can refuse loudly.
             raise
         except Exception:
@@ -1740,6 +1736,9 @@ def get_team_by_id(
                     return result
                 return team
 
+    if team_id in RESERVED_MANAGER_IDS:
+        raise AgnoHTTPException(ComponentRehydrationError(_reserved_manager_id_message(team_id)))
+
     if db and isinstance(db, BaseDb):
         from agno.team.team import get_team_by_id as get_team_by_id_db
 
@@ -1754,9 +1753,7 @@ def get_team_by_id(
                 published_only=published_only,
             )
             return db_team
-        except ComponentRehydrationError as exc:
-            if team_id in RESERVED_MANAGER_IDS:
-                raise AgnoHTTPException(exc) from exc
+        except ComponentRehydrationError:
             # Broken is not "not found": propagate so the caller can refuse loudly.
             raise
         except Exception:
@@ -1796,6 +1793,9 @@ async def get_team_by_id_async(
                     return result
                 return team
 
+    if team_id in RESERVED_MANAGER_IDS:
+        raise AgnoHTTPException(ComponentRehydrationError(_reserved_manager_id_message(team_id)))
+
     if db and isinstance(db, BaseDb):
         from agno.team.team import get_team_by_id as get_team_by_id_db
 
@@ -1810,9 +1810,7 @@ async def get_team_by_id_async(
                 published_only=published_only,
             )
             return db_team
-        except ComponentRehydrationError as exc:
-            if team_id in RESERVED_MANAGER_IDS:
-                raise AgnoHTTPException(exc) from exc
+        except ComponentRehydrationError:
             # Broken is not "not found": propagate so the caller can refuse loudly.
             raise
         except Exception:
@@ -1880,6 +1878,9 @@ def get_workflow_by_id(
                     return result
                 return workflow
 
+    if workflow_id in RESERVED_MANAGER_IDS:
+        raise AgnoHTTPException(ComponentRehydrationError(_reserved_manager_id_message(workflow_id)))
+
     if db and isinstance(db, BaseDb):
         from agno.workflow.workflow import get_workflow_by_id as get_workflow_by_id_db
 
@@ -1894,9 +1895,7 @@ def get_workflow_by_id(
                 published_only=published_only,
             )
             return db_workflow
-        except ComponentRehydrationError as exc:
-            if workflow_id in RESERVED_MANAGER_IDS:
-                raise AgnoHTTPException(exc) from exc
+        except ComponentRehydrationError:
             # Broken is not "not found": propagate so the caller can refuse loudly.
             raise
         except Exception:
@@ -1938,6 +1937,9 @@ async def get_workflow_by_id_async(
                     return result
                 return workflow
 
+    if workflow_id in RESERVED_MANAGER_IDS:
+        raise AgnoHTTPException(ComponentRehydrationError(_reserved_manager_id_message(workflow_id)))
+
     if db and isinstance(db, BaseDb):
         from agno.workflow.workflow import get_workflow_by_id as get_workflow_by_id_db
 
@@ -1952,9 +1954,7 @@ async def get_workflow_by_id_async(
                 published_only=published_only,
             )
             return db_workflow
-        except ComponentRehydrationError as exc:
-            if workflow_id in RESERVED_MANAGER_IDS:
-                raise AgnoHTTPException(exc) from exc
+        except ComponentRehydrationError:
             # Broken is not "not found": propagate so the caller can refuse loudly.
             raise
         except Exception:

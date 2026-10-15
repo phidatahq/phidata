@@ -964,8 +964,9 @@ def test_internal_identity_metadata_reaches_discovery_detail_and_runs(db, worksp
         team = client.get(f"/teams/{MANAGER_TEAM_ID}").json()
         rows.append(team)
         assert not team.get("members")
-        for cid in (BUILDER_ID, OPERATOR_ID):
-            assert client.get(f"/agents/{cid}").status_code == 422
+        assert [agent["id"] for agent in config["agents"]] == ["ordinary"]
+        assert [agent["id"] for agent in client.get("/agents").json()] == ["ordinary"]
+        assert not {BUILDER_ID, OPERATOR_ID}.intersection(config["manifest"])
         for row in rows:
             if row["id"] == "ordinary":
                 assert row.get("metadata") in (None, ordinary_metadata)
@@ -973,11 +974,9 @@ def test_internal_identity_metadata_reaches_discovery_detail_and_runs(db, worksp
                 assert row["metadata"]["_agno"] == {"internal": True, "id": row["id"]}
                 assert "is_manager" not in row
         assert [member.id for member in os.manager.members] == [BUILDER_ID, OPERATOR_ID]
-    for family, cid in (("teams", MANAGER_TEAM_ID), ("agents", OPERATOR_ID)):
-        run = client.post(f"/{family}/{cid}/runs", data={"message": "hello", "stream": "false"})
-        assert run.status_code == (200 if family == "teams" else 422)
-        if family == "teams":
-            assert run.json()["metadata"]["_agno"] == {"internal": True, "id": cid}
+    run = client.post(f"/teams/{MANAGER_TEAM_ID}/runs", data={"message": "hello", "stream": "false"})
+    assert run.status_code == 200
+    assert run.json()["metadata"]["_agno"] == {"internal": True, "id": MANAGER_TEAM_ID}
 
 
 @pytest.mark.parametrize("declared", [False, True])
@@ -1206,33 +1205,6 @@ def test_internal_members_delegate_and_keep_structured_reports(db, stream):
     assert json.loads(child_data["tools"][0]["result"])["window_days"] == 7
 
 
-@pytest.mark.parametrize("member_id", [BUILDER_ID, OPERATOR_ID])
-@pytest.mark.parametrize("resync", [False, True])
-def test_specialists_are_absent_from_public_config_and_cannot_start_or_continue(db, member_id, resync):
-    ordinary = Agent(id="ordinary", model=OfflineModel())
-    os = AgentOS(db=db, agents=[ordinary], manager=OSManager(model=OfflineModel(), access_docs=False), telemetry=False)
-    app = os.get_app()
-    if resync:
-        os.resync(app)
-    client = TestClient(app)
-    config = client.get("/config").json()
-    assert [agent["id"] for agent in config["agents"]] == ["ordinary"]
-    assert member_id not in config["manifest"]
-    assert [agent["id"] for agent in client.get("/agents").json()] == ["ordinary"]
-    assert not client.get(f"/teams/{MANAGER_TEAM_ID}").json().get("members")
-    assert client.get(f"/agents/{member_id}").status_code == 422
-    for endpoint, data in (
-        (f"/agents/{member_id}/runs", {"message": "run", "stream": "false"}),
-        (f"/agents/{member_id}/runs", {"message": "run", "stream": "true"}),
-        (f"/agents/{member_id}/runs/old-run/continue", {"input": "continue", "stream": "false"}),
-    ):
-        response = client.post(endpoint, data=data)
-        assert response.status_code == 422, response.text
-        assert member_id in response.json()["detail"]
-        assert "is reserved" in response.json()["detail"]
-    assert client.post("/agents/ordinary/runs", data={"message": "Hi", "stream": "false"}).status_code == 200
-
-
 @pytest.mark.asyncio
 async def test_mcp_config_hides_specialists_but_manager_delegates(db):
     from fastmcp import Client
@@ -1261,7 +1233,6 @@ async def test_legacy_catalog_rows_cannot_restore_public_specialists(db, manager
 
     from agno.db.base import ComponentType
     from agno.os.mcp import build_mcp_server
-    from agno.os.utils import get_agent_by_id, get_agent_by_id_async
 
     os = AgentOS(
         db=db,
@@ -1279,14 +1250,6 @@ async def test_legacy_catalog_rows_cannot_restore_public_specialists(db, manager
         )
     client = TestClient(os.get_app())
     assert [agent["id"] for agent in client.get("/agents").json()] == ["stored-ordinary"]
-    for member_id in (BUILDER_ID, OPERATOR_ID):
-        assert client.get(f"/agents/{member_id}").status_code == 422
-        with pytest.raises(AgnoHTTPException, match="is reserved"):
-            get_agent_by_id(member_id, db=db, published_only=False)
-        with pytest.raises(AgnoHTTPException, match="is reserved"):
-            await get_agent_by_id_async(member_id, db=db, published_only=False)
-    assert get_agent_by_id("stored-ordinary", db=db) is not None
-    assert await get_agent_by_id_async("stored-ordinary", db=db) is not None
     async with Client(build_mcp_server(os)) as mcp:
         config = await mcp.call_tool("get_agentos_config", {})
         text = " ".join(block.text for block in config.content if hasattr(block, "text"))
@@ -1343,6 +1306,7 @@ def test_manager_runner_refuses_legacy_specialists(db, enabled, use_async):
     assert data["count"] == data["total"] == 1
     assert data["agents"][0]["id"] == "ordinary"
     assert json.loads(runner.list_teams())["total"] == int(enabled)
+    assert data["other_components"]["teams"] == int(enabled)
 
 
 @pytest.mark.parametrize("kind", ["agent", "team", "workflow"])
@@ -1356,15 +1320,14 @@ def test_catalog_cannot_restore_framework_manager_ids(db, kind, strict):
     module = import_module(f"agno.{kind}.{kind}")
     for component_id in RESERVED_MANAGER_IDS:
         _store_manager_test_component(db, kind, component_id)
-        for version in (None, 1):
-            with pytest.raises(ComponentRehydrationError, match="is reserved") as exc:
-                getattr(module, f"get_{kind}_by_id")(
-                    db=db, id=component_id, registry=registry, version=version, strict=strict
+        for loader in (getattr(module, f"get_{kind}_by_id"), getattr(module, kind.capitalize()).load):
+            for version in (None, 1):
+                with pytest.raises(ComponentRehydrationError) as exc:
+                    loader(db=db, id=component_id, registry=registry, version=version, strict=strict)
+                assert str(exc.value) == (
+                    f"Component ID '{component_id}' is reserved. Please choose a different ID for your component."
                 )
-            assert component_id in str(exc.value)
-            assert str(exc.value) == (
-                f"Component ID '{component_id}' is reserved. Please choose a different ID for your component."
-            )
+            assert loader(db=db, id="missing", registry=registry, strict=strict) is None
         assert db.get_component(component_id) is not None  # No implicit migration/deletion.
     _store_manager_test_component(db, kind, "ordinary")
     assert [c.id for c in getattr(module, f"get_{kind}s")(db=db, registry=registry)] == ["ordinary"]
@@ -1395,7 +1358,7 @@ def test_scheduler_tools_refuse_legacy_manager_targets(db, use_async):
         f"/agents/{OPERATOR_ID}/runs/old/continue",
     ],
 )
-def test_legacy_manager_schedules_can_be_migrated(db, target):
+def test_unmanaged_specialist_schedules_can_be_retargeted(db, target):
     from agno.tools.scheduler import SchedulerTools
 
     os = AgentOS(db=db, manager=OSManager(model=OfflineModel(), access_docs=False), telemetry=False)
@@ -1407,7 +1370,45 @@ def test_legacy_manager_schedules_can_be_migrated(db, target):
     for suffix in ("enable", "trigger"):
         assert client.post(f"{path}/{suffix}").status_code == 409
     assert client.patch(path, json={"payload": {"message": "replacement"}}).status_code == 409
+    assert client.post(f"{path}/disable").status_code == 200
     assert client.patch(path, json={"endpoint": f"/teams/{MANAGER_TEAM_ID}/runs"}).status_code == 200
+    assert client.post(f"{path}/enable").status_code == 200
+    assert client.delete(path).status_code == 204
+
+
+@pytest.mark.asyncio
+async def test_managed_specialist_schedule_requires_replacement(db):
+    from unittest.mock import AsyncMock, patch
+
+    from agno.scheduler.executor import ScheduleExecutor
+    from agno.tools.scheduler import SchedulerTools
+
+    os = AgentOS(db=db, manager=OSManager(model=OfflineModel(), access_docs=False), telemetry=False)
+    client = TestClient(os.get_app())
+    old = SchedulerTools(db=db).manager.create(
+        name="legacy-managed",
+        cron="0 0 * * *",
+        endpoint=f"/agents/{OPERATOR_ID}/runs",
+        provenance={"managed_by": "studio", "target_type": "agent", "target_id": OPERATOR_ID},
+    )
+    path = f"/schedules/{old.id}"
+    assert client.post(f"{path}/disable").status_code == 200
+    assert client.patch(path, json={"endpoint": f"/teams/{MANAGER_TEAM_ID}/runs"}).status_code == 200
+    executor = ScheduleExecutor(base_url="http://localhost:9", internal_service_token="fixture")
+    try:
+        with patch.object(executor, "_call_endpoint", new=AsyncMock()) as call:
+            result = await executor.execute(db.get_schedule(old.id), db, release_schedule=False)
+        call.assert_not_awaited()
+        assert result["status"] == "failed"
+        assert "provenance target agent:" + OPERATOR_ID in result["error"]
+        assert client.post(f"{path}/enable").status_code == 409
+    finally:
+        await executor.close()
+    replacement = client.post(
+        "/schedules",
+        json={"name": "replacement", "cron_expr": "0 0 * * *", "endpoint": f"/teams/{MANAGER_TEAM_ID}/runs"},
+    )
+    assert replacement.status_code == 201, replacement.text
     assert client.delete(path).status_code == 204
 
 
@@ -1527,45 +1528,66 @@ async def test_team_detail_hides_only_framework_owned_members():
 
 
 @pytest.mark.parametrize("kind", ["agent", "team", "workflow"])
-@pytest.mark.parametrize("manager_enabled", [False, True])
-def test_reserved_catalog_ids_have_clear_rest_errors(db, kind, manager_enabled):
+@pytest.mark.parametrize("deployment", ["manager", "catalog", "no_db", "async_db", "base_app"])
+def test_reserved_ids_have_clear_rest_errors(db, tmp_path, kind, deployment):
+    from fastapi import FastAPI
+
+    from agno.registry._reserved import RESERVED_MANAGER_IDS
+
+    os_db = None if deployment == "no_db" else db
+    if deployment == "async_db":
+        os_db = AsyncSqliteDb(db_file=str(tmp_path / "async.db"))
     os = AgentOS(
-        db=db,
-        manager=OSManager(model=OfflineModel(), access_docs=False) if manager_enabled else False,
+        agents=[Agent(id="ordinary", model=OfflineModel())],
+        db=os_db,
+        manager=OSManager(model=OfflineModel(), access_docs=False) if deployment == "manager" else False,
+        base_app=FastAPI() if deployment == "base_app" else None,
         telemetry=False,
     )
-    _store_manager_test_component(db, kind, OPERATOR_ID)
     client = TestClient(os.get_app())
-    path = f"/{kind}s/{OPERATOR_ID}"
-    # Detail and run-management routes have different error handling. Both must
-    # preserve the explanation rather than turning this into a 404 or 500.
-    responses = [
-        client.get(path),
-        client.get(f"{path}/runs/missing", params={"session_id": "missing"}),
-        client.post(f"{path}/runs/missing/cancel"),
-    ]
-    for response in responses:
-        assert response.status_code == 422, response.text
-        assert OPERATOR_ID in response.json()["detail"]
-        assert "is reserved" in response.json()["detail"]
-        assert response.json()["detail"] == (
-            f"Component ID '{OPERATOR_ID}' is reserved. Please choose a different ID for your component."
-        )
+    os.resync(os.get_app())
+    for component_id in RESERVED_MANAGER_IDS:
+        if deployment == "catalog":
+            _store_manager_test_component(db, kind, component_id)
+        if kind == "team" and component_id == MANAGER_TEAM_ID and deployment == "manager":
+            assert client.get(f"/teams/{component_id}").status_code == 200
+            continue
+        path = f"/{kind}s/{component_id}"
+        # Detail, start, continuation and run management use different exception boundaries.
+        responses = [
+            client.get(path),
+            client.get(f"{path}/runs/missing", params={"session_id": "missing"}),
+            client.post(f"{path}/runs/missing/cancel"),
+            client.post(f"{path}/runs", data={"message": "run", "stream": "false"}),
+            client.post(f"{path}/runs", data={"message": "run", "stream": "true"}),
+        ]
+        if kind != "workflow":
+            responses.append(client.post(f"{path}/runs/missing/continue", data={"stream": "false"}))
+        for response in responses:
+            assert response.status_code == 422, response.text
+            assert response.json()["detail"] == (
+                f"Component ID '{component_id}' is reserved. Please choose a different ID for your component."
+            )
     assert client.get(f"/{kind}s/missing").status_code == 404
+    assert client.post("/agents/ordinary/runs", data={"message": "Hi", "stream": "false"}).status_code == 200
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("kind", ["agent", "team", "workflow"])
-async def test_reserved_catalog_errors_match_sync_and_async_os_lookup(db, kind):
+@pytest.mark.parametrize("database", ["sync", "async", "none"])
+async def test_reserved_errors_match_sync_and_async_os_lookup(db, tmp_path, kind, database):
     from agno.os import utils
     from agno.registry._reserved import RESERVED_MANAGER_IDS
 
+    os_db = None if database == "none" else db
+    if database == "async":
+        os_db = AsyncSqliteDb(db_file=str(tmp_path / "async.db"))
     for component_id in RESERVED_MANAGER_IDS:
-        with pytest.raises(AgnoHTTPException, match="is reserved") as sync_error:
-            getattr(utils, f"get_{kind}_by_id")(component_id, db=db)
-        with pytest.raises(AgnoHTTPException, match="is reserved") as async_error:
-            await getattr(utils, f"get_{kind}_by_id_async")(component_id, db=db)
+        with pytest.raises(AgnoHTTPException) as sync_error:
+            getattr(utils, f"get_{kind}_by_id")(component_id, db=os_db)
+        with pytest.raises(AgnoHTTPException) as async_error:
+            await getattr(utils, f"get_{kind}_by_id_async")(component_id, db=os_db)
         assert sync_error.value.status_code == async_error.value.status_code == 422
         assert sync_error.value.detail == async_error.value.detail
-    assert getattr(utils, f"get_{kind}_by_id")("missing", db=db) is None
-    assert await getattr(utils, f"get_{kind}_by_id_async")("missing", db=db) is None
+    assert getattr(utils, f"get_{kind}_by_id")("missing", db=os_db) is None
+    assert await getattr(utils, f"get_{kind}_by_id_async")("missing", db=os_db) is None

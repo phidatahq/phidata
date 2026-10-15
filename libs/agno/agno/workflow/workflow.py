@@ -1515,6 +1515,11 @@ class Workflow:
         Returns:
             The workflow loaded from the database or None if not found.
         """
+        from agno.exceptions import ComponentRehydrationError
+
+        if id in RESERVED_MANAGER_IDS:
+            raise ComponentRehydrationError(_reserved_manager_id_message(id))
+
         if published_only and version is None and label is None:
             # Dispatch semantics on demand: resolve strictly through the live
             # pointer instead of the current-or-latest-draft read fallback.

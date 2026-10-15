@@ -544,59 +544,34 @@ PostgreSQL or hosted docs requests were made.
 
 ## Private OS Manager members, 2026-10-15
 
-### Manager discovery, dispatch and legacy records
+### Discovery, loading, delegation and schedule migration
 
 **Status:** PASS
 
-**Description:** Only OS Manager is served. Tests cover REST/MCP discovery and
-standalone refusal, resync, legacy catalog rows in the manager's own runner,
-exact/name/version lookup, stored composition, queued replay and schedule
-disable/delete/retarget. Native delegation, structured tool results, confirmation,
-continuation, permissions and session history remain covered. This adds no public
-visibility API or chart dependency.
+**Description:** Only OS Manager is public; its builder and operator remain
+native private members. Coverage includes reserved-ID errors in explicit catalog
+and class loaders, database-independent REST errors, sync/async lookups, legacy
+rows, runner dispatch, queued replay, permissions, confirmation, continuation,
+session history and result offloading. Unmanaged specialist schedules can be
+retargeted; Studio-managed schedules require replacement because their targets
+are immutable.
 
-**Result:** Focused manager, authorization and scheduler suites: **429 passed**.
-Broad affected suite: **7,878 passed, 32 skipped** (counts overlap). The existing
-permission cookbook's seven HTTP assertions run in that suite. Required format
-and validation scripts passed, including Ruff and mypy for 1,126 framework files
-and 21 CLI files. Validation used isolated dependencies because the shared dev
-environment has unrelated SDK typing errors; unrelated baseline formatter changes
-were restored. Optional Telegram files were excluded for an unavailable dependency.
-Tests used disposable data and scripted models; no live model, hosted docs,
+**Result:** The local follow-up to `61c29327f9` passed **1,411 tests** across
+manager, authorization, runner, scheduler, component-config and rehydration
+suites. Two existing duplicate OpenAPI operation-ID warnings remain. The required
+format script passed; unrelated baseline formatter changes were removed. The
+validation script passed in the existing isolated dependency environment,
+including mypy for 1,126 framework files and 21 CLI files. The shared development
+environment reported the same 33 mypy errors as the untouched base
+`28ee417d5d` (confirmed by a separate mypy run).
+
+Historical results are not current validation: `03fe8ef9b8` passed 7,890 broad
+checks with 32 skipped; `61c29327f9` passed 441 focused checks and the required
+format/validation scripts. These counts overlap and are not additive. Historical
+validation used isolated dependencies because the shared environment had
+unrelated SDK typing errors; optional Telegram files were excluded.
+
+Tests use disposable data and scripted models. No live model, hosted docs,
 PostgreSQL or frontend rendering checks were performed.
-
----
-
-
-### Clear reserved-ID lookup errors
-
-**Status:** PASS
-
-**Description:** Explicit reserved-ID catalog loads now raise the existing
-ComponentRehydrationError. REST returns HTTP 422 with the ID and guidance to use
-OS Manager or choose a different ID. Tests cover strict/non-strict loaders,
-sync/async OS lookup, REST detail, run, continuation, polling and cancellation,
-MCP refusal, and unchanged listing exclusions and ordinary missing-ID behavior.
-
-**Result:** Focused manager, authorization and scheduler suites: **441 passed**.
-Broad affected suite: **7,890 passed, 32 skipped** (counts overlap). Required
-format and validation scripts passed using the same isolated validation
-dependencies described above. Optional Telegram files remain excluded; tests use
-disposable data and scripted models, with no live provider or frontend calls.
-
----
-
-
-### Reserved-ID wording and import cleanup
-
-**Status:** PASS
-
-**Description:** Removed redundant constant re-exports from manager config.
-Loaders and REST now say: "Component ID '<id>' is reserved. Please choose a
-different ID for your component." Existing assertions verify the exact message.
-
-**Result:** **441 focused tests passed**. Required format and validation scripts
-passed with the same isolated validation dependencies. The earlier broad suite
-was not repeated for this wording and import cleanup.
 
 ---

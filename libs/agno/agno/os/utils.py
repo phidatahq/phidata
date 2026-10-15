@@ -25,6 +25,7 @@ from agno.media import File as FileMedia
 from agno.models.message import Message
 from agno.os.config import AgentOSConfig
 from agno.registry import Registry, ToolSource
+from agno.registry.component import _is_public
 from agno.remote.base import RemoteDb, RemoteKnowledge
 from agno.run.agent import RunOutputEvent
 from agno.run.base import RunStatus
@@ -1568,11 +1569,7 @@ def get_agent_by_id(
         ComponentRehydrationError: If strict and a db-backed agent's references
             cannot be resolved
     """
-    from agno.registry._reserved import BUILDER_ID, OPERATOR_ID
-
-    # These members are callable only through their owning manager team. This also
-    # prevents old catalog rows from restoring a standalone public endpoint.
-    if agent_id is None or agent_id in (BUILDER_ID, OPERATOR_ID):
+    if agent_id is None or not _is_public("agent", agent_id, registry):
         return None
 
     # Try to get the agent from the list of agents
@@ -1633,11 +1630,7 @@ async def get_agent_by_id_async(
     published_only: bool = True,
 ) -> Optional[Union[Agent, RemoteAgent, AgentProtocol]]:
     """Async variant of get_agent_by_id that supports async factories."""
-    from agno.registry._reserved import BUILDER_ID, OPERATOR_ID
-
-    # These members are callable only through their owning manager team. This also
-    # prevents old catalog rows from restoring a standalone public endpoint.
-    if agent_id is None or agent_id in (BUILDER_ID, OPERATOR_ID):
+    if agent_id is None or not _is_public("agent", agent_id, registry):
         return None
 
     if agents:
@@ -1720,7 +1713,7 @@ def get_team_by_id(
         ComponentRehydrationError: If strict and a db-backed team's members or
             references cannot be resolved
     """
-    if team_id is None:
+    if team_id is None or not _is_public("team", team_id, registry):
         return None
 
     if teams:
@@ -1774,7 +1767,7 @@ async def get_team_by_id_async(
     published_only: bool = True,
 ) -> Optional[Union[Team, RemoteTeam]]:
     """Async variant of get_team_by_id that supports async factories."""
-    if team_id is None:
+    if team_id is None or not _is_public("team", team_id, registry):
         return None
 
     if teams:
@@ -1854,7 +1847,7 @@ def get_workflow_by_id(
         ComponentRehydrationError: If strict and a db-backed workflow's
             references cannot be resolved
     """
-    if workflow_id is None:
+    if workflow_id is None or not _is_public("workflow", workflow_id, registry):
         return None
 
     if workflows:
@@ -1910,7 +1903,7 @@ async def get_workflow_by_id_async(
     published_only: bool = True,
 ) -> Optional[Union[Workflow, RemoteWorkflow]]:
     """Async variant of get_workflow_by_id that supports async factories."""
-    if workflow_id is None:
+    if workflow_id is None or not _is_public("workflow", workflow_id, registry):
         return None
 
     if workflows:

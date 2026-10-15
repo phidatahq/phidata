@@ -30,6 +30,7 @@ from agno.eval.base import BaseEval
 from agno.filters import FilterExpr
 from agno.guardrails import BaseGuardrail
 from agno.knowledge.protocol import KnowledgeProtocol
+from agno.registry.component import _catalog_allowed, _catalog_exclusions
 
 if TYPE_CHECKING:
     from agno.learn.machine import LearningMachine
@@ -1918,6 +1919,9 @@ def get_team_by_id(
     """
     from agno.exceptions import ComponentRehydrationError
 
+    if not _catalog_allowed("team", id, registry):
+        return None
+
     try:
         from agno.utils.component_scope import component_owner_scope
 
@@ -2005,6 +2009,7 @@ def get_teams(
     Returns:
         List of Team instances loaded from the database
     """
+    exclude_component_ids = set(exclude_component_ids or ()) | _catalog_exclusions("team", registry)
     teams: List[Team] = []
     try:
         from agno.utils.component_scope import component_owner_scope

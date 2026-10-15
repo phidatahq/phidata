@@ -46,6 +46,7 @@ from agno.media.storage.base import AsyncMediaStorage, MediaStorage
 from agno.metrics import RunMetrics, SessionMetrics
 from agno.models.message import Message
 from agno.registry import Registry
+from agno.registry.component import _catalog_allowed, _catalog_exclusions
 from agno.run import CancellationStage, RunContext, RunStatus
 from agno.run.agent import (
     RunCancelledEvent as AgentRunCancelledEvent,
@@ -11964,6 +11965,9 @@ def get_workflow_by_id(
     """
     from agno.exceptions import ComponentRehydrationError
 
+    if not _catalog_allowed("workflow", id, registry):
+        return None
+
     try:
         from agno.utils.component_scope import component_owner_scope
 
@@ -12050,6 +12054,7 @@ def get_workflows(
         exclude_component_ids: Component IDs to exclude from results.
         user_id: If set, only load workflows owned by this user, unowned (shared), or published.
     """
+    exclude_component_ids = set(exclude_component_ids or ()) | _catalog_exclusions("workflow", registry)
     workflows: List[Workflow] = []
     try:
         from agno.utils.component_scope import component_owner_scope

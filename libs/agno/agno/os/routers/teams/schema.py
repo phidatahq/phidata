@@ -6,17 +6,18 @@ from uuid import uuid4
 from pydantic import BaseModel
 
 if TYPE_CHECKING:
-    from agno.team.factory import TeamFactory
-
+    from agno.registry import Registry
 from agno.agent import Agent
 from agno.os.routers.agents.schema import AgentResponse
 from agno.os.schema import ModelResponse
 from agno.os.utils import (
     format_team_tools,
 )
+from agno.registry.component import _component_kind, _is_public
 from agno.run import RunContext
 from agno.run.team import TeamRunOutput
 from agno.session import TeamSession
+from agno.team.factory import TeamFactory
 from agno.team.team import Team
 from agno.utils.agent import aexecute_instructions, aexecute_system_message
 
@@ -73,6 +74,7 @@ class TeamResponse(BaseModel):
         cls,
         team: Team,
         is_component: bool = False,
+        registry: Optional[Registry] = None,
     ) -> "TeamResponse":
         def filter_meaningful_config(d: Dict[str, Any], defaults: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             """Filter out fields that match their default values, keeping only meaningful user configurations"""
@@ -283,17 +285,15 @@ class TeamResponse(BaseModel):
         if team.model and team.model.provider is not None:
             _team_model_data["provider"] = team.model.provider
 
-        from agno.registry._reserved import BUILDER_ID, OPERATOR_ID
-
         members: List[Union[AgentResponse, TeamResponse]] = []
         for member in team.members if isinstance(team.members, list) else []:
-            if getattr(member, "id", None) in (BUILDER_ID, OPERATOR_ID):
+            if not _is_public(_component_kind(member), getattr(member, "id", None), registry):
                 continue
             if isinstance(member, Agent):
                 agent_response = await AgentResponse.from_agent(member)
                 members.append(agent_response)
             if isinstance(member, Team):
-                team_response = await TeamResponse.from_team(member)
+                team_response = await TeamResponse.from_team(member, registry=registry)
                 members.append(team_response)
 
         return TeamResponse(

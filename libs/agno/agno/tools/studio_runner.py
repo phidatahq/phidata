@@ -108,6 +108,7 @@ from agno.db.schemas.scheduler import (
     strip_reserved_run_metadata,
 )
 from agno.exceptions import ComponentPinError, ComponentRehydrationError
+from agno.registry.component import _catalog_allowed, _catalog_exclusions, _is_public, _public_components
 from agno.run import RunContext
 from agno.run.authorization import arequire_permission, authorization_for, require_permission, requires_permission
 from agno.run.cancel import aregister_member_run, register_member_run
@@ -414,26 +415,28 @@ class StudioRunnerTools(Toolkit):
         Lookups that are not dispatch (get, edit, members, steps) see the full
         set either way."""
         if self.include_agents is not None:
-            return list(self.include_agents)
+            return _public_components("agent", self.include_agents, self.registry)
         if for_dispatch and not self.include_all_components:
             return []
-        return list(self.registry.agents) if self.registry is not None else []
+        return _public_components("agent", self.registry.agents, self.registry) if self.registry is not None else []
 
     def _iter_teams(self, for_dispatch: bool = False) -> List["Team"]:
         """Code-defined teams: passed-in list, else registry (see _iter_agents)."""
         if self.include_teams is not None:
-            return list(self.include_teams)
+            return _public_components("team", self.include_teams, self.registry)
         if for_dispatch and not self.include_all_components:
             return []
-        return list(self.registry.teams) if self.registry is not None else []
+        return _public_components("team", self.registry.teams, self.registry) if self.registry is not None else []
 
     def _iter_workflows(self, for_dispatch: bool = False) -> List["Workflow"]:
         """Code-defined workflows: passed-in list, else registry (see _iter_agents)."""
         if self.include_workflows is not None:
-            return list(self.include_workflows)
+            return _public_components("workflow", self.include_workflows, self.registry)
         if for_dispatch and not self.include_all_components:
             return []
-        return list(self.registry.workflows) if self.registry is not None else []
+        return (
+            _public_components("workflow", self.registry.workflows, self.registry) if self.registry is not None else []
+        )
 
     def _find_agent(self, agent_id: str, for_dispatch: bool = False, actor: Optional[str] = None) -> Optional["Agent"]:
         """Lookup order: code-defined exact id, DB exact id, code-defined display
@@ -443,6 +446,8 @@ class StudioRunnerTools(Toolkit):
         Split into an exact tier and a name tier so cross-type callers
         (StudioTools._resolve_members) can try exact ids across both types
         before any name matching."""
+        if not _is_public("agent", agent_id, self.registry):
+            return None
         agent = self._find_agent_by_exact_id(agent_id, for_dispatch=for_dispatch, actor=actor)
         if agent is not None:
             return agent
@@ -476,6 +481,8 @@ class StudioRunnerTools(Toolkit):
         return self._load_agent_from_db(resolved, for_dispatch=for_dispatch, actor=actor)
 
     def _find_team(self, team_id: str, for_dispatch: bool = False, actor: Optional[str] = None) -> Optional["Team"]:
+        if not _is_public("team", team_id, self.registry):
+            return None
         team = self._find_team_by_exact_id(team_id, for_dispatch=for_dispatch, actor=actor)
         if team is not None:
             return team
@@ -509,6 +516,8 @@ class StudioRunnerTools(Toolkit):
     def _find_workflow(
         self, workflow_id: str, for_dispatch: bool = False, actor: Optional[str] = None
     ) -> Optional["Workflow"]:
+        if not _is_public("workflow", workflow_id, self.registry):
+            return None
         wf = self._find_workflow_by_exact_id(workflow_id, for_dispatch=for_dispatch, actor=actor)
         if wf is not None:
             return wf
@@ -971,7 +980,7 @@ class StudioRunnerTools(Toolkit):
         return wf
 
     def _db_component_exists(self, component_type: str, component_id: str, actor: Optional[str] = None) -> bool:
-        if self.db is None:
+        if self.db is None or not _catalog_allowed(component_type, component_id, self.registry):
             return False
         from agno.db.base import ComponentType
 
@@ -1006,7 +1015,11 @@ class StudioRunnerTools(Toolkit):
         while True:
             try:
                 rows, total = self.db.list_components(
-                    component_type=component_type_enum, limit=_NAME_LOOKUP_PAGE, offset=offset, user_id=actor
+                    component_type=component_type_enum,
+                    limit=_NAME_LOOKUP_PAGE,
+                    offset=offset,
+                    user_id=actor,
+                    exclude_component_ids=_catalog_exclusions(component_type, self.registry),
                 )
             except NotImplementedError:
                 # Not every db adapter implements component storage; degrade to
@@ -2166,13 +2179,20 @@ class StudioRunnerTools(Toolkit):
         type; a mismatch returns None so that, e.g., a team id never loads as an
         Agent.
         """
-        if self.db is None:
+        if self.db is None or not _catalog_allowed(
+            component_type.value if component_type else "", component_id, self.registry
+        ):
             return None
         try:
             component_row = self.db.get_component(component_id, component_type=component_type, user_id=actor)
             if component_row is None and (component_type is not None or actor is not None):
                 # Absent, wrong type, or another owner's private row: all three
                 # answer the same not-found, so nothing is disclosed.
+                return None
+            kind = str(
+                component_type.value if component_type is not None else (component_row or {}).get("component_type", "")
+            )
+            if not _catalog_allowed(kind, component_id, self.registry):
                 return None
             if published_only and version is None:
                 # Dispatch resolves only a published version: a draft-only
@@ -2229,6 +2249,7 @@ class StudioRunnerTools(Toolkit):
             rows, total = self.db.list_components(
                 component_type=ComponentType(component_type),
                 limit=limit if limit is not None else self.list_limit,
+                exclude_component_ids=_catalog_exclusions(component_type, self.registry),
                 user_id=user_id,
             )
         except NotImplementedError:

@@ -19,7 +19,9 @@ from agno.os.routers.schedules.schema import (
 )
 from agno.os.schema import PaginatedResponse, PaginationInfo
 from agno.os.scopes import AgentOSScope, has_required_scopes
+from agno.registry import Registry
 from agno.run.authorization import stamp_authorization
+from agno.tools.scheduler import _private_endpoint_refusal
 from agno.utils.log import log_info
 
 # Valid DB method names that _db_call can invoke
@@ -41,6 +43,7 @@ def get_schedule_router(
     include_agents: Optional[Sequence[Any]] = None,
     include_teams: Optional[Sequence[Any]] = None,
     include_workflows: Optional[Sequence[Any]] = None,
+    registry: Optional[Registry] = None,
 ) -> APIRouter:
     """Factory that creates and returns the schedule router.
 
@@ -78,13 +81,10 @@ def get_schedule_router(
         run endpoint needs the matching ``<type>:run`` scope, any other target is admin-only.
         """
         from agno.os.auth import build_insufficient_permissions_detail, caller_scopes_are_authoritative
-        from agno.registry._reserved import BUILDER_ID, OPERATOR_ID
 
-        target = RUN_ENDPOINT_RE.fullmatch(endpoint)
-        if target and target.group(1) == "agents" and target.group(2) in (BUILDER_ID, OPERATOR_ID):
-            raise HTTPException(
-                status_code=404, detail="Manager specialists are internal. Schedule OS Manager instead."
-            )
+        private_target = _private_endpoint_refusal(endpoint, registry)
+        if private_target:
+            raise HTTPException(status_code=409, detail=private_target)
 
         if not getattr(request.state, "authorization_enabled", False):
             return

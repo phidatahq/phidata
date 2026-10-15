@@ -371,6 +371,7 @@ class StudioTools(Toolkit):
             # refuse a code-defined target that create_schedule just allowed.
             self._scheduler_tools = SchedulerTools(
                 db=self._db,
+                registry=self.registry,
                 # A bound method, not a lambda: deepcopy treats plain functions
                 # as atomic but rebinds methods through its memo, so a
                 # deep-copied toolkit's scheduler resolves through the COPY.
@@ -1408,7 +1409,7 @@ class StudioTools(Toolkit):
     def _excluded_component_error(blocked: List[str]) -> str:
         return error_result(
             "tool_not_allowed",
-            f"Refusing to compose {blocked}: framework-owned manager components are not buildable.",
+            f"Refusing to compose {blocked}: these components are not available for composition.",
             blocked=blocked,
         )
 
@@ -4677,6 +4678,11 @@ class StudioTools(Toolkit):
                     )
                 updates["next_run_at"] = compute_next_run(new_cron, new_tz)
             if message is not None:
+                from agno.tools.scheduler import _private_endpoint_refusal
+
+                refusal = _private_endpoint_refusal(existing.endpoint, self.registry)
+                if refusal:
+                    return error_result("invalid_request", refusal)
                 if not message.strip():
                     return error_result("invalid_request", "message must be a non-empty string.")
                 payload = dict(existing.payload or {})

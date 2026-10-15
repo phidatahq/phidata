@@ -589,3 +589,48 @@ Studio/runner, scheduler, workspace, operational tools, run/registry, and
 authorization/service-account integration tests. Three unrelated Telegram test
 files were excluded because their optional dependency is unavailable. The broad
 count overlaps the focused suite; counts are not additive.
+
+
+## Shared component exposure policy, 2026-10-15
+
+### Generic policies, dispatch and migration
+
+**Status:** PASS
+
+**Description:** Replaced specialist-specific surface checks with trusted, typed
+`ComponentPolicy` rules shared by AgentOS, catalog loaders, runner lookups,
+stored composition and schedules. Regressions cover application-owned private
+agents, teams and workflows; ID/name/version lookup; framework legacy rows with
+manager enabled and disabled; factories; REST/MCP/A2A; queued replay; public but
+noncomposable components; resync; and delegated confirmation/continuation with
+session history retained. Schedule checks include encoded paths, query strings,
+dot segments, continuation routes and migration of existing records.
+
+**Result:** Broad affected suite: **7,895 passed, 32 skipped**. The final focused
+policy and scheduler suite passed **196 tests**, including 40 policy cases and
+the last path-normalization and Studio message-edit regressions. These counts
+overlap and are not additive. Three Telegram test files were excluded for their
+unavailable optional dependency. Localhost tests ran outside the filesystem
+sandbox. No live model, hosted docs or PostgreSQL requests were made.
+
+### private_members.py
+
+**Status:** PASS
+
+**Description:** Executed the actual cookbook with temporary SQLite data and
+FastAPI TestClient. It checks private-agent discovery, member summaries, direct
+run refusal and schedule refusal without calling a model.
+
+**Result:** All assertions passed. The public research team retains its private
+member for native delegation.
+
+### Repository validation
+
+**Status:** PASS
+
+**Description:** Ran `scripts/format.sh` and `scripts/validate.sh`; validation used
+the existing isolated dependency environment after the ordinary development
+environment reported unrelated SDK typing errors.
+
+**Result:** Ruff, import sorting, cookbook patterns and mypy passed (1,127
+framework files and 21 CLI files). Unrelated baseline formatter edits were removed.

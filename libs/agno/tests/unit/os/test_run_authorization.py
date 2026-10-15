@@ -152,30 +152,21 @@ def test_manager_can_dispatch_only_an_authorized_target(tmp_path, allowed, ident
 
 
 @pytest.mark.parametrize("allowed", [False, True])
-@pytest.mark.parametrize("delegated", [False, True])
-def test_builder_publish_checks_component_write(tmp_path, allowed, delegated):
+def test_builder_publish_checks_component_write(tmp_path, allowed):
     builder_model = ScriptedModel("create_agent", {"name": "Alice calc", "instructions": "Calculate", "publish": True})
     os = make_os(tmp_path, ScriptedModel())
     builder = next(member for member in os.manager.members if member.id == "platform-builder-internal")
     builder.model = builder_model
-    path = "/agents/platform-builder-internal/runs"
-    scopes = ["agents:platform-builder-internal:run"]
-    if delegated:
-        os.manager.model = ScriptedModel(
-            "delegate_task_to_member", {"member_id": "platform-builder-internal", "task": "Build Alice calc"}
-        )
-        path = "/teams/os-manager-internal/runs"
-        scopes = ["teams:os-manager-internal:run"]
+    os.manager.model = ScriptedModel(
+        "delegate_task_to_member", {"member_id": "platform-builder-internal", "task": "Build Alice calc"}
+    )
+    path = "/teams/os-manager-internal/runs"
+    scopes = ["teams:os-manager-internal:run"]
     if allowed:
         scopes.append("components:write")
     response = TestClient(os.get_app()).post(
         path, headers=headers(scopes), data={"message": "build", "stream": "false"}
     )
-    if not delegated:
-        assert response.status_code == 404, response.text
-        assert not os.db.list_components()[0]
-        assert builder_model.calls == 0
-        return
     assert response.status_code == 200, response.text
     rows, _ = os.db.list_components()
     assert bool(rows) == allowed, response.text
@@ -601,7 +592,6 @@ def _operator_permission_os(tmp_path, scopes, identity="jwt", tool="read_file", 
 
 
 @pytest.mark.parametrize("identity", ["jwt", "managed", "pat"])
-@pytest.mark.parametrize("delegated", [False, True])
 @pytest.mark.parametrize("allowed", [False, True])
 @pytest.mark.parametrize(
     "tool,args,grant,marker",
@@ -611,16 +601,12 @@ def _operator_permission_os(tmp_path, scopes, identity="jwt", tool="read_file", 
         ("get_platform_metrics", {}, "agent_os:admin", "window_days"),
     ],
 )
-def test_operator_action_grants(tmp_path, identity, delegated, allowed, tool, args, grant, marker):
-    scopes = [f"teams:{MANAGER_TEAM_ID}:run" if delegated else f"agents:{OPERATOR_ID}:run"]
+def test_operator_action_grants(tmp_path, identity, allowed, tool, args, grant, marker):
+    scopes = [f"teams:{MANAGER_TEAM_ID}:run"]
     if allowed:
         scopes.append(grant)
-    os, client, path, request_headers = _operator_permission_os(tmp_path, scopes, identity, tool, args, delegated)
+    os, client, path, request_headers = _operator_permission_os(tmp_path, scopes, identity, tool, args, delegated=True)
     response = client.post(path, headers=request_headers, data={"message": "Execute", "stream": "false"})
-    if not delegated:
-        assert response.status_code == 404, response.text
-        assert all(member.model.calls == 0 for member in os.manager.members)
-        return
     assert response.status_code == 200, response.text
     content = response.json()["content"]
     if allowed:
@@ -784,7 +770,7 @@ def test_manager_dispatch_keeps_checks_on_existing_studio_agent(tmp_path, allowe
 
 
 @pytest.mark.parametrize("allowed", [False, True])
-def test_ordinary_runner_cannot_bypass_manager_operation_checks(tmp_path, allowed):
+def test_ordinary_runner_cannot_dispatch_private_manager_member(tmp_path, allowed):
     from agno.tools.studio_runner import StudioRunnerTools
 
     os = make_os(tmp_path, ScriptedModel())
@@ -803,8 +789,8 @@ def test_ordinary_runner_cannot_bypass_manager_operation_checks(tmp_path, allowe
         "/agents/legacy/runs", headers=headers(scopes), data={"message": "Diagnose", "stream": "false"}
     )
     assert response.status_code == 200, response.text
-    assert ("Permission required: config:read" in response.text) is not allowed
-    assert operator.model.calls > 0
+    assert "not found" in response.json()["content"]
+    assert operator.model.calls == 0
 
 
 @pytest.mark.parametrize("use_async", [False, True])
@@ -1144,7 +1130,6 @@ def test_manager_tools_with_async_managed_roles(tmp_path, tool, arguments, compo
     (tmp_path / "public.txt").write_text("source content")
     policy_db = AsyncSqliteDb(db_file=str(tmp_path / "policy.db"))
     engine = NativePolicyEngine(db=policy_db)
-    family = "teams"
     scopes = [(f"teams:{MANAGER_TEAM_ID}:run", "allow")]
     if allowed:
         scopes.append((permission, "allow"))
@@ -1174,7 +1159,7 @@ def test_manager_tools_with_async_managed_roles(tmp_path, tool, arguments, compo
             "delegate_task_to_member", {"member_id": OPERATOR_ID, "task": "Read the source"}
         )
     response = TestClient(os.get_app()).post(
-        f"/{family}/{MANAGER_TEAM_ID}/runs", headers=headers([]), data={"message": "run", "stream": "false"}
+        f"/teams/{MANAGER_TEAM_ID}/runs", headers=headers([]), data={"message": "run", "stream": "false"}
     )
     assert response.status_code == 200, response.text
     content = response.json()["content"]

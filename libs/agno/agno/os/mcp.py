@@ -52,6 +52,7 @@ from agno.os.utils import (
     resolve_workflow,
     stamped_component_version,
 )
+from agno.registry.component import _public_os_components
 from agno.remote.base import BaseRemote, RemoteDb
 from agno.run.agent import RunEvent, RunOutput
 from agno.run.team import TeamRunEvent, TeamRunOutput
@@ -1354,7 +1355,7 @@ async def _resolve_run_component(
         if kind == "agents":
             return await resolve_agent(
                 component_id,
-                os.agents,
+                _public_os_components(os, "agent"),
                 os.db,
                 os.registry,
                 version=version,
@@ -1367,7 +1368,7 @@ async def _resolve_run_component(
         if kind == "teams":
             return await resolve_team(
                 component_id,
-                os.teams,
+                _public_os_components(os, "team"),
                 db=os.db,
                 registry=os.registry,
                 version=version,
@@ -1379,7 +1380,7 @@ async def _resolve_run_component(
             )
         return await resolve_workflow(
             component_id,
-            os.workflows,
+            _public_os_components(os, "workflow"),
             db=os.db,
             registry=os.registry,
             version=version,
@@ -2407,10 +2408,17 @@ def build_mcp_server(
                 return filter_resources_by_access(request, items, resource_type)
             return items
 
-        agents_out = [AgentSummaryResponse.from_agent(a).model_dump() for a in _accessible(os.agents, "agents")]
-        teams_out = [TeamSummaryResponse.from_team(t).model_dump() for t in _accessible(os.teams, "teams")]
+        agents_out = [
+            AgentSummaryResponse.from_agent(a).model_dump()
+            for a in _accessible(_public_os_components(os, "agent"), "agents")
+        ]
+        teams_out = [
+            TeamSummaryResponse.from_team(t).model_dump()
+            for t in _accessible(_public_os_components(os, "team"), "teams")
+        ]
         workflows_out = [
-            WorkflowSummaryResponse.from_workflow(w).model_dump() for w in _accessible(os.workflows, "workflows")
+            WorkflowSummaryResponse.from_workflow(w).model_dump()
+            for w in _accessible(_public_os_components(os, "workflow"), "workflows")
         ]
 
         # Surface components registered in the DB registry too, so anything created there is
@@ -2426,11 +2434,8 @@ def build_mcp_server(
             # Exclude the ids this OS serves - what the code half above
             # renders - not the registry's, which is a superset carrying
             # rehydration context this listing never shows.
-            from agno.registry._reserved import BUILDER_ID, OPERATOR_ID
-
-            agent_exclude = {aid for a in os.agents or [] if (aid := getattr(a, "id", None)) is not None} | {
-                BUILDER_ID,
-                OPERATOR_ID,
+            agent_exclude = {
+                aid for a in _public_os_components(os, "agent") or [] if (aid := getattr(a, "id", None)) is not None
             }
             for a in _accessible(
                 get_agents(db=os.db, registry=registry, exclude_component_ids=agent_exclude, user_id=scoped_user_id),
@@ -2440,7 +2445,9 @@ def build_mcp_server(
                     agents_out.append(AgentSummaryResponse.from_agent(a).model_dump())
                 except Exception:
                     logger.exception("Error summarizing DB agent for get_agentos_config")
-            team_exclude = {tid for t in os.teams or [] if (tid := getattr(t, "id", None)) is not None} or None
+            team_exclude = {
+                tid for t in _public_os_components(os, "team") or [] if (tid := getattr(t, "id", None)) is not None
+            } or None
             for t in _accessible(
                 get_teams(db=os.db, registry=registry, exclude_component_ids=team_exclude, user_id=scoped_user_id),
                 "teams",
@@ -2449,7 +2456,9 @@ def build_mcp_server(
                     teams_out.append(TeamSummaryResponse.from_team(t).model_dump())
                 except Exception:
                     logger.exception("Error summarizing DB team for get_agentos_config")
-            workflow_exclude = {wid for w in os.workflows or [] if (wid := getattr(w, "id", None)) is not None} or None
+            workflow_exclude = {
+                wid for w in _public_os_components(os, "workflow") or [] if (wid := getattr(w, "id", None)) is not None
+            } or None
             for w in _accessible(
                 get_workflows(
                     db=os.db, registry=registry, exclude_component_ids=workflow_exclude, user_id=scoped_user_id
@@ -2625,7 +2634,11 @@ def build_mcp_server(
         # today's resolution. Factories build per-request and remote components
         # resolve remotely, so both are exempt; the stamp lives on the run,
         # which is only readable with its session.
-        roster = {"agents": os.agents, "teams": os.teams, "workflows": os.workflows}[component_type]
+        roster = {
+            "agents": _public_os_components(os, "agent"),
+            "teams": _public_os_components(os, "team"),
+            "workflows": _public_os_components(os, "workflow"),
+        }[component_type]
         if session_id and not isinstance(component, BaseRemote) and find_factory_by_id(component_id, roster) is None:
             stamped_run = await component.aget_run_output(run_id=run_id, session_id=session_id, user_id=user_id)
             stamped_version = stamped_component_version(stamped_run)
@@ -2683,7 +2696,11 @@ def build_mcp_server(
         # unnecessary and harmful -- generic resolution invokes it, which 400s a
         # required-input factory or a request-less transport and would make a live
         # factory run uncancellable over MCP.
-        roster = {"agents": os.agents, "teams": os.teams, "workflows": os.workflows}[component_type]
+        roster = {
+            "agents": _public_os_components(os, "agent"),
+            "teams": _public_os_components(os, "team"),
+            "workflows": _public_os_components(os, "workflow"),
+        }[component_type]
         factory = find_factory_by_id(component_id, roster)
         if factory is not None:
             await _verify_factory_run_ownership(

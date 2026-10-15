@@ -60,6 +60,7 @@ from agno.os.service_accounts import TOKEN_PREFIX as SERVICE_ACCOUNT_TOKEN_PREFI
 from agno.os.service_accounts import VerificationStatus
 from agno.os.settings import AgnoAPISettings
 from agno.os.utils import resolve_ws_jwt_config
+from agno.registry.component import _public_manifest, _public_os_components
 from agno.team.factory import TeamFactory
 from agno.utils.log import logger
 
@@ -178,9 +179,9 @@ def get_base_router(
         },
     )
     async def config(request: Request) -> ConfigResponse:
-        agents_in_scope = list(os.agents or [])
-        teams_in_scope = list(os.teams or [])
-        workflows_in_scope = list(os.workflows or [])
+        agents_in_scope = list(_public_os_components(os, "agent") or [])
+        teams_in_scope = list(_public_os_components(os, "team") or [])
+        workflows_in_scope = list(_public_os_components(os, "workflow") or [])
         if getattr(request.state, "authorization_enabled", False):
             # The roster is filtered by the same provider the list routes use: config:read
             # admits the caller to the OS description, not to every component's name and
@@ -207,7 +208,7 @@ def get_base_router(
             os_database=os.db.id if os.db else None,
             databases=list({db.id for db_id, dbs in os.dbs.items() for db in dbs}),
             chat=os.config.chat if os.config else None,
-            manifest=os.config.manifest if os.config else None,
+            manifest=_public_manifest(os.config.manifest, os.registry) if os.config else None,
             session=os._get_session_config(),
             memory=os._get_memory_config(),
             learning=os._get_learning_config(),
@@ -246,13 +247,13 @@ def get_base_router(
 def _collect_unique_models(os: "AgentOS") -> List[Model]:
     """Return unique (id, provider) models in use across agents and teams."""
     unique_models: dict = {}
-    for agent in os.agents or []:
+    for agent in _public_os_components(os, "agent") or []:
         if isinstance(agent, AgentFactory):
             continue
         model = _extract_model(agent)
         if model and model.id is not None and model.provider is not None:
             unique_models.setdefault((model.id, model.provider), model)
-    for team in os.teams or []:
+    for team in _public_os_components(os, "team") or []:
         if isinstance(team, TeamFactory):
             continue
         model = _extract_model(team)
@@ -298,9 +299,17 @@ def get_info_router(os: "AgentOS") -> APIRouter:
             name=os.name,
             os_version=os.version or "1.0.0",
             agno_version=agno_version,
-            agent_count=len(public_selection["agents"] if public_selection is not None else os.agents or []),
-            team_count=len(public_selection["teams"] if public_selection is not None else os.teams or []),
-            workflow_count=len(public_selection["workflows"] if public_selection is not None else os.workflows or []),
+            agent_count=len(
+                public_selection["agents"] if public_selection is not None else _public_os_components(os, "agent") or []
+            ),
+            team_count=len(
+                public_selection["teams"] if public_selection is not None else _public_os_components(os, "team") or []
+            ),
+            workflow_count=len(
+                public_selection["workflows"]
+                if public_selection is not None
+                else _public_os_components(os, "workflow") or []
+            ),
             mcp=McpInfo(enabled=mcp_enabled, path="/mcp" if mcp_enabled else None, oauth=mcp_oauth),
             auth_mode=get_effective_auth_mode(
                 settings=os.settings,

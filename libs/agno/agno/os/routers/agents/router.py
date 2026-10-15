@@ -104,6 +104,7 @@ from agno.os.utils import (
     stamped_component_version,
 )
 from agno.registry import Registry
+from agno.registry.component import _public_os_components
 from agno.run.agent import RunErrorEvent, RunOutput
 from agno.run.base import RunStatus
 from agno.utils.log import log_debug, log_error, log_warning
@@ -769,7 +770,7 @@ def get_agent_router(
 
         agent = await resolve_agent(
             agent_id,
-            os.agents,
+            _public_os_components(os, "agent"),
             os.db,
             registry,
             version=version,
@@ -896,7 +897,7 @@ def get_agent_router(
                     and getattr(agent, "db", None) is not None
                     and payload_is_queueable(queued_stream_payload)
                     and not (base64_images or base64_audios or base64_videos or input_files)
-                    and component_is_queueable(agent, agent_id, os.agents, os.db)
+                    and component_is_queueable(agent, agent_id, _public_os_components(os, "agent"), os.db)
                 )
                 if stream_queueable:
                     # 202/stream-accept must honor input_schema like the inline path (400)
@@ -909,7 +910,7 @@ def get_agent_router(
                     queued_session_id = session_id  # non-empty: defaulted at the top of the endpoint
                     queued_stream_payload["scope"] = resolve_queue_scope(
                         agent_id,
-                        os.agents,
+                        _public_os_components(os, "agent"),
                         os.db,
                         scoped_user_id,
                         version,
@@ -1015,7 +1016,7 @@ def get_agent_router(
             # time: a plain registry instance, or a db-backed (components API
             # / version-pinned) agent replayed from the scope on the ticket.
             # Factory-backed agents need request context and never queue.
-            agent_is_queueable = component_is_queueable(agent, agent_id, os.agents, os.db)
+            agent_is_queueable = component_is_queueable(agent, agent_id, _public_os_components(os, "agent"), os.db)
             queued_payload = {"input": message, "kwargs": kwargs}
             if (
                 queue_worker is not None
@@ -1032,7 +1033,7 @@ def get_agent_router(
                 queued_session_id = session_id  # non-empty: defaulted at the top of the endpoint
                 queued_payload["scope"] = resolve_queue_scope(
                     agent_id,
-                    os.agents,
+                    _public_os_components(os, "agent"),
                     os.db,
                     scoped_user_id,
                     version,
@@ -1229,7 +1230,7 @@ def get_agent_router(
         # Factory agents: cancel is static, no agent instance needed.
         # Non-admin callers must still prove session ownership before we apply
         # a global cancellation intent keyed solely on run_id.
-        factory = find_factory_by_id(agent_id, os.agents)
+        factory = find_factory_by_id(agent_id, _public_os_components(os, "agent"))
         if factory:
             from agno.agent._run import acancel_run
 
@@ -1270,7 +1271,7 @@ def get_agent_router(
         try:
             agent = get_agent_by_id(
                 agent_id=agent_id,
-                agents=os.agents,
+                agents=_public_os_components(os, "agent"),
                 db=os.db,
                 registry=os.registry,
                 create_fresh=True,
@@ -1455,11 +1456,11 @@ def get_agent_router(
 
         # Factory agents: re-invoke factory to get a real agent for continue
         # (needs model/tools to resume the paused run, factory_input not available)
-        factory = find_factory_by_id(agent_id, os.agents)
+        factory = find_factory_by_id(agent_id, _public_os_components(os, "agent"))
         if factory:
             agent = await resolve_agent(  # type: ignore[assignment]
                 agent_id,
-                os.agents,
+                _public_os_components(os, "agent"),
                 factory.db,
                 request=request,
                 user_id=user_id,
@@ -1470,7 +1471,7 @@ def get_agent_router(
             try:
                 agent = get_agent_by_id(
                     agent_id=agent_id,
-                    agents=os.agents,
+                    agents=_public_os_components(os, "agent"),
                     db=os.db,
                     registry=os.registry,
                     create_fresh=True,
@@ -1540,7 +1541,7 @@ def get_agent_router(
                 try:
                     stamped_agent = get_agent_by_id(
                         agent_id=agent_id,
-                        agents=os.agents,
+                        agents=_public_os_components(os, "agent"),
                         db=os.db,
                         registry=os.registry,
                         version=stamped_version,
@@ -1609,7 +1610,7 @@ def get_agent_router(
                 "continue_from": continue_from_value,
                 "kwargs": kwargs,
             }
-            agent_is_queueable = component_is_queueable(agent, agent_id, os.agents, os.db)
+            agent_is_queueable = component_is_queueable(agent, agent_id, _public_os_components(os, "agent"), os.db)
             if (
                 queue_worker is not None
                 and not isinstance(agent, RemoteAgent)
@@ -1842,7 +1843,7 @@ def get_agent_router(
         try:
             agent = get_agent_by_id(
                 agent_id=agent_id,
-                agents=os.agents,
+                agents=_public_os_components(os, "agent"),
                 db=os.db,
                 registry=os.registry,
                 create_fresh=True,
@@ -1958,7 +1959,7 @@ def get_agent_router(
         try:
             agent = get_agent_by_id(
                 agent_id=agent_id,
-                agents=os.agents,
+                agents=_public_os_components(os, "agent"),
                 db=os.db,
                 registry=os.registry,
                 create_fresh=True,
@@ -2053,9 +2054,11 @@ def get_agent_router(
                 )
 
             # Limit results based on the user's access/scopes
-            accessible_agents = await afilter_resources_by_access(request, os.agents or [], "agents")
+            accessible_agents = await afilter_resources_by_access(
+                request, _public_os_components(os, "agent") or [], "agents"
+            )
         else:
-            accessible_agents = os.agents or []
+            accessible_agents = _public_os_components(os, "agent") or []
 
         agents: List[AgentResponse] = []
         if accessible_agents:
@@ -2091,11 +2094,8 @@ def get_agent_router(
             # above renders. The registry is a superset - it also carries
             # rehydration context this route never lists - so subtracting it
             # would drop a stored agent with nothing left to list it back.
-            from agno.registry._reserved import BUILDER_ID, OPERATOR_ID
-
-            exclude_ids = {aid for a in os.agents or [] if (aid := getattr(a, "id", None)) is not None} | {
-                BUILDER_ID,
-                OPERATOR_ID,
+            exclude_ids = {
+                aid for a in _public_os_components(os, "agent") or [] if (aid := getattr(a, "id", None)) is not None
             }
             db_agents = get_agents(
                 db=os.db,
@@ -2154,14 +2154,14 @@ def get_agent_router(
     )
     async def get_agent(agent_id: str, request: Request) -> AgentResponse:
         # Factory agents: return factory metadata directly (no invocation needed)
-        factory = find_factory_by_id(agent_id, os.agents)
+        factory = find_factory_by_id(agent_id, _public_os_components(os, "agent"))
         if factory:
             return AgentResponse.from_factory(factory)
 
         try:
             agent = get_agent_by_id(
                 agent_id=agent_id,
-                agents=os.agents,
+                agents=_public_os_components(os, "agent"),
                 db=os.db,
                 registry=os.registry,
                 create_fresh=True,
@@ -2213,14 +2213,14 @@ def get_agent_router(
         session_id: str = Query(..., description="Session ID for the run"),
     ):
         # Factory agents: resolve to get a real agent for session lookup
-        factory = find_factory_by_id(agent_id, os.agents)
+        factory = find_factory_by_id(agent_id, _public_os_components(os, "agent"))
         if factory:
             agent = factory_row_handle(factory)  # type: ignore[assignment]
         else:
             try:
                 agent = get_agent_by_id(
                     agent_id=agent_id,
-                    agents=os.agents,
+                    agents=_public_os_components(os, "agent"),
                     db=os.db,
                     registry=os.registry,
                     create_fresh=True,
@@ -2311,14 +2311,14 @@ def get_agent_router(
         run_id: str,
         session_id: str = Query(..., description="Session ID for the run"),
     ):
-        factory = find_factory_by_id(agent_id, os.agents)
+        factory = find_factory_by_id(agent_id, _public_os_components(os, "agent"))
         if factory:
             agent = factory_row_handle(factory)  # type: ignore[assignment]
         else:
             try:
                 agent = get_agent_by_id(
                     agent_id=agent_id,
-                    agents=os.agents,
+                    agents=_public_os_components(os, "agent"),
                     db=os.db,
                     registry=os.registry,
                     create_fresh=True,
@@ -2376,14 +2376,14 @@ def get_agent_router(
         message_index: int,
         session_id: str = Query(..., description="Session ID for the run"),
     ):
-        factory = find_factory_by_id(agent_id, os.agents)
+        factory = find_factory_by_id(agent_id, _public_os_components(os, "agent"))
         if factory:
             agent = factory_row_handle(factory)  # type: ignore[assignment]
         else:
             try:
                 agent = get_agent_by_id(
                     agent_id=agent_id,
-                    agents=os.agents,
+                    agents=_public_os_components(os, "agent"),
                     db=os.db,
                     registry=os.registry,
                     create_fresh=True,
@@ -2466,7 +2466,7 @@ def get_agent_router(
 
         # Factory agents: skip entity resolution (no factory_input on resume)
         # and verify ownership directly via the OS db.
-        factory = find_factory_by_id(agent_id, os.agents)
+        factory = find_factory_by_id(agent_id, _public_os_components(os, "agent"))
         if factory:
             if scoped_user_id is not None:
                 # session_id required above
@@ -2500,7 +2500,7 @@ def get_agent_router(
 
         agent = get_agent_by_id(
             agent_id=agent_id,
-            agents=os.agents,
+            agents=_public_os_components(os, "agent"),
             db=os.db,
             registry=os.registry,
             create_fresh=True,
@@ -2563,14 +2563,14 @@ def get_agent_router(
         from agno.os.schema import RunSchema
 
         # Factory agents: resolve to get a real agent for session lookup
-        factory = find_factory_by_id(agent_id, os.agents)
+        factory = find_factory_by_id(agent_id, _public_os_components(os, "agent"))
         if factory:
             agent = factory_row_handle(factory)  # type: ignore[assignment]
         else:
             try:
                 agent = get_agent_by_id(
                     agent_id=agent_id,
-                    agents=os.agents,
+                    agents=_public_os_components(os, "agent"),
                     db=os.db,
                     registry=os.registry,
                     create_fresh=True,

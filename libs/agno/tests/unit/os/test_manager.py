@@ -93,7 +93,7 @@ def test_manager_execution_accepts_ordinary_run_grants(db, workspace, identity, 
             "payload": {"message": "hello"},
         },
     )
-    assert scheduled.status_code == (201 if target == MANAGER_TEAM_ID else 404), scheduled.text
+    assert scheduled.status_code == (201 if target == MANAGER_TEAM_ID else 409), scheduled.text
 
 
 def test_manager_cannot_dispatch_for_a_caller_with_only_its_run_scope(db):
@@ -399,11 +399,15 @@ def test_manager_cannot_be_composed_through_explicit_studio_lists(db, workspace,
         reference = component.name if by_name else component.id
         kwargs = dict(name="Wrapper", instructions="Delegate", member_ids=[reference], publish=True)
         result = asyncio.run(studio.acreate_team(**kwargs)) if use_async else studio.create_team(**kwargs)
-        assert json.loads(result)["error"]["code"] == "tool_not_allowed"
+        assert json.loads(result)["error"]["code"] == (
+            "component_not_found" if by_name and component is not os.manager else "tool_not_allowed"
+        )
         step = {"name": "Inspect", "type": "step", "team_id" if component is os.manager else "agent_id": reference}
         kwargs = dict(name="Flow", steps=[step], publish=True)
         result = asyncio.run(studio.acreate_workflow(**kwargs)) if use_async else studio.create_workflow(**kwargs)
-        assert json.loads(result)["error"]["code"] == "tool_not_allowed"
+        assert json.loads(result)["error"]["code"] == (
+            "component_not_found" if by_name and component is not os.manager else "tool_not_allowed"
+        )
     assert db.get_component("wrapper") is None
     assert db.get_component("flow") is None
 
@@ -626,7 +630,7 @@ def test_manager_exclusion_survives_foreign_registry_mirrors(db, workspace, copi
     result = json.loads(
         studio.create_team(name="Wrapper", instructions="Read", member_ids=["Platform Manager"], publish=True)
     )
-    assert result["error"]["code"] == "tool_not_allowed"
+    assert result["error"]["code"] == "component_not_found"
 
 
 @pytest.mark.parametrize("component_id", [BUILDER_ID, OPERATOR_ID, MANAGER_TEAM_ID])
@@ -1294,5 +1298,5 @@ def test_schedule_cannot_be_retargeted_to_a_private_specialist(db, member_id):
     assert created.status_code == 201, created.text
     path = f"/schedules/{created.json()['id']}"
     response = client.patch(path, json={"endpoint": f"/agents/{member_id}/runs/"})
-    assert response.status_code == 404, response.text
+    assert response.status_code == 409, response.text
     assert client.get(path).json()["endpoint"] == f"/teams/{MANAGER_TEAM_ID}/runs"

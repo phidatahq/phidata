@@ -100,6 +100,7 @@ from agno.os.utils import (
     stamped_component_version,
     stored_event_replay_dicts,
 )
+from agno.registry.component import _public_os_components
 from agno.run.base import RunStatus
 from agno.run.workflow import WorkflowErrorEvent, WorkflowRunOutput
 from agno.utils.log import log_debug, log_error, log_warning, logger
@@ -261,8 +262,9 @@ async def handle_workflow_via_websocket(
             return
 
         # Get workflow from OS — supports both static and factory components
-        is_factory = os.workflows and any(
-            isinstance(w, WorkflowFactory) and w.id == workflow_id for w in (os.workflows or [])
+        is_factory = _public_os_components(os, "workflow") and any(
+            isinstance(w, WorkflowFactory) and w.id == workflow_id
+            for w in (_public_os_components(os, "workflow") or [])
         )
         if is_factory:
             from agno.factory import RequestContext, TrustedContext
@@ -285,7 +287,7 @@ async def handle_workflow_via_websocket(
             try:
                 workflow = await get_workflow_by_id_async(
                     workflow_id=workflow_id,
-                    workflows=os.workflows,
+                    workflows=_public_os_components(os, "workflow"),
                     db=os.db,
                     version=version,
                     registry=os.registry,
@@ -300,7 +302,7 @@ async def handle_workflow_via_websocket(
             try:
                 workflow = get_workflow_by_id(
                     workflow_id=workflow_id,
-                    workflows=os.workflows,
+                    workflows=_public_os_components(os, "workflow"),
                     db=os.db,
                     version=version,
                     registry=os.registry,
@@ -369,7 +371,7 @@ async def handle_workflow_via_websocket(
             queue_worker is not None
             and getattr(workflow, "db", None) is not None
             and payload_is_queueable(queued_ws_payload)
-            and component_is_queueable(workflow, workflow_id, os.workflows, os.db)
+            and component_is_queueable(workflow, workflow_id, _public_os_components(os, "workflow"), os.db)
         )
         if ws_submit_queueable:
             # Accept must honor input_schema exactly like the inline path
@@ -388,7 +390,7 @@ async def handle_workflow_via_websocket(
             )
             queued_ws_payload["scope"] = resolve_queue_scope(
                 workflow_id,
-                os.workflows,
+                _public_os_components(os, "workflow"),
                 os.db,
                 scoped_user_id,
                 version,
@@ -613,7 +615,7 @@ async def handle_workflow_subscription(
                     # workflow's db handle, never its resolved references.
                     workflow = get_workflow_by_id(
                         workflow_id=workflow_id,
-                        workflows=os.workflows,
+                        workflows=_public_os_components(os, "workflow"),
                         db=os.db,
                         registry=os.registry,
                         create_fresh=True,
@@ -830,7 +832,7 @@ async def handle_workflow_continue_via_websocket(
             # Prefer the factory's db when this workflow_id is a factory entry;
             # only fall back to os.db when no factory-specific db is configured.
             # This matches the pattern the HTTP cancel/resume routes use.
-            factory = find_factory_by_id(workflow_id, os.workflows)
+            factory = find_factory_by_id(workflow_id, _public_os_components(os, "workflow"))
             check_db = getattr(factory, "db", None) or os.db
             try:
                 await verify_run_in_session_via_db(
@@ -847,7 +849,7 @@ async def handle_workflow_continue_via_websocket(
 
         workflow = get_workflow_by_id(
             workflow_id=workflow_id,
-            workflows=os.workflows,
+            workflows=_public_os_components(os, "workflow"),
             db=os.db,
             registry=os.registry,
             create_fresh=True,
@@ -886,7 +888,7 @@ async def handle_workflow_continue_via_websocket(
         # published/current now. No stamp (legacy or unpinned runs) keeps
         # today's resolution. Factories build per-request, so they are exempt.
         stamped_version = stamped_component_version(existing_run)
-        if stamped_version is not None and not find_factory_by_id(workflow_id, os.workflows):
+        if stamped_version is not None and not find_factory_by_id(workflow_id, _public_os_components(os, "workflow")):
             # Re-run the run-start preview gate before trusting the stamp: a
             # stamp naming a draft version this caller may not preview must not
             # resolve (defense against a forged/leaked stamp). Same not-found
@@ -901,7 +903,7 @@ async def handle_workflow_continue_via_websocket(
                 return
             stamped_workflow = get_workflow_by_id(
                 workflow_id=workflow_id,
-                workflows=os.workflows,
+                workflows=_public_os_components(os, "workflow"),
                 db=os.db,
                 registry=os.registry,
                 version=stamped_version,
@@ -944,7 +946,9 @@ async def handle_workflow_continue_via_websocket(
         # resolution that removed the SSE-wrapped execute pump).
         queue_worker = getattr(websocket.app.state, "queue_worker", None)
         continue_payload = {"step_requirements": step_requirements_data}
-        workflow_is_queueable = component_is_queueable(workflow, workflow_id, os.workflows, os.db)
+        workflow_is_queueable = component_is_queueable(
+            workflow, workflow_id, _public_os_components(os, "workflow"), os.db
+        )
         if queue_worker is not None and workflow_is_queueable and payload_is_queueable(continue_payload):
             # existing_run.is_paused was proven above. stream_requested: this
             # socket IS a stream - a non-streaming submission's ticket must be
@@ -1568,9 +1572,11 @@ def get_workflow_router(
                     detail=build_insufficient_permissions_detail(required_scopes),
                 )
 
-            accessible_workflows = await afilter_resources_by_access(request, os.workflows or [], "workflows")
+            accessible_workflows = await afilter_resources_by_access(
+                request, _public_os_components(os, "workflow") or [], "workflows"
+            )
         else:
-            accessible_workflows = os.workflows or []
+            accessible_workflows = _public_os_components(os, "workflow") or []
 
         workflows: List[WorkflowSummaryResponse] = []
         if accessible_workflows:
@@ -1586,7 +1592,9 @@ def get_workflow_router(
             # it also carries rehydration context this route never lists - so
             # subtracting it instead would drop a stored workflow with nothing
             # left to list it back.
-            exclude_ids = {wid for w in os.workflows or [] if (wid := getattr(w, "id", None)) is not None}
+            exclude_ids = {
+                wid for w in _public_os_components(os, "workflow") or [] if (wid := getattr(w, "id", None)) is not None
+            }
             db_workflows = get_workflows(
                 db=os.db,
                 registry=os.registry,
@@ -1642,7 +1650,7 @@ def get_workflow_router(
         version: Optional[int] = Query(None, description="Workflow version to retrieve"),
     ) -> WorkflowResponse:
         # Factory workflows: return factory metadata directly
-        factory = find_factory_by_id(workflow_id, os.workflows)
+        factory = find_factory_by_id(workflow_id, _public_os_components(os, "workflow"))
         if factory:
             return WorkflowResponse.from_factory(factory)
 
@@ -1657,7 +1665,7 @@ def get_workflow_router(
         try:
             workflow = get_workflow_by_id(
                 workflow_id=workflow_id,
-                workflows=os.workflows,
+                workflows=_public_os_components(os, "workflow"),
                 db=os.db,
                 registry=os.registry,
                 create_fresh=True,
@@ -1777,7 +1785,7 @@ def get_workflow_router(
         # Retrieve the workflow by ID (supports both static and factory components)
         workflow = await resolve_workflow(
             workflow_id,
-            os.workflows,
+            _public_os_components(os, "workflow"),
             os.db,
             os.registry,
             version=version,
@@ -1848,7 +1856,7 @@ def get_workflow_router(
                     queue_worker is not None
                     and getattr(workflow, "db", None) is not None
                     and payload_is_queueable(queued_stream_payload)
-                    and component_is_queueable(workflow, workflow_id, os.workflows, os.db)
+                    and component_is_queueable(workflow, workflow_id, _public_os_components(os, "workflow"), os.db)
                 )
                 if stream_queueable:
                     # 202/stream-accept must honor input_schema like the inline path (400)
@@ -1860,7 +1868,7 @@ def get_workflow_router(
                     queued_session_id = session_id  # non-empty: defaulted at the top of the endpoint
                     queued_stream_payload["scope"] = resolve_queue_scope(
                         workflow_id,
-                        os.workflows,
+                        _public_os_components(os, "workflow"),
                         os.db,
                         scoped_user_id,
                         version,
@@ -1958,7 +1966,9 @@ def get_workflow_router(
             # time: a plain registry instance, or a db-backed (components API
             # / version-pinned) workflow replayed from the scope on the ticket.
             # Factory-backed workflows need request context and never queue.
-            workflow_is_queueable = component_is_queueable(workflow, workflow_id, os.workflows, os.db)
+            workflow_is_queueable = component_is_queueable(
+                workflow, workflow_id, _public_os_components(os, "workflow"), os.db
+            )
             queued_payload = {
                 "input": message,
                 "kwargs": kwargs,
@@ -1970,7 +1980,7 @@ def get_workflow_router(
                 queued_session_id = session_id  # non-empty: defaulted at the top of the endpoint
                 queued_payload["scope"] = resolve_queue_scope(
                     workflow_id,
-                    os.workflows,
+                    _public_os_components(os, "workflow"),
                     os.db,
                     scoped_user_id,
                     version,
@@ -2185,7 +2195,7 @@ def get_workflow_router(
 
         workflow = await resolve_workflow(
             workflow_id,
-            os.workflows,
+            _public_os_components(os, "workflow"),
             os.db,
             os.registry,
             request=request,
@@ -2252,7 +2262,7 @@ def get_workflow_router(
         # (legacy or unpinned runs) keeps today's resolution. Factories build
         # per-request, so they are exempt.
         stamped_version = stamped_component_version(existing_run)
-        if stamped_version is not None and not find_factory_by_id(workflow_id, os.workflows):
+        if stamped_version is not None and not find_factory_by_id(workflow_id, _public_os_components(os, "workflow")):
             # Re-run the run-start preview gate before trusting the stamp: a
             # stamp naming a draft version this caller may not preview must not
             # resolve (defense against a forged/leaked stamp). Same 404 the
@@ -2263,7 +2273,7 @@ def get_workflow_router(
             try:
                 stamped_workflow = get_workflow_by_id(
                     workflow_id=workflow_id,
-                    workflows=os.workflows,
+                    workflows=_public_os_components(os, "workflow"),
                     db=os.db,
                     registry=os.registry,
                     version=stamped_version,
@@ -2304,7 +2314,9 @@ def get_workflow_router(
             # non-background path below.
             queue_worker = getattr(request.app.state, "queue_worker", None)
             continue_payload = {"step_requirements": step_requirements_data}
-            workflow_is_queueable = component_is_queueable(workflow, workflow_id, os.workflows, os.db)
+            workflow_is_queueable = component_is_queueable(
+                workflow, workflow_id, _public_os_components(os, "workflow"), os.db
+            )
             if queue_worker is not None and workflow_is_queueable and payload_is_queueable(continue_payload):
                 # The endpoint already proved the run row is PAUSED above
                 continue_outcome = await acontinue_via_queue(
@@ -2476,7 +2488,7 @@ def get_workflow_router(
         # Factory workflows: cancel is static, no workflow instance needed.
         # Non-admin callers must still prove session ownership before we apply
         # a global cancellation intent keyed solely on run_id.
-        factory = find_factory_by_id(workflow_id, os.workflows)
+        factory = find_factory_by_id(workflow_id, _public_os_components(os, "workflow"))
         if factory:
             from agno.run.cancel import acancel_run
 
@@ -2515,7 +2527,7 @@ def get_workflow_router(
         try:
             workflow = get_workflow_by_id(
                 workflow_id=workflow_id,
-                workflows=os.workflows,
+                workflows=_public_os_components(os, "workflow"),
                 db=os.db,
                 registry=os.registry,
                 create_fresh=True,
@@ -2610,7 +2622,7 @@ def get_workflow_router(
             if not session_id:
                 raise HTTPException(status_code=400, detail=SESSION_ID_REQUIRED)
 
-        factory = find_factory_by_id(workflow_id, os.workflows)
+        factory = find_factory_by_id(workflow_id, _public_os_components(os, "workflow"))
         if factory:
             if scoped_user_id is not None:
                 assert session_id is not None
@@ -2640,7 +2652,7 @@ def get_workflow_router(
 
         workflow = get_workflow_by_id(
             workflow_id=workflow_id,
-            workflows=os.workflows,
+            workflows=_public_os_components(os, "workflow"),
             db=os.db,
             registry=os.registry,
             create_fresh=True,
@@ -2710,14 +2722,14 @@ def get_workflow_router(
             session_id = request.state.session_id
 
         # Factory workflows: resolve to get a real workflow for session lookup
-        factory = find_factory_by_id(workflow_id, os.workflows)
+        factory = find_factory_by_id(workflow_id, _public_os_components(os, "workflow"))
         if factory:
             workflow = factory_row_handle(factory)  # type: ignore[assignment]
         else:
             try:
                 workflow = get_workflow_by_id(
                     workflow_id=workflow_id,
-                    workflows=os.workflows,
+                    workflows=_public_os_components(os, "workflow"),
                     db=os.db,
                     registry=os.registry,
                     create_fresh=True,
@@ -2822,7 +2834,7 @@ def get_workflow_router(
 
         workflow = await resolve_workflow(
             workflow_id,
-            os.workflows,
+            _public_os_components(os, "workflow"),
             os.db,
             os.registry,
             request=request,

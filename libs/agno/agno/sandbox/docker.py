@@ -44,13 +44,17 @@ async def _close_with_loop(owner: "weakref.ReferenceType[DockerSandbox]", client
     loop = asyncio.get_running_loop()
     try:
         await loop.create_future()
-    finally:
+    except GeneratorExit:
+        # Collected after its loop closed; no loop is left to close the client on.
+        raise
+    except BaseException:
         sandbox = owner()
         if sandbox is not None:
             with sandbox._http_lock:
                 if sandbox._http.get(loop, (None,))[0] is client:
                     del sandbox._http[loop]
         await client.aclose()
+        raise
 
 
 def _cancel_closers(
@@ -59,8 +63,11 @@ def _cancel_closers(
     with lock:
         entries = list(clients.items())
     for loop, (_, task) in entries:
-        with suppress(RuntimeError):
+        try:
             loop.call_soon_threadsafe(task.cancel)
+        except RuntimeError:
+            # A closed loop can never run the closer; stop retaining it.
+            _CLOSERS.discard(task)
 
 
 class DockerSandbox(Sandbox):

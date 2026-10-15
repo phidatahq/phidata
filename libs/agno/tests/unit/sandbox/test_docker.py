@@ -607,6 +607,26 @@ def test_a_loop_closed_without_cancelling_tasks_is_not_retained():
     assert closer not in _CLOSERS and loop not in sandbox._http
 
 
+def test_a_sandbox_discarded_after_its_loop_closed_releases_the_closer():
+    import gc
+
+    from agno.sandbox.docker import _CLOSERS
+
+    sandbox = ServedDocker()
+    loop = asyncio.new_event_loop()
+
+    async def client(owner):
+        DockerSandbox._http_client(owner)
+        await asyncio.sleep(0)
+
+    loop.run_until_complete(client(sandbox))
+    closer = sandbox._http[loop][1]
+    loop.close()
+    del sandbox
+    gc.collect()
+    assert closer not in _CLOSERS
+
+
 @pytest.mark.asyncio
 async def test_a_running_loop_reuses_one_http_client(monkeypatch):
     sandbox = ServedDocker()

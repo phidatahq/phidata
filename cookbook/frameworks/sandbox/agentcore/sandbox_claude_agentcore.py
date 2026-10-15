@@ -4,7 +4,7 @@ Deploy a runtime with agentcore_setup.py, set AGENTCORE_RUNTIME_ARN to the ARN i
 set AWS_PROFILE and AWS_REGION, and run Postgres:
 
     ./cookbook/scripts/run_pgvector.sh
-    .venv/bin/python cookbook/frameworks/sandbox/sandbox_claude_agentcore.py
+    .venv/bin/python cookbook/frameworks/sandbox/agentcore/sandbox_claude_agentcore.py
 
 The same agent as sandbox_claude.py with AgentCoreSandbox in place of DockerSandbox. Each turn
 runs Claude Code in an AgentCore microVM. When the turn completes, its files and conversation

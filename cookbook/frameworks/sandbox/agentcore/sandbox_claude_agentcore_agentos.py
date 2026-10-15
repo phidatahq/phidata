@@ -6,7 +6,7 @@ AWS_PROFILE and AWS_REGION, and run Postgres and Redis:
 
     ./cookbook/scripts/run_pgvector.sh
     docker run -d --name agno-redis -p 6379:6379 redis
-    .venv/bin/python cookbook/frameworks/sandbox/sandbox_claude_agentcore_agentos.py
+    .venv/bin/python cookbook/frameworks/sandbox/agentcore/sandbox_claude_agentcore_agentos.py
 
 Then send a turn and poll it:
 

@@ -453,6 +453,18 @@ def _describe(request: Dict[str, Any]) -> Dict[str, Any]:
     return {"claimed": True, "metadata": claim["metadata"], "incarnation": claim["incarnation"]}
 
 
+def _peek(request: Dict[str, Any]) -> Dict[str, Any]:
+    """The claim, leaving an unclaimed microVM claimable.
+
+    A lookup by identity reaches a fresh microVM whenever the generation was never
+    created, and the create that follows claims that same microVM.
+    """
+    claim = _load_claim()
+    if claim is None:
+        return {"claimed": False, "retired": _marked(_FAILED)}
+    return {"claimed": True, "metadata": claim["metadata"], "incarnation": claim["incarnation"]}
+
+
 def _rpc(request: Dict[str, Any]) -> Dict[str, Any]:
     claim = _require(request)
     if _state["token"] is None:
@@ -783,6 +795,7 @@ def _ping_reply() -> Dict[str, Any]:
 _OPERATIONS = {
     "claim": _claim,
     "describe": _describe,
+    "peek": _peek,
     "rpc": _rpc,
     "stage": _stage,
     "export": _export,

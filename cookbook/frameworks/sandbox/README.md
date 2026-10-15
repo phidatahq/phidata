@@ -45,6 +45,8 @@ export ANTHROPIC_API_KEY=...   # or CLAUDE_CODE_OAUTH_TOKEN
 
 `sandbox_claude.py` is a `ClaudeAgent` with a `PostgresDb` and `sandbox=DockerSandbox(image)`, nothing else. It runs two turns on a new session: the first writes and runs a file, the second asks what file was created. Each turn runs the whole Claude Code process in a container from the image; when it completes, its workspace and Claude Code's own conversation are checkpointed and the container is removed, and the next turn starts a fresh container restored from that checkpoint, which is how turn 2 knows the file name. The credential in the process environment (`ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN`) is forwarded into the container. Checkpoints default to `~/.agno/sandbox/checkpoints`, which suits a single host.
 
+`sandbox_claude_agentcore.py` is the same agent with `sandbox=AgentCoreSandbox(runtime_arn, env=...)`, so each turn runs in an AgentCore microVM instead of a local container. Claude reaches Bedrock through the runtime's execution role: the sandbox's `env` sets `CLAUDE_CODE_USE_BEDROCK` and `AWS_REGION`, and no API key goes into the microVM. Deploy the runtime with `agentcore_setup.py` and set `AGENTCORE_RUNTIME_ARN` first.
+
 `sandbox_claude_agentos.py` serves the same agent through AgentOS with a durable queue (Postgres and Redis). Every API request submits to the queue, a dropped connection does not cancel the turn, and a second request on the same session waits for the first. It names its checkpoint store explicitly: with a queue, any replica may run the next attempt, so the default host-local store is refused.
 
 ## A live Claude session in a sandbox

@@ -9,11 +9,15 @@ import random
 import shlex
 import threading
 import time
-from typing import Any, Dict, Mapping, Optional, Sequence, Set
+from typing import TYPE_CHECKING, Any, Dict, Mapping, Optional, Sequence, Set
 from uuid import uuid4
 
 from agno.sandbox.agentcore.server import _MAX_STAGED
 from agno.sandbox.base import ExecResult, Sandbox, SandboxError, SandboxHandle, _identity
+
+if TYPE_CHECKING:
+    from agno.sandbox.checkpoint import CheckpointStore
+    from agno.sandbox.transfer import CheckpointTransfer
 
 _GUARD_EXIT = 125
 # AgentCore rejects these before anything runs, so a retry cannot repeat work.
@@ -21,7 +25,7 @@ _GUARD_EXIT = 125
 # new sessions per second.
 _RETRYABLE = ("RetryableConflictException", "ThrottlingException", "ThrottledException")
 # Gateway and server errors leave the outcome unknown. Invocations that are safe
-# to repeat (claim and start by identity, describe and poll read only, chunks by
+# to repeat (claim and start by identity, describe, peek and poll read only, chunks by
 # offset) retry them; a command, an export or an import never does.
 _SERVER_ERRORS = ("500", "502", "503", "504", "InternalServerException", "ServiceException")
 # Refused by AgentCore before a request reaches the computer.
@@ -104,6 +108,14 @@ class AgentCoreSandbox(Sandbox):
     then dies with it. Set it from the coordinator's own turn budget rather than
     relying on the one-hour default.
 
+    Passed as sandbox= on ClaudeAgent or CodexAgent, each turn runs on a new
+    generation restored from the last checkpoint. ``execution_timeout`` bounds one
+    turn and must be shorter than ``lifetime``, which also has to cover the restore
+    before the turn and the capture after it; it defaults to 900 seconds or half
+    the lifetime, whichever is shorter. For Claude through Bedrock, set
+    ``env={"CLAUDE_CODE_USE_BEDROCK": "1", "AWS_REGION": ...}`` and give the
+    runtime's role model access.
+
     Stop and destroy end the microVM. Pause is not supported. Files live on the
     microVM's disk; AgentCore session storage is not used because SQLite cannot
     open a database on it.
@@ -119,6 +131,9 @@ class AgentCoreSandbox(Sandbox):
         boto_session: Optional[Any] = None,
         request_timeout: float = 120,
         max_connections: int = 10,
+        checkpoints: Optional["CheckpointStore"] = None,
+        env: Optional[Mapping[str, str]] = None,
+        execution_timeout: Optional[float] = None,
     ) -> None:
         try:
             import boto3
@@ -134,6 +149,13 @@ class AgentCoreSandbox(Sandbox):
             raise ValueError("AgentCore request timeout must cover a 30 second long poll")
         if type(max_connections) is not int or max_connections < 1:
             raise ValueError("AgentCore max_connections must be a positive integer")
+        if execution_timeout is None:
+            execution_timeout = min(900.0, lifetime / 2)
+        if not math.isfinite(execution_timeout) or not 0 < execution_timeout < lifetime:
+            raise ValueError("AgentCore execution timeout must be positive and shorter than the lifetime")
+        self.checkpoints = checkpoints
+        self.env = dict(env) if env is not None else None
+        self.execution_timeout = execution_timeout
         self.runtime_arn, self.namespace, self.qualifier, self.lifetime = runtime_arn, namespace, qualifier, lifetime
         session = boto_session or boto3.session.Session()
 
@@ -160,6 +182,11 @@ class AgentCoreSandbox(Sandbox):
         # session; both hold that session's lock for their whole request.
         self._session_locks: Dict[str, threading.Lock] = {}
         self._locks_guard = threading.Lock()
+
+    def checkpoint_transfer(self, store: "CheckpointStore") -> "CheckpointTransfer":
+        from agno.sandbox.agentcore.transfer import AgentCoreCheckpointTransfer
+
+        return AgentCoreCheckpointTransfer(self, store)
 
     def _name(self, session_id: str, agent_id: Optional[str], generation: int) -> str:
         identity = json.dumps([self.namespace, agent_id, session_id, generation])
@@ -279,6 +306,36 @@ class AgentCoreSandbox(Sandbox):
             await self._stop(provider_ref)
             return None
         return self._handle(provider_ref, description["metadata"], description["incarnation"])
+
+    async def afind(
+        self,
+        session_id: str,
+        *,
+        agent_id: Optional[str] = None,
+        generation: int = 1,
+        env: Optional[Mapping[str, str]] = None,
+    ) -> Optional[SandboxHandle]:
+        """The claimed computer of a generation, or None if it has none.
+
+        Unlike aget, this leaves an unclaimed microVM running. The coordinator looks
+        a generation up just before creating it, and the create then claims the
+        microVM this call started instead of waiting for another. One that no create
+        claims ends at the runtime's idle timeout.
+        """
+        values = _identity(session_id, agent_id, generation, env)
+        name = self._name(session_id, agent_id, generation)
+        if name in self._stopped:
+            return None
+        reply = await _thread(self._invoke, name, "peek")
+        if not reply["claimed"]:
+            if reply["retired"]:
+                # A lookup through aget or a stale handle retired it, so no create could claim it.
+                await self._stop(name, record=False)
+            return None
+        handle = self._handle(name, reply["metadata"], reply["incarnation"])
+        if handle.config_digest != self._digest(session_id, agent_id, generation, values):
+            raise SandboxError("Existing generation has different compute configuration")
+        return handle
 
     async def _owned(self, handle: SandboxHandle) -> SandboxHandle:
         current = await self.aget(handle.provider_ref)
@@ -443,13 +500,15 @@ class AgentCoreSandbox(Sandbox):
                 raise SandboxError("Sandbox generation is not running; recovery requires a new generation")
             return self._invoke(provider_ref, "claim", metadata=dict(metadata), env=dict(env), lifetime=self.lifetime)
 
-    async def _stop(self, provider_ref: str) -> None:
+    async def _stop(self, provider_ref: str, *, record: bool = True) -> None:
         def stop() -> None:
             with self._session_lock(provider_ref):
                 # Recorded first: if the call is cancelled or its reply lost after
                 # AgentCore stopped the microVM, this provider must still never
-                # revive the generation.
-                self._stopped.add(provider_ref)
+                # revive the generation. A microVM never claimed has no generation
+                # to protect, so the next create may start a fresh one.
+                if record:
+                    self._stopped.add(provider_ref)
                 try:
                     self._call(
                         self._data.stop_runtime_session,

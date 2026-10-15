@@ -425,3 +425,13 @@ Coordinator review follow-up: native transcript-mirror warnings and lost pre-che
 **Result:** Passed. The background turn COMPLETED with a checkpoint on the run row; the streamed turn returned four events ending in RunCompleted with the file name from turn 1; no containers were left running and the server log had no errors.
 
 ---
+
+---
+
+### sandbox_claude_agentcore.py
+
+**Status:** PASS
+
+**Description:** The `sandbox_claude.py` agent with `sandbox=AgentCoreSandbox(runtime_arn, env={"CLAUDE_CODE_USE_BEDROCK": "1", "AWS_REGION": ...})` on the staging runtime, local Postgres, `us.anthropic.claude-sonnet-5` through the runtime's execution role, and no API key in the process environment. Two turns on a new session, each on a new generation: the coordinator looks the generation up with `afind`, creates it, restores the last checkpoint, runs the turn, captures and stops the microVM.
+
+**Result:** Passed in 40.7 s for both turns. Turn 1 wrote and ran hello.py and replied "hello"; turn 2, on a fresh microVM restored from turn 1's checkpoint, replied "hello.py". Both runs COMPLETED. 353 sandbox unit tests pass, including `afind` against a fresh, a claimed, a stopped and a retired microVM, and `peek` against the real server code.

@@ -36,7 +36,7 @@ class Data:
     """Answers like the bedrock-agentcore data plane in front of the AgentCore server."""
 
     def __init__(self):
-        self.claims, self.incarnations = {}, {}
+        self.claims, self.incarnations, self.retired = {}, {}, set()
         self.invokes, self.commands, self.stops, self.staged = [], [], [], {}
         self.conflicts = 0
         self.conflict_code = "RetryableConflictException"
@@ -58,7 +58,9 @@ class Data:
         reply = {"ok": True}
         if operation == "claim":
             existing = self.claims.get(session)
-            if existing and existing != request["metadata"]:
+            if session in self.retired:
+                reply = {"ok": False, "error": "_Refused: retired", "code": "unusable"}
+            elif existing and existing != request["metadata"]:
                 reply = {
                     "ok": False,
                     "error": "_Refused: already claimed with a different identity",
@@ -74,11 +76,15 @@ class Data:
                 }
         elif operation == "refusal":
             reply["value"] = {"refused": self.refusal_code is not None, "code": self.refusal_code}
-        elif operation == "describe":
+        elif operation in ("describe", "peek"):
             claim = self.claims.get(session)
             reply["value"] = {"claimed": claim is not None}
             if claim:
                 reply["value"].update(metadata=claim, incarnation=self.incarnations[session])
+            elif operation == "describe":
+                self.retired.add(session)
+            else:
+                reply["value"]["retired"] = session in self.retired
         else:
             claim = self.claims.get(session)
             expected = claim and {"config": claim["config"], "incarnation": self.incarnations[session]}
@@ -106,6 +112,7 @@ class Data:
 
     def stop_runtime_session(self, **kwargs):
         self.stops.append(kwargs["runtimeSessionId"])
+        self.retired.discard(kwargs["runtimeSessionId"])
         self.claims.pop(kwargs["runtimeSessionId"], None)
         self.incarnations.pop(kwargs["runtimeSessionId"], None)
 
@@ -172,6 +179,39 @@ async def test_unclaimed_replacement_compute_is_released_and_reported_gone():
     calls = len(value._data.invokes)
     assert await value.aget(reference) is None
     assert len(value._data.invokes) == calls
+
+
+@pytest.mark.asyncio
+async def test_find_returns_the_claimed_generation_and_refuses_changed_configuration():
+    value = sandbox()
+    handle = await value.acreate("s", agent_id="a", env={"MODEL": "x"})
+    assert await value.afind("s", agent_id="a", env={"MODEL": "x"}) == handle
+    with pytest.raises(SandboxError, match="different compute configuration"):
+        await value.afind("s", agent_id="a", env={"MODEL": "y"})
+    await value.astop(handle)
+    calls = len(value._data.invokes)
+    assert await value.afind("s", agent_id="a", env={"MODEL": "x"}) is None
+    assert len(value._data.invokes) == calls
+
+
+@pytest.mark.asyncio
+async def test_find_leaves_a_fresh_microvm_for_the_create_that_follows():
+    value = sandbox()
+    assert await value.afind("s") is None
+    handle = await value.acreate("s")
+    assert value._data.stops == []
+    sessions = {call["runtimeSessionId"] for call in value._data.invokes}
+    assert sessions == {handle.provider_ref}
+
+
+@pytest.mark.asyncio
+async def test_find_replaces_a_retired_microvm_so_the_generation_can_still_be_created():
+    value = sandbox()
+    name = value._name("s", None, 1)
+    value._data.retired.add(name)
+    assert await value.afind("s") is None
+    assert value._data.stops == [name]
+    assert (await value.acreate("s")).provider_ref == name
 
 
 @pytest.mark.asyncio
@@ -626,6 +666,18 @@ def test_an_unclaimed_microvm_that_answers_a_handle_is_retired(computer):
     # A create racing the provider's stop of this replacement cannot claim it.
     with pytest.raises(PermissionError, match="retired"):
         server._claim({"metadata": {"config": "c"}, "env": {}, "lifetime": 600})
+
+
+def test_peek_leaves_an_unclaimed_microvm_claimable(computer):
+    assert server._peek({}) == {"claimed": False, "retired": False}
+    claim = server._claim({"metadata": {"config": "c"}, "env": {}, "lifetime": 600})
+    assert server._peek({}) == {"claimed": True, "metadata": {"config": "c"}, "incarnation": claim["incarnation"]}
+
+
+def test_peek_reports_a_retired_microvm(computer):
+    with pytest.raises(PermissionError, match="Unclaimed"):
+        server._require({"expect": {"config": "c", "incarnation": "i"}})
+    assert server._peek({}) == {"claimed": False, "retired": True}
 
 
 def test_capture_rejects_data_after_the_end_of_the_archive(computer, tmp_path):

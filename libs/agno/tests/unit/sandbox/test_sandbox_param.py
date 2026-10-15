@@ -218,6 +218,20 @@ def test_docker_sandbox_carries_harness_settings():
         DockerSandbox("agno-sandbox:claude", execution_timeout=0)
 
 
+def test_agentcore_sandbox_carries_harness_settings():
+    pytest.importorskip("boto3")
+    from agno.sandbox.agentcore import AgentCoreSandbox
+
+    arn = "arn:aws:bedrock-agentcore:us-east-1:123456789012:runtime/agno_sandbox-abc123"
+    store = MagicMock()
+    sandbox = AgentCoreSandbox(arn, checkpoints=store, env={"A": "1"}, execution_timeout=60)
+    assert (sandbox.checkpoints, sandbox.env, sandbox.execution_timeout) == (store, {"A": "1"}, 60)
+    assert type(sandbox.checkpoint_transfer(store)).__name__ == "AgentCoreCheckpointTransfer"
+    assert ClaudeAgent(id="coder", sandbox=sandbox).sandbox is sandbox
+    with pytest.raises(ValueError, match="shorter than the lifetime"):
+        AgentCoreSandbox(arn, lifetime=600, execution_timeout=600)
+
+
 @pytest.mark.asyncio
 async def test_unsupported_run_options_are_rejected(coordinator, sandbox):
     agent = ClaudeAgent(id="coder", sandbox=sandbox)

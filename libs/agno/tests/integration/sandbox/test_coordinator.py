@@ -760,3 +760,128 @@ async def test_sync_stream_yields_events_then_the_committed_output(system):
     assert isinstance(values[-1], RunOutput) and values[-1].status == RunStatus.completed
     assert any(isinstance(value, RunCompletedEvent) for value in values[:-1])
     assert await recovered_effects(coordinator, root) == ["first"]
+
+
+async def restored_workspace(coordinator, tmp_path):
+    record = (await binding(coordinator))["record"]
+    target = tmp_path / uuid4().hex
+    await coordinator.transfer.store.arestore(CheckpointRef(**record["checkpoint"]), target)
+    return target / "workspace"
+
+
+async def test_attachments_are_staged_checkpointed_and_restored_on_new_compute(system):
+    from agno.media import File, Image
+
+    coordinator, spec, root = system
+    first_bytes, second_bytes = b"first attachment\n", b"second attachment, different bytes\n"
+    first = await run(
+        coordinator,
+        spec,
+        files=[File(content=first_bytes, filename="same.txt")],
+        images=[Image(content=b"\x89PNG-fixture", format="png")],
+    )
+    assert first.status == RunStatus.completed
+    assert [file.get_content_bytes() for file in first.input.files] == [first_bytes]
+    workspace = await restored_workspace(coordinator, root)
+    assert (workspace / ".agno/uploads/first/same.txt").read_bytes() == first_bytes
+    # Files keep their sanitised name; the harness adapter numbers images from 1 as image-<n>.<format>.
+    assert sorted(path.name for path in (workspace / ".agno/uploads/first").iterdir()) == ["image-1.png", "same.txt"]
+    assert (workspace / ".agno/uploads/first/image-1.png").read_bytes() == b"\x89PNG-fixture"
+    previous = (await binding(coordinator))["record"]
+    second = await run(coordinator, spec, "second", files=[File(content=second_bytes, filename="same.txt")])
+    assert second.status == RunStatus.completed
+    assert (await binding(coordinator))["record"]["generation"] > previous["generation"]
+    third = await run(coordinator, spec, "third")
+    assert third.status == RunStatus.completed
+    workspace = await restored_workspace(coordinator, root)
+    assert (workspace / ".agno/uploads/first/same.txt").read_bytes() == first_bytes
+    assert (workspace / ".agno/uploads/second/same.txt").read_bytes() == second_bytes
+    assert not (workspace / ".agno/uploads/third").exists()
+    assert await recovered_effects(coordinator, root) == ["first", "second", "third"]
+    again = await run(coordinator, spec, "second", files=[File(content=second_bytes, filename="same.txt")])
+    assert again.to_dict() == second.to_dict()
+    assert (await restored_workspace(coordinator, root) / ".agno/uploads/second/same.txt").read_bytes() == second_bytes
+
+
+async def test_rejected_attachments_allocate_no_compute_and_keep_the_last_checkpoint(system):
+    from agno.media import File
+
+    coordinator, spec, root = system
+    assert (await run(coordinator, spec)).status == RunStatus.completed
+    before = (await binding(coordinator))["record"]
+    with pytest.raises(ValueError):
+        await run(coordinator, spec, "second", files=[File(url="https://example.com/a.txt")])
+    assert (await binding(coordinator))["record"] == before
+    assert await recovered_effects(coordinator, root) == ["first"]
+
+
+async def test_failed_staging_ends_the_turn_in_error_and_keeps_the_previous_checkpoint(system):
+    from agno.media import File
+
+    coordinator, spec, root = system
+    assert (await run(coordinator, spec)).status == RunStatus.completed
+    before = (await binding(coordinator))["record"]
+    # A run id the upload folder cannot be named after: the runtime refuses to stage it.
+    failed = await run(coordinator, spec, "bad:id", files=[File(content=b"abc", filename="a.txt")])
+    assert failed.status == RunStatus.error
+    after = (await binding(coordinator))["record"]
+    assert after["checkpoint"] == before["checkpoint"] and after["checkpoint_identity"] == before["checkpoint_identity"]
+    assert await recovered_effects(coordinator, root) == ["first"]
+    assert not list((await restored_workspace(coordinator, root)).glob(".agno/uploads/*"))
+
+
+async def test_sync_stream_carries_attachments_into_the_checkpoint(system):
+    from agno.media import File
+
+    coordinator, spec, root = system
+    if isinstance(coordinator.store.db, AsyncPostgresDb):
+        pytest.skip("stream() is the synchronous variant; AsyncPostgresDb uses astream")
+    values = await asyncio.to_thread(
+        lambda: list(
+            coordinator.stream(
+                spec.session_id,
+                agent_id=spec.agent_id,
+                env=spec.env,
+                run_id="first",
+                input="first",
+                sdk="fixture",
+                user_id="user",
+                files=[File(content=b"streamed bytes", filename="s.txt")],
+            )
+        )
+    )
+    assert isinstance(values[-1], RunOutput) and values[-1].status == RunStatus.completed
+    assert (await restored_workspace(coordinator, root) / ".agno/uploads/first/s.txt").read_bytes() == b"streamed bytes"
+
+
+async def test_cancelling_a_running_attachment_turn_discards_its_files_and_keeps_the_previous_checkpoint(
+    system, monkeypatch
+):
+    from agno.media import File
+    from agno.run import cancel
+
+    coordinator, spec, root = system
+    await run(coordinator, spec)
+    before = (await binding(coordinator))["record"]
+    started = asyncio.Event()
+    start = coordinator.client.astart
+
+    async def astart(*args, **kwargs):
+        result = await start(*args, **kwargs)
+        started.set()
+        return result
+
+    async def cancelled(run_id):
+        return run_id == "second" and started.is_set()
+
+    monkeypatch.setattr(coordinator.client, "astart", astart)
+    monkeypatch.setattr(cancel, "ais_cancelled", cancelled)
+    result = await run(
+        coordinator, spec, "second", files=[File(content=b"abc", filename="a.txt")], config={"delay": 30}
+    )
+    assert started.is_set(), "the turn was cancelled before it reached the runtime"
+    assert result.status == RunStatus.cancelled
+    after = (await binding(coordinator))["record"]
+    assert after["checkpoint"] == before["checkpoint"] and after["phase"] == "idle"
+    assert await recovered_effects(coordinator, root) == ["first"]
+    assert not list((await restored_workspace(coordinator, root)).glob(".agno/uploads/*"))

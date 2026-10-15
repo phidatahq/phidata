@@ -1870,7 +1870,28 @@ class AgentOSClient:
                 runs.append(RunSchema.model_validate(run))
         return runs
 
-    async def get_session_run_previews(
+    @staticmethod
+    def _session_run_preview_params(
+        session_type: Optional[SessionType],
+        user_id: Optional[str],
+        created_after: Optional[int],
+        created_before: Optional[int],
+        status: Optional[List[str]],
+        db_id: Optional[str],
+        table: Optional[str],
+    ) -> Dict[str, Any]:
+        params: Dict[str, Any] = {
+            "type": session_type.value if session_type else None,
+            "user_id": user_id,
+            "created_after": created_after,
+            "created_before": created_before,
+            "status": status,
+            "db_id": db_id,
+            "table": table,
+        }
+        return {k: v for k, v in params.items() if v is not None}
+
+    def get_session_run_previews(
         self,
         session_id: str,
         session_type: Optional[SessionType] = None,
@@ -1902,17 +1923,28 @@ class AgentOSClient:
         Raises:
             HTTPStatusError: On HTTP errors
         """
-        params: Dict[str, Any] = {
-            "type": session_type.value if session_type else None,
-            "user_id": user_id,
-            "created_after": created_after,
-            "created_before": created_before,
-            "status": status,
-            "db_id": db_id,
-            "table": table,
-        }
-        params = {k: v for k, v in params.items() if v is not None}
+        params = self._session_run_preview_params(
+            session_type, user_id, created_after, created_before, status, db_id, table
+        )
+        data = self._get(f"/sessions/{session_id}/run-previews", params=params, headers=headers)
+        return [SessionRunPreviewSchema.model_validate(run) for run in data]
 
+    async def aget_session_run_previews(
+        self,
+        session_id: str,
+        session_type: Optional[SessionType] = None,
+        user_id: Optional[str] = None,
+        created_after: Optional[int] = None,
+        created_before: Optional[int] = None,
+        status: Optional[List[str]] = None,
+        db_id: Optional[str] = None,
+        table: Optional[str] = None,
+        headers: Optional[Dict[str, str]] = None,
+    ) -> List[SessionRunPreviewSchema]:
+        """Async variant of get_session_run_previews."""
+        params = self._session_run_preview_params(
+            session_type, user_id, created_after, created_before, status, db_id, table
+        )
         data = await self._aget(f"/sessions/{session_id}/run-previews", params=params, headers=headers)
         return [SessionRunPreviewSchema.model_validate(run) for run in data]
 

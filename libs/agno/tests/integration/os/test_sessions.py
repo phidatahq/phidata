@@ -1228,8 +1228,10 @@ def os_client(shared_db, monkeypatch):
     from agno.client.os import AgentOSClient
 
     app = AgentOS(agents=[Agent(name="test-agent", id="test-agent-id", db=shared_db)]).get_app()
-    http = httpx.AsyncClient(transport=httpx.ASGITransport(app=app))
-    monkeypatch.setattr(client_module, "get_default_async_client", lambda: http)
+    async_http = httpx.AsyncClient(transport=httpx.ASGITransport(app=app))
+    sync_http = TestClient(app)
+    monkeypatch.setattr(client_module, "get_default_async_client", lambda: async_http)
+    monkeypatch.setattr(client_module, "get_default_sync_client", lambda: sync_http)
     return AgentOSClient(base_url="http://agentos")
 
 
@@ -1238,10 +1240,19 @@ async def test_client_get_session_runs_status_filter(mixed_status_session, os_cl
     assert {run.run_id for run in runs} == {"run-q", "run-r"}
 
 
-async def test_client_get_session_run_previews(mixed_status_session, os_client):
+def _assert_completed_and_error_previews(previews):
     from agno.os.schema import SessionRunPreviewSchema
 
-    previews = await os_client.get_session_run_previews(mixed_status_session.session_id, status=["COMPLETED", "ERROR"])
     assert {p.run_id for p in previews} == {"run-c", "run-e"}
     assert all(isinstance(p, SessionRunPreviewSchema) for p in previews)
     assert all(len(p.content_preview or "") <= 280 for p in previews)
+
+
+def test_client_get_session_run_previews(mixed_status_session, os_client):
+    previews = os_client.get_session_run_previews(mixed_status_session.session_id, status=["COMPLETED", "ERROR"])
+    _assert_completed_and_error_previews(previews)
+
+
+async def test_client_aget_session_run_previews(mixed_status_session, os_client):
+    previews = await os_client.aget_session_run_previews(mixed_status_session.session_id, status=["COMPLETED", "ERROR"])
+    _assert_completed_and_error_previews(previews)

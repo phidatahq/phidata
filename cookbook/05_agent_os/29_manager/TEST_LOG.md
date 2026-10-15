@@ -661,3 +661,38 @@ Required format and validation scripts passed, including mypy for 1,127 framewor
 files and 21 CLI files, using the existing isolated validation dependencies.
 Unrelated baseline formatter changes were removed. No live model, hosted-docs,
 PostgreSQL or frontend-browser validation is claimed.
+
+
+## Optional manager charts with offloaded source data, 2026-10-15
+
+### manager_charts.py
+
+**Status:** PASS (initialization with the pending chart dependency)
+
+**Description:** Loaded the actual cookbook against ChartTools from PR #8295,
+head `fd54deebc249537d1f560f684188f3449b602ef3`, in a temporary directory. The
+chart toolkit is attached only to OS Manager. Offloading remains enabled on the
+manager and both members. No model calls were made.
+
+**Result:** Cookbook initialization passed. This example requires ChartTools to
+be installed; it does not run on the current branch without that pending module.
+Frontend chart rendering and live-model behavior remain unverified.
+
+### Delegation, offload readback, chart response and replay
+
+**Status:** PASS
+
+**Description:** Four scripted integration cases exercise sync/async and
+streaming/nonstreaming runs. Platform Manager's large JSON report is offloaded;
+OS Manager receives its result id, searches beyond the preview, reads only the
+chart rows, calls the real chart toolkit and returns its block unchanged. The
+checks compare original numeric values (including zero), final output, streamed
+content and persisted session replay. No full report enters either model's
+messages; the full source remains readable in the result store.
+
+**Result:** Against the pinned chart dependency: **31 passed** (27 toolkit tests
+and 4 manager integration cases). The current branch's manager suite passes
+**161 tests**, with the four chart cases explicitly skipped until ChartTools
+lands. The dependency was loaded from a temporary directory and was not copied
+into this PR. Required format and validation scripts passed using the existing
+isolated validation dependencies (mypy: 1,127 framework and 21 CLI files).

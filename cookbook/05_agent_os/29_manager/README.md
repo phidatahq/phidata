@@ -263,6 +263,38 @@ remain separate permissions.
 The resources example shares notebook files across users, while learning keeps
 user memory separate. It does not configure a knowledge base.
 
+## Charts and other manager tools
+
+`OSManager(tools=[...])` accepts additional tools for the public manager team.
+Platform Manager retrieves the evidence; OS Manager uses its presentation tools
+when composing the final answer. The tools stay out of its members and the build
+palette.
+
+For charts, use `manager_charts.py` after installing a version containing
+[ChartTools (PR #8295)](https://github.com/agno-agi/agno/pull/8295), which is pending
+merge:
+
+```python
+from agno.tools.chart import ChartTools
+
+manager_config = OSManager(
+    model=OpenAIResponses(id="gpt-5.6-luna"),
+    tools=[ChartTools()],
+    offload_tool_results=True,
+)
+```
+
+Pass this config to `AgentOS(db=db, manager=manager_config)`. Ask for a chart of
+recorded metrics, such as daily agent runs over seven days. An empty database
+should produce a no-data answer. Platform Manager supplies the relevant rows,
+units, date range and caveats; OS Manager calls the chart tool and includes its
+returned block unchanged in the final Markdown response.
+
+Large reports stay offloaded. OS Manager can read selected ranges using the
+stored result id shared by its member. The selected rows and compact chart still
+enter the model's context. Offloading avoids retaining the full tool-result text;
+it does not remove chart data from the final answer or from stored history.
+
 ## Large tool results
 
 OS Manager and its members offload tool results by default on SQLite and

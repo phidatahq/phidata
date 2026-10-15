@@ -28,7 +28,8 @@ class OSManager:
         name: The manager team's display name.
         model: Model for the manager and its members. Uses the registry's first
             model if omitted. A model is required in one of these places.
-        tools: Tools for the manager. These are not added to the registry.
+        tools: Extra tools for the manager team, such as charts or notebooks.
+            These are not added to its members or to the registry.
         knowledge: Knowledge base the manager can search.
         learning: Learning machine for remembering users across sessions.
         root: Directory or WorkspaceContextProvider for Platform Manager to read.

@@ -1300,3 +1300,126 @@ def test_schedule_cannot_be_retargeted_to_a_private_specialist(db, member_id):
     response = client.patch(path, json={"endpoint": f"/agents/{member_id}/runs/"})
     assert response.status_code == 409, response.text
     assert client.get(path).json()["endpoint"] == f"/teams/{MANAGER_TEAM_ID}/runs"
+
+
+@pytest.mark.parametrize("async_mode", [False, True])
+@pytest.mark.parametrize("stream", [False, True])
+def test_manager_charts_from_offloaded_member_data(db, async_mode, stream):
+    """The optional chart toolkit consumes selected data, while the full report stays offloaded."""
+    import re
+
+    ChartTools = pytest.importorskip("agno.tools.chart", reason="ChartTools PR #8295 has not landed").ChartTools
+    rows = [{"date": "2026-10-01", "runs": 3}, {"date": "2026-10-02", "runs": 0}, {"date": "2026-10-03", "runs": 8}]
+    payload = json.dumps({"details": ["detail " + "x" * 80] * 400, "chart_data": rows}, indent=2)
+
+    def fetch_metrics_report() -> str:
+        """Return the recorded fixture metrics."""
+        return payload
+
+    class ChartFlowModel(OfflineModel):
+        def __init__(self, member=False):
+            super().__init__()
+            self.member = member
+            self.calls = 0
+            self.result_id = None
+
+        def invoke(self, messages, *args, **kwargs):
+            self.calls += 1
+            assert all(payload not in str(message.content) for message in messages)
+            results = [message.content for message in messages if message.role == "tool"]
+            tool_args = {}
+            if self.member:
+                if self.calls == 1:
+                    tool_name = "fetch_metrics_report"
+                else:
+                    assert results[-1].startswith('<result id="res_')
+                    assert '"chart_data"' not in results[-1]  # Beyond the preview.
+                    result_id = re.search(r"res_[a-z0-9]+", results[-1]).group()
+                    return ModelResponse(
+                        role="assistant",
+                        content=f"Metrics: {result_id}. Search for chart_data. Units: runs; Oct 1-3, 2026.",
+                        response_usage=MessageMetrics(),
+                    )
+            elif self.calls == 1:
+                tool_name = "delegate_task_to_member"
+                tool_args = {"member_id": OPERATOR_ID, "task": "Get the recorded daily runs for a chart."}
+            elif self.calls == 2:
+                self.result_id = re.search(r"res_[a-z0-9]+", results[-1]).group()
+                tool_name = "search_result"
+                tool_args = {"result_id": self.result_id, "pattern": '"chart_data"'}
+            elif self.calls == 3:
+                line = int(re.search(r'(\d+):\s+"chart_data"', results[-1]).group(1))
+                assert line > 400
+                tool_name = "read_result"
+                tool_args = {"result_id": self.result_id, "start_line": line}
+            elif self.calls == 4:
+                selected = json.loads("{" + results[-1].split("\n", 1)[1])["chart_data"]
+                assert selected == rows
+                tool_name = "create_chart"
+                tool_args = {
+                    "chart_type": "line",
+                    "data": selected,
+                    "config": {"runs": "Agent runs"},
+                    "x_key": "date",
+                    "title": "Agent runs, October 1-3, 2026",
+                }
+            else:
+                assert results[-1].startswith("```chart\n")
+                return ModelResponse(role="assistant", content=results[-1], response_usage=MessageMetrics())
+            return ModelResponse(
+                role="assistant",
+                tool_calls=[
+                    {
+                        "id": f"chart-step-{self.calls}",
+                        "type": "function",
+                        "function": {"name": tool_name, "arguments": json.dumps(tool_args)},
+                    }
+                ],
+                response_usage=MessageMetrics(),
+            )
+
+        async def ainvoke(self, *args, **kwargs):
+            return self.invoke(*args, **kwargs)
+
+        def invoke_stream(self, *args, **kwargs):
+            yield self.invoke(*args, **kwargs)
+
+        async def ainvoke_stream(self, *args, **kwargs):
+            yield self.invoke(*args, **kwargs)
+
+    charts = ChartTools()
+    os = AgentOS(db=db, manager=OSManager(model=OfflineModel(), tools=[charts], access_docs=False), telemetry=False)
+    app = os.get_app()
+    os.manager.model = ChartFlowModel()
+    member = manager_member(os, OPERATOR_ID)
+    member.model = ChartFlowModel(member=True)
+    member.tools.append(fetch_metrics_report)
+    assert charts in os.manager.tools and charts not in os.registry.tools
+    assert all(charts not in child.tools and child.offload_tool_results is True for child in os.manager.members)
+    assert os.manager.offload_tool_results is True
+    args = dict(session_id="charts", user_id="alice", stream=stream)
+    if async_mode:
+
+        async def run():
+            if stream:
+                return [event async for event in os.manager.arun("Chart recorded daily runs", **args)]
+            return await os.manager.arun("Chart recorded daily runs", **args)
+
+        output = asyncio.run(run())
+    elif stream:
+        output = list(os.manager.run("Chart recorded daily runs", **args))
+    else:
+        output = os.manager.run("Chart recorded daily runs", **args)
+
+    replay = TestClient(app).get("/sessions/charts/runs")
+    assert replay.status_code == 200
+    lead = next(run for run in replay.json() if run.get("team_id") == MANAGER_TEAM_ID)
+    chart_result = next(tool["result"] for tool in lead["tools"] if tool["tool_name"] == "create_chart")
+    assert lead["content"] == chart_result
+    if stream:
+        assert "".join(event.content or "" for event in output if event.event == "TeamRunContent") == chart_result
+    else:
+        assert output.content == chart_result
+    assert json.loads(chart_result.removeprefix("```chart\n").removesuffix("\n```"))["data"] == rows
+    stored = os.manager._result_store.read(os.manager.model.result_id, 1, 2)
+    assert '"details"' in stored.text  # The source remains readable, outside the chart's compact rows.

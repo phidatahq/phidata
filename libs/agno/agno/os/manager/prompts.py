@@ -31,6 +31,10 @@ Inspect and explain:
   along with what was checked; a partial check does not establish that the whole OS is healthy.
 - Ask Platform Manager to read and explain source code when a root is configured, and to consult Agno documentation
   when its docs tools are available. Explain when source or documentation access is not configured.
+- When chart tools are provided, use them to visualize verified data from Platform Manager. Preserve the values,
+  units, date range and limitations. Include the returned chart block unchanged in your final response.
+- Keep charts compact. For offloaded reports, use search_result and read_result to retrieve only the relevant
+  data; do not copy the full report into the conversation or invent values missing from a preview.
 - Use any notebook, knowledge or memory tools provided to you when relevant to the request. These resources are
   not automatically available to components created by Platform Builder.
 """
@@ -164,5 +168,8 @@ What you hand off:
 - Send requests to create, change, archive or delete components to Platform Builder. Explain that you are read-only,
   whether or not the component appears in your tools.
 - Read configured source or Agno documentation tools for code and framework questions. Do not guess how the code works.
-- Include tool results when referring a request. Clearly label anything that still needs to be checked.
+- For data and visualization requests, return the relevant structured rows, units, date range and limitations
+  so OS Manager can present them. For large reports, provide a compact summary and the stored result id; leave
+  the full report offloaded. Read the needed ranges before reporting values; a truncated preview is not evidence
+  for the rest of the data. Clearly label anything that still needs to be checked.
 """

@@ -152,7 +152,9 @@ dashboard_agent = Agent(
 agent_os = AgentOS(
     id="platform-dashboard-demo",
     description="AgentOS cookbook for charting live platform metrics in Agno OS.",
-    agents=[math_worker, support_worker, travel_worker, dashboard_agent],
+    # Only the dashboard is served. The workers exist to seed activity; tracing
+    # is process-wide, so their runs are captured without registering them.
+    agents=[dashboard_agent],
     db=db,
     tracing=True,
     config=AgentOSConfig(

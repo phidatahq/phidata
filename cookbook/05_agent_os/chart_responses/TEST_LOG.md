@@ -45,7 +45,9 @@ seeding, then ran the dashboard agent with each of the three quick prompts and
 checked tool order and chart data.
 
 **Result:** Seeding took about 44 seconds. The metrics payload showed seven
-daily rows, three models, and three agents. Each prompt fetched data before
+daily rows, three models, and three agents. After removing the workers from
+the served agents list, a fresh reseed still recorded traces for all three
+workers and six tools, confirming tracing does not depend on registration. Each prompt fetched data before
 charting:
 
 - "Chart token usage by day and the model mix." produced a 7-row line chart of

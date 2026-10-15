@@ -67,7 +67,9 @@ runs and latency per agent, and tool usage. The instructions require a data
 fetch before every chart and map data shapes to chart types, so the model never
 invents numbers.
 
-Seeding is skipped when the database already has sessions. Delete
+Only the dashboard agent is served. The workers are plain agents used for
+seeding; tracing is process-wide, so their runs are recorded without being
+registered. Seeding is skipped when the database already has sessions. Delete
 `tmp/agentos_platform_dashboard.db` to reseed.
 
 Try: "Chart token usage by day and the model mix."

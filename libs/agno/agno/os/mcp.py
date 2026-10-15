@@ -2426,7 +2426,12 @@ def build_mcp_server(
             # Exclude the ids this OS serves - what the code half above
             # renders - not the registry's, which is a superset carrying
             # rehydration context this listing never shows.
-            agent_exclude = {aid for a in os.agents or [] if (aid := getattr(a, "id", None)) is not None} or None
+            from agno.registry._reserved import BUILDER_ID, OPERATOR_ID
+
+            agent_exclude = {aid for a in os.agents or [] if (aid := getattr(a, "id", None)) is not None} | {
+                BUILDER_ID,
+                OPERATOR_ID,
+            }
             for a in _accessible(
                 get_agents(db=os.db, registry=registry, exclude_component_ids=agent_exclude, user_id=scoped_user_id),
                 "agents",

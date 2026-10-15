@@ -133,8 +133,12 @@ composition are fixed. Its members are:
 - **Platform Manager** (`platform-manager-internal`): checks activity, runs diagnostics,
   reads source when `root` is set, and queries Agno documentation by default.
 
-The team and its members use the normal UI, REST and MCP routes. Ordinary run
-grants, including `teams:os-manager-internal:run`, let a user talk to the manager. Access
+Only OS Manager is exposed in config, discovery, REST and MCP. Platform Builder
+and Platform Manager are internal members: they are absent from `/config`,
+`/agents` and the public team detail, and their standalone agent routes return
+404. OS Manager delegates to them; their child runs and tool results remain
+available inside its session for diagnostics and charts. Schedule the manager
+team, not either specialist. Ordinary run grants, including `teams:os-manager-internal:run`, let a user talk to the manager. Access
 to the manager does not grant its tools additional permissions:
 
 - Running another component requires its agent, team or workflow `run` permission.
@@ -197,14 +201,19 @@ Use `OSManager(model=model, access_docs=False)` to disable docs access in offlin
 or restricted-network deployments. The docs tools remain private to Platform
 Manager and are not added to the build palette.
 
-Agent and team responses expose their built-in identity through existing metadata:
+The public team response exposes its built-in identity through existing metadata:
 
 ```json
 {"metadata": {"_agno": {"internal": true, "id": "os-manager-internal"}}}
 ```
 
-Each member carries its own reserved ID in the same place. This is a UI marker,
+Internal member runs carry their own reserved ID in the same place. This is a UI marker,
 not an authorization grant. Ordinary application metadata is unchanged.
+
+Clients that previously called a specialist directly should use
+`POST /teams/os-manager-internal/runs` or MCP `run_team` with that team ID.
+Existing direct-specialist schedules must be repointed to OS Manager.
+Ordinary application agents and teams keep their existing routes.
 
 This unreleased API replaces `ManagerConfig` with `OSManager`, `workspace` with
 `root`, `docs` with `access_docs` (now enabled by default), and the earlier manager

@@ -1568,7 +1568,11 @@ def get_agent_by_id(
         ComponentRehydrationError: If strict and a db-backed agent's references
             cannot be resolved
     """
-    if agent_id is None:
+    from agno.registry._reserved import BUILDER_ID, OPERATOR_ID
+
+    # These members are callable only through their owning manager team. This also
+    # prevents old catalog rows from restoring a standalone public endpoint.
+    if agent_id is None or agent_id in (BUILDER_ID, OPERATOR_ID):
         return None
 
     # Try to get the agent from the list of agents
@@ -1629,7 +1633,11 @@ async def get_agent_by_id_async(
     published_only: bool = True,
 ) -> Optional[Union[Agent, RemoteAgent, AgentProtocol]]:
     """Async variant of get_agent_by_id that supports async factories."""
-    if agent_id is None:
+    from agno.registry._reserved import BUILDER_ID, OPERATOR_ID
+
+    # These members are callable only through their owning manager team. This also
+    # prevents old catalog rows from restoring a standalone public endpoint.
+    if agent_id is None or agent_id in (BUILDER_ID, OPERATOR_ID):
         return None
 
     if agents:

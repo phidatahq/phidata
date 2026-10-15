@@ -540,3 +540,52 @@ and 21 CLI files. Tests use disposable data and scripted models; no live model,
 PostgreSQL or hosted docs requests were made.
 
 ---
+
+
+## Private manager specialists, 2026-10-15
+
+### Public discovery, execution and session replay
+
+**Status:** PASS
+
+**Description:** Added 11 cases covering config and REST/MCP discovery, direct
+specialist run and continuation refusal, resync, legacy catalog rows with the
+manager enabled and disabled, schedule retargeting, and streaming/nonstreaming
+delegation with structured reports retained in session history. Updated existing
+permission cases to exercise private members through OS Manager.
+
+**Result:** The focused manager and permission suite passed **307 tests**. Two
+additional HTTP session-replay checks passed after strengthening the assertions.
+Tests preserve ordinary StudioTools behavior and exercise allowed and denied
+manager actions under JWTs, managed roles and service accounts. Direct specialist
+requests are refused even for admins. No live model, hosted docs or PostgreSQL
+calls were made.
+
+### check_manager_permissions.py
+
+**Status:** PASS
+
+**Description:** The actual cookbook's seven HTTP checks and session-ownership
+regression ran as part of the manager suite with temporary SQLite data and docs
+offline.
+
+**Result:** OS Manager remains discoverable and runnable with its existing
+permissions; invalid callers and access to another user's session remain refused.
+The README now documents the public-team-only contract and migration of direct
+specialist calls and schedules.
+
+### Repository validation
+
+**Status:** PASS
+
+**Description:** Ran the required format and validation scripts using the
+development environment with isolated validation dependencies.
+
+**Result:** Formatting, Ruff, cookbook patterns, and mypy passed (1,126 framework
+files and 21 CLI files). Unrelated baseline formatter changes were removed.
+
+**Broad affected suite:** 6,606 passed, 24 skipped. This covers AgentOS,
+Studio/runner, scheduler, workspace, operational tools, run/registry, and
+authorization/service-account integration tests. Three unrelated Telegram test
+files were excluded because their optional dependency is unavailable. The broad
+count overlaps the focused suite; counts are not additive.

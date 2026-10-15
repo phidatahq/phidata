@@ -1,4 +1,4 @@
-"""The manager is served as ordinary components and never enters the build palette."""
+"""Only the manager team is public; its private members never enter the build palette."""
 
 import asyncio
 import json
@@ -80,7 +80,7 @@ def test_manager_execution_accepts_ordinary_run_grants(db, workspace, identity, 
     family = "teams" if target == MANAGER_TEAM_ID else "agents"
     client = TestClient(os.get_app())
     response = client.post(f"/{family}/{target}/runs", headers=headers, data={"message": "hello", "stream": "false"})
-    assert response.status_code == 200, response.text
+    assert response.status_code == (200 if target == MANAGER_TEAM_ID else 404), response.text
     ordinary = client.post("/agents/ordinary/runs", headers=headers, data={"message": "hello", "stream": "false"})
     assert ordinary.status_code == 200, ordinary.text
     scheduled = client.post(
@@ -93,7 +93,7 @@ def test_manager_execution_accepts_ordinary_run_grants(db, workspace, identity, 
             "payload": {"message": "hello"},
         },
     )
-    assert scheduled.status_code == 201, scheduled.text
+    assert scheduled.status_code == (201 if target == MANAGER_TEAM_ID else 404), scheduled.text
 
 
 def test_manager_cannot_dispatch_for_a_caller_with_only_its_run_scope(db):
@@ -210,11 +210,12 @@ def workspace(tmp_path):
     return root
 
 
-def test_manager_true_uses_the_registry_model_and_always_serves_three_components(db, workspace):
+def test_manager_true_uses_the_registry_model_and_serves_only_the_team(db, workspace):
     model = OfflineModel()
     os = AgentOS(db=db, registry=Registry(models=[model]), manager=True, telemetry=False)
     # Source access does not change the two-member composition.
-    assert [a.id for a in os.agents] == [BUILDER_ID, OPERATOR_ID]
+    assert os.agents == []
+    assert [a.id for a in os.manager.members] == [BUILDER_ID, OPERATOR_ID]
     assert [t.id for t in os.teams] == [MANAGER_TEAM_ID]
     assert os.manager is not None and os.manager.name == MANAGER_TEAM_NAME == "OS Manager"
     assert os.manager.id == MANAGER_TEAM_ID == "os-manager-internal"
@@ -222,7 +223,8 @@ def test_manager_true_uses_the_registry_model_and_always_serves_three_components
     assert not any("read_file" in getattr(t, "functions", {}) for t in manager_member(os, OPERATOR_ID).tools)
 
     os = AgentOS(db=db, manager=OSManager(model=model, root=workspace), telemetry=False)
-    assert [a.id for a in os.agents] == [BUILDER_ID, OPERATOR_ID]
+    assert os.agents == []
+    assert [a.id for a in os.manager.members] == [BUILDER_ID, OPERATOR_ID]
     assert manager_member(os, OPERATOR_ID) is not None
 
 
@@ -297,10 +299,16 @@ def test_operator_reads_the_workspace_but_not_env_files(db, workspace):
 
 
 def test_manifest_defaults_yield_to_the_application_config(db):
-    config = AgentOSConfig(manifest={MANAGER_TEAM_ID: Manifest(description="Our lead", quick_prompts=["Hi"])})
+    config = AgentOSConfig(
+        manifest={
+            MANAGER_TEAM_ID: Manifest(description="Our lead", quick_prompts=["Hi"]),
+            BUILDER_ID: Manifest(description="Old builder card"),
+            OPERATOR_ID: Manifest(description="Old operator card"),
+        }
+    )
     os = AgentOS(db=db, manager=OSManager(model=OfflineModel()), config=config, telemetry=False)
     assert os.config.manifest[MANAGER_TEAM_ID].description == "Our lead"
-    assert os.config.manifest[BUILDER_ID].quick_prompts
+    assert BUILDER_ID not in os.config.manifest and OPERATOR_ID not in os.config.manifest
     assert "platform-engineer" not in os.config.manifest
 
 
@@ -309,7 +317,7 @@ def test_manager_serves_over_the_ordinary_planes(db):
     client = TestClient(os.get_app())
     config = client.get("/config").json()
     assert [t["id"] for t in config["teams"]] == [MANAGER_TEAM_ID]
-    assert {a["id"] for a in config["agents"]} == {BUILDER_ID, OPERATOR_ID}
+    assert not config.get("agents")
     assert config["manifest"][MANAGER_TEAM_ID]["quick_prompts"]
     run = client.post(f"/teams/{MANAGER_TEAM_ID}/runs", data={"message": "hello", "stream": "false"})
     assert run.status_code == 200, run.text
@@ -317,7 +325,7 @@ def test_manager_serves_over_the_ordinary_planes(db):
     sessions = client.get("/sessions?type=team").json()["data"]
     assert [s["session_id"] for s in sessions] == [run.json()["session_id"]]
     member = client.post(f"/agents/{OPERATOR_ID}/runs", data={"message": "status", "stream": "false"})
-    assert member.status_code == 200, member.text
+    assert member.status_code == 404, member.text
 
 
 def test_diagnostics_report_sync_async_and_required_env(db, monkeypatch):
@@ -379,7 +387,7 @@ def test_manager_cannot_be_composed_through_explicit_studio_lists(db, workspace,
     studio = StudioTools(
         registry=registry,
         db=db,
-        include_agents=os.agents,
+        include_agents=os.manager.members,
         include_teams=os.teams,
         # Manager exclusion is not the overridable guard for application builders.
         allowed_tools=[c.id for c in [os.manager, *os.manager.members]],
@@ -579,7 +587,7 @@ def test_manager_runner_tracks_served_components_after_list_replacement(db, use_
     assert json.loads(result)["content"] == "local answer"
     kwargs["agent_id"] = OPERATOR_ID
     result = asyncio.run(runner.arun_agent(**kwargs)) if use_async else runner.run_agent(**kwargs)
-    assert json.loads(result)["content"] == "local answer"
+    assert "error" in json.loads(result)
 
 
 @pytest.mark.parametrize("component_id", [BUILDER_ID, OPERATOR_ID, MANAGER_TEAM_ID])
@@ -648,12 +656,12 @@ def test_registry_exclusion_does_not_mutate_the_served_lists(db, workspace):
     app = os.get_app()
     foreign = Registry(agents=os.agents, teams=os.teams)
     assert foreign.agents == [] and foreign.teams == []
-    assert len(os.agents) == 2 and os.teams == [os.manager]
+    assert os.agents == [] and os.teams == [os.manager]
     os.registry.agents = os.agents
     os.registry.teams = os.teams
     os.resync(app)
     assert os.registry.agents == [] and os.registry.teams == []
-    assert len(os.agents) == 2 and os.teams == [os.manager]
+    assert os.agents == [] and os.teams == [os.manager]
 
 
 @pytest.mark.parametrize("enabled", [None, False])
@@ -947,19 +955,22 @@ def test_internal_identity_metadata_reaches_discovery_detail_and_runs(db, worksp
         rows = [*config["agents"], *config["teams"]]
         rows += client.get("/agents").json() + client.get("/teams").json()
         team = client.get(f"/teams/{MANAGER_TEAM_ID}").json()
-        rows += [team, *team["members"]]
-        rows += [client.get(f"/agents/{cid}").json() for cid in (BUILDER_ID, OPERATOR_ID)]
+        rows.append(team)
+        assert not team.get("members")
+        for cid in (BUILDER_ID, OPERATOR_ID):
+            assert client.get(f"/agents/{cid}").status_code == 404
         for row in rows:
             if row["id"] == "ordinary":
                 assert row.get("metadata") in (None, ordinary_metadata)
             else:
                 assert row["metadata"]["_agno"] == {"internal": True, "id": row["id"]}
                 assert "is_manager" not in row
-        assert {member["id"] for member in team["members"]} == {BUILDER_ID, OPERATOR_ID}
+        assert [member.id for member in os.manager.members] == [BUILDER_ID, OPERATOR_ID]
     for family, cid in (("teams", MANAGER_TEAM_ID), ("agents", OPERATOR_ID)):
         run = client.post(f"/{family}/{cid}/runs", data={"message": "hello", "stream": "false"})
-        assert run.status_code == 200
-        assert run.json()["metadata"]["_agno"] == {"internal": True, "id": cid}
+        assert run.status_code == (200 if family == "teams" else 404)
+        if family == "teams":
+            assert run.json()["metadata"]["_agno"] == {"internal": True, "id": cid}
 
 
 @pytest.mark.parametrize("declared", [False, True])
@@ -1016,7 +1027,9 @@ def test_docs_mcp_defaults_on_is_private_and_uses_os_lifecycle(db, monkeypatch, 
         assert docs[0].url == "https://docs.agno.com/mcp"
         assert os.mcp_tools == docs
     with TestClient(os.get_app()) as client:
-        assert client.post(f"/agents/{OPERATOR_ID}/runs", data={"message": "Hi", "stream": "false"}).status_code == 200
+        assert (
+            client.post(f"/teams/{MANAGER_TEAM_ID}/runs", data={"message": "Hi", "stream": "false"}).status_code == 200
+        )
     if enabled:
         assert calls[0] == ("connect", "https://docs.agno.com/mcp")
         assert calls[-1] == ("close", "https://docs.agno.com/mcp")
@@ -1080,7 +1093,8 @@ def test_docs_outage_is_nonfatal_cleans_up_and_recovers(db, monkeypatch, failure
         assert attempts == ["https://docs.agno.com/mcp"]
         assert not docs.initialized and docs.session is None
         assert docs._session_context is None
-        for target in (f"agents/{OPERATOR_ID}", f"teams/{MANAGER_TEAM_ID}"):
+        assert asyncio.run(operator.arun("Hi")).content == "local answer"
+        for target in (f"teams/{MANAGER_TEAM_ID}",):
             response = client.post(f"/{target}/runs", data={"message": "Hi", "stream": "false"})
             assert response.status_code == 200, response.text
             assert response.json()["content"] == "local answer"
@@ -1094,8 +1108,7 @@ def test_docs_outage_is_nonfatal_cleans_up_and_recovers(db, monkeypatch, failure
 
         # A later async run reconnects without restarting AgentOS.
         available = True
-        response = client.post(f"/agents/{OPERATOR_ID}/runs", data={"message": "Hi", "stream": "false"})
-        assert response.status_code == 200, response.text
+        asyncio.run(operator.arun("Hi"))
         assert "search_agno_docs" in docs.functions
         assert "search_agno_docs" in offered_tools[-1]
         os.resync(os.get_app())
@@ -1124,7 +1137,7 @@ def test_missing_optional_mcp_dependency_does_not_prevent_manager_startup(db, mo
     assert any("install agno[mcp]" in message for message in warnings)
     assert not os.mcp_tools
     with TestClient(os.get_app()) as client:
-        response = client.post(f"/agents/{OPERATOR_ID}/runs", data={"message": "Hi", "stream": "false"})
+        response = client.post(f"/teams/{MANAGER_TEAM_ID}/runs", data={"message": "Hi", "stream": "false"})
         assert response.status_code == 200, response.text
 
     attempted.clear()
@@ -1144,3 +1157,142 @@ async def test_docs_connection_does_not_swallow_cancellation(db, monkeypatch):
     os = AgentOS(db=db, manager=OSManager(model=OfflineModel()), telemetry=False)
     with pytest.raises(asyncio.CancelledError):
         await os.mcp_tools[0].connect()
+
+
+@pytest.mark.parametrize("stream", [False, True])
+def test_internal_members_delegate_and_keep_structured_reports(db, stream):
+    os = AgentOS(db=db, manager=OSManager(model=OfflineModel(), access_docs=False), telemetry=False)
+    operator = manager_member(os, OPERATOR_ID)
+    operator.model = ManagerToolModel("get_platform_metrics", {"days": 7})
+    os.manager.model = ManagerToolModel(
+        "delegate_task_to_member", {"member_id": OPERATOR_ID, "task": "Report platform usage"}
+    )
+    client = TestClient(os.get_app())
+    response = client.post(
+        f"/teams/{MANAGER_TEAM_ID}/runs",
+        data={"message": "Report usage", "session_id": "reports", "stream": str(stream).lower()},
+    )
+    assert response.status_code == 200, response.text
+    if stream:
+        events = [json.loads(line[6:]) for line in response.text.splitlines() if line.startswith("data: ")]
+        reports = [
+            event["tool"]["result"]
+            for event in events
+            if event.get("agent_id") == OPERATOR_ID
+            and event.get("event") == "ToolCallCompleted"
+            and event.get("tool", {}).get("tool_name") == "get_platform_metrics"
+        ]
+        assert reports and json.loads(reports[0])["window_days"] == 7
+    else:
+        assert response.json()["content"] == "local answer"
+    # Persisted child runs remain available inside the manager's session for replay/diagnostics.
+    from agno.db.base import SessionType
+
+    session = db.get_session("reports", session_type=SessionType.TEAM)
+    child = next(run for run in session.runs if getattr(run, "agent_id", None) == OPERATOR_ID)
+    assert child.agent_id == OPERATOR_ID
+    assert json.loads(child.tools[0].result)["window_days"] == 7
+    assert operator.store_events
+    replay = client.get("/sessions/reports/runs")
+    assert replay.status_code == 200, replay.text
+    child_data = next(run for run in replay.json() if run.get("agent_id") == OPERATOR_ID)
+    assert json.loads(child_data["tools"][0]["result"])["window_days"] == 7
+
+
+@pytest.mark.parametrize("member_id", [BUILDER_ID, OPERATOR_ID])
+@pytest.mark.parametrize("resync", [False, True])
+def test_specialists_are_absent_from_public_config_and_cannot_start_or_continue(db, member_id, resync):
+    ordinary = Agent(id="ordinary", model=OfflineModel())
+    os = AgentOS(db=db, agents=[ordinary], manager=OSManager(model=OfflineModel(), access_docs=False), telemetry=False)
+    app = os.get_app()
+    if resync:
+        os.resync(app)
+    client = TestClient(app)
+    config = client.get("/config").json()
+    assert [agent["id"] for agent in config["agents"]] == ["ordinary"]
+    assert member_id not in config["manifest"]
+    assert [agent["id"] for agent in client.get("/agents").json()] == ["ordinary"]
+    assert not client.get(f"/teams/{MANAGER_TEAM_ID}").json().get("members")
+    assert client.get(f"/agents/{member_id}").status_code == 404
+    for endpoint, data in (
+        (f"/agents/{member_id}/runs", {"message": "run", "stream": "false"}),
+        (f"/agents/{member_id}/runs", {"message": "run", "stream": "true"}),
+        (f"/agents/{member_id}/runs/old-run/continue", {"input": "continue", "stream": "false"}),
+    ):
+        response = client.post(endpoint, data=data)
+        assert response.status_code == 404, response.text
+    assert client.post("/agents/ordinary/runs", data={"message": "Hi", "stream": "false"}).status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_mcp_config_hides_specialists_but_manager_delegates(db):
+    from fastmcp import Client
+
+    from agno.os.mcp import build_mcp_server
+
+    os = AgentOS(db=db, manager=OSManager(model=OfflineModel(), access_docs=False), telemetry=False)
+    os.manager.model = ManagerToolModel("delegate_task_to_member", {"member_id": OPERATOR_ID, "task": "Answer"})
+    os.get_app()
+    async with Client(build_mcp_server(os)) as client:
+        config = await client.call_tool("get_agentos_config", {})
+        text = " ".join(block.text for block in config.content if hasattr(block, "text"))
+        assert MANAGER_TEAM_ID in text
+        assert BUILDER_ID not in text and OPERATOR_ID not in text
+        result = await client.call_tool("run_team", {"team_id": MANAGER_TEAM_ID, "message": "Answer"})
+        assert not result.is_error
+        for member_id in (BUILDER_ID, OPERATOR_ID):
+            with pytest.raises(Exception, match="not found"):
+                await client.call_tool("run_agent", {"agent_id": member_id, "message": "Answer"})
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("manager_enabled", [False, True])
+async def test_legacy_catalog_rows_cannot_restore_public_specialists(db, manager_enabled):
+    from fastmcp import Client
+
+    from agno.db.base import ComponentType
+    from agno.os.mcp import build_mcp_server
+    from agno.os.utils import get_agent_by_id, get_agent_by_id_async
+
+    os = AgentOS(
+        db=db,
+        manager=OSManager(model=OfflineModel(), access_docs=False) if manager_enabled else False,
+        telemetry=False,
+    )
+    # Simulate rows left by an older deployment, bypassing current reservation checks.
+    for component_id in (BUILDER_ID, OPERATOR_ID, "stored-ordinary"):
+        db.create_component_with_config(
+            component_id=component_id,
+            component_type=ComponentType.AGENT,
+            name=component_id,
+            config={"name": component_id, "instructions": "Answer briefly"},
+            stage="published",
+        )
+    client = TestClient(os.get_app())
+    assert [agent["id"] for agent in client.get("/agents").json()] == ["stored-ordinary"]
+    for member_id in (BUILDER_ID, OPERATOR_ID):
+        assert client.get(f"/agents/{member_id}").status_code == 404
+        assert get_agent_by_id(member_id, db=db, published_only=False) is None
+        assert await get_agent_by_id_async(member_id, db=db, published_only=False) is None
+    assert get_agent_by_id("stored-ordinary", db=db) is not None
+    assert await get_agent_by_id_async("stored-ordinary", db=db) is not None
+    async with Client(build_mcp_server(os)) as mcp:
+        config = await mcp.call_tool("get_agentos_config", {})
+        text = " ".join(block.text for block in config.content if hasattr(block, "text"))
+        assert "stored-ordinary" in text
+        assert BUILDER_ID not in text and OPERATOR_ID not in text
+
+
+@pytest.mark.parametrize("member_id", [BUILDER_ID, OPERATOR_ID])
+def test_schedule_cannot_be_retargeted_to_a_private_specialist(db, member_id):
+    os = AgentOS(db=db, manager=OSManager(model=OfflineModel(), access_docs=False), telemetry=False)
+    client = TestClient(os.get_app())
+    created = client.post(
+        "/schedules",
+        json={"name": "manager-job", "cron_expr": "0 0 * * *", "endpoint": f"/teams/{MANAGER_TEAM_ID}/runs"},
+    )
+    assert created.status_code == 201, created.text
+    path = f"/schedules/{created.json()['id']}"
+    response = client.patch(path, json={"endpoint": f"/agents/{member_id}/runs/"})
+    assert response.status_code == 404, response.text
+    assert client.get(path).json()["endpoint"] == f"/teams/{MANAGER_TEAM_ID}/runs"

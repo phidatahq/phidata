@@ -283,8 +283,12 @@ class TeamResponse(BaseModel):
         if team.model and team.model.provider is not None:
             _team_model_data["provider"] = team.model.provider
 
+        from agno.registry._reserved import BUILDER_ID, OPERATOR_ID
+
         members: List[Union[AgentResponse, TeamResponse]] = []
         for member in team.members if isinstance(team.members, list) else []:
+            if getattr(member, "id", None) in (BUILDER_ID, OPERATOR_ID):
+                continue
             if isinstance(member, Agent):
                 agent_response = await AgentResponse.from_agent(member)
                 members.append(agent_response)

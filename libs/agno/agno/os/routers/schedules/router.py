@@ -78,6 +78,13 @@ def get_schedule_router(
         run endpoint needs the matching ``<type>:run`` scope, any other target is admin-only.
         """
         from agno.os.auth import build_insufficient_permissions_detail, caller_scopes_are_authoritative
+        from agno.registry._reserved import BUILDER_ID, OPERATOR_ID
+
+        target = RUN_ENDPOINT_RE.fullmatch(endpoint)
+        if target and target.group(1) == "agents" and target.group(2) in (BUILDER_ID, OPERATOR_ID):
+            raise HTTPException(
+                status_code=404, detail="Manager specialists are internal. Schedule OS Manager instead."
+            )
 
         if not getattr(request.state, "authorization_enabled", False):
             return

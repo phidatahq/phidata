@@ -2091,7 +2091,12 @@ def get_agent_router(
             # above renders. The registry is a superset - it also carries
             # rehydration context this route never lists - so subtracting it
             # would drop a stored agent with nothing left to list it back.
-            exclude_ids = {aid for a in os.agents or [] if (aid := getattr(a, "id", None)) is not None}
+            from agno.registry._reserved import BUILDER_ID, OPERATOR_ID
+
+            exclude_ids = {aid for a in os.agents or [] if (aid := getattr(a, "id", None)) is not None} | {
+                BUILDER_ID,
+                OPERATOR_ID,
+            }
             db_agents = get_agents(
                 db=os.db,
                 registry=registry,

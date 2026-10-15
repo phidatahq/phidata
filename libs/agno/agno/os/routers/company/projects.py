@@ -1,4 +1,4 @@
-"""Project CRUD routes for the opt-in Company domain."""
+"""Company-wide project reads with owner-scoped writes, following Products."""
 
 import asyncio
 from typing import Any, Dict, Literal, Optional, Union
@@ -21,7 +21,7 @@ from agno.os.settings import AgnoAPISettings
 
 
 def _require_write_ownership(existing: Dict[str, Any], user_id: Optional[str]) -> None:
-    """Check ownership only after the scoped read has established visibility."""
+    """Check the scoped caller against the owner after a company-wide read."""
     if user_id is not None and existing.get("user_id") != user_id:
         raise HTTPException(status_code=403, detail="Cannot modify project owned by another user")
 
@@ -61,7 +61,7 @@ def get_projects_router(db: Optional[Union[BaseDb, AsyncBaseDb]], settings: Agno
             raise HTTPException(status_code=409 if conflict else 422, detail=str(exc))
 
     async def _writable(project_id: str, user_id: Optional[str], include_deleted: bool = False) -> Dict[str, Any]:
-        existing = await _call("get_project", project_id, user_id=user_id, include_deleted=include_deleted)
+        existing = await _call("get_project", project_id, user_id=None, include_deleted=include_deleted)
         if existing is None:
             raise HTTPException(status_code=404, detail="Project not found")
         _require_write_ownership(existing, user_id)
@@ -69,7 +69,6 @@ def get_projects_router(db: Optional[Union[BaseDb, AsyncBaseDb]], settings: Agno
 
     @router.get("/projects", response_model=PaginatedResponse[ProjectResponse])
     async def list_projects(
-        request: Request,
         limit: int = Query(20, ge=1, le=1000),
         page: int = Query(1, ge=1),
         include_deleted: bool = Query(False),
@@ -77,10 +76,9 @@ def get_projects_router(db: Optional[Union[BaseDb, AsyncBaseDb]], settings: Agno
         status: Optional[ProjectStatus] = Query(None),
         _: bool = Depends(auth_dependency),
     ) -> PaginatedResponse[ProjectResponse]:
-        user_id = get_scoped_user_id(request)
         rows, total = await _call(
             "list_projects",
-            user_id=user_id,
+            user_id=None,
             limit=limit,
             page=page,
             include_deleted=include_deleted,
@@ -101,15 +99,13 @@ def get_projects_router(db: Optional[Union[BaseDb, AsyncBaseDb]], settings: Agno
             "create_project",
             **body.model_dump(),
             user_id=user_id or getattr(request.state, "user_id", None),
-            scoped_user_id=user_id,
         )
 
     @router.get("/projects/{project_id}", response_model=ProjectResponse)
     async def get_project(
-        project_id: str, request: Request, include_deleted: bool = Query(False), _: bool = Depends(auth_dependency)
+        project_id: str, include_deleted: bool = Query(False), _: bool = Depends(auth_dependency)
     ) -> Dict[str, Any]:
-        user_id = get_scoped_user_id(request)
-        project = await _call("get_project", project_id, user_id=user_id, include_deleted=include_deleted)
+        project = await _call("get_project", project_id, user_id=None, include_deleted=include_deleted)
         if project is None:
             raise HTTPException(status_code=404, detail="Project not found")
         return project

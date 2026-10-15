@@ -1,4 +1,4 @@
-"""Task CRUD routes for the opt-in Company domain."""
+"""Company-wide task reads with owner-scoped writes, following Products."""
 
 import asyncio
 from typing import Any, Dict, Literal, Optional, Union
@@ -18,7 +18,7 @@ from agno.tools.scheduler import _manager_member_refusal
 
 
 def _require_write_ownership(existing: Dict[str, Any], user_id: Optional[str]) -> None:
-    """Check ownership only after the scoped read has established visibility."""
+    """Check the scoped caller against the owner after a company-wide read."""
     if user_id is not None and existing.get("user_id") != user_id:
         raise HTTPException(status_code=403, detail="Cannot modify task owned by another user")
 
@@ -121,7 +121,7 @@ def get_tasks_router(db: Optional[Union[BaseDb, AsyncBaseDb]], settings: AgnoAPI
             raise HTTPException(status_code=409 if conflict else 422, detail=str(exc))
 
     async def _writable(task_id: str, user_id: Optional[str], include_deleted: bool = False) -> Dict[str, Any]:
-        existing = await _call("get_task", task_id, user_id=user_id, include_deleted=include_deleted)
+        existing = await _call("get_task", task_id, user_id=None, include_deleted=include_deleted)
         if existing is None:
             raise HTTPException(status_code=404, detail="Task not found")
         _require_write_ownership(existing, user_id)
@@ -129,7 +129,6 @@ def get_tasks_router(db: Optional[Union[BaseDb, AsyncBaseDb]], settings: AgnoAPI
 
     @router.get("/tasks", response_model=PaginatedResponse[TaskResponse])
     async def list_tasks(
-        request: Request,
         limit: int = Query(20, ge=1, le=1000),
         page: int = Query(1, ge=1),
         include_deleted: bool = Query(False),
@@ -138,10 +137,9 @@ def get_tasks_router(db: Optional[Union[BaseDb, AsyncBaseDb]], settings: AgnoAPI
         project_id: Optional[str] = Query(None),
         _: bool = Depends(auth_dependency),
     ) -> PaginatedResponse[TaskResponse]:
-        user_id = get_scoped_user_id(request)
         rows, total = await _call(
             "list_tasks",
-            user_id=user_id,
+            user_id=None,
             limit=limit,
             page=page,
             include_deleted=include_deleted,
@@ -161,15 +159,13 @@ def get_tasks_router(db: Optional[Union[BaseDb, AsyncBaseDb]], settings: AgnoAPI
             "create_task",
             **body.model_dump(),
             user_id=user_id or getattr(request.state, "user_id", None),
-            scoped_user_id=user_id,
         )
 
     @router.get("/tasks/{task_id}", response_model=TaskResponse)
     async def get_task(
-        task_id: str, request: Request, include_deleted: bool = Query(False), _: bool = Depends(auth_dependency)
+        task_id: str, include_deleted: bool = Query(False), _: bool = Depends(auth_dependency)
     ) -> Dict[str, Any]:
-        user_id = get_scoped_user_id(request)
-        task = await _call("get_task", task_id, user_id=user_id, include_deleted=include_deleted)
+        task = await _call("get_task", task_id, user_id=None, include_deleted=include_deleted)
         if task is None:
             raise HTTPException(status_code=404, detail="Task not found")
         return task

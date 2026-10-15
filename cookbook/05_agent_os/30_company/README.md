@@ -26,10 +26,10 @@ Read and create/update require `products:read` and `products:write` respectively
 `CompanyManager` takes a sync database; `AsyncCompanyManager` takes an async
 database and exposes the same methods as coroutines. `list()` returns rows and
 a total. `user_id=None` is unscoped; a string filters by owner before paging.
-The HTTP layer derives ownership from authenticated identity. With isolation
-on, another owner's Product is invisible and returns 404, including on writes.
-With isolation off, callers with the required scope can read and change every
-Product. Admins bypass owner isolation.
+The HTTP layer derives ownership from authenticated identity. Reads are
+company-wide for callers with the read scope. With isolation on, writes to
+another owner's Product return 403. Unscoped callers with the write scope can
+change every Product; admins bypass owner isolation.
 
 ## Work records
 
@@ -51,3 +51,11 @@ CRUD, paging, soft delete and restore conventions as Products, plus
 `executor_id`; the API applies the scheduler's caller run-permission check.
 These examples manage records only and do not execute agents. Registry
 validation and run dispatch arrive with execution support.
+
+Project and Task HTTP reads are company-wide for callers with the resource's
+read scope, matching Products. With user isolation enabled, writes and
+transitions require ownership; a visible foreign record returns 403. Admins
+and callers on deployments with isolation disabled retain unscoped writes.
+New work can use another owner's Product or Project, with the Task and
+Project still required to belong to the same Product. Manager and storage
+methods retain explicit owner filters for direct callers.

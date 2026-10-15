@@ -231,7 +231,7 @@ class CompanyManager:
         if existing["status"] != "backlog":
             raise ValueError("Accepted task scope requires a return to Backlog")
         if fields.get("project_id") is not None:
-            project = self.db.get_project(fields["project_id"], user_id=user_id)
+            project = self.db.get_project(fields["project_id"], user_id=None)
             if project is None:
                 raise LookupError("Project not found")
             if project["product_id"] != existing["product_id"]:
@@ -493,7 +493,7 @@ class AsyncCompanyManager:
         if existing["status"] != "backlog":
             raise ValueError("Accepted task scope requires a return to Backlog")
         if fields.get("project_id") is not None:
-            project = await self.db.get_project(fields["project_id"], user_id=user_id)
+            project = await self.db.get_project(fields["project_id"], user_id=None)
             if project is None:
                 raise LookupError("Project not found")
             if project["product_id"] != existing["product_id"]:

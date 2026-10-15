@@ -262,3 +262,95 @@ async def test_stale_acceptance_cannot_overwrite_a_backlog_roundtrip(db, monkeyp
     saved = await call(m.get_task, task["id"])
     assert saved["status"] == "backlog" and saved["executor_id"] is None
     assert [entry["reason"] for entry in saved["transitions"]] == ["Current", "Rescope"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("resource", ["projects", "tasks"])
+@pytest.mark.parametrize("isolation", [False, True])
+async def test_http_shared_reads_and_owner_scoped_writes(db, resource, isolation):
+    import jwt
+    from httpx import ASGITransport, AsyncClient
+
+    from agno.os import AgentOS, CompanyConfig
+    from agno.os.config import AuthorizationConfig
+
+    secret = "company-shared-work-tests"
+    os_id = "company-shared-work"
+
+    def headers(user):
+        token = jwt.encode(
+            {
+                "sub": user,
+                "aud": os_id,
+                "scopes": [resource + ":read", resource + ":write", resource + ":delete", "agents:writer:run"],
+                "exp": int(time.time()) + 3600,
+                "iat": int(time.time()),
+            },
+            secret,
+            algorithm="HS256",
+        )
+        return {"Authorization": "Bearer " + token}
+
+    m = manager(db)
+    product = await call(m.create, "Shared", user_id="alice")
+    project = await call(m.create_project, product["id"], "Shared project", user_id="alice")
+    app = AgentOS(
+        id=os_id,
+        db=db,
+        company=CompanyConfig(),
+        telemetry=False,
+        authorization=True,
+        authorization_config=AuthorizationConfig(
+            verification_keys=[secret], algorithm="HS256", user_isolation=isolation
+        ),
+    ).get_app()
+    field = "title" if resource == "tasks" else "name"
+    initial_status = "backlog" if resource == "tasks" else "proposed"
+    root = "/company/" + resource
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        body = {"product_id": product["id"], field: "Work"}
+        if resource == "tasks":
+            body["project_id"] = project["id"]
+        # A writer may propose its own work under another owner's shared parent.
+        response = await client.post(root, json=body, headers=headers("bob"))
+        assert response.status_code == 201, response.text
+        own = response.json()
+        assert own["user_id"] == "bob" and own["status"] == initial_status
+        other = (
+            project
+            if resource == "projects"
+            else await call(m.create_task, product["id"], "Alice task", user_id="alice")
+        )
+        path = root + "/" + other["id"]
+        assert (await client.get(path, headers=headers("bob"))).status_code == 200
+        pages = [
+            (
+                await client.get(
+                    root, params={"status": initial_status, "limit": 1, "page": page}, headers=headers("bob")
+                )
+            ).json()
+            for page in (1, 2)
+        ]
+        assert all(page["meta"]["total_count"] == 2 for page in pages)
+        assert {page["data"][0]["id"] for page in pages} == {own["id"], other["id"]}
+        assert (await client.patch(path, json={field: "Renamed"}, headers=headers("bob"))).status_code == (
+            403 if isolation else 200
+        )
+        if resource == "tasks":
+            # Project assignment uses shared visibility while the Task write remains scoped.
+            own_path = root + "/" + own["id"]
+            assert (await client.patch(own_path, json={"project_id": None}, headers=headers("bob"))).status_code == 200
+            assert (
+                await client.patch(own_path, json={"project_id": project["id"]}, headers=headers("bob"))
+            ).status_code == 200
+            target = {"target": "ready", "executor_type": "agent", "executor_id": "writer", "reason": "Accept"}
+        else:
+            target = {"target": "active", "reason": "Accept"}
+        assert (await client.post(path + "/transitions", json=target, headers=headers("bob"))).status_code == (
+            403 if isolation else 200
+        )
+        assert (await client.delete(path, headers=headers("alice"))).status_code == 204
+        assert (await client.get(path, headers=headers("bob"))).status_code == 404
+        assert (await client.get(path, params={"include_deleted": True}, headers=headers("bob"))).status_code == 200
+        assert (await client.post(path + "/restore", headers=headers("bob"))).status_code == (403 if isolation else 200)
+        assert (await client.patch(root + "/missing", json={field: "No"}, headers=headers("bob"))).status_code == 404

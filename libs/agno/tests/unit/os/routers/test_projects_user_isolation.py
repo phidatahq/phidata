@@ -83,30 +83,33 @@ def test_isolation_off_allows_scoped_readers_and_writers(make_client):
     assert c.post(path + "/restore", headers=headers("bob")).status_code == 200
 
 
-def test_isolation_on_filters_before_pagination_and_hides_foreign_writes(make_client):
+def test_isolation_on_shares_reads_and_scopes_writes(make_client):
     c = make_client(True)
     a = create(c, "alice")
     own = {create(c, "bob") for _ in range(3)}
-    pages = [c.get("/company/projects", params={"limit": 2, "page": p}, headers=headers("bob")).json() for p in (1, 2)]
-    assert [len(p["data"]) for p in pages] == [2, 1]
-    assert all(p["meta"]["total_count"] == 3 for p in pages)
-    assert {row["id"] for p in pages for row in p["data"]} == own
+    pages = [
+        c.get("/company/projects", params={"status": "proposed", "limit": 2, "page": p}, headers=headers("bob")).json()
+        for p in (1, 2)
+    ]
+    assert [len(p["data"]) for p in pages] == [2, 2]
+    assert all(p["meta"]["total_count"] == 4 for p in pages)
+    assert {row["id"] for p in pages for row in p["data"]} == own | {a}
     path = "/company/projects/" + a
     before = c.get(path, headers=headers("alice")).json()
+    assert c.get(path, headers=headers("bob")).json() == before
     for method, suffix, body in [
-        ("get", "", None),
         ("patch", "", {"name": "stolen"}),
         ("delete", "", None),
         ("post", "/restore", None),
         ("post", "/transitions", {"target": "cancelled", "reason": "Stop"}),
     ]:
         response = c.request(method, path + suffix, json=body, headers=headers("bob"))
-        assert response.status_code == 404, response.text
+        assert response.status_code == 403, response.text
     assert c.get(path, headers=headers("alice")).json() == before
     assert c.delete(path, headers=headers("alice")).status_code == 204
-    assert c.get(path + "?include_deleted=true", headers=headers("bob")).status_code == 404
-    assert c.post(path + "/restore", headers=headers("bob")).status_code == 404
-    assert c.get("/company/projects?include_deleted=true", headers=headers("bob")).json()["meta"]["total_count"] == 3
+    assert c.get(path + "?include_deleted=true", headers=headers("bob")).status_code == 200
+    assert c.post(path + "/restore", headers=headers("bob")).status_code == 403
+    assert c.get("/company/projects?include_deleted=true", headers=headers("bob")).json()["meta"]["total_count"] == 4
     assert c.post(path + "/restore", headers=headers("alice")).status_code == 200
 
 
@@ -146,9 +149,13 @@ def test_scopes_apply_to_every_route(make_client, isolation):
 def test_service_account_scopes_on_company_routes(tmp_path, authorization):
     import time
 
+    from agno.company import CompanyManager
     from agno.os.service_accounts import generate_token
 
     db = SqliteDb(db_file=str(tmp_path / "service-accounts.db"))
+    manager = CompanyManager(db)
+    product = manager.create("Shared product", user_id="alice")
+    shared = manager.create_project(product["id"], "Shared work", user_id="alice")
     token, token_hash, token_prefix = generate_token()
     db.create_service_account(
         {
@@ -178,6 +185,8 @@ def test_service_account_scopes_on_company_routes(tmp_path, authorization):
     client = TestClient(app)
     auth = {"Authorization": "Bearer " + token}
     assert client.get("/company/projects", headers=auth).status_code == 200
+    assert client.get("/company/projects/" + shared["id"], headers=auth).status_code == 200
+    assert client.get("/company/projects", headers=auth).json()["data"][0]["id"] == shared["id"]
     assert client.post("/company/projects", json={"name": "Forbidden"}, headers=auth).status_code == 403
     assert client.patch("/company/projects/missing", json={"name": "Forbidden"}, headers=auth).status_code == 403
     assert client.delete("/company/projects/missing", headers=auth).status_code == 403

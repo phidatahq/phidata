@@ -73,3 +73,20 @@ reported lifecycle success. Tasks reported protected accepted scope and
 lifecycle success.
 
 ---
+
+
+### Company-wide work reads
+
+**Status:** PASS
+
+**Description:** Reran all three cookbook files after rebasing onto Products
+commit `c9ec5af77fb229a291dea1148eeb445331d1013d` and adopting its shared-read
+behavior for Projects and Tasks. The direct manager examples retain explicit
+owner filters.
+
+**Result:** All cookbook assertions passed. The Company router and integration
+run also passed 260 tests, including company-wide reads, paginated status
+filters, shared Product/Project assignment, and owner-scoped writes and
+transitions across sync/async SQLite and PostgreSQL.
+
+---

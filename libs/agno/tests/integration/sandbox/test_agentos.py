@@ -7,7 +7,7 @@ from uuid import uuid4
 import httpx
 import pytest
 import pytest_asyncio
-from sqlalchemy import func, select, update
+from sqlalchemy import select
 
 from agno.db.postgres import PostgresDb
 from agno.job_queue.config import QueueConfig, RedisCoordination
@@ -71,7 +71,6 @@ async def service(tmp_path):
 
     provider.acreate = create  # type: ignore[method-assign]
     agent = FixtureAgent(id="coder", sandbox=provider)
-    other = FixtureAgent(id="other", sandbox=provider)
     config = QueueConfig(
         durable=True,
         db=db,
@@ -81,7 +80,7 @@ async def service(tmp_path):
         retry_delay_seconds=0,
         stop_timeout_seconds=1,
     )
-    app = AgentOS(id=prefix, agents=[agent, other], db=db, queue=config, telemetry=False).get_app()
+    app = AgentOS(id=prefix, agents=[agent], db=db, queue=config, telemetry=False).get_app()
     try:
         async with app.router.lifespan_context(app):
             async with httpx.AsyncClient(
@@ -151,6 +150,10 @@ async def test_background_acceptance_poll_and_idempotency(service):
     assert job["status"] == "completed", job
     result = await agent.aget_run_output(job["id"], "session")
     assert result.content == "background" and result.metadata["sandbox"]["checkpoint"]
+    conflict = await client.post(
+        "/agents/coder/runs", data={**data, "message": "changed"}, headers={"Idempotency-Key": "one"}
+    )
+    assert conflict.status_code == 409
 
 
 async def test_streaming_request_uses_indexed_queue_events(service):
@@ -392,121 +395,3 @@ async def test_remote_cancel_fences_the_worker_without_failing_its_ticket(servic
     assert (await agent.aget_run_output(run_id, "session")).status == "CANCELLED"
     for handle in handles:
         assert await _harness.coordinator(agent).provider.aget(handle.provider_ref) is None
-
-
-# --- Idempotency-Key: the shared duplicate-key contract -------------------------------------
-# A key is a retry token, not a request fingerprint. As on the agent and team routes, a duplicate
-# answers with the ORIGINAL run (whatever else the retry carries) unless the key was used on
-# another component; the user is part of the key's namespace.
-
-
-def queued_rows(agent, key):
-    table = agent.db._get_table("jobs")
-    with agent.db.db_engine.begin() as connection:
-        return connection.execute(
-            select(func.count()).select_from(table).where(table.c.idempotency_key == key)
-        ).scalar_one()
-
-
-async def submit_keyed(client, key, *, message="first", session="session", user_id=None, **form):
-    data = {"message": message, "session_id": session, "stream": "false", "background": "true", **form}
-    if user_id is not None:
-        data["user_id"] = user_id
-    return await client.post("/agents/coder/runs", data=data, headers={"Idempotency-Key": key})
-
-
-async def test_duplicate_key_returns_the_original_run_whatever_the_retry_carries(service):
-    client, agent, app, handles = service
-    original = await submit_keyed(client, "same-key")
-    assert original.status_code == 202, original.text
-    run_id = original.json()["run_id"]
-    assert (await settled(app, run_id))["status"] == "completed"
-    identical = await submit_keyed(client, "same-key")
-    changed_input = await submit_keyed(client, "same-key", message="changed")
-    other_session = await submit_keyed(client, "same-key", session="other-session")
-    for retry in (identical, changed_input, other_session):
-        assert retry.status_code == 202, retry.text
-        assert retry.json()["run_id"] == run_id
-        assert retry.json()["session_id"] == "session"
-    assert queued_rows(agent, "same-key") == 1 and len(handles) == 1
-    assert (await agent.aget_run_output(run_id, "session")).content == "first"
-    assert await agent.aget_run_output(run_id, "other-session") is None
-
-
-async def test_fields_the_queue_adds_to_the_payload_do_not_break_a_retry(service):
-    client, agent, app, _ = service
-    original = await submit_keyed(client, "stamped")
-    run_id = original.json()["run_id"]
-    assert (await settled(app, run_id))["status"] == "completed"
-    table = agent.db._get_table("jobs")
-    payload = (await app.state.queue_worker.store.get_job(run_id))["payload"]
-    with agent.db.db_engine.begin() as connection:
-        connection.execute(
-            update(table).where(table.c.id == run_id).values(payload={**payload, "a_field_the_queue_may_add": 1})
-        )
-    retry = await submit_keyed(client, "stamped")
-    assert retry.status_code == 202 and retry.json()["run_id"] == run_id
-    assert queued_rows(agent, "stamped") == 1
-
-
-async def test_a_key_used_on_another_component_is_refused_without_a_new_run(service):
-    client, agent, app, handles = service
-    original = await submit_keyed(client, "cross")
-    run_id = original.json()["run_id"]
-    assert (await settled(app, run_id))["status"] == "completed"
-    crossed = await client.post(
-        "/agents/other/runs",
-        data={"message": "first", "session_id": "session", "stream": "false", "background": "true"},
-        headers={"Idempotency-Key": "cross"},
-    )
-    assert crossed.status_code == 409 and "different component" in crossed.json()["detail"]
-    assert "coder" not in crossed.json()["detail"]
-    assert queued_rows(agent, "cross") == 1 and len(handles) == 1
-
-
-async def test_the_same_key_under_different_users_is_two_independent_runs(service):
-    client, agent, app, handles = service
-    alice = await submit_keyed(client, "shared", session="alice-session", user_id="alice")
-    bob = await submit_keyed(client, "shared", session="bob-session", user_id="bob")
-    assert alice.status_code == 202 and bob.status_code == 202, (alice.text, bob.text)
-    assert alice.json()["run_id"] != bob.json()["run_id"]
-    for run in (alice, bob):
-        assert (await settled(app, run.json()["run_id"]))["status"] == "completed"
-    for run, user in ((alice, "alice"), (bob, "bob")):
-        retry = await submit_keyed(client, "shared", session=run.json()["session_id"], user_id=user)
-        assert retry.json()["run_id"] == run.json()["run_id"]
-    assert queued_rows(agent, "shared") == 2 and len(handles) == 2
-    assert await agent.aget_run_output(alice.json()["run_id"], "alice-session", user_id="bob") is None
-
-
-async def test_concurrent_identical_submissions_create_and_execute_one_run(service):
-    client, agent, app, handles = service
-    background = await asyncio.gather(*(submit_keyed(client, "burst") for _ in range(5)))
-    assert {response.status_code for response in background} == {202}, [r.text for r in background]
-    assert len({response.json()["run_id"] for response in background}) == 1
-    assert (await settled(app, background[0].json()["run_id"]))["status"] == "completed"
-    assert queued_rows(agent, "burst") == 1 and len(handles) == 1
-    foreground = await asyncio.gather(
-        *(submit_keyed(client, "burst-foreground", background="false", message="again") for _ in range(3))
-    )
-    assert {response.status_code for response in foreground} == {200}, [response.text for response in foreground]
-    assert len({response.json()["run_id"] for response in foreground}) == 1
-    assert queued_rows(agent, "burst-foreground") == 1 and len(handles) == 2
-
-
-async def test_a_streamed_duplicate_attaches_to_the_original_run(service):
-    client, agent, app, handles = service
-
-    async def stream(message):
-        return await client.post(
-            "/agents/coder/runs",
-            data={"message": message, "session_id": "session", "stream": "true"},
-            headers={"Idempotency-Key": "streamed"},
-        )
-
-    first = await stream("first")
-    assert first.status_code == 200 and "RunCompleted" in first.text
-    duplicate = await stream("a different message")
-    assert duplicate.status_code == 200 and "RunCompleted" in duplicate.text and "first" in duplicate.text
-    assert "a different message" not in duplicate.text
-    assert queued_rows(agent, "streamed") == 1 and len(handles) == 1

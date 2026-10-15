@@ -117,6 +117,9 @@ def test_builtin_http_and_durable_task_runs_keep_initiating_users_access(setup):
             data=TaskCreate(title="Summarize my Products", instructions="List my Products"),
             **mutation(principal=caller()),
         )
+        from test_manual import transition
+
+        task = transition(os.company, task, "ready")
         client.headers["Authorization"] = "Bearer " + token(scopes=(*SCOPES, "agents:run"))
         response = client.post(
             f"/company/v1/tasks/{task['id']}/runs",

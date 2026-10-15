@@ -17,7 +17,7 @@ field. Products carry `name`; Projects and Tasks carry `title`.
 | Task | `product_id`, nullable `project_id`, nullable `status`, `accountable_owner_id`, optional `assignee_id` and `agent_id`, `state`, `evidence`, `schedule`, `schedule_id`, `review_pull_request`, `review_started_at`, `automation_error` |
 
 `state` is active or archived. Project status is derived as empty, active or
-completed. Task status is null for direct work; Project Tasks use backlog, ready,
+completed. Task status is null for direct work; Non-recurring Tasks use backlog, ready,
 in_progress, in_review or done. Product and Project counts exclude archived Tasks.
 Completion requires a nonempty Project with every unarchived Task Done.
 
@@ -140,7 +140,7 @@ disable the owner or revoke Product membership to stop new dispatches.
 Agents can create/edit drafts, group draft Tasks, comment, refresh generated summaries
 and run preconfigured work. They cannot create Products, change ownership, schedules
 or workers, accept Ready/Done, or replace accepted instructions. Summary writes carry
-the versions of all unarchived Project Tasks; stale source sets fail with 412.
+the versions of all unarchived Non-recurring Tasks; stale source sets fail with 412.
 
 ## Migration and recovery
 

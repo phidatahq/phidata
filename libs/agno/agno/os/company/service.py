@@ -171,7 +171,7 @@ class CompanyService:
             conn,
             """SELECT
             count(*) AS total_tasks,
-            count(*) FILTER (WHERE accepted_at IS NOT NULL AND project_id IS NOT NULL) AS accepted_tasks,
+            count(*) FILTER (WHERE accepted_at IS NOT NULL) AS accepted_tasks,
             count(*) FILTER (WHERE status='done') AS done_tasks,
             count(*) FILTER (WHERE status='backlog') AS backlog,
             count(*) FILTER (WHERE status='ready') AS ready,
@@ -496,13 +496,14 @@ class CompanyService:
                 and (
                     kind != "task"
                     or record.get("status") not in (None, "backlog")
+                    or record.get("schedule") is not None
                     or {"agent_id", "accountable_owner_id", "assignee_id"}.intersection(body)
                 )
             ):
                 raise CompanyError(
                     403, "draft_only", "Agents can edit draft work, not accepted instructions or authority"
                 )
-            if kind == "task" and record and action in ("edit", "transition"):
+            if kind == "task" and record and action in ("edit", "transition", "schedule"):
                 active = _query(
                     conn, "SELECT 1 FROM agno_company.task_runs WHERE task_id=:id AND NOT released", id=record_id
                 ).scalar()
@@ -553,7 +554,7 @@ class CompanyService:
                         values["owner_id"] = body["owner_id"] or product["owner_id"]
                     if kind == "task":
                         values["origin"] = "agent" if principal.agent_id else "human"
-                        values["status"] = "backlog" if body.get("project_id") else None
+                        values["status"] = "backlog"
                         values["accountable_owner_id"] = body["accountable_owner_id"] or product["owner_id"]
                     if kind == "task" and body.get("project_id"):
                         parent = _row(
@@ -617,7 +618,9 @@ class CompanyService:
                         if record["status"] in ("in_progress", "in_review"):
                             raise CompanyError(409, "work_active", "Finish the active work before regrouping it")
                         body.update(
-                            status="backlog" if body["project_id"] else None,
+                            status="backlog",
+                            schedule=None,
+                            schedule_principal=None,
                             accepted_at=None,
                             accepted_by=None,
                             ready_principal=None,
@@ -705,7 +708,9 @@ class CompanyService:
                 )
             elif action == "schedule":
                 assert record_id is not None
-                if record["project_id"] and body["enabled"]:
+                if record["status"] not in (None, "backlog"):
+                    raise CompanyError(409, "work_active", "Return the Task to Backlog before making it recurring")
+                if record["project_id"]:
                     raise CompanyError(409, "direct_task_required", "Only direct Product Tasks can recur")
                 self._runtime._agent(principal, record["agent_id"] or product["agent_id"])
                 saved = record["schedule_principal"] or self._runtime._saved(principal)
@@ -714,7 +719,10 @@ class CompanyService:
                         409, "schedule_owner", "Only the schedule owner can change its execution authority"
                     )
                 record = self._update(
-                    conn, "tasks", record_id, {"schedule": body, "schedule_principal": self._runtime._saved(principal)}
+                    conn,
+                    "tasks",
+                    record_id,
+                    {"schedule": body, "schedule_principal": self._runtime._saved(principal), "status": None},
                 )
             elif action == "summary":
                 assert record_id is not None

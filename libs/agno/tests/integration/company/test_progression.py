@@ -18,7 +18,7 @@ from agno.os.company import review
 from agno.os.company.migrations import migrate
 from agno.os.company.policy import CompanyError
 from agno.os.company.runtime import CompanyRuntime
-from agno.os.company.schemas import PullRequestReview, TaskPatch, Transition
+from agno.os.company.schemas import ProductCreate, PullRequestReview, TaskCreate, TaskPatch, Transition
 
 URL = "https://github.com/example/docs/pull/42"
 SHA = "a" * 40
@@ -544,3 +544,76 @@ def test_verified_merge_preserves_full_evidence_list(setup, monkeypatch):
         result = os.company.get_task(principal=caller(), task_id=task["id"])
         assert result["status"] == "done"
         assert len(result["evidence"]) == 20
+
+
+def test_standalone_task_requires_acceptance_and_human_completion(setup):
+    os, _ = runtime_os(setup)
+    service = os.company
+    with TestClient(os.get_app()) as client:
+        _, task = make_work(service)
+        assert task["project_id"] is None and task["status"] == "backlog"
+        with pytest.raises(CompanyError, match="Ready"):
+            service.run_task(
+                principal=caller(), task_id=task["id"], version=task["version"], idempotency_key="not-accepted"
+            )
+        task = accept_ready(service, task)
+        tick(client, service)
+        current = wait_status(service, task, "in_review")
+        tick(client, service)
+        assert service.get_task(principal=caller(), task_id=task["id"])["status"] == "in_review"
+        done = transition(service, current, "done", reason="Reviewed output", acceptance_check="Checked fixture result")
+        assert done["status"] == "done"
+
+
+def test_agent_cannot_rewrite_an_authorized_recurring_task(setup):
+    from dataclasses import replace
+
+    from agno.os.company.schemas import TaskPatch, TaskSchedule
+
+    os, _ = runtime_os(setup, scheduler=True)
+    service = os.company
+    with TestClient(os.get_app()):
+        product, task = make_work(service)
+        task = service.set_schedule(
+            task_id=task["id"],
+            version=task["version"],
+            data=TaskSchedule(cron="0 9 * * *"),
+            **mutation(principal=caller()),
+        )
+        actor = replace(caller(), agent_id="agent:docs-agent", product_id=product["id"])
+        with pytest.raises(CompanyError, match="draft"):
+            service.update_task(
+                task_id=task["id"],
+                version=task["version"],
+                data=TaskPatch(instructions="Broader work"),
+                **mutation(principal=actor),
+            )
+
+
+def test_migration_keeps_existing_direct_work_and_requires_fresh_acceptance(setup):
+    from sqlalchemy import text
+
+    from agno.os.company.migrations import migrate
+
+    db, _, service = setup
+    product = service.create_product(data=ProductCreate(name="Documentation"), **mutation())
+    task = service.create_task(
+        product_id=product["id"],
+        data=TaskCreate(title="Existing work", instructions="Preserve my instructions"),
+        **mutation(),
+    )
+    with db.db_engine.begin() as conn:
+        conn.execute(text("ALTER TABLE agno_company.tasks DROP CONSTRAINT task_stage"))
+        conn.execute(text("UPDATE agno_company.tasks SET status=NULL WHERE id=:id"), {"id": task["id"]})
+        conn.execute(
+            text("""ALTER TABLE agno_company.tasks ADD CONSTRAINT task_stage CHECK (
+            (project_id IS NULL AND status IS NULL) OR
+            (project_id IS NOT NULL AND status IN ('backlog','ready','in_progress','in_review','done'))
+        )""")
+        )
+        conn.execute(text("DELETE FROM agno_company.schema_version WHERE version=9"))
+    migrate(db)
+    migrate(db)
+    current = service.get_task(principal=caller(), task_id=task["id"])
+    assert current["status"] == "backlog" and current["accepted_by"] is None
+    assert current["instructions"] == task["instructions"] and current["version"] == task["version"]

@@ -5,7 +5,7 @@ from typing import Any
 
 from sqlalchemy import text
 
-VERSION = 8
+VERSION = 9
 
 
 def migrate(db: Any) -> None:
@@ -40,6 +40,20 @@ def migrate(db: Any) -> None:
             conn.exec_driver_sql("ALTER TABLE agno_company.activity ALTER COLUMN product_id DROP NOT NULL")
             conn.exec_driver_sql("INSERT INTO agno_company.schema_version(version) VALUES (8)")
             version = 8
+        if version == 8:
+            conn.exec_driver_sql("ALTER TABLE agno_company.tasks DROP CONSTRAINT task_stage")
+            conn.exec_driver_sql(
+                "UPDATE agno_company.tasks SET schedule=NULL,schedule_principal=NULL WHERE project_id IS NOT NULL"
+            )
+            conn.exec_driver_sql(
+                "UPDATE agno_company.tasks SET status='backlog' WHERE status IS NULL AND schedule IS NULL"
+            )
+            conn.exec_driver_sql("""ALTER TABLE agno_company.tasks ADD CONSTRAINT task_stage CHECK (
+                (schedule IS NOT NULL AND project_id IS NULL AND status IS NULL) OR
+                (schedule IS NULL AND status IS NOT NULL AND status IN ('backlog','ready','in_progress','in_review','done'))
+            )""")
+            conn.exec_driver_sql("INSERT INTO agno_company.schema_version(version) VALUES (9)")
+            version = 9
         if version != VERSION:
             raise RuntimeError(
                 "Unsupported Company prototype schema; upgrade with its original migration tooling or use a fresh database. No data was changed"

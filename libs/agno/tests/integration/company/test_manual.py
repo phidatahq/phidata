@@ -548,7 +548,7 @@ def test_minimal_http_records_and_growing_task_into_project(setup):
         assert create("/products", {"name": "Frontend"}, "simple-product")["id"] == product["id"]
         task = create("/products/" + product["id"] + "/tasks", {"title": "Improve navigation"}, "simple-task")
         assert task["project_id"] is None and task["accountable_owner_id"] == "alice"
-        assert task["status"] is None and task["accepted_at"] is None
+        assert task["status"] == "backlog" and task["accepted_at"] is None
         project = create("/products/" + product["id"] + "/projects", {"title": "Navigation redesign"}, "simple-project")
         assert project["owner_id"] == "alice" and project["status"] == "empty"
         assert project["instructions"] == ""
@@ -638,7 +638,7 @@ def test_accepted_task_association_preserves_review_and_counts(setup):
         service.update_task(**request)
     assert replay_denied.value.status == 403
     assert task["accepted_at"] is None
-    assert task["status"] is None
+    assert task["status"] == "backlog"
     assert service.get_project(principal=principal(), project_id=project["id"])["counts"]["accepted_tasks"] == 0
     assert service.get_product(principal=principal(), product_id=product["id"])["counts"]["accepted_tasks"] == 0
     task = service.update_task(

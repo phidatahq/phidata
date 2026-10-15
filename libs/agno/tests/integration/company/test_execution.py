@@ -262,11 +262,17 @@ def test_schedule_validation_rejects_bad_cron_and_timezone():
 
 
 def test_pending_dispatch_recovery_no_overlap_and_revoked_claim(setup, monkeypatch):
-    os, _ = runtime_os(setup)
+    os, _ = runtime_os(setup, scheduler=True)
     service = os.company
     with TestClient(os.get_app()) as client:
         client.headers["Authorization"] = "Bearer " + token(scopes=(*SCOPES, "agents:run"))
         product, task = make_work(service)
+        task = service.set_schedule(
+            task_id=task["id"],
+            version=task["version"],
+            data=TaskSchedule(cron="0 9 * * *"),
+            **mutation(principal=caller()),
+        )
         runtime = service._runtime
         original = runtime._enqueue
 
@@ -275,7 +281,9 @@ def test_pending_dispatch_recovery_no_overlap_and_revoked_claim(setup, monkeypat
 
         monkeypatch.setattr(runtime, "_enqueue", lost_dispatch)
         response = client.post(
-            f"/company/v1/tasks/{task['id']}/runs", json={}, headers={"If-Match": '"1"', "Idempotency-Key": "recover"}
+            f"/company/v1/tasks/{task['id']}/runs",
+            json={},
+            headers={"If-Match": f'"{task["version"]}"', "Idempotency-Key": "recover"},
         )
         assert response.status_code == 503
         monkeypatch.setattr(runtime, "_enqueue", original)
@@ -285,23 +293,29 @@ def test_pending_dispatch_recovery_no_overlap_and_revoked_claim(setup, monkeypat
         assert wait_run(client, task["id"], history[0]["id"])["status"] == "completed"
         # Lost acknowledgement after durable acceptance also keeps the original run.
         replay = client.post(
-            f"/company/v1/tasks/{task['id']}/runs", json={}, headers={"If-Match": '"1"', "Idempotency-Key": "recover"}
+            f"/company/v1/tasks/{task['id']}/runs",
+            json={},
+            headers={"If-Match": f'"{task["version"]}"', "Idempotency-Key": "recover"},
         )
         assert replay.status_code == 202 and replay.json()["id"] == history[0]["id"]
         queue = runtime.worker
         client.portal.call(queue.stop)
         pending = client.post(
-            f"/company/v1/tasks/{task['id']}/runs", json={}, headers={"If-Match": '"1"', "Idempotency-Key": "pending"}
+            f"/company/v1/tasks/{task['id']}/runs",
+            json={},
+            headers={"If-Match": f'"{task["version"]}"', "Idempotency-Key": "pending"},
         ).json()
         overlap = client.post(
-            f"/company/v1/tasks/{task['id']}/runs", json={}, headers={"If-Match": '"1"', "Idempotency-Key": "overlap"}
+            f"/company/v1/tasks/{task['id']}/runs",
+            json={},
+            headers={"If-Match": f'"{task["version"]}"', "Idempotency-Key": "overlap"},
         )
         assert overlap.status_code == 409 and overlap.json()["error"]["code"] == "run_active"
         skipped = client.portal.call(
             lambda: service.arun_task(
                 principal=caller(),
                 task_id=task["id"],
-                version=1,
+                version=task["version"],
                 idempotency_key="scheduled-overlap",
                 trigger="schedule",
             )
@@ -392,10 +406,11 @@ def test_housekeeping_uses_worker_context_and_preserves_human_plan(setup):
             data=ProjectCreate(title="Onboarding", instructions="Preserve this human plan"),
             **mutation(),
         )
+        task = transition(service, task, "ready")
         response = client.post(
             f"/company/v1/tasks/{task['id']}/runs",
             json={},
-            headers={"If-Match": '"1"', "Idempotency-Key": "housekeeping"},
+            headers={"If-Match": f'"{task["version"]}"', "Idempotency-Key": "housekeeping"},
         )
         assert response.status_code == 202, response.text
         assert wait_run(client, task["id"], response.json()["id"])["status"] == "completed"
@@ -659,12 +674,13 @@ def test_simultaneous_dispatch_has_one_runtime_ticket(setup):
     with TestClient(os.get_app()) as client:
         client.headers["Authorization"] = "Bearer " + token(scopes=(*SCOPES, "agents:run"))
         _, task = make_work(os.company)
+        task = transition(os.company, task, "ready")
 
         def submit():
             response = client.post(
                 f"/company/v1/tasks/{task['id']}/runs",
                 json={},
-                headers={"If-Match": '"1"', "Idempotency-Key": "simultaneous"},
+                headers={"If-Match": f'"{task["version"]}"', "Idempotency-Key": "simultaneous"},
             )
             assert response.status_code == 202, response.text
             return response.json()
@@ -716,6 +732,7 @@ def test_cancel_pending_dispatch_survives_recovery_and_retry(setup, monkeypatch)
     with TestClient(os.get_app()) as client:
         client.headers["Authorization"] = "Bearer " + token(scopes=(*SCOPES, "agents:run"))
         _, task = make_work(os.company)
+        task = transition(os.company, task, "ready")
         runtime = os.company._runtime
         enqueue = runtime._enqueue
 
@@ -739,6 +756,8 @@ def test_cancel_pending_dispatch_survives_recovery_and_retry(setup, monkeypatch)
         assert replay.status_code == 202 and replay.json()["status"] == "cancelled"
         assert client.portal.call(runtime.worker.store.get_job, run["id"]) is None
         # A new, explicit request can proceed after cancellation.
+        current = os.company.get_task(principal=caller(), task_id=task["id"])
+        headers["If-Match"] = json.dumps(str(current["version"]))
         fresh = client.post(
             f"/company/v1/tasks/{task['id']}/runs", json={}, headers={**headers, "Idempotency-Key": "after-cancel"}
         )

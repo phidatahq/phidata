@@ -137,6 +137,8 @@ class CompanyRuntime:
                 raise CompanyError(412, "version_conflict", "Reload the Task before running it")
             if task["state"] != "active" or product["state"] != "active":
                 raise CompanyError(409, "archived_parent", "Restore the work before running it")
+            if task["schedule"] is None and task["status"] not in ("ready", "in_progress"):
+                raise CompanyError(409, "not_ready", "Accept the Task as Ready before execution or request a revision")
             project = None
             if task["project_id"]:
                 project = _row(conn, "SELECT * FROM agno_company.projects WHERE id=:id", id=task["project_id"])
@@ -150,11 +152,11 @@ class CompanyRuntime:
             repository = None
             if product.get("repository") and getattr(agent, "sandbox", None) is not None:
                 self._require_engineer(agent)
-                if not project or not task.get("source") or not task["accepted_by"]:
+                if task["schedule"] is not None or not task.get("source") or not task["accepted_by"]:
                     raise CompanyError(
                         409,
                         "acceptance_required",
-                        "Repository work requires a Project Task accepted as Ready by a human",
+                        "Repository work requires a Task accepted as Ready by a human",
                     )
                 repository = task["source"]
                 if repository["url"] != product["repository"]["url"]:
@@ -168,7 +170,7 @@ class CompanyRuntime:
                     raise CompanyError(
                         409, "product_busy", "Another engineering agent Task is running; this Task remains Ready"
                     )
-            elif product.get("repository") and project:
+            elif product.get("repository") and task["schedule"] is None:
                 self._require_engineer(agent)
             active = _row(conn, "SELECT id FROM agno_company.task_runs WHERE task_id=:id AND NOT released", id=task_id)
             if active and trigger != "schedule":
@@ -180,7 +182,7 @@ class CompanyRuntime:
             )
             session_id = (
                 previous["session_id"]
-                if project
+                if task["schedule"] is None
                 and previous
                 and previous["agent_id"] == agent.id
                 and previous["initiating_principal_id"] == principal.id
@@ -211,7 +213,7 @@ class CompanyRuntime:
             }
             file_snapshot = (
                 previous["payload"].get("company_files", {})
-                if previous and project
+                if previous and task["schedule"] is None
                 else service.files._snapshot(
                     conn,
                     principal,
@@ -849,8 +851,8 @@ class CompanyRuntime:
                     """
                 SELECT t.* FROM agno_company.tasks t
                 JOIN agno_company.products p ON p.id=t.product_id
-                JOIN agno_company.projects j ON j.id=t.project_id
-                WHERE t.state='active' AND p.state='active' AND j.state='active' AND
+                LEFT JOIN agno_company.projects j ON j.id=t.project_id
+                WHERE t.state='active' AND p.state='active' AND (t.project_id IS NULL OR j.state='active') AND
                 ((t.status='ready' AND t.ready_principal IS NOT NULL AND t.ready_agent_id IS NOT NULL)
                  OR (t.status='in_review' AND jsonb_typeof(t.review_pull_request)='object'))
                 ORDER BY t.updated_at, t.id

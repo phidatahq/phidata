@@ -6,8 +6,9 @@ Run company work on AgentOS with three concepts:
 - **Task:** saved work in a Product, with instructions and results.
 - **Project:** an optional group of Tasks with a shared outcome.
 
-Project Tasks move through Backlog, Ready, In progress, In review and Done.
-Direct Product Tasks have no board stage. Run them when needed or give them a schedule.
+Non-recurring Tasks move through Backlog, Ready, In progress, In review and Done,
+whether independent in a Product or grouped in a Project. Recurring Product Tasks
+have a schedule and run history instead of a board stage.
 Archive abandoned work. Project progress comes from its unarchived Tasks; an empty
 Project is empty, and adding unfinished work makes a completed Project active again.
 
@@ -92,7 +93,7 @@ CompanyTools remains available for custom agents with distinct IDs.
 
 Clients supply their existing login, `Idempotency-Key` for mutations and `If-Match`
 for versioned changes. Owners are inherited. A name/title is enough to capture work;
-instructions are required before execution or accepting a Project Task into Ready.
+instructions are required before execution or accepting a Task into Ready.
 Pause recurrence before grouping a Task. Identity, comments and run history survive.
 
 With the durable queue and scheduler enabled, newly accepted Ready Tasks with an
@@ -104,7 +105,7 @@ editing a Ready Task's instructions, worker or accountable owner returns it to B
 Tasks without a worker remain available for human work. Explicit Run remains available
 when the scheduler is disabled, and for deliberate retries or revisions.
 
-A successful Project Task run moves it to In review. A human
+A successful non-recurring Task run moves it to In review. A human
 can request revision, which reuses the working session, or accept it as Done with
 evidence or an explanation of the checks. Recurring occurrences use fresh sessions
 with the previous result. One active run per Task is allowed; overlapping scheduled

@@ -237,3 +237,10 @@ def test_staging_errors_are_input_errors_and_never_retried(tmp_path):
     assert run.metadata["error_type"] == "input_check_error"
     assert issubclass(MediaStagingError, InputCheckError) and issubclass(MediaStagingError, ValueError)
     assert list(outside.iterdir()) == []
+
+
+def test_long_names_keep_their_extension_when_truncated():
+    name = _media._safe_name("a" * 300 + ".txt")
+    assert len(name) == 120 and name.endswith(".txt")
+    assert _media._safe_name("short.txt") == "short.txt"
+    assert len(_media._safe_name("a" * 300)) == 120

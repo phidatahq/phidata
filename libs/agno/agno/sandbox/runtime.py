@@ -169,6 +169,11 @@ async def _fixture(directory: Path, request: Dict[str, Any]) -> Dict[str, Any]:
         marker.write_text(found)
     workspace = Path(os.environ.get("AGNO_SANDBOX_WORKSPACE", "/workspace"))
     workspace.mkdir(exist_ok=True)
+    if request.get("media"):
+        from agno.agents._media import stage_media
+        from agno.sandbox.media import decode_media
+
+        stage_media(workspace, request["run_id"], decode_media(request["media"]))
     with (workspace / "fixture-effects.txt").open("a") as stream:
         stream.write(request["run_id"] + "\n")
     # What the agent's tools would see: the names of our own variables in this environment.
@@ -236,6 +241,8 @@ async def _execute(directory: Path, request: Dict[str, Any]) -> Dict[str, Any]:
     native.mkdir(exist_ok=True)
     os.environ["HOME"] = str(native)
     os.environ["CODEX_HOME"] = str(native / "codex")
+    from agno.sandbox.media import decode_media
+
     agent = _agent(request, native)
     run = None
     try:
@@ -250,6 +257,7 @@ async def _execute(directory: Path, request: Dict[str, Any]) -> Dict[str, Any]:
             stream=True,
             stream_events=True,
             yield_run_output=True,
+            **decode_media(request.get("media", [])),
         ):
             if isinstance(event, RunOutput):
                 run = event

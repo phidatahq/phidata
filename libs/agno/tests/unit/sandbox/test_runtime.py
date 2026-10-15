@@ -701,3 +701,162 @@ def test_native_session_id_is_validated_and_optional(request_data):
     for bad in ("", 5, "x" * 257):
         with pytest.raises(ValueError, match="native_session_id"):
             runtime._validate({**request_data, "native_session_id": bad})
+
+
+# --- attachments -------------------------------------------------------------------------------
+
+
+def _wire(*files, images=()):
+    from agno.media import File, Image
+    from agno.sandbox.media import encode_media
+
+    return encode_media(
+        images=[Image(content=content, format="png") for content in images],
+        files=[File(content=content, filename=name) for name, content in files],
+    )
+
+
+def test_protocol_validates_attachments_and_counts_them_in_the_request_limit(request_data):
+    from agno.sandbox.media import MAX_MEDIA_BYTES
+    from agno.sandbox.protocol import validate_request
+
+    validate_request({**request_data, "media": _wire(("a.txt", b"abc"))})
+    with pytest.raises(ValueError, match="canonical|base64|fields|kind|filename"):
+        validate_request({**request_data, "media": [{"kind": "file", "name": "../a", "content": "YQ=="}]})
+    with pytest.raises(ValueError, match="list"):
+        validate_request({**request_data, "media": {"kind": "file"}})
+    full = _wire(("a.bin", b"a" * MAX_MEDIA_BYTES))
+    validate_request({**request_data, "media": full})
+    with pytest.raises(ValueError, match="exceeds its limit"):
+        validate_request({**request_data, "media": full, "input": "x" * 400_000})
+
+
+def test_runtime_start_rejects_a_forged_attachment_before_dispatch(dispatch):
+    root, calls, request = dispatch
+    with pytest.raises(ValueError):
+        runtime._start(root, {**request, "media": [{"kind": "file", "name": "../escape", "content": "YQ=="}]})
+    assert calls == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("with_media", [True, False])
+async def test_client_sends_attachments_only_when_given(with_media):
+    provider = Provider()
+    client = SandboxRuntimeClient(provider)
+    media = _wire(("a.txt", b"abc")) if with_media else None
+    await client.astart(HANDLE, execution_id="e", run_id="r", sdk="claude", input="hi", media=media)
+    assert ("media" in provider.requests[0]) is with_media
+    if with_media:
+        assert provider.requests[0]["media"] == media
+
+
+def test_sync_client_forwards_attachments():
+    provider = Provider()
+    media = _wire(("a.txt", b"abc"))
+    SandboxRuntimeClient(provider).start(HANDLE, execution_id="e", run_id="r", sdk="claude", input="hi", media=media)
+    assert provider.requests[0]["media"] == media
+
+
+def test_fixture_runtime_stages_attachments_in_the_workspace_per_run(dispatch, tmp_path):
+    root, _, request = dispatch
+    workspace = tmp_path / "workspace"
+    first = {**request, "media": _wire(("same.txt", b"one"), ("same.txt", b"two"))}
+    runtime._start(root, first)
+    runtime._worker(runtime._job(root, "e"))
+    assert runtime._poll(root, "e", 0)["result"]["type"] == "execution_finished"
+    folder = workspace / ".agno/uploads/r"
+    assert sorted(path.name for path in folder.iterdir()) == ["same-2.txt", "same.txt"]
+    assert (folder / "same.txt").read_bytes() == b"one" and (folder / "same-2.txt").read_bytes() == b"two"
+    second = {**request, "execution_id": "e2", "run_id": "r2", "media": _wire(("same.txt", b"three"))}
+    runtime._start(root, second)
+    runtime._worker(runtime._job(root, "e2"))
+    assert (workspace / ".agno/uploads/r2/same.txt").read_bytes() == b"three"
+    assert (folder / "same.txt").read_bytes() == b"one"
+
+
+def test_text_only_fixture_turn_leaves_no_upload_folder(dispatch, tmp_path):
+    root, _, request = dispatch
+    runtime._start(root, request)
+    runtime._worker(runtime._job(root, "e"))
+    assert not (tmp_path / "workspace/.agno").exists()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("sdk", ["claude", "codex"])
+@pytest.mark.parametrize("with_media", [True, False])
+async def test_sdk_adapter_receives_decoded_attachments_only_when_given(tmp_path, monkeypatch, sdk, with_media):
+    from agno.run.agent import RunOutput
+    from agno.run.base import RunStatus
+    from agno.session import AgentSession
+
+    received = {}
+    output = RunOutput(run_id="r", session_id="s", agent_id="a", content="ok", status=RunStatus.completed)
+
+    class Engine:
+        def dispose(self):
+            pass
+
+    class Db:
+        db_engine = Engine()
+
+        def get_run(self, run_id):
+            return output
+
+    class Agent:
+        db = Db()
+
+        async def arun(self, prompt, **kwargs):
+            received.update(kwargs)
+            yield output
+
+        def get_session(self, *args, **kwargs):
+            return AgentSession(session_id="s", agent_id="a", session_data={})
+
+    monkeypatch.setenv("CODEX_HOME", "unused")
+    monkeypatch.setattr(runtime, "_agent", lambda *args: Agent())
+    directory = tmp_path / "jobs/e"
+    directory.mkdir(parents=True)
+    request = {"sdk": sdk, "run_id": "r", "session_id": "s", "input": "hello"}
+    if with_media:
+        request["media"] = _wire(("a.txt", b"abc"), images=[b"png"])
+    await runtime._execute(directory, request)
+    assert ("files" in received) is with_media and ("images" in received) is with_media
+    if with_media:
+        assert received["files"][0].content == b"abc" and received["files"][0].filename == "a.txt"
+        assert received["images"][0].content == b"png"
+
+
+@pytest.mark.parametrize("sdk", ["claude", "codex"])
+def test_each_real_adapter_accepts_decoded_images_and_files_and_rejects_the_rest(sdk):
+    from agno.agents.claude import ClaudeAgent
+    from agno.agents.codex import CodexAgent
+    from agno.exceptions import UnsupportedMediaError
+    from agno.media import Audio, File, Image
+    from agno.sandbox.media import decode_media, encode_media
+
+    agent = (ClaudeAgent if sdk == "claude" else CodexAgent)()
+    wire = encode_media(images=[Image(content=b"png", format="png")], files=[File(content=b"abc", filename="a.txt")])
+    accepted = agent._media_kwargs(**decode_media(wire))
+    assert [item.content for item in accepted["media"]["images"]] == [b"png"]
+    assert [item.content for item in accepted["media"]["files"]] == [b"abc"]
+    with pytest.raises(UnsupportedMediaError):
+        agent._media_kwargs(audio=[Audio(content=b"audio")])
+
+
+def test_failed_staging_is_an_execution_error_and_no_turn_effects_are_recorded(dispatch, tmp_path):
+    root, _, request = dispatch
+    workspace = tmp_path / "workspace"
+    (workspace / ".agno").mkdir(parents=True)
+    (workspace / ".agno/uploads").write_text("a file where the upload folder belongs")
+    runtime._start(root, {**request, "media": _wire(("a.txt", b"abc"))})
+    runtime._worker(runtime._job(root, "e"))
+    assert runtime._poll(root, "e", 0)["result"]["type"] == "execution_error"
+    assert not (workspace / "fixture-effects.txt").exists()
+
+
+def test_text_only_fixture_turn_never_touches_attachment_staging(dispatch, tmp_path):
+    root, _, request = dispatch
+    runtime._start(root, {**request, "run_id": "a:b"})
+    runtime._worker(runtime._job(root, "e"))
+    assert runtime._poll(root, "e", 0)["result"]["type"] == "execution_finished"
+    assert (tmp_path / "workspace/fixture-effects.txt").read_text() == "a:b\n"

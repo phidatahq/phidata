@@ -833,7 +833,7 @@ def attach_routes(
         elif target_run.get("team_id") is not None:
             return TeamRunSchema.from_dict(target_run)
         else:
-            return RunSchema.from_dict(target_run)
+            return RunSchema.from_dict(target_run, session=cast(Dict[str, Any], session))
 
     @router.delete(
         "/sessions/{session_id}",

@@ -417,3 +417,89 @@ multi-replica execution, retries or deployment readiness.
 **Result:** Optional field came back `null` and parsed to `None`; the resumed streamed turn parsed and stored the model with `content_type` Movie. An array-rooted schema failed the turn with Codex's `invalid_json_schema: schema must be a JSON Schema of 'type: "object"'`; it is now refused with `ValueError` before the turn. Cookbook reran unchanged.
 
 ---
+
+## 2026-10-11 release acceptance
+
+Framework source: `9e1f77f52a9bb16ee5dde3ccff9fa2491e86db5f`. Python 3.12, Claude SDK 0.2.165, Codex SDK 0.162.1. Claude uses `claude-sonnet-5-5` with API-key authentication; Codex uses `gpt-5.6-luna`. Separate native homes and working directories per example. Cookbook configuration updates in this batch use typed options and remove incidental run limits; explicit limits remain in limit/recovery demonstrations.
+
+### codex_native_sdk.py
+
+**Status:** PASS
+
+**Description:** Executed the cookbook with real SDK calls and its assertions.
+
+**Result:** Exit 0 in 4.0 seconds.
+
+---
+### codex_basic.py
+
+**Status:** PASS
+
+**Description:** Executed the cookbook with real SDK calls and its assertions.
+
+**Result:** Exit 0 in 4.3 seconds.
+
+---
+### codex_tools.py
+
+**Status:** PASS
+
+**Description:** Executed the cookbook with real SDK calls and its assertions.
+
+**Result:** Exit 0 in 7.0 seconds.
+
+---
+### codex_mcp_tools.py
+
+**Status:** PASS
+
+**Description:** Executed the cookbook with real SDK calls and its assertions.
+
+**Result:** Exit 0 in 8.3 seconds.
+
+---
+### codex_session.py
+
+**Status:** PASS
+
+**Description:** Executed the cookbook with real SDK calls and its assertions.
+
+**Result:** Exit 0 in 8.4 seconds.
+
+---
+### codex_metrics.py
+
+**Status:** PASS
+
+**Description:** Executed the cookbook with real SDK calls and its assertions.
+
+**Result:** Exit 0 in 7.7 seconds.
+
+---
+### codex_structured_output.py
+
+**Status:** PASS
+
+**Description:** Executed the cookbook with real SDK calls and its assertions.
+
+**Result:** Exit 0 in 8.1 seconds.
+
+---
+### codex_media.py
+
+**Status:** PASS
+
+**Description:** Executed the cookbook with real SDK calls and its assertions.
+
+**Result:** Exit 0 in 14.4 seconds.
+
+---
+### codex_compaction.py
+
+**Status:** PASS
+
+**Description:** Executed the cookbook with real SDK calls and its assertions.
+
+**Result:** Exit 0 in 29.7 seconds.
+
+---

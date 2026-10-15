@@ -808,6 +808,9 @@ def attach_routes(
                 if problem is not None:
                     raise HTTPException(status_code=400, detail=problem)
 
+            if registry is not None and component_id in registry.excluded_component_ids:
+                raise HTTPException(status_code=409, detail="This component is excluded from the registry")
+
             # Prepare config - ensure it's a dict and resolve db reference
             config = body.config or {}
             config = _resolve_db_in_config(config, db, registry)

@@ -839,6 +839,10 @@ class _SandboxStore:
                     if key in staged:
                         run[key] = staged[key]
                 run["status"] = record["stop_status"]
+                if run["status"] == "CANCELLED" and not run.get("cancellation_stage"):
+                    from agno.run.base import CancellationStage
+
+                    run["cancellation_stage"] = CancellationStage.executing.value
                 # Like core run termination: the reason fills content only when there is none.
                 if not run.get("content"):
                     run["content"] = record["stop_reason"]
@@ -1002,6 +1006,8 @@ class _SandboxStore:
             raise ValueError("Queue termination requires ERROR or CANCELLED")
 
         def stop(connection: Connection) -> Any:
+            self._hold_session(connection, session_id)
+            self._lock_run(connection, run_id)
             # Insert an idle binding to serialize even a never-started run with
             # its first coordinator. A plain SELECT cannot lock an absent row.
             try:

@@ -537,6 +537,36 @@ class ServedDocker(FakeDocker):
         return httpx.AsyncClient(transport=httpx.MockTransport(handler))
 
 
+def test_sync_calls_close_their_http_client_and_leave_no_cache(monkeypatch):
+    import httpx
+
+    clients = []
+    real_client = httpx.AsyncClient
+
+    def client(**kwargs):
+        transport = httpx.MockTransport(lambda request: httpx.Response(200, json={"ok": True}))
+        clients.append(real_client(transport=transport, **kwargs))
+        return clients[-1]
+
+    monkeypatch.setattr(httpx, "AsyncClient", client)
+    sandbox = ServedDocker()
+    monkeypatch.setattr(sandbox, "_http_client", lambda: DockerSandbox._http_client(sandbox))
+    handle = sandbox.create("session")
+    for _ in range(3):
+        assert sandbox.rpc(handle, "poll", b'{"execution_id": "e", "cursor": 0}').exit_code == 0
+    assert len(clients) == 4
+    assert all(item.is_closed for item in clients)
+    assert not sandbox._http
+
+
+@pytest.mark.asyncio
+async def test_a_running_loop_reuses_one_http_client(monkeypatch):
+    sandbox = ServedDocker()
+    first = DockerSandbox._http_client(sandbox)
+    assert DockerSandbox._http_client(sandbox) is first
+    assert list(sandbox._http) == [asyncio.get_running_loop()]
+
+
 def _create_args(provider):
     return next(call[0] for call in provider.calls if call[0][:2] == ("container", "create"))
 

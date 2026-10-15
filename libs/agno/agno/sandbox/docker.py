@@ -11,7 +11,7 @@ import secrets
 import tempfile
 from contextlib import suppress
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, Mapping, Optional, Sequence
+from typing import TYPE_CHECKING, Any, Dict, Mapping, Optional, Sequence, Tuple
 
 from agno.sandbox.base import ExecResult, Sandbox, SandboxError, SandboxHandle, _identity, _sync
 
@@ -112,7 +112,7 @@ class DockerSandbox(Sandbox):
         self.checkpoints = checkpoints
         self.env = dict(env) if env is not None else None
         self.execution_timeout = execution_timeout
-        self._http: Dict[int, Any] = {}
+        self._http: Dict[asyncio.AbstractEventLoop, Tuple[Any, "asyncio.Task[None]"]] = {}
         self._network_ready = False
 
     def checkpoint_transfer(self, store: "CheckpointStore") -> "CheckpointTransfer":
@@ -345,15 +345,28 @@ class DockerSandbox(Sandbox):
         return headers
 
     def _http_client(self) -> Any:
-        """One pooled client per event loop; a client must not outlive the loop it was made on."""
+        """One pooled client per event loop, closed when that loop shuts down."""
         import httpx
 
-        loop_id = id(asyncio.get_running_loop())
-        client = self._http.get(loop_id)
-        if client is None:
+        loop = asyncio.get_running_loop()
+        for stale in [item for item in self._http if item.is_closed()]:
+            del self._http[stale]
+        entry = self._http.get(loop)
+        if entry is None:
             limits = httpx.Limits(max_connections=4096, max_keepalive_connections=1024)
-            client = self._http[loop_id] = httpx.AsyncClient(limits=limits, timeout=httpx.Timeout(15.0, read=60.0))
-        return client
+            client = httpx.AsyncClient(limits=limits, timeout=httpx.Timeout(15.0, read=60.0))
+
+            async def close_with_loop() -> None:
+                # asyncio.run cancels pending tasks before closing its loop, so each sync call closes its client.
+                try:
+                    await loop.create_future()
+                finally:
+                    if self._http.get(loop, (None,))[0] is client:
+                        del self._http[loop]
+                    await client.aclose()
+
+            entry = self._http[loop] = (client, loop.create_task(close_with_loop()))
+        return entry[0]
 
     async def _await_runtime(self, handle: SandboxHandle) -> None:
         """Wait for the in-container server to answer /health before handing the sandbox out."""

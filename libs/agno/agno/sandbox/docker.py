@@ -384,7 +384,8 @@ class DockerSandbox(Sandbox):
         loop = asyncio.get_running_loop()
         with self._http_lock:
             for stale in [item for item in self._http if item.is_closed()]:
-                del self._http[stale]
+                # A loop closed with its closer still pending can never run it; stop retaining it.
+                _CLOSERS.discard(self._http.pop(stale)[1])
             entry = self._http.get(loop)
             if entry is None:
                 limits = httpx.Limits(max_connections=4096, max_keepalive_connections=1024)

@@ -590,6 +590,23 @@ def test_concurrent_sync_calls_share_the_client_cache_safely(monkeypatch):
     assert not sandbox._http
 
 
+def test_a_loop_closed_without_cancelling_tasks_is_not_retained():
+    from agno.sandbox.docker import _CLOSERS
+
+    sandbox = ServedDocker()
+    loop = asyncio.new_event_loop()
+
+    async def client():
+        DockerSandbox._http_client(sandbox)
+        await asyncio.sleep(0)
+
+    loop.run_until_complete(client())
+    closer = sandbox._http[loop][1]
+    loop.close()
+    asyncio.run(client())
+    assert closer not in _CLOSERS and loop not in sandbox._http
+
+
 @pytest.mark.asyncio
 async def test_a_running_loop_reuses_one_http_client(monkeypatch):
     sandbox = ServedDocker()

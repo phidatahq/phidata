@@ -59,10 +59,16 @@ Try: "Review the last 30 days of usage and cost."
 
 ### agentos_platform_dashboard.py
 
-A worker agent seeds traced activity on startup. The Platform Dashboard agent
-then reads the deployment's own metrics with `AgentOSTools` and charts them with
-`ChartTools`. The instructions require a data fetch before every chart and map
-data shapes to chart types, so the model never invents numbers.
+On first start, three worker agents on different models and tools run twelve
+prompts for three users, and their sessions are backdated across the last seven
+days. The Platform Dashboard agent then reads the deployment's own metrics with
+`AgentOSTools` and charts them with `ChartTools`: tokens per day, model mix,
+runs and latency per agent, and tool usage. The instructions require a data
+fetch before every chart and map data shapes to chart types, so the model never
+invents numbers.
+
+Seeding is skipped when the database already has sessions. Delete
+`tmp/agentos_platform_dashboard.db` to reseed.
 
 Try: "Chart token usage by day and the model mix."
 

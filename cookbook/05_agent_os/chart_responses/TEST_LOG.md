@@ -38,14 +38,23 @@ chart and closed with a three-bullet summary. Run time about 59 seconds.
 
 **Status:** PASS
 
-**Description:** Called `seed_activity()` to run the worker three times with
-tracing on, then ran the dashboard agent with "Chart token usage by day and the
-model mix." Checked tool order and chart data.
+**Description:** Deleted the demo database, called `seed_activity()` (twelve
+runs across three workers on gpt-5.6-luna, gpt-5.5, and gpt-5-mini, three
+users, sessions backdated over seven days), confirmed a second call skips
+seeding, then ran the dashboard agent with each of the three quick prompts and
+checked tool order and chart data.
 
-**Result:** Tool order was `get_platform_metrics`, `create_chart`,
-`create_chart`. The bar chart used the real date and token total from the
-metrics payload, and the pie chart used the real model mix (3 runs on
-gpt-5.6-luna). The agent stated the window and noted that the backend returned
-activity for only one day. Run time about 24 seconds.
+**Result:** Seeding took about 44 seconds. The metrics payload showed seven
+daily rows, three models, and three agents. Each prompt fetched data before
+charting:
+
+- "Chart token usage by day and the model mix." produced a 7-row line chart of
+  total tokens by date and a 3-slice pie of runs by model.
+- "Show runs per agent for the last 7 days with average latency." produced a
+  4-row horizontal bar chart of traces and average duration per agent.
+- "Which tools were used most and how long did they take?" produced two 9-row
+  horizontal bar charts, most-used tools and average tool duration.
+
+Each prompt ran in 11 to 16 seconds.
 
 ---

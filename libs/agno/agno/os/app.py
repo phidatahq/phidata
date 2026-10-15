@@ -889,6 +889,7 @@ class AgentOS:
             get_knowledge_router(knowledge_instances=self.knowledge_instances),
             get_traces_router(dbs=self.dbs),
             get_database_router(self, settings=self.settings),
+            get_filesystem_router(self, settings=self.settings),
         ]
         if self.company is not None:
             from agno.os.routers.company.products import get_products_router
@@ -957,7 +958,6 @@ class AgentOS:
         self._add_router(app, get_health_router(health_endpoint="/health"))
         self._add_router(app, get_info_router(self))
         self._add_router(app, get_base_router(self, settings=self.settings))
-        self._add_router(app, get_filesystem_router(self, settings=self.settings))
         self._add_router(app, get_agent_router(self, settings=self.settings, registry=self.registry))
         self._add_router(app, get_team_router(self, settings=self.settings, registry=self.registry))
         self._add_router(app, get_workflow_router(self, settings=self.settings))
@@ -1707,6 +1707,7 @@ class AgentOS:
             get_knowledge_router(knowledge_instances=self.knowledge_instances),
             get_traces_router(dbs=self.dbs),
             get_database_router(self, settings=self.settings),
+            get_filesystem_router(self, settings=self.settings),
         ]
         if self.company is not None:
             from agno.os.routers.company.products import get_products_router

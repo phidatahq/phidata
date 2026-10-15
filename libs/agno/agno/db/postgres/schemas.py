@@ -1,5 +1,7 @@
 """Table schemas and related utils used by the PostgresDb class"""
 
+import hashlib
+from functools import partial
 from typing import Any
 
 from agno.db.schemas.authz import AUTHZ_TABLE_SCHEMAS
@@ -7,7 +9,7 @@ from agno.db.schemas.mcp_oauth import MCP_OAUTH_TABLE_SCHEMAS
 
 try:
     from sqlalchemy.dialects.postgresql import JSONB
-    from sqlalchemy.types import BigInteger, Boolean, Date, Integer, String, Text
+    from sqlalchemy.types import BigInteger, Boolean, Date, DateTime, Integer, String, Text
 except ImportError:
     raise ImportError("`sqlalchemy` not installed. Please install it using `pip install sqlalchemy`")
 
@@ -365,6 +367,46 @@ TOOL_RESULTS_TABLE_SCHEMA = {
 }
 
 
+def default_sandbox_table_name(session_table_name: str) -> str:
+    """One bindings table per session table, within PostgreSQL's 63-byte identifier limit."""
+    suffix = "_sandbox_bindings"
+    name = session_table_name + suffix
+    if len(name.encode()) <= 63:
+        return name
+    # A digest keeps long names that share a prefix apart.
+    digest = "_" + hashlib.sha256(session_table_name.encode()).hexdigest()[:8]
+    prefix = session_table_name.encode()[: 63 - len(suffix) - len(digest)].decode(errors="ignore")
+    return prefix + digest + suffix
+
+
+def _get_sandbox_bindings_table_schema(
+    session_table_name: str = "agno_sessions", runs_table_name: str = "agno_runs"
+) -> dict[str, Any]:
+    """Sandbox lease table; deleting a session deletes its binding, so a recreated session starts fresh."""
+    return {
+        # namespace = "<schema>.<session table>"; the foreign key below ties the table to that one session table
+        "namespace": {"type": String, "primary_key": True, "nullable": False},
+        "session_id": {
+            "type": String,
+            "primary_key": True,
+            "nullable": False,
+            "foreign_key": f"{session_table_name}.session_id",
+            "ondelete": "CASCADE",
+        },
+        "agent_id": {"type": String, "nullable": False},
+        "user_id": {"type": String, "nullable": True},
+        "epoch": {"type": BigInteger, "nullable": False},
+        "owner": {"type": String, "nullable": True},
+        # Set only while a turn holds the session. No cascade: deleting that run alone is refused,
+        # while deleting the session removes both rows in one statement.
+        "run_id": {"type": String, "nullable": True, "foreign_key": f"{runs_table_name}.run_id"},
+        "queue_attempt": {"type": BigInteger, "nullable": True},
+        # Compared against the database clock, so it needs a timezone-aware type
+        "expires_at": {"type": partial(DateTime, timezone=True), "nullable": True},
+        "record": {"type": JSONB, "nullable": False},
+    }
+
+
 JOBS_TABLE_SCHEMA = {
     # id == run_id, so poll/resume endpoints key identically
     "id": {"type": String, "primary_key": True, "nullable": False},
@@ -530,6 +572,7 @@ def get_table_schema_definition(
     db_schema: str = "agno",
     schedules_table_name: str = "agno_schedules",
     session_table_name: str = "agno_sessions",
+    runs_table_name: str = "agno_runs",
 ) -> dict[str, Any]:
     """
     Get the expected schema definition for the given table.
@@ -551,6 +594,8 @@ def get_table_schema_definition(
         return _get_schedule_runs_table_schema(schedules_table_name, db_schema)
     if table_type == "runs":
         return _get_run_table_schema(session_table_name)
+    if table_type == "sandbox_bindings":
+        return _get_sandbox_bindings_table_schema(session_table_name, runs_table_name)
 
     schemas = {
         "sessions": SESSION_TABLE_SCHEMA,

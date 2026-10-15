@@ -571,6 +571,43 @@ async def test_a_real_socket_upload_over_the_bound_is_refused_and_the_server_sta
     assert all_rows(agent) == 0 and handles == []
 
 
+async def _raw_request(port, declared, sent, *, read=True):
+    """One POST over a plain socket declaring ``declared`` body bytes and sending only ``sent`` of them."""
+    reader, writer = await asyncio.open_connection("127.0.0.1", port)
+    head = (
+        f"POST /agents/coder/runs HTTP/1.1\r\nHost: x\r\nContent-Length: {declared}\r\n"
+        "Content-Type: multipart/form-data; boundary=B\r\n\r\n"
+    )
+    writer.write(head.encode() + b"x" * sent)
+    await writer.drain()
+    try:
+        return (await asyncio.wait_for(reader.read(200), 5)).decode(errors="replace") if read else None
+    finally:
+        writer.close()
+
+
+async def test_a_declared_length_over_the_bound_is_answered_without_waiting_for_the_body_and_a_dropped_upload_is_harmless(
+    service, tmp_path
+):
+    import httpx
+
+    _, agent, app, handles = service
+    process, port = _start_service(agent, app, tmp_path)
+    try:
+        await _wait_ready(process, port)
+        # The header alone decides: the answer comes while the client still owes almost all of the body.
+        assert (await _raw_request(port, 5 * 1024 * 1024, 100)).startswith("HTTP/1.1 413")
+        # A client that vanishes part-way through a body within the bound is not a server error.
+        await _raw_request(port, 3 * 1024 * 1024, 1024 * 1024, read=False)
+        await asyncio.sleep(1)
+        async with httpx.AsyncClient(base_url=f"http://127.0.0.1:{port}", timeout=30) as remote:
+            assert (await remote.get("/health")).status_code == 200
+    finally:
+        process.terminate()
+        process.wait(timeout=30)
+    assert all_rows(agent) == 0 and handles == []
+
+
 # --- retention and deletion: what the existing mechanisms actually do ------------------------------------------------
 
 
@@ -663,3 +700,106 @@ async def test_a_json_image_without_a_format_keeps_an_image_extension_through_th
     assert response.status_code == 200 and response.json()["status"] == "COMPLETED", response.text
     folder = (await workspace_after(agent, tmp_path)) / ".agno/uploads" / response.json()["run_id"]
     assert [path.name for path in folder.iterdir()] == ["image-1.png"]
+
+
+# --- tickets whose session or run row changed after acceptance ----------------------------------------------------------
+
+
+def _objects(agent):
+    root = agent.sandbox.checkpoints.root
+    return sorted(str(path.relative_to(root)) for path in root.rglob("*") if path.is_file())
+
+
+async def _damage(agent, app, run_id):
+    from sqlalchemy import update
+
+    payload = (await app.state.queue_worker.store.get_job(run_id))["payload"]
+    payload["kwargs"]["sandbox_media"][0]["name"] = "../escape"
+    jobs = agent.db._get_table("jobs")
+    with agent.db.db_engine.begin() as connection:
+        connection.execute(update(jobs).where(jobs.c.id == run_id).values(payload=payload))
+
+
+async def _run_fresh_worker(agent, app, tmp_path, *, idle=0):
+    # ``idle`` keeps the worker polling after it is ready, long enough for several 0.05 s polls and a sweep to act.
+    process, port = _start_service(agent, app, tmp_path)
+    try:
+        await _wait_ready(process, port)
+        await asyncio.sleep(idle)
+    finally:
+        process.terminate()
+        process.wait(timeout=30)
+
+
+async def test_a_damaged_ticket_whose_session_was_deleted_still_fails_once_without_compute_or_a_new_checkpoint(
+    service, tmp_path
+):
+    client, agent, app, handles = service
+    first = await post(client, files=[("files", ("one.txt", b"first", "text/plain"))])
+    assert first.json()["status"] == "COMPLETED", first.text
+    await app.state.queue_worker.stop()
+    queued = await post(client, background="true", files=[("files", ("two.txt", b"second", "text/plain"))])
+    run_id = queued.json()["run_id"]
+    await _damage(agent, app, run_id)
+    assert agent.db.delete_session("session") is True
+    computers, objects = len(handles), _objects(agent)
+    await _run_fresh_worker(agent, app, tmp_path)
+    job = await settled(app, run_id)
+    # Whether the deleted session is recreated to hold the failure is the queue's existing behavior for any accepted
+    # run; what matters here is that nothing ran and nothing was published.
+    assert job["status"] == "failed" and job["attempt"] == 1 and job["error"].startswith("permanent:"), job
+    assert len(handles) == computers and _objects(agent) == objects
+
+
+async def test_a_damaged_ticket_whose_run_another_writer_already_ended_keeps_that_outcome(service, tmp_path):
+    from sqlalchemy import select, update
+
+    client, agent, app, handles = service
+    await app.state.queue_worker.stop()
+    queued = await post(client, background="true", files=[("files", ("two.txt", b"second", "text/plain"))])
+    run_id = queued.json()["run_id"]
+    await _damage(agent, app, run_id)
+    runs = agent.db._get_table("runs")
+    with agent.db.db_engine.begin() as connection:
+        row = connection.execute(select(runs).where(runs.c.run_id == run_id)).mappings().one()
+        data = {**row["run_data"], "status": "CANCELLED", "content": "ended elsewhere"}
+        connection.execute(update(runs).where(runs.c.run_id == run_id).values(status="CANCELLED", run_data=data))
+    await _run_fresh_worker(agent, app, tmp_path)
+    job = await settled(app, run_id)
+    stored = await agent.aget_run_output(run_id, "session")
+    assert job["status"] == "cancelled" and stored.status == "CANCELLED" and stored.content == "ended elsewhere"
+    assert handles == [] and _objects(agent) == []
+
+
+async def test_a_failed_damaged_ticket_is_left_alone_by_a_second_worker(service, tmp_path):
+    client, agent, app, handles = service
+    await app.state.queue_worker.stop()
+    queued = await post(client, background="true", files=[("files", ("two.txt", b"second", "text/plain"))])
+    run_id = queued.json()["run_id"]
+    await _damage(agent, app, run_id)
+    await _run_fresh_worker(agent, app, tmp_path)
+    before = await settled(app, run_id)
+    await _run_fresh_worker(agent, app, tmp_path, idle=6)
+    after = await app.state.queue_worker.store.get_job(run_id)
+    stored = await agent.aget_run_output(run_id, "session")
+    assert (after["status"], after["attempt"], after["error"]) == (before["status"], before["attempt"], before["error"])
+    assert after["status"] == "failed" and after["attempt"] == 1 and stored.status == "ERROR"
+    assert handles == [] and _objects(agent) == []
+
+
+async def test_cancelling_a_queued_run_before_deleting_its_session_leaves_nothing_to_run_or_recreate(service, tmp_path):
+    from sqlalchemy import func, select
+
+    client, agent, app, handles = service
+    await app.state.queue_worker.stop()
+    queued = await post(client, background="true", files=[("files", ("two.txt", b"second", "text/plain"))])
+    run_id = queued.json()["run_id"]
+    assert (await client.post(f"/agents/coder/runs/{run_id}/cancel")).status_code == 200
+    assert agent.db.delete_session("session") is True
+    await _run_fresh_worker(agent, app, tmp_path, idle=4)
+    job = await app.state.queue_worker.store.get_job(run_id)
+    sessions = agent.db._get_table("sessions")
+    with agent.db.db_engine.begin() as connection:
+        remaining = connection.execute(select(func.count()).select_from(sessions)).scalar_one()
+    assert job["status"] == "cancelled" and job["attempt"] == 0
+    assert remaining == 0 and handles == [] and _objects(agent) == []

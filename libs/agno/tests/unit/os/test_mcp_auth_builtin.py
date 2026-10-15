@@ -920,7 +920,12 @@ async def test_refresh_survives_access_token_expiry_across_replicas(tmp_path):
     # full second of life, and the sleep (monotonic) can drift from expiry (wall clock) on CI.
     await asyncio.sleep(1.8)
 
-    replica = _os(_provider(db, access_token_ttl=1), db=db)
+    # The replica keeps the default (long) access TTL. It only needs to reject the first
+    # instance's already-expired token via the stateless exp check -- that token's expiry is
+    # baked in at mint time, so the replica's own TTL is irrelevant to it. A 1s TTL here would
+    # instead race the *refreshed* token below, which is used a couple of calls after it is
+    # minted and would flakily expire mid-test on a slow runner.
+    replica = _os(_provider(db), db=db)
     async with _http_client(replica) as client:
         expired = await client.post(
             "/mcp", json=_MCP_INIT_BODY, headers={**_MCP_HEADERS, "Authorization": f"Bearer {tokens['access_token']}"}
@@ -999,3 +1004,54 @@ def test_loopback_redirect_matching():
     assert matches("https://claude.ai/cb", "http://claude.ai/cb") is False
     # Refused: userinfo in the URI must never participate in matching.
     assert matches("http://x@127.0.0.1:62000/callback", reg) is False
+
+
+async def test_identity_bridge_denies_disabled_user_over_mcp_auth(tmp_path):
+    """mcp_auth exempts /mcp from the parent AuthMiddleware, so the disabled-user
+    kill-switch that lives there does not run for OAuth'd MCP traffic. The identity
+    bridge must re-apply it: a disabled user's valid token gets a TERMINAL 403 (the
+    request never reaches a tool -- custom MCP tools carry no scope gate, so a
+    pass-through would run them with user_id=None). An enabled user is bridged normally.
+    Locks the revocation-over-OAuth'd-MCP fix in."""
+    from types import SimpleNamespace
+
+    from agno.db.sqlite import SqliteDb
+    from agno.os.authz.user_directory import UserDirectory
+    from agno.os.mcp_auth import MCPIdentityBridgeMiddleware
+
+    users = UserDirectory(db=SqliteDb(db_file=str(tmp_path / "u.db")))
+    users.upsert("alice", email="alice@co")
+    users.upsert("bob", email="bob@co")
+    users.set_disabled("bob", True)
+
+    captured: dict = {}
+
+    async def inner(scope, receive, send):
+        captured["state"] = dict(scope.get("state", {}))
+
+    bridge = MCPIdentityBridgeMiddleware(inner, admin_scope="agent_os:admin", user_store=users)
+
+    def make_scope(sub):
+        token = SimpleNamespace(claims={"sub": sub}, scopes=["agents:*:run"], client_id=sub)
+        return {"type": "http", "user": SimpleNamespace(access_token=token), "state": {}}
+
+    async def _noop_receive():
+        return {"type": "http.request", "body": b"", "more_body": False}
+
+    def _make_send(sink: list):
+        async def _send(message):
+            sink.append(message)
+
+        return _send
+
+    # enabled user -> identity bridged, request reaches the tool
+    await bridge(make_scope("alice"), _noop_receive, _make_send([]))
+    assert captured["state"].get("authenticated") is True
+    assert captured["state"].get("user_id") == "alice"
+
+    # disabled user -> terminal 403; inner (the tool app) never runs
+    captured.clear()
+    sent: list = []
+    await bridge(make_scope("bob"), _noop_receive, _make_send(sent))
+    assert captured == {}, "disabled user's request must not reach the tool app"
+    assert sent and sent[0]["type"] == "http.response.start" and sent[0]["status"] == 403

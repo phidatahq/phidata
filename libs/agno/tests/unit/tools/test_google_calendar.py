@@ -3,6 +3,7 @@
 import json
 import os
 import tempfile
+from datetime import datetime
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
@@ -232,7 +233,7 @@ class TestListEvents:
 
         result = calendar_tools.list_events(limit=2)
         result_data = json.loads(result)
-        assert result_data == mock_events
+        assert result_data["events"] == mock_events
 
     def test_list_events_no_events(self, calendar_tools, mock_calendar_service):
         mock_calendar_service.events().list().execute.return_value = {"items": []}
@@ -244,14 +245,14 @@ class TestListEvents:
         mock_events = [{"id": "1", "summary": "Test Event"}]
         mock_calendar_service.events().list().execute.return_value = {"items": mock_events}
         result = calendar_tools.list_events(start_date="2025-07-19T10:00:00")
-        assert json.loads(result) == mock_events
+        assert json.loads(result)["events"] == mock_events
         assert mock_calendar_service.events().list.call_args.kwargs["timeMin"] == "2025-07-19T10:00:00.000000Z"
 
     def test_list_events_with_timezone_aware_start_date(self, calendar_tools, mock_calendar_service):
         mock_events = [{"id": "1", "summary": "Test Event"}]
         mock_calendar_service.events().list().execute.return_value = {"items": mock_events}
         result = calendar_tools.list_events(start_date="2026-07-01T10:00:00+02:00")
-        assert json.loads(result) == mock_events
+        assert json.loads(result)["events"] == mock_events
         assert mock_calendar_service.events().list.call_args.kwargs["timeMin"] == "2026-07-01T08:00:00.000000Z"
 
     def test_list_events_invalid_date_format(self, calendar_tools):
@@ -464,6 +465,48 @@ class TestFetchAllEvents:
 
 
 class TestFindAvailableSlots:
+    @pytest.mark.parametrize(
+        ("duration_minutes", "end_hour", "expected_last_end", "expected_count"),
+        [
+            (30, 17, "17:00:00", 16),
+            (45, 17, "16:45:00", 15),
+            (60, 17, "17:00:00", 15),
+            (480, 17, "17:00:00", 1),
+            (481, 17, None, 0),
+            (1500, 17, None, 0),
+            (45, 18, "17:45:00", 17),
+        ],
+    )
+    @patch.object(GoogleCalendarTools, "fetch_all_events")
+    @patch.object(GoogleCalendarTools, "_get_working_hours")
+    def test_available_slots_end_within_working_hours(
+        self,
+        mock_working_hours,
+        mock_fetch,
+        calendar_tools,
+        duration_minutes,
+        end_hour,
+        expected_last_end,
+        expected_count,
+    ):
+        mock_working_hours.return_value = json.dumps(
+            {"start_hour": 9, "end_hour": end_hour, "timezone": "UTC", "locale": "en"}
+        )
+        mock_fetch.return_value = json.dumps([])
+
+        result = json.loads(
+            calendar_tools.find_available_slots("2026-10-02", "2026-10-02", duration_minutes=duration_minutes)
+        )
+
+        slots = result["available_slots"]
+        assert len(slots) == expected_count
+        if expected_last_end is not None:
+            assert slots[-1]["end"] == f"2026-10-02T{expected_last_end}+00:00"
+        for slot in slots:
+            start = datetime.fromisoformat(slot["start"])
+            end = datetime.fromisoformat(slot["end"])
+            assert end <= start.replace(hour=end_hour, minute=0, second=0, microsecond=0)
+
     @patch.object(GoogleCalendarTools, "fetch_all_events")
     @patch.object(GoogleCalendarTools, "_get_working_hours")
     def test_find_available_slots_success(self, mock_working_hours, mock_fetch, calendar_tools):
@@ -627,7 +670,7 @@ class TestSearchEvents:
         mock_calendar_service.events().list().execute.return_value = {"items": mock_events}
 
         result = calendar_tools.search_events(query="standup")
-        assert json.loads(result) == mock_events
+        assert json.loads(result)["events"] == mock_events
 
     def test_search_no_results(self, calendar_tools, mock_calendar_service):
         mock_calendar_service.events().list().execute.return_value = {"items": []}
@@ -644,7 +687,7 @@ class TestSearchEvents:
             start_date="2025-07-01T00:00:00",
             end_date="2025-07-31T23:59:59",
         )
-        assert json.loads(result) == mock_events
+        assert json.loads(result)["events"] == mock_events
 
 
 class TestMoveEvent:

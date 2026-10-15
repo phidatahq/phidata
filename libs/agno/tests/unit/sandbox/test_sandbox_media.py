@@ -223,3 +223,32 @@ async def test_the_pending_row_hook_does_not_raise_for_a_ticket_that_cannot_be_r
     else:
         # No row to fail onto: a text-only one gives the failure a run to land on.
         assert result.input.input_content == "hello" and not result.input.files and len(store.prepared) == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "image",
+    [
+        Image(content=b"\x89PNG\r\n\x1a\nfixture"),  # no format: taken from the byte signature
+        Image(content=b"\xff\xd8\xff\xe0fixture", mime_type="image/jpeg"),
+        Image(content=b"GIF89afixture", format="gif"),
+    ],
+    ids=["png-signature", "jpeg-mime-only", "gif-format"],
+)
+async def test_the_pending_row_matches_the_coordinators_input_for_images_given_without_a_format(monkeypatch, image):
+    # The image's wire name is derived from its format, so re-encoding the rebuilt image at claim time must give the
+    # same wire the ticket holds; otherwise the store would refuse the claim as a different input.
+    from types import SimpleNamespace
+
+    from agno.run.agent import RunInput
+
+    agent = _agent()
+    wire = _harness.submission(agent, "hello", {"media": {"images": [image]}})["sandbox_media"]
+    store = _Store({"input": "hello", "kwargs": {"sandbox_media": wire}})
+    monkeypatch.setattr("agno.os.job_queue.get_active_queue_worker", lambda: SimpleNamespace(store=store))
+    monkeypatch.setattr(_harness, "coordinator", lambda _: SimpleNamespace(store=store))
+    pending = await _harness.aprepare_pending_run(agent, "r", "s", None, "hello")
+    rebuilt = decode_media(wire)
+    claimed = RunInput(input_content="hello", **decode_media(encode_media(images=rebuilt["images"])))
+    assert encode_media(images=rebuilt["images"]) == wire
+    assert pending.input.to_dict() == claimed.to_dict()

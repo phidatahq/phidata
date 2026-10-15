@@ -655,3 +655,11 @@ async def test_a_purged_ticket_no_longer_deduplicates_its_key(service):
     again = await post(client, background="true", headers=headers, files=files)
     assert again.status_code == 202 and again.json()["run_id"] != first.json()["run_id"]
     assert queued_rows(agent, "ages-out") == 1
+
+
+async def test_a_json_image_without_a_format_keeps_an_image_extension_through_the_queue(service, tmp_path):
+    client, agent, _, _ = service
+    response = await post(client, images=json.dumps([{"content": b64(PNG)}]), background="false")
+    assert response.status_code == 200 and response.json()["status"] == "COMPLETED", response.text
+    folder = (await workspace_after(agent, tmp_path)) / ".agno/uploads" / response.json()["run_id"]
+    assert [path.name for path in folder.iterdir()] == ["image-1.png"]

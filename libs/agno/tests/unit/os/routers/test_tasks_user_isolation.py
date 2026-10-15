@@ -1,7 +1,7 @@
 """JWT-backed Task scope and owner-isolation tests."""
 
 import asyncio
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import jwt
 import pytest
@@ -22,8 +22,8 @@ def headers(user, scopes=None):
             "sub": user,
             "aud": OS_ID,
             "scopes": ALL_SCOPES if scopes is None else scopes,
-            "exp": datetime.now(UTC) + timedelta(hours=1),
-            "iat": datetime.now(UTC),
+            "exp": datetime.now(timezone.utc) + timedelta(hours=1),
+            "iat": datetime.now(timezone.utc),
         },
         SECRET,
         algorithm="HS256",
@@ -195,19 +195,18 @@ def test_service_account_scopes_on_company_routes(tmp_path, authorization):
 
 
 @pytest.mark.parametrize("enabled", [False, True])
-def test_task_scopes_catalog_is_opt_in(enabled):
+def test_task_scopes_catalog_is_opt_in(enabled, tmp_path):
     from unittest.mock import MagicMock
-
-    from fastapi import FastAPI
 
     from agno.os.authz.admin_router import get_roles_router
 
     router = get_roles_router(MagicMock())
-    app = FastAPI()
-    app.state.company_enabled = enabled
+    db = SqliteDb(db_file=str(tmp_path / "catalog.db"))
+    app = AgentOS(db=db, company=CompanyConfig() if enabled else None, telemetry=False).get_app()
     app.dependency_overrides[router.dependencies[0].dependency] = lambda: "admin"
     app.include_router(router)
-    response = TestClient(app).get("/authz/scopes")
+    with TestClient(app) as client:
+        response = client.get("/authz/scopes")
     assert response.status_code == 200
     tasks = {item["raw"] for item in response.json() if item["namespace"] == "tasks"}
     assert tasks == (set(ALL_SCOPES) if enabled else set())
@@ -246,11 +245,15 @@ def test_private_manager_members_cannot_be_accepted(make_client):
     path = "/company/tasks/" + create(c, "alice")
     for member in RESERVED_MEMBER_IDS:
         body = {"target": "ready", "reason": "Accept", "executor_type": "agent", "executor_id": member}
-        assert c.post(path + "/transitions", json=body, headers=headers("admin", ["agent_os:admin"])).status_code == 409
+        response = c.post(path + "/transitions", json=body, headers=headers("admin", ["agent_os:admin"]))
+        assert response.status_code == 409
+        assert "Task executor" in response.json()["detail"]
+        assert "Schedule" not in response.json()["detail"]
 
 
-def test_acceptance_uses_provider_when_token_scopes_are_not_authoritative(monkeypatch):
-    from unittest.mock import Mock
+@pytest.mark.asyncio
+async def test_acceptance_uses_provider_when_token_scopes_are_not_authoritative(monkeypatch):
+    from unittest.mock import AsyncMock, Mock
 
     from fastapi import FastAPI, HTTPException
     from starlette.requests import Request
@@ -265,20 +268,21 @@ def test_acceptance_uses_provider_when_token_scopes_are_not_authoritative(monkey
     provider = Mock()
     monkeypatch.setattr("agno.os.auth.caller_scopes_are_authoritative", lambda request: False)
     monkeypatch.setattr("agno.os.auth.resolve_authorization_provider", lambda request: provider)
-    provider.check.return_value = False
+    provider.acheck = AsyncMock(return_value=False)
     with pytest.raises(HTTPException) as exc:
-        _require_endpoint_permission(request, "/agents/writer/runs", "POST")
+        await _require_endpoint_permission(request, "/agents/writer/runs", "POST")
     assert exc.value.status_code == 403
-    ctx = provider.check.call_args.args[0]
+    ctx = provider.acheck.call_args.args[0]
     assert (ctx.principal_id, ctx.resource_type, ctx.resource_id, ctx.action) == ("alice", "agents", "writer", "run")
-    provider.check.return_value = True
-    _require_endpoint_permission(request, "/agents/writer/runs", "POST")
+    provider.acheck.return_value = True
+    await _require_endpoint_permission(request, "/agents/writer/runs", "POST")
     with pytest.raises(HTTPException) as exc:
-        _require_endpoint_permission(request, "/engineering/codex/runs", "POST")
+        await _require_endpoint_permission(request, "/engineering/codex/runs", "POST")
     assert exc.value.status_code == 403
 
 
-def test_custom_admin_scope_is_respected():
+@pytest.mark.asyncio
+async def test_custom_admin_scope_is_respected():
     from fastapi import FastAPI, HTTPException
     from starlette.requests import Request
 
@@ -289,6 +293,60 @@ def test_custom_admin_scope_is_respected():
     request.state.admin_scope = "custom:admin"
     request.state.scopes = ["agent_os:admin"]
     with pytest.raises(HTTPException):
-        _require_endpoint_permission(request, "/engineering/codex/runs", "POST")
+        await _require_endpoint_permission(request, "/engineering/codex/runs", "POST")
     request.state.scopes = ["custom:admin"]
-    _require_endpoint_permission(request, "/engineering/codex/runs", "POST")
+    await _require_endpoint_permission(request, "/engineering/codex/runs", "POST")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("resource", ["tasks", "schedules"])
+async def test_run_target_permission_with_async_managed_roles(tmp_path, resource):
+    from httpx import ASGITransport, AsyncClient
+
+    from agno.os.authz import Authorization
+    from agno.os.authz.native_engine import NativePolicyEngine
+
+    db = AsyncSqliteDb(db_file=str(tmp_path / "managed.db"))
+    engine = NativePolicyEngine(db=db)
+    scopes = ["products:write", "tasks:read", "tasks:write", "schedules:write", "agents:writer:run"]
+    await engine.aset_role_scopes("editor", [(scope, "allow") for scope in scopes])
+    await engine.aassign("alice", "editor")
+    app = AgentOS(
+        id=OS_ID,
+        db=db,
+        company=CompanyConfig(),
+        telemetry=False,
+        authorization=Authorization(
+            db=db, roles_claim="roles", verification_keys=[SECRET], algorithm="HS256", audience=OS_ID
+        ),
+    ).get_app()
+    # Token admin claims must not override the stored executor permissions.
+    auth = headers("alice", ["agent_os:admin"])
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            if resource == "tasks":
+                product = await client.post("/company/products", json={"name": "SDK"}, headers=auth)
+                assert product.status_code == 201, product.text
+                task = await client.post(
+                    "/company/tasks", json={"product_id": product.json()["id"], "title": "Work"}, headers=auth
+                )
+                assert task.status_code == 201, task.text
+                path = "/company/tasks/" + task.json()["id"]
+                body = {"target": "ready", "reason": "Accept", "executor_type": "agent", "executor_id": "denied"}
+                denied = await client.post(path + "/transitions", json=body, headers=auth)
+                assert denied.status_code == 403, denied.text
+                record = (await client.get(path, headers=auth)).json()
+                assert record["status"] == "backlog" and record["accepted_by"] is None
+                body["executor_id"] = "writer"
+                accepted = await client.post(path + "/transitions", json=body, headers=auth)
+                assert accepted.status_code == 200, accepted.text
+                assert accepted.json()["accepted_by"] == "alice"
+            else:
+                body = {"name": "Managed", "cron_expr": "0 9 * * *", "endpoint": "/agents/denied/runs"}
+                denied = await client.post("/schedules", json=body, headers=auth)
+                assert denied.status_code == 403, denied.text
+                body["endpoint"] = "/agents/writer/runs"
+                accepted = await client.post("/schedules", json=body, headers=auth)
+                assert accepted.status_code == 201, accepted.text
+    finally:
+        await db.close()

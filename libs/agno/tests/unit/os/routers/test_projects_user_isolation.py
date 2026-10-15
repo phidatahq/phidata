@@ -1,7 +1,7 @@
 """JWT-backed Project scope and owner-isolation tests."""
 
 import asyncio
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import jwt
 import pytest
@@ -22,8 +22,8 @@ def headers(user, scopes=None):
             "sub": user,
             "aud": OS_ID,
             "scopes": ALL_SCOPES if scopes is None else scopes,
-            "exp": datetime.now(UTC) + timedelta(hours=1),
-            "iat": datetime.now(UTC),
+            "exp": datetime.now(timezone.utc) + timedelta(hours=1),
+            "iat": datetime.now(timezone.utc),
         },
         SECRET,
         algorithm="HS256",
@@ -195,19 +195,18 @@ def test_service_account_scopes_on_company_routes(tmp_path, authorization):
 
 
 @pytest.mark.parametrize("enabled", [False, True])
-def test_project_scopes_catalog_is_opt_in(enabled):
+def test_project_scopes_catalog_is_opt_in(enabled, tmp_path):
     from unittest.mock import MagicMock
-
-    from fastapi import FastAPI
 
     from agno.os.authz.admin_router import get_roles_router
 
     router = get_roles_router(MagicMock())
-    app = FastAPI()
-    app.state.company_enabled = enabled
+    db = SqliteDb(db_file=str(tmp_path / "catalog.db"))
+    app = AgentOS(db=db, company=CompanyConfig() if enabled else None, telemetry=False).get_app()
     app.dependency_overrides[router.dependencies[0].dependency] = lambda: "admin"
     app.include_router(router)
-    response = TestClient(app).get("/authz/scopes")
+    with TestClient(app) as client:
+        response = client.get("/authz/scopes")
     assert response.status_code == 200
     projects = {item["raw"] for item in response.json() if item["namespace"] == "projects"}
     assert projects == (set(ALL_SCOPES) if enabled else set())

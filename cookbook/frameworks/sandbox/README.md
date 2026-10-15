@@ -169,37 +169,48 @@ A harness turn continues its own native conversation from files under `/runtime/
 
 The example walks the whole path on one Claude session, through five generations of the same container. Turn 1 runs, the session is checkpointed with `DockerCheckpointTransfer`, and the container is destroyed. Generation 2 is restored from the checkpoint and turn 2, with the committed native id as its expectation, recalls the conversation: the cold path working. Generation 3 is created with the restore skipped, standing in for a restore that did not land, and a turn without an expectation starts a new native session, answers NONE and reports COMPLETED: the old outcome, a fork a coordinator could not detect. Generation 4, restore skipped again, is refused before the model runs with `native_state_missing` when the committed id is passed. Generation 5 is the coordinator's reaction: replace the generation, restore the same checkpoint, start again with the same expectation, and the session is whole. A coordinator derives the expectation from the native id it published with the last committed checkpoint and leaves it unset for a session's first turn.
 
-## Atomic completion store
+## How a turn completes
 
-```bash
-./cookbook/scripts/run_pgvector.sh
-.venv/bin/python cookbook/frameworks/sandbox/durable_completion.py
-```
-
-The example walks one session through three scenarios and prints the run status, lease and session checkpoint after every step: a completed turn that stays RUNNING until its checkpoint is staged and its computer confirmed stopped, a session edit and a stalled coordinator during the next turn, and a cancellation that keeps the previous checkpoint. It uses fixture output and a real archive, no model or containers. It defaults to the pgvector database on port 5532 (override with `AGNO_TEST_SANDBOX_DB_URL`), and creates unique tables that it drops afterwards.
-
-The store is internal: the coordinator builds it from the agent's `PostgresDb`, and the example calls it directly only to show each step. Its lease table lives in that same database, named by `PostgresDb(sandbox_table=...)` (default `agno_sandbox_bindings`), and is created on first use like every other agno table, so there is no setup call. Async methods support both Postgres adapters; synchronous methods require `PostgresDb`.
+The store is internal: the coordinator builds it from the agent's `PostgresDb`. Its lease table lives in that same database, named by `PostgresDb(sandbox_table=...)` (default `<session_table>_sandbox_bindings`, since each bindings table has a foreign key to exactly one session table), and is created on first use like every other agno table, so there is no setup call. Async methods support both Postgres adapters; synchronous methods require `PostgresDb`.
 
 A runtime result is staged first. A verified checkpoint reference and provider-confirmed compute cleanup are required before one transaction publishes the run and session recovery reference. Lease epochs and queue attempts fence previous coordinators. Native session data is nested under `session_data.sandbox.native`. The run takes only runtime output fields (content, messages, tools, metrics, media, events, status) from the result; identity, input, lineage and service metadata stay as stored, and runtime metadata is nested under `metadata.sandbox.native_metadata`. The store keeps nothing it depends on in `session_data`, so editing a session mid-run is safe. The binding row has a foreign key to its session with `ON DELETE CASCADE`: deleting a session deletes its binding, a recreated session (even with the same id, `created_at` and run id) starts from a fresh binding, and every lease carries its binding's incarnation, so a coordinator still holding a lease for the deleted session is refused. The store then no longer tracks a computer that was running for the deleted session; providers should sweep orphaned computers by their labels. The binding's `checkpoint` is the authoritative recovery point. `session_data.sandbox` is a copy for readers, and a stale session upsert can overwrite it.
 
-This PR supplies the storage contract, not the AgentOS coordinator. The caller still verifies checkpoint bytes, binds the correct manifest, renews leases, and confirms provider cleanup. Local checkpoint directories need deployment-specific durable storage before claiming host-loss recovery.
+## Session coordinator
 
-## Session computer coordinator
+`SandboxCoordinator` runs a session's turns on sandbox computers with durable recovery. These three cookbooks use only its public API and the credential-free fixture runtime; build the runtime image and start pgvector first:
 
-`session_computer.py` runs two fixture turns through the complete Docker/Postgres path. Build the runtime, then set `AGNO_TEST_RUNTIME_IMAGE` and `AGNO_TEST_SANDBOX_DB_URL` before running it. No model credentials are used. The second turn restores the first turn's workspace onto a replacement computer.
+```bash
+./cookbook/scripts/run_pgvector.sh
+.venv/bin/python cookbook/frameworks/sandbox/build_image.py
+```
+
+| Cookbook | What it shows |
+|----------|---------------|
+| `session_computer.py` | Several turns of one session, each on a fresh computer restored from the last checkpoint; retrying a finished run returns its stored result |
+| `resume_after_disconnect.py` | The caller drops mid-turn, the turn keeps running in its container, and another coordinator reattaches to it |
+| `cancel_turn.py` | A cancelled turn publishes nothing; the next turn continues from the last completed one |
 
 ```python
 coordinator = SandboxCoordinator(db, DockerSandbox(image), transfer)
-coordinator.run("session-id", agent_id="coder", run_id="turn-1", input="...", sdk="claude", env={...})
+coordinator.run(
+    "session-id",
+    agent_id="coder",
+    run_id="turn-1",
+    input="...",
+    sdk="claude",
+    env={"ANTHROPIC_API_KEY": key},
+)
 ```
 
-`db` is the agent's `PostgresDb`; the coordinator keeps its leases there, with no setup call. Image and resource limits belong to the provider, and `env` is the per-session runtime environment.
+`db` is the agent's `PostgresDb`; the coordinator keeps its leases there, with no setup call. Image and resource limits belong to the provider, and `env` is the per-session runtime environment. A real SDK also needs network access, for example `DockerSandbox(image, network="bridge")`.
 
 Each commit records the native conversation id the checkpoint holds (Claude's session id, Codex's thread id) on the session's binding. The next turn passes it as `native_session_id`, so a restore that did not bring the native state back fails with `native_state_missing` before the model runs, instead of completing on a new conversation. The turn ends as a retryable error and the previous checkpoint stays the recovery point.
 
 `SandboxCoordinator` stages the execution result before capturing an archive, persists that reference before removing compute, and atomically publishes conversation plus recovery metadata afterwards. A reconnect uses the same execution identity; a finalization retry never starts another model turn. Missing compute before capture fails visibly and preserves the previous checkpoint. A missing cleanup or commit acknowledgement can be reconciled with the same run ID and input. `run()` requires PostgresDb; `arun()` supports both Postgres adapters.
 
 Provider mutation operations hold the session ownership rows until their bounded transport calls drain. Takeover waits for an in-flight restore/capture instead of racing it. This costs a database connection and can delay cancellation until a transfer finishes. The initial implementation uses cold replacement after every completed turn; no warm-computer reuse is claimed.
+
+Each active turn costs the database: one held connection during a provider call, a lease check per poll page, and a heartbeat renewal every third of the lease. Polls long-poll inside the container for up to `poll_wait` seconds (default 5) and return as soon as there are events, so an idle turn makes about one poll and one lease check per `poll_wait`. `poll_wait` also bounds how long a cancellation can go unnoticed while a turn emits nothing. Size the `PostgresDb` connection pool for the number of concurrently active sessions plus the rest of the application; the default pool is small.
 
 Use deployment storage accessible to every coordinator replica for checkpoint bytes. The local directory store in these examples is temporary and does not certify host-loss recovery. Workspace and native files restore; live processes restart, and remote MCP/tool effects are not rolled back. Direct stream reconnection may repeat provisional events; durable event transport remains an AgentOS integration responsibility.
 

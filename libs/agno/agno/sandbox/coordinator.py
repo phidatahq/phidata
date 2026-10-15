@@ -25,7 +25,7 @@ from agno.run.base import RunStatus
 from agno.sandbox.base import Sandbox, SandboxError, SandboxHandle
 from agno.sandbox.checkpoint import CheckpointRef
 from agno.sandbox.client import RuntimeExecution, SandboxRuntimeClient
-from agno.sandbox.postgres import SandboxLease, SandboxLeaseLost, SandboxRunFinished, _SandboxStore
+from agno.sandbox.postgres import SandboxLease, SandboxLeaseLost, SandboxRunFinished, _drain, _SandboxStore, _settled
 from agno.sandbox.protocol import NATIVE_SESSION_KEYS
 from agno.sandbox.transfer import CheckpointTransfer
 
@@ -47,13 +47,15 @@ class SandboxCoordinator:
         transfer: CheckpointTransfer,
         *,
         lease_seconds: float = 600,
-        poll_interval: float = 0.25,
+        poll_wait: float = 5,
     ) -> None:
-        if not 30 <= lease_seconds <= 3600 or not 0.01 <= poll_interval <= 30:
-            raise ValueError("Use a 30-3600 second lease and a 0.01-30 second polling interval")
+        # poll_wait is how long one poll waits inside the container for new events; it also
+        # bounds how long a cancellation can go unnoticed while a turn emits nothing.
+        if not 30 <= lease_seconds <= 3600 or not 0 < poll_wait <= 30:
+            raise ValueError("Use a 30-3600 second lease and a poll wait of up to 30 seconds")
         self.store, self.provider, self.transfer = _SandboxStore(db), provider, transfer
         self.client = SandboxRuntimeClient(provider)
-        self.lease_seconds, self.poll_interval = lease_seconds, poll_interval
+        self.lease_seconds, self.poll_wait = lease_seconds, poll_wait
 
     async def arun(
         self,
@@ -212,12 +214,17 @@ class SandboxCoordinator:
             config=dict(config or {}),
             execution_timeout=execution_timeout,
         )
-        # Fixture opt-in belongs to the compute image/environment; production SDKs
-        # use the same pure request validation without importing either SDK.
-        _validate({**request, "sdk": "claude" if sdk == "fixture" else sdk})
+        # Validate what the client will actually send, not this fingerprint form: the start request
+        # carries a 32-character execution id and the committed conversation id, which is unknown
+        # before the claim, so the largest id allowed stands in for it. Fixture opt-in belongs to the
+        # compute image/environment; production SDKs use the same pure request validation without
+        # importing either SDK.
+        probe = {**request, "execution_id": "0" * 32, "native_session_id": "0" * 256}
+        _validate({**probe, "sdk": "claude" if sdk == "fixture" else sdk})
         request = json.loads(json.dumps(request, allow_nan=False))
         config = request["config"]
-        if len(json.dumps(request, allow_nan=False).encode()) > 1024 * 1024:
+        # The client's own measurement of the start request.
+        if len(json.dumps(probe, allow_nan=False).encode()) > 1024 * 1024:
             raise ValueError("Runtime request exceeds 1 MiB")
         run = RunOutput(
             run_id=run_id,
@@ -245,12 +252,10 @@ class SandboxCoordinator:
         try:
             state = await asyncio.shield(claim_task)
         except asyncio.CancelledError:
-            try:
-                accepted = await claim_task
-            except Exception:
-                pass
-            else:
-                await self.store.arelinquish(accepted.lease)
+            # Drain without forwarding further cancels: a cancelled claim can still commit its lease.
+            await _drain(claim_task)
+            if not claim_task.cancelled() and claim_task.exception() is None:
+                await _settled(self.store.arelinquish(claim_task.result().lease))
             raise
         except SandboxRunFinished as finished:
             yield self._terminal(finished.run)
@@ -270,6 +275,8 @@ class SandboxCoordinator:
                 heartbeat_error.append(error)
 
         heart = asyncio.create_task(heartbeat())
+        # Set once the turn's outcome is stored, which also releases the session.
+        committed: Optional[Dict[str, Any]] = None
         try:
             # Image and resource limits belong to the provider; afind refuses a generation created with others.
             allocation: Dict[str, Any] = dict(agent_id=agent_id, generation=state.record["generation"], env=env)
@@ -281,6 +288,9 @@ class SandboxCoordinator:
                 from agno.run.cancel import ais_cancelled
 
                 if await ais_cancelled(run_id):
+                    if record["phase"] == "stopping":
+                        # A stop is already recorded; cleanup finishes it with its own status and reason.
+                        return record
                     if record.get("computer") is None and record["phase"] == "executing":
                         orphan = await self.provider.afind(session_id, **allocation)
                         if orphan is not None:
@@ -292,11 +302,24 @@ class SandboxCoordinator:
                         computer_stopped=record.get("computer") is None,
                     )
                     return record
-                if record["phase"] != "executing":
-                    return record
+                # Checked before any early return: a retry must not finalize a staged result
+                # under a different SDK or configuration.
                 if record.get("request_hash") not in (None, fingerprint):
                     raise SandboxError("Active run configuration changed; reconnect with the original configuration")
+                if record["phase"] != "executing":
+                    return record
                 record["request_hash"] = fingerprint
+                native = record.get("native") or {}
+                if native and NATIVE_SESSION_KEYS[sdk] not in native:
+                    # Starting the other SDK fresh would fork the conversation.
+                    held = ", ".join(sorted(name for name, key in NATIVE_SESSION_KEYS.items() if key in native))
+                    record.update(
+                        phase="stopping",
+                        stop_status="ERROR",
+                        stop_reason=f"This session's conversation belongs to {held}; it cannot continue with {sdk}",
+                        computer_stopped=record.get("computer") is None,
+                    )
+                    return record
                 if record.get("computer") is not None:
                     return record
                 # No SDK execution can start before this binding commits. An
@@ -317,7 +340,13 @@ class SandboxCoordinator:
                 record["computer"] = asdict(handle)
                 return record
 
-            state = await self.store._aoperation(lease, provision)
+            try:
+                state = await self.store._aoperation(lease, provision)
+            except ValueError as error:
+                committed = await self._retire_invalid(lease, error)
+                yield self._terminal(committed)
+                yield RunOutput.from_dict(committed)
+                return
             if state.record["phase"] == "stopping":
                 committed = await self._stop(
                     lease, status=state.record["stop_status"], reason=state.record["stop_reason"]
@@ -337,24 +366,29 @@ class SandboxCoordinator:
                         yield RunOutput.from_dict(committed)
                         return
                     execution = RuntimeExecution(handle, state.record["execution_id"], run_id)
-                    # Identical execution identity/request reconciles a lost start acknowledgement.
-                    await self.client.astart(
-                        handle,
-                        execution_id=execution.execution_id,
-                        run_id=run_id,
-                        sdk=sdk,
-                        input=input,
-                        user_id=user_id,
-                        config=config,
-                        execution_timeout=execution_timeout,
-                        # The conversation the restored checkpoint must hold; None on a session's first turn.
-                        native_session_id=(state.record.get("native") or {}).get(NATIVE_SESSION_KEYS[sdk]),
-                    )
+                    try:
+                        # Identical execution identity/request reconciles a lost start acknowledgement.
+                        await self.client.astart(
+                            handle,
+                            execution_id=execution.execution_id,
+                            run_id=run_id,
+                            sdk=sdk,
+                            input=input,
+                            user_id=user_id,
+                            config=config,
+                            execution_timeout=execution_timeout,
+                            # The conversation the restored checkpoint must hold; None on a session's first turn.
+                            native_session_id=(state.record.get("native") or {}).get(NATIVE_SESSION_KEYS[sdk]),
+                        )
+                    except ValueError as error:
+                        committed = await self._retire_invalid(lease, error)
+                        yield self._terminal(committed)
+                        yield RunOutput.from_dict(committed)
+                        return
                     cursor = 0
                     while True:
                         if heartbeat_error:
                             raise heartbeat_error[0]
-                        await self.store.aget(lease)
                         from agno.run.cancel import ais_cancelled
 
                         if await ais_cancelled(run_id):
@@ -362,10 +396,11 @@ class SandboxCoordinator:
                             yield self._terminal(committed)
                             yield RunOutput.from_dict(committed)
                             return
-                        page = await self.client.apoll(execution, cursor=cursor)
+                        page = await self.client.apoll(execution, cursor=cursor, wait=self.poll_wait)
                         cursor = page.cursor
-                        # A resumed caller may receive provisional events again.
-                        # Queue/event transport supplies its own attempt fencing.
+                        # One lease check per page, before its events are published; the heartbeat
+                        # keeps the lease alive. A resumed caller may receive provisional events
+                        # again; queue/event transport supplies its own attempt fencing.
                         await self.store.aget(lease)
                         for event in page.events:
                             yield run_output_event_from_dict(event)
@@ -375,15 +410,16 @@ class SandboxCoordinator:
                                     lease,
                                     status="ERROR",
                                     reason=str(page.result.get("error", "Runtime outcome is unknown"))[:8192],
-                                    retryable=True,
+                                    # Any other failure may have run tools with side effects; never replay it.
+                                    retryable=page.result.get("reason") == "native_state_missing",
                                 )
                                 yield self._terminal(committed)
                                 yield RunOutput.from_dict(committed)
                                 return
                             state = await self.store.astage_result(lease, page.result)
                             break
-                        await asyncio.sleep(self.poll_interval)
                 result = state.record["result"]["run"]
+                native_id = (state.record["result"]["session"].get("session_data") or {}).get(NATIVE_SESSION_KEYS[sdk])
                 native_failed = any(
                     isinstance(warning, dict) and warning.get("type") == "transcript_persistence_failed"
                     for warning in (result.get("metadata") or {}).get("warnings", [])
@@ -393,6 +429,13 @@ class SandboxCoordinator:
                         lease,
                         status="ERROR",
                         reason="Native transcript persistence failed; cannot publish recoverable completion",
+                    )
+                elif result["status"] == "COMPLETED" and not native_id:
+                    # Publishing it would leave the next turn no conversation to require.
+                    committed = await self._stop(
+                        lease,
+                        status="ERROR",
+                        reason="Completed turn reported no native conversation; cannot publish recoverable completion",
                     )
                 elif state.record["result"]["run"]["status"] != "COMPLETED":
                     result = state.record["result"]["run"]
@@ -427,8 +470,18 @@ class SandboxCoordinator:
             heart.cancel()
             with suppress(asyncio.CancelledError):
                 await heart
-            with suppress(SandboxLeaseLost):
-                await self.store.arelinquish(lease)
+            if committed is None:
+                # The caller is leaving a turn that is still running: detach, keep execution going.
+                # Shielded so a further cancel cannot abort the release and leave the lease to run out.
+                with suppress(SandboxLeaseLost):
+                    await _settled(self.store.arelinquish(lease))
+
+    async def _retire_invalid(self, lease: SandboxLease, error: ValueError) -> Dict[str, Any]:
+        # A request the runtime can never accept was only caught after the claim, before anything
+        # executed. Retire the turn so the session is released: propagating would leave the run
+        # bound to it, and every retry would fail the same way. Provider and transport failures
+        # still propagate, since a retry of the same run reconciles them.
+        return await self._stop(lease, status="ERROR", reason=str(error)[:8192] or "Invalid runtime request")
 
     async def _finalize(self, lease: SandboxLease) -> Dict[str, Any]:
         async def capture(record: Dict[str, Any]) -> Dict[str, Any]:
@@ -453,9 +506,11 @@ class SandboxCoordinator:
                     execution_id=record["execution_id"],
                     generation=record["generation"],
                 )
-                reference = await self.transfer.acapture(
-                    handle, state={"binding": identity, "result": record["result"]}
-                )
+                # A digest, not the result: the manifest is capped at the runtime's own result limit.
+                digest = hashlib.sha256(
+                    json.dumps(record["result"], sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
+                ).hexdigest()
+                reference = await self.transfer.acapture(handle, state={"binding": identity, "result_sha256": digest})
                 await self.transfer.store.averify(reference)
                 record.update(staged_checkpoint=asdict(reference), staged_identity=identity)
             await self.transfer.store.averify(CheckpointRef(**record["staged_checkpoint"]))
@@ -473,11 +528,9 @@ class SandboxCoordinator:
         try:
             return await self.store.acommit(lease)
         except SandboxRunFinished as finished:
-            if finished.run.get("status") == "COMPLETED":
-                return finished.run
-            return await self._stop(
-                lease, status=finished.run["status"], reason="Service run was terminated during finalization"
-            )
+            # Another writer finished the run; the commit already released the session and kept
+            # the previous checkpoint, so the stored outcome is the result.
+            return finished.run
 
     @staticmethod
     def _terminal(run: Dict[str, Any]) -> Any:

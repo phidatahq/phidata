@@ -1,6 +1,7 @@
 """Full Docker + Postgres recovery boundary, using a credential-free runtime."""
 
 import asyncio
+import json
 import os
 from dataclasses import dataclass, field, replace
 from typing import Dict
@@ -11,7 +12,7 @@ import pytest_asyncio
 from sqlalchemy import select
 
 from agno.db.postgres import AsyncPostgresDb, PostgresDb
-from agno.run.agent import RunOutput
+from agno.run.agent import RunInput, RunOutput
 from agno.run.base import RunStatus
 from agno.sandbox import SandboxError
 from agno.sandbox.checkpoint import CheckpointRef, FileCheckpointStore
@@ -45,7 +46,7 @@ async def system(request, tmp_path):
     )
     provider = DockerSandbox(IMAGE, namespace="coordinator-" + suffix, memory_mb=512, workspace_mb=32)
     transfer = DockerCheckpointTransfer(provider, FileCheckpointStore(tmp_path / "objects"))
-    coordinator = SandboxCoordinator(db, provider, transfer, poll_interval=0.05)
+    coordinator = SandboxCoordinator(db, provider, transfer, poll_wait=1)
     spec = Target("agent", "session", env={"AGNO_SANDBOX_TEST_RUNTIME": "1"})
     handles = []
     original = provider.acreate
@@ -121,7 +122,7 @@ async def test_checkpoint_failure_retries_finalization_without_repeating_tools(s
     record = (await binding(coordinator))["record"]
     assert record["phase"] == "finalizing" and record["result"]["run"]["status"] == "COMPLETED"
     monkeypatch.setattr(coordinator.transfer, "acapture", capture)
-    fresh = SandboxCoordinator(coordinator.store.db, coordinator.provider, coordinator.transfer, poll_interval=0.05)
+    fresh = SandboxCoordinator(coordinator.store.db, coordinator.provider, coordinator.transfer, poll_wait=1)
     assert (await run(fresh, spec)).status == RunStatus.completed
     assert await recovered_effects(coordinator, root) == ["first"]
 
@@ -341,11 +342,11 @@ async def test_crash_after_provision_replaces_unbound_computer_before_execution(
     write = coordinator.store._write_record
     failed = []
 
-    def fail_binding(connection, lease, record):
+    def fail_binding(connection, lease, record, **kwargs):
         if record.get("computer") and not failed:
             failed.append(True)
             raise OSError("lost provisioning commit")
-        return write(connection, lease, record)
+        return write(connection, lease, record, **kwargs)
 
     monkeypatch.setattr(coordinator.store, "_write_record", fail_binding)
     with pytest.raises(OSError, match="provisioning"):
@@ -412,7 +413,327 @@ async def test_restore_missing_native_state_fails_before_the_turn_runs(system, m
     monkeypatch.setattr(coordinator.transfer, "arestore", lose_native)
     second = await run(coordinator, spec, "second")
     assert second.status == RunStatus.error
+    # The model never ran, so this one is safe to retry.
+    assert second.metadata["retryable"] is True
     record = (await binding(coordinator))["record"]
     assert record["phase"] == "idle" and record["native"]["fixture_session_id"]
     # The model never ran: the recovery point still holds only the first turn.
     assert await recovered_effects(coordinator, root) == ["first"]
+
+
+async def test_completion_without_native_conversation_cannot_publish(system, monkeypatch):
+    coordinator, spec, _ = system
+    poll = coordinator.client.apoll
+
+    async def lost_native_id(*args, **kwargs):
+        page = await poll(*args, **kwargs)
+        if page.result is not None and page.result["type"] == "execution_finished":
+            page.result["session"]["session_data"].pop("fixture_session_id")
+        return page
+
+    monkeypatch.setattr(coordinator.client, "apoll", lost_native_id)
+    output = await run(coordinator, spec)
+    # Publishing it would leave the next turn with no conversation to require.
+    assert output.status == RunStatus.error and "native conversation" in output.content
+    assert output.metadata["retryable"] is False
+    record = (await binding(coordinator))["record"]
+    assert record["checkpoint"] is None and not record.get("native")
+
+
+async def test_completion_by_another_writer_releases_the_session(system, monkeypatch):
+    coordinator, spec, _ = system
+    commit = coordinator.store.acommit
+
+    async def finished_elsewhere(lease):
+        def complete(connection):
+            runs = coordinator.store.runs
+            run_data = connection.execute(select(runs.c.run_data).where(runs.c.run_id == lease.run_id)).scalar_one()
+            connection.execute(
+                runs.update()
+                .where(runs.c.run_id == lease.run_id)
+                .values(status="COMPLETED", run_data={**run_data, "status": "COMPLETED", "content": "elsewhere"})
+            )
+
+        await coordinator.store._transaction(complete)
+        return await commit(lease)
+
+    monkeypatch.setattr(coordinator.store, "acommit", finished_elsewhere)
+    output = await run(coordinator, spec)
+    assert output.status == RunStatus.completed and output.content == "elsewhere"
+    record = (await binding(coordinator))["record"]
+    assert record["phase"] == "idle" and record["checkpoint"] is None
+    monkeypatch.setattr(coordinator.store, "acommit", commit)
+    assert (await run(coordinator, spec, "second")).status == RunStatus.completed
+
+
+async def test_runtime_failure_is_not_retried(system, monkeypatch):
+    coordinator, spec, _ = system
+    poll = coordinator.client.apoll
+
+    async def crashed(*args, **kwargs):
+        page = await poll(*args, **kwargs)
+        if page.result is not None:
+            page.result.clear()
+            page.result.update(type="execution_error", error="harness crashed after its tools ran")
+        return page
+
+    monkeypatch.setattr(coordinator.client, "apoll", crashed)
+    output = await run(coordinator, spec)
+    assert output.status == RunStatus.error and output.metadata["retryable"] is False
+
+
+async def test_retry_during_finalization_must_match_the_original_request(system, monkeypatch):
+    coordinator, spec, _ = system
+    capture = coordinator.transfer.acapture
+
+    async def unavailable(*args, **kwargs):
+        raise OSError("checkpoint store unavailable")
+
+    monkeypatch.setattr(coordinator.transfer, "acapture", unavailable)
+    with pytest.raises(OSError):
+        await run(coordinator, spec)
+    monkeypatch.setattr(coordinator.transfer, "acapture", capture)
+    with pytest.raises(SandboxError, match="configuration changed"):
+        await coordinator.arun(
+            spec.session_id,
+            agent_id=spec.agent_id,
+            env=spec.env,
+            run_id="first",
+            input="first",
+            sdk="claude",
+            user_id="user",
+        )
+    assert (await binding(coordinator))["record"]["phase"] == "finalizing"
+
+
+async def test_repeated_cancellation_during_admission_does_not_strand_its_lease(system, monkeypatch):
+    coordinator, spec, root = system
+    claim = coordinator.store.aclaim
+    entered, release = asyncio.Event(), asyncio.Event()
+
+    async def delayed_ack(**kwargs):
+        state = await claim(**kwargs)
+        entered.set()
+        await release.wait()
+        return state
+
+    monkeypatch.setattr(coordinator.store, "aclaim", delayed_ack)
+    task = asyncio.create_task(run(coordinator, spec))
+    await entered.wait()
+    # A timeout followed by shutdown: the second cancel must not reach the committed claim.
+    task.cancel()
+    await asyncio.sleep(0.05)
+    task.cancel()
+    await asyncio.sleep(0.05)
+    assert not task.done()
+    release.set()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    monkeypatch.setattr(coordinator.store, "aclaim", claim)
+    # An unreleased lease would refuse this re-claim as busy for the whole lease.
+    assert (await run(coordinator, spec)).status == RunStatus.completed
+    assert await recovered_effects(coordinator, root) == ["first"]
+
+
+async def test_large_structured_result_still_checkpoints(system, monkeypatch):
+    coordinator, spec, root = system
+    poll = coordinator.client.apoll
+
+    async def large(*args, **kwargs):
+        page = await poll(*args, **kwargs)
+        if page.result is not None and page.result["type"] == "execution_finished":
+            # Structure-heavy, like messages and tool calls: under the runtime's 1 MiB limit as compact
+            # JSON, but about a quarter larger with the default separators the manifest is written with.
+            page.result["run"]["metadata"] = {"items": [{"k": 1}] * 110_000}
+            assert len(json.dumps(page.result, separators=(",", ":")).encode()) < 1024 * 1024
+        return page
+
+    monkeypatch.setattr(coordinator.client, "apoll", large)
+    output = await run(coordinator, spec)
+    assert output.status == RunStatus.completed
+    record = (await binding(coordinator))["record"]
+    target = root / uuid4().hex
+    state = await coordinator.transfer.store.arestore(CheckpointRef(**record["checkpoint"]), target)
+    assert "result" not in state and len(state["result_sha256"]) == 64
+
+
+async def test_switching_sdk_mid_session_is_refused_before_compute(system, monkeypatch):
+    coordinator, spec, root = system
+    await run(coordinator, spec)
+    created = []
+    create = coordinator.provider.acreate
+
+    async def counting(*args, **kwargs):
+        created.append(True)
+        return await create(*args, **kwargs)
+
+    monkeypatch.setattr(coordinator.provider, "acreate", counting)
+    output = await coordinator.arun(
+        spec.session_id,
+        agent_id=spec.agent_id,
+        env=spec.env,
+        run_id="second",
+        input="second",
+        sdk="claude",
+        user_id="user",
+    )
+    assert output.status == RunStatus.error and "belongs to fixture" in output.content
+    assert output.metadata["retryable"] is False and created == []
+    record = (await binding(coordinator))["record"]
+    assert record["phase"] == "idle" and await recovered_effects(coordinator, root) == ["first"]
+
+
+async def test_invalid_start_request_retires_the_turn_and_releases_the_session(system, monkeypatch):
+    coordinator, spec, root = system
+    start = coordinator.client.astart
+
+    async def rejected(*args, **kwargs):
+        raise ValueError("Runtime request exceeds 1 MiB")
+
+    monkeypatch.setattr(coordinator.client, "astart", rejected)
+    first = await run(coordinator, spec)
+    assert first.status == RunStatus.error and "exceeds 1 MiB" in str(first.content)
+    row = await binding(coordinator)
+    # Nothing executed: the session is released and the provisioned computer is gone.
+    assert row["run_id"] is None and row["record"]["phase"] == "idle" and row["record"].get("computer") is None
+    assert (
+        await coordinator.provider.afind(
+            spec.session_id, agent_id=spec.agent_id, generation=row["record"]["generation"], env=spec.env
+        )
+        is None
+    )
+    monkeypatch.setattr(coordinator.client, "astart", start)
+    assert (await run(coordinator, spec, "second")).status == RunStatus.completed
+    assert await recovered_effects(coordinator, root) == ["second"]
+
+
+async def test_request_near_the_limit_is_refused_before_the_claim(system):
+    coordinator, spec, root = system
+    # Sized so the fingerprint form of the request is exactly 1 MiB; the real start request is larger.
+    shape = dict(
+        version=1,
+        execution_id="validate",
+        run_id="first",
+        agent_id=spec.agent_id,
+        session_id=spec.session_id,
+        user_id="user",
+        input="",
+        sdk="fixture",
+        config={},
+        execution_timeout=900,
+    )
+    text = "x" * (1024 * 1024 - len(json.dumps(shape).encode()))
+    with pytest.raises(ValueError, match="exceeds"):
+        await coordinator.arun(
+            spec.session_id,
+            agent_id=spec.agent_id,
+            env=spec.env,
+            run_id="first",
+            input=text,
+            sdk="fixture",
+            user_id="user",
+        )
+    assert await coordinator.store._transaction(lambda c: c.execute(select(coordinator.store.bindings)).first()) is None
+
+
+async def test_finished_turn_does_not_relinquish_a_released_lease(system, monkeypatch):
+    coordinator, spec, root = system
+    relinquish, calls = coordinator.store.arelinquish, []
+
+    async def counted(lease):
+        calls.append(lease)
+        await relinquish(lease)
+
+    monkeypatch.setattr(coordinator.store, "arelinquish", counted)
+    assert (await run(coordinator, spec)).status == RunStatus.completed
+    assert calls == []
+    # A caller that leaves mid-turn still detaches.
+    task = asyncio.create_task(run(coordinator, spec, "second", config={"delay": 5}))
+    await asyncio.sleep(1.5)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert len(calls) == 1
+
+
+async def test_repeated_cancellation_still_releases_the_lease(system, monkeypatch):
+    coordinator, spec, _ = system
+    relinquish, released, entered = coordinator.store.arelinquish, [], asyncio.Event()
+
+    async def slow(lease):
+        entered.set()
+        await asyncio.sleep(0.5)
+        await relinquish(lease)
+        released.append(lease)
+
+    monkeypatch.setattr(coordinator.store, "arelinquish", slow)
+    task = asyncio.create_task(run(coordinator, spec, config={"delay": 20, "steps": 20}))
+    await asyncio.sleep(6)
+    task.cancel()
+    await asyncio.wait_for(entered.wait(), 10)
+    # A second cancel, say shutdown after a timeout, lands while the release is in flight.
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert released
+
+
+async def test_cancellation_does_not_overwrite_a_recorded_stop(system, monkeypatch):
+    coordinator, spec, _ = system
+    store = coordinator.store
+    prepared = RunOutput(
+        run_id="first",
+        agent_id=spec.agent_id,
+        session_id=spec.session_id,
+        user_id="user",
+        input=RunInput(input_content="first"),
+        status=RunStatus.running,
+    ).to_dict()
+    prepared["queue_attempt"] = None
+    state = await store.aclaim(
+        agent_id=spec.agent_id,
+        session_id=spec.session_id,
+        user_id="user",
+        run_id="first",
+        owner="crashed",
+        prepared_run=prepared,
+    )
+    # An earlier attempt recorded an error stop and then died before cleanup finished.
+    await store.abegin_stop(state.lease, status="ERROR", reason="original failure")
+    await store._transaction(lambda c: c.execute(store.bindings.update().values(expires_at=None)))
+
+    async def cancelled(run_id):
+        return True
+
+    monkeypatch.setattr("agno.run.cancel.ais_cancelled", cancelled)
+    output = await run(coordinator, spec)
+    assert output.status == RunStatus.error and output.content == "original failure"
+
+
+async def test_retryable_restore_failure_runs_again_on_the_next_queue_attempt(system, monkeypatch):
+    coordinator, spec, root = system
+    store = coordinator.store
+    await run(coordinator, spec)
+    restore = coordinator.transfer.arestore
+
+    async def lose_native(handle, reference):
+        state = await restore(handle, reference)
+        await coordinator.provider.aexec(handle, ["rm", "-f", "/runtime/native/fixture-session"])
+        return state
+
+    monkeypatch.setattr(coordinator.transfer, "arestore", lose_native)
+    failed = await run(coordinator, spec, "second", queue_attempt=1)
+    assert failed.status == RunStatus.error and failed.metadata["retryable"] is True
+    monkeypatch.setattr(coordinator.transfer, "arestore", restore)
+
+    # The durable queue stamps attempt 2 on the run row, then re-drives the same run id.
+    def stamp(connection):
+        data = connection.execute(select(store.runs.c.run_data).where(store.runs.c.run_id == "second")).scalar_one()
+        connection.execute(
+            store.runs.update().where(store.runs.c.run_id == "second").values(run_data={**data, "queue_attempt": 2})
+        )
+
+    await store._transaction(stamp)
+    retried = await run(coordinator, spec, "second", queue_attempt=2)
+    assert retried.status == RunStatus.completed
+    assert await recovered_effects(coordinator, root) == ["first", "second"]

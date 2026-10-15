@@ -1390,6 +1390,16 @@ def find_factory_by_id(
     return None
 
 
+def factory_row_handle(factory: Union[AgentFactory, TeamFactory, WorkflowFactory]) -> Union[Agent, Team, Workflow]:
+    """A component bound to the factory's id and db, for reading and writing its
+    run rows without invoking the factory (no request context, no input)."""
+    if isinstance(factory, AgentFactory):
+        return Agent(id=factory.id, db=factory.db)
+    if isinstance(factory, TeamFactory):
+        return Team(id=factory.id, db=factory.db, members=[])
+    return Workflow(id=factory.id, db=factory.db)
+
+
 def draft_preview_identity(request: Any) -> tuple:
     """(actor, privileged) for the draft-preview gate.
 

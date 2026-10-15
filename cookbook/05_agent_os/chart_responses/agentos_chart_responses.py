@@ -26,7 +26,7 @@ db = SqliteDb(db_file="tmp/agentos_chart_responses.db")
 chart_response_agent = Agent(
     id="chart-response-agent",
     name="Chart Response Agent",
-    model=OpenAIResponses(id="gpt-5.4"),
+    model=OpenAIResponses(id="gpt-5.6-luna"),
     db=db,
     tools=[ChartTools()],
     instructions="You are a data analyst for Agno OS.",

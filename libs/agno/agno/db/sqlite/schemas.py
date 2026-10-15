@@ -6,7 +6,7 @@ from agno.db.schemas.authz import AUTHZ_TABLE_SCHEMAS
 from agno.db.schemas.mcp_oauth import MCP_OAUTH_TABLE_SCHEMAS
 
 try:
-    from sqlalchemy.types import JSON, BigInteger, Boolean, Date, String
+    from sqlalchemy.types import JSON, BigInteger, Boolean, Date, String, Text
 except ImportError:
     raise ImportError("`sqlalchemy` not installed. Please install it using `pip install sqlalchemy`")
 
@@ -251,6 +251,18 @@ LEARNINGS_TABLE_SCHEMA = {
     "metadata": {"type": JSON, "nullable": True},
     "created_at": {"type": BigInteger, "nullable": False, "index": True},
     "updated_at": {"type": BigInteger, "nullable": True},
+}
+
+
+PRODUCTS_TABLE_SCHEMA = {
+    "id": {"type": String, "primary_key": True},
+    "name": {"type": String, "nullable": False, "index": True},
+    "purpose": {"type": Text, "nullable": True},
+    "user_id": {"type": String, "nullable": True, "index": True},
+    "metadata": {"type": JSON, "nullable": True},
+    "created_at": {"type": BigInteger, "nullable": False, "index": True},
+    "updated_at": {"type": BigInteger, "nullable": True},
+    "deleted_at": {"type": BigInteger, "nullable": True},
 }
 
 
@@ -503,6 +515,7 @@ def get_table_schema_definition(
         "component_links": COMPONENT_LINKS_TABLE_SCHEMA,
         "learnings": LEARNINGS_TABLE_SCHEMA,
         "schedules": SCHEDULE_TABLE_SCHEMA,
+        "products": PRODUCTS_TABLE_SCHEMA,
         "tool_results": TOOL_RESULTS_TABLE_SCHEMA,
         "compactions": COMPACTIONS_TABLE_SCHEMA,
         "transcripts": TRANSCRIPTS_TABLE_SCHEMA,

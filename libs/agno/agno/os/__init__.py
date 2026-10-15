@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING, Any
 
+from agno.company.config import CompanyConfig
 from agno.job_queue import QueueConfig, RedisCoordination
 from agno.os.app import AgentOS
 from agno.os.auth import create_dev_token
@@ -12,6 +13,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     "AgentOS",
+    "CompanyConfig",
     "OSManager",  # AgentOS(manager=OSManager(...)): the conversational entry point to the OS
     "Authorization",  # verification + roles + audit + the /authz admin API, wired into AgentOS
     "UserDirectory",  # the credential-less roster, AgentOS(user_directory=...)

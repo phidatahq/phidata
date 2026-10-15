@@ -419,7 +419,7 @@ def get_accessible_resource_ids(
     return accessible_ids
 
 
-def get_default_scope_mappings() -> Dict[str, List[str]]:
+def get_default_scope_mappings(*, company: bool = False) -> Dict[str, List[str]]:
     """
     Get default scope mappings for AgentOS endpoints.
 
@@ -556,6 +556,18 @@ def get_default_scope_mappings() -> Dict[str, List[str]]:
         "DELETE /components/*/configs/*": ["components:delete"],
         "POST /components/*/configs/*/set-current": ["components:write"],
     }
+    if company:
+        mappings.update(
+            {
+                # Company Product endpoints
+                "GET /company/products": ["products:read"],
+                "GET /company/products/*": ["products:read"],
+                "POST /company/products": ["products:write"],
+                "PATCH /company/products/*": ["products:write"],
+                "DELETE /company/products/*": ["products:delete"],
+                "POST /company/products/*/restore": ["products:delete"],
+            }
+        )
     return mappings
 
 

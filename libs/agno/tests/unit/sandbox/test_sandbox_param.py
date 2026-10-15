@@ -136,6 +136,17 @@ async def test_sandbox_env_overrides_the_host_model_key(coordinator, monkeypatch
 
 
 @pytest.mark.asyncio
+async def test_claude_on_bedrock_gets_no_host_key(coordinator, monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "host-key")
+    monkeypatch.setenv("CLAUDE_CODE_OAUTH_TOKEN", "oauth-token")
+    bedrock = {"CLAUDE_CODE_USE_BEDROCK": "1", "AWS_REGION": "us-east-1"}
+    agent = ClaudeAgent(id="coder", sandbox=FakeSandbox(env=bedrock))
+    await agent.arun("hello", session_id="s1")
+    _, execution = coordinator.calls[0]
+    assert execution["env"] == bedrock
+
+
+@pytest.mark.asyncio
 async def test_codex_sandbox_mode_travels_with_its_new_name(coordinator, sandbox):
     agent = CodexAgent(id="coder", sandbox_mode="workspace-write", sandbox=sandbox)
     await agent.arun("hello", session_id="s1")

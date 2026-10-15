@@ -13,7 +13,7 @@ These steps create AWS resources and billable compute. You need an AWS profile t
    export AWS_PROFILE=... AWS_REGION=us-east-1
    ```
 
-2. Deploy the runtime once. The script builds the ARM64 image from this folder's parent `Dockerfile`, pushes it to ECR, creates an execution role that may pull the image and call Bedrock models, creates a public runtime without session storage, and prints the runtime ARN:
+2. Deploy the runtime once. The script builds the ARM64 image from this folder's parent `Dockerfile`, pushes it to ECR, creates an execution role that may pull the image and call Claude models on Bedrock, creates a runtime with public egress and no session storage, and prints the runtime ARN together with the runtime's `maxLifetime`, which `AgentCoreSandbox(lifetime=...)` must not exceed:
 
    ```bash
    .venv/bin/python cookbook/frameworks/sandbox/agentcore/agentcore_setup.py deploy --name agno-sandbox
@@ -53,11 +53,11 @@ These steps create AWS resources and billable compute. You need an AWS profile t
    .venv/bin/python cookbook/frameworks/sandbox/agentcore/agentcore_setup.py teardown --name agno-sandbox
    ```
 
-What to expect: each session is a Firecracker microVM with 2 vCPU and 8 GiB, started fresh per turn and restored from its checkpoint, so a turn begins with a cold start of a few seconds. The runtime is public, with no AgentCore-side authentication; the server inside the microVM refuses the agent's own processes, and the deployment relies on scoped AWS credentials on the caller's side. Checkpoints move in 8 MiB chunks through invocations, so very large workspaces are slow to capture and restore.
+What to expect: each session is a Firecracker microVM with 2 vCPU and 8 GiB, started fresh per turn and restored from its checkpoint, so a turn begins with a cold start of a few seconds. The runtime's network mode is public egress; invocations are still authenticated by IAM, so scope the calling credentials. Code inside the sandbox can use the runtime's execution role, which is why the setup script limits it to Claude models. Checkpoints move in 8 MiB chunks through invocations, so very large workspaces are slow to capture and restore.
 
 ## Cookbooks
 
-`sandbox_claude_agentcore.py` is the same agent with `sandbox=AgentCoreSandbox(runtime_arn, env=...)`, so each turn runs in an AgentCore microVM instead of a local container. Claude reaches Bedrock through the runtime's execution role: the sandbox's `env` sets `CLAUDE_CODE_USE_BEDROCK` and `AWS_REGION`, and no API key goes into the microVM. Deploy the runtime with `agentcore_setup.py` and set `AGENTCORE_RUNTIME_ARN` first.
+`sandbox_claude_agentcore.py` is the same agent with `sandbox=AgentCoreSandbox(runtime_arn, env=...)`, so each turn runs in an AgentCore microVM instead of a local container. Claude reaches Bedrock through the runtime's execution role: the sandbox's `env` sets `CLAUDE_CODE_USE_BEDROCK` and `AWS_REGION`. With that flag set, the harness does not forward `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN` from the host, so no API key goes into the microVM. Deploy the runtime with `agentcore_setup.py` and set `AGENTCORE_RUNTIME_ARN` first.
 
 `sandbox_claude_agentcore_agentos.py` serves that agent through AgentOS with a durable queue, as `sandbox_claude_agentos.py` does for Docker. AgentOS, the queue and the database stay on your host; only the turns run on AgentCore.
 
@@ -74,7 +74,7 @@ export AGENTCORE_RUNTIME_ARN=arn:aws:bedrock-agentcore:...:runtime/agno_sandbox-
 .venv/bin/python cookbook/frameworks/sandbox/agentcore/agentcore_setup.py teardown --name agno-sandbox
 ```
 
-These create AWS resources and billable compute. Install `agno[agentcore-sandbox]`. `agentcore_setup.py` builds the ARM64 image from the same `Dockerfile` that Docker uses, pushes it to a new ECR repository, creates an execution role that may call Bedrock models, and creates a PUBLIC runtime without session storage. It prints the runtime ARN. Without permission to create ECR repositories or IAM roles, pass ones an administrator created with `--repository` and `--role-arn`, and add `--skip-build` with `--tag` to deploy an image already pushed. Teardown with the same flags leaves them in place.
+These create AWS resources and billable compute. Install `agno[agentcore-sandbox]`. `agentcore_setup.py` builds the ARM64 image from the same `Dockerfile` that Docker uses, pushes it to a new ECR repository, creates an execution role that may call Claude models on Bedrock, and creates a PUBLIC runtime without session storage. It prints the runtime ARN and the runtime's `maxLifetime`; keep `AgentCoreSandbox(lifetime=...)` at or below it, or AgentCore ends the microVM first. Code in the sandbox can use the execution role, so it can call any model the role allows. Without permission to create ECR repositories or IAM roles, pass ones an administrator created with `--repository` and `--role-arn`, and add `--skip-build` with `--tag` to deploy an image already pushed. Teardown with the same flags leaves them in place.
 
 The image's entrypoint is the AgentCore server, since AgentCore cannot override it. `DockerSandbox` sets the user, entrypoint and working directory at create, so the same image works there.
 

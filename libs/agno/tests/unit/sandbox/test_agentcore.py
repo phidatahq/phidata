@@ -1,6 +1,7 @@
 """AgentCore sandbox contracts against a fake data plane and the real in-computer server code."""
 
 import base64
+import dataclasses
 import io
 import json
 import os
@@ -20,10 +21,11 @@ pytest.importorskip("boto3")
 
 from botocore.exceptions import ClientError, EndpointConnectionError
 
+import agno.sandbox.agentcore.sandbox as agentcore_sandbox
 from agno.sandbox.agentcore import server
 from agno.sandbox.agentcore import AgentCoreCheckpointTransfer, AgentCoreSandbox
 from agno.sandbox.base import SandboxError
-from agno.sandbox.checkpoint import FileCheckpointStore
+from agno.sandbox.checkpoint import CheckpointRef, FileCheckpointStore
 
 ARN = "arn:aws:bedrock-agentcore:us-east-1:123456789012:runtime/agno_sandbox-abc123"
 
@@ -197,11 +199,36 @@ async def test_find_returns_the_claimed_generation_and_refuses_changed_configura
 @pytest.mark.asyncio
 async def test_find_leaves_a_fresh_microvm_for_the_create_that_follows():
     value = sandbox()
-    assert await value.afind("s") is None
+    assert await value.afind("s", for_create=True) is None
     handle = await value.acreate("s")
     assert value._data.stops == []
     sessions = {call["runtimeSessionId"] for call in value._data.invokes}
     assert sessions == {handle.provider_ref}
+
+
+@pytest.mark.asyncio
+async def test_find_stops_the_microvm_it_started_when_no_create_follows():
+    value = sandbox()
+    name = value._name("s", None, 1)
+    assert await value.afind("s") is None
+    assert value._data.stops == [name]
+    # Never claimed, so nothing guards it and a later create may still claim it.
+    assert name not in value._stopped and name not in value._session_locks
+    assert (await value.acreate("s")).provider_ref == name
+
+
+@pytest.mark.asyncio
+async def test_stop_records_are_dropped_after_a_lifetime(monkeypatch):
+    value = sandbox()
+    clock = [1000.0]
+    monkeypatch.setattr(agentcore_sandbox.time, "monotonic", lambda: clock[0])
+    old = await value.acreate("s", generation=1)
+    await value.astop(old)
+    clock[0] += value.lifetime
+    new = await value.acreate("s", generation=2)
+    await value.astop(new)
+    assert list(value._stopped) == [new.provider_ref]
+    assert old.provider_ref not in value._session_locks
 
 
 @pytest.mark.asyncio
@@ -443,8 +470,12 @@ def computer(tmp_path, monkeypatch):
         try:
             return server._OPERATIONS[operation](payload)
         except Exception as error:
-            # The real server answers errors in the body, which _invoke raises as SandboxError.
-            raise SandboxError(f"AgentCore sandbox refused {operation}: {type(error).__name__}: {error}") from error
+            # The real server answers errors in the body, which _invoke raises as SandboxError,
+            # or as a refusal carrying its code.
+            message = f"AgentCore sandbox refused {operation}: {type(error).__name__}: {error}"
+            if isinstance(error, server._Refused):
+                raise agentcore_sandbox._Refusal(message, error.code) from error
+            raise SandboxError(message) from error
 
     value._invoke = invoke
 
@@ -790,14 +821,25 @@ def test_checkpoint_limits_above_what_agentcore_moves_are_refused(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_a_stale_handle_restoring_never_stops_the_current_computer(tmp_path):
+async def test_a_stale_handle_restoring_never_stops_the_current_computer(computer, tmp_path):
+    handle = await computer.sandbox.acreate("s")
+    transfer = AgentCoreCheckpointTransfer(computer.sandbox, FileCheckpointStore(tmp_path / "store"))
+    reference = await transfer.acapture(handle, state={})
+    # A handle for an earlier claim of the same session names another incarnation.
+    stale = dataclasses.replace(handle, name=handle.provider_ref + "/earlier")
+    with pytest.raises(SandboxError, match="identity mismatch"):
+        await transfer.arestore(stale, reference)
+    assert computer.sandbox._data.stops == []
+
+
+@pytest.mark.asyncio
+async def test_a_checkpoint_that_cannot_be_read_leaves_the_computer_running(tmp_path):
     value = sandbox()
     handle = await value.acreate("s")
-    # Another create claimed a fresh microVM for the same session.
-    value._data.incarnations[handle.provider_ref] = "later"
     transfer = AgentCoreCheckpointTransfer(value, FileCheckpointStore(tmp_path))
-    with pytest.raises(SandboxError):
-        await transfer.arestore(handle, "missing")
+    missing = CheckpointRef(sha256="0" * 64, size=1)
+    with pytest.raises(Exception):
+        await transfer.arestore(handle, missing)
     assert value._data.stops == []
 
 

@@ -104,6 +104,7 @@ if TYPE_CHECKING:
     from agno.os.authz.authorization import Authorization
     from agno.os.authz.provider import AuthorizationProvider
     from agno.os.authz.user_directory import UserDirectory
+    from agno.os.company import CompanyConfig
     from agno.os.diagnostics import DiagnosticReport
     from agno.os.manager import OSManager
     from agno.os.manager.manager import _Manager
@@ -331,6 +332,7 @@ class AgentOS:
         internal_service_token: Optional[str] = None,
         public: Optional[Any] = None,
         manager: Optional[Union[bool, "OSManager"]] = None,
+        company: Optional["CompanyConfig"] = None,
     ):
         """Initialize AgentOS.
 
@@ -350,6 +352,7 @@ class AgentOS:
             knowledge: List of knowledge bases to include in the OS
             interfaces: List of interfaces to include in the OS
             manager: Adds an OS Manager team to the OS.
+            company: Opt-in Product and Member APIs; inherits db unless overridden.
             a2a_interface: Whether to expose the OS agents and teams in an A2A server
             config: Configuration file path or AgentOSConfig instance
             settings: API settings for the OS
@@ -423,7 +426,7 @@ class AgentOS:
             scheduler_base_url: Base URL for scheduler HTTP calls (default: http://127.0.0.1:7777)
             internal_service_token: Token for scheduler-to-OS auth (auto-generated if not provided)
         """
-        if not agents and not workflows and not teams and not knowledge and not db:
+        if not agents and not workflows and not teams and not knowledge and not db and company is None:
             raise ValueError("Either agents, teams, workflows, knowledge bases or a database must be provided.")
 
         self.config = load_yaml_config(config) if isinstance(config, str) else config
@@ -457,6 +460,14 @@ class AgentOS:
         self.version = version
         self.description = description
         self.db = db
+        self.company = company
+        self._company_db: Optional[Union[BaseDb, AsyncBaseDb]] = None
+        if company is not None:
+            from agno.os.company import CompanyConfig
+
+            if not isinstance(company, CompanyConfig):
+                raise TypeError("AgentOS.company must be a CompanyConfig")
+            self._company_db = company.resolve_db(db)
         self.checkpoint = checkpoint
 
         self.telemetry = telemetry
@@ -885,6 +896,10 @@ class AgentOS:
             get_traces_router(dbs=self.dbs),
             get_database_router(self, settings=self.settings),
         ]
+        if self._company_db is not None:
+            from agno.os.company.router import get_company_router
+
+            updated_routers.append(get_company_router(self._company_db))
         # Routes that require a database
         if self.db is not None:
             if isinstance(self.db, BaseDb):
@@ -1699,6 +1714,10 @@ class AgentOS:
             get_traces_router(dbs=self.dbs),
             get_database_router(self, settings=self.settings),
         ]
+        if self._company_db is not None:
+            from agno.os.company.router import get_company_router
+
+            routers.append(get_company_router(self._company_db))
         # Routes that require a database
         if self.db is not None:
             if isinstance(self.db, BaseDb):
@@ -2193,6 +2212,10 @@ class AgentOS:
             if getattr(interface, "authenticates_own_requests", False):
                 continue
             interface_mappings.update(interface.get_scope_mappings())
+        if self._company_db is not None:
+            from agno.os.company.router import COMPANY_SCOPE_MAPPINGS
+
+            interface_mappings.update(COMPANY_SCOPE_MAPPINGS)
         if interface_mappings:
             # middleware_kwargs carries no scope_mappings today (AuthorizationConfig has no
             # such field); the merge is defensive so that if one is ever threaded through,
@@ -2605,6 +2628,9 @@ class AgentOS:
                 )
             }.values()
         )
+
+        if self._company_db is not None and all(db is not self._company_db for db in unique_dbs):
+            unique_dbs.append(self._company_db)
 
         for db in unique_dbs:
             try:

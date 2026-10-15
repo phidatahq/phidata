@@ -38,6 +38,7 @@ from agno.db.schemas.service_accounts import (
     validate_service_account_update,
 )
 from agno.db.sql import authz as authz_sql
+from agno.db.sql import company as company_sql
 from agno.db.utils import (
     HISTORY_SKIP_STATUSES,
     SessionRunObjectCache,
@@ -130,6 +131,8 @@ class AsyncPostgresDb(AsyncBaseDb):
         auth_tokens_table: Optional[str] = None,
         service_accounts_table: Optional[str] = None,
         create_schema: bool = True,
+        products_table: Optional[str] = None,
+        members_table: Optional[str] = None,
     ):
         """
         Async interface for interacting with a PostgreSQL database.
@@ -187,6 +190,8 @@ class AsyncPostgresDb(AsyncBaseDb):
             versions_table=versions_table,
             components_table=components_table,
             learnings_table=learnings_table,
+            products_table=products_table,
+            members_table=members_table,
             schedules_table=schedules_table,
             schedule_runs_table=schedule_runs_table,
             job_table=job_table,
@@ -523,6 +528,13 @@ class AsyncPostgresDb(AsyncBaseDb):
                 create_table_if_not_found=create_table_if_not_found,
             )
             return self.learnings_table
+
+        if table_type in ("products", "members"):
+            return await self._get_or_create_table(
+                table_name=self.products_table_name if table_type == "products" else self.members_table_name,
+                table_type=table_type,
+                create_table_if_not_found=create_table_if_not_found,
+            )
 
         if table_type == "schedules":
             self.schedules_table = await self._get_or_create_table(
@@ -6136,3 +6148,116 @@ class AsyncPostgresDb(AsyncBaseDb):
             stmt = stmt.where(table.c.subpath == subpath)
         async with self.async_session_factory() as sess, sess.begin():
             await sess.execute(stmt)
+
+    async def create_product(self, product: Dict[str, Any]) -> Dict[str, Any]:
+        """Create product using the adapter transaction."""
+        products = await self._get_table("products", create_table_if_not_found=True)
+        members = await self._get_table("members", create_table_if_not_found=True)
+        async with self.db_engine.begin() as conn:
+            return await conn.run_sync(
+                lambda connection: company_sql.create_product(connection, products, members, product)
+            )
+
+    async def get_product(self, product_id: str) -> Optional[Dict[str, Any]]:
+        """Get product using the adapter transaction."""
+        products = await self._get_table("products", create_table_if_not_found=True)
+        async with self.db_engine.begin() as conn:
+            return await conn.run_sync(lambda connection: company_sql.get_product(connection, products, product_id))
+
+    async def list_products(
+        self, user_id: str, status: Optional[str] = None, limit: Optional[int] = None, page: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
+        """List products using the adapter transaction."""
+        products = await self._get_table("products", create_table_if_not_found=True)
+        members = await self._get_table("members", create_table_if_not_found=True)
+        async with self.db_engine.begin() as conn:
+            return await conn.run_sync(
+                lambda connection: company_sql.list_products(
+                    connection, products, members, user_id, status, limit, page
+                )
+            )
+
+    async def update_product(
+        self, product_id: str, expected_version: int, *, actor_id: Optional[str] = None, **fields: Any
+    ) -> Optional[Dict[str, Any]]:
+        """Update product using the adapter transaction."""
+        products = await self._get_table("products", create_table_if_not_found=True)
+        members = await self._get_table("members", create_table_if_not_found=True)
+        async with self.db_engine.begin() as conn:
+            return await conn.run_sync(
+                lambda connection: company_sql.update_product(
+                    connection, products, members, product_id, expected_version, actor_id, fields
+                )
+            )
+
+    async def upsert_member(
+        self, product_id: str, user_id: str, role: str, *, actor_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Upsert member using the adapter transaction."""
+        products = await self._get_table("products", create_table_if_not_found=True)
+        members = await self._get_table("members", create_table_if_not_found=True)
+        async with self.db_engine.begin() as conn:
+            return await conn.run_sync(
+                lambda connection: company_sql.upsert_member(
+                    connection, products, members, product_id, user_id, role, actor_id
+                )
+            )
+
+    async def delete_member(self, product_id: str, user_id: str, *, actor_id: Optional[str] = None) -> bool:
+        """Delete member using the adapter transaction."""
+        products = await self._get_table("products", create_table_if_not_found=True)
+        members = await self._get_table("members", create_table_if_not_found=True)
+        async with self.db_engine.begin() as conn:
+            return await conn.run_sync(
+                lambda connection: company_sql.delete_member(
+                    connection, products, members, product_id, user_id, actor_id
+                )
+            )
+
+    async def list_members(self, product_id: str) -> List[Dict[str, Any]]:
+        """List members using the adapter transaction."""
+        members = await self._get_table("members", create_table_if_not_found=True)
+        async with self.db_engine.begin() as conn:
+            return await conn.run_sync(lambda connection: company_sql.list_members(connection, members, product_id))
+
+    async def get_member(self, product_id: str, user_id: str) -> Optional[Dict[str, Any]]:
+        """Get member using the adapter transaction."""
+        members = await self._get_table("members", create_table_if_not_found=True)
+        async with self.db_engine.begin() as conn:
+            return await conn.run_sync(
+                lambda connection: company_sql.get_member(connection, members, product_id, user_id)
+            )
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Serialize database configuration, including Company table names."""
+        data = super().to_dict()
+        data["db_url"] = self.db_url
+        data["db_schema"] = self.db_schema
+        return data
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "AsyncPostgresDb":
+        """Reconstruct an async database without connecting."""
+        return cls(
+            id=data.get("id"),
+            db_url=data.get("db_url"),
+            db_schema=data.get("db_schema"),
+            session_table=data.get("session_table"),
+            runs_table=data.get("runs_table"),
+            memory_table=data.get("memory_table"),
+            metrics_table=data.get("metrics_table"),
+            eval_table=data.get("eval_table"),
+            knowledge_table=data.get("knowledge_table"),
+            versions_table=data.get("versions_table"),
+            components_table=data.get("components_table"),
+            learnings_table=data.get("learnings_table"),
+            schedules_table=data.get("schedules_table"),
+            schedule_runs_table=data.get("schedule_runs_table"),
+            products_table=data.get("products_table"),
+            members_table=data.get("members_table"),
+            approvals_table=data.get("approvals_table"),
+            auth_tokens_table=data.get("auth_tokens_table"),
+            service_accounts_table=data.get("service_accounts_table"),
+            traces_table=data.get("traces_table"),
+            spans_table=data.get("spans_table"),
+        )

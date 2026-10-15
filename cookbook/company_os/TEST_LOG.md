@@ -1,0 +1,64 @@
+# Company foundation test log
+
+Tested October 15, 2026, using the development environment and disposable databases.
+No model or provider calls were made.
+
+### products.py
+
+**Status:** PASS
+
+**Description:** `PYTHONPATH=libs/agno .venv/bin/python cookbook/company_os/products.py`
+creates a Product and its first owner, adds a member, verifies visibility for the
+owner/member/outsider, archives, restores, and checks the mounted API on SQLite.
+
+**Result:** `Company Product example passed without a model.` An existing
+Components OpenAPI duplicate operation-ID warning was emitted for `get_config`.
+
+---
+
+### Company unit and integration tests
+
+**Status:** PASS
+
+**Description:** `pytest libs/agno/tests/unit/company libs/agno/tests/integration/company`
+with `PYTHONPATH=libs/agno` and `COMPANY_TEST_POSTGRES_URL` pointing at disposable
+PostgreSQL 16. SQLite uses temporary files. Both sync and async adapters run the
+same storage, authorization, version, concurrency, persistence, migration,
+default/override database, and HTTP contracts. The cookbook and APIs need no model.
+
+**Result:** 46 passed, no skips. Concurrent owner removals preserve one owner;
+conflicting Product writes have one winner; failed creation rolls back the Product;
+revoked actors are rejected inside the mutation transaction. General provisioning
+and migration checks leave Company tables absent until Company storage is used.
+
+---
+
+### Related regression tests
+
+**Status:** PASS
+
+**Description:** Database round-trip serialization, table resolution cache,
+PostgreSQL unit tests, migration utilities, schema-version signature parity, and
+AgentOS information/MCP routing tests, alongside the then-current Company tests.
+
+**Result:** 170 passed, 28 skipped (38 Company and 132 existing regression tests).
+The eight additional override/provisioning cases are included in the final
+46-test Company result above. The existing regression skips were not claimed as
+PostgreSQL Company coverage; every Company PostgreSQL case ran.
+
+---
+
+### Repository publication checks
+
+**Status:** FAIL
+
+**Description:** Ran `./scripts/format.sh` and `./scripts/validate.sh`. Removed
+formatter-only changes to four unrelated files from this PR.
+
+**Result:** Formatting, ruff checks, agnoctl mypy, and cookbook pattern checks pass.
+Agno mypy reports 33 errors in 10 files. Running validation on unchanged main at
+`0d3200f1664105a87455cd9918037e4c4d56231c` reports the same 33 errors; comparison
+by file and diagnostic (ignoring shifted line numbers) shows no added or removed
+errors. The full validation gate is not green. The PR remains draft.
+
+---

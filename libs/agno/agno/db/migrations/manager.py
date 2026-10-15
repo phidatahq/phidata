@@ -57,6 +57,8 @@ class MigrationManager:
             "knowledge": "knowledge_table_name",
             "approvals": "approvals_table_name",
             "components": "components_table_name",
+            "products": "products_table_name",
+            "members": "members_table_name",
             "schedules": "schedules_table_name",
             "schedule_runs": "schedule_runs_table_name",
             "learnings": "learnings_table_name",
@@ -73,6 +75,15 @@ class MigrationManager:
 
         # Handle migrations for each table separately (extend in future if needed):
         for table_type, table_name in tables:
+            # Optional Company tables are migrated only after first use.
+            if table_type in ("products", "members"):
+                exists = (
+                    await self.db.table_exists(table_name)
+                    if isinstance(self.db, AsyncBaseDb)
+                    else self.db.table_exists(table_name)
+                )
+                if not exists:
+                    continue
             if isinstance(self.db, AsyncBaseDb):
                 raw_version = await self.db.get_latest_schema_version(table_name)
             else:
@@ -168,6 +179,8 @@ class MigrationManager:
             "knowledge": "knowledge_table_name",
             "approvals": "approvals_table_name",
             "components": "components_table_name",
+            "products": "products_table_name",
+            "members": "members_table_name",
             "schedules": "schedules_table_name",
             "schedule_runs": "schedule_runs_table_name",
             "learnings": "learnings_table_name",
@@ -183,6 +196,15 @@ class MigrationManager:
             tables = [(tt, getattr(self.db, attr)) for tt, attr in _table_type_to_attr.items()]
 
         for table_type, table_name in tables:
+            # Optional Company tables are migrated only after first use.
+            if table_type in ("products", "members"):
+                exists = (
+                    await self.db.table_exists(table_name)
+                    if isinstance(self.db, AsyncBaseDb)
+                    else self.db.table_exists(table_name)
+                )
+                if not exists:
+                    continue
             if isinstance(self.db, AsyncBaseDb):
                 raw_version = await self.db.get_latest_schema_version(table_name)
             else:

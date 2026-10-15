@@ -50,6 +50,7 @@ from agno.db.schemas.service_accounts import (
     validate_service_account_update,
 )
 from agno.db.sql import authz as authz_sql
+from agno.db.sql import company as company_sql
 from agno.db.sql import mcp_oauth as mcp_oauth_sql
 from agno.db.sqlite.schemas import get_table_schema_definition
 from agno.db.sqlite.utils import (
@@ -127,6 +128,8 @@ class SqliteDb(BaseDb):
         mcp_oauth_refresh_tokens_table: Optional[str] = None,
         mcp_oauth_keys_table: Optional[str] = None,
         id: Optional[str] = None,
+        products_table: Optional[str] = None,
+        members_table: Optional[str] = None,
     ):
         """
         Interface for interacting with a SQLite database.
@@ -189,6 +192,8 @@ class SqliteDb(BaseDb):
             component_configs_table=component_configs_table,
             component_links_table=component_links_table,
             learnings_table=learnings_table,
+            products_table=products_table,
+            members_table=members_table,
             schedules_table=schedules_table,
             schedule_runs_table=schedule_runs_table,
             approvals_table=approvals_table,
@@ -302,6 +307,8 @@ class SqliteDb(BaseDb):
             component_configs_table=data.get("component_configs_table"),
             component_links_table=data.get("component_links_table"),
             learnings_table=data.get("learnings_table"),
+            products_table=data.get("products_table"),
+            members_table=data.get("members_table"),
             schedules_table=data.get("schedules_table"),
             schedule_runs_table=data.get("schedule_runs_table"),
             approvals_table=data.get("approvals_table"),
@@ -730,6 +737,13 @@ class SqliteDb(BaseDb):
                 create_table_if_not_found=create_table_if_not_found,
             )
             return self.learnings_table
+
+        elif table_type in ("products", "members"):
+            return self._get_or_create_table(
+                table_name=self.products_table_name if table_type == "products" else self.members_table_name,
+                table_type=table_type,
+                create_table_if_not_found=create_table_if_not_found,
+            )
 
         elif table_type == "schedules":
             self.schedules_table = self._get_or_create_table(
@@ -7961,3 +7975,62 @@ class SqliteDb(BaseDb):
             stmt = stmt.where(table.c.subpath == subpath)
         with self.Session() as sess, sess.begin():
             sess.execute(stmt)
+
+    def create_product(self, product: Dict[str, Any]) -> Dict[str, Any]:
+        """Create product using the adapter transaction."""
+        products = self._get_table("products", create_table_if_not_found=True)
+        members = self._get_table("members", create_table_if_not_found=True)
+        with self.db_engine.begin() as conn:
+            return company_sql.create_product(conn, products, members, product)
+
+    def get_product(self, product_id: str) -> Optional[Dict[str, Any]]:
+        """Get product using the adapter transaction."""
+        products = self._get_table("products", create_table_if_not_found=True)
+        with self.db_engine.begin() as conn:
+            return company_sql.get_product(conn, products, product_id)
+
+    def list_products(
+        self, user_id: str, status: Optional[str] = None, limit: Optional[int] = None, page: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
+        """List products using the adapter transaction."""
+        products = self._get_table("products", create_table_if_not_found=True)
+        members = self._get_table("members", create_table_if_not_found=True)
+        with self.db_engine.begin() as conn:
+            return company_sql.list_products(conn, products, members, user_id, status, limit, page)
+
+    def update_product(
+        self, product_id: str, expected_version: int, *, actor_id: Optional[str] = None, **fields: Any
+    ) -> Optional[Dict[str, Any]]:
+        """Update product using the adapter transaction."""
+        products = self._get_table("products", create_table_if_not_found=True)
+        members = self._get_table("members", create_table_if_not_found=True)
+        with self.db_engine.begin() as conn:
+            return company_sql.update_product(conn, products, members, product_id, expected_version, actor_id, fields)
+
+    def upsert_member(
+        self, product_id: str, user_id: str, role: str, *, actor_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Upsert member using the adapter transaction."""
+        products = self._get_table("products", create_table_if_not_found=True)
+        members = self._get_table("members", create_table_if_not_found=True)
+        with self.db_engine.begin() as conn:
+            return company_sql.upsert_member(conn, products, members, product_id, user_id, role, actor_id)
+
+    def delete_member(self, product_id: str, user_id: str, *, actor_id: Optional[str] = None) -> bool:
+        """Delete member using the adapter transaction."""
+        products = self._get_table("products", create_table_if_not_found=True)
+        members = self._get_table("members", create_table_if_not_found=True)
+        with self.db_engine.begin() as conn:
+            return company_sql.delete_member(conn, products, members, product_id, user_id, actor_id)
+
+    def list_members(self, product_id: str) -> List[Dict[str, Any]]:
+        """List members using the adapter transaction."""
+        members = self._get_table("members", create_table_if_not_found=True)
+        with self.db_engine.begin() as conn:
+            return company_sql.list_members(conn, members, product_id)
+
+    def get_member(self, product_id: str, user_id: str) -> Optional[Dict[str, Any]]:
+        """Get member using the adapter transaction."""
+        members = self._get_table("members", create_table_if_not_found=True)
+        with self.db_engine.begin() as conn:
+            return company_sql.get_member(conn, members, product_id, user_id)

@@ -524,6 +524,26 @@ COMPACTIONS_TABLE_SCHEMA = {
 }
 
 
+COMPANY_PRODUCTS_TABLE_SCHEMA = {
+    "id": {"type": String, "primary_key": True},
+    "name": {"type": Text, "nullable": False},
+    "purpose": {"type": Text, "nullable": False},
+    "owner_id": {"type": String, "nullable": False},
+    "status": {"type": String, "nullable": False},
+    "version": {"type": Integer, "nullable": False},
+    "created_at": {"type": BigInteger, "nullable": False},
+    "updated_at": {"type": BigInteger, "nullable": False},
+}
+
+COMPANY_MEMBERS_TABLE_SCHEMA = {
+    "product_id": {"type": String, "primary_key": True},
+    "user_id": {"type": String, "primary_key": True, "index": True},
+    "role": {"type": String, "nullable": False},
+    "created_at": {"type": BigInteger, "nullable": False},
+    "updated_at": {"type": BigInteger, "nullable": False},
+}
+
+
 def get_table_schema_definition(
     table_type: str,
     traces_table_name: str = "agno_traces",
@@ -565,6 +585,8 @@ def get_table_schema_definition(
         "component_configs": COMPONENT_CONFIGS_TABLE_SCHEMA,
         "component_links": COMPONENT_LINKS_TABLE_SCHEMA,
         "learnings": LEARNINGS_TABLE_SCHEMA,
+        "products": COMPANY_PRODUCTS_TABLE_SCHEMA,
+        "members": COMPANY_MEMBERS_TABLE_SCHEMA,
         "schedules": SCHEDULE_TABLE_SCHEMA,
         "jobs": JOBS_TABLE_SCHEMA,
         "tool_results": TOOL_RESULTS_TABLE_SCHEMA,

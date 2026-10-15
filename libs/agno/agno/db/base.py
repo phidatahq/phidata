@@ -325,6 +325,8 @@ class BaseDb(ABC):
         mcp_oauth_refresh_tokens_table: Optional[str] = None,
         mcp_oauth_keys_table: Optional[str] = None,
         id: Optional[str] = None,
+        products_table: Optional[str] = None,
+        members_table: Optional[str] = None,
     ):
         self.id = id or str(uuid4())
         self.session_table_name = session_table or "agno_sessions"
@@ -351,6 +353,8 @@ class BaseDb(ABC):
         self.component_configs_table_name = component_configs_table or "agno_component_configs"
         self.component_links_table_name = component_links_table or "agno_component_links"
         self.learnings_table_name = learnings_table or "agno_learnings"
+        self.products_table_name = products_table or "agno_company_products"
+        self.members_table_name = members_table or "agno_company_members"
         self.schedules_table_name = schedules_table or "agno_schedules"
         self.schedule_runs_table_name = schedule_runs_table or "agno_schedule_runs"
         self.job_table_name = job_table or "agno_jobs"
@@ -446,6 +450,8 @@ class BaseDb(ABC):
             "component_configs_table": self.component_configs_table_name,
             "component_links_table": self.component_links_table_name,
             "learnings_table": self.learnings_table_name,
+            "products_table": self.products_table_name,
+            "members_table": self.members_table_name,
             "schedules_table": self.schedules_table_name,
             "schedule_runs_table": self.schedule_runs_table_name,
             "approvals_table": self.approvals_table_name,
@@ -477,6 +483,8 @@ class BaseDb(ABC):
             component_configs_table=data.get("component_configs_table"),
             component_links_table=data.get("component_links_table"),
             learnings_table=data.get("learnings_table"),
+            products_table=data.get("products_table"),
+            members_table=data.get("members_table"),
             schedules_table=data.get("schedules_table"),
             schedule_runs_table=data.get("schedule_runs_table"),
             approvals_table=data.get("approvals_table"),
@@ -1768,11 +1776,47 @@ class BaseDb(ABC):
         """
         raise NotImplementedError
 
-    # --- Schedules (Optional) ---
-    # These methods are optional. Override in subclasses to enable scheduler persistence.
-    # ``user_id`` scopes the user-facing reads, updates and deletes; ``claim_due_schedule`` and
-    # ``release_schedule`` take none, since the poller has to fire schedules across all users.
+    # -- Company Products and Members (Optional) --
+    def create_product(self, product: Dict[str, Any]) -> Dict[str, Any]:
+        """Atomically create a Product and its first owner membership."""
+        raise NotImplementedError(f"{type(self).__name__} does not support Company")
 
+    def get_product(self, product_id: str) -> Optional[Dict[str, Any]]:
+        """Return a Product, or None when absent."""
+        raise NotImplementedError(f"{type(self).__name__} does not support Company")
+
+    def list_products(
+        self, user_id: str, status: Optional[str] = None, limit: Optional[int] = None, page: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
+        """Filter by membership before applying pagination."""
+        raise NotImplementedError(f"{type(self).__name__} does not support Company")
+
+    def update_product(
+        self, product_id: str, expected_version: int, *, actor_id: Optional[str] = None, **fields: Any
+    ) -> Optional[Dict[str, Any]]:
+        """Compare-and-swap a Product; recheck actor ownership in the transaction."""
+        raise NotImplementedError(f"{type(self).__name__} does not support Company")
+
+    def upsert_member(
+        self, product_id: str, user_id: str, role: str, *, actor_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Serialize membership changes; preserve an owner and recheck the actor."""
+        raise NotImplementedError(f"{type(self).__name__} does not support Company")
+
+    def delete_member(self, product_id: str, user_id: str, *, actor_id: Optional[str] = None) -> bool:
+        """Remove a membership atomically, preserving at least one owner."""
+        raise NotImplementedError(f"{type(self).__name__} does not support Company")
+
+    def list_members(self, product_id: str) -> List[Dict[str, Any]]:
+        """Return the Product's memberships."""
+        raise NotImplementedError(f"{type(self).__name__} does not support Company")
+
+    def get_member(self, product_id: str, user_id: str) -> Optional[Dict[str, Any]]:
+        """Return one membership, or None when absent."""
+        raise NotImplementedError(f"{type(self).__name__} does not support Company")
+
+    # --- Schedules (Optional) ---
+    # User-facing methods scope by user_id; the poller claims across users.
     def get_schedule(self, schedule_id: str, user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """Get a schedule by ID."""
         raise NotImplementedError
@@ -2372,6 +2416,8 @@ class AsyncBaseDb(ABC):
         approvals_table: Optional[str] = None,
         auth_tokens_table: Optional[str] = None,
         service_accounts_table: Optional[str] = None,
+        products_table: Optional[str] = None,
+        members_table: Optional[str] = None,
     ):
         self.id = id or str(uuid4())
         self.session_table_name = session_table or "agno_sessions"
@@ -2397,6 +2443,8 @@ class AsyncBaseDb(ABC):
         # Async adapters cannot read or write components yet, but may still migrate a table a sync adapter created.
         self.components_table_name = components_table or "agno_components"
         self.learnings_table_name = learnings_table or "agno_learnings"
+        self.products_table_name = products_table or "agno_company_products"
+        self.members_table_name = members_table or "agno_company_members"
         self.schedules_table_name = schedules_table or "agno_schedules"
         self.schedule_runs_table_name = schedule_runs_table or "agno_schedule_runs"
         self.job_table_name = job_table or "agno_jobs"
@@ -2426,6 +2474,56 @@ class AsyncBaseDb(ABC):
         # See BaseDb._resolve_lock: task-reentrant, because resolving a table
         # may resolve FK parents and stamp the versions table.
         self._resolve_lock_async = _ReentrantAsyncLock()
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Serialize common table names without connecting to the database."""
+        return {
+            "id": self.id,
+            "session_table": self.session_table_name,
+            "runs_table": self.runs_table_name,
+            "memory_table": self.memory_table_name,
+            "metrics_table": self.metrics_table_name,
+            "eval_table": self.eval_table_name,
+            "knowledge_table": self.knowledge_table_name,
+            "versions_table": self.versions_table_name,
+            "components_table": self.components_table_name,
+            "learnings_table": self.learnings_table_name,
+            "schedules_table": self.schedules_table_name,
+            "schedule_runs_table": self.schedule_runs_table_name,
+            "products_table": self.products_table_name,
+            "members_table": self.members_table_name,
+            "approvals_table": self.approvals_table_name,
+            "auth_tokens_table": self.auth_tokens_table_name,
+            "service_accounts_table": self.service_accounts_table_name,
+            "traces_table": self.trace_table_name,
+            "spans_table": self.span_table_name,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "AsyncBaseDb":
+        """Reconstruct common configuration; adapters extend connection fields."""
+        keys = (
+            "id",
+            "session_table",
+            "runs_table",
+            "memory_table",
+            "metrics_table",
+            "eval_table",
+            "knowledge_table",
+            "traces_table",
+            "spans_table",
+            "versions_table",
+            "components_table",
+            "learnings_table",
+            "schedules_table",
+            "schedule_runs_table",
+            "products_table",
+            "members_table",
+            "approvals_table",
+            "auth_tokens_table",
+            "service_accounts_table",
+        )
+        return cls(**{key: data[key] for key in keys if key in data})
 
     async def _get_or_create_table(
         self, table_name: str, table_type: str, create_table_if_not_found: Optional[bool] = False
@@ -3414,6 +3512,47 @@ class AsyncBaseDb(ABC):
     # These methods are optional. Override in subclasses to enable scheduler persistence.
     # See BaseDb for the ``user_id`` semantics.
 
+    # -- Company Products and Members --
+    async def create_product(self, product: Dict[str, Any]) -> Dict[str, Any]:
+        """Atomically create a Product and its first owner membership."""
+        raise NotImplementedError(f"{type(self).__name__} does not support Company")
+
+    async def get_product(self, product_id: str) -> Optional[Dict[str, Any]]:
+        """Return a Product, or None when absent."""
+        raise NotImplementedError(f"{type(self).__name__} does not support Company")
+
+    async def list_products(
+        self, user_id: str, status: Optional[str] = None, limit: Optional[int] = None, page: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
+        """Filter by membership before applying pagination."""
+        raise NotImplementedError(f"{type(self).__name__} does not support Company")
+
+    async def update_product(
+        self, product_id: str, expected_version: int, *, actor_id: Optional[str] = None, **fields: Any
+    ) -> Optional[Dict[str, Any]]:
+        """Compare-and-swap a Product; recheck actor ownership in the transaction."""
+        raise NotImplementedError(f"{type(self).__name__} does not support Company")
+
+    async def upsert_member(
+        self, product_id: str, user_id: str, role: str, *, actor_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Serialize membership changes; preserve an owner and recheck the actor."""
+        raise NotImplementedError(f"{type(self).__name__} does not support Company")
+
+    async def delete_member(self, product_id: str, user_id: str, *, actor_id: Optional[str] = None) -> bool:
+        """Remove a membership atomically, preserving at least one owner."""
+        raise NotImplementedError(f"{type(self).__name__} does not support Company")
+
+    async def list_members(self, product_id: str) -> List[Dict[str, Any]]:
+        """Return the Product's memberships."""
+        raise NotImplementedError(f"{type(self).__name__} does not support Company")
+
+    async def get_member(self, product_id: str, user_id: str) -> Optional[Dict[str, Any]]:
+        """Return one membership, or None when absent."""
+        raise NotImplementedError(f"{type(self).__name__} does not support Company")
+
+    # --- Schedules (Optional) ---
+    # User-facing methods scope by user_id; the poller claims across users.
     async def get_schedule(self, schedule_id: str, user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """Get a schedule by ID."""
         raise NotImplementedError

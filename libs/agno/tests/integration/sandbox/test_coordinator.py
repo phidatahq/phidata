@@ -12,7 +12,7 @@ import pytest_asyncio
 from sqlalchemy import select
 
 from agno.db.postgres import AsyncPostgresDb, PostgresDb
-from agno.run.agent import RunOutput
+from agno.run.agent import RunInput, RunOutput
 from agno.run.base import RunStatus
 from agno.sandbox import SandboxError
 from agno.sandbox.checkpoint import CheckpointRef, FileCheckpointStore
@@ -676,3 +676,35 @@ async def test_repeated_cancellation_still_releases_the_lease(system, monkeypatc
     with pytest.raises(asyncio.CancelledError):
         await task
     assert released
+
+
+async def test_cancellation_does_not_overwrite_a_recorded_stop(system, monkeypatch):
+    coordinator, spec, _ = system
+    store = coordinator.store
+    prepared = RunOutput(
+        run_id="first",
+        agent_id=spec.agent_id,
+        session_id=spec.session_id,
+        user_id="user",
+        input=RunInput(input_content="first"),
+        status=RunStatus.running,
+    ).to_dict()
+    prepared["queue_attempt"] = None
+    state = await store.aclaim(
+        agent_id=spec.agent_id,
+        session_id=spec.session_id,
+        user_id="user",
+        run_id="first",
+        owner="crashed",
+        prepared_run=prepared,
+    )
+    # An earlier attempt recorded an error stop and then died before cleanup finished.
+    await store.abegin_stop(state.lease, status="ERROR", reason="original failure")
+    await store._transaction(lambda c: c.execute(store.bindings.update().values(expires_at=None)))
+
+    async def cancelled(run_id):
+        return True
+
+    monkeypatch.setattr("agno.run.cancel.ais_cancelled", cancelled)
+    output = await run(coordinator, spec)
+    assert output.status == RunStatus.error and output.content == "original failure"

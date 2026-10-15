@@ -234,6 +234,9 @@ class SandboxCoordinator:
                 from agno.run.cancel import ais_cancelled
 
                 if await ais_cancelled(run_id):
+                    if record["phase"] == "stopping":
+                        # A stop is already recorded; cleanup finishes it with its own status and reason.
+                        return record
                     if record.get("computer") is None and record["phase"] == "executing":
                         orphan = await self.provider.afind(session_id, **allocation)
                         if orphan is not None:

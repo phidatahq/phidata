@@ -2726,3 +2726,154 @@ async def test_human_backlog_withdrawal_requires_fresh_human_acceptance(system, 
     assert attempts == ([1, 2] if queued else [1])
     stored = await _call(db, "get_schedule", routine["id"])
     assert await _call(db, "count_company_acceptances", routine["id"], _policy_fingerprint(stored), "") == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("isolation", [False, True], ids=["shared", "isolated"])
+@pytest.mark.parametrize("phase", ["write_token", "write_managed", "before_checks", "during_checks", "legacy_token"])
+async def test_automatic_acceptance_requires_wiki_read(system, tmp_path, isolation, phase):
+    import copy
+
+    import jwt
+
+    from agno.company.execution import _call
+    from agno.company.manager import AsyncCompanyManager, CompanyManager
+    from agno.company.routines import _manager_call, _policy_fingerprint
+    from agno.os.authz import Authorization
+    from agno.registry import Registry
+    from agno.run.authorization import AUTHORIZATION_KEY
+
+    _, db, worker, _, components = system
+    secret = "wiki-acceptance-tests-secret-at-least-32-bytes"
+    scopes = [
+        f"{resource}:{action}"
+        for resource in ("products", "tasks", "routines", "schedules")
+        for action in ("read", "write")
+    ] + ["agents:writer:run", "wiki:read"]
+    managed = phase in {"write_managed", "before_checks", "during_checks"}
+    # The identity store is independent of the four Company storage adapters.
+    auth_db = SqliteDb(db_file=str(tmp_path / "wiki-authority.db"))
+    authz = Authorization(db=auth_db if managed else None, verification_keys=[secret], algorithm="HS256")
+    if managed:
+        authz.define_role("admin", ["agent_os:admin"])
+        authz.define_role("runner", scopes)
+        authz.define_role("without_wiki", [scope for scope in scopes if scope != "wiki:read"])
+        authz.seed(admin="root")
+        authz.assign("alice", "without_wiki" if phase == "write_managed" else "runner")
+
+    def headers(with_wiki=True):
+        claims = dict(sub="alice", aud="wiki-acceptance", exp=int(time.time()) + 3600)
+        if not managed:
+            claims["scopes"] = scopes if with_wiki else [scope for scope in scopes if scope != "wiki:read"]
+        return {"Authorization": "Bearer " + jwt.encode(claims, secret, algorithm="HS256")}
+
+    checks_run = []
+    revoke_during_check = phase == "during_checks"
+
+    async def required_check(proposal, manager):
+        checks_run.append(proposal["id"])
+        if revoke_during_check:
+            await authz.aset_role("alice", "without_wiki")
+        return True
+
+    os = AgentOS(
+        id="wiki-acceptance",
+        db=db,
+        registry=Registry(agents=[components["writer"]]),
+        company=CompanyConfig(acceptance_checks={"application_check": required_check}),
+        queue=worker.config,
+        telemetry=False,
+        user_isolation=isolation,
+        authorization=authz,
+    )
+    app = os.get_app()
+    app.state.queue_worker = worker
+    app.state.internal_service_token = "test"
+    worker.authorization_app = app
+    worker._company_schedule_db = db
+    try:
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test", headers=headers(phase != "write_token")
+        ) as client:
+            product_response = await client.post("/company/products", json={"name": "Wiki-gated work"})
+            assert product_response.status_code == 201, product_response.text
+            product = product_response.json()
+            policy = dict(
+                executor_type="agent",
+                executor_id="writer",
+                required_checks=["executor_registered", "application_check"],
+                limits={"max_acceptances": 1, "expires_at": int(time.time()) + 3600},
+            )
+            body = dict(
+                product_id=product["id"],
+                name="intake",
+                template="intake",
+                executor_type="agent",
+                executor_id="writer",
+                cron_expr="0 0 1 1 *",
+                auto_accept=policy,
+            )
+            if phase.startswith("write_"):
+                refused = await client.post("/company/routines", json=body)
+                assert refused.status_code == 403 and "wiki" in refused.text, refused.text
+                assert await _call(db, "get_schedule_by_name", product["id"] + ".intake", user_id="alice") is None
+                created = await client.post("/company/routines", json={**body, "auto_accept": False})
+                assert created.status_code == 201, created.text
+                routine = created.json()
+                before = await _call(db, "get_schedule", routine["id"])
+                refused = await client.patch("/company/routines/" + routine["id"], json={"auto_accept": policy})
+                assert refused.status_code == 403 and "wiki" in refused.text, refused.text
+                assert await _call(db, "get_schedule", routine["id"]) == before
+                if managed:
+                    await authz.aset_role("alice", "runner")
+                client.headers.update(headers())
+                accepted = await client.patch("/company/routines/" + routine["id"], json={"auto_accept": policy})
+                assert accepted.status_code == 200, accepted.text
+            else:
+                created = await client.post("/company/routines", json=body)
+                assert created.status_code == 201, created.text
+                routine = created.json()
+            manager = (
+                AsyncCompanyManager(db, os.registry) if isinstance(db, AsyncBaseDb) else CompanyManager(db, os.registry)
+            )
+            task = await _manager_call(
+                manager,
+                "create_task",
+                product["id"],
+                "Routine proposal",
+                user_id="alice",
+                origin="routine",
+                routine_id=routine["id"],
+            )
+            stored = await _call(db, "get_schedule", routine["id"])
+            fingerprint = _policy_fingerprint(stored)
+            if phase == "before_checks":
+                await authz.aset_role("alice", "without_wiki")
+            elif phase == "legacy_token":
+                # A grant persisted by older code may lack the dispatch permission.
+                payload = copy.deepcopy(stored["payload"])
+                payload["_agno_company_acceptance"][AUTHORIZATION_KEY]["context"]["scopes"].remove("wiki:read")
+                await _call(db, "update_schedule", routine["id"], payload=payload)
+            executor, schedule = await automation((client, db, worker, os, components))
+            if not phase.startswith("write_"):
+                result = await tick(executor, db)
+                assert "wiki:read" in result["output"]["tasks"][0]["reason"], result
+                saved = await _call(db, "get_task", task["id"])
+                assert saved["status"] == "backlog" and saved["job_id"] is None
+                assert not saved["transitions"]
+                assert await _call(db, "count_company_acceptances", routine["id"], fingerprint, "") == 0
+                assert await worker.store.claim_job(worker.worker_id, worker.config.lock_grace_seconds) is None
+                assert checks_run == ([task["id"]] if phase == "during_checks" else [])
+                revoke_during_check = False
+                if managed:
+                    await authz.aset_role("alice", "runner")
+                else:
+                    restored = await client.patch("/company/routines/" + routine["id"], json={"auto_accept": policy})
+                    assert restored.status_code == 200, restored.text
+            await _call(db, "update_schedule", schedule["id"], next_run_at=0)
+            await tick(executor, db)
+            assert (await execute(worker))["status"] == "completed"
+            assert (await _call(db, "get_task", task["id"]))["status"] == "in_review"
+            assert await _call(db, "count_company_acceptances", routine["id"], fingerprint, "") == 1
+    finally:
+        auth_db.close()

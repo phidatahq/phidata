@@ -1019,7 +1019,7 @@ def test_executor_edit_reauthorizes_existing_policy_and_restamps_grant(tmp_path,
         assert created.status_code == 201, created.text
         routine_id = created.json()["id"]
         before = db.get_schedule(routine_id)
-        scopes = ["products:read", "routines:write", "schedules:write", "tasks:write", "agents:other:run"]
+        scopes = ["products:read", "routines:write", "schedules:write", "tasks:write", "wiki:read", "agents:other:run"]
         denied = client.patch("/company/routines/" + routine_id, json={"executor_id": "other"}, headers=headers(scopes))
         assert denied.status_code == 403, denied.text
         assert db.get_schedule(routine_id) == before

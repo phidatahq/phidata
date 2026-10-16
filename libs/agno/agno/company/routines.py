@@ -185,6 +185,7 @@ async def _authorize_auto_accept(request, policy, agent_os=None):
             await authority.arequire("schedules", "write")
             if policy:
                 await authority.arequire("tasks", "write")
+                await authority.arequire("wiki", "read")
         except PermissionError as exc:
             raise HTTPException(403, str(exc))
     if policy:
@@ -575,6 +576,7 @@ class _CompanyScheduleExecutor(CompanyScheduleExecutor):
             for resource, action, resource_id in (
                 ("schedules", "write", None),
                 (acceptance_resource, "write", None),
+                ("wiki", "read", None),
                 (policy.executor_type + "s", "run", policy.executor_id),
             ):
                 await authority.arequire(resource, action, resource_id)
@@ -622,6 +624,7 @@ class _CompanyScheduleExecutor(CompanyScheduleExecutor):
             if authority is not None:
                 await authority.arequire("schedules", "write")
                 await authority.arequire(acceptance_resource, "write")
+                await authority.arequire("wiki", "read")
                 await authority.arequire(policy.executor_type + "s", "run", policy.executor_id)
             # Re-read after all checks and proposal IO. Product/template bindings
             # are separate from the content-only policy fingerprint.

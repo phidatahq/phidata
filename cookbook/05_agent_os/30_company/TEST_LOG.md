@@ -2588,3 +2588,13 @@ The retained four-adapter tests prove null-template completion denial, instructi
 Wider results: **11,779 unit tests passed, 21 conditional skips** across the complete db, os, scheduler, tools and sandbox suites; **1,007 Company/scheduler/parent lifecycle integration tests passed, no skips**, across SQLite/PostgreSQL sync and async with real queues and Mongo scheduler parity enabled. Separate same-worker claim probes passed for sync and async Mongo. All **13 offline cookbook invocations passed** (the nine Company files plus PostgreSQL manual execution, SQLite/PostgreSQL automation, and PostgreSQL cascading archive). Clean validation passed; development validation output was read and retains the same 41 diagnostics in 15 files as exact main under identical dependencies, with zero introduced. Existing fixture/library warnings remain; no live-provider claim is made. Quiet history is unchanged.
 
 ---
+
+### PR 6 wiki-read acceptance boundary — October 16, 2026
+
+**Status:** PASS for focused regressions; wider validation follows the review push.
+
+**Description:** Policy authorization requires `wiki:read`; automatic acceptance checks it both before required-check execution and again afterward, before writing the acceptance receipt. Missing or revoked access leaves a proposal in Backlog without spending budget or creating a job. Existing grant snapshots are not rewritten on already accepted Tasks. Quiet history remains in PR #11118.
+
+**Result:** 40 new integration cases passed across SQLite/PostgreSQL sync and async in both isolation modes. They cover JWT-scope and managed-role policy create/PATCH refusals, managed permission revocation before and during a server-side check, and old token grants lacking wiki access. Every refusal asserts unchanged Backlog state, empty transition history, zero spent budget and no queued work, then proves restored valid authority executes exactly one accepted Task through the durable queue. Existing Company execution/heartbeat units passed after adding `wiki:read` to the executor-edit fixture's valid-policy scopes; its executor-denial assertions remain unchanged. Format and clean validation passed with output read. Wider suites are pending at this early review push.
+
+---

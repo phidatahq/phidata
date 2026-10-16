@@ -424,7 +424,10 @@ not treat it as a new proposal. This also applies to automatic policy withdrawal
 The distinct-Task policy budget is unchanged. Successful work remains In review.
 
 An authenticated human needs `routines:write`, `schedules:write`, `tasks:write`,
-and run permission for both the Routine target and the proposed Task executor.
+`wiki:read`, and run permission for both the Routine target and the proposed Task
+executor. Automatic acceptance rechecks wiki access before and after required
+checks, so missing or revoked access leaves the proposal in Backlog without
+spending its acceptance budget or queuing a run.
 POST `/company/routines` accepts `auto_accept` at creation; PATCH
 `/company/routines/{id}` can authorize, edit, or revoke it. For example, replace
 the IDs below with real records and PATCH this body:

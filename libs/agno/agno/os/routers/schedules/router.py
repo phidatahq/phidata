@@ -42,6 +42,7 @@ def get_schedule_router(
     include_workflows: Optional[Sequence[Any]] = None,
     managed_by: Optional[str] = None,
     company_reads: bool = False,
+    agent_os: Any = None,
 ) -> APIRouter:
     """Factory that creates and returns the schedule router.
 
@@ -56,6 +57,7 @@ def get_schedule_router(
             and a code-defined target that also carries a draft row is refused.
         include_teams: Same as ``include_agents`` but for teams.
         include_workflows: Same as ``include_agents`` but for workflows.
+        agent_os: Optional Company registry and acceptance-check context for policy validation.
 
     Returns:
         An APIRouter with all schedule endpoints attached.
@@ -180,6 +182,11 @@ def get_schedule_router(
         if existing is not None:
             raise HTTPException(status_code=409, detail=f"Schedule with name '{body.name}' already exists")
 
+        payload = body.payload
+        if managed_by == "company":
+            from agno.company.routines import _stamp_auto_accept
+
+            payload = await _stamp_auto_accept(request, payload, agent_os)
         next_run_at = compute_next_run(body.cron_expr, body.timezone)
         now = int(time.time())
 
@@ -189,7 +196,7 @@ def get_schedule_router(
             "description": body.description,
             "method": body.method,
             "endpoint": body.endpoint,
-            "payload": stamp_authorization(body.payload),
+            "payload": stamp_authorization(payload),
             "cron_expr": body.cron_expr,
             "timezone": body.timezone,
             "timeout_seconds": body.timeout_seconds,
@@ -249,6 +256,13 @@ def get_schedule_router(
         existing = await _db_call("get_schedule", schedule_id, user_id=scoped_user_id)
         if existing is None:
             raise HTTPException(status_code=404, detail="Schedule not found")
+
+        from agno.db.schemas.scheduler import _require_mutable_schedule
+
+        try:
+            _require_mutable_schedule(schedule_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc))
 
         updates = body.model_dump(exclude_unset=True)
         if not updates:
@@ -312,6 +326,11 @@ def get_schedule_router(
             if dup is not None:
                 raise HTTPException(status_code=409, detail=f"Schedule with name '{updates['name']}' already exists")
 
+        if existing.get("managed_by") == "company" and "payload" in updates:
+            from agno.company.routines import _stamp_auto_accept
+
+            updates["payload"] = await _stamp_auto_accept(request, updates["payload"], agent_os)
+
         # Timing and descriptive edits must not replace the saved execution identity.
         # Only changes checked against the target above acquire the editor's authority.
         if execution_changed:
@@ -336,6 +355,13 @@ def get_schedule_router(
         existing = await _db_call("get_schedule", schedule_id, user_id=scoped_user_id)
         if existing is None:
             raise HTTPException(status_code=404, detail="Schedule not found")
+
+        from agno.db.schemas.scheduler import _require_mutable_schedule
+
+        try:
+            _require_mutable_schedule(schedule_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc))
         deleted = await _db_call("delete_schedule", schedule_id, user_id=scoped_user_id)
         if not deleted:
             raise HTTPException(status_code=500, detail="Failed to delete schedule")
@@ -350,6 +376,13 @@ def get_schedule_router(
         existing = await _db_call("get_schedule", schedule_id, user_id=scoped_user_id)
         if existing is None:
             raise HTTPException(status_code=404, detail="Schedule not found")
+
+        from agno.db.schemas.scheduler import _require_mutable_schedule
+
+        try:
+            _require_mutable_schedule(schedule_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc))
 
         # Re-arming puts the endpoint back on the poller, so it needs the same permission as creating it.
         await _require_endpoint_permission(request, existing["endpoint"], existing.get("method") or "POST")
@@ -414,6 +447,13 @@ def get_schedule_router(
         if existing is None:
             raise HTTPException(status_code=404, detail="Schedule not found")
 
+        from agno.db.schemas.scheduler import _require_mutable_schedule
+
+        try:
+            _require_mutable_schedule(schedule_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc))
+
         result = await _db_call("update_schedule", schedule_id, user_id=scoped_user_id, enabled=False)
         if result is None:
             raise HTTPException(status_code=500, detail="Failed to disable schedule")
@@ -429,6 +469,13 @@ def get_schedule_router(
         existing = await _db_call("get_schedule", schedule_id, user_id=get_scoped_user_id(request))
         if existing is None:
             raise HTTPException(status_code=404, detail="Schedule not found")
+
+        from agno.db.schemas.scheduler import _require_mutable_schedule
+
+        try:
+            _require_mutable_schedule(schedule_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc))
 
         if not existing.get("enabled", True):
             raise HTTPException(status_code=409, detail="Schedule is disabled")

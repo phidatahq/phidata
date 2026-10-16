@@ -105,9 +105,9 @@ async def test_tools_identity_fence_and_learning(tmp_path, use_async):
         properties = function.parameters.get("properties", {})
         if function.name == "log_company_decision":
             assert "agent_id" not in properties
-        assert not {"user_id", "_agno_run_context", "status", "owner", "sources", "executor_id"} & set(properties) - {
-            "status"
-        }
+        assert not {"user_id", "_agno_run_context", "status", "owner", "sources", "auto_accept", "accepted_by"} & set(
+            properties
+        ) - {"status"}
     with pytest.raises(PermissionError):
         await invoke("propose_company_task", product["id"], "anonymous")
 

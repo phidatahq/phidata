@@ -15,6 +15,8 @@ from agno.run.authorization import RunAuthorization
 # a request field, tool argument, session state or run metadata.
 _task_submission: ContextVar[Optional[Dict[str, Any]]] = ContextVar("company_task_submission", default=None)
 
+_automatic_task: ContextVar[Optional[Dict[str, Any]]] = ContextVar("company_automatic_task", default=None)
+
 
 def _executor(registry: Any, executor_type: Optional[str], executor_id: Optional[str], accepting: bool = False) -> Any:
     if executor_type == "engineering":
@@ -141,6 +143,14 @@ async def _check_task(worker: Any, job: Dict[str, Any]) -> None:
         from agno.exceptions import InputCheckError
 
         raise InputCheckError("Task acceptance was changed or revoked")
+    from agno.company.routines import _check_automatic_policy
+
+    try:
+        await _check_automatic_policy(getattr(worker, "_company_schedule_db", None), task)
+    except ValueError as exc:
+        from agno.exceptions import InputCheckError
+
+        raise InputCheckError(str(exc)) from exc
     from agno.run.authorization import current_authorization
 
     authority = current_authorization()
@@ -282,5 +292,9 @@ def _mount_executors(os: Any) -> None:
                 if by_id[component_id] is not component:
                     raise ValueError("Company requires one executor per registered type and id")
             else:
+                try:
+                    _validate_executor_tools(component)
+                except ValueError:
+                    continue
                 served.append(component)
         setattr(os, resource, served)

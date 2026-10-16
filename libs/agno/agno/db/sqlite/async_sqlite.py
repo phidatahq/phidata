@@ -5841,15 +5841,20 @@ class AsyncSqliteDb(AsyncBaseDb):
         reason: str,
         user_id: Optional[str] = None,
         accepted_by: Optional[str] = None,
+        expected_project: Optional[Dict[str, Any]] = None,
+        expected_tasks: Optional[List[Dict[str, Any]]] = None,
+        auto_accept: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, Any]]:
         """Apply a lifecycle transition only if the observed state still matches."""
         from agno.db.schemas.projects import project_transition_fields
         from agno.db.sql.company import lock_child
+        from agno.db.schemas.tasks import _acceptance_count
 
         table = await self._get_table(table_type="projects")
         if table is None:
             return None
         tasks_table = await self._get_table(table_type="tasks") if target == "done" else None
+        tasks = tasks_table if auto_accept else None
         stmt = select(table).where(table.c.id == project_id, table.c.deleted_at.is_(None))
         if user_id is not None:
             stmt = stmt.where(table.c.user_id == user_id)
@@ -5857,10 +5862,48 @@ class AsyncSqliteDb(AsyncBaseDb):
         projects = await self._get_table(table_type="projects", create_table_if_not_found=True)
         async with self.async_session_factory() as sess, sess.begin():
             await sess.run_sync(lock_child, products, projects, table, project_id)
+            if auto_accept is not None:
+                if (
+                    target != "done"
+                    or expected_project is None
+                    or expected_tasks is None
+                    or products is None
+                    or tasks is None
+                ):
+                    raise ValueError("Automatic completion requires an observed Project and its Tasks")
+                task_histories = (
+                    (
+                        await sess.execute(
+                            select(tasks.c.transitions).where(tasks.c.routine_id == auto_accept["routine_id"])
+                        )
+                    )
+                    .scalars()
+                    .all()
+                )
+                project_histories = (
+                    (await sess.execute(select(table.c.transitions).where(table.c.id != project_id))).scalars().all()
+                )
+                if (
+                    _acceptance_count(
+                        list(task_histories) + list(project_histories), auto_accept["routine_id"], auto_accept["policy"]
+                    )
+                    >= auto_accept["max_acceptances"]
+                ):
+                    raise ValueError("Routine acceptance limit reached")
+                current_tasks = [
+                    dict(item._mapping)
+                    for item in (await sess.execute(select(tasks).where(tasks.c.project_id == project_id))).fetchall()
+                ]
+                if sorted(current_tasks, key=lambda row: row["id"]) != sorted(
+                    expected_tasks, key=lambda row: row["id"]
+                ):
+                    return None
             row = (await sess.execute(stmt)).fetchone()
             if row is None:
                 return None
             existing = dict(row._mapping)
+            if expected_project is not None and existing != expected_project:
+                return None
             open_tasks = []
             if tasks_table is not None:
                 open_query = select(tasks_table).where(
@@ -5869,6 +5912,8 @@ class AsyncSqliteDb(AsyncBaseDb):
                 )
                 open_tasks = [dict(task._mapping) for task in (await sess.execute(open_query)).fetchall()]
             fields = project_transition_fields(existing, target, reason, accepted_by, tasks=open_tasks)
+            if auto_accept is not None:
+                fields["transitions"][-1]["auto_accept"] = auto_accept
             update = table.update().where(
                 table.c.id == project_id,
                 table.c.deleted_at.is_(None),
@@ -5877,6 +5922,11 @@ class AsyncSqliteDb(AsyncBaseDb):
             )
             if tasks_table is not None:
                 update = update.where(~open_query.exists())
+            if expected_project is not None:
+                update = update.where(*[
+                    table.c[field] == expected_project.get(field)
+                    for field in ("product_id", "name", "outcome", "target_date", "updated_at")
+                ])
             if user_id is not None:
                 update = update.where(table.c.user_id == user_id)
             result = (await sess.execute(update.values(**fields).returning(table))).fetchone()
@@ -6174,6 +6224,28 @@ class AsyncSqliteDb(AsyncBaseDb):
             row = (await sess.execute(stmt)).fetchone()
             return dict(row._mapping) if row else None
 
+    async def count_company_acceptances(
+        self, routine_id: str, policy: str, exclude_task_id: str, user_id: Optional[str] = None
+    ) -> int:
+        """Count accepted Tasks and completed Projects, including archived records."""
+        from agno.db.schemas.tasks import _acceptance_count
+
+        table = await self._get_table(table_type="tasks")
+        projects = await self._get_table(table_type="projects")
+        if table is None:
+            return 0
+        stmt = select(table.c.transitions).where(table.c.routine_id == routine_id, table.c.id != exclude_task_id)
+        if user_id is not None:
+            stmt = stmt.where(table.c.user_id == user_id)
+        async with self.async_session_factory() as sess:
+            histories = (await sess.execute(stmt)).scalars().all()
+            if projects is not None:
+                project_stmt = select(projects.c.transitions)
+                if user_id is not None:
+                    project_stmt = project_stmt.where(projects.c.user_id == user_id)
+                histories = list(histories) + list((await sess.execute(project_stmt)).scalars().all())
+        return _acceptance_count(histories, routine_id, policy)
+
     async def transition_task(
         self,
         task_id: str,
@@ -6183,9 +6255,11 @@ class AsyncSqliteDb(AsyncBaseDb):
         accepted_by: Optional[str] = None,
         executor_type: Optional[str] = None,
         executor_id: Optional[str] = None,
+        expected_task: Optional[Dict[str, Any]] = None,
+        auto_accept: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, Any]]:
         """Apply a lifecycle transition only if the observed state still matches."""
-        from agno.db.schemas.tasks import task_transition_fields
+        from agno.db.schemas.tasks import _acceptance_count, _task_scope_predicates, task_transition_fields
         from agno.db.sql.company import lock_child
 
         table = await self._get_table(table_type="tasks")
@@ -6197,13 +6271,39 @@ class AsyncSqliteDb(AsyncBaseDb):
         products = await self._get_table(table_type="products", create_table_if_not_found=True)
         projects = await self._get_table(table_type="projects", create_table_if_not_found=True)
         async with self.async_session_factory() as sess, sess.begin():
+            await sess.run_sync(lock_child, products, projects, table, task_id)
+            if auto_accept is not None:
+                if expected_task is None or products is None:
+                    raise ValueError("Automatic acceptance requires an observed Task and Product")
+                prior: Sequence[Optional[List[Dict[str, Any]]]] = (
+                    (
+                        await sess.execute(
+                            select(table.c.transitions).where(
+                                table.c.routine_id == auto_accept["routine_id"], table.c.id != task_id
+                            )
+                        )
+                    )
+                    .scalars()
+                    .all()
+                )
+                if projects is not None:
+                    prior = list(prior) + list((await sess.execute(select(projects.c.transitions))).scalars().all())
+                if (
+                    _acceptance_count(prior, auto_accept["routine_id"], auto_accept["policy"])
+                    >= auto_accept["max_acceptances"]
+                ):
+                    raise ValueError("Routine acceptance limit reached")
             row = (await sess.execute(stmt)).fetchone()
             if row is None:
                 return None
             existing = dict(row._mapping)
+            if expected_task is not None and existing != expected_task:
+                return None
             fields = task_transition_fields(existing, target, reason, accepted_by, executor_type, executor_id)
-            await sess.run_sync(lock_child, products, projects, table, task_id)
+            if auto_accept is not None:
+                fields["transitions"][-1]["auto_accept"] = auto_accept
             update = table.update().where(
+                *_task_scope_predicates(table, existing),
                 table.c.id == task_id,
                 table.c.deleted_at.is_(None),
                 table.c.status == existing["status"],

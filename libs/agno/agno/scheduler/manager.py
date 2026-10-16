@@ -6,7 +6,7 @@ import time
 from typing import Any, Dict, List, Literal, Optional
 from uuid import uuid4
 
-from agno.db.schemas.scheduler import INTERNAL_SCHEDULER_USER_ID, Schedule, ScheduleRun
+from agno.db.schemas.scheduler import INTERNAL_SCHEDULER_USER_ID, Schedule, ScheduleRun, _require_mutable_schedule
 from agno.run.authorization import (
     arequire_schedule_target,
     current_authorization,
@@ -297,6 +297,7 @@ class ScheduleManager:
 
     def update(self, schedule_id: str, user_id: Optional[str] = None, **kwargs: Any) -> Optional[Schedule]:
         """Update a schedule. ``user_id`` filters the row, it does not reassign the owner."""
+        _require_mutable_schedule(schedule_id)
         if current_authorization() is None and "payload" not in kwargs:
             return self._to_schedule(self._call("update_schedule", schedule_id, user_id=user_id, **kwargs))
         existing = self.get(schedule_id, user_id=user_id)
@@ -308,10 +309,12 @@ class ScheduleManager:
 
     def delete(self, schedule_id: str, user_id: Optional[str] = None) -> bool:
         """Delete a schedule."""
+        _require_mutable_schedule(schedule_id)
         return self._call("delete_schedule", schedule_id, user_id=user_id)
 
     def enable(self, schedule_id: str, user_id: Optional[str] = None) -> Optional[Schedule]:
         """Enable a schedule and compute next run."""
+        _require_mutable_schedule(schedule_id)
         schedule = self._to_schedule(self._call("get_schedule", schedule_id, user_id=user_id))
         if schedule is None:
             return None
@@ -324,6 +327,7 @@ class ScheduleManager:
 
     def disable(self, schedule_id: str, user_id: Optional[str] = None) -> Optional[Schedule]:
         """Disable a schedule."""
+        _require_mutable_schedule(schedule_id)
         return self._to_schedule(self._call("update_schedule", schedule_id, user_id=user_id, enabled=False))
 
     def trigger(self, schedule_id: str) -> None:
@@ -525,6 +529,7 @@ class ScheduleManager:
 
     async def aupdate(self, schedule_id: str, user_id: Optional[str] = None, **kwargs: Any) -> Optional[Schedule]:
         """Async update a schedule. ``user_id`` filters the row, it does not reassign the owner."""
+        _require_mutable_schedule(schedule_id)
         if current_authorization() is None and "payload" not in kwargs:
             return self._to_schedule(await self._acall("update_schedule", schedule_id, user_id=user_id, **kwargs))
         existing = await self.aget(schedule_id, user_id=user_id)
@@ -536,10 +541,12 @@ class ScheduleManager:
 
     async def adelete(self, schedule_id: str, user_id: Optional[str] = None) -> bool:
         """Async delete a schedule."""
+        _require_mutable_schedule(schedule_id)
         return await self._acall("delete_schedule", schedule_id, user_id=user_id)
 
     async def aenable(self, schedule_id: str, user_id: Optional[str] = None) -> Optional[Schedule]:
         """Async enable a schedule."""
+        _require_mutable_schedule(schedule_id)
         schedule = self._to_schedule(await self._acall("get_schedule", schedule_id, user_id=user_id))
         if schedule is None:
             return None
@@ -552,6 +559,7 @@ class ScheduleManager:
 
     async def adisable(self, schedule_id: str, user_id: Optional[str] = None) -> Optional[Schedule]:
         """Async disable a schedule."""
+        _require_mutable_schedule(schedule_id)
         return self._to_schedule(await self._acall("update_schedule", schedule_id, user_id=user_id, enabled=False))
 
     async def aget_runs(

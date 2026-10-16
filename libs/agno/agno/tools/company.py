@@ -60,7 +60,10 @@ def _require_plain_proposal(run_context):
 
 def _page(result, limit, page):
     rows, total = result
-    return json.dumps(
+    from agno.db.schemas.tasks import public_task
+
+    rows = [public_task(row) if isinstance(row, dict) and "transitions" in row else row for row in rows]
+    return _public_json(
         {
             "data": rows,
             "meta": {"page": page, "limit": limit, "total_count": total, "total_pages": (total + limit - 1) // limit},
@@ -171,7 +174,7 @@ class CompanyTools(Toolkit):
         product = self._sync().get(product_id)
         if product is None:
             raise LookupError("Product not found")
-        return json.dumps(product)
+        return _public_json(product)
 
     @requires_permission()
     def list_company_projects(
@@ -234,7 +237,7 @@ class CompanyTools(Toolkit):
         outcome = _empty_to_none(outcome)
         _permission("projects", "write", _agno_run_context)
         self._scoped_user(_agno_run_context)
-        return json.dumps(
+        return _public_json(
             self._sync().create_project(product_id, name, outcome=outcome, user_id=_identity(_agno_run_context))
         )
 
@@ -245,20 +248,26 @@ class CompanyTools(Toolkit):
         title: str,
         brief: _OptionalString = None,
         project_id: _OptionalString = None,
+        executor_type: _OptionalString = None,
+        executor_id: _OptionalString = None,
         _agno_run_context: Optional[Any] = None,
     ) -> str:
-        """Create Backlog work for a human to accept and choose an executor.
+        """Create a Backlog proposal with an optional suggested executor; never accept work.
 
         Args:
+            executor_type: Suggested executor kind; null leaves selection to acceptance.
+            executor_id: Suggested executor ID; null leaves selection to acceptance.
             brief: Task brief; null leaves it unspecified.
             project_id: Project ID within the Product; null proposes work without a Project.
         """
+        executor_type = _empty_to_none(executor_type)
+        executor_id = _empty_to_none(executor_id)
         brief = _empty_to_none(brief)
         project_id = _empty_to_none(project_id)
         _require_plain_proposal(_agno_run_context)
         _permission("tasks", "write", _agno_run_context)
         self._scoped_user(_agno_run_context)
-        return json.dumps(
+        return _public_json(
             self._sync().create_task(
                 product_id,
                 title,
@@ -267,6 +276,8 @@ class CompanyTools(Toolkit):
                 user_id=_identity(_agno_run_context),
                 origin="routine" if getattr(_authority(_agno_run_context), "routine_id", None) else "product_manager",
                 routine_id=getattr(_authority(_agno_run_context), "routine_id", None),
+                executor_type=executor_type,
+                executor_id=executor_id,
             )
         )
 
@@ -284,7 +295,7 @@ class CompanyTools(Toolkit):
         _require_owner(row, user)
         if row["status"] != "proposed":
             raise ValueError("Only proposed Projects may be edited by Company tools")
-        return json.dumps(
+        return _public_json(
             manager.update_project(project_id, user_id=user, expected_status="proposed", name=name, outcome=outcome)
         )
 
@@ -298,7 +309,7 @@ class CompanyTools(Toolkit):
             raise LookupError("Task not found")
         user = self._scoped_user(_agno_run_context)
         _require_owner(row, user)
-        return json.dumps(manager.update_task(task_id, user_id=user, title=title, brief=brief))
+        return _public_json(manager.update_task(task_id, user_id=user, title=title, brief=brief))
 
     @requires_permission()
     def list_company_wiki(
@@ -335,7 +346,7 @@ class CompanyTools(Toolkit):
         """
         product_id = _empty_to_none(product_id)
         _permission("wiki", "read", _agno_run_context)
-        return json.dumps(asdict(self._sync().read_wiki(product_id, path)))
+        return _public_json(asdict(self._sync().read_wiki(product_id, path)))
 
     @requires_permission()
     def update_company_status(
@@ -343,7 +354,7 @@ class CompanyTools(Toolkit):
     ) -> str:
         """Update status.md after reading it; supply the version read to prevent lost edits."""
         _permission("wiki", "write", _agno_run_context)
-        return json.dumps(
+        return _public_json(
             asdict(
                 self._sync().write_wiki(
                     product_id, "status.md", content, expected_version, user_id=self._scoped_user(_agno_run_context)
@@ -372,7 +383,7 @@ class CompanyTools(Toolkit):
         outcome = _empty_to_none(outcome)
         _permission("decisions", "write", _agno_run_context)
         self._scoped_user(_agno_run_context)
-        return json.dumps(
+        return _public_json(
             asdict(
                 self._sync().log_decision(
                     decision,
@@ -443,7 +454,7 @@ class CompanyTools(Toolkit):
         product = await self._async().get(product_id)
         if product is None:
             raise LookupError("Product not found")
-        return json.dumps(product)
+        return _public_json(product)
 
     @requires_permission()
     async def alist_company_projects(
@@ -508,7 +519,7 @@ class CompanyTools(Toolkit):
         outcome = _empty_to_none(outcome)
         await _apermission("projects", "write", _agno_run_context)
         self._scoped_user(_agno_run_context)
-        return json.dumps(
+        return _public_json(
             await self._async().create_project(product_id, name, outcome=outcome, user_id=_identity(_agno_run_context))
         )
 
@@ -519,20 +530,26 @@ class CompanyTools(Toolkit):
         title: str,
         brief: _OptionalString = None,
         project_id: _OptionalString = None,
+        executor_type: _OptionalString = None,
+        executor_id: _OptionalString = None,
         _agno_run_context: Optional[Any] = None,
     ) -> str:
-        """Create Backlog work for a human to accept and choose an executor.
+        """Create a Backlog proposal with an optional suggested executor; never accept work.
 
         Args:
+            executor_type: Suggested executor kind; null leaves selection to acceptance.
+            executor_id: Suggested executor ID; null leaves selection to acceptance.
             brief: Task brief; null leaves it unspecified.
             project_id: Project ID within the Product; null proposes work without a Project.
         """
+        executor_type = _empty_to_none(executor_type)
+        executor_id = _empty_to_none(executor_id)
         brief = _empty_to_none(brief)
         project_id = _empty_to_none(project_id)
         _require_plain_proposal(_agno_run_context)
         await _apermission("tasks", "write", _agno_run_context)
         self._scoped_user(_agno_run_context)
-        return json.dumps(
+        return _public_json(
             await self._async().create_task(
                 product_id,
                 title,
@@ -541,6 +558,8 @@ class CompanyTools(Toolkit):
                 user_id=_identity(_agno_run_context),
                 origin="routine" if getattr(_authority(_agno_run_context), "routine_id", None) else "product_manager",
                 routine_id=getattr(_authority(_agno_run_context), "routine_id", None),
+                executor_type=executor_type,
+                executor_id=executor_id,
             )
         )
 
@@ -558,7 +577,7 @@ class CompanyTools(Toolkit):
         _require_owner(row, user)
         if row["status"] != "proposed":
             raise ValueError("Only proposed Projects may be edited by Company tools")
-        return json.dumps(
+        return _public_json(
             await manager.update_project(
                 project_id, user_id=user, expected_status="proposed", name=name, outcome=outcome
             )
@@ -576,7 +595,7 @@ class CompanyTools(Toolkit):
             raise LookupError("Task not found")
         user = self._scoped_user(_agno_run_context)
         _require_owner(row, user)
-        return json.dumps(await manager.update_task(task_id, user_id=user, title=title, brief=brief))
+        return _public_json(await manager.update_task(task_id, user_id=user, title=title, brief=brief))
 
     @requires_permission()
     async def alist_company_wiki(
@@ -613,7 +632,7 @@ class CompanyTools(Toolkit):
         """
         product_id = _empty_to_none(product_id)
         await _apermission("wiki", "read", _agno_run_context)
-        return json.dumps(asdict(await self._async().read_wiki(product_id, path)))
+        return _public_json(asdict(await self._async().read_wiki(product_id, path)))
 
     @requires_permission()
     async def aupdate_company_status(
@@ -621,7 +640,7 @@ class CompanyTools(Toolkit):
     ) -> str:
         """Update status.md after reading it; supply the version read to prevent lost edits."""
         await _apermission("wiki", "write", _agno_run_context)
-        return json.dumps(
+        return _public_json(
             asdict(
                 await self._async().write_wiki(
                     product_id, "status.md", content, expected_version, user_id=self._scoped_user(_agno_run_context)
@@ -650,7 +669,7 @@ class CompanyTools(Toolkit):
         outcome = _empty_to_none(outcome)
         await _apermission("decisions", "write", _agno_run_context)
         self._scoped_user(_agno_run_context)
-        return json.dumps(
+        return _public_json(
             asdict(
                 await self._async().log_decision(
                     decision,
@@ -765,7 +784,7 @@ class CompanyTools(Toolkit):
         max_chars = 8000 if max_chars is None else max_chars
         _permission("sources", "read", _agno_run_context)
         run_id = self._source_context(source_id, _agno_run_context)
-        return json.dumps(
+        return _public_json(
             self._sync().browse_source(source_id, run_id, path, pattern, offset, limit, content_offset, max_chars)
         )
 
@@ -779,6 +798,9 @@ class CompanyTools(Toolkit):
         evidence_links: List[str],
         evidence_hashes: Dict[str, str],
         _agno_run_context: Optional[Any] = None,
+        executor_type: _OptionalString = None,
+        executor_id: _OptionalString = None,
+        project_id: _OptionalString = None,
     ) -> str:
         """Propose actionable work backed by selected Source links.
 
@@ -786,12 +808,20 @@ class CompanyTools(Toolkit):
         scans and edits, and a concise outcome and brief, not copied file content.
         Pass evidence_hashes mapping each selected link to its observed content_hash.
         Changed evidence is rejected: read again and reconsider the proposal.
+
+        Args:
+            executor_type: Suggested executor kind; null leaves selection to acceptance.
+            executor_id: Suggested executor ID; null leaves selection to acceptance.
+            project_id: Project ID within the Product; null proposes work without a Project.
         """
+        executor_type = _empty_to_none(executor_type)
+        executor_id = _empty_to_none(executor_id)
+        project_id = _empty_to_none(project_id)
         _permission("sources", "read", _agno_run_context)
         _permission("tasks", "write", _agno_run_context)
         self._scoped_user(_agno_run_context)
         run_id = self._source_context(source_id, _agno_run_context)
-        return json.dumps(
+        return _public_json(
             self._sync().intake(
                 source_id,
                 run_id,
@@ -804,6 +834,9 @@ class CompanyTools(Toolkit):
                 },
                 user_id=_identity(_agno_run_context),
                 routine_id=getattr(_authority(_agno_run_context), "routine_id", None),
+                executor_type=executor_type,
+                executor_id=executor_id,
+                project_id=project_id,
             )
         )
 
@@ -835,7 +868,7 @@ class CompanyTools(Toolkit):
         _permission("tasks", "read", _agno_run_context)
         _permission("wiki", "write", _agno_run_context)
         run_id = self._source_context(product_id, _agno_run_context)
-        return json.dumps(
+        return _public_json(
             self._sync().summarize(
                 product_id, run_id, self.interfaces, narrative=narrative, user_id=self._scoped_user(_agno_run_context)
             )
@@ -904,7 +937,7 @@ class CompanyTools(Toolkit):
         max_chars = 8000 if max_chars is None else max_chars
         await _apermission("sources", "read", _agno_run_context)
         run_id = self._source_context(source_id, _agno_run_context)
-        return json.dumps(
+        return _public_json(
             await self._async().browse_source(
                 source_id, run_id, path, pattern, offset, limit, content_offset, max_chars
             )
@@ -920,6 +953,9 @@ class CompanyTools(Toolkit):
         evidence_links: List[str],
         evidence_hashes: Dict[str, str],
         _agno_run_context: Optional[Any] = None,
+        executor_type: _OptionalString = None,
+        executor_id: _OptionalString = None,
+        project_id: _OptionalString = None,
     ) -> str:
         """Propose actionable work backed by selected Source links.
 
@@ -927,12 +963,20 @@ class CompanyTools(Toolkit):
         scans and edits, and a concise outcome and brief, not copied file content.
         Pass evidence_hashes mapping each selected link to its observed content_hash.
         Changed evidence is rejected: read again and reconsider the proposal.
+
+        Args:
+            executor_type: Suggested executor kind; null leaves selection to acceptance.
+            executor_id: Suggested executor ID; null leaves selection to acceptance.
+            project_id: Project ID within the Product; null proposes work without a Project.
         """
+        executor_type = _empty_to_none(executor_type)
+        executor_id = _empty_to_none(executor_id)
+        project_id = _empty_to_none(project_id)
         await _apermission("sources", "read", _agno_run_context)
         await _apermission("tasks", "write", _agno_run_context)
         self._scoped_user(_agno_run_context)
         run_id = self._source_context(source_id, _agno_run_context)
-        return json.dumps(
+        return _public_json(
             await self._async().intake(
                 source_id,
                 run_id,
@@ -945,6 +989,9 @@ class CompanyTools(Toolkit):
                 },
                 user_id=_identity(_agno_run_context),
                 routine_id=getattr(_authority(_agno_run_context), "routine_id", None),
+                executor_type=executor_type,
+                executor_id=executor_id,
+                project_id=project_id,
             )
         )
 
@@ -976,7 +1023,7 @@ class CompanyTools(Toolkit):
         await _apermission("tasks", "read", _agno_run_context)
         await _apermission("wiki", "write", _agno_run_context)
         run_id = self._source_context(product_id, _agno_run_context)
-        return json.dumps(
+        return _public_json(
             await self._async().summarize(
                 product_id, run_id, self.interfaces, narrative=narrative, user_id=self._scoped_user(_agno_run_context)
             )
@@ -994,3 +1041,20 @@ class _AsyncSyncManager:
             return await asyncio.to_thread(getattr(self.manager, name), *args, **kwargs)
 
         return call
+
+
+def _public_json(value, **kwargs):
+    from agno.run.authorization import AUTHORIZATION_KEY
+
+    def clean(item):
+        if isinstance(item, dict):
+            return {
+                key: clean(child)
+                for key, child in item.items()
+                if key not in {AUTHORIZATION_KEY, "_agno_company_acceptance"}
+            }
+        if isinstance(item, list):
+            return [clean(child) for child in item]
+        return item
+
+    return json.dumps(clean(value), **kwargs)

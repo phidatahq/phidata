@@ -227,6 +227,11 @@ async def scheduler_lifespan(app: FastAPI, agent_os: "AgentOS"):
         base_url=base_url,
         internal_service_token=internal_token,
     )
+    if agent_os.company is not None:
+        from agno.company.routines import _CompanyScheduleExecutor, _ensure_automation_schedule
+
+        await _ensure_automation_schedule(agent_os.db)
+        executor = _CompanyScheduleExecutor(agent_os, app, base_url=base_url, internal_service_token=internal_token)
     poller = SchedulePoller(
         db=agent_os.db,
         executor=executor,
@@ -965,6 +970,7 @@ class AgentOS:
                     include_agents=self.agents,
                     include_teams=self.teams,
                     include_workflows=self.workflows,
+                    agent_os=self,
                 )
             )
             updated_routers.append(get_approval_router(os_db=self.db, settings=self.settings))
@@ -1829,6 +1835,7 @@ class AgentOS:
                     include_agents=self.agents,
                     include_teams=self.teams,
                     include_workflows=self.workflows,
+                    agent_os=self,
                 )
             )
             routers.append(get_approval_router(os_db=self.db, settings=self.settings))

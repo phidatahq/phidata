@@ -494,3 +494,39 @@ async def test_routine_service_cannot_create_a_plain_task(heartbeat):
         with pytest.raises(PermissionError, match="intake_company_source"):
             await call("create_task", product["id"], "Plain task")
     assert (await call("list_tasks", product_id=product["id"]))[1] == 0
+
+
+@pytest.mark.asyncio
+async def test_intake_preserves_proposed_executor_and_project(heartbeat, tmp_path):
+    _, _, call = heartbeat
+    path = tmp_path / "release.md"
+    path.write_text("Document the API")
+    product = await call("create", "API")
+    project = await call("create_project", product["id"], "Guide")
+    source = await call("create_source", product["id"], "markdown", str(path))
+    observed = (await call("read_source", source["id"], "observation"))[0]
+    proposal = dict(
+        title="Document API",
+        brief="Write guide",
+        proposal_key="guide",
+        evidence_links=[observed["link"]],
+        evidence_hashes={observed["link"]: observed["content_hash"]},
+    )
+    task = await call(
+        "intake",
+        source["id"],
+        "scan",
+        proposal,
+        routine_id="reader-routine",
+        executor_type="agent",
+        executor_id="writer",
+        project_id=project["id"],
+    )
+    assert task["status"] == "backlog"
+    assert task["executor_type"] == "agent" and task["executor_id"] == "writer"
+    assert task["project_id"] == project["id"]
+    assert task["origin"] == "routine" and task["routine_id"] == "reader-routine"
+    other = await call("create", "Other")
+    outside = await call("create_project", other["id"], "Outside")
+    with pytest.raises(ValueError, match="same Product"):
+        await call("intake", source["id"], "outside", proposal, project_id=outside["id"])

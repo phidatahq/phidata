@@ -319,6 +319,7 @@ class ScheduleExecutor:
         from agno.run.authorization import AUTHORIZATION_HEADER, AUTHORIZATION_KEY
 
         payload = dict(schedule.payload or {})
+        payload.pop("_agno_company_acceptance", None)
         has_authority = AUTHORIZATION_KEY in payload
         snapshot = payload.pop(AUTHORIZATION_KEY, None)
         if schedule.managed_by == "company":

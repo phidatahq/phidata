@@ -83,12 +83,14 @@ async def enqueue_sandbox_run(
 
 def _uploaded_media(images: List[Any], files: List[Any]) -> Dict[str, List[Any]]:
     """Request media as Image/File objects; JSON entries arrive as dicts and must not name server paths."""
-    from agno.media import File, Image
+    from agno.utils.media import reconstruct_file_from_dict, reconstruct_image_from_dict
 
     media: Dict[str, List[Any]] = {
-        "images": [Image.model_validate(item) if isinstance(item, dict) else item for item in images],
-        "files": [File.model_validate(item) if isinstance(item, dict) else item for item in files],
+        "images": [reconstruct_image_from_dict(item) for item in images],
+        "files": [reconstruct_file_from_dict(item) for item in files],
     }
+    if any(item is None for values in media.values() for item in values):
+        raise ValueError("Sandbox attachments must be valid images and files")
     if any(item.filepath for values in media.values() for item in values):
         raise ValueError("Sandboxed runs accept uploaded bytes; server file paths are not accepted")
     return media

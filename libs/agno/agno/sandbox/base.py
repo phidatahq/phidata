@@ -128,8 +128,13 @@ class Sandbox(ABC):
         agent_id: Optional[str] = None,
         generation: int = 1,
         env: Optional[Mapping[str, str]] = None,
+        for_create: bool = False,
     ) -> Optional[SandboxHandle]:
-        """Reconcile allocation by immutable session generation, including lost create acknowledgements."""
+        """Reconcile allocation by immutable session generation, including lost create acknowledgements.
+
+        ``for_create`` says a create of the same generation follows at once, so a provider
+        may keep compute the lookup itself started for that create to claim.
+        """
         raise NotImplementedError("This provider does not support generation reconciliation")
 
     def find(
@@ -139,8 +144,9 @@ class Sandbox(ABC):
         agent_id: Optional[str] = None,
         generation: int = 1,
         env: Optional[Mapping[str, str]] = None,
+        for_create: bool = False,
     ) -> Optional[SandboxHandle]:
-        return _sync(self.afind(session_id, agent_id=agent_id, generation=generation, env=env))
+        return _sync(self.afind(session_id, agent_id=agent_id, generation=generation, env=env, for_create=for_create))
 
     @abstractmethod
     async def aget(self, provider_ref: str) -> Optional[SandboxHandle]: ...

@@ -7,7 +7,7 @@ CLAUDE_CODE_OAUTH_TOKEN:
     .venv/bin/python cookbook/frameworks/sandbox/build_image.py --tag agno-sandbox:local
     ./cookbook/scripts/run_pgvector.sh
     docker run -d --name agno-redis -p 6379:6379 redis
-    .venv/bin/python cookbook/frameworks/sandbox/sandbox_claude_agentos.py
+    .venv/bin/python cookbook/frameworks/sandbox/docker/sandbox_claude_agentos.py
 
 Then send a turn and poll it:
 

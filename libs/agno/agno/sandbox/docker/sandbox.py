@@ -33,7 +33,7 @@ _ICC_OPTION = "com.docker.network.bridge.enable_icc"
 _TOKEN_ENV = "AGNO_SANDBOX_RUNTIME_TOKEN"
 # How long create waits for a freshly started runtime server to answer /health.
 _RUNTIME_READY_SECONDS = 15.0
-_RUNNER = Path(__file__).with_name("_exec.py").read_text()
+_RUNNER = (Path(__file__).parent.parent / "_exec.py").read_text()
 
 
 async def _close_with_loop(owner: "weakref.ReferenceType[DockerSandbox]", client: Any) -> None:
@@ -152,7 +152,7 @@ class DockerSandbox(Sandbox):
         self._network_ready = False
 
     def checkpoint_transfer(self, store: "CheckpointStore") -> "CheckpointTransfer":
-        from agno.sandbox.transfer import DockerCheckpointTransfer
+        from agno.sandbox.docker.transfer import DockerCheckpointTransfer
 
         return DockerCheckpointTransfer(self, store)
 
@@ -435,6 +435,7 @@ class DockerSandbox(Sandbox):
         agent_id: Optional[str] = None,
         generation: int = 1,
         env: Optional[Mapping[str, str]] = None,
+        for_create: bool = False,
     ) -> Optional[SandboxHandle]:
         values = _identity(session_id, agent_id, generation, env)
         handle = await self.aget(self._name(session_id, agent_id, generation))

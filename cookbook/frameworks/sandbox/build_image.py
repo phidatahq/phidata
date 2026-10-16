@@ -10,6 +10,9 @@ from pathlib import Path
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--tag", default="agno-sandbox:local")
+    parser.add_argument(
+        "--platform", help="For example linux/arm64, which AgentCore requires"
+    )
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[3]
     with tempfile.TemporaryDirectory(prefix="agno-runtime-build-") as directory:
@@ -25,18 +28,10 @@ def main() -> None:
         shutil.copyfile(Path(__file__).with_name("Dockerfile"), context / "Dockerfile")
         # --load puts the result in the daemon's image store: a docker-container builder
         # otherwise keeps it in the build cache and exits 0 with no image to run.
-        subprocess.run(
-            [
-                "docker",
-                "build",
-                "--progress=plain",
-                "--load",
-                "--tag",
-                args.tag,
-                str(context),
-            ],
-            check=True,
-        )
+        command = ["docker", "build", "--progress=plain", "--load", "--tag", args.tag]
+        if args.platform:
+            command += ["--platform", args.platform]
+        subprocess.run([*command, str(context)], check=True)
     inspected = subprocess.run(
         ["docker", "image", "inspect", "--format", "{{.Id}}", args.tag],
         capture_output=True,

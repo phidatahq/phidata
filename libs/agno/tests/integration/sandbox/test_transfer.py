@@ -8,7 +8,7 @@ import pytest
 from agno.sandbox import SandboxError
 from agno.sandbox.checkpoint import FileCheckpointStore
 from agno.sandbox.docker import DockerSandbox
-from agno.sandbox.transfer import DockerCheckpointTransfer
+from agno.sandbox.docker import DockerCheckpointTransfer
 
 IMAGE = os.environ.get("AGNO_TEST_DOCKER_IMAGE")
 pytestmark = [

@@ -7,7 +7,7 @@ from uuid import uuid4
 
 from agno.sandbox.checkpoint import FileCheckpointStore
 from agno.sandbox.docker import DockerSandbox
-from agno.sandbox.transfer import DockerCheckpointTransfer
+from agno.sandbox.docker import DockerCheckpointTransfer
 
 sandbox = DockerSandbox(
     os.environ.get("AGNO_SANDBOX_IMAGE", "agno-sandbox:local"),

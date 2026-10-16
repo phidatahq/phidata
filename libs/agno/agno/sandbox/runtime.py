@@ -7,7 +7,6 @@ credentials. Its journal reports execution finished, not durable run completion.
 from __future__ import annotations
 
 import argparse
-from contextlib import suppress
 import asyncio
 import fcntl
 import hashlib
@@ -17,7 +16,7 @@ import os
 import subprocess
 import sys
 import time
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from pathlib import Path
 from typing import Any, Dict, Iterator, Optional
 
@@ -232,16 +231,55 @@ def _agent(request: Dict[str, Any], native: Path) -> Any:
     return CodexAgent(**config)
 
 
+async def _prepare_codex(native: Path) -> None:
+    # The Codex CLI refuses to start when CODEX_HOME names a missing directory.
+    home = native / "codex"
+    if home.is_symlink() or (home.exists() and not home.is_dir()):
+        raise SandboxError("CODEX_HOME must be a directory; remove the file at native/codex")
+    home.mkdir(exist_ok=True)
+
+
+def _codex_login_needed(native: Path, api_key: str) -> bool:
+    """Whether Codex needs logging in with the configured key.
+
+    The Codex app server reads a stored login, not OPENAI_API_KEY. Checkpoints never
+    contain auth.json, so a restored computer always logs in. A stored ChatGPT login
+    is the user's choice and is kept; a stored API key different from the configured
+    one, or an unreadable file, is replaced.
+    """
+    try:
+        stored = json.loads((native / "codex" / "auth.json").read_text())
+    except (OSError, ValueError):
+        return True
+    if not isinstance(stored, dict):
+        return True
+    if stored.get("tokens"):
+        return False
+    return stored.get("OPENAI_API_KEY") != api_key
+
+
+async def _login_codex(agent: Any, api_key: str) -> None:
+    """Log Codex in with the configured key."""
+    try:
+        await agent.alogin_api_key(api_key)
+    except Exception as error:
+        # The run error is journaled, so it must never carry the key.
+        message = str(error).replace(api_key, "[redacted]")
+        raise SandboxError("Codex login failed: " + message[:500]) from None
+
+
 async def _execute(directory: Path, request: Dict[str, Any]) -> Dict[str, Any]:
     if request["sdk"] == "fixture":
         return await _fixture(directory, request)
     from agno.run.agent import RunOutput
+    from agno.sandbox.media import decode_media
 
     native = directory.parent.parent / "native"
     native.mkdir(exist_ok=True)
     os.environ["HOME"] = str(native)
     os.environ["CODEX_HOME"] = str(native / "codex")
-    from agno.sandbox.media import decode_media
+    if request["sdk"] == "codex":
+        await _prepare_codex(native)
 
     agent = _agent(request, native)
     run = None
@@ -249,6 +287,9 @@ async def _execute(directory: Path, request: Dict[str, Any]) -> Dict[str, Any]:
         # Before anything reaches the model: the state on disk must be the state the caller
         # restored. A mismatch is a restore problem and is reported as one.
         _check_native_session_id(agent, request)
+        api_key = os.environ.get("OPENAI_API_KEY")
+        if request["sdk"] == "codex" and api_key and _codex_login_needed(native, api_key):
+            await _login_codex(agent, api_key)
         async for event in agent.arun(
             request["input"],
             run_id=request["run_id"],

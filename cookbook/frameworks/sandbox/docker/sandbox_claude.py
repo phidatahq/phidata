@@ -4,7 +4,7 @@ Build the runtime image, run Postgres, and export ANTHROPIC_API_KEY or CLAUDE_CO
 
     .venv/bin/python cookbook/frameworks/sandbox/build_image.py --tag agno-sandbox:local
     ./cookbook/scripts/run_pgvector.sh
-    .venv/bin/python cookbook/frameworks/sandbox/sandbox_claude.py
+    .venv/bin/python cookbook/frameworks/sandbox/docker/sandbox_claude.py
 
 Each turn runs the whole Claude Code process in a container from DockerSandbox. When the turn
 completes, its files and conversation are checkpointed to ~/.agno/sandbox/checkpoints and the

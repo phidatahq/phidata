@@ -2906,7 +2906,7 @@ files); runtime tests use development Python 3.12. `git diff --check` passed.
 
 ### PR 6.5 named mutations and review fixes — October 16, 2026
 
-**Status:** Targeted regressions, cookbooks and validation PASS; broad suites running.
+**Status:** PASS. Production changes published at `68b285d39dfaaa9cedfbc003f3269b3a53785685`; broad suites completed with the fixture follow-ups below.
 
 **Description:** Eleven long Company mutation methods now require named arguments
 in both sync and async managers. Framework, HTTP, tool, automation, test and cookbook
@@ -2933,3 +2933,20 @@ passed all 52 tests on rerun. Final broad-suite totals follow below.
 manual Task execution on PostgreSQL, automatic Task pickup on SQLite/PostgreSQL,
 and cascading archive on PostgreSQL. Examples 03 and 06 continue to create the
 required Project before each Task. No paid-model or hosted validation is claimed.
+
+
+**Final result:** **7,018 unit + 1,319 integration = 8,337 distinct passing cases**,
+with 39 unit skips and four optional MongoDB integration skips. The broad unit
+run initially reported 7,016 passes and two positional fixture failures; the full
+affected file subsequently passed all 52 cases. Integration initially reported
+1,277 passes and 42 fixture failures: the retention dispatch helper's `target`
+parameter collided with the new named transition argument, a table-driven
+mutation list still supplied positional arguments, and a subprocess script still
+created its Product positionally. Corrected those test callers; the full retention
+file passed 92 cases and both independent-process restart cases passed. Repeated
+cases are not counted twice. No production code changed after the review push.
+
+Full format and clean Python 3.10 validation passed on the final source (1,178
+framework and 21 CLI files), and `git diff --check` passed. Runtime testing used
+the development Python 3.12 environment. GitHub CI and automated review remain
+separate from these local results.

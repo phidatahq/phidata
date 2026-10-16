@@ -32,8 +32,8 @@ async def archive(request, tmp_path):
         db = cls(db_file=str(tmp_path / "archive.db"))
     manager = AsyncCompanyManager(db) if isinstance(db, AsyncBaseDb) else CompanyManager(db)
 
-    async def call(target, method, *args, **kwargs):
-        fn = getattr(target, method)
+    async def call(receiver, method, *args, **kwargs):
+        fn = getattr(receiver, method)
         return (
             await fn(*args, **kwargs)
             if inspect.iscoroutinefunction(fn)
@@ -484,15 +484,28 @@ async def test_routine_mutations_are_bound_and_project_proposals_reuse(archive, 
     )
     authority = _RoutineAuthorization(None, "routine", product_id=product["id"])
     with authorization_scope(lambda: authority):
-        for method, args in [
-            ("create_project", (other["id"], "Intrusion")),
-            ("refresh", (other["id"],)),
-            ("write_wiki", (other["id"], "status.md", "Intrusion", 0)),
-            ("read_source", (source["id"], "scan")),
-            ("add_source", (other["id"], "website", "https://example.org", "finder", "agent", "scan")),
+        for method, kwargs in [
+            ("create_project", {"product_id": other["id"], "name": "Intrusion"}),
+            ("refresh", {"product_id": other["id"]}),
+            (
+                "write_wiki",
+                {"product_id": other["id"], "path": "status.md", "content": "Intrusion", "expected_version": 0},
+            ),
+            ("read_source", {"source_id": source["id"], "run_id": "scan"}),
+            (
+                "add_source",
+                {
+                    "product_id": other["id"],
+                    "type": "website",
+                    "reference": "https://example.org",
+                    "executor_id": "finder",
+                    "executor_type": "agent",
+                    "run_id": "scan",
+                },
+            ),
         ]:
             with pytest.raises(PermissionError, match="configured Product"):
-                await call(manager, method, *args)
+                await call(manager, method, **kwargs)
         proposals = await asyncio.gather(
             *[call(manager, "create_project", product_id=product["id"], name="One proposal") for _ in range(3)]
         )

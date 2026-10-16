@@ -3125,6 +3125,15 @@ These are local results. GitHub CI and independent review remain separate.
 
 ---
 
+### PR 7.2 second review — admission, retries and migration
+
+**Status:** PASS
+
+**Description:** Settled historical attempts are excluded before resolving retired run stores. Live-ticket enumeration propagates failures for admission, includes untagged jobs claimed by named deployments, and uses the existing quiet-contention response for automatic pickup. Checkout validation errors can retry after their cause is repaired. Acceptance refuses a repository or branch incompatible with an established checkout. Migration diagnostics identify Task upgrades, adapter subclasses migrate correctly, and terminal rows retain their status without invalid transitions.
+
+**Result:** All 96 focused regressions passed across sync/async SQLite and PostgreSQL. The affected unit suite passed 1,751 tests (35 conditional skips); all 12 Company Docker cases and all 183 queue-store parity cases passed. All 1,428 Company integration cases passed, with eight conditional Mongo skips. Full format, clean Python 3.10 validation and whitespace checks passed. No paid model turns were run. PR 6.6 dispatch and recovery functions remain unchanged; recovery pin integration is deferred until that PR merges.
+
+---
 
 ### PR 8 — checkpoint outputs and bounded attachments (2026-10-16)
 

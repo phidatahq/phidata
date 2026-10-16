@@ -282,8 +282,8 @@ def get_company_runs_router(os: Any) -> APIRouter:
             projection_failed = result.get("run_id") == value["job_id"] and result.get("status") == "ERROR"
             if (
                 previous_status == "completed"
-                and value["status"] not in {"in_review", "ready"}
                 and not projection_failed
+                and value["status"] not in {"in_review", "ready"}
             ):
                 raise HTTPException(409, "Request revisions before starting another successful attempt")
         try:

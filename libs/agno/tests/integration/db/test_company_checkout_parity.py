@@ -10,6 +10,7 @@ from agno.company.sandbox import _project_checkout
 from agno.db.base import AsyncBaseDb
 from agno.db.migrations.manager import MigrationManager
 from agno.db.schemas.tasks import validate_task_fields
+from agno.exceptions import MigrationRequiredError
 from agno.sandbox import Repository
 from agno.sandbox.docker import DockerSandbox
 from agno.sandbox.fixture import FixtureAgent
@@ -20,9 +21,13 @@ PIN = {"url": URL, "branch": "master", "commit": "a" * 40}
 
 
 @pytest.mark.asyncio
-async def test_migration_is_idempotent_and_leaves_every_task_valid(system):  # noqa: F811
+@pytest.mark.parametrize("subclassed", [False, True])
+async def test_migration_is_idempotent_and_leaves_every_task_valid(system, subclassed):  # noqa: F811
     client, db, _, _, _ = system
     task = await accepted(client)
+    if subclassed:
+        cls = type("ApplicationDatabase", (type(db),), {})
+        db = cls(db_engine=db.db_engine, **({"db_schema": db.db_schema} if hasattr(db, "db_schema") else {}))
 
     ordinary = await accepted(client)
     ordinary = await _call(db, "get_task", ordinary["id"])
@@ -42,6 +47,9 @@ async def test_migration_is_idempotent_and_leaves_every_task_valid(system):  # n
 
     await change()
     await _call(db, "upsert_schema_version", db.tasks_table_name, "3.0.0")
+    db._invalidate_table_cache(db.tasks_table_name)
+    with pytest.raises(MigrationRequiredError):
+        await _call(db, "get_task", task["id"])
     await MigrationManager(db).up(table_type="tasks")
     rows, total = await _call(db, "get_tasks", include_deleted=True)
     assert total == 2
@@ -166,3 +174,33 @@ async def test_legacy_git_source_can_be_updated_without_replacing_reference(syst
     with pytest.raises(ValueError):
         await _call(db, "update_source", source["id"], config={"branch": "--invalid"})
     assert await _call(db, "get_source", source["id"]) == updated
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", ["backlog", "cancelled", "done"])
+async def test_migration_preserves_terminal_tasks_and_valid_history(system, status):  # noqa: F811
+    from tests.integration.db.test_company_execution_parity import execute
+
+    client, db, worker, _, _ = system
+    task = await accepted(client)
+    path = "/company/tasks/" + task["id"]
+    if status == "done":
+        assert (await client.post(path + "/runs")).status_code == 202
+        assert (await execute(worker))["status"] == "completed"
+    response = await client.post(path + "/transitions", json={"target": status, "reason": "Finish prior work"})
+    assert response.status_code == 200, response.text
+    before = await _call(db, "get_task", task["id"])
+    if isinstance(db, AsyncBaseDb):
+        table = await db._get_table("tasks")
+        async with db.db_engine.begin() as connection:
+            await connection.execute(table.update().where(table.c.id == task["id"]).values(executor_type="engineering"))
+    else:
+        table = db._get_table("tasks")
+        with db.db_engine.begin() as connection:
+            connection.execute(table.update().where(table.c.id == task["id"]).values(executor_type="engineering"))
+    await _call(db, "upsert_schema_version", db.tasks_table_name, "3.0.0")
+    await MigrationManager(db).up(table_type="tasks")
+    result = await _call(db, "get_task", task["id"])
+    assert result["status"] == status
+    assert result["executor_type"] is None and result["executor_id"] is None
+    assert result["transitions"] == before["transitions"]

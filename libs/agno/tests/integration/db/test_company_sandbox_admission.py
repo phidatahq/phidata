@@ -223,3 +223,167 @@ async def test_retry_after_patch_projection_failure(sandbox_system, checkpoint, 
     assert saved["session_id"] == failed["session_id"]
     assert saved["metadata"]["checkout"] == failed["metadata"]["checkout"]
     assert saved["job_id"] == second.json()["run_id"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("legacy", [False, True])
+async def test_settled_retired_executor_does_not_block_admission(sandbox_system, legacy):
+    from agno.db.base import AsyncBaseDb
+    from tests.integration.db.test_company_execution_parity import execute
+
+    client, db, worker, os, _ = sandbox_system
+    old = await accepted(client)
+    other = await engineering_task(client, db)
+    path = "/company/tasks/" + old["id"]
+    assert (await client.post(path + "/runs")).status_code == 202
+    assert (await execute(worker))["status"] == "completed"
+    assert (await client.post(path + "/transitions", json={"target": "done", "reason": "Accepted"})).status_code == 200
+    old = await _call(db, "get_task", old["id"])
+    table = worker.config.db._get_table("jobs")
+    with worker.config.db.Session() as session, session.begin():
+        session.execute(table.delete().where(table.c.id == old["job_id"]))
+    if legacy:
+        history = [{k: v for k, v in entry.items() if k != "run_db_id"} for entry in old["transitions"]]
+        if isinstance(db, AsyncBaseDb):
+            table = await db._get_table("tasks")
+            async with db.db_engine.begin() as connection:
+                await connection.execute(table.update().where(table.c.id == old["id"]).values(transitions=history))
+        else:
+            table = db._get_table("tasks")
+            with db.db_engine.begin() as connection:
+                connection.execute(table.update().where(table.c.id == old["id"]).values(transitions=history))
+    os.dbs.pop(db.id, None)
+    os.registry.agents[:] = [agent for agent in os.registry.agents if agent.id != "writer"]
+    started = await client.post("/company/tasks/" + other["id"] + "/runs")
+    assert started.status_code == 202, started.text
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("async_queue", [False, True])
+async def test_queue_read_failure_refuses_admission(sandbox_system, monkeypatch, async_queue):
+    from unittest.mock import AsyncMock
+
+    from agno.db.postgres import AsyncPostgresDb
+
+    client, db, worker, _, _ = sandbox_system
+    task = await engineering_task(client, db)
+    store = worker.config.db
+    if async_queue:
+        store = AsyncPostgresDb(
+            db_url=str(store.db_engine.url.render_as_string(hide_password=False)), db_schema=store.db_schema
+        )
+        worker.store = store
+    original = store._get_table
+
+    def broken(*args, **kwargs):
+        if kwargs.get("table_type") == "jobs":
+            raise RuntimeError("Injected job read failure")
+        return original(*args, **kwargs)
+
+    try:
+        monkeypatch.setattr(store, "_get_table", AsyncMock(side_effect=broken) if async_queue else broken)
+        response = await client.post("/company/tasks/" + task["id"] + "/runs")
+        assert response.status_code == 503 and "queue is unavailable" in response.text, response.text
+        assert (await _call(db, "get_task", task["id"]))["status"] == "ready"
+    finally:
+        if async_queue:
+            await store.close()
+
+
+@pytest.mark.asyncio
+async def test_untagged_live_job_blocks_named_deployment(sandbox_system):
+    client, db, worker, _, _ = sandbox_system
+    first = await engineering_task(client, db)
+    second = await engineering_task(client, db)
+    response = await client.post("/company/tasks/" + first["id"] + "/runs")
+    assert response.status_code == 202, response.text
+    worker.config.deployment_id = "new-deployment"
+    job = await worker.store.claim_job(
+        worker.worker_id, worker.config.lock_grace_seconds, deployment_id="new-deployment"
+    )
+    assert job["id"] == response.json()["run_id"] and job["deployment_id"] is None
+    blocked = await client.post("/company/tasks/" + second["id"] + "/runs")
+    assert blocked.status_code == 409 and "live job" in blocked.text, blocked.text
+
+
+@pytest.mark.asyncio
+async def test_contention_is_quiet_for_automatic_pickup(sandbox_system, system):  # noqa: F811
+    from agno.company.routines import _AutomationSkip
+    from tests.integration.db.test_company_execution_parity import automation
+
+    client, db, worker, _, _ = sandbox_system
+    first = await engineering_task(client, db)
+    second = await engineering_task(client, db)
+    assert (await client.post("/company/tasks/" + first["id"] + "/runs")).status_code == 202
+    executor, _ = await automation(system)
+    for _ in range(2):
+        with pytest.raises(_AutomationSkip, match="still active"):
+            await executor._dispatch(await _call(db, "get_task", second["id"]))
+    assert (await worker.store.list_jobs())[1] == 1
+
+
+@pytest.mark.asyncio
+async def test_checkout_projection_error_can_retry_after_source_repair(sandbox_system, checkpoint):  # noqa: F811
+    client, db, worker, _, agent = sandbox_system
+    fixture_agent, _, commit, capture, _ = checkpoint
+    agent.sandbox = fixture_agent.sandbox
+    pin = {**PIN, "commit": commit}
+    reference = capture()
+    task = await engineering_task(client, db)
+    path = "/company/tasks/" + task["id"]
+    assert (await client.post(path + "/runs")).status_code == 202
+    job = await worker.store.claim_job(worker.worker_id, worker.config.lock_grace_seconds)
+    assert (await client.delete("/company/sources/" + task["id"])).status_code == 204
+    run = agent.db.get_run(job["id"], deserialize=False)
+    data = {
+        **run["run_data"],
+        "status": "COMPLETED",
+        "metadata": {"sandbox": {"repository": pin, "checkpoint": reference}},
+    }
+    agent.db.upsert_run(data, session_id=run["session_id"])
+    assert await worker._asettle_ticket(job["id"], job["attempt"], "completed")
+    failed = await _call(db, "get_task", task["id"])
+    assert failed["result"]["status"] == "ERROR"
+    assert (await worker.store.get_job(job["id"]))["status"] == "completed"
+    source = await client.post(
+        "/company/sources", json={"product_id": task["product_id"], "type": "git", "reference": URL}
+    )
+    assert source.status_code == 201
+    response = await client.post(path + "/runs", json={"attempt": 2})
+    assert response.status_code == 202, response.text
+    second = await worker.store.claim_job(worker.worker_id, worker.config.lock_grace_seconds)
+    second_run = agent.db.get_run(second["id"], deserialize=False)
+    agent.db.upsert_run(
+        {
+            **second_run["run_data"],
+            "status": "COMPLETED",
+            "metadata": {"sandbox": {"repository": pin, "checkpoint": reference}},
+        },
+        session_id=run["session_id"],
+    )
+    assert await worker._asettle_ticket(second["id"], second["attempt"], "completed")
+    completed = await _call(db, "get_task", task["id"])
+    assert completed["status"] == "in_review" and completed["metadata"]["checkout"]["commit"] == pin["commit"]
+    assert (
+        await client.post(path + "/transitions", json={"target": "backlog", "reason": "Reassign"})
+    ).status_code == 200
+    original = agent.repository
+    agent.repository = Repository("https://github.com/other/repository", "master")
+    await _call(
+        db,
+        "create_source",
+        {
+            "id": "other-repo",
+            "product_id": task["product_id"],
+            "type": "git",
+            "reference": agent.repository.url,
+            "created_at": 1,
+        },
+    )
+    refused = await client.post(
+        path + "/transitions",
+        json={"target": "ready", "reason": "Different repository", "executor_type": "agent", "executor_id": "engineer"},
+    )
+    assert refused.status_code == 409 and "already pinned" in refused.text, refused.text
+    assert (await _call(db, "get_task", task["id"]))["metadata"] == completed["metadata"]
+    agent.repository = original

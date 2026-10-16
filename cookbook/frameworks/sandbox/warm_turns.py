@@ -89,7 +89,7 @@ async def main() -> None:
         sandbox.acreate = counted(sandbox.acreate, "create")  # type: ignore[method-assign]
         transfer.arestore = counted(transfer.arestore, "restore")  # type: ignore[method-assign]
         print(
-            f"Provider: {args.provider}. Computers stay warm for {coordinator.warm_seconds:.0f}s after a turn."
+            f"Provider: {args.provider}. Computers stay warm for {coordinator.warm_computer_seconds:.0f}s after a turn."
         )
 
         async def run(number: int) -> None:
@@ -118,7 +118,7 @@ async def main() -> None:
 
         await run(1)
         await run(2)
-        coordinator.warm_seconds = 3
+        coordinator.warm_computer_seconds = 3
         print("Warm window shortened to 3s for the next commit.")
         await run(3)
         print("Waiting 5s, past the window...")

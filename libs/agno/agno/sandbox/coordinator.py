@@ -44,12 +44,12 @@ class SandboxCoordinator:
     checkpoint storage.
 
     Every turn ends with a checkpoint, which is the recovery point. The computer
-    itself is kept for ``warm_seconds`` afterwards, paused where the provider can
+    itself is kept for ``warm_computer_seconds`` afterwards, paused where the provider can
     pause and idle otherwise, and the next turn resumes it instead of creating a
     new one and restoring: no cold start, files and processes as the last turn
     left them. A computer that is gone, expired or differently configured is
     replaced by a fresh generation restored from the checkpoint, which is the only
-    path with ``warm_seconds=0``. Losing a caller detaches it; explicit
+    path with ``warm_computer_seconds=0``. Losing a caller detaches it; explicit
     cancellation and failures retire the computer. A warm computer whose session
     never gets another turn is retired by that session's next claim, so a
     deployment that pauses containers should also sweep provider computers idle
@@ -64,17 +64,17 @@ class SandboxCoordinator:
         *,
         lease_seconds: float = 600,
         poll_wait: float = 5,
-        warm_seconds: float = 300,
+        warm_computer_seconds: float = 300,
     ) -> None:
         # poll_wait is how long one poll waits inside the container for new events; it also
         # bounds how long a cancellation can go unnoticed while a turn emits nothing.
         if not 30 <= lease_seconds <= 3600 or not 0 < poll_wait <= 30:
             raise ValueError("Use a 30-3600 second lease and a poll wait of up to 30 seconds")
-        if not math.isfinite(warm_seconds) or not 0 <= warm_seconds <= 3600:
+        if not math.isfinite(warm_computer_seconds) or not 0 <= warm_computer_seconds <= 3600:
             raise ValueError("Keep computers warm for between 0 and 3600 seconds")
         self.store, self.provider, self.transfer = _SandboxStore(db), provider, transfer
         self.client = SandboxRuntimeClient(provider)
-        self.lease_seconds, self.poll_wait, self.warm_seconds = lease_seconds, poll_wait, warm_seconds
+        self.lease_seconds, self.poll_wait, self.warm_computer_seconds = lease_seconds, poll_wait, warm_computer_seconds
 
     async def arun(
         self,
@@ -722,8 +722,8 @@ class SandboxCoordinator:
             return await self._stop(lease, status="ERROR", reason=state.record["stop_reason"])
         handle = SandboxHandle(**state.record["computer"]) if state.record.get("computer") is not None else None
         keep_until: Optional[float] = None
-        if handle is not None and self.warm_seconds > 0 and await self._akeep_warm(handle):
-            keep_until = time.time() + self.warm_seconds
+        if handle is not None and self.warm_computer_seconds > 0 and await self._akeep_warm(handle):
+            keep_until = time.time() + self.warm_computer_seconds
         elif handle is not None:
             await self.provider.adestroy(handle)
             if await self.provider.aget(handle.provider_ref) is not None:

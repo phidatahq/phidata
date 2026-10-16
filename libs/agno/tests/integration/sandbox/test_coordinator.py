@@ -48,7 +48,7 @@ async def system(request, tmp_path):
     provider = DockerSandbox(IMAGE, namespace="coordinator-" + suffix, memory_mb=512, workspace_mb=32)
     transfer = DockerCheckpointTransfer(provider, FileCheckpointStore(tmp_path / "objects"))
     # Cold replacement every turn, which most of these tests rely on; warm reuse has its own tests.
-    coordinator = SandboxCoordinator(db, provider, transfer, poll_wait=1, warm_seconds=0)
+    coordinator = SandboxCoordinator(db, provider, transfer, poll_wait=1, warm_computer_seconds=0)
     spec = Target("agent", "session", env={"AGNO_SANDBOX_TEST_RUNTIME": "1"})
     handles = []
     original = provider.acreate
@@ -131,7 +131,7 @@ async def test_checkpoint_failure_retries_finalization_without_repeating_tools(s
     assert record["phase"] == "finalizing" and record["result"]["run"]["status"] == "COMPLETED"
     monkeypatch.setattr(coordinator.transfer, "acapture", capture)
     fresh = SandboxCoordinator(
-        coordinator.store.db, coordinator.provider, coordinator.transfer, poll_wait=1, warm_seconds=0
+        coordinator.store.db, coordinator.provider, coordinator.transfer, poll_wait=1, warm_computer_seconds=0
     )
     assert (await run(fresh, spec)).status == RunStatus.completed
     assert await recovered_effects(coordinator, root) == ["first"]
@@ -774,7 +774,7 @@ async def test_sync_stream_yields_events_then_the_committed_output(system):
 
 async def test_next_turn_resumes_the_warm_computer(system, monkeypatch):
     coordinator, spec, root = system
-    coordinator.warm_seconds = 300
+    coordinator.warm_computer_seconds = 300
     restores = []
     restore = coordinator.transfer.arestore
 
@@ -800,7 +800,7 @@ async def test_next_turn_resumes_the_warm_computer(system, monkeypatch):
 
 async def test_a_lost_warm_computer_is_replaced_from_the_checkpoint(system):
     coordinator, spec, root = system
-    coordinator.warm_seconds = 300
+    coordinator.warm_computer_seconds = 300
     assert (await run(coordinator, spec)).metadata["sandbox"]["resumed"] is False
     first = (await binding(coordinator))["record"]
     await coordinator.provider.adestroy(handles_of(coordinator)[0])
@@ -814,7 +814,7 @@ async def test_a_lost_warm_computer_is_replaced_from_the_checkpoint(system):
 
 async def test_an_expired_warm_window_retires_the_computer(system):
     coordinator, spec, root = system
-    coordinator.warm_seconds = 1
+    coordinator.warm_computer_seconds = 1
     await run(coordinator, spec)
     kept = handles_of(coordinator)[0]
     await asyncio.sleep(1.5)
@@ -828,7 +828,7 @@ async def test_a_cancelled_warm_turn_retires_the_computer_and_keeps_the_boundary
     from agno.run import cancel
 
     coordinator, spec, root = system
-    coordinator.warm_seconds = 300
+    coordinator.warm_computer_seconds = 300
     await run(coordinator, spec)
     kept = handles_of(coordinator)[0]
 
@@ -844,7 +844,7 @@ async def test_a_cancelled_warm_turn_retires_the_computer_and_keeps_the_boundary
 
 async def test_retire_computer_removes_the_warm_computer_and_keeps_the_checkpoint(system):
     coordinator, spec, root = system
-    coordinator.warm_seconds = 300
+    coordinator.warm_computer_seconds = 300
     await run(coordinator, spec)
     kept = handles_of(coordinator)[0]
     assert await coordinator.aretire_computer(spec.session_id, agent_id=spec.agent_id, user_id="user") is True
@@ -860,7 +860,7 @@ async def test_retire_computer_removes_the_warm_computer_and_keeps_the_checkpoin
 
 async def test_sweep_retires_only_expired_warm_computers(system):
     coordinator, spec, root = system
-    coordinator.warm_seconds = 300
+    coordinator.warm_computer_seconds = 300
     await run(coordinator, spec)
     kept = handles_of(coordinator)[0]
     assert await coordinator.asweep_warm() == 0

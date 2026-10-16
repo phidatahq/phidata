@@ -2313,3 +2313,15 @@ Tasks and 200 wiki pages. Reads completed and all ten queued workflow Tasks
 were independently confirmed In review. Live-model Intake recorded failure
 because OPENAI_API_KEY was absent. The probe's server and unique schema were
 cleaned up; no live-model success is claimed.
+
+### Final main validation
+
+**Status:** PASS after database fixture corrections
+
+**Description:** Full database/OS/scheduler units plus Company tools, and the Company/scheduler/lifecycle/filesystem matrix on the published recovery fixes.
+
+**Result:** The complete combined unit run had **6,391 passed, 8 optional/environment skips**, and five stale Mongo/Firestore migration-fixture failures. Their setup now explicitly calls upsert_run, matching the current persistence contract and SQLite equivalents; every assertion is retained and adapter behavior is unchanged. Both migration modules passed all 14 tests, then the **complete database unit suite passed 1,627 tests with one root-only skip**. All OS, scheduler and Company tool tests passed in the combined run; they are unchanged by the fixture correction. No unresolved unit failures remain.
+
+Integrations: **676 passed, no skips**, including SQLite/PostgreSQL sync/async and MongoDB scheduler parity. Focused recovery/authorization: **159 passed**. All **10 cookbook invocations passed**. Format and exact-tree validate passed with full output read (mypy: 1,155 framework and 21 CLI files); diff whitespace checks passed. An earlier test-token scope omission and the creator-name-bucket recovery lookup were corrected before the final combined run. Optional dependencies changed in the shared environment, enabling the Firestore checks; this explains the changed totals and skips. No live model or outbound messaging calls.
+
+---

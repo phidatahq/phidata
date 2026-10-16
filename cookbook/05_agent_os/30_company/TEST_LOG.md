@@ -3071,3 +3071,25 @@ These are local results. GitHub CI and independent review remain separate.
 **Result:** All **136 failure-recovery cases passed** across sync/async SQLite and PostgreSQL, including **40 new races** (automation and HTTP retry against concurrent ERROR, COMPLETED, CANCELLED, RUNNING and PAUSED) and **12 new storage checks** for session/owner predicates and structured content/metadata preservation. The races use claimed jobs, normal attempt stamping, and the worker's real error writer. Existing SQL/Mongo Routine and recovery regressions also pass. Full format, validation (1,180 framework and 21 CLI files), and diff whitespace checks passed. Complete-suite totals are pending and are not inferred from the prior head.
 
 ---
+
+### Complete validation of atomic Pending cancellation
+
+**Status:** PASS
+
+**Description:** Final local verification of production head `0b828875676b1e42baaf8f0574786a6961024916`. The final follow-up records validation only.
+
+**Result:** **6,975 distinct unit tests passed, 39 skipped, zero failures/errors** across scheduler, AgentOS/Manager, databases, Company/scheduler/Studio tools and session storage. **1,497 integration tests passed, zero skips/failures/errors**, including the entire **1,344-case Company integration tree**, all **92 retention cases**, scheduler/lifecycle/owner-recheck tests, all four SQL adapters and both real Mongo variants. Both collections were partitioned into disjoint shards covering each collected test once; repeated module-level skips were counted once. Optional drivers, credentials and root access explain the unit skips. The 136 focused checks are included in these totals.
+
+`03_manage_tasks.py` passed with required Projects; `06_execute_tasks.py` passed in manual SQLite and automatic PostgreSQL modes. No paid model calls were made. Full format, validation (1,180 framework and 21 CLI files) and diff whitespace checks passed. Runtime tests used Python 3.12; validation used clean Python 3.10. GitHub CI is separate: at this check lint/style/parity/runtime guards had passed on the source commit and five test shards were still running.
+
+---
+
+### Remaining recovery boundaries identified after atomic cancellation validation
+
+**Status:** NOT COVERED / OPEN
+
+**Description:** A subsequent review identified recovery using the accepting identity rather than a different starter/session owner, and current Routine policy checks preventing reconciliation of an existing in-progress attempt after pause or policy edits. Source inspection confirms both paths remain on the atomic-cancellation head. The passing counts above do not establish correctness for these combinations.
+
+**Result:** These are unresolved merge blockers. Recovery needs a separate path that uses the recorded reservation/session identity and cannot enqueue work; new dispatch must retain current authorization and policy checks. No fix for these two findings is claimed in this validation update.
+
+---

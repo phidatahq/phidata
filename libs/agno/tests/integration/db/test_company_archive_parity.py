@@ -524,9 +524,7 @@ async def test_attention_excludes_archived_ancestors_with_execution_results(db, 
             response = await client.get("/company/attention", params=params)
             assert response.json() == {"proposals": 0, "in_review": 0, "failed": 0}
         for include_deleted in [False, True]:
-            response = await client.get(
-                "/company/tasks", params={"failed": True, "include_deleted": include_deleted}
-            )
+            response = await client.get("/company/tasks", params={"failed": True, "include_deleted": include_deleted})
             assert response.json()["data"] == []
         assert not any((await call(m.get, product["id"], include_deleted=True))["counts"]["tasks"].values())
         assert not any((await call(m.get_project, project["id"], include_deleted=True))["counts"]["tasks"].values())

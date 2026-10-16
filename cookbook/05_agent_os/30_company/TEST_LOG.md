@@ -352,3 +352,13 @@ Full format and clean Python 3.10 validation passed (1,187 framework and 21 CLI 
 **Result:** No failures or further code changes were needed after the merge push. The 179 focused tests, both sandbox cookbook configuration modes and full format/clean validation also passed. PR 8 remains open, so PR 9 retains its stacked base.
 
 ---
+
+### PR 9 parent synchronization — recovered checkout safeguards
+
+**Status:** PASS
+
+**Description:** Normally merged PR 8 `f736b8c880696c59f625ccb9aef1ab7e24182336` at `c9301fc294eca1401137d365e4eda731d701351a`. The parent preserves pinned sandbox checkouts during recovery and requires sandboxed executors for pinned Tasks. The merge was conflict-free.
+
+**Result:** All 179 focused publication/authorization/GitHub tests and full format/clean validation passed before pushing. Relevant broader suites ran after the push: 1,698 database/Company unit tests passed (35 conditional skips), and 339 sandbox admission, patch, Task lifecycle and identity/recovery integration tests passed with no skips. No failures or additional code changes were needed. PR 8 remains open and PR 9 retains its stacked base.
+
+---

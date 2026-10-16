@@ -46,7 +46,12 @@ def _build_product_manager(agent_os: Any, model: Any) -> Optional[Agent]:
         metadata={"_agno": {"internal": True, "id": PRODUCT_MANAGER_ID}},
         tools=[
             CompanyTools(
-                db, user_isolation=isolation, decision_tools=False, summary_tools=False, interfaces=agent_os.interfaces
+                db,
+                user_isolation=isolation,
+                decision_tools=False,
+                summary_tools=False,
+                refresh_tools=False,
+                interfaces=agent_os.interfaces,
             )
         ],
         skills=load_routine_skills(),

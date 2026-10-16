@@ -66,6 +66,8 @@ def get_projects_router(db: Optional[Union[BaseDb, AsyncBaseDb]], settings: Agno
             raise HTTPException(status_code=503, detail="Company projects not supported by the configured database")
         except LookupError as exc:
             raise HTTPException(status_code=404, detail=str(exc))
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail=str(exc))
         except ValueError as exc:
             conflict = method in {"transition_project", "delete_project", "restore_project"}
             raise HTTPException(status_code=409 if conflict else 422, detail=exc.args[0] if exc.args else str(exc))
@@ -82,6 +84,8 @@ def get_projects_router(db: Optional[Union[BaseDb, AsyncBaseDb]], settings: Agno
         limit: int = Query(20, ge=1, le=1000),
         page: int = Query(1, ge=1),
         include_deleted: bool = Query(False),
+        sort_by: Literal["created_at", "updated_at"] = Query("created_at"),
+        sort_order: Literal["asc", "desc"] = Query("desc"),
         product_id: Optional[str] = Query(None),
         status: Optional[ProjectStatus] = Query(None),
         _: bool = Depends(auth_dependency),
@@ -92,6 +96,8 @@ def get_projects_router(db: Optional[Union[BaseDb, AsyncBaseDb]], settings: Agno
             limit=limit,
             page=page,
             include_deleted=include_deleted,
+            sort_by=sort_by,
+            sort_order=sort_order,
             product_id=product_id,
             status=status,
         )

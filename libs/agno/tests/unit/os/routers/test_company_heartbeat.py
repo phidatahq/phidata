@@ -578,3 +578,43 @@ def test_website_source_is_bounded_and_cannot_select_another_url(monkeypatch):
     with pytest.raises(ValueError):
         read_source(source, "run", links=["https://unconfigured.test"])
     assert calls == [source["reference"]]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("async_tools", [False, True])
+async def test_refresh_requires_routine_and_saved_delete_authority(tmp_path, async_tools):
+    import asyncio
+
+    from agno.os.auth import _default_authorization_provider
+    from agno.os.authz.provider import AuthorizationContext
+    from agno.run import RunContext
+    from agno.run.authorization import RunAuthorization
+    from agno.tools.company import CompanyTools
+
+    db = SqliteDb(db_file=str(tmp_path / "refresh.db"))
+    manager = CompanyManager(db)
+    product = manager.create("Docs", user_id="owner")
+    tools = CompanyTools(db, user_isolation=True)
+    context = RunContext(run_id="refresh", session_id="session", user_id="owner")
+
+    async def invoke():
+        if async_tools:
+            return await tools.arefresh_company_product(product["id"], _agno_run_context=context)
+        return await asyncio.to_thread(tools.refresh_company_product, product["id"], _agno_run_context=context)
+
+    with pytest.raises(PermissionError, match="Routine authority"):
+        await invoke()
+    scopes = ["products:read", "projects:read", "tasks:read", "wiki:read", "wiki:write"]
+    authority = RunAuthorization(
+        _default_authorization_provider(), AuthorizationContext(principal_id="owner", scopes=scopes)
+    )
+    with authorization_scope(lambda: _RoutineAuthorization(authority, "refresh")):
+        with pytest.raises(PermissionError, match="projects:delete"):
+            await invoke()
+    authority = RunAuthorization(
+        _default_authorization_provider(),
+        AuthorizationContext(principal_id="owner", scopes=[*scopes, "projects:delete", "tasks:delete"]),
+    )
+    with authorization_scope(lambda: _RoutineAuthorization(authority, "refresh")):
+        assert json.loads(await invoke())["completion_proposals"] == []
+    db.close()

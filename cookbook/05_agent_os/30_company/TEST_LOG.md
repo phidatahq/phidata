@@ -1033,3 +1033,90 @@ Full database/OS/scheduler unit suites: **6,303 passed, 39 skipped**. Skips requ
 **Description:** Integrated merged main PR #11112 (c0731293a8) with a normal merge, preserving the published PR 6 ancestry. Retained Routine proposal denial and applied main's nullable/empty-argument contract to Source discovery, selectors and content pagination. Updated Gemini's expected integer parameter list for the new offsets.
 
 **Result:** Full database/OS/scheduler units: **6,315 passed, 39 skipped** (optional drivers/mocks, credentials and root-only behavior). Company/scheduler integrations: **447 passed**, including SQLite/PostgreSQL sync and async plus restart coverage; filesystem transaction regressions: **33 passed**; no integration skips. Tool/schema/Gemini regressions: **290 passed**. All eight cookbook invocations passed again, covering each file listed above and PostgreSQL execution. Final format and validate passed with complete output read: no mypy errors in 1,153 framework and 21 CLI files. No provider or outbound messaging calls.
+
+
+## Heartbeat rebase, completion and retention — October 16, 2026
+
+Rebased onto PR 4 ad213020cf, preserving main PR #11112 and the latest execution fixes. Published the authorized rebase once at 7d2758d0f4; all later changes use normal commits. Before the rebase push, 312 Company regressions and format/validate passed.
+
+### 01_manage_products.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/01_manage_products.py` in the development environment.
+
+**Result:** Product lifecycle and the default archive policy. No live model or outbound messaging calls.
+
+---
+
+### 02_manage_projects.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/02_manage_projects.py` in the development environment.
+
+**Result:** Project transitions, including the terminal-Task completion guard. No live model or outbound messaging calls.
+
+---
+
+### 03_manage_tasks.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/03_manage_tasks.py` in the development environment.
+
+**Result:** Task lifecycle and acceptance. No live model or outbound messaging calls.
+
+---
+
+### 04_manage_playbook.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/04_manage_playbook.py` in the development environment.
+
+**Result:** Sync/async wiki and decision-log APIs. No live model or outbound messaging calls.
+
+---
+
+### 05_product_manager.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/05_product_manager.py` in the development environment.
+
+**Result:** Product Manager routing and bounded tools without maintenance or outbound delivery. No live model or outbound messaging calls.
+
+---
+
+### 06_execute_tasks.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/06_execute_tasks.py` in the development environment.
+
+**Result:** SQLite and PostgreSQL execution through the durable queue, run history and attention. No live model or outbound messaging calls.
+
+---
+
+### 07_heartbeat.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/07_heartbeat.py` in the development environment.
+
+**Result:** Bounded Source reads, deduplicated Intake, Refresh completion proposals, old-work archival and restore. No live model or outbound messaging calls.
+
+---
+
+Final suite results follow below. The first integration pass exposed five legacy metadata assertions; these now expect the required default archive_window_days=14, while preserving unrelated metadata.
+
+### Final completion and retention validation
+
+**Status:** PASS
+
+**Description:** Full database, OS and scheduler unit suites; Company and scheduler integrations on SQLite and PostgreSQL with sync/async adapters; process restart, durable execution and filesystem transaction regressions. Added 52 archive/completion/order integration cases, including exclusion of archived Task details from completion proposals and executor context.
+
+**Result:** **6,317 unit tests passed, 39 skipped** for unavailable optional dependencies, credentials and environment-specific behavior. **544 integration tests passed with no skips.** All eight cookbook invocations passed again after the final change. The initial five integration and two unit failures were legacy metadata assertions; these now include the required default archive window while retaining existing metadata. Final format and validate passed; complete output was read, including mypy success for 1,154 framework and 21 CLI files. No live model or outbound messaging calls.
+
+---

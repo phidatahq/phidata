@@ -51,12 +51,25 @@ class CompanyManager:
         return record
 
     def list(
-        self, user_id: Optional[str] = None, limit: int = 20, page: int = 1, include_deleted: bool = False
+        self,
+        user_id: Optional[str] = None,
+        limit: int = 20,
+        page: int = 1,
+        include_deleted: bool = False,
+        sort_by: Optional[str] = None,
+        sort_order: Optional[str] = None,
     ) -> Tuple[List[Dict[str, Any]], int]:
         """Return a page of visible Products and the total before pagination."""
         if limit < 1 or page < 1:
             raise ValueError("limit and page must be positive")
-        rows, total = self.db.get_products(user_id=user_id, limit=limit, page=page, include_deleted=include_deleted)
+        rows, total = self.db.get_products(
+            user_id=user_id,
+            limit=limit,
+            page=page,
+            include_deleted=include_deleted,
+            sort_by=sort_by,
+            sort_order=sort_order,
+        )
         counts = self.db.get_product_counts([row["id"] for row in rows])
         return [{**row, "counts": counts[row["id"]]} for row in rows], total
 
@@ -120,6 +133,8 @@ class CompanyManager:
         include_deleted: bool = False,
         product_id: Optional[str] = None,
         status: Optional[str] = None,
+        sort_by: Optional[str] = None,
+        sort_order: Optional[str] = None,
     ) -> Tuple[List[Dict[str, Any]], int]:
         """List across Products, filtering status and owner before pagination."""
         if limit < 1 or page < 1:
@@ -131,6 +146,8 @@ class CompanyManager:
             include_deleted=include_deleted,
             product_id=product_id,
             status=status,
+            sort_by=sort_by,
+            sort_order=sort_order,
         )
         counts = self.db.get_project_counts([row["id"] for row in rows])
         return [{**row, "counts": counts[row["id"]]} for row in rows], total
@@ -146,9 +163,11 @@ class CompanyManager:
             fields["expected_status"] = expected_status
         return self.db.update_project(project_id, user_id=user_id, **fields)
 
-    def delete_project(self, project_id: str, user_id: Optional[str] = None) -> bool:
+    def delete_project(
+        self, project_id: str, user_id: Optional[str] = None, updated_before: Optional[int] = None
+    ) -> bool:
         """Archive a Project and its Tasks atomically; active Tasks raise ValueError."""
-        return self.db.delete_project(project_id, user_id=user_id)
+        return self.db.delete_project(project_id, user_id=user_id, updated_before=updated_before)
 
     def restore_project(self, project_id: str, user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """Restore a Project and only Tasks archived by it."""
@@ -163,6 +182,20 @@ class CompanyManager:
         accepted_by: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
         """Apply an explicit transition; the caller enforces platform authorization."""
+        from agno.company.routines import _RoutineAuthorization
+        from agno.db.schemas.projects import validate_project_completion
+        from agno.run.authorization import current_authorization
+
+        if isinstance(current_authorization(), _RoutineAuthorization):
+            raise PermissionError("Routines propose Project completion; a human must accept the transition")
+        if target == "done":
+            page = 1
+            while True:
+                tasks, total = self.db.get_tasks(project_id=project_id, include_deleted=True, limit=100, page=page)
+                validate_project_completion(tasks)
+                if page * 100 >= total:
+                    break
+                page += 1
         return self.db.transition_project(
             project_id,
             target,
@@ -237,6 +270,8 @@ class CompanyManager:
         project_id: Optional[str] = None,
         failed: Optional[bool] = None,
         session_id: Optional[str] = None,
+        sort_by: Optional[str] = None,
+        sort_order: Optional[str] = None,
     ) -> Tuple[List[Dict[str, Any]], int]:
         """List across Products, filtering status and owner before pagination."""
         if limit < 1 or page < 1:
@@ -251,6 +286,8 @@ class CompanyManager:
             project_id=project_id,
             failed=failed,
             session_id=session_id,
+            sort_by=sort_by,
+            sort_order=sort_order,
         )
 
     def update_task(self, task_id: str, user_id: Optional[str] = None, **fields: Any) -> Optional[Dict[str, Any]]:
@@ -271,9 +308,9 @@ class CompanyManager:
                 raise ValueError("Task and Project must belong to the same Product")
         return self.db.update_task(task_id, user_id=user_id, **fields)
 
-    def delete_task(self, task_id: str, user_id: Optional[str] = None) -> bool:
+    def delete_task(self, task_id: str, user_id: Optional[str] = None, updated_before: Optional[int] = None) -> bool:
         """Soft-delete a visible task."""
-        return self.db.delete_task(task_id, user_id=user_id)
+        return self.db.delete_task(task_id, user_id=user_id, updated_before=updated_before)
 
     def restore_task(self, task_id: str, user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """Restore a deleted task."""
@@ -562,6 +599,12 @@ class CompanyManager:
             }
         )
 
+    def refresh(self, product_id: str, user_id: Optional[str] = None):
+        """Propose Project completion and apply the Product's archive window."""
+        from agno.company.refresh import refresh_product
+
+        return refresh_product(self, product_id, user_id)
+
     def summarize(self, product_id: str, run_id: str, interfaces: Any, narrative: str, user_id: Optional[str] = None):
         """Write the observed report to the wiki and deliver using Product configuration."""
         from agno.company.playbook import _require_owner
@@ -646,13 +689,24 @@ class AsyncCompanyManager:
         return record
 
     async def list(
-        self, user_id: Optional[str] = None, limit: int = 20, page: int = 1, include_deleted: bool = False
+        self,
+        user_id: Optional[str] = None,
+        limit: int = 20,
+        page: int = 1,
+        include_deleted: bool = False,
+        sort_by: Optional[str] = None,
+        sort_order: Optional[str] = None,
     ) -> Tuple[List[Dict[str, Any]], int]:
         """Return a page of visible Products and the total before pagination."""
         if limit < 1 or page < 1:
             raise ValueError("limit and page must be positive")
         rows, total = await self.db.get_products(
-            user_id=user_id, limit=limit, page=page, include_deleted=include_deleted
+            user_id=user_id,
+            limit=limit,
+            page=page,
+            include_deleted=include_deleted,
+            sort_by=sort_by,
+            sort_order=sort_order,
         )
         counts = await self.db.get_product_counts([row["id"] for row in rows])
         return [{**row, "counts": counts[row["id"]]} for row in rows], total
@@ -717,6 +771,8 @@ class AsyncCompanyManager:
         include_deleted: bool = False,
         product_id: Optional[str] = None,
         status: Optional[str] = None,
+        sort_by: Optional[str] = None,
+        sort_order: Optional[str] = None,
     ) -> Tuple[List[Dict[str, Any]], int]:
         """List across Products, filtering status and owner before pagination."""
         if limit < 1 or page < 1:
@@ -728,6 +784,8 @@ class AsyncCompanyManager:
             include_deleted=include_deleted,
             product_id=product_id,
             status=status,
+            sort_by=sort_by,
+            sort_order=sort_order,
         )
         counts = await self.db.get_project_counts([row["id"] for row in rows])
         return [{**row, "counts": counts[row["id"]]} for row in rows], total
@@ -743,9 +801,11 @@ class AsyncCompanyManager:
             fields["expected_status"] = expected_status
         return await self.db.update_project(project_id, user_id=user_id, **fields)
 
-    async def delete_project(self, project_id: str, user_id: Optional[str] = None) -> bool:
+    async def delete_project(
+        self, project_id: str, user_id: Optional[str] = None, updated_before: Optional[int] = None
+    ) -> bool:
         """Archive a Project and its Tasks atomically; active Tasks raise ValueError."""
-        return await self.db.delete_project(project_id, user_id=user_id)
+        return await self.db.delete_project(project_id, user_id=user_id, updated_before=updated_before)
 
     async def restore_project(self, project_id: str, user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """Restore a Project and only Tasks archived by it."""
@@ -760,6 +820,22 @@ class AsyncCompanyManager:
         accepted_by: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
         """Apply an explicit transition; the caller enforces platform authorization."""
+        from agno.company.routines import _RoutineAuthorization
+        from agno.db.schemas.projects import validate_project_completion
+        from agno.run.authorization import current_authorization
+
+        if isinstance(current_authorization(), _RoutineAuthorization):
+            raise PermissionError("Routines propose Project completion; a human must accept the transition")
+        if target == "done":
+            page = 1
+            while True:
+                tasks, total = await self.db.get_tasks(
+                    project_id=project_id, include_deleted=True, limit=100, page=page
+                )
+                validate_project_completion(tasks)
+                if page * 100 >= total:
+                    break
+                page += 1
         return await self.db.transition_project(
             project_id,
             target,
@@ -834,6 +910,8 @@ class AsyncCompanyManager:
         project_id: Optional[str] = None,
         failed: Optional[bool] = None,
         session_id: Optional[str] = None,
+        sort_by: Optional[str] = None,
+        sort_order: Optional[str] = None,
     ) -> Tuple[List[Dict[str, Any]], int]:
         """List across Products, filtering status and owner before pagination."""
         if limit < 1 or page < 1:
@@ -848,6 +926,8 @@ class AsyncCompanyManager:
             project_id=project_id,
             failed=failed,
             session_id=session_id,
+            sort_by=sort_by,
+            sort_order=sort_order,
         )
 
     async def update_task(self, task_id: str, user_id: Optional[str] = None, **fields: Any) -> Optional[Dict[str, Any]]:
@@ -868,9 +948,11 @@ class AsyncCompanyManager:
                 raise ValueError("Task and Project must belong to the same Product")
         return await self.db.update_task(task_id, user_id=user_id, **fields)
 
-    async def delete_task(self, task_id: str, user_id: Optional[str] = None) -> bool:
+    async def delete_task(
+        self, task_id: str, user_id: Optional[str] = None, updated_before: Optional[int] = None
+    ) -> bool:
         """Soft-delete a visible task."""
-        return await self.db.delete_task(task_id, user_id=user_id)
+        return await self.db.delete_task(task_id, user_id=user_id, updated_before=updated_before)
 
     async def restore_task(self, task_id: str, user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """Restore a deleted task."""
@@ -1158,6 +1240,12 @@ class AsyncCompanyManager:
                 "deleted_at": None,
             }
         )
+
+    async def refresh(self, product_id: str, user_id: Optional[str] = None):
+        """Propose Project completion and apply the Product's archive window."""
+        from agno.company.refresh import arefresh_product
+
+        return await arefresh_product(self, product_id, user_id)
 
     async def summarize(
         self, product_id: str, run_id: str, interfaces: Any, narrative: str, user_id: Optional[str] = None

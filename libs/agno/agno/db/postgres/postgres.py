@@ -9067,6 +9067,9 @@ class PostgresDb(BaseDb):
     # --- Products ---
 
     def create_product(self, product_data: Dict[str, Any]) -> Dict[str, Any]:
+        from agno.db.schemas.products import product_metadata
+
+        product_data = {**product_data, "metadata": product_metadata(product_data.get("metadata"))}
         table = self._get_table(table_type="products", create_table_if_not_found=True)
         if table is None:
             raise RuntimeError("Failed to get or create products table")
@@ -9090,8 +9093,17 @@ class PostgresDb(BaseDb):
             return dict(result._mapping) if result else None
 
     def get_products(
-        self, user_id: Optional[str] = None, limit: int = 20, page: int = 1, include_deleted: bool = False
+        self,
+        user_id: Optional[str] = None,
+        limit: int = 20,
+        page: int = 1,
+        include_deleted: bool = False,
+        sort_by: Optional[str] = None,
+        sort_order: Optional[str] = None,
     ) -> Tuple[List[Dict[str, Any]], int]:
+        from agno.db.schemas.products import company_sort
+
+        sort_by, sort_order = company_sort(sort_by, sort_order)
         if limit < 1 or page < 1:
             raise ValueError("limit and page must be positive")
         table = self._get_table(table_type="products")
@@ -9104,14 +9116,21 @@ class PostgresDb(BaseDb):
             stmt = stmt.where(table.c.deleted_at.is_(None))
         with self.Session() as sess:
             total = sess.execute(select(func.count()).select_from(stmt.subquery())).scalar() or 0
-            stmt = stmt.order_by(table.c.created_at.desc(), table.c.id.desc()).limit(limit).offset((page - 1) * limit)
+            column = (
+                func.coalesce(table.c.updated_at, table.c.created_at) if sort_by == "updated_at" else table.c.created_at
+            )
+            order = column.asc() if sort_order == "asc" else column.desc()
+            tie = table.c.id.asc() if sort_order == "asc" else table.c.id.desc()
+            stmt = stmt.order_by(order, tie).limit(limit).offset((page - 1) * limit)
             rows = sess.execute(stmt).fetchall()
             return [dict(row._mapping) for row in rows], total
 
     def update_product(self, product_id: str, user_id: Optional[str] = None, **fields: Any) -> Optional[Dict[str, Any]]:
-        from agno.db.schemas.products import validate_product_fields
+        from agno.db.schemas.products import product_metadata, validate_product_fields
 
         validate_product_fields(fields)
+        if "metadata" in fields:
+            fields["metadata"] = product_metadata(fields["metadata"])
         table = self._get_table(table_type="products")
         if table is None:
             return None
@@ -9194,9 +9213,13 @@ class PostgresDb(BaseDb):
         include_deleted: bool = False,
         product_id: Optional[str] = None,
         status: Optional[str] = None,
+        sort_by: Optional[str] = None,
+        sort_order: Optional[str] = None,
     ) -> Tuple[List[Dict[str, Any]], int]:
+        from agno.db.schemas.products import company_sort
         from agno.db.sql.company import active_parents
 
+        sort_by, sort_order = company_sort(sort_by, sort_order)
         if limit < 1 or page < 1:
             raise ValueError("limit and page must be positive")
         table = self._get_table(table_type="projects")
@@ -9214,7 +9237,12 @@ class PostgresDb(BaseDb):
             stmt = stmt.where(table.c.deleted_at.is_(None))
         with self.Session() as sess:
             total = sess.execute(select(func.count()).select_from(stmt.subquery())).scalar() or 0
-            stmt = stmt.order_by(table.c.created_at.desc(), table.c.id.desc()).limit(limit).offset((page - 1) * limit)
+            column = (
+                func.coalesce(table.c.updated_at, table.c.created_at) if sort_by == "updated_at" else table.c.created_at
+            )
+            order = column.asc() if sort_order == "asc" else column.desc()
+            tie = table.c.id.asc() if sort_order == "asc" else table.c.id.desc()
+            stmt = stmt.order_by(order, tie).limit(limit).offset((page - 1) * limit)
             rows = sess.execute(stmt).fetchall()
             return [dict(row._mapping) for row in rows], total
 
@@ -9251,7 +9279,9 @@ class PostgresDb(BaseDb):
         with self.Session() as sess:
             return project_counts(sess, products, projects, tasks, project_ids)
 
-    def delete_project(self, project_id: str, user_id: Optional[str] = None) -> bool:
+    def delete_project(
+        self, project_id: str, user_id: Optional[str] = None, updated_before: Optional[int] = None
+    ) -> bool:
         from agno.db.sql.company import archive_project
 
         table = self._get_table(table_type="projects")
@@ -9261,7 +9291,7 @@ class PostgresDb(BaseDb):
         projects = table
         tasks = self._get_table(table_type="tasks", create_table_if_not_found=True)
         with self.Session() as sess, sess.begin():
-            return archive_project(sess, products, projects, tasks, project_id, user_id)
+            return archive_project(sess, products, projects, tasks, project_id, user_id, updated_before)
 
     def restore_project(self, project_id: str, user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
         from agno.db.sql.company import restore_project
@@ -9290,6 +9320,7 @@ class PostgresDb(BaseDb):
         table = self._get_table(table_type="projects")
         if table is None:
             return None
+        tasks_table = self._get_table(table_type="tasks") if target == "done" else None
         stmt = select(table).where(table.c.id == project_id, table.c.deleted_at.is_(None))
         if user_id is not None:
             stmt = stmt.where(table.c.user_id == user_id)
@@ -9301,13 +9332,22 @@ class PostgresDb(BaseDb):
             if row is None:
                 return None
             existing = dict(row._mapping)
-            fields = project_transition_fields(existing, target, reason, accepted_by)
+            open_tasks = []
+            if tasks_table is not None:
+                open_query = select(tasks_table).where(
+                    tasks_table.c.project_id == project_id,
+                    tasks_table.c.status.not_in(["done", "cancelled"]),
+                )
+                open_tasks = [dict(task._mapping) for task in sess.execute(open_query).fetchall()]
+            fields = project_transition_fields(existing, target, reason, accepted_by, tasks=open_tasks)
             update = table.update().where(
                 table.c.id == project_id,
                 table.c.deleted_at.is_(None),
                 table.c.status == existing["status"],
                 table.c.transitions == existing["transitions"],
             )
+            if tasks_table is not None:
+                update = update.where(~open_query.exists())
             if user_id is not None:
                 update = update.where(table.c.user_id == user_id)
             result = sess.execute(update.values(**fields).returning(table)).fetchone()
@@ -9403,9 +9443,13 @@ class PostgresDb(BaseDb):
         project_id: Optional[str] = None,
         failed: Optional[bool] = None,
         session_id: Optional[str] = None,
+        sort_by: Optional[str] = None,
+        sort_order: Optional[str] = None,
     ) -> Tuple[List[Dict[str, Any]], int]:
+        from agno.db.schemas.products import company_sort
         from agno.db.sql.company import active_parents
 
+        sort_by, sort_order = company_sort(sort_by, sort_order)
         if limit < 1 or page < 1:
             raise ValueError("limit and page must be positive")
         table = self._get_table(table_type="tasks")
@@ -9439,7 +9483,12 @@ class PostgresDb(BaseDb):
             stmt = stmt.where(table.c.deleted_at.is_(None))
         with self.Session() as sess:
             total = sess.execute(select(func.count()).select_from(stmt.subquery())).scalar() or 0
-            stmt = stmt.order_by(table.c.created_at.desc(), table.c.id.desc()).limit(limit).offset((page - 1) * limit)
+            column = (
+                func.coalesce(table.c.updated_at, table.c.created_at) if sort_by == "updated_at" else table.c.created_at
+            )
+            order = column.asc() if sort_order == "asc" else column.desc()
+            tie = table.c.id.asc() if sort_order == "asc" else table.c.id.desc()
+            stmt = stmt.order_by(order, tie).limit(limit).offset((page - 1) * limit)
             rows = sess.execute(stmt).fetchall()
             return [dict(row._mapping) for row in rows], total
 
@@ -9464,7 +9513,7 @@ class PostgresDb(BaseDb):
             result = sess.execute(stmt.values(**fields, updated_at=int(time.time())).returning(table)).fetchone()
             return dict(result._mapping) if result else None
 
-    def delete_task(self, task_id: str, user_id: Optional[str] = None) -> bool:
+    def delete_task(self, task_id: str, user_id: Optional[str] = None, updated_before: Optional[int] = None) -> bool:
         from agno.db.sql.company import lock_child
 
         table = self._get_table(table_type="tasks")
@@ -9473,6 +9522,11 @@ class PostgresDb(BaseDb):
         stmt = table.update().where(table.c.id == task_id, table.c.deleted_at.is_(None))
         if user_id is not None:
             stmt = stmt.where(table.c.user_id == user_id)
+        if updated_before is not None:
+            stmt = stmt.where(
+                table.c.status.in_(["done", "cancelled"]),
+                func.coalesce(table.c.updated_at, table.c.created_at) < updated_before,
+            )
         now = int(time.time())
         products = self._get_table(table_type="products", create_table_if_not_found=True)
         projects = self._get_table(table_type="projects", create_table_if_not_found=True)

@@ -1836,7 +1836,13 @@ class BaseDb(ABC):
         raise NotImplementedError("Company products not supported by the configured database")
 
     def get_products(
-        self, user_id: Optional[str] = None, limit: int = 20, page: int = 1, include_deleted: bool = False
+        self,
+        user_id: Optional[str] = None,
+        limit: int = 20,
+        page: int = 1,
+        include_deleted: bool = False,
+        sort_by: Optional[str] = None,
+        sort_order: Optional[str] = None,
     ) -> Tuple[List[Dict[str, Any]], int]:
         """List Products and their total, filtering by owner before pagination."""
         raise NotImplementedError("Company products not supported by the configured database")
@@ -1877,6 +1883,8 @@ class BaseDb(ABC):
         include_deleted: bool = False,
         product_id: Optional[str] = None,
         status: Optional[str] = None,
+        sort_by: Optional[str] = None,
+        sort_order: Optional[str] = None,
     ) -> Tuple[List[Dict[str, Any]], int]:
         """List Projects and their total, filtering by owner before pagination."""
         raise NotImplementedError("Company projects not supported by the configured database")
@@ -1891,8 +1899,10 @@ class BaseDb(ABC):
         """Count visible children for a page in one grouped query, including zero statuses."""
         raise NotImplementedError("Company project counts not supported by the configured database")
 
-    def delete_project(self, project_id: str, user_id: Optional[str] = None) -> bool:
-        """Archive a Project and its Tasks atomically; raise ValueError with active Task ids and titles."""
+    def delete_project(
+        self, project_id: str, user_id: Optional[str] = None, updated_before: Optional[int] = None
+    ) -> bool:
+        """Archive a Project and its Tasks atomically; refuse active Tasks. Cutoff requires old terminal work."""
         raise NotImplementedError("Company projects not supported by the configured database")
 
     def restore_project(self, project_id: str, user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
@@ -1933,6 +1943,8 @@ class BaseDb(ABC):
         project_id: Optional[str] = None,
         failed: Optional[bool] = None,
         session_id: Optional[str] = None,
+        sort_by: Optional[str] = None,
+        sort_order: Optional[str] = None,
     ) -> Tuple[List[Dict[str, Any]], int]:
         """List Tasks and their total, filtering by owner before pagination."""
         raise NotImplementedError("Company tasks not supported by the configured database")
@@ -1941,7 +1953,7 @@ class BaseDb(ABC):
         """Update descriptive fields on an active Task within the owner scope."""
         raise NotImplementedError("Company tasks not supported by the configured database")
 
-    def delete_task(self, task_id: str, user_id: Optional[str] = None) -> bool:
+    def delete_task(self, task_id: str, user_id: Optional[str] = None, updated_before: Optional[int] = None) -> bool:
         """Soft-delete an active Task within the owner scope."""
         raise NotImplementedError("Company tasks not supported by the configured database")
 
@@ -3742,7 +3754,13 @@ class AsyncBaseDb(ABC):
         raise NotImplementedError("Company products not supported by the configured database")
 
     async def get_products(
-        self, user_id: Optional[str] = None, limit: int = 20, page: int = 1, include_deleted: bool = False
+        self,
+        user_id: Optional[str] = None,
+        limit: int = 20,
+        page: int = 1,
+        include_deleted: bool = False,
+        sort_by: Optional[str] = None,
+        sort_order: Optional[str] = None,
     ) -> Tuple[List[Dict[str, Any]], int]:
         """List Products and their total, filtering by owner before pagination."""
         raise NotImplementedError("Company products not supported by the configured database")
@@ -3785,6 +3803,8 @@ class AsyncBaseDb(ABC):
         include_deleted: bool = False,
         product_id: Optional[str] = None,
         status: Optional[str] = None,
+        sort_by: Optional[str] = None,
+        sort_order: Optional[str] = None,
     ) -> Tuple[List[Dict[str, Any]], int]:
         """List Projects and their total, filtering by owner before pagination."""
         raise NotImplementedError("Company projects not supported by the configured database")
@@ -3799,8 +3819,10 @@ class AsyncBaseDb(ABC):
         """Count visible children for a page in one grouped query, including zero statuses."""
         raise NotImplementedError("Company project counts not supported by the configured database")
 
-    async def delete_project(self, project_id: str, user_id: Optional[str] = None) -> bool:
-        """Archive a Project and its Tasks atomically; raise ValueError with active Task ids and titles."""
+    async def delete_project(
+        self, project_id: str, user_id: Optional[str] = None, updated_before: Optional[int] = None
+    ) -> bool:
+        """Archive a Project and its Tasks atomically; refuse active Tasks. Cutoff requires old terminal work."""
         raise NotImplementedError("Company projects not supported by the configured database")
 
     async def restore_project(self, project_id: str, user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
@@ -3841,6 +3863,8 @@ class AsyncBaseDb(ABC):
         project_id: Optional[str] = None,
         failed: Optional[bool] = None,
         session_id: Optional[str] = None,
+        sort_by: Optional[str] = None,
+        sort_order: Optional[str] = None,
     ) -> Tuple[List[Dict[str, Any]], int]:
         """List Tasks and their total, filtering by owner before pagination."""
         raise NotImplementedError("Company tasks not supported by the configured database")
@@ -3849,7 +3873,9 @@ class AsyncBaseDb(ABC):
         """Update descriptive fields on an active Task within the owner scope."""
         raise NotImplementedError("Company tasks not supported by the configured database")
 
-    async def delete_task(self, task_id: str, user_id: Optional[str] = None) -> bool:
+    async def delete_task(
+        self, task_id: str, user_id: Optional[str] = None, updated_before: Optional[int] = None
+    ) -> bool:
         """Soft-delete an active Task within the owner scope."""
         raise NotImplementedError("Company tasks not supported by the configured database")
 

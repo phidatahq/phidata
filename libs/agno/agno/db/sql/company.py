@@ -163,12 +163,23 @@ def restore_product(
 
 
 def archive_project(
-    sess: Any, products: Any, projects: Any, tasks: Any, project_id: str, user_id: Optional[str]
+    sess: Any,
+    products: Any,
+    projects: Any,
+    tasks: Any,
+    project_id: str,
+    user_id: Optional[str],
+    updated_before: Optional[int] = None,
 ) -> bool:
     lock_child(sess, products, projects, projects, project_id)
     stmt = select(projects).where(projects.c.id == project_id, projects.c.deleted_at.is_(None))
     if user_id is not None:
         stmt = stmt.where(projects.c.user_id == user_id)
+    if updated_before is not None:
+        stmt = stmt.where(
+            projects.c.status.in_(["done", "cancelled"]),
+            func.coalesce(projects.c.updated_at, projects.c.created_at) < updated_before,
+        )
     row = sess.execute(stmt).first()
     if row is None:
         return False

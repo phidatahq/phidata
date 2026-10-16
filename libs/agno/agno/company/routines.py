@@ -44,6 +44,7 @@ def _routine_failure(output: Any) -> Optional[str]:
                 "intake_company_source",
                 "propose_company_task",
                 "summarize_company_product",
+                "refresh_company_product",
             }:
                 return str(tool["tool_name"]) + " failed: " + str(tool.get("result") or "Company operation failed")
         if output.get("success") is False:

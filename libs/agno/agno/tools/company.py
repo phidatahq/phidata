@@ -83,6 +83,7 @@ class CompanyTools(Toolkit):
         user_isolation: bool = False,
         decision_tools: bool = True,
         summary_tools: bool = True,
+        refresh_tools: bool = True,
         agent_id: Optional[str] = None,
         interfaces: Any = None,
     ):
@@ -113,6 +114,8 @@ class CompanyTools(Toolkit):
             names += ["log_company_decision", "search_company_decisions"]
         if summary_tools:
             names += ["summarize_company_product"]
+        if refresh_tools:
+            names += ["refresh_company_product"]
         super().__init__(
             name="company",
             tools=[getattr(self, name) for name in names],
@@ -805,6 +808,25 @@ class CompanyTools(Toolkit):
         )
 
     @requires_permission()
+    def refresh_company_product(self, product_id: str, _agno_run_context: Optional[Any] = None) -> str:
+        """Propose Project completion and archive old terminal work using the Product's window."""
+        from agno.company.routines import _RoutineAuthorization
+
+        if not isinstance(_authority(_agno_run_context), _RoutineAuthorization):
+            raise PermissionError("Refresh maintenance requires Routine authority")
+        for resource, action in (
+            ("products", "read"),
+            ("projects", "read"),
+            ("projects", "delete"),
+            ("tasks", "read"),
+            ("tasks", "delete"),
+            ("wiki", "read"),
+            ("wiki", "write"),
+        ):
+            _permission(resource, action, _agno_run_context)
+        return json.dumps(self._sync().refresh(product_id, user_id=self._scoped_user(_agno_run_context)))
+
+    @requires_permission()
     def summarize_company_product(
         self, product_id: str, narrative: str, _agno_run_context: Optional[Any] = None
     ) -> str:
@@ -925,6 +947,25 @@ class CompanyTools(Toolkit):
                 routine_id=getattr(_authority(_agno_run_context), "routine_id", None),
             )
         )
+
+    @requires_permission()
+    async def arefresh_company_product(self, product_id: str, _agno_run_context: Optional[Any] = None) -> str:
+        """Propose Project completion and archive old terminal work using the Product's window."""
+        from agno.company.routines import _RoutineAuthorization
+
+        if not isinstance(_authority(_agno_run_context), _RoutineAuthorization):
+            raise PermissionError("Refresh maintenance requires Routine authority")
+        for resource, action in (
+            ("products", "read"),
+            ("projects", "read"),
+            ("projects", "delete"),
+            ("tasks", "read"),
+            ("tasks", "delete"),
+            ("wiki", "read"),
+            ("wiki", "write"),
+        ):
+            await _apermission(resource, action, _agno_run_context)
+        return json.dumps(await self._async().refresh(product_id, user_id=self._scoped_user(_agno_run_context)))
 
     @requires_permission()
     async def asummarize_company_product(

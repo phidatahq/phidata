@@ -351,6 +351,38 @@ have origin `human`, Product Manager proposals have `product_manager`, and Routi
 proposals have `routine` with the trusted Routine id.
 Automatic acceptance and automatic Task pickup are not enabled by this change.
 
+### Refresh, completion and retention
+
+`refresh_company_product` proposes completion for active Projects with at least
+one Task and only terminal Tasks. Each proposal is a versioned page under
+`project-completion/`; unchanged scans do not rewrite it. New open work withdraws
+the proposal. A human accepts it through the existing Project transition route.
+Refresh cannot transition a Project. Moving a Project to Done returns 409 with
+the open Task names and ids until every Task is Done or Cancelled, including
+Tasks that were manually archived while still open.
+
+Products store `metadata.archive_window_days`, default 14. Refresh soft-archives
+Done and Cancelled Projects and Tasks whose last update is strictly older than
+that window, falling back to creation time when no update exists. The delete
+statement rechecks age and terminal state. Restore retains the lifecycle and
+starts a fresh retention window. Archived records leave normal lists, counts
+and execution; `include_deleted=true` reads them for inspection and restore.
+Refresh removes expired generated `summary.md` and completion-proposal pages
+through the existing filesystem API. Human pages, `brief.md` and `status.md`
+are protected. The Refresh Skill updates status.md to reflect the remaining work.
+
+The maintenance tool requires Routine authority, Product ownership when
+isolation applies, `products:read`, `projects:read`, `projects:delete`,
+`tasks:read`, `tasks:delete`, `wiki:read` and `wiki:write` on the saved caller.
+No scheduler-write grant is added. Product Manager does not receive maintenance
+or outbound Summary tools. Existing schedule instructions retain the scheduler's
+snapshot behavior; apply the revised Refresh Skill through an authorized PATCH.
+
+Products, Projects and Tasks list routes accept `sort_by=updated_at` and
+`sort_order=asc|desc`. Activity ordering uses creation time for records without
+an update and a deterministic id tie-breaker, before pagination. Omitting these
+parameters preserves the existing creation-time descending order.
+
 Optional Company tool arguments accept `null` for omission. Empty strings are
 normalized to omission as well; omitted pagination uses 20 results on page 1.
 Required identifiers and titles still require valid values.

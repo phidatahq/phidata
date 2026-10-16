@@ -3,10 +3,12 @@
 Prerequisites: Install agno, sqlalchemy, fastapi, httpx, croniter and pytz.
 Run: .venv/bin/python cookbook/05_agent_os/30_company/07_heartbeat.py
 Try: Edit release.md between scans; the same issue still has one Backlog Task.
+     Change metadata.archive_window_days to control retention of terminal work.
 """
 
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from time import time
 
 from agno.agent import Agent
 from agno.company import CompanyManager, Product, Routine, Source
@@ -79,6 +81,32 @@ if __name__ == "__main__":
             again = manager.intake(source["id"], "repeat-scan", proposal)
             assert first["id"] == again["id"]
             assert first["status"] == "backlog"
+            project = manager.create_project(product_id, "Review the release")
+            manager.transition_project(project["id"], "active", "Human accepted scope")
+            manager.update_task(first["id"], project_id=project["id"])
+            manager.transition_task(
+                first["id"], "cancelled", "Replaced by the release guide"
+            )
+            refresh = manager.refresh(product_id)
+            assert refresh["completion_proposals"][0]["project_id"] == project["id"]
+            assert manager.get_project(project["id"])["status"] == "active"
+            manager.transition_project(
+                project["id"], "done", "Human reviewed all terminal Tasks"
+            )
+            # Seed an old terminal record to exercise the time window without waiting.
+            db.create_task(
+                dict(
+                    id="old-terminal",
+                    product_id=product_id,
+                    title="Old completed work",
+                    status="done",
+                    created_at=int(time()) - 15 * 86400,
+                    transitions=[],
+                )
+            )
+            assert "old-terminal" in manager.refresh(product_id)["archived_tasks"]
+            assert manager.get_task("old-terminal") is None
+            assert manager.restore_task("old-terminal")["status"] == "done"
             routine = client.get("/company/routines").json()["data"][0]
             assert routine["managed_by"] == "company"
             assert routine["payload"]["metadata"]["auto_accept"] is False
@@ -90,4 +118,7 @@ if __name__ == "__main__":
                 "Repeated evidence kept one Backlog proposal with its original run id."
             )
             print("Routine is an ordinary paused scheduler row; no model was called.")
+            print(
+                "Refresh proposed completion, archived old work, and retained restore support."
+            )
         db.close()

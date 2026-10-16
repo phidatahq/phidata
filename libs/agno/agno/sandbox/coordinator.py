@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import math
 import threading
 import time
 from contextlib import suppress
@@ -40,9 +41,19 @@ class SandboxCoordinator:
 
     Leases and recovery state live in ``db``, the same PostgresDb as the agent's
     sessions and runs. All replicas need the same provider namespace and durable
-    checkpoint storage. This initial version retires
-    each computer after a turn. Files/native history survive; processes restart.
-    Losing a caller detaches it; explicit cancellation retires the computer.
+    checkpoint storage.
+
+    Every turn ends with a checkpoint, which is the recovery point. The computer
+    itself is kept for ``warm_computer_seconds`` afterwards, paused where the provider can
+    pause and idle otherwise, and the next turn resumes it instead of creating a
+    new one and restoring: no cold start, files and processes as the last turn
+    left them. A computer that is gone, expired or differently configured is
+    replaced by a fresh generation restored from the checkpoint, which is the only
+    path with ``warm_computer_seconds=0``. Losing a caller detaches it; explicit
+    cancellation and failures retire the computer. A warm computer whose session
+    never gets another turn is retired by that session's next claim, so a
+    deployment that pauses containers should also sweep provider computers idle
+    past the window.
     """
 
     def __init__(
@@ -53,14 +64,17 @@ class SandboxCoordinator:
         *,
         lease_seconds: float = 600,
         poll_wait: float = 5,
+        warm_computer_seconds: float = 300,
     ) -> None:
         # poll_wait is how long one poll waits inside the container for new events; it also
         # bounds how long a cancellation can go unnoticed while a turn emits nothing.
         if not 30 <= lease_seconds <= 3600 or not 0 < poll_wait <= 30:
             raise ValueError("Use a 30-3600 second lease and a poll wait of up to 30 seconds")
+        if not math.isfinite(warm_computer_seconds) or not 0 <= warm_computer_seconds <= 3600:
+            raise ValueError("Keep computers warm for between 0 and 3600 seconds")
         self.store, self.provider, self.transfer = _SandboxStore(db), provider, transfer
         self.client = SandboxRuntimeClient(provider)
-        self.lease_seconds, self.poll_wait = lease_seconds, poll_wait
+        self.lease_seconds, self.poll_wait, self.warm_computer_seconds = lease_seconds, poll_wait, warm_computer_seconds
 
     async def arun(
         self,
@@ -194,6 +208,42 @@ class SandboxCoordinator:
         finally:
             with suppress(SandboxLeaseLost):
                 await self.store.arelinquish(state.lease)
+
+    async def aretire_computer(self, session_id: str, *, agent_id: str, user_id: Optional[str] = None) -> bool:
+        """Remove the computer a session keeps warm between turns, if it has one.
+
+        The checkpoint stays the recovery point, so the next turn simply runs on a
+        fresh generation restored from it. Returns whether a computer was removed.
+        """
+        computer = await self.store.arelease_warm(session_id, agent_id=agent_id, user_id=user_id)
+        if computer is None:
+            return False
+        with suppress(SandboxError):
+            await self.provider.adestroy(SandboxHandle(**computer))
+        return True
+
+    def retire_computer(self, session_id: str, *, agent_id: str, user_id: Optional[str] = None) -> bool:
+        return self.store._sync(self.aretire_computer, session_id, agent_id=agent_id, user_id=user_id)
+
+    async def asweep_warm(self) -> int:
+        """Retire every warm computer whose window has ended; run this periodically on one replica.
+
+        A session's next claim retires its own stale computer, but a session that never
+        returns would otherwise keep a paused container forever. Returns how many were removed.
+        """
+        now = time.time()
+        removed = 0
+        for session_id, agent_id, user_id in await self.store.aexpired_warm(now):
+            computer = await self.store.arelease_warm(session_id, agent_id=agent_id, user_id=user_id, before=now)
+            if computer is None:
+                continue
+            with suppress(SandboxError):
+                await self.provider.adestroy(SandboxHandle(**computer))
+            removed += 1
+        return removed
+
+    def sweep_warm(self) -> int:
+        return self.store._sync(self.asweep_warm)
 
     def stream(
         self,
@@ -366,7 +416,9 @@ class SandboxCoordinator:
         committed: Optional[Dict[str, Any]] = None
         try:
             # Image and resource limits belong to the provider; afind refuses a generation created with others.
-            allocation: Dict[str, Any] = dict(agent_id=agent_id, generation=state.record["generation"], env=env)
+            def allocation_for(record: Dict[str, Any]) -> Dict[str, Any]:
+                return dict(agent_id=agent_id, generation=record["generation"], env=env)
+
             fingerprint = hashlib.sha256(
                 json.dumps({"request": request, "env": dict(env or {})}, sort_keys=True, allow_nan=False).encode()
             ).hexdigest()
@@ -374,6 +426,7 @@ class SandboxCoordinator:
             async def provision(record: Dict[str, Any]) -> Dict[str, Any]:
                 from agno.run.cancel import ais_cancelled
 
+                allocation = allocation_for(record)
                 if await ais_cancelled(run_id):
                     if record["phase"] == "stopping":
                         # A stop is already recorded; cleanup finishes it with its own status and reason.
@@ -407,8 +460,18 @@ class SandboxCoordinator:
                         computer_stopped=record.get("computer") is None,
                     )
                     return record
-                if record.get("computer") is not None:
+                if record.get("computer") is not None and record.get("warm_until") is None:
                     return record
+                if record.get("computer") is not None:
+                    # The last turn left its computer warm. Resume it if it is still there, inside
+                    # its window and the same computer; otherwise retire it and take the cold path
+                    # on a fresh generation.
+                    resumed = await self._aresume_warm(record, allocation, execution_timeout)
+                    if resumed is not None:
+                        record.update(computer=asdict(resumed), warm_until=None, resumed=True)
+                        return record
+                    record.update(generation=record["generation"] + 1, computer=None, warm_until=None)
+                    allocation = allocation_for(record)
                 # No SDK execution can start before this binding commits. An
                 # unbound allocation is a crashed provisioning attempt: replace
                 # it before retrying restore, never restore over uncertain files.
@@ -424,7 +487,7 @@ class SandboxCoordinator:
                 except BaseException:
                     await self.provider.adestroy(handle)
                     raise
-                record["computer"] = asdict(handle)
+                record.update(computer=asdict(handle), computer_since=time.time(), resumed=False)
                 return record
 
             try:
@@ -582,6 +645,45 @@ class SandboxCoordinator:
         # still propagate, since a retry of the same run reconciles them.
         return await self._stop(lease, status="ERROR", reason=str(error)[:8192] or "Invalid runtime request")
 
+    async def _aresume_warm(
+        self, record: Dict[str, Any], allocation: Dict[str, Any], execution_timeout: float
+    ) -> Optional[SandboxHandle]:
+        """The last turn's warm computer, resumed and running; None once it has been retired."""
+        kept = SandboxHandle(**record["computer"])
+        usable = time.time() < float(record["warm_until"])
+        lifetime = getattr(self.provider, "lifetime", None)
+        if usable and isinstance(lifetime, (int, float)):
+            # A provider that ends computers at a fixed lifetime must still have room for this turn.
+            usable = time.time() - float(record.get("computer_since") or 0) + execution_timeout + 120 < lifetime
+        found: Optional[SandboxHandle] = None
+        if usable:
+            try:
+                found = await self.provider.afind(kept.session_id, **allocation)
+            except SandboxError:
+                found = None
+        if found is not None and found.name == kept.name:
+            try:
+                if found.state == "paused":
+                    found = await self.provider.aresume(found)
+                if found.state == "running":
+                    return found
+            except SandboxError:
+                pass
+        # Gone, expired, changed or not resumable: nothing of it may stay behind.
+        with suppress(Exception):
+            await self.provider.adestroy(kept)
+        return None
+
+    async def _akeep_warm(self, handle: SandboxHandle) -> bool:
+        """Park the computer for the next turn: paused where the provider can, idle otherwise."""
+        try:
+            await self.provider.apause(handle)
+        except NotImplementedError:
+            return True
+        except SandboxError:
+            return False
+        return True
+
     async def _finalize(self, lease: SandboxLease) -> Dict[str, Any]:
         async def capture(record: Dict[str, Any]) -> Dict[str, Any]:
             if record["phase"] != "finalizing":
@@ -618,17 +720,23 @@ class SandboxCoordinator:
         state = await self.store._aoperation(lease, capture)
         if state.record["phase"] == "stopping":
             return await self._stop(lease, status="ERROR", reason=state.record["stop_reason"])
-        if state.record.get("computer") is not None:
-            handle = SandboxHandle(**state.record["computer"])
+        handle = SandboxHandle(**state.record["computer"]) if state.record.get("computer") is not None else None
+        keep_until: Optional[float] = None
+        if handle is not None and self.warm_computer_seconds > 0 and await self._akeep_warm(handle):
+            keep_until = time.time() + self.warm_computer_seconds
+        elif handle is not None:
             await self.provider.adestroy(handle)
             if await self.provider.aget(handle.provider_ref) is not None:
                 raise SandboxError("Provider has not confirmed compute removal")
             await self.store.aconfirm_stopped(lease, handle.provider_ref)
         try:
-            return await self.store.acommit(lease)
+            return await self.store.acommit(lease, keep_computer_until=keep_until)
         except SandboxRunFinished as finished:
             # Another writer finished the run; the commit already released the session and kept
             # the previous checkpoint, so the stored outcome is the result.
+            if keep_until is not None and handle is not None:
+                with suppress(Exception):
+                    await self.provider.adestroy(handle)
             return finished.run
 
     @staticmethod

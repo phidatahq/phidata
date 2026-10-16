@@ -138,10 +138,9 @@ async def test_foreground_request_uses_durable_worker_and_committed_checkpoint(s
     assert job["status"] == "completed" and job["attempt"] == 1
     assert job["payload"]["serialize_session"] is True
     assert handles
-    assert all(
-        value is None
-        for value in await asyncio.gather(*(_harness.coordinator(agent).provider.aget(h.provider_ref) for h in handles))
-    )
+    # The AgentOS harness keeps the computer warm for the next turn: paused, not removed.
+    computers = await asyncio.gather(*(_harness.coordinator(agent).provider.aget(h.provider_ref) for h in handles))
+    assert all(value is not None and value.state == "paused" for value in computers), computers
 
 
 async def test_background_acceptance_poll_and_idempotency(service):

@@ -76,6 +76,7 @@ async def main() -> None:
         print(
             f"Turn 3, restored from turn 1's checkpoint: {third.status} - {third.content}"
         )
+        await coordinator.aretire_computer(session_id, agent_id=turn["agent_id"])
 
 
 if __name__ == "__main__":

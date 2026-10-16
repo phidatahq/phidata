@@ -260,15 +260,15 @@ def test_ready_requires_accepting_callers_executor_scope(make_client, kind, scop
     assert isinstance(accepted.json()["accepted_at"], int)
 
 
-def test_non_run_executor_requires_admin(make_client):
+def test_retired_executor_is_invalid_even_for_admin(make_client):
     c = make_client(False)
     path = "/company/tasks/" + create(c, "alice")
     body = {"target": "ready", "reason": "Accept", "executor_type": "engineering", "executor_id": "codex"}
     assert (
         c.post(path + "/transitions", json=body, headers=headers("alice", ["tasks:write", "agents:run"])).status_code
-        == 403
+        == 422
     )
-    assert c.post(path + "/transitions", json=body, headers=headers("admin", ["agent_os:admin"])).status_code == 200
+    assert c.post(path + "/transitions", json=body, headers=headers("admin", ["agent_os:admin"])).status_code == 422
 
 
 def test_private_manager_members_cannot_be_accepted(make_client):

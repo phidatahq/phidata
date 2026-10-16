@@ -37,6 +37,7 @@ change every Product; admins bypass owner isolation.
 | --- | --- |
 | `02_manage_projects.py` | Product-contained Projects, owner filtering, explicit transitions, soft delete and restore. |
 | `03_manage_tasks.py` | Backlog proposals, executor acceptance, frozen scope, rescoping, review and completion. |
+| `09_sandboxed_engineers.py` | Claude and Codex execute a Task from a public repository in Docker, with durable checkpoints and checkout pinning. |
 
 A Product contains Projects and Routines. Every new Task belongs to a Project
 in that Product: `project_id` is required by Task creation and proposal/Intake
@@ -803,3 +804,48 @@ Python `ScheduleManager.update(enabled=True)` and `aupdate(enabled=True)` re-arm
 recurring schedules using their current cron and timezone. On-demand schedules
 remain enabled with a null deadline. Clearing a cron during execution also keeps
 the deadline null after release on SQL and MongoDB storage.
+
+### Sandboxed engineering executors
+
+[09_sandboxed_engineers.py](09_sandboxed_engineers.py) configures one reusable
+ClaudeAgent and one CodexAgent with `repository=Repository(...)`. Select either
+with `--executor claude` or `--executor codex`. Both use the public
+`octocat/Hello-World` repository, Docker `network="isolated"`, and an explicit
+`checkpoints=FileCheckpointStore(...)`. `--config-only` makes no model calls.
+
+The Product has a matching git Source URL and `config.branch` names its default
+branch. The agent's Repository config selects the checkout branch. Acceptance
+checks the URL; the sandbox resolves and publishes the commit on attempt one.
+The Task retains `{source_id, url, branch, commit}` in `metadata.checkout` and
+later attempts reuse its session and verify that pin. A second sandboxed Task
+start receives 409 while another has a live job. Ordinary agents remain eligible
+and report `sandboxed: false`. This marker is derived from the component and
+cannot be set on a Task.
+
+Deployment requirements:
+
+- PostgreSQL for executor runs and the durable queue; Redis for queue coordination.
+  SQLite is supported for local Company records, but sandbox executor state is
+  PostgreSQL-backed. Run `await MigrationManager(db).up(table_type="tasks")`
+  before serving an existing Company database to add checkout metadata and retire
+  any legacy `engineering` executor rows to Backlog.
+- An explicit checkpoint store on one host, or a shared checkpoint filesystem
+  across replicas. Local checkpoint directories are not portable between hosts.
+- Docker with `network="isolated"` (or AgentCore with network access). Egress
+  filtering belongs to the deployment. No Docker socket or privileged container.
+- Set `workspace_mb` for the shallow clone and tools: this example uses 2048 MiB,
+  suitable for an Agno checkout plus a virtual environment. Checkpoints have a
+  1 GiB cap. Set `execution_timeout` for the intended test run; the example uses
+  1800 seconds within the provider lifetime.
+- For Agno development, build the engineering image with development dependencies,
+  PostgreSQL/pgvector and Redis running as unprivileged processes with disposable
+  data under `/tmp`. Run targeted tests there; full CI remains the release check.
+- Public repositories need no git credentials. Private repositories use a
+  read-only token in `Sandbox.env["GITHUB_READ_TOKEN"]`; the matching Source's
+  `credential_ref` must be `GITHUB_READ_TOKEN`. Never pass a write credential to
+  the sandbox. Local-path git Sources remain read-only; URL Source HTTP reads
+  and publishing are outside this example.
+
+Set `SANDBOX_IMAGE`, `SANDBOX_CHECKPOINTS`, `DATABASE_URL`, and `REDIS_URL` for your
+deployment, plus the selected harness's model API key. Running the example
+without `--config-only` makes a real model call and leaves its Task for review.

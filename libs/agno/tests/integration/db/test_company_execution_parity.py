@@ -282,14 +282,16 @@ async def test_cancellation_and_revocation(system):
 
 
 @pytest.mark.asyncio
-async def test_registry_recheck_and_engineering(system):
+async def test_registry_recheck_and_retired_executor(system):
     client, db, worker, os, _ = system
     value = await accepted(client)
     os.registry.agents.clear()
     assert (await client.post(f"/company/tasks/{value['id']}/runs")).status_code == 409
-    engineering = await accepted(client, "engineering", "codex")
-    response = await client.post(f"/company/tasks/{engineering['id']}/runs")
-    assert response.status_code == 409 and "Engineering" in response.text
+    response = await client.post(
+        f"/company/tasks/{value['id']}/transitions",
+        json={"target": "ready", "reason": "Accept", "executor_type": "engineering", "executor_id": "codex"},
+    )
+    assert response.status_code == 422
 
 
 @pytest.mark.asyncio
@@ -1754,7 +1756,11 @@ async def test_automation_filters_candidates_before_paging(system, monkeypatch):
     await executor._dispatch(await _call(db, "get_task", running["id"]))
     # Enough terminal history to dominate an unfiltered page.
     for index in range(101):
-        row = {**ready, "id": "completed-" + str(index), "status": "done"}
+        row = {
+            **{key: value for key, value in ready.items() if key != "sandboxed"},
+            "id": "completed-" + str(index),
+            "status": "done",
+        }
         await _call(db, "create_task", row)
     queries = []
     returned = []

@@ -47,8 +47,15 @@ def get_tasks_router(
         try:
             fn = getattr(manager, method)
             if isinstance(manager, AsyncCompanyManager):
-                return await fn(*args, **kwargs)
-            return await asyncio.to_thread(fn, *args, **kwargs)
+                result = await fn(*args, **kwargs)
+            else:
+                result = await asyncio.to_thread(fn, *args, **kwargs)
+            from agno.company.sandbox import _task_response
+
+            if method == "list_tasks":
+                rows, total = result
+                return [_task_response(row, registry) for row in rows], total
+            return _task_response(result, registry) if isinstance(result, dict) else result
         except NotImplementedError:
             raise HTTPException(status_code=503, detail="Company tasks not supported by the configured database")
         except PermissionError as exc:
@@ -159,9 +166,7 @@ def get_tasks_router(
             )
         if body.target == "ready":
             assert body.executor_type is not None  # Validated by TaskTransition.
-            resource = {"agent": "agents", "team": "teams", "workflow": "workflows", "engineering": "engineering"}[
-                body.executor_type
-            ]
+            resource = {"agent": "agents", "team": "teams", "workflow": "workflows"}[body.executor_type]
             await _require_endpoint_permission(request, f"/{resource}/{body.executor_id}/runs", "POST", action="accept")
         record = await _call(
             "transition_task",

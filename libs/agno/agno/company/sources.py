@@ -17,6 +17,8 @@ def _local_files(source: Dict[str, Any], paths: Optional[List[str]] = None, patt
     from agno.context.mode import ContextMode
     from agno.context.workspace import WorkspaceContextProvider
 
+    if source["type"] == "git" and source["reference"].startswith("https://"):
+        raise ValueError("Git URL Sources are for sandbox checkout and publication; HTTP reading is not supported")
     root = Path(source["reference"]).expanduser().resolve()
     if not root.exists():
         raise ValueError("Source root is unavailable")
@@ -76,6 +78,8 @@ def _paths_for_links(source: Dict[str, Any], links: List[str]) -> Optional[List[
         if set(links) != {source["reference"]}:
             raise ValueError("Proposal evidence must link to the configured page")
         return None
+    if source["type"] == "git" and source["reference"].startswith("https://"):
+        raise ValueError("Git URL Sources are for sandbox checkout and publication; HTTP reading is not supported")
     root = Path(source["reference"]).expanduser().resolve()
     if not root.exists():
         raise ValueError("Source root is unavailable")

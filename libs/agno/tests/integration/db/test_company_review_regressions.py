@@ -91,21 +91,19 @@ async def test_enabled_update_rearms_schedule(system):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("condition", ["engineering", "queued"])
-async def test_expected_refusal_keeps_history_quiet(system, condition):
+async def test_expected_refusal_keeps_history_quiet(system):
     client, db, worker, _, _ = system
-    task = await accepted(client, "engineering", "engineer") if condition == "engineering" else await accepted(client)
+    task = await accepted(client)
     path = "/company/tasks/" + task["id"]
-    if condition == "queued":
-        started = await client.post(path + "/runs")
-        assert started.status_code == 202, started.text
-        moved = await client.post(path + "/transitions", json={"target": "backlog", "reason": "Rescope"})
-        assert moved.status_code == 200, moved.text
-        ready = await client.post(
-            path + "/transitions",
-            json={"target": "ready", "reason": "Reaccept", "executor_type": "agent", "executor_id": "writer"},
-        )
-        assert ready.status_code == 200, ready.text
+    started = await client.post(path + "/runs")
+    assert started.status_code == 202, started.text
+    moved = await client.post(path + "/transitions", json={"target": "backlog", "reason": "Rescope"})
+    assert moved.status_code == 200, moved.text
+    ready = await client.post(
+        path + "/transitions",
+        json={"target": "ready", "reason": "Reaccept", "executor_type": "agent", "executor_id": "writer"},
+    )
+    assert ready.status_code == 200, ready.text
     executor, schedule = await automation(system)
     for _ in range(2):
         await _call(db, "update_schedule", schedule["id"], next_run_at=0)
@@ -113,11 +111,7 @@ async def test_expected_refusal_keeps_history_quiet(system, condition):
         assert result["status"] == "success", result
     rows, count = await _call(db, "get_schedule_runs", schedule["id"])
     assert count == 0, rows
-    expected = (
-        "Engineering executors cannot be started yet"
-        if condition == "engineering"
-        else "previous Task run is still active"
-    )
+    expected = "previous Task run is still active"
     assert expected.lower() in str(result).lower(), result
     assert (await client.get(path)).json()["status"] == "ready"
 

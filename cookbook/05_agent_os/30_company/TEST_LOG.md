@@ -149,3 +149,24 @@ checked quickstart files with no violations. `git diff --check` passed.
 
 These are local tests, not CI, independent review or hosted deployment evidence.
 No paid model calls or real outbound notification deliveries were exercised.
+
+
+### 09_sandboxed_engineers.py
+
+**Status:** PASS
+
+**Description:** Ran `PYTHONPATH=libs/agno .venv/bin/python cookbook/05_agent_os/30_company/09_sandboxed_engineers.py --config-only` on October 16, 2026. Both ClaudeAgent and CodexAgent accept the repository, isolated Docker network, explicit checkpoint store, workspace size and execution timeout configuration.
+
+**Result:** Configuration smoke passed without model calls. The credential-free sandbox fixture separately exercised real public GitHub checkout, Task pin projection, container replacement, attempt-two session reuse, concurrent admission and acceptance on sync/async SQLite and PostgreSQL Company stores. The Claude and Codex model turns were not run.
+
+---
+
+### Sandboxed Company executor regression checks
+
+**Status:** PASS
+
+**Description:** October 16, 2026: all 1,344 Company integration cases passed across synchronous and asynchronous SQLite and PostgreSQL (eight conditional Mongo cases skipped). The affected unit suites passed 3,417 tests (35 conditional skips). All 12 Company Docker fixture cases passed, including cancellation during submission, and all 25 existing AgentOS sandbox cases passed, including the opt-in public-repository case. The Docker fixture used PostgreSQL, Redis and `agno-sandbox:pr71-repository`; no Claude or Codex model turn was invoked.
+
+**Result:** Full format and validation scripts passed; validation used the clean Python 3.10 environment. These are local checks, not CI or independent review. PR 6.6 integration remains pending: its recovery completion must share the checkout projection before recovered sandbox completions can be claimed as covered.
+
+---

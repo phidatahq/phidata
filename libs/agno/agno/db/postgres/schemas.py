@@ -291,6 +291,7 @@ PRODUCTS_TABLE_SCHEMA = {
 }
 
 TASKS_TABLE_SCHEMA = {
+    "metadata": {"type": JSONB, "nullable": True},
     "id": {"type": String, "primary_key": True},
     "title": {"type": String, "nullable": True, "index": True},
     "brief": {"type": Text, "nullable": True},

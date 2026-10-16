@@ -14,6 +14,7 @@ from agno.company.execution import (
     _pending_task_attempt,
     _reconcile_task_run,
     _reserve_task,
+    _sandbox_task_input,
     _task_input,
     _task_run_database,
     _task_submission,
@@ -37,6 +38,7 @@ async def _run_route(
     key: Optional[str] = None,
     session_id: Optional[str] = None,
     checkout: Optional[Dict[str, Any]] = None,
+    files: Optional[list[tuple[str, bytes]]] = None,
 ) -> Response:
     """Enter the real FastAPI route with its dependencies and trusted caller state.
 
@@ -44,6 +46,18 @@ async def _run_route(
     middleware or a Task request cannot become executor input.
     """
     body = urlencode(form or {}).encode()
+    content_type = b"application/x-www-form-urlencoded"
+    if files:
+        from httpx import Request as HTTPRequest
+
+        encoded = HTTPRequest(
+            "POST",
+            "http://company.internal",
+            data=form or {},
+            files=[("files", (name, content, "text/markdown")) for name, content in files],
+        )
+        body = encoded.read()
+        content_type = encoded.headers["content-type"].encode()
     headers = [(k, v) for k, v in request.scope["headers"] if k.lower() in {b"authorization", b"cookie", b"x-api-key"}]
     if getattr(request.state, "is_internal_service", False):
         from agno.run.authorization import AUTHORIZATION_HEADER
@@ -53,7 +67,7 @@ async def _run_route(
             for k, v in request.scope["headers"]
             if k.lower() in {AUTHORIZATION_HEADER.lower().encode(), b"x-schedule-owner"}
         ]
-    headers += [(b"content-type", b"application/x-www-form-urlencoded"), (b"content-length", str(len(body)).encode())]
+    headers += [(b"content-type", content_type), (b"content-length", str(len(body)).encode())]
     if key:
         headers.append((b"idempotency-key", key.encode()))
     state = dict(request.scope.get("state") or {})
@@ -268,7 +282,13 @@ def get_company_runs_router(os: Any) -> APIRouter:
             if previous_status == "completed" and value["status"] not in {"in_review", "ready"}:
                 raise HTTPException(409, "Request revisions before starting another successful attempt")
         try:
-            message = await _task_input(manager, value)
+            from agno.company.sandbox import _is_sandboxed
+
+            files = None
+            if _is_sandboxed(component):
+                message, files = await _sandbox_task_input(manager, value)
+            else:
+                message = await _task_input(manager, value)
         except LookupError as exc:
             raise HTTPException(404, str(exc))
         except ValueError as exc:
@@ -298,6 +318,7 @@ def get_company_runs_router(os: Any) -> APIRouter:
                 },
                 key=f"company:{task_id}:{body.attempt}",
                 checkout=(value.get("metadata") or {}).get("checkout"),
+                files=files,
             )
         finally:
             _task_submission.reset(token)

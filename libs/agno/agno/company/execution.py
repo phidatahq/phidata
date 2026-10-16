@@ -201,8 +201,36 @@ async def _reconcile_task_run(
         "content": data.get("content"),
         "content_type": data.get("content_type"),
     }
+    checkout = None
+    if run["status"] == "COMPLETED":
+        if worker is None:
+            raise ValueError("Task executor is unavailable while recovering results")
+        component = await worker._aresolve_job_component(
+            {
+                "component_type": task["executor_type"],
+                "component_id": task["executor_id"],
+                "session_id": task["session_id"],
+                "user_id": run.get("user_id"),
+            }
+        )
+        if component is None:
+            raise ValueError("Task executor is unavailable while recovering results")
+        checkout, result = await _project_completion(
+            worker,
+            db,
+            task,
+            component,
+            {**data, "agent_id": run.get("agent_id", data.get("agent_id")), "status": run["status"]},
+            result,
+        )
     updated = await _call(
-        db, "complete_task_run", task["id"], run["run_id"], result, expected_transitions=task["transitions"]
+        db,
+        "complete_task_run",
+        task["id"],
+        run["run_id"],
+        result,
+        expected_transitions=task["transitions"],
+        **({"checkout": checkout} if checkout is not None else {}),
     )
     return updated is not None
 
@@ -318,9 +346,7 @@ async def _project_run(worker: Any, job: Dict[str, Any], status: str, error: Opt
             raise ValueError("Completed Task run is not durably readable")
         data = output.to_dict()
         result = {key: data.get(key) for key in ("run_id", "status", "content", "content_type")}
-        from agno.company.sandbox import _project_checkout
-
-        checkout, result = await _project_checkout(db, task, component, data, result)
+        checkout, result = await _project_completion(worker, db, task, component, data, result)
     await _call(
         db,
         "complete_task_run",
@@ -330,6 +356,26 @@ async def _project_run(worker: Any, job: Dict[str, Any], status: str, error: Opt
         expected_transitions=task["transitions"],
         **({"checkout": checkout} if checkout is not None else {}),
     )
+
+
+async def _project_completion(
+    worker: Any, db: Any, task: Dict[str, Any], component: Any, data: Dict[str, Any], result: Dict[str, Any]
+):
+    from agno.company.sandbox import _project_checkout
+
+    checkout, result = await _project_checkout(db, task, component, data, result)
+    if checkout is not None and result.get("status") == "COMPLETED":
+        from agno.company.patches import _project_patch
+
+        try:
+            result.update(
+                await _project_patch(
+                    db, task, component, data, checkout, getattr(worker, "_company_max_patch_bytes", 2 * 1024 * 1024)
+                )
+            )
+        except Exception as exc:
+            result = {**result, "status": "ERROR", "content": f"Checkpoint patch extraction failed: {exc}"}
+    return checkout, result
 
 
 async def _task_input(manager: Any, task: Dict[str, Any]) -> str:
@@ -432,3 +478,38 @@ def _mount_executors(os: Any) -> None:
                     continue
                 served.append(component)
         setattr(os, resource, served)
+
+
+async def _sandbox_task_input(manager: Any, task: Dict[str, Any]) -> tuple[str, list[tuple[str, bytes]]]:
+    from hashlib import sha256
+    from pathlib import PurePosixPath
+
+    from agno.sandbox.media import MAX_MEDIA_BYTES, MAX_MEDIA_ITEMS
+
+    pages = []
+    page = 1
+    while True:
+        rows, total = await _call(manager, "list_wiki", task["product_id"], limit=100, page=page)
+        for row in rows:
+            value = await _call(manager, "read_wiki", task["product_id"], row.path)
+            pages.append((row.path, value.content.encode("utf-8")))
+        if page * 100 >= total:
+            break
+        page += 1
+    files: list[tuple[str, bytes]] = []
+    omitted = []
+    attached = []
+    size = 0
+    for path, content in sorted(pages, key=lambda item: (len(item[1]), item[0])):
+        if len(files) >= MAX_MEDIA_ITEMS or size + len(content) > MAX_MEDIA_BYTES:
+            omitted.append(path)
+            continue
+        # Preserve a readable basename and a stable suffix for nested-page collisions.
+        name = PurePosixPath(path).stem[:80] + "-" + sha256(path.encode()).hexdigest()[:12] + ".md"
+        files.append((name, content))
+        attached.append({"path": path, "attachment": name})
+        size += len(content)
+    message = {"brief": task.get("brief"), "evidence": task.get("evidence") or [], "wiki_attachments": attached}
+    if omitted:
+        message["note"] = "Wiki attachments truncated to 16 files and 512 KiB total; left out: " + ", ".join(omitted)
+    return json.dumps(message, ensure_ascii=False), files

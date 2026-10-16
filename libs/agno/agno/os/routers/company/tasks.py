@@ -125,6 +125,25 @@ def get_tasks_router(
             raise HTTPException(status_code=404, detail="Task not found")
         return task
 
+    @router.get("/tasks/{task_id}/patch")
+    async def get_patch(task_id: str, attempt: Optional[int] = Query(None, ge=1), _: bool = Depends(auth_dependency)):
+        from starlette.responses import Response
+
+        from agno.company.patches import aread_task_patch
+
+        task = await _call("get_task", task_id, user_id=None)
+        if task is None:
+            raise HTTPException(404, "Task not found")
+        selected = (
+            attempt
+            if attempt is not None
+            else max((entry["attempt"] for entry in task["transitions"] if "attempt" in entry), default=0)
+        )
+        patch = await aread_task_patch(db, task, selected) if selected else None
+        if patch is None:
+            raise HTTPException(404, "Task patch not found for this attempt")
+        return Response(patch.encode("utf-8"), media_type="text/x-patch")
+
     @router.patch("/tasks/{task_id}", response_model=TaskResponse)
     async def update_task(task_id: str, body: TaskUpdate, _: bool = Depends(auth_dependency)) -> Dict[str, Any]:
         existing = await _writable(task_id, None)

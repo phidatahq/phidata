@@ -460,7 +460,7 @@ class CompanyManager:
         if limit < 1 or page < 1:
             raise ValueError("limit and page must be positive")
         provider = self.get_wiki(product_id)
-        pages = provider.backend.filesystem.list()
+        pages = [row for row in provider.backend.filesystem.list() if row.path.endswith(".md")]
         return pages[(page - 1) * limit : page * limit], len(pages)
 
     def read_wiki(self, product_id: Optional[str], path: str):
@@ -1266,7 +1266,7 @@ class AsyncCompanyManager:
         if limit < 1 or page < 1:
             raise ValueError("limit and page must be positive")
         provider = await self.get_wiki(product_id)
-        pages = await provider.backend.filesystem.alist()
+        pages = [row for row in await provider.backend.filesystem.alist() if row.path.endswith(".md")]
         return pages[(page - 1) * limit : page * limit], len(pages)
 
     async def read_wiki(self, product_id: Optional[str], path: str):

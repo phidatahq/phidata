@@ -645,6 +645,7 @@ class QueueWorker:
 
         self.authorization_app = authorization_app
         self._company_db: Any = None
+        self._company_max_patch_bytes: int = 2 * 1024 * 1024
         self._company_schedule_db: Any = None
         self.store = store
         self.resolve_component = resolve_component
@@ -3244,6 +3245,7 @@ async def queue_lifespan(app: Any, agent_os: Any):
         authorization_app=app,
     )
     worker._company_db = getattr(agent_os, "_company_db", None)
+    worker._company_max_patch_bytes = getattr(agent_os.company, "max_patch_bytes", 2 * 1024 * 1024)
     worker._company_schedule_db = agent_os.db
     app.state.queue_worker = worker
     set_active_queue_worker(worker)

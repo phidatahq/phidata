@@ -2690,3 +2690,35 @@ Wider results: **11,779 unit tests passed, 21 conditional skips** across the com
 **Result:** 40 new integration cases passed across SQLite/PostgreSQL sync and async in both isolation modes. They cover JWT-scope and managed-role policy create/PATCH refusals, managed permission revocation before and during a server-side check, and old token grants lacking wiki access. Every refusal asserts unchanged Backlog state, empty transition history, zero spent budget and no queued work, then proves restored valid authority executes exactly one accepted Task through the durable queue. Existing Company execution/heartbeat units passed after adding `wiki:read` to the executor-edit fixture's valid-policy scopes; its executor-denial assertions remain unchanged. Format and clean validation passed with output read. Wider suites are pending at this early review push.
 
 ---
+
+### Company follow-up regression suites
+
+**Status:** PASS
+
+**Description:** Complete database, AgentOS, scheduler, and Company tools unit
+suites, plus all Company/Product/Project/Task integration suites. The final
+execution suite was rerun after repairing pending-reservation recovery. Coverage
+includes quiet history, dispatch history, failed/cancelled attempts after queue
+retention, attention counts, shutdown lock release, Company off/on startup,
+configured database display and explicit null, all-schedule target edits,
+Routine executor edits, team discovery provenance, and Source deduplication.
+
+**Result:** 6,859 passed and five environment-dependent skips in the broad run;
+484 passed without skips in the final execution run. Total: 7,343 passed,
+five skipped. Skips are one root-only ownership test, three live-model credential
+tests, and one optional asyncpg test. Company parity covers SQLite and PostgreSQL,
+sync and async. No unresolved test failures. The older Manager test and guide
+requiring replacement of managed schedules now check authorized retargeting,
+as required by the shared endpoint-update contract.
+
+`./scripts/format.sh` passed. `./scripts/validate.sh` passed on the exact source
+using the existing clean Python 3.10 validation environment: 1,155 framework and
+21 CLI files. Unrelated formatter-only changes were excluded. Shared development
+Python 3.12 validation reports 34 typing diagnostics in 11 files; no unrelated
+typing changes are included. Tests and cookbooks used development Python 3.12,
+local databases, and offline models. `git diff --check` passed.
+
+Items 3–5 began at PR 6 head `e3fb6c64141dc105d9fb0c20ab70f4c5eefa5071`.
+A normal merge incorporated `0c0983de9216293df8221cc3af1f5b0adb7eda46` before
+items 1–2. Pending-reservation replay and all final verification use that final
+parent head. No rebase, history rewrite, direct Heartbeat merge, or main merge.

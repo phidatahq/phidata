@@ -6,7 +6,7 @@ from typing import Any, Dict, Literal, Optional, Union
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.routing import APIRoute
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field
 
 from agno.company.declarations import AutoAccept, Product, Routine, Source
 from agno.company.manager import AsyncCompanyManager, CompanyManager
@@ -39,15 +39,8 @@ class RoutineLastRun(BaseModel):
 
 
 class RoutineResponse(ScheduleResponse):
-    cron_expr: Optional[str] = None  # type: ignore[assignment]
     schedule_type: Literal["scheduled", "on_demand"]
     last_run: Optional[RoutineLastRun] = None
-
-    @field_validator("cron_expr", mode="before")
-    @classmethod
-    def public_cron(cls, value):
-        # The legacy schedule column is non-null; only Company stores an empty cron.
-        return value or None
 
 
 class RoutineUpdate(BaseModel):

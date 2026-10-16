@@ -7349,9 +7349,9 @@ class PostgresDb(BaseDb):
                 return False
             updates: Dict[str, Any] = {"locked_by": None, "locked_at": None, "updated_at": int(time.time())}
             # A cron may be cleared while this claim is running. Never re-arm
-            # an on-demand Routine using the executor's older schedule snapshot.
+            # an on-demand schedule using the executor's older schedule snapshot.
             updates["next_run_at"] = case(
-                ((table.c.managed_by == "company") & (table.c.cron_expr == ""), None),
+                (table.c.cron_expr == "", None),
                 else_=next_run_at if next_run_at is not None else table.c.next_run_at,
             )
             statement = table.update().where(table.c.id == schedule_id)

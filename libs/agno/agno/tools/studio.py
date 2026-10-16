@@ -4474,7 +4474,7 @@ class StudioTools(Toolkit):
 
         Args:
             name (str): Unique schedule name (e.g. "daily-news-digest").
-            cron (str): 5-field cron expression (e.g. "0 9 * * *" for daily at 9am).
+            cron (str): 5-field cron expression (e.g. "0 9 * * *" for daily at 9am), or empty for on demand.
             target_type (str): One of 'agent', 'team', or 'workflow'.
             target_id (str): Id (or name) of an existing component.
             message (str): The prompt sent to the component on every scheduled run.
@@ -4631,7 +4631,7 @@ class StudioTools(Toolkit):
 
         Args:
             schedule_id (str): Exact schedule id from list_schedules.
-            cron (Optional[str]): New 5-field cron expression. Omit to keep.
+            cron (Optional[str]): New 5-field cron expression, or empty for on demand. Omit to keep.
             message (Optional[str]): New prompt for every run. Omit to keep.
             timezone (Optional[str]): New IANA timezone. Omit to keep.
             description (Optional[str]): New description. Omit to keep.
@@ -4661,7 +4661,7 @@ class StudioTools(Toolkit):
             # valid change needs the recompute too, or the old cadence fires once
             # more before the new one takes effect.
             if cron is not None or timezone is not None:
-                from agno.scheduler.cron import compute_next_run, validate_cron_expr, validate_timezone
+                from agno.scheduler.cron import next_run_for, validate_cron_expr, validate_timezone
 
                 new_cron = cron if cron is not None else existing.cron_expr
                 new_tz = timezone if timezone is not None else (existing.timezone or "UTC")
@@ -4675,7 +4675,7 @@ class StudioTools(Toolkit):
                         "invalid_request",
                         f"Invalid timezone: {new_tz}. Use an IANA name, e.g. 'America/New_York'.",
                     )
-                updates["next_run_at"] = compute_next_run(new_cron, new_tz)
+                updates["next_run_at"] = next_run_for(new_cron, new_tz)
             if message is not None:
                 if not message.strip():
                     return error_result("invalid_request", "message must be a non-empty string.")

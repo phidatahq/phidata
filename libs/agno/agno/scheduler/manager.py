@@ -172,7 +172,7 @@ class ScheduleManager:
                 An existing schedule keeps its stored state, including under
                 ``if_exists="update"``; use enable/disable to change it.
         """
-        from agno.scheduler.cron import compute_next_run, validate_cron_expr, validate_timezone
+        from agno.scheduler.cron import next_run_for, validate_cron_expr, validate_timezone
 
         require_schedule_target(endpoint, method)
 
@@ -189,7 +189,7 @@ class ScheduleManager:
         if user_id is not None and (not user_id.strip() or user_id == INTERNAL_SCHEDULER_USER_ID):
             raise ValueError(f"'{user_id}' is not a usable schedule owner")
 
-        if not ((provenance or {}).get("managed_by") == "company" and cron == "") and not validate_cron_expr(cron):
+        if not validate_cron_expr(cron):
             raise ValueError(f"Invalid cron expression: {cron}")
         if not validate_timezone(timezone):
             raise ValueError(f"Invalid timezone: {timezone}")
@@ -202,7 +202,7 @@ class ScheduleManager:
             if if_exists == "update":
                 _require_mutable_schedule(existing.id)
                 log_debug(f"Schedule '{name}' already exists, updating")
-                next_run_at = compute_next_run(cron, timezone) if cron else None
+                next_run_at = next_run_for(cron, timezone)
                 updated = self._to_schedule(
                     self._call(
                         "update_schedule",
@@ -224,7 +224,7 @@ class ScheduleManager:
                 return updated or existing
             raise ValueError(f"Schedule with name '{name}' already exists")
 
-        next_run_at = compute_next_run(cron, timezone) if cron else None
+        next_run_at = next_run_for(cron, timezone)
         now = int(time.time())
 
         schedule = Schedule(
@@ -345,13 +345,9 @@ class ScheduleManager:
         schedule = self._to_schedule(self._call("get_schedule", schedule_id, user_id=user_id))
         if schedule is None:
             return None
-        from agno.scheduler.cron import compute_next_run
+        from agno.scheduler.cron import next_run_for
 
-        next_run_at = (
-            None
-            if schedule.managed_by == "company" and schedule.cron_expr == ""
-            else compute_next_run(schedule.cron_expr, schedule.timezone)
-        )
+        next_run_at = next_run_for(schedule.cron_expr, schedule.timezone)
         return self._to_schedule(
             self._call("update_schedule", schedule_id, user_id=user_id, enabled=True, next_run_at=next_run_at)
         )
@@ -417,7 +413,7 @@ class ScheduleManager:
                 An existing schedule keeps its stored state, including under
                 ``if_exists="update"``; use enable/disable to change it.
         """
-        from agno.scheduler.cron import compute_next_run, validate_cron_expr, validate_timezone
+        from agno.scheduler.cron import next_run_for, validate_cron_expr, validate_timezone
 
         await arequire_schedule_target(endpoint, method)
 
@@ -434,7 +430,7 @@ class ScheduleManager:
         if user_id is not None and (not user_id.strip() or user_id == INTERNAL_SCHEDULER_USER_ID):
             raise ValueError(f"'{user_id}' is not a usable schedule owner")
 
-        if not ((provenance or {}).get("managed_by") == "company" and cron == "") and not validate_cron_expr(cron):
+        if not validate_cron_expr(cron):
             raise ValueError(f"Invalid cron expression: {cron}")
         if not validate_timezone(timezone):
             raise ValueError(f"Invalid timezone: {timezone}")
@@ -447,7 +443,7 @@ class ScheduleManager:
             if if_exists == "update":
                 _require_mutable_schedule(existing.id)
                 log_debug(f"Schedule '{name}' already exists, updating")
-                next_run_at = compute_next_run(cron, timezone) if cron else None
+                next_run_at = next_run_for(cron, timezone)
                 updated = self._to_schedule(
                     await self._acall(
                         "update_schedule",
@@ -469,7 +465,7 @@ class ScheduleManager:
                 return updated or existing
             raise ValueError(f"Schedule with name '{name}' already exists")
 
-        next_run_at = compute_next_run(cron, timezone) if cron else None
+        next_run_at = next_run_for(cron, timezone)
         now = int(time.time())
 
         schedule = Schedule(
@@ -592,13 +588,9 @@ class ScheduleManager:
         schedule = self._to_schedule(await self._acall("get_schedule", schedule_id, user_id=user_id))
         if schedule is None:
             return None
-        from agno.scheduler.cron import compute_next_run
+        from agno.scheduler.cron import next_run_for
 
-        next_run_at = (
-            None
-            if schedule.managed_by == "company" and schedule.cron_expr == ""
-            else compute_next_run(schedule.cron_expr, schedule.timezone)
-        )
+        next_run_at = next_run_for(schedule.cron_expr, schedule.timezone)
         return self._to_schedule(
             await self._acall("update_schedule", schedule_id, user_id=user_id, enabled=True, next_run_at=next_run_at)
         )

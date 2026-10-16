@@ -95,7 +95,7 @@ class ScheduleExecutor:
         Returns:
             The ScheduleRun dict.
         """
-        from agno.scheduler.cron import compute_next_run
+        from agno.scheduler.cron import next_run_for
 
         # Normalize to Schedule dataclass for typed access
         sched = Schedule.from_dict(schedule) if isinstance(schedule, dict) else schedule
@@ -292,11 +292,7 @@ class ScheduleExecutor:
             # Always release the schedule lock so it doesn't stay stuck
             if release_schedule and schedule_id is not None:
                 try:
-                    next_run_at = (
-                        None
-                        if sched.managed_by == "company" and sched.cron_expr == ""
-                        else compute_next_run(sched.cron_expr, sched.timezone or "UTC")
-                    )
+                    next_run_at = next_run_for(sched.cron_expr, sched.timezone or "UTC")
                 except Exception as e:
                     log_warning(
                         f"Failed to compute next_run_at for schedule {schedule_id}; "

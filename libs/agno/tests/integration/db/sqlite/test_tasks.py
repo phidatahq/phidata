@@ -12,7 +12,8 @@ def test_task_storage(tmp_path):
     m = CompanyManager(db)
     try:
         parent = m.create("SDK")
-        record = m.create_task(parent["id"], "Work", user_id="alice")
+        project = m.create_project(parent["id"], "Release")
+        record = m.create_task(parent["id"], "Work", project_id=project["id"], user_id="alice")
         assert db.get_task(record["id"], user_id="alice") == record
         assert db.delete_task(record["id"], user_id="bob") is False
         assert db.delete_task(record["id"], user_id="alice") is True

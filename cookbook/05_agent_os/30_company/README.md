@@ -709,6 +709,12 @@ and is never claimed by the poller. `PATCH /company/routines/{id}` with a cron
 makes it scheduled; `{"cron_expr": null}` removes the schedule and keeps history.
 Pause and resume also apply to on-demand Routines.
 
+On-demand execution is a scheduler rule for all schedules. The generic schedule
+API accepts an empty or omitted cron on creation and an empty cron on update;
+omitting it from a PATCH preserves the current cron. Schedule responses expose
+an empty stored cron as null. These schedules run only through trigger, with
+`next_run_at` remaining null across polling, restart, and pause/resume.
+
 With the scheduler enabled, `POST /company/routines/{id}/trigger` starts one
 execution and returns its schedule-run record when it finishes. It uses the
 same owner and executor permission checks as the other Routine controls;

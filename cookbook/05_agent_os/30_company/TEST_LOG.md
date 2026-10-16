@@ -2865,3 +2865,34 @@ PostgreSQL, automatic pickup with SQLite and PostgreSQL, and
 Full format and clean Python 3.10 validation passed on the rebased tree
 (1,178 framework and 21 CLI files). Runtime tests use the development Python
 3.12 environment.
+
+
+### PR 6.5 main merge and generic on-demand scheduling — October 16, 2026
+
+**Status:** Format, validation, unit suites and cookbooks PASS; integration suite running at the requested review push.
+
+**Description:** Merged main's PR 6 squash
+`ab0e2d233af36bda475f03fb12f75f1d5a9e2f66` with normal merge commit
+`fa831b1f7a748fccc7946011277f64c21fbc06ef`; no history rewrite. The merge
+preserves acceptance checks, automation history filtering, and both worker-id
+and claim-timestamp release fencing. The PR now targets main.
+
+An empty stored cron now means on demand for every schedule. Shared cron
+helpers drive create, cadence updates, enable, and executor release; SQL release
+checks only the stored cron. Generic schedule responses expose empty crons as
+null. Studio cadence edits share the rule while preserving immutable targets.
+The existing Company on-demand tests remain unchanged. A remaining SQLite Task
+storage fixture now creates its required Project.
+
+**Cookbooks:** PASS for all 13 offline invocations: all nine numbered examples,
+PostgreSQL manual Task execution, automatic Task execution on SQLite and
+PostgreSQL, and PostgreSQL cascading archive. Both `03_manage_tasks.py` and
+`06_execute_tasks.py` create Projects before their Tasks and ran successfully.
+No paid-model or hosted verification was performed.
+
+**Unit results:** 6,604 passed and 39 skipped across scheduler, AgentOS/Manager,
+database and Company/scheduler tools; 414 additional Studio tests passed. The
+scheduler owner-recheck integration file passed six tests. Full SQLite/PostgreSQL
+Company and scheduler integration totals will follow when the active run finishes.
+Full format and clean Python 3.10 validation passed (1,178 framework and 21 CLI
+files); runtime tests use development Python 3.12. `git diff --check` passed.

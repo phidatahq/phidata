@@ -7,9 +7,9 @@ from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
-from agno.db.schemas.scheduler import RUN_ENDPOINT_RE
 from agno.db.utils import is_unique_violation
 from agno.os.middleware.user_scope import get_scoped_user_id
+from agno.os.routers.run_permissions import _require_endpoint_permission
 from agno.os.routers.schedules.schema import (
     ScheduleCreate,
     ScheduleResponse,
@@ -18,7 +18,6 @@ from agno.os.routers.schedules.schema import (
     ScheduleUpdate,
 )
 from agno.os.schema import PaginatedResponse, PaginationInfo
-from agno.os.scopes import AgentOSScope, has_required_scopes
 from agno.run.authorization import stamp_authorization
 from agno.utils.log import log_info
 
@@ -69,77 +68,6 @@ def get_schedule_router(
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
-
-    def _require_endpoint_permission(request: Request, endpoint: str, method: str) -> None:
-        """Require the caller's own permission for the endpoint a schedule targets.
-
-        The executor fires schedules with the full-scope internal service token, so
-        ``schedules:write`` alone must not reach a component the caller cannot run: a POST
-        run endpoint needs the matching ``<type>:run`` scope, any other target is admin-only.
-        """
-        from agno.os.auth import build_insufficient_permissions_detail, caller_scopes_are_authoritative
-
-        if not getattr(request.state, "authorization_enabled", False):
-            return
-
-        caller_scopes = getattr(request.state, "scopes", [])
-        admin_scope_raw = getattr(request.state, "admin_scope", None) or getattr(request.app.state, "admin_scope", None)
-        admin_scope = admin_scope_raw if isinstance(admin_scope_raw, str) else None
-
-        match = RUN_ENDPOINT_RE.match(endpoint) if method.upper() == "POST" else None
-
-        if not caller_scopes_are_authoritative(request):
-            # The token's scopes are NOT the authority here (a managed-roles/ReBAC/custom
-            # plane governs access, and ignores them). Decide the target the same way its
-            # own route gate would -- through the configured provider -- so `schedules:write`
-            # cannot schedule a run of a component the caller may not run themselves (the
-            # executor fires it with the full-scope internal token).
-            from agno.os.auth import resolve_authorization_provider
-            from agno.os.authz.provider import AuthorizationContext
-
-            if match is None:
-                # A non-run target is admin-only; a managed/ReBAC plane exposes no generic
-                # "is admin" question to pose here, so fail closed. Schedule non-run
-                # endpoints on a scope-based deployment or via the admin plane directly.
-                raise HTTPException(
-                    status_code=403,
-                    detail="Scheduling a non-run endpoint requires a scope-based authorization plane",
-                )
-            resource_type, resource_id = match.group(1), match.group(2)
-            provider = resolve_authorization_provider(request)
-            ctx = AuthorizationContext(
-                principal_id=getattr(request.state, "user_id", None),
-                scopes=list(caller_scopes),
-                claims=getattr(request.state, "claims", None) or {},
-                resource_type=resource_type,
-                resource_id=resource_id,
-                action="run",
-                admin_scope=admin_scope,
-            )
-            if not provider.check(ctx):
-                raise HTTPException(
-                    status_code=403, detail=build_insufficient_permissions_detail([f"{resource_type}:run"])
-                )
-            return
-
-        if match is None:
-            admin = admin_scope or AgentOSScope.ADMIN.value
-            if not has_required_scopes(list(caller_scopes), [admin], admin_scope=admin_scope):
-                raise HTTPException(
-                    status_code=403, detail="Only admins can schedule an endpoint that is not a run endpoint"
-                )
-            return
-
-        resource_type, resource_id = match.group(1), match.group(2)
-        required_scope = f"{resource_type}:run"
-        if not has_required_scopes(
-            list(caller_scopes),
-            [required_scope],
-            resource_type=resource_type,
-            resource_id=resource_id,
-            admin_scope=admin_scope,
-        ):
-            raise HTTPException(status_code=403, detail=build_insufficient_permissions_detail([required_scope]))
 
     def _check_scheduler_deps() -> None:
         """Raise 503 if croniter/pytz are not installed."""
@@ -203,7 +131,7 @@ def get_schedule_router(
             raise HTTPException(status_code=422, detail=f"Invalid cron expression: {body.cron_expr}")
         if not validate_timezone(body.timezone):
             raise HTTPException(status_code=422, detail=f"Invalid timezone: {body.timezone}")
-        _require_endpoint_permission(request, body.endpoint, body.method)
+        await _require_endpoint_permission(request, body.endpoint, body.method)
 
         # A schedule aimed at an archived component can only 404 at fire time:
         # refuse the create instead of accepting an armed dead schedule.
@@ -318,7 +246,7 @@ def get_schedule_router(
         # the caller may not run.
         execution_changed = any(key in updates for key in ("endpoint", "method", "payload"))
         if execution_changed:
-            _require_endpoint_permission(
+            await _require_endpoint_permission(
                 request,
                 updates.get("endpoint", existing["endpoint"]),
                 updates.get("method", existing.get("method") or "POST"),
@@ -412,7 +340,7 @@ def get_schedule_router(
             raise HTTPException(status_code=404, detail="Schedule not found")
 
         # Re-arming puts the endpoint back on the poller, so it needs the same permission as creating it.
-        _require_endpoint_permission(request, existing["endpoint"], existing.get("method") or "POST")
+        await _require_endpoint_permission(request, existing["endpoint"], existing.get("method") or "POST")
 
         # A schedule aimed at an archived component can only 404 at fire time;
         # refuse the re-arm until the component is restored. Identical
@@ -494,7 +422,7 @@ def get_schedule_router(
             raise HTTPException(status_code=409, detail="Schedule is disabled")
 
         # Firing runs the endpoint under the internal service token, so re-check the caller's own permission.
-        _require_endpoint_permission(request, existing["endpoint"], existing.get("method") or "POST")
+        await _require_endpoint_permission(request, existing["endpoint"], existing.get("method") or "POST")
 
         executor = getattr(request.app.state, "scheduler_executor", None)
         if executor is not None:

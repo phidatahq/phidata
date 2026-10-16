@@ -1,4 +1,4 @@
-# Sandbox execution primitives
+# Sandboxed agents
 
 Run each turn of a Claude Code or Codex agent in its own computer: a Docker container on a host you operate, or an Amazon Bedrock AgentCore microVM. The agent's workspace and native conversation are checkpointed after every turn, so the next turn can run on a fresh computer anywhere, and AgentOS runs these agents behind a durable queue.
 
@@ -73,6 +73,8 @@ An upload is not a completed run. A following coordinator transaction must publi
 The store is internal: the coordinator builds it from the agent's `PostgresDb`. Its lease table lives in that same database, named by `PostgresDb(sandbox_table=...)` (default `<session_table>_sandbox_bindings`, since each bindings table has a foreign key to exactly one session table), and is created on first use like every other agno table, so there is no setup call. Async methods support both Postgres adapters; synchronous methods require `PostgresDb`.
 
 A runtime result is staged first. A verified checkpoint reference and provider-confirmed compute cleanup are required before one transaction publishes the run and session recovery reference. Lease epochs and queue attempts fence previous coordinators. Native session data is nested under `session_data.sandbox.native`. The run takes only runtime output fields (content, messages, tools, metrics, media, events, status) from the result; identity, input, lineage and service metadata stay as stored, and runtime metadata is nested under `metadata.sandbox.native_metadata`. The store keeps nothing it depends on in `session_data`, so editing a session mid-run is safe. The binding row has a foreign key to its session with `ON DELETE CASCADE`: deleting a session deletes its binding, a recreated session (even with the same id, `created_at` and run id) starts from a fresh binding, and every lease carries its binding's incarnation, so a coordinator still holding a lease for the deleted session is refused. The store then no longer tracks a computer that was running for the deleted session; providers should sweep orphaned computers by their labels. The binding's `checkpoint` is the authoritative recovery point. `session_data.sandbox` is a copy for readers, and a stale session upsert can overwrite it.
+
+The store has no public API of its own, so these steps are walked against a real Postgres by `test_durable_completion_walkthrough` in `libs/agno/tests/integration/sandbox/test_postgres.py`: the run stays RUNNING after its result is staged, a session edit mid-turn keeps the lease, a coordinator that stops renewing is fenced by its successor, and a cancelled turn keeps the previous turn's checkpoint.
 
 ## Session coordinator
 

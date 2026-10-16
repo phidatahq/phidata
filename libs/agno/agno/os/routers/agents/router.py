@@ -885,7 +885,9 @@ def get_agent_router(
                 stream=stream,
                 background=background,
                 version=version,
-                media=bool(base64_images or base64_audios or base64_videos or input_files),
+                images=base64_images,
+                files=input_files,
+                unsupported_media=bool(base64_audios or base64_videos),
             )
 
         # Background execution

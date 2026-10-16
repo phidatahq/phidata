@@ -1,13 +1,16 @@
 """Real AgentOS HTTP/queue/Redis/Postgres/Docker execution, with a fixture harness."""
 
 import asyncio
+import json
 import os
+import tempfile
+from pathlib import Path
 from uuid import uuid4
 
 import httpx
 import pytest
 import pytest_asyncio
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 from agno.db.postgres import PostgresDb
 from agno.job_queue.config import QueueConfig, RedisCoordination
@@ -27,7 +30,7 @@ pytestmark = [
 
 
 @pytest_asyncio.fixture
-async def service(tmp_path):
+async def service(tmp_path, request):
     import redis
     import redis.asyncio
 
@@ -79,6 +82,8 @@ async def service(tmp_path):
         max_attempts=2,
         retry_delay_seconds=0,
         stop_timeout_seconds=1,
+        # Indirect parametrization overrides queue settings for one test.
+        **getattr(request, "param", {}),
     )
     app = AgentOS(id=prefix, agents=[agent], db=db, queue=config, telemetry=False).get_app()
     try:
@@ -146,7 +151,7 @@ async def test_background_acceptance_poll_and_idempotency(service):
     second = await client.post("/agents/coder/runs", data=data, headers={"Idempotency-Key": "one"})
     assert second.status_code == 202 and second.json()["run_id"] == first.json()["run_id"]
     job = await settled(app, first.json()["run_id"])
-    assert job["status"] == "completed", job
+    assert job["status"] == "completed", str({k: v for k, v in job.items() if "err" in k})
     result = await agent.aget_run_output(job["id"], "session")
     assert result.content == "background" and result.metadata["sandbox"]["checkpoint"]
     conflict = await client.post(
@@ -324,6 +329,122 @@ async def test_missing_durable_queue_rejects_before_allocating(service):
     assert not handles
 
 
+def _earlier_build_bindings_table(db):
+    """Replace the bindings table with the shape an earlier build created: no run_id foreign key."""
+    sessions, home, name = db.session_table_name, db.db_schema, db.sandbox_table_name
+    with db.db_engine.begin() as connection:
+        connection.execute(text(f'DROP TABLE IF EXISTS "{home}"."{name}"'))
+        connection.execute(
+            text(
+                f'CREATE TABLE "{home}"."{name}" (namespace varchar NOT NULL, session_id varchar NOT NULL '
+                f'REFERENCES "{home}"."{sessions}" (session_id) ON DELETE CASCADE, agent_id varchar NOT NULL, '
+                "user_id varchar, epoch bigint NOT NULL, owner varchar, run_id varchar, queue_attempt bigint, "
+                "expires_at timestamptz, record jsonb NOT NULL, PRIMARY KEY (namespace, session_id))"
+            )
+        )
+    db._invalidate_table_cache(name)
+
+
+async def test_outdated_bindings_table_fails_startup_with_its_remedy(service):
+    _, agent, _, _ = service
+    from agno.sandbox.base import SandboxError
+    from agno.sandbox.postgres import _SandboxStore
+
+    suffix = uuid4().hex[:12]
+    db = PostgresDb(
+        db_url=URL,
+        session_table="startup_sessions_" + suffix,
+        runs_table="startup_runs_" + suffix,
+        sandbox_table="startup_bindings_" + suffix,
+    )
+    stale = FixtureAgent(id="stale", sandbox=agent.sandbox)
+    try:
+        await _SandboxStore(db)._ensure_tables()
+        _earlier_build_bindings_table(db)
+        for auto_provision_dbs in (True, False):
+            app = AgentOS(
+                id="stale-" + suffix, agents=[stale], db=db, telemetry=False, auto_provision_dbs=auto_provision_dbs
+            ).get_app()
+            with pytest.raises(SandboxError) as refused:
+                async with app.router.lifespan_context(app):
+                    pass
+            assert "does not reference run table" in str(refused.value)
+            assert "pass PostgresDb(sandbox_table=...)" in str(refused.value)
+        # A deployment that provisions its own tables is validated, never provisioned, at startup.
+        with db.db_engine.begin() as connection:
+            connection.execute(text(f'DROP TABLE "{db.db_schema}"."{db.sandbox_table_name}"'))
+        db._invalidate_table_cache(db.sandbox_table_name)
+        app = AgentOS(id="unprovisioned-" + suffix, agents=[stale], db=db, telemetry=False, auto_provision_dbs=False)
+        app = app.get_app()
+        async with app.router.lifespan_context(app):
+            pass
+        assert not db.table_exists(db.sandbox_table_name), "startup did not create the bindings table"
+    finally:
+        with db.db_engine.begin() as connection:
+            for table in ("startup_bindings_", "startup_runs_", "startup_sessions_"):
+                connection.execute(text(f'DROP TABLE IF EXISTS "{db.db_schema}"."{table + suffix}"'))
+        db.db_engine.dispose()
+
+
+@pytest.mark.parametrize("service", [{"lock_grace_seconds": 3}], indirect=True)
+async def test_outdated_bindings_table_refuses_submissions_and_fails_claimed_tickets(service):
+    client, agent, app, handles = service
+    worker = app.state.queue_worker
+    _earlier_build_bindings_table(agent.db)
+    for _, built in _harness._coordinators.get(agent.sandbox, []):
+        built.store._tables_ready = False
+
+    # A submission is refused before any ticket exists, with the remedy in the response.
+    response = await client.post(
+        "/agents/coder/runs", data={"message": "stale", "session_id": "session", "stream": "false"}
+    )
+    assert response.status_code == 500, response.text
+    assert "does not reference run table" in response.text and "sandbox_table" in response.text
+    assert await worker.store.count_queued_jobs() == 0 and not handles
+
+    # A ticket that reached the queue anyway (a replica without the check) must still settle as
+    # failed: the terminal persist cannot go through the bindings table it cannot use.
+    from agno.db.schemas.jobs import QueuedJob
+
+    job = QueuedJob(
+        id="stale-" + uuid4().hex[:8],
+        component_type="agent",
+        component_id="coder",
+        session_id="session",
+        payload={"input": "stale", "kwargs": {}, "stream": True, "serialize_session": True},
+        max_attempts=worker.config.max_attempts,
+    ).to_dict()
+    assert (await worker.store.enqueue_job(job, max_depth=10))["accepted"] is True
+    settled_job = await settled(app, job["id"])
+    assert settled_job["status"] == "failed", settled_job
+    assert not handles, "no computer was ever created for the turn"
+
+
+@pytest.mark.parametrize(("first_user", "second_user"), [(None, "someone"), ("owner", None), ("owner", "someone")])
+async def test_submission_on_a_session_another_user_holds_is_refused_before_any_ticket(
+    service, first_user, second_user
+):
+    client, agent, app, handles = service
+    worker = app.state.queue_worker
+    data = {"message": "mine", "session_id": "held", "stream": "false", "background": "true"}
+    if first_user is not None:
+        data["user_id"] = first_user
+    first = await client.post("/agents/coder/runs", data=data)
+    assert first.status_code == 202, first.text
+    assert (await settled(app, first.json()["run_id"]))["status"] == "completed"
+    created = len(handles)
+
+    data["message"] = "theirs"
+    data.pop("user_id", None)
+    if second_user is not None:
+        data["user_id"] = second_user
+    second = await client.post("/agents/coder/runs", data=data)
+    assert second.status_code == 404 and second.json()["detail"] == "Session not found", second.text
+    assert len(handles) == created, "no computer was created for the refused turn"
+    jobs, total = await worker.store.list_jobs(limit=50)
+    assert total == 1 and jobs[0]["id"] == first.json()["run_id"], "the refused submission left no ticket"
+
+
 async def test_cancel_detached_direct_sdk_run_retires_computer(service):
     _, agent, _, handles = service
     agent.delay = 10
@@ -394,3 +515,105 @@ async def test_remote_cancel_fences_the_worker_without_failing_its_ticket(servic
     assert (await agent.aget_run_output(run_id, "session")).status == "CANCELLED"
     for handle in handles:
         assert await _harness.coordinator(agent).provider.aget(handle.provider_ref) is None
+
+
+PNG = b"\x89PNG\r\n\x1a\nfixture"
+
+
+async def checkpointed_uploads(agent, result, run_id):
+    from agno.sandbox.checkpoint import CheckpointRef
+
+    target = Path(tempfile.mkdtemp()) / "restored"
+    await _harness.coordinator(agent).transfer.store.arestore(
+        CheckpointRef(**result.metadata["sandbox"]["checkpoint"]), target
+    )
+    folder = target / "workspace/.agno/uploads" / run_id
+    return {path.name: path.read_bytes() for path in folder.iterdir()} if folder.exists() else {}
+
+
+async def test_uploaded_images_and_files_reach_the_checkpoint(service):
+    client, agent, app, _ = service
+    response = await client.post(
+        "/agents/coder/runs",
+        data={"message": "look", "session_id": "session", "stream": "false"},
+        files=[("files", ("photo.png", PNG, "image/png")), ("files", ("notes.txt", b"notes", "text/plain"))],
+    )
+    assert response.status_code == 200, response.text
+    run_id = response.json()["run_id"]
+    job = await app.state.queue_worker.store.get_job(run_id)
+    assert response.json()["status"] == "COMPLETED", job.get("error")
+    assert [item["kind"] for item in job["payload"]["kwargs"]["media"]] == ["image", "file"]
+    result = await agent.aget_run_output(run_id, "session")
+    assert [image.content for image in result.input.images] == [PNG]
+    assert await checkpointed_uploads(agent, result, run_id) == {"image-1.png": PNG, "notes.txt": b"notes"}
+
+
+async def test_unsupported_or_path_media_is_refused_before_any_job(service):
+    client, _, app, handles = service
+    audio = await client.post(
+        "/agents/coder/runs",
+        data={"message": "listen", "session_id": "session", "stream": "false"},
+        files=[("files", ("clip.wav", b"RIFF0000WAVE", "audio/wav"))],
+    )
+    assert audio.status_code == 400 and "audio and video" in audio.text
+    path = await client.post(
+        "/agents/coder/runs",
+        data={
+            "message": "read",
+            "session_id": "session",
+            "stream": "false",
+            "images": json.dumps([{"filepath": "/etc/hosts"}]),
+        },
+    )
+    assert path.status_code == 400 and "file paths" in path.text, path.text
+    assert not handles
+
+
+async def test_a_reused_key_with_different_attachment_bytes_is_refused(service):
+    client, _, app, _ = service
+    data = {"message": "look", "session_id": "session", "stream": "false", "background": "true"}
+    first = await client.post(
+        "/agents/coder/runs",
+        data=data,
+        files=[("files", ("a.txt", b"one", "text/plain"))],
+        headers={"Idempotency-Key": "k"},
+    )
+    assert first.status_code == 202, first.text
+    again = await client.post(
+        "/agents/coder/runs",
+        data=data,
+        files=[("files", ("a.txt", b"one", "text/plain"))],
+        headers={"Idempotency-Key": "k"},
+    )
+    assert again.status_code == 202 and again.json()["run_id"] == first.json()["run_id"]
+    changed = await client.post(
+        "/agents/coder/runs",
+        data=data,
+        files=[("files", ("a.txt", b"two", "text/plain"))],
+        headers={"Idempotency-Key": "k"},
+    )
+    assert changed.status_code == 409
+    job = await settled(app, first.json()["run_id"])
+    assert job["status"] == "completed", str({k: v for k, v in job.items() if "err" in k})
+
+
+async def test_sdk_runs_carry_attachments_directly_and_through_the_queue(service):
+    from agno.media import File, Image
+
+    _, agent, app, _ = service
+    direct = await agent.arun(
+        "direct",
+        session_id="direct",
+        run_id="direct",
+        images=[Image(content=PNG)],
+        files=[File(content=b"d", filename="d.txt")],
+    )
+    assert direct.status == "COMPLETED"
+    assert await checkpointed_uploads(agent, direct, "direct") == {"image-1.png": PNG, "d.txt": b"d"}
+    pending = await agent.arun(
+        "queued", session_id="queued", background=True, files=[File(content=b"q", filename="q.txt")]
+    )
+    job = await settled(app, pending.run_id)
+    assert job["status"] == "completed", str({k: v for k, v in job.items() if "err" in k})
+    queued = await agent.aget_run_output(pending.run_id, "queued")
+    assert (await checkpointed_uploads(agent, queued, pending.run_id))["q.txt"] == b"q"

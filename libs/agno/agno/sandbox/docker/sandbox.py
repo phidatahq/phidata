@@ -9,9 +9,11 @@ import math
 import os
 import secrets
 import tempfile
+import threading
+import weakref
 from contextlib import suppress
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, Mapping, Optional, Sequence
+from typing import TYPE_CHECKING, Any, Dict, Mapping, Optional, Sequence, Tuple
 
 from agno.sandbox.base import ExecResult, Sandbox, SandboxError, SandboxHandle, _identity, _sync
 
@@ -32,6 +34,36 @@ _TOKEN_ENV = "AGNO_SANDBOX_RUNTIME_TOKEN"
 # How long create waits for a freshly started runtime server to answer /health.
 _RUNTIME_READY_SECONDS = 15.0
 _RUNNER = (Path(__file__).parent.parent / "_exec.py").read_text()
+
+
+async def _close_with_loop(owner: "weakref.ReferenceType[DockerSandbox]", client: Any) -> None:
+    loop = asyncio.get_running_loop()
+    try:
+        while True:
+            # The loop holds tasks only weakly; this pending timer is what keeps the closer alive,
+            # and closing the loop drops it, so nothing outlives the loop.
+            await asyncio.sleep(3600)
+    except GeneratorExit:
+        # Collected after its loop closed; no loop is left to close the client on.
+        raise
+    except BaseException:
+        sandbox = owner()
+        if sandbox is not None:
+            with sandbox._http_lock:
+                if sandbox._http.get(loop, (None,))[0] is client:
+                    del sandbox._http[loop]
+        await client.aclose()
+        raise
+
+
+def _cancel_closers(
+    clients: Dict[asyncio.AbstractEventLoop, Tuple[Any, "asyncio.Task[None]"]], lock: threading.Lock
+) -> None:
+    with lock:
+        entries = list(clients.items())
+    for loop, (_, task) in entries:
+        with suppress(RuntimeError):
+            loop.call_soon_threadsafe(task.cancel)
 
 
 class DockerSandbox(Sandbox):
@@ -112,7 +144,11 @@ class DockerSandbox(Sandbox):
         self.checkpoints = checkpoints
         self.env = dict(env) if env is not None else None
         self.execution_timeout = execution_timeout
-        self._http: Dict[int, Any] = {}
+        self._http: Dict[asyncio.AbstractEventLoop, Tuple[Any, "asyncio.Task[None]"]] = {}
+        # Sync calls from several threads share the cache, and each loop's closer removes its own entry.
+        self._http_lock = threading.Lock()
+        # A sandbox discarded while its loop still runs closes its clients on that loop.
+        weakref.finalize(self, _cancel_closers, self._http, self._http_lock)
         self._network_ready = False
 
     def checkpoint_transfer(self, store: "CheckpointStore") -> "CheckpointTransfer":
@@ -345,15 +381,21 @@ class DockerSandbox(Sandbox):
         return headers
 
     def _http_client(self) -> Any:
-        """One pooled client per event loop; a client must not outlive the loop it was made on."""
+        """One pooled client per event loop, closed when that loop shuts down."""
         import httpx
 
-        loop_id = id(asyncio.get_running_loop())
-        client = self._http.get(loop_id)
-        if client is None:
-            limits = httpx.Limits(max_connections=4096, max_keepalive_connections=1024)
-            client = self._http[loop_id] = httpx.AsyncClient(limits=limits, timeout=httpx.Timeout(15.0, read=60.0))
-        return client
+        loop = asyncio.get_running_loop()
+        with self._http_lock:
+            for stale in [item for item in self._http if item.is_closed()]:
+                del self._http[stale]
+            entry = self._http.get(loop)
+            if entry is None:
+                limits = httpx.Limits(max_connections=4096, max_keepalive_connections=1024)
+                client = httpx.AsyncClient(limits=limits, timeout=httpx.Timeout(15.0, read=60.0))
+                # asyncio.run cancels pending tasks before closing its loop, so each sync call closes its client.
+                closer = loop.create_task(_close_with_loop(weakref.ref(self), client))
+                entry = self._http[loop] = (client, closer)
+        return entry[0]
 
     async def _await_runtime(self, handle: SandboxHandle) -> None:
         """Wait for the in-container server to answer /health before handing the sandbox out."""

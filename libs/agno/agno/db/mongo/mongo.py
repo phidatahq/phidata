@@ -3231,6 +3231,14 @@ class MongoDb(BaseDb):
             log_debug(f"Error releasing schedule: {e}")
             return False
 
+    def delete_schedule_runs(self, schedule_id: str, *, before: int) -> int:
+        """Expire only completed history for the selected schedule."""
+        collection = self._get_collection(table_type="schedule_runs")
+        if collection is None:
+            return 0
+        result = collection.delete_many({"schedule_id": schedule_id, "completed_at": {"$lt": before, "$ne": None}})
+        return result.deleted_count
+
     def create_schedule_run(self, run_data: Dict[str, Any]) -> Dict[str, Any]:
         try:
             collection = self._get_collection(table_type="schedule_runs", create_collection_if_not_found=True)

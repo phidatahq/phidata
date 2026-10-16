@@ -99,7 +99,11 @@ def task_run_id(task_id: str, attempt: int) -> str:
 
 
 def task_run_fields(
-    existing: Dict[str, Any], attempt: int, user_id: Optional[str], run_db_id: Optional[str] = None
+    existing: Dict[str, Any],
+    attempt: int,
+    user_id: Optional[str],
+    run_db_id: Optional[str] = None,
+    session_user_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Reserve execution in the Task lifecycle, retaining the session across attempts."""
     from uuid import NAMESPACE_URL, uuid5
@@ -130,6 +134,8 @@ def task_run_fields(
                 "target": "in_progress",
                 "reason": "Task execution requested",
                 "user_id": user_id,
+                "started_by": user_id,
+                "session_user_id": session_user_id if session_user_id is not None else existing.get("user_id"),
                 "created_at": now,
                 "attempt": attempt,
                 "run_db_id": run_db_id,

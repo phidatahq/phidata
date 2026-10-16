@@ -141,7 +141,15 @@ SCHEDULE_MUTABLE_COLUMNS = frozenset(
 
 def validate_schedule_update(kwargs: dict) -> None:
     """Refuse update_schedule writes outside the mutable column set."""
-    rejected = sorted(set(kwargs) - SCHEDULE_MUTABLE_COLUMNS)
+    allowed = set(SCHEDULE_MUTABLE_COLUMNS)
+    # Target columns may accompany an endpoint edit only when they exactly match
+    # that endpoint. Standalone provenance writes still use the dedicated API.
+    if "endpoint" in kwargs:
+        target = RUN_ENDPOINT_RE.fullmatch(kwargs["endpoint"])
+        expected = (target.group(1).rstrip("s"), target.group(2)) if target else (None, None)
+        if {"target_type", "target_id"} <= kwargs.keys() and (kwargs["target_type"], kwargs["target_id"]) == expected:
+            allowed.update({"target_type", "target_id"})
+    rejected = sorted(set(kwargs) - allowed)
     if rejected:
         raise ValueError(
             f"update_schedule cannot modify {rejected}: only {sorted(SCHEDULE_MUTABLE_COLUMNS)} are mutable; "

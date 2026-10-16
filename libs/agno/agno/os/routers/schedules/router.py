@@ -324,8 +324,14 @@ def get_schedule_router(
         # Repointing at an archived component is refused for the same reason
         # creating against one is: the schedule could only 404 at fire time.
         if "endpoint" in updates:
+            from agno.db.schemas.scheduler import RUN_ENDPOINT_RE
             from agno.tools.scheduler import aarchived_endpoint_refusal, adraft_endpoint_refusal
 
+            target = RUN_ENDPOINT_RE.fullmatch(updates["endpoint"])
+            if target is None and existing.get("managed_by") == "company":
+                raise HTTPException(status_code=422, detail="Routine executor must be a run endpoint")
+            updates["target_type"] = target.group(1).rstrip("s") if target else None
+            updates["target_id"] = target.group(2) if target else None
             refusal = await aarchived_endpoint_refusal(os_db, updates["endpoint"], user_id=scoped_user_id)
             if refusal is not None:
                 raise HTTPException(

@@ -623,7 +623,8 @@ async def test_routine_creation_recovers_after_storage_failure(heartbeat, monkey
 
 
 @pytest.mark.asyncio
-async def test_agent_website_source_reuse_provenance_conflicts_and_archive(heartbeat, monkeypatch):
+@pytest.mark.parametrize("executor_type", ["agent", "team"])
+async def test_agent_website_source_reuse_provenance_conflicts_and_archive(heartbeat, monkeypatch, executor_type):
     import json
 
     from agno.company.execution import _call
@@ -640,11 +641,10 @@ async def test_agent_website_source_reuse_provenance_conflicts_and_archive(heart
     async def add(**overrides):
         args = dict(
             product_id=product["id"],
-            type="website",
             reference="https://example.test/release",
-            _agno_agent=agent,
             _agno_run_context=context,
         )
+        args["_agno_" + executor_type] = agent
         args.update(overrides)
         if isinstance(db, AsyncBaseDb):
             return json.loads(await toolkit.aadd_company_source(**args))
@@ -652,19 +652,27 @@ async def test_agent_website_source_reuse_provenance_conflicts_and_archive(heart
 
     first, second = await asyncio.gather(add(), add())
     assert first["id"] == second["id"]
-    assert first["config"]["metadata"] == {"agent_id": "discoverer", "run_id": "discovery-run"}
+    assert first["config"]["metadata"] == {executor_type + "_id": "discoverer", "run_id": "discovery-run"}
     context.run_id = "later-run"
     assert (await add())["config"]["metadata"]["run_id"] == "discovery-run"
     with pytest.raises(ValueError, match=first["id"]):
         await add(config={"paths": ["other"]})
     with pytest.raises(PermissionError, match="only website"):
-        await add(type="git", reference="/private/repo")
+        await call(
+            "add_source",
+            product["id"],
+            "git",
+            "/private/repo",
+            executor_id="discoverer",
+            executor_type=executor_type,
+            run_id="discovery-run",
+        )
     context.user_id = "other"
     with pytest.raises(PermissionError):
         await add()
     context.user_id = "owner"
     with pytest.raises(ValueError, match="identity"):
-        await add(_agno_agent=None)
+        await add(**{"_agno_" + executor_type: None})
     monkeypatch.setattr(
         "agno.knowledge.reader.website_reader.WebsiteReader.read",
         lambda *args, **kwargs: [Document(content="A released capability needs documentation")],

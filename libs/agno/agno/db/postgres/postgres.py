@@ -7157,15 +7157,6 @@ class PostgresDb(BaseDb):
                 kwargs.setdefault("disabled_reason", None)
             kwargs["updated_at"] = int(time.time())
             with self.Session() as sess, sess.begin():
-                if "endpoint" in kwargs:
-                    from agno.db.schemas.scheduler import RUN_ENDPOINT_RE
-
-                    existing = sess.execute(select(table).where(table.c.id == schedule_id)).first()
-                    target = RUN_ENDPOINT_RE.fullmatch(kwargs["endpoint"])
-                    if existing is not None and existing._mapping.get("managed_by") == "company":
-                        if target is None:
-                            raise ValueError("Routine executor must be a run endpoint")
-                        kwargs.update(target_type=target.group(1).rstrip("s"), target_id=target.group(2))
                 stmt = table.update().where(table.c.id == schedule_id)
                 if user_id is not None:
                     stmt = stmt.where(table.c.user_id == user_id)

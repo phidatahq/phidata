@@ -51,7 +51,6 @@ if __name__ == "__main__":
             )
             arguments = dict(
                 product_id="research",
-                type="website",
                 reference="https://docs.agno.com/",
                 _agno_agent=researcher,
                 _agno_run_context=context,

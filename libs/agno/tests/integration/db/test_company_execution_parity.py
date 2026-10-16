@@ -3010,3 +3010,108 @@ async def test_company_config_uses_explicit_company_database_only(system):
         db.tasks_table_name,
         db.sources_table_name,
     ]
+
+
+@pytest.mark.asyncio
+async def test_schedule_endpoint_updates_target_columns_for_all_schedules(system):
+    from agno.company.execution import _call
+
+    client, db, _, _, _ = system
+    response = await client.post(
+        "/schedules",
+        json={
+            "name": "Generic",
+            "endpoint": "/agents/writer/runs",
+            "cron_expr": "0 * * * *",
+        },
+    )
+    assert response.status_code == 201, response.text
+    schedule_id = response.json()["id"]
+    await _call(db, "stamp_schedule_provenance", schedule_id, target_type="agent", target_id="writer")
+    for endpoint, kind, target_id in [
+        ("/teams/editors/runs/", "team", "editors"),
+        ("/workflows/draft/runs", "workflow", "draft"),
+        ("/health", None, None),
+    ]:
+        response = await client.patch("/schedules/" + schedule_id, json={"endpoint": endpoint})
+        assert response.status_code == 200, response.text
+        saved = await _call(db, "get_schedule", schedule_id)
+        assert (saved["target_type"], saved["target_id"]) == (kind, target_id)
+        assert saved["managed_by"] is None
+    # Storage cannot independently rewrite the target or contradict an endpoint.
+    for updates in [
+        {"target_id": "writer"},
+        {"endpoint": "/teams/editors/runs", "target_type": "agent", "target_id": "writer"},
+    ]:
+        with pytest.raises(ValueError, match="update_schedule cannot modify"):
+            await _call(db, "update_schedule", schedule_id, **updates)
+
+
+
+@pytest.mark.asyncio
+async def test_routine_endpoint_edit_rejects_nonrun_target(system):
+    from agno.company.execution import _call
+
+    client, db, _, _, _ = system
+    product = (await client.post("/company/products", json={"name": "Routine targets"})).json()
+    response = await client.post(
+        "/company/routines",
+        json={
+            "product_id": product["id"],
+            "name": "Routine",
+            "instructions": "Review work",
+            "executor_type": "agent",
+            "executor_id": "writer",
+            "cron_expr": "0 * * * *",
+        },
+    )
+    assert response.status_code == 201, response.text
+    schedule_id = response.json()["id"]
+    changed = await client.patch(
+        "/company/routines/" + schedule_id, json={"executor_type": "team", "executor_id": "editors"}
+    )
+    assert changed.status_code == 200, changed.text
+    saved = await _call(db, "get_schedule", schedule_id)
+    assert (saved["target_type"], saved["target_id"]) == ("team", "editors")
+    refused = await client.patch("/schedules/" + schedule_id, json={"endpoint": "/health"})
+    assert refused.status_code == 422, refused.text
+    assert (await _call(db, "get_schedule", schedule_id))["endpoint"] == saved["endpoint"]
+
+
+
+@pytest.mark.asyncio
+async def test_automation_resumes_reserved_attempt_without_job_or_result(system):
+    from agno.company.execution import _call
+
+    client, db, worker, _, _ = system
+    task = await accepted(client)
+    current = await _call(db, "get_task", task["id"])
+    reserved = await _call(db, "start_task_run", task["id"], 1, current["transitions"])
+    assert reserved["status"] == "in_progress" and reserved["result"] is None
+    assert await worker.store.get_job(reserved["job_id"]) is None
+    executor, schedule = await automation(system)
+    result = await tick(executor, db)
+    assert result["output"]["tasks"][0]["status"] == "submitted"
+    assert await worker.store.get_job(reserved["job_id"]) is not None
+    assert (await _call(db, "get_task", task["id"]))["transitions"] == reserved["transitions"]
+    assert (await execute(worker))["status"] == "completed"
+    assert (await _call(db, "get_schedule_runs", schedule["id"]))[1] == 1
+
+
+
+@pytest.mark.asyncio
+async def test_automation_shutdown_records_cancellation_and_releases_claim(system, monkeypatch):
+    from unittest.mock import AsyncMock
+
+    from agno.company.execution import _call
+
+    _, db, _, _, _ = system
+    executor, schedule = await automation(system)
+    monkeypatch.setattr(executor, "_tick", AsyncMock(side_effect=asyncio.CancelledError))
+    with pytest.raises(asyncio.CancelledError):
+        await tick(executor, db)
+    rows, total = await _call(db, "get_schedule_runs", schedule["id"])
+    assert total == 1 and rows[0]["status"] == "cancelled"
+    saved = await _call(db, "get_schedule", schedule["id"])
+    assert saved["locked_by"] is None and saved["next_run_at"] is not None
+

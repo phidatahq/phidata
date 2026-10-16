@@ -6,7 +6,7 @@ from urllib.parse import quote, urlencode
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from starlette.responses import JSONResponse, Response
 
-from agno.company.execution import _call, _executor, _reserve_task, _task_input, _task_submission
+from agno.company.execution import _call, _executor, _pending_task_attempt, _reserve_task, _task_input, _task_submission
 from agno.company.manager import AsyncCompanyManager, CompanyManager
 from agno.db.base import AsyncBaseDb, BaseDb
 from agno.db.schemas.tasks import task_run_fields, task_run_id
@@ -218,7 +218,8 @@ def get_company_runs_router(os: Any) -> APIRouter:
         # Rejected input must not consume an attempt or leave phantom active work.
         validate_seam_input(component, message)
         try:
-            task_run_fields(value, body.attempt, caller, run_db.id)
+            if _pending_task_attempt(value) != body.attempt:
+                task_run_fields(value, body.attempt, caller, run_db.id)
         except ValueError as exc:
             raise HTTPException(409, str(exc))
         token = _task_submission.set({"db": db, "task": value, "attempt": body.attempt, "run_db_id": run_db.id})

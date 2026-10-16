@@ -727,7 +727,6 @@ class CompanyTools(Toolkit):
     def add_company_source(
         self,
         product_id: str,
-        type: str,
         reference: str,
         config: _OptionalSourceConfig = None,
         _agno_agent: Optional[Any] = None,
@@ -745,9 +744,10 @@ class CompanyTools(Toolkit):
         config = _empty_to_none(config)
         row = self._sync().add_source(
             product_id,
-            type,
+            "website",
             reference,
-            agent_id=getattr(_agno_team if _agno_team is not None else _agno_agent, "id", None),
+            executor_id=getattr(_agno_team if _agno_team is not None else _agno_agent, "id", None),
+            executor_type="team" if _agno_team is not None else "agent",
             run_id=getattr(_agno_run_context, "run_id", None),
             config=config,
             user_id=_identity(_agno_run_context),
@@ -912,7 +912,6 @@ class CompanyTools(Toolkit):
     async def aadd_company_source(
         self,
         product_id: str,
-        type: str,
         reference: str,
         config: _OptionalSourceConfig = None,
         _agno_agent: Optional[Any] = None,
@@ -930,9 +929,10 @@ class CompanyTools(Toolkit):
         config = _empty_to_none(config)
         row = await self._async().add_source(
             product_id,
-            type,
+            "website",
             reference,
-            agent_id=getattr(_agno_team if _agno_team is not None else _agno_agent, "id", None),
+            executor_id=getattr(_agno_team if _agno_team is not None else _agno_agent, "id", None),
+            executor_type="team" if _agno_team is not None else "agent",
             run_id=getattr(_agno_run_context, "run_id", None),
             config=config,
             user_id=_identity(_agno_run_context),

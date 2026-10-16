@@ -2575,6 +2575,98 @@ All 13 offline cookbook invocations passed: `01_manage_products.py`, `02_manage_
 
 The retained four-adapter tests prove null-template completion denial, instruction-only edits preserving fingerprint and spent budget, agent-discovered website Source evidence, executor-less Intake through the real queue, concurrent pickup/restart, policy revocation, exhausted budgets, refused completion and all Task/Project write timestamps. Supplied release probes were not rerun in this merge; their earlier results above remain historical evidence, not proof that the removed scope/child-set guards remain effective.
 
+
+
+## PR 6.5 follow-up — October 16, 2026
+
+### 01_manage_products.py
+
+**Status:** PASS
+
+**Description:** `cookbook/05_agent_os/30_company/01_manage_products.py` — Product creation, paging, ownership, archive, and restore.
+
+**Result:** Completed with all assertions passing using development Python 3.12. Offline execution; no provider calls.
+
+---
+
+### 02_manage_projects.py
+
+**Status:** PASS
+
+**Description:** `cookbook/05_agent_os/30_company/02_manage_projects.py` — Project lifecycle and Product binding.
+
+**Result:** Completed with all assertions passing using development Python 3.12. Offline execution; no provider calls.
+
+---
+
+### 03_manage_tasks.py
+
+**Status:** PASS
+
+**Description:** `cookbook/05_agent_os/30_company/03_manage_tasks.py` — Task lifecycle, acceptance, and executor checks.
+
+**Result:** Completed with all assertions passing using development Python 3.12. Offline execution; no provider calls.
+
+---
+
+### 04_manage_playbook.py
+
+**Status:** PASS
+
+**Description:** `cookbook/05_agent_os/30_company/04_manage_playbook.py` — Versioned Product wiki and decision log operations.
+
+**Result:** Completed with all assertions passing using development Python 3.12. Offline execution; no provider calls.
+
+---
+
+### 05_product_manager.py
+
+**Status:** PASS
+
+**Description:** `cookbook/05_agent_os/30_company/05_product_manager.py` — Product Manager configuration and bounded tools without a model call.
+
+**Result:** Completed with all assertions passing using development Python 3.12. Offline execution; no provider calls.
+
+---
+
+### 06_execute_tasks.py
+
+**Status:** PASS
+
+**Description:** `cookbook/05_agent_os/30_company/06_execute_tasks.py` — Offline Task execution and durable history in SQLite/PostgreSQL, both manual and automatic modes (four executions).
+
+**Result:** Completed with all assertions passing using development Python 3.12. Offline execution; no provider calls.
+
+---
+
+### 07_cascading_archive.py
+
+**Status:** PASS
+
+**Description:** `cookbook/05_agent_os/30_company/07_cascading_archive.py` — Sync/async cascading archive and exact restore, in SQLite and PostgreSQL (two executions).
+
+**Result:** Completed with all assertions passing using development Python 3.12. Offline execution; no provider calls.
+
+---
+
+### 07_heartbeat.py
+
+**Status:** PASS
+
+**Description:** `cookbook/05_agent_os/30_company/07_heartbeat.py` — Declared Routines, Source reads, Intake deduplication, and Refresh.
+
+**Result:** Completed with all assertions passing using development Python 3.12. Offline execution; no provider calls.
+
+---
+
+### 08_custom_routines.py
+
+**Status:** PASS
+
+**Description:** `cookbook/05_agent_os/30_company/08_custom_routines.py` — Custom Routine and repeated website discovery using add_company_source(product_id, reference, config=None); no type argument. First-discovery provenance and human archive verified.
+
+**Result:** Completed with all assertions passing using development Python 3.12. Offline execution; no provider calls.
+
 ---
 
 ### PR 6 round-5 scheduler and withdrawal fixes — October 16, 2026

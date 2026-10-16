@@ -4569,15 +4569,6 @@ class AsyncSqliteDb(AsyncBaseDb):
             kwargs["updated_at"] = int(time.time())
             async with self.async_session_factory() as sess:
                 async with sess.begin():
-                    if "endpoint" in kwargs:
-                        from agno.db.schemas.scheduler import RUN_ENDPOINT_RE
-
-                        existing = (await sess.execute(select(table).where(table.c.id == schedule_id))).first()
-                        target = RUN_ENDPOINT_RE.fullmatch(kwargs["endpoint"])
-                        if existing is not None and existing._mapping.get("managed_by") == "company":
-                            if target is None:
-                                raise ValueError("Routine executor must be a run endpoint")
-                            kwargs.update(target_type=target.group(1).rstrip("s"), target_id=target.group(2))
                     stmt = table.update().where(table.c.id == schedule_id)
                     if user_id is not None:
                         stmt = stmt.where(table.c.user_id == user_id)

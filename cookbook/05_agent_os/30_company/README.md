@@ -394,10 +394,20 @@ indistinguishable from the checked record. Project completion still refuses any
 current non-terminal Task, but child evidence changes do not advance the Project's
 timestamp and are not fenced by this comparison.
 
-Each minute it checks Ready Tasks and authorized Routine proposals. It uses the scheduler's ordinary claims,
-release, and run history. No extra loop, table, or route is installed. Skipped
-Tasks and proposals have their reasons in this schedule's run output, readable
-through `/schedules/{id}/runs`.
+Each minute it checks Ready Tasks and authorized Routine proposals using the
+scheduler's ordinary claims and release. A tick records history only when it
+accepts, dispatches, or completes work, or raises an execution error. Quiet ticks
+leave no run rows. Recorded output includes skipped Tasks and their reasons,
+readable through `/schedules/{id}/runs`. Failed or cancelled attempts stay for a
+human to retry, even after their queue jobs have been removed by retention.
+
+Starting AgentOS without Company disables an existing automation schedule with
+`disabled_reason="company_off"`. Enabling Company again re-enables that row;
+other disabled reasons are preserved. GET `/config` exposes `company.dbs` with
+the configured Company database id and its Product, Project, Task, and Source
+tables. The `company` key is null when Company is off. YAML Product declarations
+can share their `company` section with optional `display_name` and `dbs` display
+overrides.
 
 The tick stops admitting work 240 seconds after its claim, before the scheduler's
 default 300-second stale-lock threshold. It checks again after IO and before
@@ -647,11 +657,12 @@ when its policy sets `complete_projects: true`.
 A custom Routine does maintenance only when it calls the Refresh tool, and
 Summary bookkeeping only when it calls the Summary tool.
 
-Product Manager and executors can call `add_company_source` with `type="website"`
+Product Manager and executors can call `add_company_source(product_id, reference, config=None)`
 when granted `sources:write` and permitted to write the Product. Repository and
 path Sources remain human-added. Source storage has a single existing JSON
-field, `config`: server-stamped `config.metadata.agent_id` and
-`config.metadata.run_id` identify the first discovery. These fields are not
+field, `config`: server-stamped `config.metadata.agent_id` or
+`config.metadata.team_id`, plus `config.metadata.run_id`, identify the first discovery.
+The tool adds website Sources only; there is no `type` argument. These fields are not
 reader options or model-supplied identities. Matching additions reuse the same
 Source; conflicting settings or archived references are refused with the existing
 Source id. Policies may name these website Sources in `source_ids`;

@@ -932,7 +932,6 @@ async def test_source_tool_requires_write_scope_and_hides_injected_identity(tmp_
     fn = toolkit.aadd_company_source if async_tools else toolkit.add_company_source
     arguments = dict(
         product_id=product["id"],
-        type="website",
         reference="https://example.test/page",
         _agno_run_context=context,
         _agno_agent=SimpleNamespace(id="finder"),
@@ -948,6 +947,7 @@ async def test_source_tool_requires_write_scope_and_hides_injected_identity(tmp_
     function = (toolkit.get_async_functions() if async_tools else toolkit.functions)["add_company_source"]
     function.process_entrypoint()
     assert not any(key.startswith("_agno") for key in function.parameters["properties"])
+    assert "type" not in function.parameters["properties"]
     db.close()
 
 

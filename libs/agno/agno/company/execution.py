@@ -83,17 +83,39 @@ async def _reserve_task(db: Any, job: Dict[str, Any]) -> Optional[Dict[str, Any]
     return task
 
 
+def _pending_task_attempt(task: Dict[str, Any]) -> Optional[int]:
+    """Identify an unfinished reservation without authorizing another attempt."""
+    history = task.get("transitions") or []
+    attempt = history[-1].get("attempt") if history else None
+    if (
+        task["status"] == "in_progress"
+        and task.get("result") is None
+        and isinstance(attempt, int)
+        and not isinstance(attempt, bool)
+        and attempt > 0
+        and history[-1].get("target") == "in_progress"
+        and task.get("job_id") == task_run_id(task["id"], attempt)
+    ):
+        return attempt
+    return None
+
+
 async def _enqueue_ticket(worker: Any, job: Dict[str, Any]) -> Dict[str, Any]:
     submission = _task_submission.get()
     if submission is None:
         return await worker.store.enqueue_job(job, max_depth=worker.config.max_queue_depth)
     task = submission["task"]
+    history = task["transitions"]
+    if _pending_task_attempt(task) == submission["attempt"]:
+        # Recreate the missing ticket against the acceptance preceding its
+        # existing reservation. The worker verifies that exact history again.
+        history = history[:-1]
     job = {
         **job,
         "payload": {
             **job["payload"],
             "company_task_id": task["id"],
-            "company_task_transitions": task["transitions"],
+            "company_task_transitions": history,
             "company_task_attempt": submission["attempt"],
             "company_run_db_id": submission["run_db_id"],
         },

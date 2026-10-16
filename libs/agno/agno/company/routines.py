@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from agno.company.declarations import Routine
-from agno.company.execution import _call, _ExecutorAuthorization, _validate_executor_tools
+from agno.company.execution import _call, _ExecutorAuthorization, _pending_task_attempt, _validate_executor_tools
 from agno.company.scheduler import CompanyScheduleExecutor
 from agno.db.schemas.scheduler import COMPANY_AUTOMATION_SCHEDULE_ID, RUN_ENDPOINT_RE
 from agno.guardrails.base import BaseGuardrail
@@ -532,7 +532,7 @@ class _CompanyScheduleExecutor(CompanyScheduleExecutor):
                 if task["status"] == "in_progress":
                     # Only an unfinished reservation with no queue job may resume.
                     # Persisted results survive queue retention and require human retry.
-                    if task.get("result") is not None or not any(entry.get("attempt") for entry in task["transitions"]):
+                    if _pending_task_attempt(task) is None:
                         continue
                     queue = getattr(self.app.state, "queue_worker", None)
                     if queue is None:

@@ -1379,7 +1379,7 @@ def test_unmanaged_specialist_schedules_can_be_retargeted(db, target):
 
 
 @pytest.mark.asyncio
-async def test_managed_specialist_schedule_requires_replacement(db):
+async def test_managed_specialist_schedule_can_be_retargeted(db):
     from unittest.mock import AsyncMock, patch
 
     from agno.scheduler.executor import ScheduleExecutor
@@ -1396,21 +1396,18 @@ async def test_managed_specialist_schedule_requires_replacement(db):
     path = f"/schedules/{old.id}"
     assert client.post(f"{path}/disable").status_code == 200
     assert client.patch(path, json={"endpoint": f"/teams/{MANAGER_TEAM_ID}/runs"}).status_code == 200
+    updated = db.get_schedule(old.id)
+    assert updated["managed_by"] == "studio"
+    assert (updated["target_type"], updated["target_id"]) == ("team", MANAGER_TEAM_ID)
+    assert client.post(f"{path}/enable").status_code == 200
     executor = ScheduleExecutor(base_url="http://localhost:9", internal_service_token="fixture")
     try:
-        with patch.object(executor, "_call_endpoint", new=AsyncMock()) as call:
+        with patch.object(executor, "_call_endpoint", new=AsyncMock(return_value={"status": "success"})) as call:
             result = await executor.execute(db.get_schedule(old.id), db, release_schedule=False)
-        call.assert_not_awaited()
-        assert result["status"] == "failed"
-        assert "provenance target agent:" + OPERATOR_ID in result["error"]
-        assert client.post(f"{path}/enable").status_code == 409
+        call.assert_awaited_once()
+        assert result["status"] == "success"
     finally:
         await executor.close()
-    replacement = client.post(
-        "/schedules",
-        json={"name": "replacement", "cron_expr": "0 0 * * *", "endpoint": f"/teams/{MANAGER_TEAM_ID}/runs"},
-    )
-    assert replacement.status_code == 201, replacement.text
     assert client.delete(path).status_code == 204
 
 

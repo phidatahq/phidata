@@ -213,10 +213,11 @@ not an authorization grant. Ordinary application metadata is unchanged.
 
 Clients that previously called a specialist directly should use
 `POST /teams/os-manager-internal/runs` or MCP `run_team` with that team ID.
-Existing direct-specialist schedules can be disabled or deleted. Unmanaged
-schedules can be repointed to OS Manager. Studio-managed schedules have immutable
-targets: create a replacement targeting OS Manager, then delete the old schedule.
-Changing only their endpoint causes execution to fail and disables the schedule.
+Existing direct-specialist schedules can be disabled or deleted. Both unmanaged
+and Studio-managed schedules can be repointed to OS Manager through the schedule
+PATCH endpoint: the target columns follow the new endpoint after its run
+permission is checked. Direct storage edits that leave a conflicting target
+still cause execution to fail and disable the schedule.
 Creating or re-enabling a direct-specialist schedule returns HTTP 409. Old catalog rows do not
 restore specialist endpoints. Obsolete specialist manifest entries are omitted.
 Stored rows remain available for deliberate administrative cleanup.

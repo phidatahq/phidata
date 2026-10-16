@@ -165,6 +165,36 @@ def test_the_synchronous_public_run_forwards_attachments_too(monkeypatch, stream
     assert [file.content for file in execution["files"]] == [b"abc"]
 
 
+# --- a ticket that cannot be replayed ---------------------------------------------------------------------------
+# Retrying cannot cure a damaged wire, so the worker must fail it once and write the reason on the run. The
+# claim-time "ensure the run row" step only retries, so the pending-row hook must not raise for such a ticket.
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("row_exists", [True, False])
+async def test_the_pending_row_hook_does_not_raise_for_a_ticket_that_cannot_be_replayed(monkeypatch, row_exists):
+    from types import SimpleNamespace
+
+    agent = _agent()
+    wire = encode_media(files=[File(content=b"abc", filename="a.txt")])
+    wire[0]["name"] = "../escape"
+    store = _Store()
+    accepted = object()
+
+    async def aget_run_output(run_id, session_id, user_id=None):
+        return accepted if row_exists else None
+
+    monkeypatch.setattr(agent, "aget_run_output", aget_run_output)
+    monkeypatch.setattr(_harness, "coordinator", lambda _: SimpleNamespace(store=store))
+    result = await _harness.aprepare_pending_run(agent, "r", "s", None, "hello", wire)
+    if row_exists:
+        # The row the accepted request wrote is left alone; rewriting it would be refused as a different input.
+        assert result is accepted and store.prepared == []
+    else:
+        # No row to fail onto: a text-only one gives the failure a run to land on.
+        assert result.input.input_content == "hello" and not result.input.files and len(store.prepared) == 1
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "image",

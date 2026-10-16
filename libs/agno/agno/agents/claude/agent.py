@@ -155,6 +155,9 @@ class ClaudeAgent(BaseExternalAgent):
             and errors that would fail again (authentication, billing, invalid requests) are not retried.
         delay_between_retries: Seconds to wait before each retry.
         exponential_backoff: Double the delay after each failed attempt.
+        require_native_resume: Fail the run when the recorded native conversation cannot be resumed,
+            instead of starting a new one with the history pasted into the prompt.
+        strict_persistence: Fail the run when its row cannot be written, instead of logging the failure.
         sandbox: Run the whole Claude Code process in a computer from this sandbox each turn,
             such as DockerSandbox(image). Requires a PostgresDb on the agent or its AgentOS.
 

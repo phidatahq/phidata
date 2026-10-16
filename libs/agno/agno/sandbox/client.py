@@ -76,6 +76,7 @@ class SandboxRuntimeClient:
         user_id: Optional[str] = None,
         execution_timeout: float = 900,
         native_session_id: Optional[str] = None,
+        media: Optional[List[Dict[str, Any]]] = None,
     ) -> RuntimeExecution:
         """Start a turn. ``native_session_id`` is the harness's own conversation id the caller
         committed for this session, Claude's session id or Codex's thread id, when it has one:
@@ -96,6 +97,7 @@ class SandboxRuntimeClient:
                 "user_id": user_id,
                 "execution_timeout": execution_timeout,
                 "native_session_id": native_session_id,
+                **({"media": media} if media else {}),
             },
         )
         if response.get("accepted") is not True:
@@ -114,6 +116,7 @@ class SandboxRuntimeClient:
         user_id: Optional[str] = None,
         execution_timeout: float = 900,
         native_session_id: Optional[str] = None,
+        media: Optional[List[Dict[str, Any]]] = None,
     ) -> RuntimeExecution:
         return _sync(
             self.astart(
@@ -126,6 +129,7 @@ class SandboxRuntimeClient:
                 user_id=user_id,
                 execution_timeout=execution_timeout,
                 native_session_id=native_session_id,
+                media=media,
             )
         )
 

@@ -1171,11 +1171,17 @@ class BaseExternalAgent:
             await araise_if_cancelled(run_id)
 
     async def _aprepare_pending_run(
-        self, run_id: str, session_id: str, user_id: Optional[str], input: Any, queued: bool = False
+        self,
+        run_id: str,
+        session_id: str,
+        user_id: Optional[str],
+        input: Any,
+        queued: bool = False,
+        media: Optional[List[Dict[str, Any]]] = None,
     ) -> RunOutput:
         """Persist an idempotent PENDING row before background or queued execution."""
         if self.sandbox is not None:
-            return await _sandbox_harness().aprepare_pending_run(self, run_id, session_id, user_id, input)
+            return await _sandbox_harness().aprepare_pending_run(self, run_id, session_id, user_id, input, media)
         from agno.os.job_queue import _aappend_pending_run
 
         run = RunOutput(

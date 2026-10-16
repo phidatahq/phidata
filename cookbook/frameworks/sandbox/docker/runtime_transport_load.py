@@ -80,6 +80,8 @@ async def measure(label: str, runtime_port, wait: float) -> None:
         IMAGE,
         namespace="load-" + uuid4().hex[:8],
         network="isolated",
+        # A host whose networks overlap the default range sets AGNO_SANDBOX_SUBNET to a free one.
+        subnet=os.environ.get("AGNO_SANDBOX_SUBNET", "172.30.0.0/22"),
         memory_mb=256,
         runtime_port=runtime_port,
     )

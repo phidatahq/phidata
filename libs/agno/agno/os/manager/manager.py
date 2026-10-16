@@ -6,12 +6,13 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence
 
 from agno.agent import Agent
-from agno.os.manager.config import BUILDER_ID, OPERATOR_ID, RESERVED_MEMBER_IDS, OSManager
+from agno.os.manager.config import OSManager
 from agno.os.manager.prompts import (
     BUILDER_INSTRUCTIONS,
     MANAGER_INSTRUCTIONS,
     OPERATOR_INSTRUCTIONS,
 )
+from agno.registry._reserved import BUILDER_ID, OPERATOR_ID, RESERVED_MEMBER_IDS
 from agno.run.authorization import requires_permission
 from agno.team import Team
 
@@ -27,10 +28,11 @@ class _Manager:
     team: Team
     builder: Agent
     operator: Agent
+    product_manager: Optional[Agent] = None
 
     @property
     def agents(self) -> List[Agent]:
-        return [self.builder, self.operator]
+        return [self.builder, self.operator, *([self.product_manager] if self.product_manager is not None else [])]
 
     @property
     def components(self) -> List[Any]:
@@ -41,7 +43,7 @@ class _Manager:
         return any(component is owned for owned in self.components)
 
     def manifest(self) -> Dict[str, Any]:
-        """Default descriptions and prompts for the manager and its members."""
+        """Default description and prompts for the public manager team."""
         from agno.os.config import Manifest
 
         entries = {
@@ -51,21 +53,6 @@ class _Manager:
                     "What can you help me do?",
                     "What agents and workflows can I run?",
                     "Run diagnostics and explain any issues",
-                ],
-            ),
-            BUILDER_ID: Manifest(
-                description="Creates agents, teams, workflows and schedules using the registry.",
-                quick_prompts=[
-                    "What can you build?",
-                    "Build a daily summary workflow and schedule it for 9am",
-                ],
-            ),
-            OPERATOR_ID: Manifest(
-                description="Monitors the AgentOS: usage, tokens, runs, tools, evals, schedules and diagnostics.",
-                quick_prompts=[
-                    "Run the diagnostics",
-                    "How many runs and tokens over the last 7 days?",
-                    "Which agent is slowest, and is anything failing?",
                 ],
             ),
         }

@@ -11,11 +11,11 @@ from contextlib import suppress
 from copy import deepcopy
 from dataclasses import asdict
 from queue import Queue
-from typing import Any, AsyncGenerator, Dict, Iterator, Mapping, Optional, Union
+from typing import Any, AsyncGenerator, Dict, Iterator, Mapping, Optional, Sequence, Union
 from uuid import uuid4
 
 from agno.db.postgres import AsyncPostgresDb, PostgresDb
-
+from agno.media import File, Image
 from agno.models.message import Message
 from agno.run.agent import (
     RunCancelledEvent,
@@ -29,6 +29,7 @@ from agno.run.base import RunStatus
 from agno.sandbox.base import Sandbox, SandboxError, SandboxHandle
 from agno.sandbox.checkpoint import CheckpointRef
 from agno.sandbox.client import RuntimeExecution, SandboxRuntimeClient
+from agno.sandbox.media import decode_media, encode_media
 from agno.sandbox.postgres import SandboxLease, SandboxLeaseLost, SandboxRunFinished, _drain, _SandboxStore, _settled
 from agno.sandbox.protocol import NATIVE_SESSION_KEYS
 from agno.sandbox.transfer import CheckpointTransfer
@@ -75,6 +76,8 @@ class SandboxCoordinator:
         env: Optional[Mapping[str, str]] = None,
         queue_attempt: Optional[int] = None,
         execution_timeout: float = 900,
+        images: Optional[Sequence[Image]] = None,
+        files: Optional[Sequence[File]] = None,
     ) -> RunOutput:
         result = None
         async for value in self.astream(
@@ -89,6 +92,8 @@ class SandboxCoordinator:
             env=env,
             queue_attempt=queue_attempt,
             execution_timeout=execution_timeout,
+            images=images,
+            files=files,
         ):
             if isinstance(value, RunOutput):
                 result = value
@@ -110,6 +115,8 @@ class SandboxCoordinator:
         env: Optional[Mapping[str, str]] = None,
         queue_attempt: Optional[int] = None,
         execution_timeout: float = 900,
+        images: Optional[Sequence[Image]] = None,
+        files: Optional[Sequence[File]] = None,
     ) -> RunOutput:
         return self.store._sync(
             self.arun,
@@ -124,6 +131,8 @@ class SandboxCoordinator:
             env=env,
             queue_attempt=queue_attempt,
             execution_timeout=execution_timeout,
+            images=images,
+            files=files,
         )
 
     async def _stop(self, lease: SandboxLease, *, status: str, reason: str, retryable: bool = False) -> Dict[str, Any]:
@@ -200,6 +209,8 @@ class SandboxCoordinator:
         env: Optional[Mapping[str, str]] = None,
         queue_attempt: Optional[int] = None,
         execution_timeout: float = 900,
+        images: Optional[Sequence[Image]] = None,
+        files: Optional[Sequence[File]] = None,
     ) -> Iterator[Any]:
         """Synchronous ``astream``: the turn runs on its own loop in a worker thread and events
         arrive as they are produced. Stopping early detaches this caller like any disconnect."""
@@ -222,6 +233,8 @@ class SandboxCoordinator:
                     env=env,
                     queue_attempt=queue_attempt,
                     execution_timeout=execution_timeout,
+                    images=images,
+                    files=files,
                 ):
                     items.put(value)
             except BaseException as error:
@@ -256,6 +269,8 @@ class SandboxCoordinator:
         env: Optional[Mapping[str, str]] = None,
         queue_attempt: Optional[int] = None,
         execution_timeout: float = 900,
+        images: Optional[Sequence[Image]] = None,
+        files: Optional[Sequence[File]] = None,
     ) -> AsyncGenerator[Any, None]:
         """Run one turn and yield its events as they arrive, then the committed ``RunOutput`` last.
 
@@ -280,6 +295,9 @@ class SandboxCoordinator:
             config=dict(config or {}),
             execution_timeout=execution_timeout,
         )
+        media = encode_media(images=images, files=files)
+        if media:
+            request["media"] = media
         # Validate what the client will actually send, not this fingerprint form: the start request
         # carries a 32-character execution id and the committed conversation id, which is unknown
         # before the claim, so the largest id allowed stands in for it. Fixture opt-in belongs to the
@@ -298,7 +316,7 @@ class SandboxCoordinator:
             agent_name=agent_name,
             session_id=session_id,
             user_id=user_id,
-            input=RunInput(input_content=input),
+            input=RunInput(input_content=input, **decode_media(media)),
             # The user's turn stays in the history of a run that is cancelled or fails before the
             # runtime returns any messages; a completed turn's messages replace it.
             messages=[Message(role="user", content=input, created_at=int(time.time()))],
@@ -446,6 +464,7 @@ class SandboxCoordinator:
                             user_id=user_id,
                             config=config,
                             execution_timeout=execution_timeout,
+                            media=media,
                             # The conversation the restored checkpoint must hold; None on a session's first turn.
                             native_session_id=(state.record.get("native") or {}).get(NATIVE_SESSION_KEYS[sdk]),
                         )

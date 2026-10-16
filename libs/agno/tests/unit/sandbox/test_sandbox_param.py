@@ -276,6 +276,36 @@ def test_queue_terminal_writer_exists_only_with_a_sandbox(sandbox):
     assert queue_terminal_writer(ClaudeAgent(id="coder", sandbox=sandbox)) is not None
 
 
+@pytest.mark.asyncio
+async def test_queue_terminal_bypasses_an_unusable_bindings_table(sandbox, monkeypatch):
+    from agno.db.postgres import PostgresDb
+    from agno.run.status_persist import RunPersistOutcome
+    from agno.sandbox.base import SandboxError
+
+    db = MagicMock(spec=PostgresDb)
+    db.update_run_in_session.return_value = RunPersistOutcome.MISSING
+    agent = ClaudeAgent(id="coder", db=db, sandbox=sandbox)
+    fake = MagicMock()
+
+    async def refuse():
+        raise SandboxError("Sandbox table ai.bindings does not reference run table ai.runs; drop or rename")
+
+    fake.store._ensure_tables = refuse
+    fake._aterminate = MagicMock(side_effect=AssertionError("no compute to retire"))
+    monkeypatch.setattr(_harness, "coordinator", lambda agent: fake)
+    job = {"id": "run-1", "session_id": "s", "user_id": "u", "attempt": 2}
+    outcome = await _harness.apersist_queue_terminal(agent, job, "boom", "error", None)
+    assert outcome is RunPersistOutcome.MISSING
+    db.update_run_in_session.assert_called_once_with(
+        session_id="s",
+        run_id="run-1",
+        fields={"status": "ERROR"},
+        expected_attempt=2,
+        user_id="u",
+        content_if_absent="boom",
+    )
+
+
 def test_coordinator_is_built_once_per_sandbox_and_database(tmp_path, monkeypatch):
     from agno.db.postgres import PostgresDb
     from agno.sandbox.checkpoint import FileCheckpointStore
@@ -391,3 +421,55 @@ async def test_direct_run_carries_the_agent_name(coordinator, sandbox):
     await agent.arun("hello", session_id="s1")
     _, execution = coordinator.calls[0]
     assert execution["agent_name"] == "Coder"
+
+
+PNG = b"\x89PNG\r\n\x1a\nimage"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("stream", [False, True])
+async def test_images_and_files_reach_the_coordinator(coordinator, sandbox, stream):
+    from agno.media import File, Image
+
+    agent = ClaudeAgent(id="coder", sandbox=sandbox)
+    media = dict(images=[Image(content=PNG)], files=[File(content=b"notes", filename="notes.txt")])
+    if stream:
+        [event async for event in agent.arun("look", session_id="s1", stream=True, **media)]
+    else:
+        await agent.arun("look", session_id="s1", **media)
+    _, execution = coordinator.calls[0]
+    assert [image.content for image in execution["images"]] == [PNG]
+    assert [(file.filename, file.content) for file in execution["files"]] == [("notes.txt", b"notes")]
+
+
+@pytest.mark.asyncio
+async def test_queued_options_carry_attachments_that_rebuild_identically(coordinator, sandbox):
+    import json
+
+    from agno.media import File, Image
+    from agno.sandbox.media import encode_media
+
+    agent = CodexAgent(id="coder", sandbox=sandbox)
+    images, files = [Image(content=PNG)], [File(content=b"notes", filename="notes.txt")]
+    options = _harness.submission(agent, "look", {"media": {"images": images, "files": files}})
+    # The durable queue stores these options as JSON and the worker passes them back to arun.
+    await agent.arun("look", session_id="s1", **json.loads(json.dumps(options)))
+    _, execution = coordinator.calls[0]
+    assert encode_media(images=execution["images"], files=execution["files"]) == encode_media(
+        images=images, files=files
+    )
+
+
+@pytest.mark.asyncio
+async def test_audio_and_oversized_attachments_are_rejected_before_the_coordinator(coordinator, sandbox):
+    from agno.exceptions import UnsupportedMediaError
+    from agno.media import Audio, File
+
+    agent = ClaudeAgent(id="coder", sandbox=sandbox)
+    with pytest.raises(UnsupportedMediaError):
+        await agent.arun("listen", session_id="s1", audio=[Audio(content=b"wav", format="wav")])
+    with pytest.raises(ValueError, match="512 KiB"):
+        await agent.arun("read", session_id="s1", files=[File(content=b"x" * (512 * 1024 + 1), filename="big.txt")])
+    with pytest.raises(ValueError, match="base64"):
+        await agent.arun("read", session_id="s1", media=[{"kind": "file", "content": "!!", "name": "a.txt"}])
+    assert coordinator.calls == []

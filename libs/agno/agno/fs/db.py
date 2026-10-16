@@ -747,11 +747,23 @@ class AsyncDbFileSystem(DbFileSystem):
         async with lock:
             bound = copy(self)
             async with self._async_engine.begin() as connection:
-                if self.dialect == "sqlite" and (not self._table_ready or method == "upgrade_schema"):
-                    # Acquire the writer reservation before schema inspection. Two
-                    # deferred SQLite transactions cannot both upgrade a read lock
-                    # to create the table, even with a busy timeout configured.
-                    await connection.exec_driver_sql("BEGIN IMMEDIATE")
+                if self.dialect == "sqlite":
+                    # SQLite's legacy transaction mode does not BEGIN before a
+                    # SAVEPOINT. Releasing that savepoint would commit the write
+                    # before the outer async transaction can roll it back.
+                    raw = await connection.get_raw_connection()
+                    driver = raw.driver_connection
+                    if driver is None:
+                        raise RuntimeError("SQLite driver connection is unavailable")
+                    if not driver.in_transaction:
+                        # Reserve the writer before cold schema inspection; two
+                        # deferred readers cannot both upgrade to create a table.
+                        # Respect engines that already BEGIN via a caller's hook
+                        # or non-legacy driver transaction configuration.
+                        statement = (
+                            "BEGIN IMMEDIATE" if not self._table_ready or method == "upgrade_schema" else "BEGIN"
+                        )
+                        await connection.exec_driver_sql(statement)
 
                 def operation(sync_connection):
                     bound._bound_connection = sync_connection

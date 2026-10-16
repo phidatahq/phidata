@@ -199,3 +199,38 @@ unit-suite results above precede this follow-up; those full suites were not
 rerun for these focused fixes. Format and validation passed.
 
 ---
+
+
+### Async filesystem transaction review — October 16, 2026
+
+**Status:** PASS
+
+**Description:** Reran `01_manage_products.py`, `02_manage_projects.py`,
+`03_manage_tasks.py`, `04_manage_playbook.py`, and `05_product_manager.py`
+after fixing async SQLite outer transaction ownership.
+
+**Result:** All five cookbooks passed. Product/Project/Task lifecycle checks,
+sync/async wiki version conflicts, and bounded Product Manager proposal, status
+and decision writes passed. No provider calls were made.
+
+The focused filesystem review reproduced four failing cases: exception and
+cancellation after savepoint release persisted an async SQLite write on both
+file-backed and in-memory databases. Explicit outer BEGIN fixes all four while
+respecting caller-managed transaction hooks. The 33 new regression cases cover
+legacy migrations (missing/nullable user column), data and partition retention,
+partial DDL rollback, migration cancellation, partial-move rollback, cold-create
+cancellation and retry, and durable connection recovery after cancellation.
+All 33 passed on Python 3.10 and Python 3.12 with SQLite and PostgreSQL.
+
+Filesystem/context units and filesystem/Company integrations passed **1,082
+tests**, with no skips (includes the 33 cases above). Format and validation
+passed; all validation output, including both mypy summaries, was read.
+In-memory SQLite remains connection-owned: driver cancellation that invalidates
+its only connection discards the database; durable cancellation recovery is
+verified on file-backed SQLite and PostgreSQL.
+
+---
+
+Final full-suite rerun after this fix: **6,085 passed, 15 skipped** across
+`libs/agno/tests/unit/db` and `libs/agno/tests/unit/os`. The temporary MongoDB
+container was removed after the run; existing PostgreSQL services were retained.

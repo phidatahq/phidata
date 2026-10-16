@@ -212,9 +212,10 @@ def _agent(request: Dict[str, Any], native: Path) -> Any:
     # database. It has no network credentials and is checkpointed after SDK drain.
     db = SqliteDb(db_file=str(native / "history.db"))
     config = dict(request.get("config", {}))
+    repository = config.pop("repository", None)
     config.update(
         id=request["agent_id"],
-        cwd="/workspace",
+        cwd="/workspace/repository" if repository else "/workspace",
         db=db,
         retries=0,
         keep_uploads=True,
@@ -269,6 +270,33 @@ async def _login_codex(agent: Any, api_key: str) -> None:
 
 
 async def _execute(directory: Path, request: Dict[str, Any]) -> Dict[str, Any]:
+    from agno.sandbox.repository import RepositoryPreparationError, _aprepare, _read_pin, validate_repository_override
+
+    native = directory.parent.parent / "native"
+    repository = request.get("config", {}).get("repository")
+    override = validate_repository_override(request.get("metadata"), repository)
+    if (native / "repository.json").exists() and repository is None:
+        raise ValueError("Continue this session with its pinned repository; set agent.repository")
+    if repository is not None:
+        try:
+            await _aprepare(
+                repository,
+                Path(os.environ.get("AGNO_SANDBOX_WORKSPACE", "/workspace")),
+                native,
+                resume=request.get("native_session_id") is not None,
+                override=override,
+            )
+        except asyncio.CancelledError:
+            # Preparation drains its filesystem work before cancellation propagates. No
+            # harness has started, so the worker's execution deadline is safe to retry.
+            raise RepositoryPreparationError("Repository preparation interrupted before model execution") from None
+    result = await _execute_harness(directory, request)
+    if repository is not None:
+        result["repository"] = _read_pin(native, repository)
+    return result
+
+
+async def _execute_harness(directory: Path, request: Dict[str, Any]) -> Dict[str, Any]:
     if request["sdk"] == "fixture":
         return await _fixture(directory, request)
     from agno.run.agent import RunOutput
@@ -341,6 +369,10 @@ def _worker(directory: Path) -> None:
             _atomic(directory / "result.json", payload)
     except Exception as error:
         result = {"type": "execution_error", "error": (str(error) or type(error).__name__)[:2000]}
+        from agno.sandbox.repository import RepositoryPreparationError
+
+        if isinstance(error, RepositoryPreparationError):
+            result["reason"] = "repository_preparation_failed"
         if isinstance(error, NativeStateMissing):
             # Machine-readable, so a coordinator retries the restore instead of the turn.
             result["reason"] = "native_state_missing"

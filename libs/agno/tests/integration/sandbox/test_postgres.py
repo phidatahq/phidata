@@ -1416,3 +1416,88 @@ async def test_queue_termination_racing_a_claim_does_not_deadlock(store):
         engine.dispose()
     assert await stop == RunPersistOutcome.UPDATED
     assert (await rows(store))[0]["status"] == "CANCELLED"
+
+
+@pytest.mark.parametrize("override_kind", [None, "commit", "branch"])
+async def test_repository_marker_pin_published_at_commit(store, tmp_path, monkeypatch, override_kind):
+    import json
+    import subprocess
+
+    from agno.sandbox import runtime
+    from agno.sandbox.checkpoint import CheckpointArchive
+
+    source = tmp_path / "source"
+    source.mkdir()
+    real_run = subprocess.run
+
+    def git(*args):
+        return real_run(["git", *args], cwd=source, check=True, capture_output=True, text=True).stdout.strip()
+
+    git("init", "--initial-branch=main")
+    git("config", "user.email", "test@example.com")
+    git("config", "user.name", "Test")
+    (source / "file.txt").write_text("initial")
+    git("add", ".")
+    git("commit", "-m", "initial")
+    sha = git("rev-parse", "HEAD")
+    git("branch", "chosen")
+    if override_kind is not None:
+        (source / "file.txt").write_text("advanced default")
+        git("commit", "-am", "advance default")
+
+    def local_run(args, **kwargs):
+        if "fetch" in args or "ls-remote" in args:
+            args = [str(source) if value == "origin" else value for value in args]
+        return real_run(args, **kwargs)
+
+    monkeypatch.setattr(subprocess, "run", local_run)
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    root = tmp_path / "computer"
+    directory = root / "jobs/first"
+    directory.mkdir(parents=True)
+    workspace, native = root / "workspace", root / "native"
+    monkeypatch.setenv("AGNO_SANDBOX_WORKSPACE", str(workspace))
+    configured = {"url": "https://github.com/example/application", "branch": "main"}
+    request = {
+        "sdk": "fixture",
+        "input": "inspect",
+        "agent_id": "agent",
+        "session_id": "session",
+        "run_id": "run",
+        "config": {"repository": configured},
+        "user_id": "user",
+    }
+    if override_kind is not None:
+        request["metadata"] = {"repository": {override_kind: sha if override_kind == "commit" else "chosen"}}
+    runtime_result = await runtime._execute(directory, request)
+    raw_marker = json.loads((native / "repository.json").read_text())
+    marker = {key: raw_marker[key] for key in ("url", "branch", "commit")}
+    assert (
+        marker
+        == {**configured, "branch": "chosen" if override_kind == "branch" else "main", "commit": sha}
+        == runtime_result["repository"]
+    )
+    (workspace / "repository/file.txt").write_text("engineer edit")
+    checkpoint = tmp_path / "checkpoint.tar"
+    archive = CheckpointArchive()
+    archive.capture({"workspace": workspace, "native": native}, checkpoint, state={})
+    replacement = tmp_path / "replacement"
+    archive.restore(checkpoint, replacement)
+    monkeypatch.setenv("AGNO_SANDBOX_WORKSPACE", str(replacement / "workspace"))
+    second = replacement / "jobs/second"
+    second.mkdir(parents=True)
+    request["native_session_id"] = runtime_result["session"]["session_data"]["fixture_session_id"]
+    runtime_result = await runtime._execute(second, request)
+    assert (replacement / "workspace/repository/file.txt").read_text() == "engineer edit"
+    assert runtime_result["repository"] == marker
+    await seed(store)
+    state = await claim(store)
+    await store.aset_computer(state.lease, computer(state))
+    await store.astage_result(state.lease, runtime_result)
+    await store.astage_checkpoint(state.lease, REF)
+    await store.aconfirm_stopped(state.lease, "ref")
+    committed = await store.acommit(state.lease)
+    assert committed["metadata"]["sandbox"]["repository"] == marker
+    assert committed["metadata"]["sandbox"]["checkpoint"]
+    persisted, _, _ = await rows(store)
+    assert persisted["run_data"]["metadata"]["sandbox"]["repository"] == marker

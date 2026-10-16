@@ -327,7 +327,7 @@ async def test_an_upload_the_client_abandons_leaves_no_open_spooled_file_behind(
 # --- in a real AgentOS app ----------------------------------------------------------------------------------------------
 
 
-def _sandboxed_app(tmp_path, monkeypatch):
+def _sandboxed_app(tmp_path, monkeypatch, **os_kwargs):
     from agno.db.postgres import PostgresDb
     from agno.os import AgentOS
     from agno.sandbox.checkpoint import FileCheckpointStore
@@ -343,7 +343,7 @@ def _sandboxed_app(tmp_path, monkeypatch):
         checkpoints=FileCheckpointStore(tmp_path / "objects"),
     )
     agents = [FixtureAgent(id="coder", sandbox=provider)]
-    return AgentOS(id="limit-test", agents=agents, db=db, telemetry=False).get_app()
+    return AgentOS(id="limit-test", agents=agents, db=db, telemetry=False, **os_kwargs).get_app()
 
 
 def test_an_unauthenticated_oversize_request_is_asked_to_authenticate_not_told_the_agent_is_sandboxed(
@@ -370,3 +370,62 @@ def test_an_authenticated_oversize_request_is_refused_with_413(tmp_path, monkeyp
         headers={"Authorization": "Bearer a-key-for-the-body-limit-tests"},
     )
     assert response.status_code == 413
+
+
+# --- only AgentOS's own run endpoint is limited -----------------------------------------------------------------------
+# The limit is for the generated sandbox submission route. A route the application supplied on the same URL keeps its
+# own semantics, whichever of the two the route table lets handle the request.
+
+AUTH = {"Authorization": "Bearer a-key-for-the-body-limit-tests"}
+
+
+def _custom_run_app(path="/agents/coder/runs"):
+    from fastapi import FastAPI, Request
+
+    base = FastAPI()
+
+    @base.post(path)
+    async def custom_run(request: Request):
+        return {"custom_route_read_bytes": len(await request.body())}
+
+    return base
+
+
+def _post_oversize(app):
+    from starlette.testclient import TestClient
+
+    client = TestClient(app, raise_server_exceptions=False)
+    return client.post("/agents/coder/runs", content=b"x" * (MAX_SANDBOX_REQUEST_BODY + 1024), headers=AUTH)
+
+
+@pytest.mark.parametrize("on_route_conflict", ["preserve_base_app", "preserve_agentos"])
+def test_a_custom_route_on_the_same_url_is_not_limited(tmp_path, monkeypatch, on_route_conflict):
+    # In both modes the table lets the application's route answer the request, so it keeps its own semantics.
+    app = _sandboxed_app(tmp_path, monkeypatch, base_app=_custom_run_app(), on_route_conflict=on_route_conflict)
+    response = _post_oversize(app)
+    assert response.status_code == 200 and response.json() == {
+        "custom_route_read_bytes": MAX_SANDBOX_REQUEST_BODY + 1024
+    }
+
+
+def test_a_custom_route_with_another_parameter_name_that_is_registered_first_is_not_limited(tmp_path, monkeypatch):
+    # Not detected as a conflict (different pattern text), so both routes exist and the first one handles the request.
+    app = _sandboxed_app(tmp_path, monkeypatch, base_app=_custom_run_app("/agents/{name}/runs"))
+    assert _post_oversize(app).status_code == 200
+
+
+def test_a_route_added_after_the_app_is_built_is_shadowed_by_the_limited_generated_route(tmp_path, monkeypatch):
+    from fastapi import Request
+
+    app = _sandboxed_app(tmp_path, monkeypatch)
+
+    @app.post("/agents/coder/runs")
+    async def late(request: Request):
+        return {"late": True}
+
+    assert _post_oversize(app).status_code == 413
+
+
+def test_the_generated_route_beside_unrelated_custom_routes_is_limited(tmp_path, monkeypatch):
+    app = _sandboxed_app(tmp_path, monkeypatch, base_app=_custom_run_app("/something/else"))
+    assert _post_oversize(app).status_code == 413

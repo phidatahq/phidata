@@ -1,9 +1,10 @@
 """Bound the body of run submissions to sandboxed agents by the bytes actually received."""
 
 import re
-from typing import Any, Collection, Optional
+from typing import Any, Collection, Optional, Sequence
 
 from starlette.responses import JSONResponse
+from starlette.routing import Match
 
 # A transport limit of its own, not a bound the attachment limits imply: the route never limited the raw body. The
 # largest request written the usual way (uploads, or JSON fields as json.dumps and a minimal url-encoder write them)
@@ -12,6 +13,24 @@ from starlette.responses import JSONResponse
 MAX_SANDBOX_REQUEST_BODY = 4 * 1024 * 1024
 
 _RUN_ROUTE = re.compile(r"/agents/([^/]+)/runs/?$")
+
+
+def serves_generated_run_route(routes: Sequence[Any], agent_id: str) -> bool:
+    """Whether AgentOS's own run endpoint is what handles ``POST /agents/{agent_id}/runs``.
+
+    ``routes`` is the app's route table in dispatch order, included routers expanded. The first route that matches
+    is the one Starlette dispatches to; matching runs no endpoint code. A route the application supplied on that URL
+    is left alone whichever of the two the table lets win.
+    """
+    scope = {"type": "http", "method": "POST", "path": f"/agents/{agent_id}/runs", "root_path": ""}
+    for route in routes:
+        if route.matches(scope)[0] == Match.FULL:
+            endpoint = getattr(route, "endpoint", None)
+            return (
+                getattr(endpoint, "__module__", None) == "agno.os.routers.agents.router"
+                and getattr(endpoint, "__name__", None) == "create_agent_run"
+            )
+    return False
 
 
 class SandboxRunBodyLimit:

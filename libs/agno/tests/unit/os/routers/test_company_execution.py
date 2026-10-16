@@ -289,20 +289,28 @@ def test_auto_accept_human_scope_and_executor_fence(system):
     body["name"] = "unknown-check"
     body["auto_accept"]["required_checks"] = ["unknown"]
     assert client.post("/company/routines", json=body, headers=headers(scopes=scopes)).status_code == 422
-    # The same check applies on the generic schedule surface; the persisted
-    # authority is freshly stamped, never a supplied payload's forged snapshot.
+    # The generic schedule surface cannot mutate a Company Routine. The Company
+    # surface validates the executor before stamping the human's authority.
     raw = db.get_schedule(routine["id"])["payload"]
     raw["metadata"]["auto_accept"]["executor_id"] = "another-agent"
     assert (
         client.patch(f"/schedules/{routine['id']}", json={"payload": raw}, headers=headers(scopes=scopes)).status_code
-        == 422
+        == 409
     )
+    assert client.patch(
+        f"/company/routines/{routine['id']}", json={"auto_accept": raw["metadata"]["auto_accept"]},
+        headers=headers(scopes=scopes),
+    ).status_code == 422
     # Once registered, the target still requires the editor's own run grant.
     os.registry.agents.append(Agent(id="another-agent", db=db))
     assert (
         client.patch(f"/schedules/{routine['id']}", json={"payload": raw}, headers=headers(scopes=scopes)).status_code
-        == 403
+        == 409
     )
+    assert client.patch(
+        f"/company/routines/{routine['id']}", json={"auto_accept": raw["metadata"]["auto_accept"]},
+        headers=headers(scopes=scopes),
+    ).status_code == 403
 
 
 @pytest.mark.asyncio
@@ -512,7 +520,7 @@ async def test_policy_defaults_expiry_and_content_fingerprint(system):
         assert client.patch(path, json={"auto_accept": invalid}, headers=fresh).status_code == 422
         payload = copy.deepcopy(raw["payload"])
         payload["metadata"]["auto_accept"] = invalid
-        assert client.patch("/schedules/" + routine["id"], json={"payload": payload}, headers=fresh).status_code == 422
+        assert client.patch("/schedules/" + routine["id"], json={"payload": payload}, headers=fresh).status_code == 409
     for key, value in (
         ("executor_id", "different"),
         ("complete_projects", True),
@@ -591,8 +599,10 @@ def test_project_completion_policy_requires_projects_write(system, generic):
         payload = copy.deepcopy(before["payload"])
         payload["metadata"]["auto_accept"] = policy
         path, body = "/schedules/" + routine["id"], {"payload": payload}
-    else:
-        path, body = "/company/routines/" + routine["id"], {"auto_accept": policy}
+        assert client.patch(path, json=body, headers=headers(scopes=scopes)).status_code == 409
+        assert client.patch(path, json=body, headers=headers(scopes=scopes + ["projects:write"])).status_code == 409
+        assert db.get_schedule(routine["id"]) == before
+    path, body = "/company/routines/" + routine["id"], {"auto_accept": policy}
     response = client.patch(path, json=body, headers=headers(scopes=scopes))
     assert response.status_code == 403, response.text
     assert db.get_schedule(routine["id"])["payload"] == before["payload"]

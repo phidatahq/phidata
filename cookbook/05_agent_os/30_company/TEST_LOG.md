@@ -548,3 +548,73 @@ Earlier migration test entries describe the implementation before this simplific
 **Description:** Cancellation visibility/retry, attention lifecycle, unsupported database responses, and the full database/OS unit suites.
 
 **Result:** 247 execution/route tests passed on sync/async SQLite and PostgreSQL; 6,104 full unit tests passed, 15 skipped. Format passed. Validation passed on this branch and unchanged main at `7f5dcdf53d` with the same clean Python 3.10 environment and separate mypy caches: zero errors on either. Output was read, including mypy success for 1,146 PR core files, 1,144 main core files and 21 CLI files on each. The release reports' unannotated `prior` variables belong to later automatic-acceptance code and are absent from PR 4.
+
+
+## Main integration and round-3 execution review — October 16, 2026
+
+### 01_manage_products.py
+
+**Status:** PASS
+
+**Description:** Re-ran `cookbook/05_agent_os/30_company/01_manage_products.py` after incorporating the merged release fixes and the final-attempt attention and revoked-submission repairs.
+
+**Result:** Completed all assertions using the rebased code, including the merged Company routing and nullable tool-argument fixes. No live model calls were made.
+
+---
+
+### 02_manage_projects.py
+
+**Status:** PASS
+
+**Description:** Re-ran `cookbook/05_agent_os/30_company/02_manage_projects.py` after incorporating the merged release fixes and the final-attempt attention and revoked-submission repairs.
+
+**Result:** Completed all assertions using the rebased code, including the merged Company routing and nullable tool-argument fixes. No live model calls were made.
+
+---
+
+### 03_manage_tasks.py
+
+**Status:** PASS
+
+**Description:** Re-ran `cookbook/05_agent_os/30_company/03_manage_tasks.py` after incorporating the merged release fixes and the final-attempt attention and revoked-submission repairs.
+
+**Result:** Completed all assertions using the rebased code, including the merged Company routing and nullable tool-argument fixes. No live model calls were made.
+
+---
+
+### 04_manage_playbook.py
+
+**Status:** PASS
+
+**Description:** Re-ran `cookbook/05_agent_os/30_company/04_manage_playbook.py` after incorporating the merged release fixes and the final-attempt attention and revoked-submission repairs.
+
+**Result:** Completed all assertions using the rebased code, including the merged Company routing and nullable tool-argument fixes. No live model calls were made.
+
+---
+
+### 05_product_manager.py
+
+**Status:** PASS
+
+**Description:** Re-ran `cookbook/05_agent_os/30_company/05_product_manager.py` after incorporating the merged release fixes and the final-attempt attention and revoked-submission repairs.
+
+**Result:** Completed all assertions using the rebased code, including the merged Company routing and nullable tool-argument fixes. No live model calls were made.
+
+---
+
+### 06_execute_tasks.py
+
+**Status:** PASS
+
+**Description:** Re-ran `cookbook/05_agent_os/30_company/06_execute_tasks.py` after incorporating the merged release fixes and the final-attempt attention and revoked-submission repairs.
+
+**Result:** Execution ran with both SQLite and PostgreSQL Company/session storage and the PostgreSQL durable queue. Duplicate submission returned the first run; the Task reached In review and history/attention matched. No live model calls were made.
+
+---
+
+Final validation on the rebased code: **6,654 passed, 7 skipped** across the
+complete database, OS and agents unit suites; **396 passed, no skips** across
+Company integrations and execution/Task routes on all four adapters. The two
+separate-process restart tests pass through both ordinary session history and
+Company history/individual-run routes. Format and validation passed with output
+read; mypy checked 1,146 framework and 21 CLI files without errors.

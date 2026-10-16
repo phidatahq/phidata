@@ -121,8 +121,6 @@ after restart and across replicas so saved run database references resolve.
 This does not rewrite references saved with older randomly generated IDs;
 retaining a known old ID explicitly is necessary for those references.
 
-
-
 ## Execution and attention
 
 | File | Demonstrates |
@@ -149,7 +147,9 @@ POST `/company/tasks/{id}/runs` accepts `{"attempt": 1}` (the default). Repeatin
 that attempt returns the first run. A full queue returns 429 without changing
 the Task or consuming the attempt; retry the same attempt when capacity is available.
 The durable ticket is accepted before the Task moves to In progress, and the worker
-can recover that update if the submitting process stops.
+can recover that update if the submitting process stops. If acceptance changes
+before the Task can reserve a fresh ticket, the request returns 409 and cancels
+the waiting ticket; an already-claimed ticket is rejected by the worker.
 A new attempt increments the number; after
 success, first transition In review to In progress to request revisions. Each
 Task retains one session. GET on the same route returns ordinary session runs
@@ -167,8 +167,9 @@ Task executors.
 Executor input contains only the Task brief, its evidence and the current
 company and Product wiki pages. Queue retries and restart recovery use the
 existing queue policy. Results are saved on the Task; success moves it to
-`in_review`. A failed or cancelled run leaves the Task In progress with a visible
-`ERROR` or `CANCELLED` result. It can start another numbered attempt or return to
+`in_review`. Retryable failures remain outside failed attention while the queue
+has attempts left. An exhausted, permanent or cancelled run leaves the Task
+In progress with a visible `ERROR` or `CANCELLED` result. It can start another numbered attempt or return to
 Backlog for replanning. Executors cannot acquire scheduler mutation authority.
 
 GET `/company/attention?product_id=...` returns `proposals`, `in_review` and

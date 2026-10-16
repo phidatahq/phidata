@@ -108,7 +108,18 @@ async def _enqueue_ticket(worker: Any, job: Dict[str, Any]) -> Dict[str, Any]:
     if result["job"] is not None:
         # Acceptance is the committed queue ticket. A rejected enqueue leaves the
         # Task untouched; a crash here is recovered by the worker before execution.
-        await _reserve_task(submission["db"], result["job"])
+        reserved = await _reserve_task(submission["db"], result["job"])
+        if reserved is None and result["accepted"]:
+            current = await _call(submission["db"], "get_task", task["id"])
+            # A fast worker may already have reserved and completed this attempt.
+            # Its committed start still counts as acceptance, even after review.
+            if current is None or current.get("job_id") != result["job"]["id"]:
+                from fastapi import HTTPException
+
+                # Abort a fresh ticket whose acceptance was revoked during submission.
+                # If already claimed, the worker's acceptance check rejects execution.
+                await worker.acancel_queued(result["job"]["id"])
+                raise HTTPException(409, "Task acceptance was changed or revoked")
     return result
 
 

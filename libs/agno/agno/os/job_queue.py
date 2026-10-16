@@ -1964,7 +1964,14 @@ class QueueWorker:
                 from agno.company.execution import _project_run
 
                 job = await self.store.get_job(job_id)
-                if job is not None and job.get("locked_by") == self.worker_id and job.get("attempt") == attempt:
+                if (
+                    job is not None
+                    and job.get("locked_by") == self.worker_id
+                    and job.get("attempt") == attempt
+                    and attempt >= job.get("max_attempts", 1)
+                ):
+                    # Match the queue's retry budget, preserving write-before-terminal
+                    # ordering without putting retryable work in human attention.
                     await _project_run(self, job, "failed", error)
             call = self.store.retry_or_fail_job(job_id, self.worker_id, attempt, error, delay)
             outcome = await (asyncio.shield(call) if shielded else call)

@@ -49,7 +49,9 @@ async def main():
             await db.create_task({
                 "id": "task", "product_id": product["id"], "title": "Release",
                 "status": "in_progress", "created_at": int(time.time()),
-                "transitions": [{"run_id": run.run_id, "run_db_id": db.id, "session_id": "task-session"}],
+                "session_id": "task-session", "job_id": run.run_id,
+                "executor_type": "agent", "executor_id": "writer",
+                "transitions": [{"attempt": 1, "run_id": run.run_id, "run_db_id": db.id, "session_id": "task-session"}],
             })
         else:
             task = await db.get_task("task")
@@ -69,6 +71,15 @@ async def main():
                 )
                 assert response.status_code == 200, response.text
                 assert response.json()[0]["content"] == "Persisted before restart"
+                history = await client.get("/company/tasks/task/runs", params={"limit": 1, "page": 1})
+                assert history.status_code == 200, history.text
+                assert history.json()["meta"]["total_count"] == 1
+                assert history.json()["data"][0]["run_id"] == "prior-run"
+                assert history.json()["data"][0]["run_data"]["content"] == "Persisted before restart"
+                individual = await client.get("/company/runs/prior-run")
+                assert individual.status_code == 200, individual.text
+                assert individual.json()["status"] == "COMPLETED"
+                assert individual.json()["run_data"]["content"] == "Persisted before restart"
     finally:
         await db.close()
 

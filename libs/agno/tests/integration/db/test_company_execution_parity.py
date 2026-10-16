@@ -209,6 +209,10 @@ async def test_bounded_failure_visible_without_changing_lifecycle(system, monkey
     assert (await client.post(path + "/runs")).status_code == 202
     first = await execute(worker)
     assert first["status"] == "queued"
+    pending = (await client.get(path)).json()
+    assert pending["status"] == "in_progress" and pending["result"] is None
+    assert (await client.get("/company/attention")).json()["failed"] == 0
+    assert (await client.get("/company/tasks", params={"failed": "true"})).json()["meta"]["total_count"] == 0
     second = await execute(worker)
     assert second["status"] == "failed" and second["attempt"] == 2
     saved = (await client.get(path)).json()
@@ -670,3 +674,63 @@ async def test_cancel_projection_failure_is_recovered_by_queue(system, monkeypat
     assert (await execute(worker))["status"] == "cancelled"
     assert (await client.get(path)).json()["result"]["status"] == "CANCELLED"
     assert (await client.get("/company/attention")).json()["failed"] == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("claimed", [False, True], ids=["queued", "claimed"])
+async def test_changed_acceptance_during_enqueue_returns_conflict(system, monkeypatch, claimed):
+    from agno.db.schemas.tasks import task_run_id
+
+    client, db, worker, os, components = system
+    value = await accepted(client)
+    path = f"/company/tasks/{value['id']}"
+    enqueue = worker.store.enqueue_job
+    claimed_job = None
+
+    async def revoke_before_enqueue(*args, **kwargs):
+        nonlocal claimed_job
+        revoked = await client.post(path + "/transitions", json={"target": "backlog", "reason": "Scope changed"})
+        assert revoked.status_code == 200
+        result = await enqueue(*args, **kwargs)
+        if claimed:
+            claimed_job = await worker.store.claim_job(worker.worker_id, worker.config.lock_grace_seconds)
+        return result
+
+    monkeypatch.setattr(worker.store, "enqueue_job", revoke_before_enqueue)
+    response = await client.post(path + "/runs")
+    assert response.status_code == 409, response.text
+    assert "acceptance" in response.json()["detail"]
+    saved = (await client.get(path)).json()
+    assert saved["status"] == "backlog" and saved["job_id"] is None and saved["result"] is None
+    run_id = task_run_id(value["id"], 1)
+    if claimed:
+        from unittest.mock import AsyncMock
+
+        run = AsyncMock(side_effect=AssertionError("Revoked work must never execute"))
+        monkeypatch.setattr(components["writer"], "arun", run)
+        await worker._execute_claimed(claimed_job)
+        run.assert_not_awaited()
+    job = await worker.store.get_job(run_id)
+    assert job["status"] == ("failed" if claimed else "cancelled")
+    assert (await client.get(path)).json() == saved
+    assert (await client.get("/company/attention")).json() == {"proposals": 1, "in_review": 0, "failed": 0}
+
+
+@pytest.mark.asyncio
+async def test_worker_completion_before_submitter_reservation_still_returns_accepted(system, monkeypatch):
+    client, db, worker, os, _ = system
+    value = await accepted(client)
+    path = f"/company/tasks/{value['id']}"
+    enqueue = worker.store.enqueue_job
+
+    async def complete_before_submitter_returns(*args, **kwargs):
+        result = await enqueue(*args, **kwargs)
+        assert (await execute(worker))["status"] == "completed"
+        return result
+
+    monkeypatch.setattr(worker.store, "enqueue_job", complete_before_submitter_returns)
+    response = await client.post(path + "/runs")
+    assert response.status_code == 202, response.text
+    saved = (await client.get(path)).json()
+    assert saved["status"] == "in_review" and saved["result"]["status"] == "COMPLETED"
+    assert (await worker.store.get_job(response.json()["run_id"]))["status"] == "completed"

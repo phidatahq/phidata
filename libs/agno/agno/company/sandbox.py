@@ -61,6 +61,8 @@ def _validate_publish_environment(component: Any, source: Dict[str, Any]) -> Non
 
 def _accept_checkout(component: Any, task: Dict[str, Any]) -> None:
     checkout = (task.get("metadata") or {}).get("checkout")
+    if checkout is not None and not _is_sandboxed(component):
+        raise ValueError("Task checkout is already pinned and requires a sandboxed executor; create a new Task")
     if checkout is not None and any(
         checkout.get(key) != getattr(component.repository, key) for key in ("url", "branch")
     ):

@@ -2234,5 +2234,82 @@ without `tasks:write` stays blocked and disabled; a fresh valid token recovers
 the same Routine with current authority and an unchanged policy fingerprint.
 The development typing comparison also exposed six history-query bindings that
 needed annotations under SQLAlchemy 2.1; all six now use the same explicit
-sequence type as the existing `prior` annotations. Full-suite results follow
-below when complete.
+sequence type as the existing `prior` annotations. Full-suite results are recorded below.
+
+### Final combined-head cookbooks
+
+**Status:** PASS
+
+**Description:** Reran every Company cookbook after merging Heartbeat recovery,
+using the Python 3.12 development environment and real PostgreSQL durable queue.
+No live models or outbound messages were used.
+
+**Result:** All 12 executions passed:
+
+| File | Modes |
+| --- | --- |
+| `cookbook/05_agent_os/30_company/01_manage_products.py` | SQLite |
+| `cookbook/05_agent_os/30_company/02_manage_projects.py` | SQLite |
+| `cookbook/05_agent_os/30_company/03_manage_tasks.py` | SQLite |
+| `cookbook/05_agent_os/30_company/04_manage_playbook.py` | SQLite |
+| `cookbook/05_agent_os/30_company/05_product_manager.py` | Offline |
+| `cookbook/05_agent_os/30_company/06_execute_tasks.py` | Manual SQLite/PostgreSQL; automatic SQLite/PostgreSQL, including authorized Project completion |
+| `cookbook/05_agent_os/30_company/07_cascading_archive.py` | SQLite/PostgreSQL |
+| `cookbook/05_agent_os/30_company/07_heartbeat.py` | SQLite |
+
+### Final combined-head release probes
+
+**Status:** MIXED — original incompatibilities and remaining assertions are explicit.
+
+**Description:** The original Python scripts were byte-identical copies of the
+release probes. Reran them and the documented compatibility copies against this
+worktree with AGNO_DEBUG/AGNO_MONITOR unset, PostgreSQL `ai_claude` on port 5532,
+HTTP capture on 8161 and performance on 8110. Compatibility copies retain their
+authority assertions while supplying mandatory expiry, explicit Intake proposals
+and observed hashes, the current cron argument and current fresh-schema checks.
+
+**Result:**
+
+| Probe | Original | Current API compatibility copy |
+| --- | --- | --- |
+| A identity/scopes | 222/225 | 223/225; two expectations omit the executor run scope and correctly receive 403 |
+| C isolation | 54/55 | 54/55; existing subject-less shared read returns 200 |
+| D registration/disabled | Stops at retired migration imports; 12 pass, two unsupported/signature/connection failures | 15/16; Mongo target deliberately points to unavailable port 1 |
+| D main disabled | No Company routes or tables | Same |
+| D2 legacy migration | Retired `v3_1_4`/`v3_1_5` import failure | Obsolete, not counted as a pass |
+| E concurrency | Old Intake call lacks proposal argument | 14/14, including all four adapters and 20 repetitions per race |
+| E2 async concurrency | Old Intake call lacks proposal argument | 6/6, async SQLite/PostgreSQL |
+| F authority | Old cron argument and now-forbidden plain Routine proposal | 20/22; two payload-shape expectations exceed scheduler contract, no widened authority reproduced |
+| F2 scheduler fence | Executor and Routine writes both denied; zero schedules | Same |
+| G setup/fingerprint | Missing required expiry prevents setup of the policy | Nonblank setup refused; all three fingerprint stability comparisons true |
+| Product Manager | GET 200 | GET 200 |
+
+These are observed outcomes, not a claim that every original probe passes.
+Baseline read/payload expectations remain outside the Automation change. The
+required Company tests independently exercise forged payloads, current human
+run permissions, executor-less Intake, concurrent ticks and real queue execution.
+
+
+### Combined-head integration and validation gates
+
+**Status:** PASS
+
+**Description:** Complete Company, scheduler and lifecycle integration suites on
+sync/async SQLite and PostgreSQL, plus the repository format and validate scripts.
+
+**Result:** **771 integration tests passed**, with four optional MongoDB lifecycle
+skips because AGNO_TEST_MONGO_URL was not set. Every requested SQLite/PostgreSQL
+case executed. The extra 18 creation-recovery checks passed after the final
+optional-payload typing correction. Clean Python 3.10 validation passed all
+1,155 framework files and 21 CLI files; complete formatter and validator output
+was read. The Python 3.12 comparison reports **34 identical baseline diagnostics
+in 11 files** on the parent and final head, with zero introduced diagnostics.
+Both original `prior` annotations and the six additional async history-query
+annotations are present. Unrelated baseline formatter changes were inspected
+and excluded before exact-tree validation.
+
+Performance on the combined head again seeded 50 Products, 500 Projects, 5,000
+Tasks and 200 wiki pages. Reads completed and all ten queued workflow Tasks
+were independently confirmed In review. Live-model Intake recorded failure
+because OPENAI_API_KEY was absent. The probe's server and unique schema were
+cleaned up; no live-model success is claimed.

@@ -1217,3 +1217,99 @@ The first SQLite run found eight inherited archive-fixture failures because the 
 **Result:** **6,317 unit tests passed, 39 skipped** (optional Firestore/asyncpg dependencies, credentials and root-only behavior). **620 integration tests passed, no skips**, including 12 new cascade/retention/deduplicated-insert cases. All ten cookbook invocations passed. Format and validate passed with complete output read; exact-tree validation also passed after excluding unrelated formatter changes. Mypy checked 1,155 framework and 21 CLI files. Tests/cookbooks used the development Python 3.12 environment; validation used the existing clean Python 3.10 environment. `git diff --check` passed. No live model calls or outbound messages.
 
 ---
+
+## Heartbeat Task restore follow-up — October 16, 2026
+
+Integrated PR #11114's pinned b7c73d7a566b9906122cfad5822151e1fa921464 as normal merge 9aadb8feb2. The previous rebase was already published; no history was rewritten. All four adapters retain task_restore_fields: ordinary Task restore preserves acceptance history, recorded cascade archives receive matching restore events, and queue acceptance revocation remains enforced. Cascade provenance, counts, ancestor filtering and Heartbeat retention are preserved.
+
+Publication checks: 103 SQLite/focused tests passed, with PostgreSQL deferred to the full integration run; format and exact-tree validate passed with output read.
+
+### 01_manage_products.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/01_manage_products.py` on the integrated restore fix.
+
+**Result:** Product lifecycle and archive policy defaults. All assertions passed without live model or outbound messaging calls.
+
+---
+
+### 02_manage_projects.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/02_manage_projects.py` on the integrated restore fix.
+
+**Result:** Project lifecycle and completion guards. All assertions passed without live model or outbound messaging calls.
+
+---
+
+### 03_manage_tasks.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/03_manage_tasks.py` on the integrated restore fix.
+
+**Result:** Task lifecycle and registered executor acceptance. All assertions passed without live model or outbound messaging calls.
+
+---
+
+### 04_manage_playbook.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/04_manage_playbook.py` on the integrated restore fix.
+
+**Result:** Wiki and decision APIs. All assertions passed without live model or outbound messaging calls.
+
+---
+
+### 05_product_manager.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/05_product_manager.py` on the integrated restore fix.
+
+**Result:** Product Manager construction and bounded tools. All assertions passed without live model or outbound messaging calls.
+
+---
+
+### 06_execute_tasks.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/06_execute_tasks.py` on the integrated restore fix.
+
+**Result:** SQLite and PostgreSQL durable execution, duplicate runs and attention. All assertions passed without live model or outbound messaging calls.
+
+---
+
+### 07_cascading_archive.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/07_cascading_archive.py` on the integrated restore fix.
+
+**Result:** SQLite and PostgreSQL cascades, grouped counts, exact restore and unchanged ordinary Task acceptance history. All assertions passed without live model or outbound messaging calls.
+
+---
+
+### 07_heartbeat.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/07_heartbeat.py` on the integrated restore fix.
+
+**Result:** Source reads, deduplicated Intake, completion proposals and retention. All assertions passed without live model or outbound messaging calls.
+
+---
+
+### Final Task restore validation
+
+**Status:** PASS
+
+**Description:** Full database/OS/scheduler units and Company/scheduler integrations on SQLite/PostgreSQL sync and async, including queued/running archive-restore acceptance, genuine acceptance revocation, cascades, counts, retention and restart.
+
+**Result:** Final full unit rerun: **6,317 passed, 39 dependency/environment skips**. Integrations: **652 passed, no skips**. All ten cookbook invocations passed. The first unit run had one failure in the unchanged Redis real-clock TTL test (`test_true_ttl_expiry_reseeds`: keys had not expired after 1.2 seconds); its isolated module rerun passed all 48 tests, then the complete unit rerun passed without code changes. Format and exact-tree validation passed with full output read (mypy: 1,155 framework and 21 CLI files). `git diff --check` passed. No live model or outbound messaging calls.
+
+---

@@ -362,12 +362,24 @@ async def test_outdated_bindings_table_fails_startup_with_its_remedy(service):
     try:
         await _SandboxStore(db)._ensure_tables()
         _earlier_build_bindings_table(db)
-        app = AgentOS(id="stale-" + suffix, agents=[stale], db=db, telemetry=False).get_app()
-        with pytest.raises(SandboxError) as refused:
-            async with app.router.lifespan_context(app):
-                pass
-        assert "does not reference run table" in str(refused.value)
-        assert "pass PostgresDb(sandbox_table=...)" in str(refused.value)
+        for auto_provision_dbs in (True, False):
+            app = AgentOS(
+                id="stale-" + suffix, agents=[stale], db=db, telemetry=False, auto_provision_dbs=auto_provision_dbs
+            ).get_app()
+            with pytest.raises(SandboxError) as refused:
+                async with app.router.lifespan_context(app):
+                    pass
+            assert "does not reference run table" in str(refused.value)
+            assert "pass PostgresDb(sandbox_table=...)" in str(refused.value)
+        # A deployment that provisions its own tables is validated, never provisioned, at startup.
+        with db.db_engine.begin() as connection:
+            connection.execute(text(f'DROP TABLE "{db.db_schema}"."{db.sandbox_table_name}"'))
+        db._invalidate_table_cache(db.sandbox_table_name)
+        app = AgentOS(id="unprovisioned-" + suffix, agents=[stale], db=db, telemetry=False, auto_provision_dbs=False)
+        app = app.get_app()
+        async with app.router.lifespan_context(app):
+            pass
+        assert not db.table_exists(db.sandbox_table_name), "startup did not create the bindings table"
     finally:
         with db.db_engine.begin() as connection:
             for table in ("startup_bindings_", "startup_runs_", "startup_sessions_"):

@@ -160,13 +160,14 @@ class _SandboxStore:
             raise TypeError("Use async sandbox store methods with AsyncPostgresDb")
         return _sync(function(*args, **kwargs))
 
-    async def _table(self, table_type: str, table_name: str) -> Table:
+    async def _table(self, table_type: str, table_name: str, create: bool = True) -> Optional[Table]:
+        """The table, created on first use; None when ``create`` is off and it does not exist."""
         db = self.db
         try:
             if isinstance(db, AsyncPostgresDb):
-                table = await db._get_table(table_type, create_table_if_not_found=True)
+                table = await db._get_table(table_type, create_table_if_not_found=create)
             else:
-                table = await _settled(asyncio.to_thread(db._get_table, table_type, create_table_if_not_found=True))
+                table = await _settled(asyncio.to_thread(db._get_table, table_type, create_table_if_not_found=create))
         except Exception as exc:
             # Another process may have won the first CREATE TABLE.
             cause = getattr(exc, "orig", exc)
@@ -177,17 +178,25 @@ class _SandboxStore:
                 table = await db._get_table(table_type)
             else:
                 table = await _settled(asyncio.to_thread(db._get_table, table_type))
-        if table is None:
+        if table is None and create:
             raise SandboxError(f"Sandbox coordination could not create the {table_type} table")
         return table
 
-    async def _ensure_tables(self) -> None:
+    async def _ensure_tables(self, create: bool = True) -> None:
+        """Create the tables on first use and validate the bindings table's shape.
+
+        With ``create`` off, a deployment that provisions its own tables is only validated:
+        a table that does not exist yet is left for first use, which creates it as before.
+        """
         if self._tables_ready:
             return
         # Creation is idempotent, so concurrent first calls need no lock.
-        self.sessions = await self._table("sessions", self.db.session_table_name)
-        self.runs = await self._table("runs", self.db.runs_table_name)
-        self.bindings = await self._table("sandbox_bindings", self.db.sandbox_table_name)
+        sessions = await self._table("sessions", self.db.session_table_name, create)
+        runs = await self._table("runs", self.db.runs_table_name, create)
+        bindings = await self._table("sandbox_bindings", self.db.sandbox_table_name, create)
+        if sessions is None or runs is None or bindings is None:
+            return
+        self.sessions, self.runs, self.bindings = sessions, runs, bindings
 
         def qualified(table: Table) -> str:
             # Reflection can leave a same-schema reference unqualified.

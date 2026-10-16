@@ -84,8 +84,8 @@ def _check_db(agent: "BaseExternalAgent") -> None:
         raise ValueError("A sandboxed agent requires a PostgresDb or AsyncPostgresDb, on the agent or its AgentOS")
 
 
-async def acheck_tables(agent: "BaseExternalAgent") -> None:
-    """Create or validate the sandbox tables on the agent's database.
+async def acheck_tables(agent: "BaseExternalAgent", create: bool = True) -> None:
+    """Validate the sandbox tables on the agent's database, creating them first unless ``create`` is off.
 
     A bindings table left by another build fails every turn inside the queue worker, where
     only the log sees it; checking at startup and at submission puts the error and its
@@ -96,9 +96,9 @@ async def acheck_tables(agent: "BaseExternalAgent") -> None:
     _check_db(agent)
     for db, existing in _coordinators.get(_sandbox(agent), []):
         if db is agent.db:
-            await existing.store._ensure_tables()
+            await existing.store._ensure_tables(create)
             return
-    await _SandboxStore(agent.db)._ensure_tables()  # type: ignore[arg-type]
+    await _SandboxStore(agent.db)._ensure_tables(create)  # type: ignore[arg-type]
 
 
 def validate(agent: "BaseExternalAgent") -> None:

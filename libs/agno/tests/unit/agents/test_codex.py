@@ -241,7 +241,7 @@ def test_thread_kwargs_map_to_sdk_options(fake_sdk):
         model="gpt-5.6-luna",
         instructions="Be terse.",
         base_instructions="You are Codex.",
-        sandbox="workspace-write",
+        sandbox_mode="workspace-write",
         approval_mode="deny_all",
         cwd="/repo",
         ephemeral=True,
@@ -526,7 +526,7 @@ def test_non_stream_returns_final_response(fake_sdk):
         _agent_message("m1", "pong", phase="final_answer"),
         _turn_completed(),
     ]
-    agent = CodexAgent(name="Codex", id="codex", sandbox="read-only")
+    agent = CodexAgent(name="Codex", id="codex", sandbox_mode="read-only")
 
     out = asyncio.run(agent._arun_non_stream("ping", session_id="s1"))
 
@@ -917,7 +917,7 @@ def test_named_settings_win_in_both_option_layers(fake_sdk):
     agent = CodexAgent(
         model="named",
         instructions="",
-        sandbox="read-only",
+        sandbox_mode="read-only",
         approval_mode="deny_all",
         cwd="/named",
         service_tier="default",
@@ -1188,7 +1188,7 @@ def test_compact_resumes_with_the_same_translated_options_as_a_run(fake_client, 
     agent = _started_session(
         fake_client.state,
         tmp_db,
-        sandbox="full-access",
+        sandbox_mode="full-access",
         instructions="Always answer in French.",
         approval_mode="deny_all",
         ephemeral=False,
@@ -1708,3 +1708,23 @@ def test_metrics_page_counts_codex_runs_per_model(fake_sdk, tmp_db):
     body = client.get("/metrics").json()
     days = body["metrics"] if isinstance(body, dict) else body
     assert days[-1]["model_metrics"] == [{"model_id": "gpt-5.6-luna", "model_provider": "OpenAI", "count": 2}]
+
+
+@pytest.mark.parametrize("stream", [False, True])
+def test_strict_native_resume_does_not_start_another_thread(fake_sdk, tmp_db, stream):
+    fake_sdk.notifications = [_delta("m1", "ok"), _turn_completed()]
+    agent = CodexAgent(id="codex", db=tmp_db, require_native_resume=True)
+    agent.run("first", session_id="s1")
+    fake_sdk.unresumable.add("thread-1")
+    if stream:
+        events = list(agent.run("second", session_id="s1", stream=True, yield_run_output=True))
+        assert events[-1].status == RunStatus.error
+    else:
+        assert agent.run("second", session_id="s1").status == RunStatus.error
+    assert sum(c["op"] == "thread_start" for c in fake_sdk.calls) == 1
+    assert agent.read_or_create_session("s1").session_data["codex_thread_id"] == "thread-1"
+
+
+def test_strict_native_resume_rejects_ephemeral_threads():
+    with pytest.raises(ValueError, match="ephemeral"):
+        CodexAgent(require_native_resume=True, ephemeral=True)

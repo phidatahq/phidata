@@ -200,6 +200,7 @@ async def db_lifespan(app: FastAPI, agent_os: "AgentOS"):
     if agent_os.auto_provision_dbs:
         agent_os._initialize_sync_databases()
         await agent_os._initialize_async_databases()
+    await agent_os._acheck_sandbox_tables()
 
     yield
 
@@ -1107,6 +1108,18 @@ class AgentOS:
             lifespan=lifespan,
         )
 
+    async def _acheck_sandbox_tables(self) -> None:
+        """Fail startup, with the remedy, when a sandboxed agent's bindings table is from another build.
+
+        Tables are created here only when the OS provisions databases; otherwise an existing
+        table is validated and a missing one is left to the deployment, as the first run was.
+        """
+        for entry in self.agents or []:
+            if isinstance(entry, BaseExternalAgent) and entry.sandbox is not None and entry.db is not None:
+                from agno.sandbox import _harness
+
+                await _harness.acheck_tables(entry, create=self.auto_provision_dbs)
+
     def _initialize_agents(self) -> None:
         """Initialize and configure all agents for AgentOS usage."""
         # Inject db into external framework agents (not covered by self._agents)
@@ -1115,6 +1128,11 @@ class AgentOS:
                 if self.db is not None and entry.db is None:
                     entry.db = self.db
                 entry.store_events = True
+                if entry.sandbox is not None:
+                    from agno.sandbox import _harness
+
+                    # Fail at startup, not on the first run, when the sandbox has no Postgres to coordinate on.
+                    _harness._check_db(entry)
 
         # Manager specialists need normal initialization, but are not served agents.
         agents_to_initialize = [*self._agents, *(self._manager.agents if self._manager else [])]

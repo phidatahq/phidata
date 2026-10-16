@@ -392,10 +392,10 @@ class CompanyManager:
             component = _executor(self.registry, executor_type, executor_id, accepting=True)
             from agno.company.sandbox import _accept_checkout, _accept_sandbox, _is_sandboxed
 
+            existing = self.db.get_task(task_id, user_id=user_id)
+            if existing is None:
+                return None
             if _is_sandboxed(component):
-                existing = self.db.get_task(task_id, user_id=user_id)
-                if existing is None:
-                    return None
                 sources = []
                 page = 1
                 while True:
@@ -405,7 +405,7 @@ class CompanyManager:
                         break
                     page += 1
                 _accept_sandbox(component, sources)
-                _accept_checkout(component, existing)
+            _accept_checkout(component, existing)
         return self.db.transition_task(
             task_id,
             target,
@@ -1212,10 +1212,10 @@ class AsyncCompanyManager:
             component = _executor(self.registry, executor_type, executor_id, accepting=True)
             from agno.company.sandbox import _accept_checkout, _accept_sandbox, _is_sandboxed
 
+            existing = await self.db.get_task(task_id, user_id=user_id)
+            if existing is None:
+                return None
             if _is_sandboxed(component):
-                existing = await self.db.get_task(task_id, user_id=user_id)
-                if existing is None:
-                    return None
                 sources = []
                 page = 1
                 while True:
@@ -1225,7 +1225,7 @@ class AsyncCompanyManager:
                         break
                     page += 1
                 _accept_sandbox(component, sources)
-                _accept_checkout(component, existing)
+            _accept_checkout(component, existing)
         return await self.db.transition_task(
             task_id,
             target,

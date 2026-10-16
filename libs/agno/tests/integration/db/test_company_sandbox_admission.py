@@ -510,3 +510,59 @@ async def test_recovery_waits_for_missing_sandbox_executor(sandbox_system, monke
     assert await _call(db, "get_task", task["id"]) == task
     assert (await _recover_task(os, worker, task))["action"] == "reconciled"
     assert (await _call(db, "get_task", task["id"]))["metadata"]["checkout"] == {"source_id": task["id"], **PIN}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("kind,executor_id", [("agent", "writer"), ("team", "editors"), ("workflow", "draft")])
+@pytest.mark.parametrize("pinned", [False, True])
+async def test_pinned_task_refuses_non_sandboxed_reacceptance(sandbox_system, kind, executor_id, pinned):
+    from agno.company.execution import _recover_task
+    from tests.integration.db.test_company_failure_recovery import delete_ticket
+
+    client, db, worker, os, agent = sandbox_system
+    task = await engineering_task(client, db)
+    path = "/company/tasks/" + task["id"]
+    if pinned:
+        assert (await client.post(path + "/runs")).status_code == 202
+        reserved = await _call(db, "get_task", task["id"])
+        run = agent.db.get_run(reserved["job_id"], deserialize=False)
+        agent.db.upsert_run(
+            {**run["run_data"], "status": "COMPLETED", "metadata": {"sandbox": {"repository": PIN}}},
+            session_id=task["session_id"],
+        )
+        delete_ticket(worker, reserved["job_id"])
+        assert (await _recover_task(os, worker, reserved))["action"] == "reconciled"
+    assert (
+        await client.post(path + "/transitions", json={"target": "backlog", "reason": "Reassign work"})
+    ).status_code == 200
+    before = await _call(db, "get_task", task["id"])
+    response = await client.post(
+        path + "/transitions",
+        json={"target": "ready", "reason": "New executor", "executor_type": kind, "executor_id": executor_id},
+    )
+    if not pinned:
+        assert response.status_code == 200, response.text
+        assert response.json()["executor_type"] == kind and response.json()["executor_id"] == executor_id
+        return
+    assert response.status_code == 409 and "requires a sandboxed executor" in response.text, response.text
+    assert await _call(db, "get_task", task["id"]) == before
+    # A compatible executor can still reuse the pinned session and recover a retry.
+    ready = await client.post(
+        path + "/transitions",
+        json={"target": "ready", "reason": "Keep repository", "executor_type": "agent", "executor_id": "engineer"},
+    )
+    assert ready.status_code == 200, ready.text
+    retry = await client.post(path + "/runs", json={"attempt": 2})
+    assert retry.status_code == 202, retry.text
+    reserved = await _call(db, "get_task", task["id"])
+    run = agent.db.get_run(reserved["job_id"], deserialize=False)
+    agent.db.upsert_run(
+        {**run["run_data"], "status": "COMPLETED", "metadata": {"sandbox": {"repository": PIN}}},
+        session_id=task["session_id"],
+    )
+    delete_ticket(worker, reserved["job_id"])
+    assert (await _recover_task(os, worker, reserved))["action"] == "reconciled"
+    saved = await _call(db, "get_task", task["id"])
+    assert saved["session_id"] == task["session_id"]
+    assert saved["metadata"] == before["metadata"]
+    assert saved["result"]["status"] == "COMPLETED"

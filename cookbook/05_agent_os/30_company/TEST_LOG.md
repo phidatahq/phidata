@@ -210,3 +210,13 @@ No paid model calls or real outbound notification deliveries were exercised.
 **Result:** All 20 recovery regressions passed across sync/async SQLite and PostgreSQL. The complete Company/lifecycle matrix passed 1,864 cases with PostgreSQL and MongoDB enabled and no skips. The affected unit suite passed 1,751 tests (35 conditional skips); all 12 Docker and 183 queue-store parity cases passed. Cookbook configuration smoke, full format, clean Python 3.10 validation and whitespace checks passed. No paid model calls. These are local results; CI and independent review remain separate.
 
 ---
+
+### PR 7.2 pinned Task acceptance consistency
+
+**Status:** PASS
+
+**Description:** Sync and async acceptance now reject a pinned Task's reassignment to a non-sandboxed agent, team or workflow with HTTP 409. Unpinned Tasks retain their existing behavior. The four-adapter regression covers refusal without mutation and successful session/pin reuse and recovery after selecting a compatible sandboxed executor. All 12 pinned cases failed before the fix; all 24 pinned/unpinned cases pass afterward.
+
+**Result:** All 148 focused sandbox/checkout tests, 1,751 affected unit tests (35 conditional skips), and 12 Docker cases passed. The broad Company/lifecycle run passed 1,886 cases and exposed two async concurrency fixtures pausing at the new preliminary validation read rather than the intended SQL transition read. The fixture now pauses within the transition transaction; the complete 40-case Task lifecycle suite passed on rerun, yielding 1,888 distinct passing integration cases. Full format, clean Python 3.10 validation, cookbook configuration smoke and whitespace checks passed. No paid model calls. Recovery and queue admission production code are unchanged.
+
+---

@@ -2558,3 +2558,21 @@ Unmodified G cannot create a policy without the now-required expiry. Original E/
 Warnings include existing short JWT fixture keys, duplicate OpenAPI operation IDs and async SQLite event-loop cleanup warnings. Tests and cookbooks make no live-provider or hosted-performance claim. Published history was preserved through normal merge/fix commits; quiet automation run history remains exclusively in #11118.
 
 ---
+
+### PR 6 integration with main's Heartbeat squash — October 16, 2026
+
+**Status:** PASS for completed checks; full unit suite still running at publication, as requested.
+
+**Description:** Integrated main at `9b3dc3f65c` (including v3.1.4 and sandbox support) with one normal merge commit, retaining published history. `_CompanyScheduleExecutor` subclasses the existing Company executor and receives both databases plus transport settings from lifespan. Archived Products still disable Routine schedules with `company_product_archived`; the automation row is not subject to the Product check. Routine routes hide the automation ID with 404, while other Company rows missing Product metadata receive 409; generic-router refusal precedes the runtime-row guard. Editable Routine fields, policy reauthorization, Product-bound authority and agent/team website discovery remain intact.
+
+This entry supersedes the guarded-acceptance claims in the earlier review-fix entry. At the requested boundary, automatic SQL transitions now compare only the observed `updated_at` and the existing status/non-terminal-Task predicates. Removed all checked-field/child-set parameters and comparisons in sync/async managers and the four SQL adapters. Same-second scope edits are indistinguishable; child evidence changes do not advance the Project timestamp. These two earlier review findings are not claimed fixed under this timestamp-only decision. Tests explicitly preserve the status gate in the same-second window and refuse later timestamp edits or current non-terminal children. There is no automation run-history change; quiet history remains in #11118.
+
+**Result:** 975 Company/scheduler/parent lifecycle integration tests passed without skips across SQLite/PostgreSQL sync and async adapters. The focused merge selection passed 75 cases. The full db, os, scheduler and tools unit suite, plus sandbox units, is still running at publication; no final unit result is claimed. Initial collection lacked optional tool SDKs; these were installed and all original development dependency versions restored before the current run.
+
+`./scripts/format.sh` and clean Python 3.10 `./scripts/validate.sh` passed, with complete output read (1,178 framework and 21 CLI files). Development Python 3.12 validation was also run: this tree and exact main have the same 41 diagnostics in 15 files under identical installed dependencies, with zero introduced diagnostics. The optional SDKs explain the larger baseline than earlier entries. `git diff --check` passed.
+
+All 13 offline cookbook invocations passed: `01_manage_products.py`, `02_manage_projects.py`, `03_manage_tasks.py`, `04_manage_playbook.py`, `05_product_manager.py`, `06_execute_tasks.py`, `07_cascading_archive.py`, `07_heartbeat.py`, and `08_custom_routines.py`; additional PostgreSQL manual execution, SQLite/PostgreSQL automation execution and PostgreSQL cascading archive modes. No live-model or live-delivery claim is made.
+
+The retained four-adapter tests prove null-template completion denial, instruction-only edits preserving fingerprint and spent budget, agent-discovered website Source evidence, executor-less Intake through the real queue, concurrent pickup/restart, policy revocation, exhausted budgets, refused completion and all Task/Project write timestamps. Supplied release probes were not rerun in this merge; their earlier results above remain historical evidence, not proof that the removed scope/child-set guards remain effective.
+
+---

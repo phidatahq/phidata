@@ -392,7 +392,9 @@ class _CompanyScheduleExecutor(CompanyScheduleExecutor):
     """Run the existing scheduler's claimed Company tick, without another loop."""
 
     def __init__(self, agent_os, app, **kwargs):
-        super().__init__(company_db=agent_os._company_db, schedule_db=agent_os.db, **kwargs)
+        kwargs.setdefault("company_db", agent_os._company_db)
+        kwargs.setdefault("schedule_db", agent_os.db)
+        super().__init__(**kwargs)
         self.agent_os = agent_os
         self.app = app
 
@@ -503,10 +505,6 @@ class _CompanyScheduleExecutor(CompanyScheduleExecutor):
             "project_id": project["id"],
             "routine_id": routine_id,
             "evidence": [item for task in tasks for item in (task.get("evidence") or [])],
-            "_checked_children": [
-                {key: task.get(key) for key in ("id", "status", "evidence", "deleted_at", "updated_at")}
-                for task in tasks
-            ],
         }
 
     async def _accept(self, task, *, completing=False):
@@ -653,8 +651,6 @@ class _CompanyScheduleExecutor(CompanyScheduleExecutor):
                     "Authorized Refresh completion proposal",
                     accepted_by=grant.get("user_id"),
                     expected_updated_at=task["updated_at"],
-                    expected_scope={key: task.get(key) for key in ("name", "outcome", "target_date")},
-                    expected_children=task["_checked_children"],
                     auto_accept=receipt,
                 )
             else:
@@ -668,18 +664,6 @@ class _CompanyScheduleExecutor(CompanyScheduleExecutor):
                     executor_type=policy.executor_type,
                     executor_id=policy.executor_id,
                     expected_updated_at=task["updated_at"],
-                    expected_scope={
-                        key: task.get(key)
-                        for key in (
-                            "status",
-                            "title",
-                            "brief",
-                            "project_id",
-                            "evidence",
-                            "executor_type",
-                            "executor_id",
-                        )
-                    },
                     auto_accept=receipt,
                 )
         if accepted is None:
@@ -723,18 +707,6 @@ class _CompanyScheduleExecutor(CompanyScheduleExecutor):
                     "backlog",
                     str(exc),
                     expected_updated_at=task["updated_at"],
-                    expected_scope={
-                        key: task.get(key)
-                        for key in (
-                            "status",
-                            "title",
-                            "brief",
-                            "project_id",
-                            "evidence",
-                            "executor_type",
-                            "executor_id",
-                        )
-                    },
                 )
             raise
         attempts = [entry["attempt"] for entry in task["transitions"] if entry.get("attempt")]

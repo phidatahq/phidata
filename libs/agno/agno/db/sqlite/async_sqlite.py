@@ -5867,8 +5867,6 @@ class AsyncSqliteDb(AsyncBaseDb):
         user_id: Optional[str] = None,
         accepted_by: Optional[str] = None,
         expected_updated_at: Optional[int] = _UNSET_UPDATED_AT,
-        expected_scope: Optional[Dict[str, Any]] = None,
-        expected_children: Optional[List[Dict[str, Any]]] = None,
         auto_accept: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, Any]]:
         """Apply a lifecycle transition only if the observed state still matches."""
@@ -5891,8 +5889,6 @@ class AsyncSqliteDb(AsyncBaseDb):
             if auto_accept is not None:
                 if target != "done" or expected_updated_at is _UNSET_UPDATED_AT or products is None or tasks is None:
                     raise ValueError("Automatic completion requires expected_updated_at and a Project with Tasks")
-                if expected_scope is None or expected_children is None:
-                    raise ValueError("Automatic completion requires checked Project scope and child Tasks")
                 task_histories: Sequence[Optional[List[Dict[str, Any]]]] = (
                     (
                         await sess.execute(
@@ -5936,45 +5932,6 @@ class AsyncSqliteDb(AsyncBaseDb):
                 update = update.where(~open_query.exists())
             if expected_updated_at is not _UNSET_UPDATED_AT:
                 update = update.where(table.c.updated_at == expected_updated_at)
-            if expected_scope is not None:
-                for key in ("name", "outcome", "target_date"):
-                    if key not in expected_scope:
-                        raise ValueError("Incomplete checked Project scope")
-                    update = update.where(table.c[key] == expected_scope[key])
-            if expected_children is not None:
-                from sqlalchemy import JSON, and_, func
-
-                if tasks_table is None:
-                    raise ValueError("Checked child Tasks require a completion transition")
-                # Product locking serializes child writes with this atomic guard.
-                # Count plus unmatched-row detection covers additions and removals,
-                # including archived Tasks as required by the completion gate.
-                matches = []
-                for child in expected_children:
-                    predicates = []
-                    for key in ("id", "status", "evidence", "deleted_at", "updated_at"):
-                        if key not in child:
-                            raise ValueError("Incomplete checked child Task")
-                        value = child[key]
-                        if key == "evidence" and value is None:
-                            predicates.append(
-                                or_(tasks_table.c.evidence.is_(None), tasks_table.c.evidence == JSON.NULL)
-                            )
-                        else:
-                            predicates.append(tasks_table.c[key] == value)
-                    matches.append(and_(*predicates))
-                child_count = (
-                    select(func.count())
-                    .select_from(tasks_table)
-                    .where(tasks_table.c.project_id == project_id)
-                    .scalar_subquery()
-                )
-                changed_child = (
-                    select(tasks_table.c.id)
-                    .where(tasks_table.c.project_id == project_id, ~or_(False, *matches))
-                    .exists()
-                )
-                update = update.where(child_count == len(expected_children), ~changed_child)
             if user_id is not None:
                 update = update.where(table.c.user_id == user_id)
             result = (await sess.execute(update.values(**fields).returning(table))).fetchone()
@@ -6293,7 +6250,6 @@ class AsyncSqliteDb(AsyncBaseDb):
         executor_type: Optional[str] = None,
         executor_id: Optional[str] = None,
         expected_updated_at: Optional[int] = _UNSET_UPDATED_AT,
-        expected_scope: Optional[Dict[str, Any]] = None,
         auto_accept: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, Any]]:
         """Apply a lifecycle transition only if the observed state still matches."""
@@ -6313,8 +6269,6 @@ class AsyncSqliteDb(AsyncBaseDb):
                 await sess.run_sync(lock_child, products, projects, table, task_id)
                 if expected_updated_at is _UNSET_UPDATED_AT or products is None:
                     raise ValueError("Automatic acceptance requires expected_updated_at and a Product")
-                if expected_scope is None:
-                    raise ValueError("Automatic acceptance requires checked Task scope")
                 prior: Sequence[Optional[List[Dict[str, Any]]]] = (
                     (
                         await sess.execute(
@@ -6350,19 +6304,6 @@ class AsyncSqliteDb(AsyncBaseDb):
             )
             if expected_updated_at is not _UNSET_UPDATED_AT:
                 update = update.where(table.c.updated_at == expected_updated_at)
-            if expected_scope is not None:
-                # Scope edits are legal in Backlog, including within one second.
-                # Compare each checked editable field in the atomic UPDATE.
-                for key in ("status", "title", "brief", "project_id", "evidence", "executor_type", "executor_id"):
-                    if key not in expected_scope:
-                        raise ValueError("Incomplete checked Task scope")
-                    value = expected_scope[key]
-                    if key == "evidence" and value is None:
-                        from sqlalchemy import JSON
-
-                        update = update.where(or_(table.c.evidence.is_(None), table.c.evidence == JSON.NULL))
-                    else:
-                        update = update.where(table.c[key] == value)
             if user_id is not None:
                 update = update.where(table.c.user_id == user_id)
             result = (await sess.execute(update.values(**fields).returning(table))).fetchone()

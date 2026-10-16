@@ -90,8 +90,12 @@ def get_heartbeat_router(agent_os: Any) -> APIRouter:
         return row
 
     async def routine(routine_id, request):
+        from agno.db.schemas.scheduler import COMPANY_AUTOMATION_SCHEDULE_ID
+
+        if routine_id == COMPANY_AUTOMATION_SCHEDULE_ID:
+            raise HTTPException(404, "Routine not found")
         row = await call(handlers["get_schedule"], routine_id, request)
-        if row.get("managed_by") != "company" or not (row.get("payload") or {}).get("metadata", {}).get("product_id"):
+        if row.get("managed_by") != "company":
             raise HTTPException(404, "Routine not found")
         if not (row.get("payload") or {}).get("metadata", {}).get("product_id"):
             raise HTTPException(409, "Routine is missing its Product metadata")

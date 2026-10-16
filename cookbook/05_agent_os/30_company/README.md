@@ -388,11 +388,11 @@ Automatic transitions compare the observed `updated_at` with the stored value,
 including SQL NULL for a record that has never been updated. The existing status
 and terminal-Task predicates remain in the database UPDATE. `updated_at` uses
 epoch seconds: two writes in the same second share that timestamp, while the
-status predicate still holds in that window. Automatic acceptance also compares
-the checked editable Task fields in the atomic UPDATE. Completion compares the
-checked Project fields and its child Tasks' IDs, status, evidence, archive markers
-and timestamps, including archived Tasks. This refuses same-second scope edits
-and child additions or changes. No full-row snapshots are compared in Python.
+status predicate still holds in that window. There are no field snapshots or
+child-set comparisons in SQL or Python. A same-second scope edit is therefore
+indistinguishable from the checked record. Project completion still refuses any
+current non-terminal Task, but child evidence changes do not advance the Project's
+timestamp and are not fenced by this comparison.
 
 Each minute it checks Ready Tasks and authorized Routine proposals. It uses the scheduler's ordinary claims,
 release, and run history. No extra loop, table, or route is installed. Skipped

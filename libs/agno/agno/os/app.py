@@ -232,7 +232,14 @@ async def scheduler_lifespan(app: FastAPI, agent_os: "AgentOS"):
     if agent_os.company is not None:
         from agno.company.routines import _CompanyScheduleExecutor
 
-        executor = _CompanyScheduleExecutor(agent_os, app, base_url=base_url, internal_service_token=internal_token)
+        executor = _CompanyScheduleExecutor(
+            agent_os,
+            app,
+            company_db=agent_os._company_db,
+            schedule_db=agent_os.db,
+            base_url=base_url,
+            internal_service_token=internal_token,
+        )
     else:
         executor = ScheduleExecutor(base_url=base_url, internal_service_token=internal_token)
     poller = SchedulePoller(

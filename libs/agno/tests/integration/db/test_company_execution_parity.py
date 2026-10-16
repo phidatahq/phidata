@@ -1559,7 +1559,7 @@ async def test_runtime_automation_schedule_rejects_public_mutation(system, tmp_p
         await client.post(path + "/trigger"),
     ]:
         assert response.status_code == 409, response.text
-        assert "managed" in response.json()["detail"]
+        assert response.json()["detail"] == "Company-managed schedules must be changed through /company/routines"
     manager = ScheduleManager(db)
     for method in ("update", "delete", "enable", "disable", "aupdate", "adelete", "aenable", "adisable"):
         with pytest.raises(ValueError, match="runtime-managed"):
@@ -1890,9 +1890,13 @@ async def test_automation_schedule_follows_company_lifespan(system, monkeypatch)
     os.company = company
     async with scheduler_lifespan(app, os):
         assert isinstance(app.state.scheduler_executor, _CompanyScheduleExecutor)
+        assert app.state.scheduler_executor.company_db is os._company_db
+        assert app.state.scheduler_executor.schedule_db is os.db
         assert (await _call(db, "get_schedule", _AUTOMATION_SCHEDULE_ID))["enabled"] is True
         result = await tick(app.state.scheduler_executor, db)
         assert result["status"] == "success", result
+        saved = await _call(db, "get_schedule", _AUTOMATION_SCHEDULE_ID)
+        assert saved["enabled"] is True and saved.get("disabled_reason") is None
 
 
 @pytest.mark.asyncio
@@ -1986,18 +1990,6 @@ async def test_transition_updated_at_compare_and_set(system, monkeypatch, kind, 
         options["auto_accept"] = {"routine_id": "routine", "policy": "version", "max_acceptances": 1}
         with pytest.raises(ValueError, match="requires expected_updated_at"):
             await _call(db, "transition_" + kind, record["id"], target, "Accept", **options)
-        fields = (
-            ("status", "title", "brief", "project_id", "evidence", "executor_type", "executor_id")
-            if kind == "task"
-            else ("name", "outcome", "target_date")
-        )
-        options["expected_scope"] = {key: record.get(key) for key in fields}
-        if kind == "project":
-            children, _ = await _call(db, "get_tasks", project_id=record["id"], include_deleted=True)
-            options["expected_children"] = [
-                {key: child.get(key) for key in ("id", "status", "evidence", "deleted_at", "updated_at")}
-                for child in children
-            ]
     # Wrong timestamps (including NULL versus an integer) never transition.
     if timestamp is not None:
         assert (
@@ -2021,7 +2013,8 @@ async def test_transition_updated_at_compare_and_set(system, monkeypatch, kind, 
 
 
 @pytest.mark.asyncio
-async def test_same_second_timestamp_keeps_status_guard(system, monkeypatch):
+@pytest.mark.parametrize("automatic", [False, True])
+async def test_same_second_timestamp_keeps_status_guard(system, monkeypatch, automatic):
     from agno.company.execution import _call
 
     client, db, worker, os, _ = system
@@ -2031,6 +2024,8 @@ async def test_same_second_timestamp_keeps_status_guard(system, monkeypatch):
     observed = await _call(db, "update_task", task["id"], title="Observed")
     await _call(db, "update_task", task["id"], title="Edited in the same second")
     options = dict(expected_updated_at=observed["updated_at"], executor_type="agent", executor_id="writer")
+    if automatic:
+        options["auto_accept"] = {"routine_id": "routine", "policy": "version", "max_acceptances": 2}
     accepted = await _call(db, "transition_task", task["id"], "ready", "Accept", **options)
     assert accepted["title"] == "Edited in the same second"
     assert accepted["updated_at"] == observed["updated_at"]
@@ -2044,7 +2039,7 @@ async def test_same_second_timestamp_keeps_status_guard(system, monkeypatch):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("changed", ["title", "brief", "project_id", "evidence", "executor_id"])
-async def test_checked_task_scope_refuses_same_second_edit(system, monkeypatch, changed):
+async def test_automatic_task_timestamp_refuses_later_edit(system, monkeypatch, changed):
     from agno.company.execution import _call
 
     client, db, _, _, _ = system
@@ -2060,9 +2055,9 @@ async def test_checked_task_scope_refuses_same_second_edit(system, monkeypatch, 
         "evidence": [{"source_id": "new"}],
         "executor_id": "other",
     }
+    monkeypatch.setattr(time, "time", lambda: 101)
     edited = await _call(db, "update_task", task["id"], **{changed: values[changed]})
-    assert edited["updated_at"] == observed["updated_at"]
-    fields = ("status", "title", "brief", "project_id", "evidence", "executor_type", "executor_id")
+    assert edited["updated_at"] != observed["updated_at"]
     receipt = {"routine_id": "routine", "policy": "version", "max_acceptances": 1}
     result = await _call(
         db,
@@ -2073,7 +2068,6 @@ async def test_checked_task_scope_refuses_same_second_edit(system, monkeypatch, 
         executor_type="agent",
         executor_id="writer",
         expected_updated_at=observed["updated_at"],
-        expected_scope={key: observed[key] for key in fields},
         auto_accept=receipt,
     )
     assert result is None
@@ -2304,7 +2298,7 @@ async def test_routine_instruction_edit_preserves_fingerprint_and_spent_budget(s
 
 
 @pytest.mark.asyncio
-async def test_same_second_scope_move_cannot_accept_or_queue(system, tmp_path, monkeypatch):
+async def test_later_scope_move_cannot_accept_or_queue(system, tmp_path, monkeypatch):
     from agno.company.execution import _call
 
     client, db, worker, os, _ = system
@@ -2317,9 +2311,10 @@ async def test_same_second_scope_move_cannot_accept_or_queue(system, tmp_path, m
     task = await _call(db, "update_task", task["id"], brief="Observed scope")
 
     async def move_task(observed, manager):
+        monkeypatch.setattr(time, "time", lambda: now + 1)
         response = await client.patch("/company/tasks/" + task["id"], json={"project_id": outside["id"]})
         assert response.status_code == 200
-        assert response.json()["updated_at"] == task["updated_at"]
+        assert response.json()["updated_at"] != task["updated_at"]
         return True
 
     os.company.acceptance_checks["move_task"] = move_task
@@ -2334,8 +2329,8 @@ async def test_same_second_scope_move_cannot_accept_or_queue(system, tmp_path, m
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("change", ["add_terminal", "archive_child", "edit_project"])
-async def test_completion_checked_facts_are_atomic(system, tmp_path, monkeypatch, change):
+@pytest.mark.parametrize("change", ["add_terminal", "add_nonterminal", "archive_child", "edit_project"])
+async def test_completion_uses_project_timestamp_and_terminal_task_gate(system, tmp_path, monkeypatch, change):
     from agno.company.execution import _call
     from agno.company.routines import _manager_call, _policy_fingerprint
 
@@ -2347,7 +2342,7 @@ async def test_completion_checked_facts_are_atomic(system, tmp_path, monkeypatch
     await _call(db, "update_project", task["project_id"], name="Observed")
 
     async def change_facts(proposal, check_manager):
-        if change == "add_terminal":
+        if change in {"add_terminal", "add_nonterminal"}:
             await _call(
                 db,
                 "create_task",
@@ -2355,18 +2350,19 @@ async def test_completion_checked_facts_are_atomic(system, tmp_path, monkeypatch
                     id=str(uuid4()),
                     product_id=task["product_id"],
                     project_id=task["project_id"],
-                    title="Outside evidence",
-                    status="cancelled",
+                    title="New child",
+                    status="cancelled" if change == "add_terminal" else "backlog",
                     created_at=now,
-                    evidence=[{"source_id": "outside"}],
+                    evidence=task["evidence"],
                     transitions=[],
                 ),
             )
         elif change == "archive_child":
             assert await _call(db, "delete_task", task["id"])
         else:
-            updated = await _call(db, "update_project", task["project_id"], name="Changed within same second")
-            assert updated["updated_at"] == proposal["updated_at"]
+            monkeypatch.setattr(time, "time", lambda: now + 1)
+            updated = await _call(db, "update_project", task["project_id"], name="Changed later")
+            assert updated["updated_at"] != proposal["updated_at"]
         return True
 
     os.company.acceptance_checks["change_facts"] = change_facts
@@ -2379,11 +2375,20 @@ async def test_completion_checked_facts_are_atomic(system, tmp_path, monkeypatch
     project = await _manager_call(manager, "get_project", task["project_id"])
     proposal = await executor._completion_candidate(manager, project, routine["id"])
     assert proposal is not None
-    with pytest.raises(ValueError, match="changed during automatic acceptance"):
-        await executor._accept(proposal, completing=True)
-    assert (await _call(db, "get_project", project["id"]))["status"] == "active"
+    refused = change in {"add_nonterminal", "edit_project"}
+    if refused:
+        reason = "Project has open Tasks" if change == "add_nonterminal" else "changed during automatic acceptance"
+        with pytest.raises(ValueError, match=reason):
+            await executor._accept(proposal, completing=True)
+    else:
+        # Completion guards the Project timestamp and current terminal status,
+        # without comparing the child set with the earlier proposal snapshot.
+        assert (await executor._accept(proposal, completing=True))["status"] == "done"
+    assert (await _call(db, "get_project", project["id"]))["status"] == ("active" if refused else "done")
     schedule = await _call(db, "get_schedule", routine["id"])
-    assert await _call(db, "count_company_acceptances", routine["id"], _policy_fingerprint(schedule), "") == 0
+    assert await _call(db, "count_company_acceptances", routine["id"], _policy_fingerprint(schedule), "") == (
+        0 if refused else 1
+    )
 
 
 @pytest.mark.asyncio

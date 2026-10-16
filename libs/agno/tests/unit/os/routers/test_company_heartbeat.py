@@ -58,6 +58,37 @@ def test_routine_scheduler_wrappers(system):
     assert len(client.get("/company/routines").json()["data"]) == 1
 
 
+def test_routine_routes_hide_automation_and_report_missing_product(system):
+    from agno.db.schemas.scheduler import COMPANY_AUTOMATION_SCHEDULE_ID
+
+    client, _, db = system
+    for identifier in (COMPANY_AUTOMATION_SCHEDULE_ID, "missing-product"):
+        if db.get_schedule(identifier) is None:
+            db.create_schedule(
+                Schedule(
+                    id=identifier,
+                    name=identifier,
+                    cron_expr="0 * * * *",
+                    endpoint="/agents/reader/runs",
+                    managed_by="company",
+                    payload={"metadata": {}},
+                ).to_dict()
+            )
+        path = "/company/routines/" + identifier
+        responses = [
+            client.patch(path, json={"instructions": "Updated"}),
+            client.post(path + "/pause"),
+            client.post(path + "/resume"),
+            client.get(path + "/runs"),
+        ]
+        expected = 404 if identifier == COMPANY_AUTOMATION_SCHEDULE_ID else 409
+        for response in responses:
+            assert response.status_code == expected, response.text
+            if expected == 409:
+                assert response.json()["detail"] == "Routine is missing its Product metadata"
+    assert client.get("/company/routines").json()["data"] == []
+
+
 @pytest.mark.parametrize("field,value", [("cron_expr", "bad cron"), ("timezone", "not/a/timezone")])
 def test_invalid_setup_does_not_create_records(system, field, value):
     client, _, db = system
@@ -1033,7 +1064,11 @@ def test_managed_schedule_mutations_use_company_routes(system):
 
 
 @pytest.mark.asyncio
-async def test_archived_product_prevents_executor_dispatch(tmp_path, monkeypatch):
+@pytest.mark.parametrize("automation", [False, True])
+async def test_archived_product_prevents_executor_dispatch(tmp_path, monkeypatch, automation):
+    from types import SimpleNamespace
+
+    from agno.company.routines import _CompanyScheduleExecutor
     from agno.company.scheduler import CompanyScheduleExecutor
     from agno.scheduler import ScheduleManager
 
@@ -1050,13 +1085,17 @@ async def test_archived_product_prevents_executor_dispatch(tmp_path, monkeypatch
     manager.delete(product["id"])
     dispatch = AsyncMock()
     monkeypatch.setattr(ScheduleExecutor, "_call_endpoint", dispatch)
-    executor = CompanyScheduleExecutor(
-        company_db=db, schedule_db=db, base_url="http://test", internal_service_token="internal"
+    options = dict(company_db=db, schedule_db=db, base_url="http://test", internal_service_token="internal")
+    executor = (
+        _CompanyScheduleExecutor(SimpleNamespace(_company_db=db, db=db), None, **options)
+        if automation
+        else CompanyScheduleExecutor(**options)
     )
     result = await executor.execute(schedule, db)
     assert result["status"] == "failed" and "archived" in result["error"]
     dispatch.assert_not_awaited()
     assert db.get_schedule(schedule.id)["enabled"] is False
+    assert db.get_schedule(schedule.id)["disabled_reason"] == "company_product_archived"
     db.close()
 
 

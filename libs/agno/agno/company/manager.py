@@ -207,8 +207,6 @@ class CompanyManager:
         user_id: Optional[str] = None,
         accepted_by: Optional[str] = None,
         expected_updated_at: Optional[int] = _UNSET_UPDATED_AT,
-        expected_scope: Optional[Dict[str, Any]] = None,
-        expected_children: Optional[List[Dict[str, Any]]] = None,
         auto_accept: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, Any]]:
         """Apply an explicit transition; the caller enforces platform authorization."""
@@ -233,8 +231,6 @@ class CompanyManager:
             user_id=user_id,
             accepted_by=accepted_by,
             expected_updated_at=expected_updated_at,
-            expected_scope=expected_scope,
-            expected_children=expected_children,
             auto_accept=auto_accept,
         )
 
@@ -370,7 +366,6 @@ class CompanyManager:
         executor_type: Optional[str] = None,
         executor_id: Optional[str] = None,
         expected_updated_at: Optional[int] = _UNSET_UPDATED_AT,
-        expected_scope: Optional[Dict[str, Any]] = None,
         auto_accept: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, Any]]:
         """Apply an explicit transition; the caller enforces platform authorization."""
@@ -392,7 +387,6 @@ class CompanyManager:
             executor_type=executor_type,
             executor_id=executor_id,
             expected_updated_at=expected_updated_at,
-            expected_scope=expected_scope,
             auto_accept=auto_accept,
         )
 
@@ -968,8 +962,6 @@ class AsyncCompanyManager:
         user_id: Optional[str] = None,
         accepted_by: Optional[str] = None,
         expected_updated_at: Optional[int] = _UNSET_UPDATED_AT,
-        expected_scope: Optional[Dict[str, Any]] = None,
-        expected_children: Optional[List[Dict[str, Any]]] = None,
         auto_accept: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, Any]]:
         """Apply an explicit transition; the caller enforces platform authorization."""
@@ -996,8 +988,6 @@ class AsyncCompanyManager:
             user_id=user_id,
             accepted_by=accepted_by,
             expected_updated_at=expected_updated_at,
-            expected_scope=expected_scope,
-            expected_children=expected_children,
             auto_accept=auto_accept,
         )
 
@@ -1135,7 +1125,6 @@ class AsyncCompanyManager:
         executor_type: Optional[str] = None,
         executor_id: Optional[str] = None,
         expected_updated_at: Optional[int] = _UNSET_UPDATED_AT,
-        expected_scope: Optional[Dict[str, Any]] = None,
         auto_accept: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, Any]]:
         """Apply an explicit transition; the caller enforces platform authorization."""
@@ -1157,7 +1146,6 @@ class AsyncCompanyManager:
             executor_type=executor_type,
             executor_id=executor_id,
             expected_updated_at=expected_updated_at,
-            expected_scope=expected_scope,
             auto_accept=auto_accept,
         )
 

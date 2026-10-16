@@ -1921,16 +1921,14 @@ class BaseDb(ABC):
         user_id: Optional[str] = None,
         accepted_by: Optional[str] = None,
         expected_updated_at: Optional[int] = _UNSET_UPDATED_AT,
-        expected_scope: Optional[Dict[str, Any]] = None,
-        expected_children: Optional[List[Dict[str, Any]]] = None,
         auto_accept: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, Any]]:
         """Transition a visible Project and record the caller and reason.
 
-        Automatic completion requires expected_updated_at, checked Project scope
-        and child Tasks. Explicit None matches SQL NULL; omission leaves manual
-        transitions without a timestamp guard. SQL scope/child predicates also
-        detect changes that share the same epoch-second timestamp.
+        Automatic completion requires expected_updated_at. Explicit None matches
+        SQL NULL; omission leaves manual transitions without a timestamp guard.
+        Timestamps are epoch seconds; the current non-terminal-Task gate still
+        applies even when two writes share a timestamp.
         """
         raise NotImplementedError("Company projects not supported by the configured database")
 
@@ -2012,15 +2010,13 @@ class BaseDb(ABC):
         executor_type: Optional[str] = None,
         executor_id: Optional[str] = None,
         expected_updated_at: Optional[int] = _UNSET_UPDATED_AT,
-        expected_scope: Optional[Dict[str, Any]] = None,
         auto_accept: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, Any]]:
         """Transition a visible Task and record the caller and reason.
 
-        Automatic acceptance requires expected_updated_at and checked Task scope.
-        Explicit None matches SQL NULL; omission leaves manual transitions without
-        a timestamp guard. SQL scope predicates also detect changes that share the
-        same epoch-second timestamp.
+        Automatic acceptance requires expected_updated_at. Explicit None matches
+        SQL NULL; omission leaves manual transitions without a timestamp guard.
+        Timestamps are epoch seconds, so same-second writes are indistinguishable.
         """
         raise NotImplementedError("Company tasks not supported by the configured database")
 
@@ -3868,16 +3864,14 @@ class AsyncBaseDb(ABC):
         user_id: Optional[str] = None,
         accepted_by: Optional[str] = None,
         expected_updated_at: Optional[int] = _UNSET_UPDATED_AT,
-        expected_scope: Optional[Dict[str, Any]] = None,
-        expected_children: Optional[List[Dict[str, Any]]] = None,
         auto_accept: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, Any]]:
         """Transition a visible Project and record the caller and reason.
 
-        Automatic completion requires expected_updated_at, checked Project scope
-        and child Tasks. Explicit None matches SQL NULL; omission leaves manual
-        transitions without a timestamp guard. SQL scope/child predicates also
-        detect changes that share the same epoch-second timestamp.
+        Automatic completion requires expected_updated_at. Explicit None matches
+        SQL NULL; omission leaves manual transitions without a timestamp guard.
+        Timestamps are epoch seconds; the current non-terminal-Task gate still
+        applies even when two writes share a timestamp.
         """
         raise NotImplementedError("Company projects not supported by the configured database")
 
@@ -3961,15 +3955,13 @@ class AsyncBaseDb(ABC):
         executor_type: Optional[str] = None,
         executor_id: Optional[str] = None,
         expected_updated_at: Optional[int] = _UNSET_UPDATED_AT,
-        expected_scope: Optional[Dict[str, Any]] = None,
         auto_accept: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, Any]]:
         """Transition a visible Task and record the caller and reason.
 
-        Automatic acceptance requires expected_updated_at and checked Task scope.
-        Explicit None matches SQL NULL; omission leaves manual transitions without
-        a timestamp guard. SQL scope predicates also detect changes that share the
-        same epoch-second timestamp.
+        Automatic acceptance requires expected_updated_at. Explicit None matches
+        SQL NULL; omission leaves manual transitions without a timestamp guard.
+        Timestamps are epoch seconds, so same-second writes are indistinguishable.
         """
         raise NotImplementedError("Company tasks not supported by the configured database")
 

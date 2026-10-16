@@ -1868,7 +1868,7 @@ class BaseDb(ABC):
 
     # --- Projects (Optional) ---
 
-    def create_project(self, project_data: Dict[str, Any]) -> Dict[str, Any]:
+    def create_project(self, project_data: Dict[str, Any], reuse: bool = False) -> Dict[str, Any]:
         """Create a Project; project_data carries its owner and timestamps."""
         raise NotImplementedError("Company projects not supported by the configured database")
 
@@ -1920,6 +1920,8 @@ class BaseDb(ABC):
         user_id: Optional[str] = None,
         accepted_by: Optional[str] = None,
         expected_updated_at: Optional[int] = _UNSET_UPDATED_AT,
+        expected_scope: Optional[Dict[str, Any]] = None,
+        expected_children: Optional[List[Dict[str, Any]]] = None,
         auto_accept: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, Any]]:
         """Transition a visible Project and record the caller and reason.
@@ -2008,6 +2010,7 @@ class BaseDb(ABC):
         executor_type: Optional[str] = None,
         executor_id: Optional[str] = None,
         expected_updated_at: Optional[int] = _UNSET_UPDATED_AT,
+        expected_scope: Optional[Dict[str, Any]] = None,
         auto_accept: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, Any]]:
         """Transition a visible Task and record the caller and reason.
@@ -2102,7 +2105,9 @@ class BaseDb(ABC):
         """Atomically claim a due schedule for execution."""
         raise NotImplementedError
 
-    def release_schedule(self, schedule_id: str, next_run_at: Optional[int] = None) -> bool:
+    def release_schedule(
+        self, schedule_id: str, next_run_at: Optional[int] = None, *, worker_id: Optional[str] = None
+    ) -> bool:
         """Release a claimed schedule and optionally update next_run_at."""
         raise NotImplementedError
 
@@ -3808,7 +3813,7 @@ class AsyncBaseDb(ABC):
 
     # --- Projects (Optional) ---
 
-    async def create_project(self, project_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def create_project(self, project_data: Dict[str, Any], reuse: bool = False) -> Dict[str, Any]:
         """Create a Project; project_data carries its owner and timestamps."""
         raise NotImplementedError("Company projects not supported by the configured database")
 
@@ -3860,6 +3865,8 @@ class AsyncBaseDb(ABC):
         user_id: Optional[str] = None,
         accepted_by: Optional[str] = None,
         expected_updated_at: Optional[int] = _UNSET_UPDATED_AT,
+        expected_scope: Optional[Dict[str, Any]] = None,
+        expected_children: Optional[List[Dict[str, Any]]] = None,
         auto_accept: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, Any]]:
         """Transition a visible Project and record the caller and reason.
@@ -3950,6 +3957,7 @@ class AsyncBaseDb(ABC):
         executor_type: Optional[str] = None,
         executor_id: Optional[str] = None,
         expected_updated_at: Optional[int] = _UNSET_UPDATED_AT,
+        expected_scope: Optional[Dict[str, Any]] = None,
         auto_accept: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, Any]]:
         """Transition a visible Task and record the caller and reason.
@@ -4030,7 +4038,9 @@ class AsyncBaseDb(ABC):
         """Atomically claim a due schedule for execution."""
         raise NotImplementedError
 
-    async def release_schedule(self, schedule_id: str, next_run_at: Optional[int] = None) -> bool:
+    async def release_schedule(
+        self, schedule_id: str, next_run_at: Optional[int] = None, *, worker_id: Optional[str] = None
+    ) -> bool:
         """Release a claimed schedule and optionally update next_run_at."""
         raise NotImplementedError
 

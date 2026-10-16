@@ -297,6 +297,8 @@ def get_schedule_router(
         existing = await _db_call("get_schedule", schedule_id, user_id=scoped_user_id)
         if existing is None:
             raise HTTPException(status_code=404, detail="Schedule not found")
+        if existing.get("managed_by") == "company" and managed_by != "company":
+            raise HTTPException(409, "Company-managed schedules must be changed through /company/routines")
 
         from agno.db.schemas.scheduler import _require_mutable_schedule
 
@@ -396,13 +398,14 @@ def get_schedule_router(
         existing = await _db_call("get_schedule", schedule_id, user_id=scoped_user_id)
         if existing is None:
             raise HTTPException(status_code=404, detail="Schedule not found")
-
         from agno.db.schemas.scheduler import _require_mutable_schedule
 
         try:
             _require_mutable_schedule(schedule_id)
         except ValueError as exc:
             raise HTTPException(status_code=409, detail=str(exc))
+        if existing.get("managed_by") == "company" and managed_by != "company":
+            raise HTTPException(409, "Company-managed schedules must be changed through /company/routines")
         deleted = await _db_call("delete_schedule", schedule_id, user_id=scoped_user_id)
         if not deleted:
             raise HTTPException(status_code=500, detail="Failed to delete schedule")
@@ -417,6 +420,8 @@ def get_schedule_router(
         existing = await _db_call("get_schedule", schedule_id, user_id=scoped_user_id)
         if existing is None:
             raise HTTPException(status_code=404, detail="Schedule not found")
+        if existing.get("managed_by") == "company" and managed_by != "company":
+            raise HTTPException(409, "Company-managed schedules must be changed through /company/routines")
 
         from agno.db.schemas.scheduler import _require_mutable_schedule
 
@@ -489,6 +494,8 @@ def get_schedule_router(
         existing = await _db_call("get_schedule", schedule_id, user_id=scoped_user_id)
         if existing is None:
             raise HTTPException(status_code=404, detail="Schedule not found")
+        if existing.get("managed_by") == "company" and managed_by != "company":
+            raise HTTPException(409, "Company-managed schedules must be changed through /company/routines")
 
         from agno.db.schemas.scheduler import _require_mutable_schedule
 
@@ -516,6 +523,8 @@ def get_schedule_router(
         existing = await _db_call("get_schedule", schedule_id, user_id=get_scoped_user_id(request))
         if existing is None:
             raise HTTPException(status_code=404, detail="Schedule not found")
+        if existing.get("managed_by") == "company" and managed_by != "company":
+            raise HTTPException(409, "Company-managed schedules must be changed through /company/routines")
 
         from agno.db.schemas.scheduler import _require_mutable_schedule
 

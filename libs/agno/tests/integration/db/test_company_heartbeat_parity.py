@@ -157,8 +157,6 @@ async def test_setup_rechecks_owner_after_concurrent_product_insert(heartbeat, t
 
 
 def test_website_uses_existing_reader_and_hashes_extracted_content(monkeypatch):
-    import httpx
-
     from agno.company.sources import read_source
     from agno.utils.string import hash_string_sha256
 
@@ -166,13 +164,9 @@ def test_website_uses_existing_reader_and_hashes_extracted_content(monkeypatch):
 
     def page(url, **kwargs):
         requested.append((url, kwargs))
-        return httpx.Response(
-            200,
-            request=httpx.Request("GET", url),
-            text="<nav>Navigation</nav><main>Released API</main><a href='/other'>Next</a>",
-        )
+        return url, b"<nav>Navigation</nav><main>Released API</main><a href='/other'>Next</a>"
 
-    monkeypatch.setattr("httpx.get", page)
+    monkeypatch.setattr("agno.knowledge.reader.utils.public_fetch.fetch_public_page", page)
     monkeypatch.setattr("agno.knowledge.reader.website_reader.WebsiteReader.delay", lambda self: None)
     monkeypatch.setenv("DOCS_SECRET", "must-not-leave-diagnostics")
     source = dict(id="web", type="website", reference="https://docs.example.test/release", credential_ref="DOCS_SECRET")
@@ -716,3 +710,35 @@ async def test_summary_omits_acknowledged_failures(heartbeat, monkeypatch, ackno
     await call("summarize", product["id"], "acknowledged", [], narrative="The owner has acted")
     report = delivery.await_args.args[-1]
     assert "No failed Tasks." in report and "Historical failure" not in report
+
+
+@pytest.mark.asyncio
+async def test_concurrent_summary_does_not_redeliver_the_same_delta(heartbeat, monkeypatch):
+    import threading
+
+    from agno.fs.errors import VersionConflictError
+
+    db, manager, call = heartbeat
+    entered, release = threading.Event(), threading.Event()
+    delivered = []
+
+    async def send(*args):
+        delivered.append(args[-1])
+        entered.set()
+        while not release.is_set():
+            await asyncio.sleep(0.01)
+
+    monkeypatch.setattr("agno.company.summary.adeliver_summary", send)
+    product = await call("create", "Reports", metadata={"summary": {"interface": "slack", "destination": "reports"}})
+    await call("create_task", product["id"], "One change")
+    first = asyncio.create_task(call("summarize", product["id"], "first", [], narrative="Changed"))
+    try:
+        assert await asyncio.to_thread(entered.wait, 10)
+        with pytest.raises((ValueError, VersionConflictError)):
+            await call("summarize", product["id"], "overlap", [], narrative="Same change")
+    finally:
+        release.set()
+        await first
+    assert len(delivered) == 1
+    await call("summarize", product["id"], "later", [], narrative="Quiet")
+    assert "No Task changes since the last delivered summary" in delivered[-1]

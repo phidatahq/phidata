@@ -67,7 +67,7 @@ async def arefresh_product(manager: Any, product_id: str, user_id: Optional[str]
         "deleted_pages": [],
     }
     # Snapshot paging before deleting prevents offset pagination from skipping work.
-    for kind in ("task", "project"):
+    for kind in ("project", "task"):
         records = await _records(manager, "list_" + kind + "s", product_id=product_id)
         for record in records:
             updated = record.get("updated_at")
@@ -97,7 +97,7 @@ async def arefresh_product(manager: Any, product_id: str, user_id: Optional[str]
 
                 # Upgrade old reports before retention removes their only delivery receipts.
                 await _aload_summary_state(manager.db, product_id, current.content)
-            if await filesystem.adelete(page.path):
+            if await filesystem.adelete(page.path, expected_version=current.metadata.version):
                 result["deleted_pages"].append(page.path)
 
     projects = await _records(manager, "list_projects", product_id=product_id, status="active")
@@ -124,7 +124,11 @@ async def arefresh_product(manager: Any, product_id: str, user_id: Optional[str]
         if page.path in pending:
             continue
         current = await filesystem.aread_with_meta(page.path)
-        if current is not None and _generated_page(page.path, current.content) and await filesystem.adelete(page.path):
+        if (
+            current is not None
+            and _generated_page(page.path, current.content)
+            and await filesystem.adelete(page.path, expected_version=current.metadata.version)
+        ):
             result["deleted_pages"].append(page.path)
     return result
 

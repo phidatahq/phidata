@@ -1,14 +1,15 @@
 """Company schedule payloads and bundled Skills; the scheduler owns execution."""
 
 import asyncio
+from contextvars import ContextVar
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from agno.company.declarations import Routine
 from agno.company.execution import _call, _ExecutorAuthorization, _validate_executor_tools
+from agno.company.scheduler import CompanyScheduleExecutor
 from agno.db.schemas.scheduler import COMPANY_AUTOMATION_SCHEDULE_ID, RUN_ENDPOINT_RE
 from agno.guardrails.base import BaseGuardrail
-from agno.scheduler.executor import ScheduleExecutor
 from agno.skills import LocalSkills, Skills
 
 
@@ -147,9 +148,10 @@ def _schedule_fields(product_id: str, routine: Routine, registry: Any) -> Dict[s
 class _RoutineAuthorization(_ExecutorAuthorization):
     """Routine authority permits proposals, never acceptance or schedule edits."""
 
-    def __init__(self, original: Any, routine_id: Optional[str] = None):
+    def __init__(self, original: Any, routine_id: Optional[str] = None, product_id: Optional[str] = None):
         super().__init__(original)
         self.routine_id = routine_id
+        self.product_id = product_id
 
     def snapshot(self) -> Dict[str, Any]:
         return {
@@ -157,14 +159,17 @@ class _RoutineAuthorization(_ExecutorAuthorization):
             "company_routine": True,
             "company_routine_unscoped": self.original is None,
             "company_routine_id": self.routine_id,
+            "company_product_id": self.product_id,
         }
 
 
 async def _authorize_auto_accept(request, policy, agent_os=None):
+    import time
+
     from fastapi import HTTPException
 
     from agno.company.declarations import AutoAccept
-    from agno.company.execution import _executor, _ExecutorAuthorization
+    from agno.company.execution import _ExecutorAuthorization
     from agno.os.routers.run_permissions import _require_endpoint_permission
     from agno.run.authorization import current_authorization
 
@@ -185,8 +190,10 @@ async def _authorize_auto_accept(request, policy, agent_os=None):
     if policy:
         try:
             parsed = AutoAccept.model_validate(policy)
+            if parsed.limits.expires_at <= int(time.time()):
+                raise ValueError("Automatic acceptance expiry must be in the future")
             if agent_os is not None:
-                _executor(agent_os.registry, parsed.executor_type, parsed.executor_id, accepting=True)
+                _automatic_executor(agent_os.registry, parsed.executor_type, parsed.executor_id)
                 if any(name not in _acceptance_checks(agent_os) for name in parsed.required_checks):
                     raise ValueError("Unknown automatic acceptance check")
         except ValueError as exc:
@@ -305,6 +312,15 @@ async def _executor_registered(task, manager):
     return True
 
 
+def _automatic_executor(registry, executor_type, executor_id):
+    from agno.company.execution import _executor
+
+    component = _executor(registry, executor_type, executor_id)
+    if getattr(component, "db", None) is None:
+        raise ValueError("Automatic Task executor requires a database for durable runs")
+    return component
+
+
 def _acceptance_checks(agent_os):
     checks = {
         "project_active": _project_active,
@@ -318,6 +334,16 @@ def _acceptance_checks(agent_os):
 
 
 _AUTOMATION_SCHEDULE_ID = COMPANY_AUTOMATION_SCHEDULE_ID
+_AUTOMATION_TICK_SECONDS = 240
+_automation_deadline: ContextVar[Optional[float]] = ContextVar("company_tick_deadline", default=None)
+
+
+def _check_automation_deadline():
+    import time
+
+    deadline = _automation_deadline.get()
+    if deadline is not None and time.time() >= deadline:
+        raise TimeoutError("Company automation tick exhausted its claim budget")
 
 
 async def _ensure_automation_schedule(db, *, enabled=True):
@@ -359,20 +385,29 @@ async def _ensure_automation_schedule(db, *, enabled=True):
     return existing
 
 
-class _CompanyScheduleExecutor(ScheduleExecutor):
+class _CompanyScheduleExecutor(CompanyScheduleExecutor):
     """Run the existing scheduler's claimed Company tick, without another loop."""
 
     def __init__(self, agent_os, app, **kwargs):
-        super().__init__(**kwargs)
+        super().__init__(company_db=agent_os._company_db, schedule_db=agent_os.db, **kwargs)
         self.agent_os = agent_os
         self.app = app
 
     async def _call_endpoint(self, schedule):
+        import time
+
         if schedule.id != _AUTOMATION_SCHEDULE_ID:
             return await super()._call_endpoint(schedule)
         if schedule.managed_by != "company" or schedule.endpoint != "/company/attention" or schedule.method != "GET":
             raise ValueError("Company automation schedule was repointed")
-        return {"status": "success", "output": {"tasks": await self._tick()}}
+        # Stop admitting work before the scheduler's 300-second stale-claim
+        # threshold. Check again after IO; never cancel a database transaction.
+        token = _automation_deadline.set((schedule.locked_at or time.time()) + _AUTOMATION_TICK_SECONDS)
+        try:
+            _check_automation_deadline()
+            return {"status": "success", "output": {"tasks": await self._tick()}}
+        finally:
+            _automation_deadline.reset(token)
 
     async def _tick(self):
         db = self.agent_os._company_db
@@ -382,6 +417,7 @@ class _CompanyScheduleExecutor(ScheduleExecutor):
         for status in ("backlog", "ready", "in_progress"):
             page = 1
             while True:
+                _check_automation_deadline()
                 rows, total = await _call(db, "get_tasks", status=status, limit=100, page=page)
                 for row in rows:
                     if row["id"] not in seen:
@@ -392,6 +428,7 @@ class _CompanyScheduleExecutor(ScheduleExecutor):
                 page += 1
         outcomes = []
         for candidate in tasks:
+            _check_automation_deadline()
             try:
                 task = await _call(db, "get_task", candidate["id"])
                 if task is None:
@@ -428,9 +465,15 @@ class _CompanyScheduleExecutor(ScheduleExecutor):
             for routine_id in (product.get("metadata") or {}).get("routine_ids", []):
                 schedule = await _call(os.db, "get_schedule", routine_id)
                 metadata = ((schedule or {}).get("payload") or {}).get("metadata") or {}
-                if metadata.get("template") != "refresh" or not metadata.get("auto_accept"):
+                policy = metadata.get("auto_accept")
+                if (
+                    metadata.get("template") != "refresh"
+                    or not isinstance(policy, dict)
+                    or not policy.get("complete_projects")
+                ):
                     continue
                 for project in await _records(manager, "list_projects", product_id=product["id"], status="active"):
+                    _check_automation_deadline()
                     try:
                         proposal = await self._completion_candidate(manager, project, routine_id)
                         if proposal is None:
@@ -457,6 +500,10 @@ class _CompanyScheduleExecutor(ScheduleExecutor):
             "project_id": project["id"],
             "routine_id": routine_id,
             "evidence": [item for task in tasks for item in (task.get("evidence") or [])],
+            "_checked_children": [
+                {key: task.get(key) for key in ("id", "status", "evidence", "deleted_at", "updated_at")}
+                for task in tasks
+            ],
         }
 
     async def _accept(self, task, *, completing=False):
@@ -465,7 +512,6 @@ class _CompanyScheduleExecutor(ScheduleExecutor):
         import time
 
         from agno.company.declarations import AutoAccept
-        from agno.company.execution import _executor
         from agno.company.manager import AsyncCompanyManager, CompanyManager
         from agno.db.base import AsyncBaseDb
         from agno.os.authz.run_context import restore_authorization
@@ -505,7 +551,7 @@ class _CompanyScheduleExecutor(ScheduleExecutor):
                 not isinstance(item, dict) or item.get("source_id") not in policy.source_ids for item in evidence
             ):
                 raise ValueError("Proposal is outside the authorized Sources")
-        _executor(os.registry, policy.executor_type, policy.executor_id, accepting=True)
+        _automatic_executor(os.registry, policy.executor_type, policy.executor_id)
         checked_task = {**task, "executor_type": policy.executor_type, "executor_id": policy.executor_id}
         authority = restore_authorization(self.app, grant.get(AUTHORIZATION_KEY))
         if isinstance(authority, _ExecutorAuthorization) or (authority is not None and authority.service_account):
@@ -549,11 +595,12 @@ class _CompanyScheduleExecutor(ScheduleExecutor):
             raise ValueError("Routine acceptance limit reached")
         checks = _acceptance_checks(os)
         with authorization_scope(lambda: authority):
-            if policy.source_ids is not None and not await _has_source_evidence(task, manager):
-                raise ValueError("Required automatic acceptance check failed: has_source_evidence")
-            for name in policy.required_checks:
-                if name == "has_source_evidence" and policy.source_ids is not None:
-                    continue
+            # Reject unknown checks and cheap local failures before any Source IO.
+            names = list(dict.fromkeys(policy.required_checks))
+            if any(name not in checks for name in names):
+                raise ValueError("Unknown automatic acceptance check")
+            names.sort(key=lambda name: 0 if name in {"executor_registered", "project_active"} else 1)
+            for name in (name for name in names if name != "has_source_evidence"):
                 check = checks.get(name)
                 if check is None:
                     raise ValueError("Unknown automatic acceptance check: " + name)
@@ -566,6 +613,9 @@ class _CompanyScheduleExecutor(ScheduleExecutor):
                     result = await result
                 if result is not True:
                     raise ValueError("Required automatic acceptance check failed: " + name)
+            if policy.source_ids is not None or "has_source_evidence" in names:
+                if not await _has_source_evidence(task, manager):
+                    raise ValueError("Required automatic acceptance check failed: has_source_evidence")
             if authority is not None:
                 await authority.arequire("schedules", "write")
                 await authority.arequire(acceptance_resource, "write")
@@ -590,6 +640,7 @@ class _CompanyScheduleExecutor(ScheduleExecutor):
                 "policy": _policy_fingerprint(schedule),
                 "max_acceptances": policy.limits.max_acceptances,
             }
+            _check_automation_deadline()
             if completing:
                 accepted = await _manager_call(
                     manager,
@@ -599,6 +650,8 @@ class _CompanyScheduleExecutor(ScheduleExecutor):
                     "Authorized Refresh completion proposal",
                     accepted_by=grant.get("user_id"),
                     expected_updated_at=task["updated_at"],
+                    expected_scope={key: task.get(key) for key in ("name", "outcome", "target_date")},
+                    expected_children=task["_checked_children"],
                     auto_accept=receipt,
                 )
             else:
@@ -612,6 +665,18 @@ class _CompanyScheduleExecutor(ScheduleExecutor):
                     executor_type=policy.executor_type,
                     executor_id=policy.executor_id,
                     expected_updated_at=task["updated_at"],
+                    expected_scope={
+                        key: task.get(key)
+                        for key in (
+                            "status",
+                            "title",
+                            "brief",
+                            "project_id",
+                            "evidence",
+                            "executor_type",
+                            "executor_id",
+                        )
+                    },
                     auto_accept=receipt,
                 )
         if accepted is None:
@@ -642,7 +707,33 @@ class _CompanyScheduleExecutor(ScheduleExecutor):
             await authority.arequire(task["executor_type"] + "s", "run", task["executor_id"])
             await authority.arequire("tasks", "write")
             await authority.arequire("wiki", "read")
-        await _check_automatic_policy(os.db, task)
+        try:
+            await _check_automatic_policy(os.db, task)
+        except ValueError as exc:
+            if task["status"] == "ready":
+                # Withdraw only the unchanged, unstarted acceptance. Backlog and
+                # its transition reason expose the work for human attention.
+                await _call(
+                    os._company_db,
+                    "transition_task",
+                    task["id"],
+                    "backlog",
+                    str(exc),
+                    expected_updated_at=task["updated_at"],
+                    expected_scope={
+                        key: task.get(key)
+                        for key in (
+                            "status",
+                            "title",
+                            "brief",
+                            "project_id",
+                            "evidence",
+                            "executor_type",
+                            "executor_id",
+                        )
+                    },
+                )
+            raise
         attempts = [entry["attempt"] for entry in task["transitions"] if entry.get("attempt")]
         attempt = max(attempts, default=0) + (1 if task["status"] == "ready" else 0)
         if attempt < 1:
@@ -662,6 +753,7 @@ class _CompanyScheduleExecutor(ScheduleExecutor):
             raise ValueError("Task acceptance changed before automatic dispatch")
         token = _automatic_task.set(observed)
         try:
+            _check_automation_deadline()
             async with httpx.AsyncClient(transport=httpx.ASGITransport(app=self.app), base_url=self.base_url) as client:
                 response = await client.post(
                     f"/company/tasks/{task['id']}/runs", json={"attempt": attempt}, headers=headers
@@ -671,3 +763,22 @@ class _CompanyScheduleExecutor(ScheduleExecutor):
             return {"status": "submitted", **response.json()}
         finally:
             _automatic_task.reset(token)
+
+
+def _require_routine_product(product_id: Optional[str], authority: Any = None) -> None:
+    from agno.run.authorization import current_authorization
+
+    authority = authority or current_authorization()
+    if (
+        isinstance(authority, _RoutineAuthorization)
+        and authority.product_id is not None
+        and authority.product_id != product_id
+    ):
+        raise PermissionError("Routine authority is restricted to its configured Product")
+
+
+async def _require_active_routine_product(db: Any, product_id: Optional[str]) -> None:
+    from agno.company.execution import _call
+
+    if db is None or not product_id or await _call(db, "get_product", product_id) is None:
+        raise ValueError("Routine Product is missing or archived")

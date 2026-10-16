@@ -3324,7 +3324,9 @@ class AsyncMongoDb(AsyncBaseDb):
             log_debug(f"Error claiming schedule: {e}")
             return None
 
-    async def release_schedule(self, schedule_id: str, next_run_at: Optional[int] = None) -> bool:
+    async def release_schedule(
+        self, schedule_id: str, next_run_at: Optional[int] = None, *, worker_id: Optional[str] = None
+    ) -> bool:
         try:
             collection = await self._get_collection(table_type="schedules")
             if collection is None:
@@ -3334,7 +3336,10 @@ class AsyncMongoDb(AsyncBaseDb):
             if next_run_at is not None:
                 updates["next_run_at"] = next_run_at
 
-            result = await collection.update_one({"id": schedule_id}, {"$set": updates})
+            query = {"id": schedule_id}
+            if worker_id is not None:
+                query["locked_by"] = worker_id
+            result = await collection.update_one(query, {"$set": updates})
             return result.matched_count > 0
         except Exception as e:
             log_debug(f"Error releasing schedule: {e}")

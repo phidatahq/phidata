@@ -7318,7 +7318,9 @@ class PostgresDb(BaseDb):
             log_debug(f"Error claiming schedule: {e}")
             return None
 
-    def release_schedule(self, schedule_id: str, next_run_at: Optional[int] = None) -> bool:
+    def release_schedule(
+        self, schedule_id: str, next_run_at: Optional[int] = None, *, worker_id: Optional[str] = None
+    ) -> bool:
         try:
             table = self._get_table(table_type="schedules")
             if table is None:
@@ -7326,8 +7328,11 @@ class PostgresDb(BaseDb):
             updates: Dict[str, Any] = {"locked_by": None, "locked_at": None, "updated_at": int(time.time())}
             if next_run_at is not None:
                 updates["next_run_at"] = next_run_at
+            statement = table.update().where(table.c.id == schedule_id)
+            if worker_id is not None:
+                statement = statement.where(table.c.locked_by == worker_id)
             with self.Session() as sess, sess.begin():
-                result = sess.execute(table.update().where(table.c.id == schedule_id).values(**updates))
+                result = sess.execute(statement.values(**updates))
                 return result.rowcount > 0
         except Exception as e:
             log_debug(f"Error releasing schedule: {e}")
@@ -9026,7 +9031,10 @@ class PostgresDb(BaseDb):
         table = self._get_table(table_type="sources")
         if table is None:
             return [], 0
-        stmt = select(table)
+        from agno.db.sql.company import active_parents
+
+        products = self._get_table(table_type="products", create_table_if_not_found=True)
+        stmt = active_parents(select(table), table, products)
         if product_id is not None:
             stmt = stmt.where(table.c.product_id == product_id)
         if user_id is not None:
@@ -9190,7 +9198,7 @@ class PostgresDb(BaseDb):
 
     # --- Projects ---
 
-    def create_project(self, project_data: Dict[str, Any]) -> Dict[str, Any]:
+    def create_project(self, project_data: Dict[str, Any], reuse: bool = False) -> Dict[str, Any]:
         from agno.db.sql.company import lock_product
 
         table = self._get_table(table_type="projects", create_table_if_not_found=True)
@@ -9199,6 +9207,12 @@ class PostgresDb(BaseDb):
         products = self._get_table(table_type="products", create_table_if_not_found=True)
         with self.Session() as sess, sess.begin():
             lock_product(sess, products, project_data["product_id"])
+            if reuse:
+                existing = sess.execute(select(table).where(table.c.id == project_data["id"])).first()
+                if existing is not None:
+                    if existing._mapping["product_id"] != project_data["product_id"]:
+                        raise ValueError("Project identity belongs to another Product")
+                    return dict(existing._mapping)
             result = sess.execute(table.insert().values(**project_data).returning(table)).one()
             return dict(result._mapping)
 
@@ -9325,6 +9339,8 @@ class PostgresDb(BaseDb):
         user_id: Optional[str] = None,
         accepted_by: Optional[str] = None,
         expected_updated_at: Optional[int] = _UNSET_UPDATED_AT,
+        expected_scope: Optional[Dict[str, Any]] = None,
+        expected_children: Optional[List[Dict[str, Any]]] = None,
         auto_accept: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, Any]]:
         """Apply a lifecycle transition only if the observed state still matches."""
@@ -9347,6 +9363,8 @@ class PostgresDb(BaseDb):
             if auto_accept is not None:
                 if target != "done" or expected_updated_at is _UNSET_UPDATED_AT or products is None or tasks is None:
                     raise ValueError("Automatic completion requires expected_updated_at and a Project with Tasks")
+                if expected_scope is None or expected_children is None:
+                    raise ValueError("Automatic completion requires checked Project scope and child Tasks")
                 task_histories = (
                     (sess.execute(select(tasks.c.transitions).where(tasks.c.routine_id == auto_accept["routine_id"])))
                     .scalars()
@@ -9386,46 +9404,64 @@ class PostgresDb(BaseDb):
                 update = update.where(~open_query.exists())
             if expected_updated_at is not _UNSET_UPDATED_AT:
                 update = update.where(table.c.updated_at == expected_updated_at)
+            if expected_scope is not None:
+                for key in ("name", "outcome", "target_date"):
+                    if key not in expected_scope:
+                        raise ValueError("Incomplete checked Project scope")
+                    update = update.where(table.c[key] == expected_scope[key])
+            if expected_children is not None:
+                from sqlalchemy import JSON, and_, func
+
+                if tasks_table is None:
+                    raise ValueError("Checked child Tasks require a completion transition")
+                # Product locking serializes child writes with this atomic guard.
+                # Count plus unmatched-row detection covers additions and removals,
+                # including archived Tasks as required by the completion gate.
+                matches = []
+                for child in expected_children:
+                    predicates = []
+                    for key in ("id", "status", "evidence", "deleted_at", "updated_at"):
+                        if key not in child:
+                            raise ValueError("Incomplete checked child Task")
+                        value = child[key]
+                        if key == "evidence" and value is None:
+                            predicates.append(
+                                or_(tasks_table.c.evidence.is_(None), tasks_table.c.evidence == JSON.NULL)
+                            )
+                        else:
+                            predicates.append(tasks_table.c[key] == value)
+                    matches.append(and_(*predicates))
+                child_count = (
+                    select(func.count())
+                    .select_from(tasks_table)
+                    .where(tasks_table.c.project_id == project_id)
+                    .scalar_subquery()
+                )
+                changed_child = (
+                    select(tasks_table.c.id)
+                    .where(tasks_table.c.project_id == project_id, ~or_(False, *matches))
+                    .exists()
+                )
+                update = update.where(child_count == len(expected_children), ~changed_child)
             if user_id is not None:
                 update = update.where(table.c.user_id == user_id)
             result = sess.execute(update.values(**fields).returning(table)).fetchone()
             return dict(result._mapping) if result else None
 
     def add_product_routine(self, product_id: str, schedule_id: str) -> Dict[str, Any]:
-        """Append a schedule id with compare-and-swap, preserving concurrent metadata edits."""
+        """Append a schedule id under the existing hierarchy write lock."""
+        from agno.db.sql.company import link_product_routine
+
         table = self._get_table(table_type="products", create_table_if_not_found=True)
         if table is None:
             raise RuntimeError("Products table unavailable")
-        from sqlalchemy import JSON
-
-        for _ in range(20):
-            existing = self.get_product(product_id)
-            if existing is None:
-                raise LookupError("Product not found")
-            metadata = dict(existing.get("metadata") or {})
-            ids = list(metadata.get("routine_ids") or [])
-            if schedule_id in ids:
-                return existing
-            metadata["routine_ids"] = [*ids, schedule_id]
-            stmt = (
-                table.update()
-                .where(
-                    table.c.id == product_id,
-                    table.c.deleted_at.is_(None),
-                    table.c.metadata == (existing["metadata"] if existing.get("metadata") is not None else JSON.NULL),
-                )
-                .values(metadata=metadata, updated_at=int(time.time()))
-            )
-            with self.Session() as sess, sess.begin():
-                result = sess.execute(stmt.returning(table)).fetchone()
-                if result is not None:
-                    return dict(result._mapping)
-        raise ValueError("Product metadata changed concurrently; retry")
+        with self.Session() as sess, sess.begin():
+            return link_product_routine(sess, table, product_id, schedule_id)
 
     # --- Tasks ---
 
     def create_task(self, task_data: Dict[str, Any]) -> Dict[str, Any]:
-        from agno.db.sql.company import lock_product, require_project
+        from agno.db.sql.company import existing_task_proposal, lock_product, require_project
 
         table = self._get_table(table_type="tasks", create_table_if_not_found=True)
         if table is None:
@@ -9435,6 +9471,12 @@ class PostgresDb(BaseDb):
         with self.Session() as sess, sess.begin():
             lock_product(sess, products, task_data["product_id"])
             require_project(sess, projects, task_data.get("project_id"), task_data["product_id"])
+            proposal = existing_task_proposal(sess, table, task_data)
+            if proposal is not None:
+                return proposal
+            require_project(
+                sess, projects, task_data.get("project_id"), task_data["product_id"], task_data.get("status", "backlog")
+            )
             if task_data.get("dedupe_key") is not None:
                 from sqlalchemy.dialects.postgresql import insert
 
@@ -9547,7 +9589,7 @@ class PostgresDb(BaseDb):
             lock_child(sess, products, projects, table, task_id)
             product_id = sess.execute(select(table.c.product_id).where(table.c.id == task_id)).scalar()
             if product_id is not None and fields.get("project_id") is not None:
-                require_project(sess, projects, fields["project_id"], product_id)
+                require_project(sess, projects, fields["project_id"], product_id, "backlog")
             result = sess.execute(stmt.values(**fields, updated_at=int(time.time())).returning(table)).fetchone()
             return dict(result._mapping) if result else None
 
@@ -9707,6 +9749,7 @@ class PostgresDb(BaseDb):
         executor_type: Optional[str] = None,
         executor_id: Optional[str] = None,
         expected_updated_at: Optional[int] = _UNSET_UPDATED_AT,
+        expected_scope: Optional[Dict[str, Any]] = None,
         auto_accept: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, Any]]:
         """Apply a lifecycle transition only if the observed state still matches."""
@@ -9726,6 +9769,8 @@ class PostgresDb(BaseDb):
                 lock_child(sess, products, projects, table, task_id)
                 if expected_updated_at is _UNSET_UPDATED_AT or products is None:
                     raise ValueError("Automatic acceptance requires expected_updated_at and a Product")
+                if expected_scope is None:
+                    raise ValueError("Automatic acceptance requires checked Task scope")
                 prior = (
                     sess.execute(
                         select(table.c.transitions).where(
@@ -9759,6 +9804,19 @@ class PostgresDb(BaseDb):
             )
             if expected_updated_at is not _UNSET_UPDATED_AT:
                 update = update.where(table.c.updated_at == expected_updated_at)
+            if expected_scope is not None:
+                # Scope edits are legal in Backlog, including within one second.
+                # Compare each checked editable field in the atomic UPDATE.
+                for key in ("status", "title", "brief", "project_id", "evidence", "executor_type", "executor_id"):
+                    if key not in expected_scope:
+                        raise ValueError("Incomplete checked Task scope")
+                    value = expected_scope[key]
+                    if key == "evidence" and value is None:
+                        from sqlalchemy import JSON
+
+                        update = update.where(or_(table.c.evidence.is_(None), table.c.evidence == JSON.NULL))
+                    else:
+                        update = update.where(table.c[key] == value)
             if user_id is not None:
                 update = update.where(table.c.user_id == user_id)
             result = sess.execute(update.values(**fields).returning(table)).fetchone()

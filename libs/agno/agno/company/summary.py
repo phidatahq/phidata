@@ -1,12 +1,79 @@
 """Product reports use the configured interface's existing outbound transport."""
 
 import asyncio
+import inspect
+import json
 import os
+import time
+from contextvars import ContextVar
+from functools import wraps
 from typing import Any, Dict, Sequence, Tuple
 
 from agno.fs import FileSystem
 
 _STATE_PATH = "delivery.md"
+_LOCK_PATH = "delivery-lock.md"
+_delivery_deadline: ContextVar[float] = ContextVar("company_delivery_deadline", default=0)
+
+
+def _claim_content(existing: Any) -> str:
+    if existing is not None and json.loads(existing.content).get("expires_at", 0) > time.time():
+        raise ValueError("Another Summary delivery is in progress; retry after it finishes")
+    return json.dumps({"expires_at": time.time() + 600})
+
+
+def _serialized_summary(fn):
+    """Serialize reports per Product through a recoverable versioned filesystem lease.
+
+    Transport still has at-least-once semantics across a crash after sending and
+    before saving its receipt. The lease prevents concurrent healthy runs from
+    delivering the same baseline and expires after a worker is lost.
+    """
+    if inspect.iscoroutinefunction(fn):
+
+        @wraps(fn)
+        async def async_wrapped(self, product_id, *args, **kwargs):
+            from agno.company.playbook import _require_owner
+
+            product = await self.get(product_id)
+            if product is None:
+                raise LookupError("Product not found")
+            _require_owner(product, kwargs.get("user_id", args[3] if len(args) > 3 else None))
+            filesystem = _summary_state_filesystem(self.db, product_id)
+            existing = await filesystem.aread_with_meta(_LOCK_PATH)
+            content = _claim_content(existing)
+            saved = await filesystem.awrite(
+                _LOCK_PATH, content, expected_version=existing.metadata.version if existing else 0
+            )
+            token = _delivery_deadline.set(json.loads(content)["expires_at"])
+            try:
+                return await fn(self, product_id, *args, **kwargs)
+            finally:
+                _delivery_deadline.reset(token)
+                await filesystem.awrite(_LOCK_PATH, '{"expires_at": 0}', expected_version=saved.version)
+
+        return async_wrapped
+
+    @wraps(fn)
+    def wrapped(self, product_id, *args, **kwargs):
+        from agno.company.playbook import _require_owner
+
+        product = self.get(product_id)
+        if product is None:
+            raise LookupError("Product not found")
+        _require_owner(product, kwargs.get("user_id", args[3] if len(args) > 3 else None))
+        filesystem = _summary_state_filesystem(self.db, product_id)
+        existing = filesystem.read_with_meta(_LOCK_PATH)
+        content = _claim_content(existing)
+        saved = filesystem.write(_LOCK_PATH, content, expected_version=existing.metadata.version if existing else 0)
+        token = _delivery_deadline.set(json.loads(content)["expires_at"])
+        try:
+            return fn(self, product_id, *args, **kwargs)
+        finally:
+            _delivery_deadline.reset(token)
+            filesystem.write(_LOCK_PATH, '{"expires_at": 0}', expected_version=saved.version)
+
+    return wrapped
 
 
 def _delivery_state(report: str) -> str:
@@ -155,7 +222,7 @@ def _summary_delivered(report: str, marker: str) -> str:
     )
 
 
-async def adeliver_summary(interfaces: Sequence[Any], interface_type: str, destination: str, message: str) -> None:
+async def _adeliver_summary(interfaces: Sequence[Any], interface_type: str, destination: str, message: str) -> None:
     """Deliver to a human-configured destination; credentials remain inside the interface."""
     interface = next((item for item in interfaces if item.type == interface_type), None)
     if interface is None:
@@ -187,6 +254,14 @@ async def adeliver_summary(interfaces: Sequence[Any], interface_type: str, desti
         await send_whatsapp_message_async(destination, message, config)
     else:
         raise ValueError("Summary requires a Slack, Telegram or WhatsApp interface")
+
+
+async def adeliver_summary(interfaces: Sequence[Any], interface_type: str, destination: str, message: str) -> None:
+    """Bound the send so a live transport cannot outlast its delivery lease."""
+    deadline = _delivery_deadline.get()
+    if deadline and time.time() + 65 >= deadline:
+        raise ValueError("Summary delivery lease expired before transport; retry")
+    await asyncio.wait_for(_adeliver_summary(interfaces, interface_type, destination, message), timeout=60)
 
 
 def deliver_summary(interfaces: Sequence[Any], interface_type: str, destination: str, message: str) -> None:

@@ -731,6 +731,7 @@ class CompanyTools(Toolkit):
         reference: str,
         config: _OptionalSourceConfig = None,
         _agno_agent: Optional[Any] = None,
+        _agno_team: Optional[Any] = None,
         _agno_run_context: Optional[Any] = None,
     ) -> str:
         """Save a discovered website Source. Local Sources must be added by a human.
@@ -746,7 +747,7 @@ class CompanyTools(Toolkit):
             product_id,
             type,
             reference,
-            agent_id=getattr(_agno_agent, "id", None),
+            agent_id=getattr(_agno_team if _agno_team is not None else _agno_agent, "id", None),
             run_id=getattr(_agno_run_context, "run_id", None),
             config=config,
             user_id=_identity(_agno_run_context),
@@ -915,6 +916,7 @@ class CompanyTools(Toolkit):
         reference: str,
         config: _OptionalSourceConfig = None,
         _agno_agent: Optional[Any] = None,
+        _agno_team: Optional[Any] = None,
         _agno_run_context: Optional[Any] = None,
     ) -> str:
         """Save a discovered website Source. Local Sources must be added by a human.
@@ -930,7 +932,7 @@ class CompanyTools(Toolkit):
             product_id,
             type,
             reference,
-            agent_id=getattr(_agno_agent, "id", None),
+            agent_id=getattr(_agno_team if _agno_team is not None else _agno_agent, "id", None),
             run_id=getattr(_agno_run_context, "run_id", None),
             config=config,
             user_id=_identity(_agno_run_context),

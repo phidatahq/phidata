@@ -4570,7 +4570,9 @@ class AsyncPostgresDb(AsyncBaseDb):
             log_debug(f"Error claiming schedule: {e}")
             return None
 
-    async def release_schedule(self, schedule_id: str, next_run_at: Optional[int] = None) -> bool:
+    async def release_schedule(
+        self, schedule_id: str, next_run_at: Optional[int] = None, *, worker_id: Optional[str] = None
+    ) -> bool:
         try:
             table = await self._get_table(table_type="schedules")
             if table is None:
@@ -4578,9 +4580,12 @@ class AsyncPostgresDb(AsyncBaseDb):
             updates: Dict[str, Any] = {"locked_by": None, "locked_at": None, "updated_at": int(time.time())}
             if next_run_at is not None:
                 updates["next_run_at"] = next_run_at
+            statement = table.update().where(table.c.id == schedule_id)
+            if worker_id is not None:
+                statement = statement.where(table.c.locked_by == worker_id)
             async with self.async_session_factory() as sess:
                 async with sess.begin():
-                    result = await sess.execute(table.update().where(table.c.id == schedule_id).values(**updates))
+                    result = await sess.execute(statement.values(**updates))
                     return result.rowcount > 0  # type: ignore[attr-defined]
         except Exception as e:
             log_debug(f"Error releasing schedule: {e}")
@@ -6274,7 +6279,10 @@ class AsyncPostgresDb(AsyncBaseDb):
         table = await self._get_table(table_type="sources")
         if table is None:
             return [], 0
-        stmt = select(table)
+        from agno.db.sql.company import active_parents
+
+        products = await self._get_table(table_type="products", create_table_if_not_found=True)
+        stmt = active_parents(select(table), table, products)
         if product_id is not None:
             stmt = stmt.where(table.c.product_id == product_id)
         if user_id is not None:
@@ -6448,7 +6456,7 @@ class AsyncPostgresDb(AsyncBaseDb):
 
     # --- Projects ---
 
-    async def create_project(self, project_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def create_project(self, project_data: Dict[str, Any], reuse: bool = False) -> Dict[str, Any]:
         from agno.db.sql.company import lock_product
 
         table = await self._get_table(table_type="projects", create_table_if_not_found=True)
@@ -6457,6 +6465,12 @@ class AsyncPostgresDb(AsyncBaseDb):
         products = await self._get_table(table_type="products", create_table_if_not_found=True)
         async with self.async_session_factory() as sess, sess.begin():
             await sess.run_sync(lock_product, products, project_data["product_id"])
+            if reuse:
+                existing = (await sess.execute(select(table).where(table.c.id == project_data["id"]))).first()
+                if existing is not None:
+                    if existing._mapping["product_id"] != project_data["product_id"]:
+                        raise ValueError("Project identity belongs to another Product")
+                    return dict(existing._mapping)
             result = (await sess.execute(table.insert().values(**project_data).returning(table))).one()
             return dict(result._mapping)
 
@@ -6585,6 +6599,8 @@ class AsyncPostgresDb(AsyncBaseDb):
         user_id: Optional[str] = None,
         accepted_by: Optional[str] = None,
         expected_updated_at: Optional[int] = _UNSET_UPDATED_AT,
+        expected_scope: Optional[Dict[str, Any]] = None,
+        expected_children: Optional[List[Dict[str, Any]]] = None,
         auto_accept: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, Any]]:
         """Apply a lifecycle transition only if the observed state still matches."""
@@ -6607,6 +6623,8 @@ class AsyncPostgresDb(AsyncBaseDb):
             if auto_accept is not None:
                 if target != "done" or expected_updated_at is _UNSET_UPDATED_AT or products is None or tasks is None:
                     raise ValueError("Automatic completion requires expected_updated_at and a Project with Tasks")
+                if expected_scope is None or expected_children is None:
+                    raise ValueError("Automatic completion requires checked Project scope and child Tasks")
                 task_histories: Sequence[Optional[List[Dict[str, Any]]]] = (
                     (
                         await sess.execute(
@@ -6650,46 +6668,64 @@ class AsyncPostgresDb(AsyncBaseDb):
                 update = update.where(~open_query.exists())
             if expected_updated_at is not _UNSET_UPDATED_AT:
                 update = update.where(table.c.updated_at == expected_updated_at)
+            if expected_scope is not None:
+                for key in ("name", "outcome", "target_date"):
+                    if key not in expected_scope:
+                        raise ValueError("Incomplete checked Project scope")
+                    update = update.where(table.c[key] == expected_scope[key])
+            if expected_children is not None:
+                from sqlalchemy import JSON, and_, func
+
+                if tasks_table is None:
+                    raise ValueError("Checked child Tasks require a completion transition")
+                # Product locking serializes child writes with this atomic guard.
+                # Count plus unmatched-row detection covers additions and removals,
+                # including archived Tasks as required by the completion gate.
+                matches = []
+                for child in expected_children:
+                    predicates = []
+                    for key in ("id", "status", "evidence", "deleted_at", "updated_at"):
+                        if key not in child:
+                            raise ValueError("Incomplete checked child Task")
+                        value = child[key]
+                        if key == "evidence" and value is None:
+                            predicates.append(
+                                or_(tasks_table.c.evidence.is_(None), tasks_table.c.evidence == JSON.NULL)
+                            )
+                        else:
+                            predicates.append(tasks_table.c[key] == value)
+                    matches.append(and_(*predicates))
+                child_count = (
+                    select(func.count())
+                    .select_from(tasks_table)
+                    .where(tasks_table.c.project_id == project_id)
+                    .scalar_subquery()
+                )
+                changed_child = (
+                    select(tasks_table.c.id)
+                    .where(tasks_table.c.project_id == project_id, ~or_(False, *matches))
+                    .exists()
+                )
+                update = update.where(child_count == len(expected_children), ~changed_child)
             if user_id is not None:
                 update = update.where(table.c.user_id == user_id)
             result = (await sess.execute(update.values(**fields).returning(table))).fetchone()
             return dict(result._mapping) if result else None
 
     async def add_product_routine(self, product_id: str, schedule_id: str) -> Dict[str, Any]:
-        """Append a schedule id with compare-and-swap, preserving concurrent metadata edits."""
+        """Append a schedule id under the existing hierarchy write lock."""
+        from agno.db.sql.company import link_product_routine
+
         table = await self._get_table(table_type="products", create_table_if_not_found=True)
         if table is None:
             raise RuntimeError("Products table unavailable")
-        from sqlalchemy import JSON
-
-        for _ in range(20):
-            existing = await self.get_product(product_id)
-            if existing is None:
-                raise LookupError("Product not found")
-            metadata = dict(existing.get("metadata") or {})
-            ids = list(metadata.get("routine_ids") or [])
-            if schedule_id in ids:
-                return existing
-            metadata["routine_ids"] = [*ids, schedule_id]
-            stmt = (
-                table.update()
-                .where(
-                    table.c.id == product_id,
-                    table.c.deleted_at.is_(None),
-                    table.c.metadata == (existing["metadata"] if existing.get("metadata") is not None else JSON.NULL),
-                )
-                .values(metadata=metadata, updated_at=int(time.time()))
-            )
-            async with self.async_session_factory() as sess, sess.begin():
-                result = (await sess.execute(stmt.returning(table))).fetchone()
-                if result is not None:
-                    return dict(result._mapping)
-        raise ValueError("Product metadata changed concurrently; retry")
+        async with self.async_session_factory() as sess, sess.begin():
+            return await sess.run_sync(link_product_routine, table, product_id, schedule_id)
 
     # --- Tasks ---
 
     async def create_task(self, task_data: Dict[str, Any]) -> Dict[str, Any]:
-        from agno.db.sql.company import lock_product, require_project
+        from agno.db.sql.company import existing_task_proposal, lock_product, require_project
 
         table = await self._get_table(table_type="tasks", create_table_if_not_found=True)
         if table is None:
@@ -6699,6 +6735,16 @@ class AsyncPostgresDb(AsyncBaseDb):
         async with self.async_session_factory() as sess, sess.begin():
             await sess.run_sync(lock_product, products, task_data["product_id"])
             await sess.run_sync(require_project, projects, task_data.get("project_id"), task_data["product_id"])
+            proposal = await sess.run_sync(existing_task_proposal, table, task_data)
+            if proposal is not None:
+                return proposal
+            await sess.run_sync(
+                require_project,
+                projects,
+                task_data.get("project_id"),
+                task_data["product_id"],
+                task_data.get("status", "backlog"),
+            )
             if task_data.get("dedupe_key") is not None:
                 from sqlalchemy.dialects.postgresql import insert
 
@@ -6811,7 +6857,7 @@ class AsyncPostgresDb(AsyncBaseDb):
             await sess.run_sync(lock_child, products, projects, table, task_id)
             product_id = (await sess.execute(select(table.c.product_id).where(table.c.id == task_id))).scalar()
             if product_id is not None and fields.get("project_id") is not None:
-                await sess.run_sync(require_project, projects, fields["project_id"], product_id)
+                await sess.run_sync(require_project, projects, fields["project_id"], product_id, "backlog")
             result = (
                 await sess.execute(stmt.values(**fields, updated_at=int(time.time())).returning(table))
             ).fetchone()
@@ -6979,6 +7025,7 @@ class AsyncPostgresDb(AsyncBaseDb):
         executor_type: Optional[str] = None,
         executor_id: Optional[str] = None,
         expected_updated_at: Optional[int] = _UNSET_UPDATED_AT,
+        expected_scope: Optional[Dict[str, Any]] = None,
         auto_accept: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, Any]]:
         """Apply a lifecycle transition only if the observed state still matches."""
@@ -6998,6 +7045,8 @@ class AsyncPostgresDb(AsyncBaseDb):
                 await sess.run_sync(lock_child, products, projects, table, task_id)
                 if expected_updated_at is _UNSET_UPDATED_AT or products is None:
                     raise ValueError("Automatic acceptance requires expected_updated_at and a Product")
+                if expected_scope is None:
+                    raise ValueError("Automatic acceptance requires checked Task scope")
                 prior: Sequence[Optional[List[Dict[str, Any]]]] = (
                     (
                         await sess.execute(
@@ -7033,6 +7082,19 @@ class AsyncPostgresDb(AsyncBaseDb):
             )
             if expected_updated_at is not _UNSET_UPDATED_AT:
                 update = update.where(table.c.updated_at == expected_updated_at)
+            if expected_scope is not None:
+                # Scope edits are legal in Backlog, including within one second.
+                # Compare each checked editable field in the atomic UPDATE.
+                for key in ("status", "title", "brief", "project_id", "evidence", "executor_type", "executor_id"):
+                    if key not in expected_scope:
+                        raise ValueError("Incomplete checked Task scope")
+                    value = expected_scope[key]
+                    if key == "evidence" and value is None:
+                        from sqlalchemy import JSON
+
+                        update = update.where(or_(table.c.evidence.is_(None), table.c.evidence == JSON.NULL))
+                    else:
+                        update = update.where(table.c[key] == value)
             if user_id is not None:
                 update = update.where(table.c.user_id == user_id)
             result = (await sess.execute(update.values(**fields).returning(table))).fetchone()

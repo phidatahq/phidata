@@ -1558,7 +1558,7 @@ async def test_runtime_automation_schedule_rejects_public_mutation(system, tmp_p
         await client.post(path + "/trigger"),
     ]:
         assert response.status_code == 409, response.text
-        assert "runtime-managed" in response.json()["detail"]
+        assert "managed" in response.json()["detail"]
     manager = ScheduleManager(db)
     for method in ("update", "delete", "enable", "disable", "aupdate", "adelete", "aenable", "adisable"):
         with pytest.raises(ValueError, match="runtime-managed"):
@@ -1570,8 +1570,8 @@ async def test_runtime_automation_schedule_rejects_public_mutation(system, tmp_p
     assert "runtime-managed" in json.loads(tools.disable_schedule(schedule["id"]))["error"]
     assert "runtime-managed" in json.loads(await tools.adisable_schedule(schedule["id"]))["error"]
     # User Routines still support the existing pause/resume domain.
-    assert (await client.post("/schedules/" + routine["id"] + "/disable")).status_code == 200
-    assert (await client.post("/schedules/" + routine["id"] + "/enable")).status_code == 200
+    assert (await client.post("/company/routines/" + routine["id"] + "/pause")).status_code == 200
+    assert (await client.post("/company/routines/" + routine["id"] + "/resume")).status_code == 200
     restarted, saved = await automation(system)
     assert saved["enabled"] is True
     await _call(db, "update_schedule", schedule["id"], next_run_at=0)
@@ -1581,7 +1581,7 @@ async def test_runtime_automation_schedule_rejects_public_mutation(system, tmp_p
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("invalid", ["check", "executor"])
-async def test_generic_schedule_patch_validates_automatic_policy(system, tmp_path, invalid):
+async def test_generic_schedule_cannot_bypass_company_policy_validation(system, tmp_path, invalid):
     import copy
 
     from agno.company.execution import _call
@@ -1596,6 +1596,9 @@ async def test_generic_schedule_patch_validates_automatic_policy(system, tmp_pat
     else:
         policy["executor_id"] = "missing-executor"
     response = await client.patch("/schedules/" + routine["id"], json={"payload": payload})
+    assert response.status_code == 409, response.text
+    assert (await _call(db, "get_schedule", routine["id"])) == before
+    response = await client.patch("/company/routines/" + routine["id"], json={"auto_accept": policy})
     assert response.status_code == 422, response.text
     assert (await _call(db, "get_schedule", routine["id"])) == before
     # Application checks use the same validation path as built-ins.
@@ -1603,6 +1606,11 @@ async def test_generic_schedule_patch_validates_automatic_policy(system, tmp_pat
     payload = copy.deepcopy(before["payload"])
     payload["metadata"]["auto_accept"]["required_checks"] = ["application_check"]
     response = await client.patch("/schedules/" + routine["id"], json={"payload": payload})
+    assert response.status_code == 409, response.text
+    assert (await _call(db, "get_schedule", routine["id"])) == before
+    response = await client.patch(
+        "/company/routines/" + routine["id"], json={"auto_accept": payload["metadata"]["auto_accept"]}
+    )
     assert response.status_code == 200, response.text
 
 
@@ -1660,13 +1668,12 @@ async def test_refresh_completion_requires_permission_and_never_completes_on_arc
     refreshed = await _manager_call(manager, "refresh", task["product_id"])
     assert refreshed["completion_proposals"][0]["project_id"] == task["project_id"]
     outcomes = await executor._tick()
-    assert outcomes == [
-        {
-            "project_id": task["project_id"],
-            "status": "skipped",
-            "reason": "Routine is not authorized to complete Projects",
-        }
-    ]
+    assert outcomes == []
+    project = await _manager_call(manager, "get_project", task["project_id"])
+    proposal = await executor._completion_candidate(manager, project, routine["id"])
+    assert proposal is not None
+    with pytest.raises(ValueError, match="not authorized to complete Projects"):
+        await executor._accept(proposal, completing=True)
     assert (await _manager_call(manager, "get_project", task["project_id"]))["status"] == "active"
     policy = routine["payload"]["metadata"]["auto_accept"]
     policy["complete_projects"] = True
@@ -1752,7 +1759,7 @@ async def test_project_completion_enforces_live_policy_and_terminal_tasks(system
     if restriction == "scope":
         policy["work_scope"]["project_ids"] = []
     elif restriction == "expiry":
-        policy["limits"]["expires_at"] = 1
+        policy["limits"]["expires_at"] = int(time.time()) + 3600
     elif restriction == "source":
         policy["source_ids"] = []
     elif restriction in {"check", "changed_task", "changed_project"}:
@@ -1787,6 +1794,8 @@ async def test_project_completion_enforces_live_policy_and_terminal_tasks(system
     executor, _ = await automation(system)
     project = await _manager_call(manager, "get_project", task["project_id"])
     proposal = await executor._completion_candidate(manager, project, routine["id"])
+    if restriction == "expiry":
+        monkeypatch.setattr(time, "time", lambda: policy["limits"]["expires_at"])
     if restriction == "revoked":
         assert (
             await client.patch("/company/routines/" + routine["id"], json={"auto_accept": False})
@@ -1813,7 +1822,10 @@ async def test_completion_rechecks_routine_binding(system, tmp_path, binding):
         payload = current["payload"]
         payload["metadata"][binding] = other["id"] if binding == "product_id" else "intake"
         response = await client.patch("/schedules/" + routine["id"], json={"payload": payload})
-        assert response.status_code == 200, response.text
+        assert response.status_code == 409, response.text
+        # Public mutation is blocked; model a concurrent application-level edit
+        # to retain coverage of the acceptance boundary's final binding check.
+        await _call(db, "update_schedule", routine["id"], payload=payload)
         assert _policy_fingerprint(await _call(db, "get_schedule", routine["id"])) == before
 
     async def check(proposal, check_manager):
@@ -1973,6 +1985,18 @@ async def test_transition_updated_at_compare_and_set(system, monkeypatch, kind, 
         options["auto_accept"] = {"routine_id": "routine", "policy": "version", "max_acceptances": 1}
         with pytest.raises(ValueError, match="requires expected_updated_at"):
             await _call(db, "transition_" + kind, record["id"], target, "Accept", **options)
+        fields = (
+            ("status", "title", "brief", "project_id", "evidence", "executor_type", "executor_id")
+            if kind == "task"
+            else ("name", "outcome", "target_date")
+        )
+        options["expected_scope"] = {key: record.get(key) for key in fields}
+        if kind == "project":
+            children, _ = await _call(db, "get_tasks", project_id=record["id"], include_deleted=True)
+            options["expected_children"] = [
+                {key: child.get(key) for key in ("id", "status", "evidence", "deleted_at", "updated_at")}
+                for child in children
+            ]
     # Wrong timestamps (including NULL versus an integer) never transition.
     if timestamp is not None:
         assert (
@@ -2015,6 +2039,45 @@ async def test_same_second_timestamp_keeps_status_guard(system, monkeypatch):
         len([entry for entry in (await _call(db, "get_task", task["id"]))["transitions"] if entry["target"] == "ready"])
         == 1
     )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("changed", ["title", "brief", "project_id", "evidence", "executor_id"])
+async def test_checked_task_scope_refuses_same_second_edit(system, monkeypatch, changed):
+    from agno.company.execution import _call
+
+    client, db, _, _, _ = system
+    product = (await client.post("/company/products", json={"name": "Scope guard"})).json()
+    project = (await client.post("/company/projects", json={"product_id": product["id"], "name": "Other"})).json()
+    task = (await client.post("/company/tasks", json={"product_id": product["id"], "title": "Original"})).json()
+    monkeypatch.setattr(time, "time", lambda: 100)
+    observed = await _call(db, "update_task", task["id"], brief="Checked")
+    values = {
+        "title": "New",
+        "brief": "New",
+        "project_id": project["id"],
+        "evidence": [{"source_id": "new"}],
+        "executor_id": "other",
+    }
+    edited = await _call(db, "update_task", task["id"], **{changed: values[changed]})
+    assert edited["updated_at"] == observed["updated_at"]
+    fields = ("status", "title", "brief", "project_id", "evidence", "executor_type", "executor_id")
+    receipt = {"routine_id": "routine", "policy": "version", "max_acceptances": 1}
+    result = await _call(
+        db,
+        "transition_task",
+        task["id"],
+        "ready",
+        "Automatic acceptance",
+        executor_type="agent",
+        executor_id="writer",
+        expected_updated_at=observed["updated_at"],
+        expected_scope={key: observed[key] for key in fields},
+        auto_accept=receipt,
+    )
+    assert result is None
+    assert (await _call(db, "get_task", task["id"]))["status"] == "backlog"
+    assert await _call(db, "count_company_acceptances", "routine", "version", "") == 0
 
 
 async def routine_executor(system):
@@ -2092,7 +2155,8 @@ async def test_template_free_routine_quiet_run_and_edited_executor(system):
 
 
 @pytest.mark.asyncio
-async def test_search_routine_adds_website_and_deduplicates_three_runs(system, monkeypatch):
+@pytest.mark.parametrize("executor_type,executor_id", [("agent", "writer"), ("team", "editors")])
+async def test_search_routine_adds_website_and_deduplicates_three_runs(system, monkeypatch, executor_type, executor_id):
     from agno.company.execution import _call
     from agno.knowledge.document import Document
     from agno.tools.company import CompanyTools
@@ -2136,8 +2200,8 @@ async def test_search_routine_adds_website_and_deduplicates_three_runs(system, m
                 response_usage=MessageMetrics(),
             )
 
-    components["writer"].model = SearchModel()
-    components["writer"].tools = [CompanyTools(db)]
+    components[executor_id].model = SearchModel()
+    components[executor_id].tools = [CompanyTools(db)]
     os.resync(worker.authorization_app)
     created = await client.post(
         "/company/routines",
@@ -2145,8 +2209,8 @@ async def test_search_routine_adds_website_and_deduplicates_three_runs(system, m
             product_id=product["id"],
             name="search",
             instructions="Discover useful pages, save website Sources, and propose evidence-backed work.",
-            executor_type="agent",
-            executor_id="writer",
+            executor_type=executor_type,
+            executor_id=executor_id,
             cron_expr="0 * * * *",
         ),
     )
@@ -2160,18 +2224,18 @@ async def test_search_routine_adds_website_and_deduplicates_three_runs(system, m
         runs.append(result["run_id"])
     sources, count = await _call(db, "get_sources", product_id=product["id"])
     assert count == 1
-    assert sources[0]["config"]["metadata"] == {"agent_id": "writer", "run_id": runs[0]}
+    assert sources[0]["config"]["metadata"] == {"agent_id": executor_id, "run_id": runs[0]}
     tasks, count = await _call(db, "get_tasks", product_id=product["id"])
     assert count == 1 and tasks[0]["status"] == "backlog"
     assert tasks[0]["evidence"][0]["run_id"] == runs[0]
     assert tasks[0]["evidence"][0]["link"] == url and tasks[0]["evidence"][0]["content_hash"]
     assert tasks[0]["routine_id"] == routine["id"]
     listed = (await client.get("/company/sources", params={"product_id": product["id"]})).json()["data"]
-    assert listed[0]["config"]["metadata"]["agent_id"] == "writer"
+    assert listed[0]["config"]["metadata"]["agent_id"] == executor_id
     # Discovered websites use the same bounded acceptance checks as human-added Sources.
     policy = dict(
-        executor_type="agent",
-        executor_id="writer",
+        executor_type=executor_type,
+        executor_id=executor_id,
         source_ids=[sources[0]["id"]],
         required_checks=["has_source_evidence", "executor_registered"],
         limits={"expires_at": int(time.time()) + 3600},
@@ -2236,3 +2300,265 @@ async def test_routine_instruction_edit_preserves_fingerprint_and_spent_budget(s
     with pytest.raises(ValueError, match="acceptance limit reached"):
         await executor._accept(other)
     assert (await _call(db, "get_task", other["id"]))["status"] == "backlog"
+
+
+@pytest.mark.asyncio
+async def test_same_second_scope_move_cannot_accept_or_queue(system, tmp_path, monkeypatch):
+    from agno.company.execution import _call
+
+    client, db, worker, os, _ = system
+    task, routine, _ = await routine_proposal(system, tmp_path)
+    outside = (
+        await client.post("/company/projects", json={"product_id": task["product_id"], "name": "Outside"})
+    ).json()
+    now = int(time.time())
+    monkeypatch.setattr(time, "time", lambda: now)
+    task = await _call(db, "update_task", task["id"], brief="Observed scope")
+
+    async def move_task(observed, manager):
+        response = await client.patch("/company/tasks/" + task["id"], json={"project_id": outside["id"]})
+        assert response.status_code == 200
+        assert response.json()["updated_at"] == task["updated_at"]
+        return True
+
+    os.company.acceptance_checks["move_task"] = move_task
+    policy = routine["payload"]["metadata"]["auto_accept"]
+    policy["required_checks"].append("move_task")
+    assert (await client.patch("/company/routines/" + routine["id"], json={"auto_accept": policy})).status_code == 200
+    executor, _ = await automation(system)
+    with pytest.raises(ValueError, match="changed during automatic acceptance"):
+        await executor._accept(task)
+    assert (await _call(db, "get_task", task["id"]))["status"] == "backlog"
+    assert await worker.store.claim_job(worker.worker_id, worker.config.lock_grace_seconds) is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("change", ["add_terminal", "archive_child", "edit_project"])
+async def test_completion_checked_facts_are_atomic(system, tmp_path, monkeypatch, change):
+    from agno.company.execution import _call
+    from agno.company.routines import _manager_call, _policy_fingerprint
+
+    client, db, _, os, _ = system
+    task, routine, manager = await routine_proposal(system, tmp_path, template="refresh")
+    await _manager_call(manager, "transition_task", task["id"], "cancelled", "Finished")
+    now = int(time.time())
+    monkeypatch.setattr(time, "time", lambda: now)
+    await _call(db, "update_project", task["project_id"], name="Observed")
+
+    async def change_facts(proposal, check_manager):
+        if change == "add_terminal":
+            await _call(
+                db,
+                "create_task",
+                dict(
+                    id=str(uuid4()),
+                    product_id=task["product_id"],
+                    project_id=task["project_id"],
+                    title="Outside evidence",
+                    status="cancelled",
+                    created_at=now,
+                    evidence=[{"source_id": "outside"}],
+                    transitions=[],
+                ),
+            )
+        elif change == "archive_child":
+            assert await _call(db, "delete_task", task["id"])
+        else:
+            updated = await _call(db, "update_project", task["project_id"], name="Changed within same second")
+            assert updated["updated_at"] == proposal["updated_at"]
+        return True
+
+    os.company.acceptance_checks["change_facts"] = change_facts
+    policy = routine["payload"]["metadata"]["auto_accept"]
+    policy.update(complete_projects=True)
+    policy["required_checks"].append("change_facts")
+    assert (await client.patch("/company/routines/" + routine["id"], json={"auto_accept": policy})).status_code == 200
+    await _manager_call(manager, "refresh", task["product_id"])
+    executor, _ = await automation(system)
+    project = await _manager_call(manager, "get_project", task["project_id"])
+    proposal = await executor._completion_candidate(manager, project, routine["id"])
+    assert proposal is not None
+    with pytest.raises(ValueError, match="changed during automatic acceptance"):
+        await executor._accept(proposal, completing=True)
+    assert (await _call(db, "get_project", project["id"]))["status"] == "active"
+    schedule = await _call(db, "get_schedule", routine["id"])
+    assert await _call(db, "count_company_acceptances", routine["id"], _policy_fingerprint(schedule), "") == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("operation", ["update", "create", "upsert"])
+async def test_python_schedule_writes_strip_forged_grants(system, tmp_path, operation):
+    import copy
+
+    from agno.company.execution import _call
+    from agno.db.base import AsyncBaseDb
+    from agno.os.auth import _default_authorization_provider
+    from agno.os.authz.provider import AuthorizationContext
+    from agno.run.authorization import RunAuthorization, authorization_scope
+    from agno.scheduler import ScheduleManager
+
+    client, db, worker, os, _ = system
+    task, routine, _ = await routine_proposal(system, tmp_path)
+    schedules = ScheduleManager(db)
+    before = await _call(db, "get_schedule", routine["id"])
+    payload = copy.deepcopy(before["payload"])
+    payload["_agno_company_acceptance"] = {
+        "user_id": "mallory",
+        "_agno_authorization": {
+            "context": {"principal_id": "mallory", "scopes": ["agent_os:admin"]},
+            "service_account": False,
+        },
+    }
+    caller = RunAuthorization(
+        _default_authorization_provider(),
+        AuthorizationContext(principal_id="editor", scopes=["schedules:write", "agents:run"]),
+    )
+    with authorization_scope(lambda: caller):
+        if operation == "update":
+            updated = (
+                await schedules.aupdate(routine["id"], payload=payload)
+                if isinstance(db, AsyncBaseDb)
+                else schedules.update(routine["id"], payload=payload)
+            )
+        else:
+            args = dict(
+                name=before["name"] if operation == "upsert" else "forged",
+                cron="0 * * * *",
+                endpoint="/agents/writer/runs",
+                payload=payload,
+                if_exists="update",
+                provenance={"managed_by": "company"},
+            )
+            updated = await schedules.acreate(**args) if isinstance(db, AsyncBaseDb) else schedules.create(**args)
+    stored = await _call(db, "get_schedule", updated.id)
+    assert "_agno_company_acceptance" not in stored["payload"]
+    assert stored["payload"]["_agno_authorization"]["context"]["principal_id"] == "editor"
+    if operation != "create":
+        executor, _ = await automation(system)
+        os.authorization = True
+        try:
+            with pytest.raises(ValueError, match="no human automatic acceptance authorization"):
+                await executor._accept(task)
+        finally:
+            os.authorization = False
+        assert (await _call(db, "get_task", task["id"]))["status"] == "backlog"
+        assert await worker.store.claim_job(worker.worker_id, worker.config.lock_grace_seconds) is None
+    # Trusted HTTP updates still issue fresh grants after the manager boundary.
+    response = await client.patch(
+        "/company/routines/" + routine["id"], json={"auto_accept": before["payload"]["metadata"]["auto_accept"]}
+    )
+    assert response.status_code == 200, response.text
+    assert "_agno_company_acceptance" in (await _call(db, "get_schedule", routine["id"]))["payload"]
+
+
+@pytest.mark.asyncio
+async def test_revoked_ready_acceptance_returns_to_visible_backlog(system, tmp_path):
+    from agno.company.execution import _call
+
+    client, db, worker, _, _ = system
+    task, routine, _ = await routine_proposal(system, tmp_path)
+    executor, schedule = await automation(system)
+    accepted_task = await executor._accept(task)
+    assert (await client.patch("/company/routines/" + routine["id"], json={"auto_accept": False})).status_code == 200
+    with pytest.raises(ValueError, match="changed or revoked"):
+        await executor._dispatch(accepted_task)
+    saved = await _call(db, "get_task", task["id"])
+    assert saved["status"] == "backlog" and saved["accepted_by"] is None
+    assert "changed or revoked" in saved["transitions"][-1]["reason"]
+    assert (await client.get("/company/attention")).json()["proposals"] == 1
+    assert await worker.store.claim_job(worker.worker_id, worker.config.lock_grace_seconds) is None
+
+
+@pytest.mark.asyncio
+async def test_cheap_check_failure_skips_source_io(system, tmp_path, monkeypatch):
+    from unittest.mock import Mock
+
+    from agno.company.execution import _call
+
+    client, db, _, _, _ = system
+    task, routine, _ = await routine_proposal(system, tmp_path)
+    assert (
+        await client.post(
+            "/company/projects/" + task["project_id"] + "/transitions",
+            json={"target": "cancelled", "reason": "Dropped"},
+        )
+    ).status_code == 200
+    read = Mock(side_effect=AssertionError("Source must not be read"))
+    monkeypatch.setattr("agno.company.sources.read_source", read)
+    executor, schedule = await automation(system)
+    for _ in range(3):
+        await _call(db, "update_schedule", schedule["id"], next_run_at=0)
+        result = await tick(executor, db)
+        assert "project_active" in result["output"]["tasks"][0]["reason"]
+    read.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_expired_authorization_refused_at_write(system):
+    client, db, _, _, _ = system
+    product = (await client.post("/company/products", json={"name": "Expiry"})).json()
+    response = await client.post(
+        "/company/routines",
+        json=dict(
+            product_id=product["id"],
+            name="Expired",
+            instructions="Check",
+            executor_type="agent",
+            executor_id="writer",
+            cron_expr="0 * * * *",
+            auto_accept=dict(executor_type="agent", executor_id="writer", limits={"expires_at": 1}),
+        ),
+    )
+    assert response.status_code == 422
+    assert "future" in response.text
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("kind", ["remote", "no_database"])
+async def test_automatic_policy_refuses_unrunnable_executor(system, tmp_path, monkeypatch, kind):
+    from agno.agent import RemoteAgent
+    from agno.company.execution import _call
+
+    client, db, _, os, components = system
+    task, routine, _ = await routine_proposal(system, tmp_path)
+    if kind == "remote":
+        remote = RemoteAgent(base_url="http://127.0.0.1:1", agent_id="writer")
+        original = os.registry.get_agent
+        monkeypatch.setattr(os.registry, "get_agent", lambda name: remote if name == "writer" else original(name))
+    else:
+        monkeypatch.setattr(components["writer"], "db", None)
+    policy = routine["payload"]["metadata"]["auto_accept"]
+    response = await client.patch("/company/routines/" + routine["id"], json={"auto_accept": policy})
+    assert response.status_code == 422, response.text
+    executor, _ = await automation(system)
+    with pytest.raises(ValueError, match="local executor|requires a database"):
+        await executor._accept(task)
+    assert (await _call(db, "get_task", task["id"]))["status"] == "backlog"
+
+
+@pytest.mark.asyncio
+async def test_expired_tick_cannot_accept_or_release_new_claim(system, tmp_path, monkeypatch):
+    from agno.company.execution import _call
+
+    client, db, worker, os, _ = system
+    task, routine, _ = await routine_proposal(system, tmp_path)
+    executor, schedule = await automation(system)
+    claimed = await _call(db, "claim_due_schedule", "first")
+    assert claimed["id"] == schedule["id"]
+
+    async def slow_check(observed, manager):
+        # Model process suspension or slow IO beyond the default lock grace.
+        monkeypatch.setattr(time, "time", lambda: claimed["locked_at"] + 301)
+        second = await _call(db, "claim_due_schedule", "second")
+        assert second["id"] == claimed["id"]
+        return True
+
+    os.company.acceptance_checks["slow_check"] = slow_check
+    policy = routine["payload"]["metadata"]["auto_accept"]
+    policy["required_checks"].append("slow_check")
+    assert (await client.patch("/company/routines/" + routine["id"], json={"auto_accept": policy})).status_code == 200
+    result = await executor.execute(claimed, db)
+    assert "claim budget" in str(result)
+    assert (await _call(db, "get_task", task["id"]))["status"] == "backlog"
+    assert (await _call(db, "get_schedule", schedule["id"]))["locked_by"] == "second"
+    assert await worker.store.claim_job(worker.worker_id, worker.config.lock_grace_seconds) is None

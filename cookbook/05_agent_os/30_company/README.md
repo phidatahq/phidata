@@ -509,14 +509,19 @@ that window, falling back to creation time when no update exists. The delete
 transaction rechecks age and terminal state. Project retention uses the same
 cascading archive as manual archive: it refuses Ready, In progress or In review
 Tasks, and archives remaining children even if their own updates are newer.
+Refresh processes qualifying Projects before standalone Tasks, so a single
+maintenance pass preserves the Project's cascade as one restorable group.
 Restoring the Project restores only children taken by that cascade; Tasks
-independently archived by their own retention window stay archived.
+independently archived before that pass stay archived. Retention skips terminal
+Projects that still contain Backlog work and refuses active Tasks. New open Tasks
+cannot be added or moved into Done or Cancelled Projects.
 Restore retains the lifecycle and starts a fresh retention window. Archived
 records leave normal lists, grouped counts and execution. Read an individual
 record with `include_deleted=true` for inspection; lists still hide children
 of archived parents, so restore the parent first.
 Refresh removes expired generated `summary.md` and completion-proposal pages
-through the existing filesystem API. Human pages, `brief.md` and `status.md`
+through version-guarded filesystem deletion; a concurrent replacement is kept.
+Human pages, `brief.md` and `status.md`
 are protected. The Refresh Skill updates status.md to reflect the remaining work.
 
 The maintenance tool requires Routine authority, Product ownership when
@@ -569,6 +574,37 @@ version. Project completion creates no executor run. Existing Task completion
 still requires human review.
 
 ### Custom Routines and discovered websites
+
+Website Sources use public HTTP(S) addresses on standard ports. Each read checks
+all DNS answers and pins the connection to an allowed public address; redirects
+must stay on the configured origin. Private, loopback, link-local and reserved
+local hosts are refused. Downloads use a 4 MiB byte limit and a 30-second deadline
+covering resolution, redirects and streaming. Compressed responses are refused
+to keep the byte bound meaningful. These restrictions apply to human-added and
+agent-added website Sources; local files remain human-configured Sources.
+
+Team executors record the team's injected id in `config.metadata.agent_id`.
+Routine authority is bound to its Product even with isolation disabled. Ordinary
+schedule mutation routes refuse Company-managed rows; use `/company/routines`.
+An archived Product cannot dispatch its Routine: the scheduler records the refusal
+and disables the schedule. Owners can still pause it; restore the Product before
+explicitly resuming the Routine.
+
+Repeated Routine Project proposals reuse an identity derived from Product,
+Routine and proposal name, preserving human edits and archives. Intake's Task
+dedupe survives completion and archive; a returned row with `deleted_at` set is
+an archived existing proposal, not newly created work.
+
+Supply Product declarations in code or YAML, not both. An explicit `CompanyConfig`
+with no Products can still provide the database/model while YAML declares them.
+Conflicting declaration lists fail clearly at startup instead of silently losing
+one list.
+
+Summary serializes delivery per Product with a versioned lease. A live overlapping
+delivery is refused; retry after it finishes. A lost worker's lease expires after
+ten minutes. Transport is bounded to one minute. Delivery remains at least once
+across a crash after sending but before recording its receipt; interfaces do not
+provide a common transactional delivery guarantee.
 
 Run `08_custom_routines.py` to create a Routine with instructions and no template
 or initial Sources, then add an attributed website through `CompanyTools`.

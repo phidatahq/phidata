@@ -316,8 +316,29 @@ async def _reconcile_task_run(
         "content": data.get("content"),
         "content_type": data.get("content_type"),
     }
+    checkout = None
+    if run["status"] == "COMPLETED":
+        from agno.company.sandbox import _is_sandboxed, _project_checkout
+
+        kind = run["run_type"]
+        component = (
+            await worker._aresolve_job_component({"component_type": kind, "component_id": run.get(kind + "_id")})
+            if worker is not None
+            else None
+        )
+        if not _is_sandboxed(component) and (
+            (data.get("metadata") or {}).get("sandbox") or (task.get("metadata") or {}).get("checkout")
+        ):
+            raise _TaskRunUnavailable("Sandboxed Task executor is unavailable while recovering its checkout")
+        checkout, result = await _project_checkout(db, task, component, data, result)
     updated = await _call(
-        db, "complete_task_run", task["id"], run["run_id"], result, expected_transitions=task["transitions"]
+        db,
+        "complete_task_run",
+        task["id"],
+        run["run_id"],
+        result,
+        expected_transitions=task["transitions"],
+        **({"checkout": checkout} if checkout is not None else {}),
     )
     return updated is not None
 

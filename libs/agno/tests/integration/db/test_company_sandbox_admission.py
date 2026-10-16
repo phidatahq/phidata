@@ -392,3 +392,121 @@ async def test_overlapping_deployments_serialize_concurrent_starts(sandbox_syste
     assert job["id"] == started.json()["run_id"] and job["status"] == "running"
     assert await worker.store.claim_job(worker.worker_id, deployment_id="named-deployment") is None
     assert (await _call(db, "get_task", second["id"]))["status"] == "ready"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("second_pin", ["same", "different", "missing"])
+async def test_recovery_projects_and_verifies_checkout(sandbox_system, monkeypatch, second_pin):
+    from unittest.mock import AsyncMock
+
+    from agno.company.execution import _reconcile_task_run, _recover_task
+    from tests.integration.db.test_company_failure_recovery import delete_ticket
+
+    client, db, worker, os, agent = sandbox_system
+    task = await engineering_task(client, db)
+    path = "/company/tasks/" + task["id"] + "/runs"
+    first = await client.post(path)
+    assert first.status_code == 202, first.text
+    reserved = await _call(db, "get_task", task["id"])
+    run = agent.db.get_run(reserved["job_id"], deserialize=False)
+    agent.db.upsert_run(
+        {**run["run_data"], "status": "COMPLETED", "metadata": {"sandbox": {"repository": PIN}}},
+        session_id=task["session_id"],
+    )
+    delete_ticket(worker, reserved["job_id"])
+    with monkeypatch.context() as recovery:
+        recovery.setattr(
+            worker.store, "enqueue_job", AsyncMock(side_effect=AssertionError("Recovery must not enqueue"))
+        )
+        outcome = await _recover_task(os, worker, reserved)
+    assert outcome["action"] == "reconciled"
+    saved = await _call(db, "get_task", task["id"])
+    checkout = {"source_id": task["id"], **PIN}
+    assert saved["metadata"]["checkout"] == checkout
+    assert saved["result"]["status"] == "COMPLETED" and saved["status"] == "in_review"
+    second = await client.post(path, json={"attempt": 2})
+    assert second.status_code == 202, second.text
+    reserved = await _call(db, "get_task", task["id"])
+    assert reserved["session_id"] == task["session_id"]
+    run = agent.db.get_run(reserved["job_id"], deserialize=False)
+    ticket = await worker.store.get_job(reserved["job_id"])
+    assert ticket["payload"]["kwargs"]["metadata"]["repository"] == {"commit": PIN["commit"]}
+    pin = {**PIN, "commit": "b" * 40} if second_pin == "different" else PIN
+    data = {**run["run_data"], "status": "COMPLETED", "metadata": {"sandbox": {}}}
+    if second_pin != "missing":
+        data["metadata"]["sandbox"]["repository"] = pin
+    agent.db.upsert_run(data, session_id=task["session_id"])
+    delete_ticket(worker, reserved["job_id"])
+    with monkeypatch.context() as recovery:
+        recovery.setattr(
+            worker.store, "enqueue_job", AsyncMock(side_effect=AssertionError("Recovery must not enqueue"))
+        )
+        # Repeating the HTTP start recovers the existing run rather than submitting it.
+        response = await client.post(path, json={"attempt": 2})
+    assert response.status_code == 202, response.text
+    saved = await _call(db, "get_task", task["id"])
+    assert saved["metadata"]["checkout"] == checkout
+    assert saved["result"]["status"] == ("COMPLETED" if second_pin == "same" else "ERROR")
+    assert saved["status"] == ("in_review" if second_pin == "same" else "in_progress")
+    if second_pin != "same":
+        assert "repository pin" in saved["result"]["content"]
+    # A stale recovery observation cannot replace a settled result or its pin.
+    agent.db.upsert_run({**data, "metadata": {"sandbox": {"repository": PIN}}}, session_id=task["session_id"])
+    stale_run = agent.db.get_run(reserved["job_id"], deserialize=False)
+    assert not await _reconcile_task_run(db, agent.db, reserved, stale_run, None, worker=worker)
+    assert await _call(db, "get_task", task["id"]) == saved
+
+
+@pytest.mark.asyncio
+async def test_recovered_retry_establishes_absent_checkout(sandbox_system):
+    from agno.company.execution import _recover_task
+    from tests.integration.db.test_company_failure_recovery import delete_ticket
+
+    client, db, worker, os, agent = sandbox_system
+    task = await engineering_task(client, db)
+    path = "/company/tasks/" + task["id"] + "/runs"
+    first = await client.post(path)
+    assert first.status_code == 202, first.text
+    job = await worker.store.get_job(first.json()["run_id"])
+    await _project_run(worker, job, "failed", "Transient first attempt")
+    await worker.store.cancel_job(job["id"])
+    second = await client.post(path, json={"attempt": 2})
+    assert second.status_code == 202, second.text
+    task = await _call(db, "get_task", task["id"])
+    assert task["metadata"] is None
+    run = agent.db.get_run(task["job_id"], deserialize=False)
+    agent.db.upsert_run(
+        {**run["run_data"], "status": "COMPLETED", "metadata": {"sandbox": {"repository": PIN}}},
+        session_id=task["session_id"],
+    )
+    delete_ticket(worker, task["job_id"])
+    assert (await _recover_task(os, worker, task))["action"] == "reconciled"
+    saved = await _call(db, "get_task", task["id"])
+    assert saved["metadata"]["checkout"] == {"source_id": task["id"], **PIN}
+    assert saved["result"]["status"] == "COMPLETED"
+
+
+@pytest.mark.asyncio
+async def test_recovery_waits_for_missing_sandbox_executor(sandbox_system, monkeypatch):
+    from unittest.mock import AsyncMock
+
+    from agno.company.execution import _recover_task, _TaskRunUnavailable
+    from tests.integration.db.test_company_failure_recovery import delete_ticket
+
+    client, db, worker, os, agent = sandbox_system
+    task = await engineering_task(client, db)
+    assert (await client.post("/company/tasks/" + task["id"] + "/runs")).status_code == 202
+    task = await _call(db, "get_task", task["id"])
+    run = agent.db.get_run(task["job_id"], deserialize=False)
+    agent.db.upsert_run(
+        {**run["run_data"], "status": "COMPLETED", "metadata": {"sandbox": {"repository": PIN}}},
+        session_id=task["session_id"],
+    )
+    delete_ticket(worker, task["job_id"])
+    with monkeypatch.context() as unavailable:
+        unavailable.setattr(worker, "_aresolve_job_component", AsyncMock(return_value=None))
+        with pytest.raises(_TaskRunUnavailable, match="recovering its checkout"):
+            await _recover_task(os, worker, task)
+    assert await _call(db, "get_task", task["id"]) == task
+    assert (await _recover_task(os, worker, task))["action"] == "reconciled"
+    assert (await _call(db, "get_task", task["id"]))["metadata"]["checkout"] == {"source_id": task["id"], **PIN}

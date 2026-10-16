@@ -24,7 +24,7 @@ class Source(BaseModel):
 class Routine(BaseModel):
     model_config = ConfigDict(extra="forbid")
     name: str = Field(min_length=1, max_length=255)
-    template: Literal["refresh", "intake", "summary"]
+    template: Optional[Literal["refresh", "intake", "summary"]] = None
     executor_type: Literal["agent", "team", "workflow"]
     executor_id: str = Field(min_length=1)
     cron_expr: str
@@ -36,6 +36,10 @@ class Routine(BaseModel):
     def validate_schedule(self):
         from agno.scheduler.cron import validate_cron_expr, validate_timezone
 
+        if self.instructions is not None and not self.instructions.strip():
+            raise ValueError("Routine instructions must be nonempty")
+        if self.template is None and not self.instructions:
+            raise ValueError("Routine instructions are required without a template")
         if not validate_cron_expr(self.cron_expr):
             raise ValueError("Invalid cron expression")
         if not validate_timezone(self.timezone):

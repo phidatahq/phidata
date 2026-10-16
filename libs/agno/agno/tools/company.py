@@ -1,7 +1,7 @@
 """Bounded Company tools for agents and direct MCP calls.
 
 Identity is injected by the framework. No tool can accept or complete work,
-reassign ownership, edit a Product brief, change Sources, or schedule work.
+reassign ownership, edit a Product brief, change local Sources, or schedule work.
 """
 
 import asyncio
@@ -26,6 +26,7 @@ def _empty_to_none(value: Any) -> Any:
 # Keep nullable schemas and normalize empty strings before Pydantic validation.
 _OptionalString = Annotated[Optional[str], BeforeValidator(_empty_to_none)]
 _OptionalInt = Annotated[Optional[int], BeforeValidator(_empty_to_none)]
+_OptionalSourceConfig = Annotated[Optional[Dict[str, List[str]]], BeforeValidator(_empty_to_none)]
 
 
 def _authority(run_context):
@@ -96,6 +97,7 @@ class CompanyTools(Toolkit):
         self._agent_id = agent_id
         names = [
             "list_company_sources",
+            "add_company_source",
             "read_company_source",
             "intake_company_source",
             "list_company_products",
@@ -703,10 +705,41 @@ class CompanyTools(Toolkit):
         return run_context.run_id
 
     @requires_permission()
+    def add_company_source(
+        self,
+        product_id: str,
+        type: str,
+        reference: str,
+        config: _OptionalSourceConfig = None,
+        _agno_agent: Optional[Any] = None,
+        _agno_run_context: Optional[Any] = None,
+    ) -> str:
+        """Save a discovered website Source. Local Sources must be added by a human.
+
+        Identical additions return the existing Source; conflicting settings are refused.
+
+        Args:
+            config: Optional reader settings; null uses the default configuration.
+        """
+        _permission("sources", "write", _agno_run_context)
+        config = _empty_to_none(config)
+        row = self._sync().add_source(
+            product_id,
+            type,
+            reference,
+            agent_id=getattr(_agno_agent, "id", None),
+            run_id=getattr(_agno_run_context, "run_id", None),
+            config=config,
+            user_id=_identity(_agno_run_context),
+            scoped_user_id=self._scoped_user(_agno_run_context),
+        )
+        return json.dumps({key: value for key, value in row.items() if key != "credential_ref"}, default=str)
+
+    @requires_permission()
     def list_company_sources(
         self, product_id: str, limit: _OptionalInt = 20, page: _OptionalInt = 1, _agno_run_context: Optional[Any] = None
     ) -> str:
-        """List the readers configured by humans for a Product.
+        """List the readers configured for a Product.
 
         Args:
             limit: Maximum results per page; null uses 20.
@@ -842,10 +875,41 @@ class CompanyTools(Toolkit):
         )
 
     @requires_permission()
+    async def aadd_company_source(
+        self,
+        product_id: str,
+        type: str,
+        reference: str,
+        config: _OptionalSourceConfig = None,
+        _agno_agent: Optional[Any] = None,
+        _agno_run_context: Optional[Any] = None,
+    ) -> str:
+        """Save a discovered website Source. Local Sources must be added by a human.
+
+        Identical additions return the existing Source; conflicting settings are refused.
+
+        Args:
+            config: Optional reader settings; null uses the default configuration.
+        """
+        await _apermission("sources", "write", _agno_run_context)
+        config = _empty_to_none(config)
+        row = await self._async().add_source(
+            product_id,
+            type,
+            reference,
+            agent_id=getattr(_agno_agent, "id", None),
+            run_id=getattr(_agno_run_context, "run_id", None),
+            config=config,
+            user_id=_identity(_agno_run_context),
+            scoped_user_id=self._scoped_user(_agno_run_context),
+        )
+        return json.dumps({key: value for key, value in row.items() if key != "credential_ref"}, default=str)
+
+    @requires_permission()
     async def alist_company_sources(
         self, product_id: str, limit: _OptionalInt = 20, page: _OptionalInt = 1, _agno_run_context: Optional[Any] = None
     ) -> str:
-        """List the readers configured by humans for a Product.
+        """List the readers configured for a Product.
 
         Args:
             limit: Maximum results per page; null uses 20.

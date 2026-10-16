@@ -273,3 +273,34 @@ def project_counts(
     for row in sess.execute(query).mappings():
         counts[row["project_id"]]["tasks"][row["status"]] = row["total"]
     return counts
+
+
+def create_company_source(
+    sess: Any, products: Any, table: Any, source_data: Dict[str, Any], reuse: bool
+) -> Dict[str, Any]:
+    """Serialize Source additions with Product archives and identical discoveries."""
+    lock_product(sess, products, source_data["product_id"])
+    if reuse:
+        rows = sess.execute(
+            select(table).where(
+                table.c.product_id == source_data["product_id"], table.c.reference == source_data["reference"]
+            )
+        ).all()
+        for row in rows:
+            existing = dict(row._mapping)
+            config = {key: value for key, value in (existing.get("config") or {}).items() if key != "metadata"}
+            requested = {key: value for key, value in (source_data.get("config") or {}).items() if key != "metadata"}
+            if (
+                existing.get("deleted_at") is not None
+                or existing["type"] != source_data["type"]
+                or existing.get("credential_ref") != source_data.get("credential_ref")
+                or config != requested
+            ):
+                raise ValueError(
+                    "Source "
+                    + existing["id"]
+                    + " already uses this reference with conflicting configuration or is archived"
+                )
+        if rows:
+            return dict(rows[0]._mapping)
+    return dict(sess.execute(table.insert().values(**source_data).returning(table)).one()._mapping)

@@ -19,7 +19,8 @@ and incorporate the intervening edit. Keep updates small and edit existing pages
 rather than duplicate them. Do not edit brief.md: humans own direction.
 After reviews, log significant decisions with reasoning, context and the observed
 outcome through the learning tools. A decision is a log entry, not a wiki page.
-You cannot make Tasks Ready or Done, change ownership or Sources, schedule work,
+You may add website Sources discovered during a run, subject to Product ownership and sources:write.
+You cannot make Tasks Ready or Done, change ownership or local Sources, schedule work,
 or change your tools. Do not claim a proposal has been accepted or executed.
 """
 

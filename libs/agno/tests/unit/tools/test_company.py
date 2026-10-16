@@ -21,9 +21,9 @@ def test_optional_schema_describes_null_and_hides_identity(tmp_path, use_async, 
         signature = inspect.signature(getattr(tools, ("a" if use_async else "") + name))
         function.process_entrypoint(strict=strict)
         properties = function.parameters["properties"]
-        assert "_agno_run_context" not in properties
+        assert not any(name.startswith("_agno_") for name in properties)
         for argument, parameter in signature.parameters.items():
-            if parameter.default is inspect.Parameter.empty or argument == "_agno_run_context":
+            if parameter.default is inspect.Parameter.empty or argument.startswith("_agno_"):
                 continue
             schema = properties[argument]
             assert schema["description"], (name, argument)

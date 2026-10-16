@@ -740,3 +740,204 @@ def test_pending_routine_creation_cannot_be_recovered_by_another_creator(tmp_pat
         assert alice.status_code == 201, alice.text
         assert alice.json()["id"] == pending["id"] and alice.json()["enabled"] is True
     db.close()
+
+
+@pytest.mark.parametrize("instructions", [None, "", "  "])
+def test_custom_routine_requires_instructions(system, instructions):
+    client, _, _ = system
+    product = client.post("/company/products", json={"name": "Custom"}).json()
+    response = client.post(
+        "/company/routines",
+        json=dict(
+            product_id=product["id"],
+            name="custom",
+            executor_type="agent",
+            executor_id="reader",
+            cron_expr="0 * * * *",
+            instructions=instructions,
+        ),
+    )
+    assert response.status_code == 422, response.text
+
+
+def test_custom_routine_edits_and_frozen_template(system, monkeypatch):
+    client, _, db = system
+    product = client.post("/company/products", json={"name": "Custom"}).json()
+    response = client.post(
+        "/company/routines",
+        json=dict(
+            product_id=product["id"],
+            name="custom",
+            executor_type="agent",
+            executor_id="reader",
+            cron_expr="0 * * * *",
+            instructions="Check quietly",
+        ),
+    )
+    assert response.status_code == 201, response.text
+    routine = response.json()
+    assert routine["payload"]["metadata"]["template"] is None
+    path = "/company/routines/" + routine["id"]
+    changed = client.patch(path, json={"name": "renamed", "instructions": "New instructions", "cron_expr": "0 9 * * *"})
+    assert changed.status_code == 200, changed.text
+    assert changed.json()["name"] == product["id"] + ".renamed"
+    assert changed.json()["payload"]["message"].endswith("New instructions")
+    assert client.patch(path, json={"instructions": " "}).status_code == 422
+    assert client.patch(path, json={"name": "!"}).status_code == 422
+    assert client.patch(path, json={"name": ""}).status_code == 422
+    assert client.patch(path, json={"executor_id": "missing"}).status_code == 422
+    assert db.get_schedule(routine["id"])["payload"]["metadata"]["auto_accept"] is False
+    templated = client.post(
+        "/company/routines",
+        json=dict(
+            product_id=product["id"],
+            name="template",
+            template="summary",
+            executor_type="agent",
+            executor_id="reader",
+            cron_expr="0 * * * *",
+        ),
+    ).json()
+    monkeypatch.setattr(
+        "agno.company.routines.load_routine_skills", lambda: pytest.fail("Existing instructions must not reload Skills")
+    )
+    edited = client.patch("/company/routines/" + templated["id"], json={"name": "saved-template"})
+    assert edited.status_code == 200
+    assert edited.json()["payload"]["message"] == templated["payload"]["message"]
+    edited = client.patch("/company/routines/" + templated["id"], json={"instructions": "Human-edited summary"})
+    assert edited.status_code == 200
+    assert edited.json()["payload"]["metadata"] == templated["payload"]["metadata"]
+    assert "instructions" not in edited.json()["payload"]["metadata"]
+
+
+def test_isolated_company_reads_require_subject_and_executor_edits_require_run_scope(tmp_path):
+    import jwt
+
+    from agno.os.config import AuthorizationConfig
+
+    secret = "company-contract-secret"
+    db = SqliteDb(db_file=str(tmp_path / "identity.db"))
+    os = AgentOS(
+        id="contract",
+        db=db,
+        agents=[Agent(id="reader", telemetry=False), Agent(id="other", telemetry=False)],
+        company=CompanyConfig(),
+        telemetry=False,
+        authorization=True,
+        authorization_config=AuthorizationConfig(verification_keys=[secret], algorithm="HS256", user_isolation=True),
+    )
+    scopes = [
+        "products:read",
+        "products:write",
+        "projects:read",
+        "tasks:read",
+        "sources:read",
+        "routines:read",
+        "routines:write",
+        "schedules:write",
+        "schedules:read",
+        "agents:reader:run",
+        "wiki:read",
+    ]
+
+    def headers(subject):
+        claims = {"aud": "contract", "scopes": scopes}
+        if subject:
+            claims["sub"] = subject
+        return {"Authorization": "Bearer " + jwt.encode(claims, secret, algorithm="HS256")}
+
+    with TestClient(os.get_app()) as client:
+        product = client.post("/company/products", json={"name": "Identity"}, headers=headers("owner")).json()
+        routine = client.post(
+            "/company/routines",
+            json=dict(
+                product_id=product["id"],
+                name="custom",
+                instructions="Quiet",
+                executor_type="agent",
+                executor_id="reader",
+                cron_expr="0 * * * *",
+            ),
+            headers=headers("owner"),
+        )
+        assert routine.status_code == 201, routine.text
+        path = "/company/routines/" + routine.json()["id"]
+        for route in [
+            "/company/products",
+            "/company/products/" + product["id"],
+            "/company/projects",
+            "/company/tasks",
+            "/company/sources",
+            "/company/routines",
+            path + "/runs",
+            "/company/attention",
+        ]:
+            result = client.get(route, headers=headers(None))
+            assert result.status_code == 403, (route, result.text)
+        refused = client.patch(path, json={"executor_id": "other"}, headers=headers("owner"))
+        assert refused.status_code == 403, refused.text
+        assert db.get_schedule(routine.json()["id"])["target_id"] == "reader"
+    db.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("async_tools", [False, True])
+async def test_source_tool_requires_write_scope_and_hides_injected_identity(tmp_path, async_tools):
+    from types import SimpleNamespace
+
+    from agno.os.auth import _default_authorization_provider
+    from agno.os.authz.provider import AuthorizationContext
+    from agno.run.authorization import RunAuthorization
+    from agno.run.base import RunContext
+    from agno.tools.company import CompanyTools
+
+    db = SqliteDb(db_file=str(tmp_path / "scoped-source.db"))
+    product = CompanyManager(db).create("Owned", user_id="owner")
+    toolkit = CompanyTools(db, user_isolation=True)
+    authority = RunAuthorization(
+        _default_authorization_provider(), AuthorizationContext(principal_id="owner", scopes=["sources:read"])
+    )
+    context = RunContext(run_id="run", session_id="session", authorization=authority)
+    fn = toolkit.aadd_company_source if async_tools else toolkit.add_company_source
+    arguments = dict(
+        product_id=product["id"],
+        type="website",
+        reference="https://example.test/page",
+        _agno_run_context=context,
+        _agno_agent=SimpleNamespace(id="finder"),
+    )
+    with pytest.raises(PermissionError):
+        if async_tools:
+            await fn(**arguments)
+        else:
+            fn(**arguments)
+    authority.context.scopes = ["sources:write"]
+    result = json.loads(await fn(**arguments) if async_tools else fn(**arguments))
+    assert result["config"]["metadata"] == {"agent_id": "finder", "run_id": "run"}
+    function = (toolkit.get_async_functions() if async_tools else toolkit.functions)["add_company_source"]
+    function.process_entrypoint()
+    assert not any(key.startswith("_agno") for key in function.parameters["properties"])
+    db.close()
+
+
+@pytest.mark.parametrize("task_status", ["backlog", "ready", "in_progress", "in_review", "done", "cancelled"])
+@pytest.mark.parametrize("run_status", ["ERROR", "CANCELLED", "FAILED", "error", "COMPLETED"])
+def test_summary_failure_predicate_matches_attention(task_status, run_status):
+    from agno.company.summary import _summary_report
+
+    report = _summary_report(
+        {"name": "Product"},
+        {},
+        [
+            {
+                "id": "task",
+                "title": "Work",
+                "status": task_status,
+                "result": {"status": run_status, "error": "Execution detail"},
+            }
+        ],
+        "Observed state",
+        "",
+    )
+    unresolved = task_status == "in_progress" and run_status in {"ERROR", "CANCELLED"}
+    assert ("No failed Tasks." not in report) == unresolved

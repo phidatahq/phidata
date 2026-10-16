@@ -103,12 +103,14 @@ otherwise it is a standalone agent, available at `GET /agents/product-manager-in
 and `POST /agents/product-manager-internal/runs`. Its id is reserved and its tools stay out of
 the registry. It proposes Projects and Backlog Tasks, edits owned proposals,
 updates `status.md` with a version check, and logs decisions through its learning
-machine. It has no acceptance, completion, owner, Sources or scheduler tools.
+machine. It can read Sources and add website Sources with permission and Product
+ownership. Acceptance, completion, ownership changes, local Source additions and
+scheduling remain outside its tools.
 
 CompanyTools can be published explicitly with `MCPConfig(tools=[...])`, following
 the existing MCP toolkit convention. Direct MCP calls have the same write fence.
 The examples make no provider calls; they do not demonstrate live model quality.
-Routines and Sources are outside this delivery.
+The heartbeat examples below demonstrate Routines and Sources.
 
 Optional Company tool arguments accept `null` for omission. Empty strings are
 normalized to omission as well; omitted pagination uses 20 results on page 1.
@@ -408,3 +410,37 @@ from its connection details. Reuse those details (or an explicit stable `id`)
 after restart and across replicas so saved run database references resolve.
 This does not rewrite references saved with older randomly generated IDs;
 retaining a known old ID explicitly is necessary for those references.
+
+
+### Custom Routines and discovered websites
+
+Run `08_custom_routines.py` to create a Routine with instructions and no template
+or initial Sources, then add an attributed website through `CompanyTools`.
+The example is offline; the integration tests execute custom and search-style
+Routines through the scheduler and durable queue on all four SQL adapters.
+
+`template` is optional. Without one, creation requires nonempty `instructions`.
+With a template, creation copies its Skill text unless explicit instructions are
+supplied. Name, instructions, executor type/id, cron expression and timezone can
+be edited with PATCH. Executor edits reuse scheduler authorization and target
+checks. Stored instructions are not refreshed when Skill files change.
+A custom Routine does maintenance only when it calls the Refresh tool, and
+Summary bookkeeping only when it calls the Summary tool.
+
+Product Manager and executors can call `add_company_source` with `type="website"`
+when granted `sources:write` and permitted to write the Product. Repository and
+path Sources remain human-added. Source storage has a single existing JSON
+field, `config`: server-stamped `config.metadata.agent_id` and
+`config.metadata.run_id` identify the first discovery. These fields are not
+reader options or model-supplied identities. Matching additions reuse the same
+Source; conflicting settings or archived references are refused with the existing
+Source id. A human can inspect provenance in GET `/company/sources` and archive
+through DELETE `/company/sources/{id}`. AgentOS applies its isolation setting to
+custom Company toolkits. Non-admin scoped tokens missing a subject are rejected
+under isolation on Company reads as well as writes; the existing administrator
+exemption is unchanged.
+
+Summary's unresolved failures match attention: only Tasks still `in_progress`
+with an ERROR or CANCELLED execution result appear under Failed Tasks. Moving
+work on or archiving it removes that unresolved failure without deleting its
+execution history.

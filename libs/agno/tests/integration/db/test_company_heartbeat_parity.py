@@ -581,3 +581,93 @@ async def test_routine_creation_recovers_after_storage_failure(heartbeat, monkey
         assert response.json()["id"] == pending[0]["id"] and response.json()["enabled"] is True
         assert (await call("get", product["id"]))["metadata"]["routine_ids"] == [pending[0]["id"]]
         assert (await _call(db, "get_schedules"))[1] == 1
+
+
+@pytest.mark.asyncio
+async def test_agent_website_source_reuse_provenance_conflicts_and_archive(heartbeat, monkeypatch):
+    import json
+
+    from agno.company.execution import _call
+    from agno.knowledge.document import Document
+    from agno.run.base import RunContext
+    from agno.tools.company import CompanyTools
+
+    db, _, call = heartbeat
+    product = await call("create", "Discovery", user_id="owner")
+    toolkit = CompanyTools(db, user_isolation=True)
+    agent = SimpleNamespace(id="discoverer")
+    context = RunContext(run_id="discovery-run", session_id="session", user_id="owner")
+
+    async def add(**overrides):
+        args = dict(
+            product_id=product["id"],
+            type="website",
+            reference="https://example.test/release",
+            _agno_agent=agent,
+            _agno_run_context=context,
+        )
+        args.update(overrides)
+        if isinstance(db, AsyncBaseDb):
+            return json.loads(await toolkit.aadd_company_source(**args))
+        return json.loads(await asyncio.to_thread(toolkit.add_company_source, **args))
+
+    first, second = await asyncio.gather(add(), add())
+    assert first["id"] == second["id"]
+    assert first["config"]["metadata"] == {"agent_id": "discoverer", "run_id": "discovery-run"}
+    context.run_id = "later-run"
+    assert (await add())["config"]["metadata"]["run_id"] == "discovery-run"
+    with pytest.raises(ValueError, match=first["id"]):
+        await add(config={"paths": ["other"]})
+    with pytest.raises(PermissionError, match="only website"):
+        await add(type="git", reference="/private/repo")
+    context.user_id = "other"
+    with pytest.raises(PermissionError):
+        await add()
+    context.user_id = "owner"
+    with pytest.raises(ValueError, match="identity"):
+        await add(_agno_agent=None)
+    monkeypatch.setattr(
+        "agno.knowledge.reader.website_reader.WebsiteReader.read",
+        lambda *args, **kwargs: [Document(content="A released capability needs documentation")],
+    )
+    observed = await call("read_source", first["id"], "observed")
+    assert observed[0]["content_hash"]
+    assert (await call("list_sources", product_id=product["id"]))[1] == 1
+    await call("delete_source", first["id"], user_id="owner")
+    with pytest.raises(ValueError, match=first["id"]):
+        await add()
+    assert (await call("list_sources", product_id=product["id"]))[1] == 0
+    assert await _call(db, "get_source", first["id"], include_deleted=True)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("acknowledgment", ["backlog", "ready", "cancelled", "done", "archived"])
+async def test_summary_omits_acknowledged_failures(heartbeat, monkeypatch, acknowledgment):
+    from agno.company.execution import _call
+
+    db, _, call = heartbeat
+    delivery = AsyncMock()
+    monkeypatch.setattr("agno.company.summary.adeliver_summary", delivery)
+    product = await call("create", "Reports", metadata={"summary": {"interface": "slack", "destination": "reports"}})
+    task = await call("create_task", product["id"], "Recovered work")
+    await call("transition_task", task["id"], "ready", "Accepted", executor_type="agent", executor_id="reader")
+    task = await call("get_task", task["id"])
+    started = await _call(db, "start_task_run", task["id"], 1, task["transitions"])
+    await _call(
+        db, "complete_task_run", task["id"], started["job_id"], {"status": "ERROR", "error": "Historical failure"}
+    )
+    await call("summarize", product["id"], "failed", [], narrative="Failure needs review")
+    assert "Historical failure" in delivery.await_args.args[-1]
+    if acknowledgment in {"done", "archived"}:
+        await call("transition_task", task["id"], "in_review", "Reviewed result")
+        await call("transition_task", task["id"], "done", "Accepted result")
+        if acknowledgment == "archived":
+            await call("delete_task", task["id"])
+    else:
+        if acknowledgment == "ready":
+            await call("transition_task", task["id"], "backlog", "Retry requested")
+        kwargs = {"executor_type": "agent", "executor_id": "reader"} if acknowledgment == "ready" else {}
+        await call("transition_task", task["id"], acknowledgment, "Acknowledged", **kwargs)
+    await call("summarize", product["id"], "acknowledged", [], narrative="The owner has acted")
+    report = delivery.await_args.args[-1]
+    assert "No failed Tasks." in report and "Historical failure" not in report

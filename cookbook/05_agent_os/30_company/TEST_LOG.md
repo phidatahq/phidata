@@ -1411,3 +1411,68 @@ Summary delivery bookkeeping now lives in a separate versioned Product filesyste
 Integrations: **676 passed, no skips**, including SQLite/PostgreSQL sync/async and MongoDB scheduler parity. Focused recovery/authorization: **159 passed**. All **10 cookbook invocations passed**. Format and exact-tree validate passed with full output read (mypy: 1,155 framework and 21 CLI files); diff whitespace checks passed. An earlier test-token scope omission and the creator-name-bucket recovery lookup were corrected before the final combined run. Optional dependencies changed in the shared environment, enabling the Firestore checks; this explains the changed totals and skips. No live model or outbound messaging calls.
 
 ---
+
+
+## Optional Routines and discovered website Sources — October 16, 2026
+
+### 08_custom_routines.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/08_custom_routines.py` using
+the development Python environment. Declared a Product with custom instructions,
+no template and no initial Sources. Saved a website through CompanyTools with
+injected agent/run identity, verified identical additions reused one Source,
+and archived it through the human HTTP route.
+
+**Result:** Passed without a model call, website request or outbound delivery.
+The stored template is null; Product, template and auto_accept metadata keys and
+the explicit Product message format are unchanged.
+
+---
+
+### Complete Company cookbook regression
+
+**Status:** PASS
+
+**Description:** Executed `01_manage_products.py`, `02_manage_projects.py`,
+`03_manage_tasks.py`, `04_manage_playbook.py`, `05_product_manager.py`,
+`06_execute_tasks.py`, `07_cascading_archive.py`, `07_heartbeat.py`, and
+`08_custom_routines.py`. Also ran `06_execute_tasks.py` with
+`COMPANY_DB=postgres` and `07_cascading_archive.py --postgres`.
+
+**Result:** All 11 invocations passed. No live model/provider calls or outbound
+messages. The PostgreSQL archive example exercised sync and async paths.
+
+---
+
+### Routine, Source, Summary and isolation regression suites
+
+**Status:** PASS
+
+**Description:** Ran Company and scheduler integrations with SQLite, async
+SQLite, PostgreSQL and async PostgreSQL, including real durable queue execution,
+lifecycle parity, scheduler ownership and filesystem transactions. The offline
+search model discovers a page, saves and reads it through CompanyTools, then
+proposes one evidence-backed Task over three schedule runs. Custom instruction
+and executor edits take effect on the next run; unauthorized targets are refused.
+Concurrent Source additions share an id, preserve first-discovery provenance and
+refuse conflicting configuration or an archived reference. Agent tools still
+cannot accept or complete Tasks. Summary acknowledgment tests cover retry,
+cancellation, completion and archive. Missing-subject scoped tokens are rejected
+on Company reads under isolation using the existing identity guard.
+
+**Result:** Final integration rerun: 708 passed, no skips. Final focused
+router/tool/heartbeat parity regressions: 205 passed. Scheduler execution
+examples also passed all eight sync/async SQLite/PostgreSQL cases. An initial
+Summary fixture tried an invalid In progress-to-Ready transition; it now uses
+the existing Backlog-to-Ready retry path. The new optional Source configuration
+uses the established nullable Company argument convention after schema tests
+caught a non-nullable schema. No unresolved focused or integration failures.
+
+`./scripts/format.sh` and `./scripts/validate.sh` passed, with their complete
+outputs read. Exact-tree validation passed after excluding four unrelated
+formatter-only changes. Mypy checked 1,155 framework and 21 CLI files. Tests and
+cookbooks used development Python 3.12; validation used clean Python 3.10.
+`git diff --check` passed. Source provenance uses the existing `config.metadata`
+JSON object, with no table or column changes.

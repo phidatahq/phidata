@@ -933,3 +933,158 @@ async def test_task_archive_restore_preserves_queued_acceptance(system, monkeypa
         assert saved["status"] == "in_review" and saved["result"]["status"] == "COMPLETED"
         assert saved["result"]["run_id"] == run_id
         assert (await client.get("/company/attention")).json()["in_review"] == 1
+
+
+async def routine_executor(system):
+    from unittest.mock import AsyncMock
+
+    from agno.scheduler.executor import ScheduleExecutor
+
+    client, _, worker, _, _ = system
+    worker.authorization_app.state.internal_service_token = "contract-internal"
+
+    async def request_and_work(method, url, **kwargs):
+        response = await client.request(method, url, **kwargs)
+        if method == "POST" and response.status_code == 202:
+            job = await execute(worker)
+            assert job["status"] == "completed", job
+        return response
+
+    executor = ScheduleExecutor(base_url="http://test", internal_service_token="contract-internal", poll_interval=0)
+    executor._get_client = AsyncMock(return_value=SimpleClient(request_and_work))
+    return executor
+
+
+@pytest.mark.asyncio
+async def test_template_free_routine_quiet_run_and_edited_executor(system):
+    from agno.company.execution import _call
+
+    client, db, _, _, components = system
+    observed = []
+
+    class CapturingModel(OfflineModel):
+        def invoke(self, messages, *args, **kwargs):
+            observed.append([message.content for message in messages if message.role == "user"])
+            return super().invoke(messages, *args, **kwargs)
+
+    components["writer"].model = CapturingModel()
+    components["editors"].model = CapturingModel()
+    product = (await client.post("/company/products", json={"name": "Quiet discovery"})).json()
+    created = await client.post(
+        "/company/routines",
+        json=dict(
+            product_id=product["id"],
+            name="quiet",
+            instructions="First custom instructions",
+            executor_type="agent",
+            executor_id="writer",
+            cron_expr="0 * * * *",
+        ),
+    )
+    assert created.status_code == 201, created.text
+    routine = created.json()
+    executor = await routine_executor(system)
+    first = await executor.execute(await _call(db, "get_schedule", routine["id"]), db, release_schedule=False)
+    assert first["status"] == "success", first
+    assert any("First custom instructions" in str(value) for value in observed)
+    edited = await client.patch(
+        "/company/routines/" + routine["id"],
+        json=dict(
+            name="edited",
+            instructions="Second custom instructions",
+            executor_type="team",
+            executor_id="editors",
+            cron_expr="0 9 * * *",
+        ),
+    )
+    assert edited.status_code == 200, edited.text
+    assert edited.json()["target_id"] == "editors" and edited.json()["target_type"] == "team"
+    observed.clear()
+    second = await executor.execute(await _call(db, "get_schedule", routine["id"]), db, release_schedule=False)
+    assert second["status"] == "success", second
+    assert any("Second custom instructions" in str(value) for value in observed)
+    assert (await _call(db, "get_tasks", product_id=product["id"]))[1] == 0
+    assert (await _call(db, "get_sources", product_id=product["id"]))[1] == 0
+    history = (await client.get("/company/routines/" + routine["id"] + "/runs")).json()
+    assert len(history["data"]) == 2 and all(row["status"] == "success" for row in history["data"])
+
+
+@pytest.mark.asyncio
+async def test_search_routine_adds_website_and_deduplicates_three_runs(system, monkeypatch):
+    from agno.company.execution import _call
+    from agno.knowledge.document import Document
+    from agno.tools.company import CompanyTools
+
+    client, db, worker, os, components = system
+    url = "https://example.test/discovered-release"
+    monkeypatch.setattr(
+        "agno.knowledge.reader.website_reader.WebsiteReader.read",
+        lambda *args, **kwargs: [Document(content="The released API needs a migration guide.")],
+    )
+    product = (await client.post("/company/products", json={"name": "Search discovery"})).json()
+
+    class SearchModel(OfflineModel):
+        def invoke(self, messages, *args, **kwargs):
+            results = [json.loads(message.content) for message in messages if message.role == "tool"]
+            if not results:
+                name, arguments = "add_company_source", dict(product_id=product["id"], type="website", reference=url)
+            elif len(results) == 1:
+                name, arguments = "read_company_source", dict(source_id=results[0]["id"], path=url)
+            elif len(results) == 2:
+                observed = results[1]
+                assert "migration guide" in observed["content"]
+                name, arguments = (
+                    "intake_company_source",
+                    dict(
+                        source_id=results[0]["id"],
+                        title="Write migration guide",
+                        brief="Explain the released API migration",
+                        proposal_key=observed["content_hash"],
+                        evidence_links=[observed["link"]],
+                        evidence_hashes={observed["link"]: observed["content_hash"]},
+                    ),
+                )
+            else:
+                return super().invoke(messages, *args, **kwargs)
+            return ModelResponse(
+                role="assistant",
+                tool_calls=[
+                    {"id": name, "type": "function", "function": {"name": name, "arguments": json.dumps(arguments)}}
+                ],
+                response_usage=MessageMetrics(),
+            )
+
+    components["writer"].model = SearchModel()
+    components["writer"].tools = [CompanyTools(db)]
+    os.resync(worker.authorization_app)
+    created = await client.post(
+        "/company/routines",
+        json=dict(
+            product_id=product["id"],
+            name="search",
+            instructions="Discover useful pages, save website Sources, and propose evidence-backed work.",
+            executor_type="agent",
+            executor_id="writer",
+            cron_expr="0 * * * *",
+        ),
+    )
+    assert created.status_code == 201, created.text
+    routine = created.json()
+    executor = await routine_executor(system)
+    runs = []
+    for _ in range(3):
+        result = await executor.execute(await _call(db, "get_schedule", routine["id"]), db, release_schedule=False)
+        assert result["status"] == "success", result
+        runs.append(result["run_id"])
+    sources, count = await _call(db, "get_sources", product_id=product["id"])
+    assert count == 1
+    assert sources[0]["config"]["metadata"] == {"agent_id": "writer", "run_id": runs[0]}
+    tasks, count = await _call(db, "get_tasks", product_id=product["id"])
+    assert count == 1 and tasks[0]["status"] == "backlog"
+    assert tasks[0]["evidence"][0]["run_id"] == runs[0]
+    assert tasks[0]["evidence"][0]["link"] == url and tasks[0]["evidence"][0]["content_hash"]
+    assert tasks[0]["routine_id"] == routine["id"]
+    listed = (await client.get("/company/sources", params={"product_id": product["id"]})).json()["data"]
+    assert listed[0]["config"]["metadata"]["agent_id"] == "writer"
+    assert (await client.delete("/company/sources/" + sources[0]["id"])).status_code == 204
+    assert (await client.get("/company/sources", params={"product_id": product["id"]})).json()["data"] == []

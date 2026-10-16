@@ -77,7 +77,7 @@ def _summary_report(product: Any, counts: Any, tasks: Any, narrative: str, previ
             else None
         )
         current[task["id"]] = {"title": task["title"], "status": task["status"], "run_status": status, "error": error}
-        if error:
+        if error and task["status"] == "in_progress" and result.get("status") in {"ERROR", "CANCELLED"}:
             failures.append("- " + task["title"] + " (" + task["id"] + "): " + status + ": " + error)
         if task["status"] in {"backlog", "in_review"}:
             waiting.append("- " + task["title"] + ": " + task["status"])

@@ -103,7 +103,12 @@ def browse_source(
     max_chars: int = 8000,
 ) -> Dict[str, Any]:
     """Page a confined index, or read a bounded fragment of one selected document."""
-    validate_source_fields({key: source.get(key) for key in ("type", "reference", "credential_ref", "config")})
+    validate_source_fields(
+        {
+            **{key: source.get(key) for key in ("type", "reference", "credential_ref")},
+            "config": {key: value for key, value in (source.get("config") or {}).items() if key != "metadata"},
+        }
+    )
     if not run_id or offset < 0 or content_offset < 0 or not 1 <= limit <= 100 or not 1 <= max_chars <= 16000:
         raise ValueError("Source paging requires a run id, nonnegative offsets, limit 1..100 and max_chars 1..16000")
     path = path or None
@@ -177,7 +182,12 @@ async def abrowse_source(
 
 
 def _documents(source: Dict[str, Any], paths: Optional[List[str]] = None) -> List[Document]:
-    validate_source_fields({key: source.get(key) for key in ("type", "reference", "credential_ref", "config")})
+    validate_source_fields(
+        {
+            **{key: source.get(key) for key in ("type", "reference", "credential_ref")},
+            "config": {key: value for key, value in (source.get("config") or {}).items() if key != "metadata"},
+        }
+    )
     reference = source["reference"]
     if source["type"] == "website":
         from agno.knowledge.reader.website_reader import WebsiteReader

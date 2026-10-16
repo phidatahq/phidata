@@ -163,29 +163,34 @@ class _SandboxStore:
     async def _table(self, table_type: str, table_name: str, create: bool = True) -> Optional[Table]:
         """The table, created on first use; None when ``create`` is off and it does not exist."""
         db = self.db
-        try:
+
+        async def lookup(create_if_missing: bool) -> Optional[Table]:
             if isinstance(db, AsyncPostgresDb):
-                table = await db._get_table(table_type, create_table_if_not_found=create)
-            else:
-                table = await _settled(asyncio.to_thread(db._get_table, table_type, create_table_if_not_found=create))
+                return await db._get_table(table_type, create_table_if_not_found=create_if_missing)
+            return await _settled(
+                asyncio.to_thread(db._get_table, table_type, create_table_if_not_found=create_if_missing)
+            )
+
+        try:
+            try:
+                table = await lookup(create)
+            except Exception as exc:
+                # Another process may have won the first CREATE TABLE (reported as a duplicate table,
+                # a duplicate catalog row, or the table's row type already existing); read back what it created.
+                cause = getattr(exc, "orig", exc)
+                if getattr(cause, "sqlstate", getattr(cause, "pgcode", None)) not in ("42P07", "23505", "42710"):
+                    raise
+                db._invalidate_table_cache(table_name)
+                table = await lookup(False)
         except SchemaMismatchError as exc:
             if table_type != "sandbox_bindings":
                 raise
-            # A bindings table missing columns is as unusable as one with the wrong keys: same remedy.
+            # A bindings table missing columns, ours or another replica's, is as unusable as one
+            # with the wrong keys: same remedy.
             raise SandboxError(
                 f"Sandbox table {self.db.db_schema}.{table_name} does not have the columns this version expects; "
                 "drop or rename that table, or pass PostgresDb(sandbox_table=...) to create a new one"
             ) from exc
-        except Exception as exc:
-            # Another process may have won the first CREATE TABLE.
-            cause = getattr(exc, "orig", exc)
-            if getattr(cause, "sqlstate", getattr(cause, "pgcode", None)) not in ("42P07", "23505"):
-                raise
-            db._invalidate_table_cache(table_name)
-            if isinstance(db, AsyncPostgresDb):
-                table = await db._get_table(table_type)
-            else:
-                table = await _settled(asyncio.to_thread(db._get_table, table_type))
         if table is None and create:
             raise SandboxError(f"Sandbox coordination could not create the {table_type} table")
         return table

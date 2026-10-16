@@ -870,6 +870,27 @@ def get_agent_router(
         # Extract auth token for remote agents
         auth_token = get_auth_token_from_request(request)
 
+        from agno.agents.base import BaseExternalAgent
+
+        if isinstance(agent, BaseExternalAgent) and agent.sandbox is not None:
+            from agno.os.routers.agents.sandbox import sandbox_run_response
+
+            return await sandbox_run_response(
+                agent,
+                getattr(request.app.state, "queue_worker", None),
+                request,
+                input=message,
+                session_id=session_id,
+                user_id=user_id,
+                kwargs=kwargs,
+                stream=stream,
+                background=background,
+                version=version,
+                images=base64_images,
+                files=input_files,
+                unsupported_media=bool(base64_audios or base64_videos),
+            )
+
         # Background execution
         if background:
             if isinstance(agent, RemoteAgent):

@@ -115,7 +115,7 @@ def test_enabling_automatic_publication_requires_publish_permission(system):
             "executor_type": "agent",
             "executor_id": "writer",
             "publish": True,
-            "required_checks": ["unit-tests"],
+            "required_checks": ["executor_registered"],
             "limits": {"expires_at": 4102444800},
         },
     }
@@ -124,3 +124,8 @@ def test_enabling_automatic_publication_requires_publish_permission(system):
     response = client.post("/company/routines", json=body, headers=headers(scopes=[*scopes, "sources:publish"]))
     assert response.status_code == 201, response.text
     assert response.json()["payload"]["metadata"]["auto_accept"]["publish"] is True
+
+    body["auto_accept"]["required_checks"] = ["unit-tests"]
+    unknown = client.post("/company/routines", json=body, headers=headers(scopes=[*scopes, "sources:publish"]))
+    assert unknown.status_code == 422, unknown.text
+    assert "Unknown automatic acceptance check" in unknown.text

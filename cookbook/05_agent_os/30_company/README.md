@@ -872,14 +872,19 @@ The 202 response contains `number`, `url`, `head_sha`, `base`, and `branch`.
 
 Automatic publication additionally requires `publish: true` in the accepting
 Routine's `auto_accept`, a current policy and accepting identity, and passing
-`required_checks`. Registered server checks run again before publication. Other
-names are GitHub check runs and must already pass on the exact deterministic
-publication head; missing, queued, failed, or different-head checks refuse the
-push. A workflow that only starts CI after a push cannot satisfy this pre-push
-gate on its first publication; use a server check or externally prevalidated head.
+`required_checks`. These are registered Company checks, run again before
+publication. Unknown names are rejected when declaring the policy and cannot
+silently bypass acceptance. Configure GitHub CI requirements through repository
+branch protection or rulesets: CI runs after the branch is pushed and gates the
+merge, rather than blocking the first push that starts CI.
 
 The automation tick and Refresh reconcile In review Tasks. A merged PR must still
 name the recorded head, and its merge commit must contain that head, before the
 Task moves to Done with reason `Verified merge`. Squash/rebase merges without that
 ancestry, different heads and closed unmerged PRs remain In review for a human.
 The recorded observation explains the outcome. Revisions invalidate review evidence.
+
+Refresh reports reconciliation failures per Task in `reconciliation_errors` and
+continues retention and completion proposals. A matching PR merged during a
+publication persistence failure is adopted on retry and verified normally.
+Unchanged negative ancestry observations are reused; transient failures are retried.

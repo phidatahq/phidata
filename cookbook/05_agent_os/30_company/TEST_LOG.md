@@ -3226,3 +3226,13 @@ The broader Company/lifecycle integration sweep initially reported 1,592 passed,
 Full format and clean Python 3.10 validation passed (1,187 framework and 21 CLI source files). GitHub lint/triage checks passed on the earlier published head; final hosted status remains separate from local validation. No paid-model calls or actual GitHub repository publication were performed. The PR was opened before the wider sweeps, and subsequent changes preserve its history with normal commits.
 
 ---
+
+### PR 9 review corrections
+
+**Status:** PASS (focused checks); wider reruns pending.
+
+**Description:** Rebased onto PR 8 `52430cfe5c`. All 179 focused publication, authorization, sandbox and GitHub cases passed. New regressions cover registered-check gating without pre-push GitHub CI, unknown policy rejection, Refresh continuation after reconciliation failure, case-insensitive repository identity, merged-PR adoption after failed persistence, refusal of closed/different-head PRs, cached negative ancestry with transient-error retries, and consistent lock contention across all four SQLite/PostgreSQL adapters. The automatic-publication fixture now activates its Project before requiring `project_active`.
+
+**Result:** Both Claude and Codex cookbook configuration modes passed without model calls. Full format and clean Python 3.10 validation passed. The review update is pushed before wider Company/lifecycle integration and DB/AgentOS/scheduler/tools/sandbox/context unit reruns finish, so review can proceed in parallel. No live publication or paid-model execution was performed.
+
+---

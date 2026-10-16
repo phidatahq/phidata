@@ -286,7 +286,7 @@ async def test_publication_route_success_and_scope(db, remote, api):
 
 
 @pytest.mark.asyncio
-async def test_required_checks_on_exact_publication_head(db, remote, api, monkeypatch):
+async def test_registered_checks_gate_publication_without_waiting_for_github(db, remote, api, monkeypatch):
     import agno.company.publish as publisher
 
     _, task = await prepare(db, remote)
@@ -295,26 +295,16 @@ async def test_required_checks_on_exact_publication_head(db, remote, api, monkey
         return {"required_checks": ["unit-tests"]}
 
     monkeypatch.setattr(publisher, "_policy", policy)
-    for status, conclusion, sha in [
-        ("queued", None, None),
-        ("completed", "failure", None),
-        ("completed", "success", "b" * 40),
-    ]:
-        api.checks = [
-            {
-                "id": 10,
-                "name": "unit-tests",
-                "status": status,
-                "conclusion": conclusion,
-                **({"head_sha": sha} if sha else {}),
-            }
-        ]
-        with pytest.raises(ValueError, match="Required GitHub check"):
-            await apublish_task(db, task["id"])
-        assert not any("push" in args for args, _ in remote.calls)
-    api.checks = [{"id": 10, "name": "unit-tests", "status": "completed", "conclusion": "success"}]
-    await apublish_task(db, task["id"])
+    with pytest.raises(ValueError, match="Unknown automatic acceptance check"):
+        await apublish_task(db, task["id"])
+    with pytest.raises(ValueError, match="Required publication check failed"):
+        await apublish_task(db, task["id"], checks={"unit-tests": lambda task, manager: False})
+    assert not remote.calls
+    # GitHub has no check runs until this first push starts CI.
+    assert api.checks == []
+    await apublish_task(db, task["id"], checks={"unit-tests": lambda task, manager: True})
     assert api.creates == 1
+    assert not any("check-runs" in url for _, url, _, _ in api.calls)
 
 
 @pytest.mark.asyncio
@@ -337,12 +327,13 @@ async def test_automatic_publication_and_tick_reconcile(db, remote, api, enabled
     from agno.scheduler import ScheduleManager
 
     _, task = await prepare(db, remote)
+    await _call(db, "transition_project", task["project_id"], "active", "Start")
     task = await _call(db, "transition_task", task["id"], "backlog", "Reaccept with policy")
     policy = {
         "executor_type": "agent",
         "executor_id": "engineer",
         "publish": enabled,
-        "required_checks": ["unit-tests"],
+        "required_checks": ["project_active"],
         "limits": {"expires_at": int(time.time()) + 3600, "max_acceptances": 3},
     }
     schedule = await ScheduleManager(db).acreate(
@@ -368,7 +359,6 @@ async def test_automatic_publication_and_tick_reconcile(db, remote, api, enabled
         },
     )
     task = await complete(db, remote, task, 2)
-    api.checks = [{"id": 10, "name": "unit-tests", "status": "completed", "conclusion": "success"}]
     os = SimpleNamespace(_company_db=db, db=db, registry=None, authorization=None, company=CompanyConfig())
     executor = _CompanyScheduleExecutor(os, FastAPI(), base_url="http://company", internal_service_token="test")
     outcomes = await executor._tick()
@@ -479,7 +469,8 @@ async def test_github_async_methods_use_response_fields(remote, api):
 
 
 @pytest.mark.asyncio
-async def test_crash_after_pr_creation_adopts_existing_pr(db, remote, api, monkeypatch):
+@pytest.mark.parametrize("merged_state", ["open", "verified", "different", "closed"])
+async def test_crash_after_pr_creation_adopts_existing_pr(db, remote, api, monkeypatch, merged_state):
     _, task = await prepare(db, remote)
     original = db.update_task_publication
     if isinstance(db, AsyncBaseDb):
@@ -496,8 +487,34 @@ async def test_crash_after_pr_creation_adopts_existing_pr(db, remote, api, monke
         await apublish_task(db, task["id"])
     assert api.creates == 1
     monkeypatch.setattr(db, "update_task_publication", original)
-    await apublish_task(db, task["id"])
+    assert not (await _call(db, "get_task", task["id"]))["result"].get("pr")
+    if merged_state != "open":
+        api.pr["state"] = "closed"
+    if merged_state in {"verified", "different"}:
+        remote.git("reset", "--hard", remote.commit)
+        remote.git("fetch", str(remote.bare), api.pr["head"]["ref"])
+        remote.git("merge", "--no-ff", "FETCH_HEAD", "-m", "Merge task")
+        merge = remote.git("rev-parse", "HEAD")
+        remote.git("push", str(remote.bare), "HEAD:main")
+        api.pr.update(merged=True, merge_commit_sha=merge)
+        if merged_state == "different":
+            api.pr["head"]["sha"] = merge
+    pushes = sum("push" in args for args, _ in remote.calls)
+    if merged_state in {"different", "closed"}:
+        with pytest.raises(ValueError, match="closed; human action"):
+            await apublish_task(db, task["id"])
+    elif isinstance(db, AsyncBaseDb):
+        await apublish_task(db, task["id"])
+    else:
+        await asyncio.to_thread(publish_task, db, task["id"])
+    saved = await _call(db, "get_task", task["id"])
+    assert saved["status"] == ("done" if merged_state == "verified" else "in_review")
+    if merged_state == "verified":
+        assert saved["result"]["merge_commit"] == merge
+        assert saved["transitions"][-1]["reason"] == "Verified merge"
+        assert api.updates == 0
     assert api.creates == 1
+    assert sum("push" in args for args, _ in remote.calls) == pushes
 
 
 @pytest.mark.asyncio
@@ -529,4 +546,92 @@ async def test_policy_checks_inspect_the_selected_attempt(db, remote, api, monke
         await apublish_task(db, task["id"], checks={"selected_run": selected_run})
     assert not remote.calls
     await apublish_task(db, task["id"], attempt=1, checks={"selected_run": selected_run})
+    assert api.creates == 1
+
+
+@pytest.mark.asyncio
+async def test_repository_casing_preserves_adoption_and_completion(db, remote, api):
+    from agno.tools.github import GithubTools
+
+    _, task = await prepare(db, remote)
+    pr = await apublish_task(db, task["id"])
+    api.pr["head"]["repo"]["full_name"] = "Example/Application"
+    toolkit = GithubTools(access_token=TOKEN)
+    assert json.loads(toolkit.find_pull_request("example/application", pr["branch"]))["number"] == pr["number"]
+    assert json.loads(await toolkit.afind_pull_request("example/application", pr["branch"].upper())) is None
+    assert await apublish_task(db, task["id"]) == pr
+    remote.git("reset", "--hard", remote.commit)
+    remote.git("fetch", str(remote.bare), pr["branch"])
+    remote.git("merge", "--no-ff", "FETCH_HEAD", "-m", "Merge task")
+    merge = remote.git("rev-parse", "HEAD")
+    remote.git("push", str(remote.bare), "HEAD:main")
+    api.pr.update(merged=True, state="closed", merge_commit_sha=merge)
+    saved = await areconcile_task(db, task["id"])
+    assert saved["status"] == "done" and saved["result"]["merge_commit"] == merge
+    assert api.creates == 1
+
+
+@pytest.mark.asyncio
+async def test_refresh_reports_reconciliation_failure_and_continues(db, remote, api, monkeypatch):
+    manager, task = await prepare(db, remote)
+    await apublish_task(db, task["id"])
+    project = await _call(manager, "create_project", product_id=task["product_id"], name="Finished")
+    await _call(db, "transition_project", project["id"], "active", "Start")
+    finished = await _call(
+        manager, "create_task", product_id=task["product_id"], project_id=project["id"], title="Cancelled"
+    )
+    await _call(db, "transition_task", finished["id"], "cancelled", "Not needed")
+    monkeypatch.delenv("COMPANY_PUBLISH_TOKEN")
+    report = await _call(manager, "refresh", task["product_id"])
+    assert report["reconciliation_errors"] == [{"task_id": task["id"], "reason": "Source review credential is unset"}]
+    assert any(item["project_id"] == project["id"] for item in report["completion_proposals"])
+    assert (await _call(db, "get_task", task["id"]))["status"] == "in_review"
+
+
+@pytest.mark.asyncio
+async def test_negative_ancestry_is_cached_but_transient_failure_is_retried(db, remote, api, monkeypatch):
+    import agno.company.publish as publisher
+
+    _, task = await prepare(db, remote)
+    await apublish_task(db, task["id"])
+    remote.git("commit", "-am", "Squash")
+    merge = remote.git("rev-parse", "HEAD")
+    remote.git("push", str(remote.bare), "HEAD:main")
+    api.pr.update(merged=True, state="closed", merge_commit_sha=merge)
+    original = publisher._git
+
+    async def fail_fetch(args, *args_rest, **kwargs):
+        if "fetch" in args:
+            raise ValueError("temporary network failure")
+        return await original(args, *args_rest, **kwargs)
+
+    monkeypatch.setattr(publisher, "_git", fail_fetch)
+    with pytest.raises(ValueError, match="temporary network failure"):
+        await areconcile_task(db, task["id"])
+    assert "pr_observation" not in (await _call(db, "get_task", task["id"]))["result"]
+    monkeypatch.setattr(publisher, "_git", original)
+    saved = await areconcile_task(db, task["id"])
+    assert saved["result"]["pr_observation"]["verified_head"] is False
+    fetches = sum("fetch" in args for args, _ in remote.calls)
+    for _ in range(2):
+        assert (await areconcile_task(db, task["id"]))["status"] == "in_review"
+    assert sum("fetch" in args for args, _ in remote.calls) == fetches
+    # A changed merge observation must be verified again.
+    remote.git("commit", "--allow-empty", "-m", "New merge")
+    remote.git("push", str(remote.bare), "HEAD:main")
+    api.pr["merge_commit_sha"] = remote.git("rev-parse", "HEAD")
+    await areconcile_task(db, task["id"])
+    assert sum("fetch" in args for args, _ in remote.calls) > fetches
+
+
+@pytest.mark.asyncio
+async def test_publication_lock_reports_domain_contention(db, remote, api):
+    from agno.company.publish import _publication_lock
+
+    _, task = await prepare(db, remote)
+    async with _publication_lock(db, task["id"]):
+        with pytest.raises(ValueError, match="Another publication is in progress"):
+            await apublish_task(db, task["id"])
+    assert not api.creates
+    await apublish_task(db, task["id"])
     assert api.creates == 1

@@ -195,9 +195,7 @@ async def _authorize_auto_accept(request, policy, agent_os=None):
                 raise ValueError("Automatic acceptance expiry must be in the future")
             if agent_os is not None:
                 _automatic_executor(agent_os.registry, parsed.executor_type, parsed.executor_id)
-                if not parsed.publish and any(
-                    name not in _acceptance_checks(agent_os) for name in parsed.required_checks
-                ):
+                if any(name not in _acceptance_checks(agent_os) for name in parsed.required_checks):
                     raise ValueError("Unknown automatic acceptance check")
         except ValueError as exc:
             raise HTTPException(422, str(exc))
@@ -822,9 +820,6 @@ class _CompanyScheduleExecutor(CompanyScheduleExecutor):
         with authorization_scope(lambda: authority):
             # Reject unknown checks and cheap local failures before any Source IO.
             names = list(dict.fromkeys(policy.required_checks))
-            if policy.publish:
-                # GitHub checks are evaluated against the exact publication commit.
-                names = [name for name in names if name in checks]
             if any(name not in checks for name in names):
                 raise _AutomationSkip("Unknown automatic acceptance check")
             names.sort(key=lambda name: 0 if name in {"executor_registered", "project_active"} else 1)

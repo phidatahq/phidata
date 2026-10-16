@@ -38,10 +38,26 @@ async def _publication_lock(db: Any, task_id: str):
     )
     digest = hashlib.sha256(identity.encode()).digest()
     if db.db_engine.dialect.name == "postgresql":
-        from agno.os.routers.company.sandbox import _admission_lock
+        from sqlalchemy import text
 
-        async with _admission_lock(db, int.from_bytes(digest[:8], "big", signed=True)):
-            yield
+        from agno.db.base import AsyncBaseDb
+
+        statement = text("SELECT pg_try_advisory_xact_lock(:key)")
+        parameters = {"key": int.from_bytes(digest[:8], "big", signed=True)}
+        engine = db.db_engine
+        if isinstance(db, AsyncBaseDb):
+            async with engine.begin() as connection:
+                if not (await connection.execute(statement, parameters)).scalar():
+                    raise ValueError("Another publication is in progress")
+                yield
+        else:
+            connection = await asyncio.to_thread(db.db_engine.connect)
+            try:
+                if not await asyncio.to_thread(lambda: connection.execute(statement, parameters).scalar()):
+                    raise ValueError("Another publication is in progress")
+                yield
+            finally:
+                await asyncio.shield(asyncio.to_thread(connection.close))
     else:
         # SQLite is local development storage. flock also fences separate local workers.
         import fcntl
@@ -195,7 +211,7 @@ async def _policy(db: Any, task: Dict[str, Any], schedule_db: Any):
     return schedule["payload"]["metadata"]["auto_accept"]
 
 
-async def _checks(policy: Any, manager: Any, task: Dict[str, Any], checks: Any) -> list[str]:
+async def _checks(policy: Any, manager: Any, task: Dict[str, Any], checks: Any) -> None:
     from copy import deepcopy
 
     if checks is None:
@@ -206,11 +222,10 @@ async def _checks(policy: Any, manager: Any, task: Dict[str, Any], checks: Any) 
             "has_source_evidence": _has_source_evidence,
             "project_active": _project_active,
         }
-    required = []
     for name in (policy or {}).get("required_checks", []):
         check = (checks or {}).get(name)
         if check is None:
-            required.append(name)
+            raise ValueError("Unknown automatic acceptance check: " + name)
         else:
             outcome = (
                 await check(deepcopy(task), manager)
@@ -221,7 +236,6 @@ async def _checks(policy: Any, manager: Any, task: Dict[str, Any], checks: Any) 
                 outcome = await outcome
             if outcome is not True:
                 raise ValueError("Required publication check failed: " + name)
-    return required
 
 
 async def apublish_task(
@@ -270,7 +284,7 @@ async def apublish_task(
 
             manager = (AsyncCompanyManager if isinstance(db, AsyncBaseDb) else CompanyManager)(db)
         policy = await _policy(db, task, schedule_db)
-        required = await _checks(policy, manager, {**task, "result": artifact}, checks)
+        await _checks(policy, manager, {**task, "result": artifact}, checks)
         github = _github(token)
         repo = url.removeprefix("https://github.com/").removesuffix(".git")
         env = _git_env(url, token)
@@ -306,14 +320,6 @@ async def apublish_task(
             )
             await _git(["-c", "commit.gpgSign=false", "commit", "-m", message], directory, env, scrubber)
             head = (await _git(["rev-parse", "HEAD"], directory, env, scrubber)).stdout.strip()
-            if required:
-                runs = await _api(github, "list_commit_check_runs", scrubber, repo, head)
-                for name in required:
-                    matching = [run for run in runs if run["name"] == name and run["head_sha"] == head]
-                    if not matching or any(
-                        run["status"] != "completed" or run["conclusion"] != "success" for run in matching
-                    ):
-                        raise ValueError("Required GitHub check has not passed on publication head: " + name)
             remote = (
                 await _git(["ls-remote", "--heads", "origin", "refs/heads/" + branch], directory, env, scrubber)
             ).stdout.strip()
@@ -324,8 +330,13 @@ async def apublish_task(
                 existing = await _api(github, "get_pull_request_state", scrubber, repo, prior["number"])
             if existing is None:
                 existing = await _api(github, "find_pull_request", scrubber, repo, branch, state="all")
-            if existing and existing["state"] != "open":
-                raise ValueError("Task pull request is closed; human action is required")
+            recovering = bool(existing and existing["state"] != "open")
+            if recovering:
+                existing = await _api(github, "get_pull_request_state", scrubber, repo, existing["number"])
+                if not existing["merged"] or not _matches_publication(
+                    existing, {"head_sha": head, "branch": branch, "base": base}, repo
+                ):
+                    raise ValueError("Task pull request is closed; human action is required")
             # Recheck the Task and policy immediately before the first external mutation.
             if await _call(db, "get_task", task_id) != task:
                 raise ValueError("Task changed during publication")
@@ -333,40 +344,45 @@ async def apublish_task(
             if authority is not None:
                 await authority.arequire("tasks", "write")
                 await authority.arequire("sources", "publish")
-            if remote_sha != head:
-                await _git(
-                    [
-                        "push",
-                        "--force-with-lease=refs/heads/" + branch + ":" + remote_sha,
-                        "origin",
-                        "HEAD:refs/heads/" + branch,
-                    ],
-                    directory,
-                    env,
-                    scrubber,
-                )
-            body = (
-                (task.get("brief") or "")
-                + "\n\n"
-                + str(artifact.get("summary") or "")
-                + "\n\n[Company Task]("
-                + (task_url or "agno://company/tasks/" + task_id)
-                + ")\n\nAttempt: "
-                + str(selected)
-            )
-            if existing:
-                response = await _api(
-                    github,
-                    "update_pull_request",
-                    scrubber,
-                    repo,
-                    existing["number"],
-                    title=task["title"],
-                    body=body,
-                    base=base,
-                )
+            if recovering:
+                response = existing
             else:
-                response = await _api(github, "create_pull_request", scrubber, repo, task["title"], body, branch, base)
+                if remote_sha != head:
+                    await _git(
+                        [
+                            "push",
+                            "--force-with-lease=refs/heads/" + branch + ":" + remote_sha,
+                            "origin",
+                            "HEAD:refs/heads/" + branch,
+                        ],
+                        directory,
+                        env,
+                        scrubber,
+                    )
+                body = (
+                    (task.get("brief") or "")
+                    + "\n\n"
+                    + str(artifact.get("summary") or "")
+                    + "\n\n[Company Task]("
+                    + (task_url or "agno://company/tasks/" + task_id)
+                    + ")\n\nAttempt: "
+                    + str(selected)
+                )
+                if existing:
+                    response = await _api(
+                        github,
+                        "update_pull_request",
+                        scrubber,
+                        repo,
+                        existing["number"],
+                        title=task["title"],
+                        body=body,
+                        base=base,
+                    )
+                else:
+                    response = await _api(
+                        github, "create_pull_request", scrubber, repo, task["title"], body, branch, base
+                    )
             pr = {
                 "number": response["number"],
                 "url": response.get("url") or response["html_url"],
@@ -382,6 +398,8 @@ async def apublish_task(
         saved = await _call(db, "update_task_publication", task, result)
         if saved is None:
             raise ValueError("Task changed during publication; retry to reconcile the published branch")
+        if recovering:
+            await _reconcile_task(db, saved)
         return pr
 
 
@@ -401,46 +419,66 @@ async def areconcile_task(db: Any, task_id: str) -> Optional[Dict[str, Any]]:
         task = await _call(db, "get_task", task_id)
         if not task or task["status"] != "in_review" or not (task.get("result") or {}).get("pr"):
             return task
-        pr = task["result"]["pr"]
-        source = await _call(db, "get_source", task["metadata"]["checkout"]["source_id"])
-        url, _, token = _source(task, source, publishing=False)
-        scrubber = git_ops.Scrubber([token])
-        repo = url.removeprefix("https://github.com/").removesuffix(".git")
-        state = await _api(_github(token), "get_pull_request_state", scrubber, repo, pr["number"])
-        verified = False
-        observation = {
-            "state": state["state"],
-            "merged": state["merged"],
-            "head_sha": state["head_sha"],
-            "merge_commit": state["merge_commit"],
-        }
-        if state["merged"] and state.get("merge_commit"):
-            sha = state["merge_commit"]
-            if not re.fullmatch(r"[0-9a-f]{40}", sha) or not re.fullmatch(r"[0-9a-f]{40}", pr["head_sha"]):
-                raise ValueError("GitHub returned an invalid commit")
-            if (
-                state["head_sha"] == pr["head_sha"]
-                and state["branch"] == pr["branch"]
-                and state["head_repo"] == repo
-                and state["base"] == pr["base"]
-            ):
-                env = _git_env(url, token)
-                with tempfile.TemporaryDirectory(prefix="company-verify-") as temporary:
-                    directory = Path(temporary)
-                    await _git(["init", "--template=", "."], directory, env, scrubber)
-                    # Full ancestry is needed to prove containment; publication uses shallow fetches.
-                    await _git(["fetch", url, sha], directory, env, scrubber)
-                    result = await _git(
-                        ["merge-base", "--is-ancestor", pr["head_sha"], sha], directory, env, scrubber, check=False
-                    )
-                    verified = result.returncode == 0
-            observation["verified_head"] = verified
-        result = {**task["result"], "pr_observation": observation}
-        if verified:
-            result["merge_commit"] = state["merge_commit"]
-        if result == task["result"]:
-            return task
-        return await _call(db, "update_task_publication", task, result, verified_merge=verified)
+        return await _reconcile_task(db, task)
+
+
+def _matches_publication(state: Dict[str, Any], pr: Dict[str, Any], repo: str) -> bool:
+    return (
+        state["head_sha"] == pr["head_sha"]
+        and state["branch"] == pr["branch"]
+        and (state.get("head_repo") or "").casefold() == repo.casefold()
+        and state["base"] == pr["base"]
+    )
+
+
+async def _reconcile_task(db: Any, task: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Reconcile a snapshot while its caller holds the Task publication lock."""
+    pr = task["result"]["pr"]
+    source = await _call(db, "get_source", task["metadata"]["checkout"]["source_id"])
+    url, _, token = _source(task, source, publishing=False)
+    scrubber = git_ops.Scrubber([token])
+    repo = url.removeprefix("https://github.com/").removesuffix(".git")
+    state = await _api(_github(token), "get_pull_request_state", scrubber, repo, pr["number"])
+    verified = False
+    observation = {
+        "state": state["state"],
+        "merged": state["merged"],
+        "head_sha": state["head_sha"],
+        "merge_commit": state["merge_commit"],
+        "recorded_head": pr["head_sha"],
+        "branch": state["branch"],
+        "head_repo": (state.get("head_repo") or "").casefold(),
+        "base": state["base"],
+    }
+    previous = task["result"].get("pr_observation") or {}
+    if previous == {**observation, "verified_head": False}:
+        return task
+    if state["merged"] and state.get("merge_commit"):
+        sha = state["merge_commit"]
+        if not re.fullmatch(r"[0-9a-f]{40}", sha) or not re.fullmatch(r"[0-9a-f]{40}", pr["head_sha"]):
+            raise ValueError("GitHub returned an invalid commit")
+        if _matches_publication(state, pr, repo):
+            env = _git_env(url, token)
+            with tempfile.TemporaryDirectory(prefix="company-verify-") as temporary:
+                directory = Path(temporary)
+                await _git(["init", "--template=", "."], directory, env, scrubber)
+                # Full ancestry is needed to prove containment; publication uses shallow fetches.
+                await _git(["fetch", url, sha], directory, env, scrubber)
+                # Fetch the head as well: a squash merge does not make its object reachable.
+                await _git(["fetch", "--depth=1", url, pr["head_sha"]], directory, env, scrubber)
+                result = await _git(
+                    ["merge-base", "--is-ancestor", pr["head_sha"], sha], directory, env, scrubber, check=False
+                )
+                if result.returncode not in (0, 1):
+                    raise ValueError("Could not verify merge ancestry")
+                verified = result.returncode == 0
+        observation["verified_head"] = verified
+    result = {**task["result"], "pr_observation": observation}
+    if verified:
+        result["merge_commit"] = state["merge_commit"]
+    if result == task["result"]:
+        return task
+    return await _call(db, "update_task_publication", task, result, verified_merge=verified)
 
 
 def reconcile_task(db: Any, task_id: str) -> Optional[Dict[str, Any]]:

@@ -1862,7 +1862,7 @@ class GithubTools(Toolkit):
         """Find a same-repository pull request by its exact head branch, without a page limit."""
         owner = repo_name.split("/", 1)[0]
         for pr in self.g.get_repo(repo_name).get_pulls(state=state, head=owner + ":" + head):
-            if pr.head.ref == head and pr.head.repo and pr.head.repo.full_name == repo_name:
+            if pr.head.ref == head and pr.head.repo and pr.head.repo.full_name.casefold() == repo_name.casefold():
                 return json.dumps({"number": pr.number, "url": pr.html_url, "state": pr.state})
         return "null"
 

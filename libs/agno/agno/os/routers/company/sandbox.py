@@ -57,12 +57,13 @@ async def _sandbox_start_gate(os: Any, task: dict, queue: Any):
     )
     if db is None:
         raise HTTPException(503, "Sandboxed Company starts require a shared PostgreSQL database")
+    # Named workers can claim untagged jobs, so deployment claim sets overlap.
+    # Serialize admission across those sets before inspecting their live tickets.
     namespace = ":".join(
         [
             "company-sandbox-start",
             db.db_schema,
             os._company_db.tasks_table_name,
-            queue.config.deployment_id or "default",
         ]
     )
     key = int.from_bytes(hashlib.sha256(namespace.encode()).digest()[:8], "big", signed=True)

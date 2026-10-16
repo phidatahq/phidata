@@ -63,9 +63,13 @@ async def _run_route(
         headers[SCHEDULE_OWNER_HEADER] = quote(owner, safe="")
     if key:
         headers["Idempotency-Key"] = key
+
     async def executor_app(scope, receive, send):
         if checkout is not None:
-            scope = {**scope, "state": {**scope.get("state", {}), "metadata": {"repository": {"commit": checkout["commit"]}}}}
+            scope = {
+                **scope,
+                "state": {**scope.get("state", {}), "metadata": {"repository": {"commit": checkout["commit"]}}},
+            }
         await request.app(scope, receive, send)
 
     token = _task_transport.set((method, unquote(path), owner))

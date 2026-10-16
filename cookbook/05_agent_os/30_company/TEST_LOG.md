@@ -190,3 +190,13 @@ No paid model calls or real outbound notification deliveries were exercised.
 **Result:** All 96 focused regressions passed across sync/async SQLite and PostgreSQL. The affected unit suite passed 1,751 tests (35 conditional skips); all 12 Company Docker cases and all 183 queue-store parity cases passed. All 1,428 Company integration cases passed, with eight conditional Mongo skips. Full format, clean Python 3.10 validation and whitespace checks passed. No paid model turns were run. PR 6.6 dispatch and recovery functions remain unchanged; recovery pin integration is deferred until that PR merges.
 
 ---
+
+### PR 7.2 rebase and overlapping deployment admission
+
+**Status:** PASS
+
+**Description:** Rebased onto the latest PR 6.6 head, `f238e6892a9cfd634363fd0c41dfcb6c668fee3f`. Preserved its authenticated internal transport and passed the trusted checkout metadata through that application path. Admission uses a common advisory lock because named workers can claim untagged jobs. A deterministic two-application regression reproduced two accepted starts in all eight adapter/ordering cases before the fix; all eight now admit one start and refuse the other.
+
+**Result:** All 104 focused regressions passed across sync/async SQLite and PostgreSQL. The affected unit suite passed 1,751 tests (35 conditional skips); all 12 Docker and 183 queue-store parity cases passed. Cookbook configuration smoke, full format, clean Python 3.10 validation and whitespace checks passed. The combined 1,844-case Company/lifecycle integration run was still running at publication; its final results are recorded in the PR. No paid model calls. Recovery checkout projection remains deferred until PR 6.6 merges.
+
+---

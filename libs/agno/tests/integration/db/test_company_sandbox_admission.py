@@ -326,3 +326,61 @@ async def test_checkout_projection_error_can_retry_after_source_repair(sandbox_s
     assert refused.status_code == 409 and "already pinned" in refused.text, refused.text
     assert (await _call(db, "get_task", task["id"]))["metadata"] == completed["metadata"]
     agent.repository = original
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("first_deployment", [None, "named-deployment"])
+async def test_overlapping_deployments_serialize_concurrent_starts(sandbox_system, monkeypatch, first_deployment):
+    import asyncio
+
+    from httpx import ASGITransport, AsyncClient
+
+    from agno.os import AgentOS, CompanyConfig
+    from agno.os.job_queue import QueueWorker, resolve_queue_store
+
+    client, db, worker, _, agent = sandbox_system
+    first = await engineering_task(client, db)
+    second = await engineering_task(client, db)
+    worker.config.deployment_id = first_deployment
+    config = QueueConfig(
+        durable=True,
+        db=worker.config.db,
+        redis="redis://localhost:6379/0",
+        max_attempts=1,
+        deployment_id=None if first_deployment else "named-deployment",
+    )
+    replica = AgentOS(db=db, agents=[agent], company=CompanyConfig(), queue=config, telemetry=False)
+    app = replica.get_app()
+    replica_worker = QueueWorker(
+        resolve_queue_store(config, db),
+        lambda kind, id, scope=None: agent if id == agent.id else None,
+        config,
+        authorization_app=app,
+    )
+    replica_worker._company_db = db
+    app.state.queue_worker = replica_worker
+    scanned = asyncio.Event()
+    release = asyncio.Event()
+    original = worker.store.list_jobs
+
+    async def hold_snapshot(*args, **kwargs):
+        result = await original(*args, **kwargs)
+        scanned.set()
+        await release.wait()
+        return result
+
+    monkeypatch.setattr(worker.store, "list_jobs", hold_snapshot)
+    pending = asyncio.create_task(client.post("/company/tasks/" + first["id"] + "/runs"))
+    try:
+        await asyncio.wait_for(scanned.wait(), 10)
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://replica") as other:
+            response = await asyncio.wait_for(other.post("/company/tasks/" + second["id"] + "/runs"), 10)
+    finally:
+        release.set()
+        started = await pending
+    assert started.status_code == 202, started.text
+    assert response.status_code == 409, response.text
+    job = await worker.store.claim_job(worker.worker_id, deployment_id="named-deployment")
+    assert job["id"] == started.json()["run_id"] and job["status"] == "running"
+    assert await worker.store.claim_job(worker.worker_id, deployment_id="named-deployment") is None
+    assert (await _call(db, "get_task", second["id"]))["status"] == "ready"

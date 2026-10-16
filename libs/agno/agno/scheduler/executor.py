@@ -3,6 +3,7 @@
 import asyncio
 import json
 import time
+from contextvars import ContextVar
 from typing import Any, Dict, List, Optional, Union
 from urllib.parse import quote
 from uuid import uuid4
@@ -35,6 +36,9 @@ def _to_form_value(v: Any) -> str:
     if isinstance(v, (dict, list)):
         return json.dumps(v)
     return str(v)
+
+
+_active_schedule_run: ContextVar[Optional[tuple]] = ContextVar("active_schedule_run", default=None)
 
 
 class ScheduleExecutor:
@@ -201,7 +205,11 @@ class ScheduleExecutor:
                     db.create_schedule_run(run_dict)
 
                 try:
-                    result = await self._call_endpoint(sched)
+                    token = _active_schedule_run.set((db, run_record_id))
+                    try:
+                        result = await self._call_endpoint(sched)
+                    finally:
+                        _active_schedule_run.reset(token)
                     last_status = result.get("status", "success")
                     last_status_code = result.get("status_code")
                     last_error = result.get("error")
@@ -284,9 +292,10 @@ class ScheduleExecutor:
             # Always release the schedule lock so it doesn't stay stuck
             if release_schedule and schedule_id is not None:
                 try:
-                    next_run_at = compute_next_run(
-                        sched.cron_expr,
-                        sched.timezone or "UTC",
+                    next_run_at = (
+                        None
+                        if sched.managed_by == "company" and sched.cron_expr == ""
+                        else compute_next_run(sched.cron_expr, sched.timezone or "UTC")
                     )
                 except Exception as e:
                     log_warning(
@@ -508,6 +517,14 @@ class ScheduleExecutor:
                 "output": None,
                 "requirements": None,
             }
+
+        active = _active_schedule_run.get()
+        if active is not None:
+            db, record_id = active
+            if asyncio.iscoroutinefunction(db.update_schedule_run):
+                await db.update_schedule_run(record_id, run_id=run_id, session_id=session_id)
+            else:
+                await asyncio.to_thread(db.update_schedule_run, record_id, run_id=run_id, session_id=session_id)
 
         return await self._poll_run(
             client,

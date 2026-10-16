@@ -408,7 +408,10 @@ async def test_completion_proposal_does_not_reintroduce_archived_task_context(ar
             transitions=[],
         ),
     )
-    current = await call(manager, "create_task", product["id"], "Current independent work")
+    current_project = await call(manager, "create_project", product["id"], "Current work")
+    current = await call(
+        manager, "create_task", product["id"], "Current independent work", project_id=current_project["id"]
+    )
     result = await call(manager, "refresh", product["id"])
     assert result["archived_tasks"] == ["archived-task-private-detail"]
     assert result["completion_proposals"][0]["project_id"] == project["id"]
@@ -426,10 +429,11 @@ async def test_terminal_project_rejects_new_and_moved_open_work(archive):
     await call(manager, "transition_project", project["id"], "done", "Complete")
     with pytest.raises(ValueError, match="open work"):
         await call(manager, "create_task", product["id"], "Late proposal", project_id=project["id"])
-    task = await call(manager, "create_task", product["id"], "Unassigned")
+    open_project = await call(manager, "create_project", product["id"], "Next release")
+    task = await call(manager, "create_task", product["id"], "Next release", project_id=open_project["id"])
     with pytest.raises(ValueError, match="open work"):
         await call(manager, "update_task", task["id"], project_id=project["id"])
-    assert (await call(manager, "get_task", task["id"]))["project_id"] is None
+    assert (await call(manager, "get_task", task["id"]))["project_id"] == open_project["id"]
 
 
 @pytest.mark.asyncio

@@ -20,7 +20,14 @@ from agno.registry import Registry
 from agno.tools.scheduler import SchedulerTools
 
 SECRET = "company-execution-tests-secret-at-least-32-bytes"
-SCOPES = ["products:read", "products:write", "tasks:read", "tasks:write", "wiki:read", "agents:writer:run"]
+SCOPES = [
+    "products:read",
+    "products:write",
+    "tasks:read",
+    "tasks:write",
+    "wiki:read",
+    "agents:writer:run",
+]
 
 
 def headers(user="alice", scopes=None):
@@ -63,8 +70,15 @@ def system(request, tmp_path):
 
 def accepted(client):
     product = client.post("/company/products", json={"name": "SDK"}, headers=headers()).json()
+    project = client.post(
+        "/company/projects",
+        json={"product_id": product["id"], "name": "Release"},
+        headers=headers(scopes=["projects:write"]),
+    ).json()
     task = client.post(
-        "/company/tasks", json={"product_id": product["id"], "title": "Draft", "brief": "Write"}, headers=headers()
+        "/company/tasks",
+        json={"product_id": product["id"], "project_id": project["id"], "title": "Draft", "brief": "Write"},
+        headers=headers(),
     ).json()
     path = f"/company/tasks/{task['id']}"
     response = client.post(
@@ -81,7 +95,9 @@ def test_missing_executor_at_acceptance_and_registry_only_mount(system):
     path, task = accepted(client)
     assert client.post(path + "/runs", headers=headers()).status_code == 202
     other = client.post(
-        "/company/tasks", json={"product_id": task["product_id"], "title": "Other"}, headers=headers()
+        "/company/tasks",
+        json={"product_id": task["product_id"], "project_id": task["project_id"], "title": "Other"},
+        headers=headers(),
     ).json()
     denied = client.post(
         f"/company/tasks/{other['id']}/transitions",
@@ -150,7 +166,8 @@ def test_python_acceptance_also_validates_registry(tmp_path):
     db = SqliteDb(db_file=str(tmp_path / "registry.db"))
     manager = CompanyManager(db)
     product = manager.create("SDK")
-    task = manager.create_task(product["id"], "Draft")
+    project = manager.create_project(product["id"], "Release")
+    task = manager.create_task(product["id"], "Draft", project_id=project["id"])
     with pytest.raises(ValueError, match="missing"):
         manager.transition_task(task["id"], "ready", "Accept", executor_type="agent", executor_id="writer")
     manager.registry = Registry(agents=[Agent(id="writer", tools=[SchedulerTools(db=db)])])
@@ -407,7 +424,7 @@ def managed_system(request, tmp_path):
     db = SqliteDb(db_file=str(tmp_path / "managed-company.db"))
     authz = Authorization(db=db, verification_keys=[SECRET], algorithm="HS256")
     authz.define_role("admin", ["agent_os:admin"])
-    authz.define_role("runner", SCOPES)
+    authz.define_role("runner", [*SCOPES, "projects:write"])
     authz.define_role("viewer", [scope for scope in SCOPES if scope != "agents:writer:run"])
     authz.seed(admin="root")
     authz.assign("alice", "runner")

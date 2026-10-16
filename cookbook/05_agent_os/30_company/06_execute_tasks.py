@@ -63,10 +63,15 @@ if __name__ == "__main__":
         try:
             with TestClient(agent_os.get_app()) as client:
                 product = client.post("/company/products", json={"name": "SDK"}).json()
+                project = client.post(
+                    "/company/projects",
+                    json={"product_id": product["id"], "name": "Release"},
+                ).json()
                 task = client.post(
                     "/company/tasks",
                     json={
                         "product_id": product["id"],
+                        "project_id": project["id"],
                         "title": "Draft release notes",
                         "brief": "Summarize reviewed changes",
                         "evidence": [{"reference": "Reviewed release changes"}],

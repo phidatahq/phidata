@@ -38,6 +38,13 @@ change every Product; admins bypass owner isolation.
 | `02_manage_projects.py` | Product-contained Projects, owner filtering, explicit transitions, soft delete and restore. |
 | `03_manage_tasks.py` | Backlog proposals, executor acceptance, frozen scope, rescoping, review and completion. |
 
+A Product contains Projects and Routines. Every new Task belongs to a Project
+in that Product: `project_id` is required by Task creation and proposal/Intake
+tools. HTTP rejects omission with 422; Python managers and tools raise
+`ValueError`. When no Project fits, propose one with `propose_company_project`,
+then pass its ID to the Task proposal. A Backlog Task can move between Projects
+but cannot clear its Project. Existing nullable storage rows remain readable.
+
 Projects start `proposed` and move to `active`, then `done`. Tasks start
 `backlog` and move through `ready`, `in_progress`, `in_review`, and `done`.
 Either can be `cancelled` from any non-terminal state. Each transition takes
@@ -471,10 +478,10 @@ Every authorization names an exact executor type and ID. A proposal with no
 executor receives that authorized executor at acceptance. A proposal that names
 an executor must name the same one. It must belong to the Routine's Product and
 carry the framework's Routine origin. `propose_company_task` and
-`intake_company_source` can name a proposed executor and Project; neither can
+`intake_company_source` require a Project and can name a proposed executor; neither can
 accept work. Source IDs and work scope are optional bounds. Omitted Source/scope
 bounds impose no additional restriction; an empty allowed-ID list permits no matching work.
-`project_ids` can include `null` to allow independent Tasks. Unknown fields and
+`project_ids` can include `null` for legacy Tasks without a Project; new Tasks require a Project. Unknown fields and
 check names fail closed. A Source bound requires verified reader evidence.
 Omitting `required_checks` defaults to `["executor_registered"]`; an explicit
 empty check list is rejected. Every policy therefore runs at least one server-side
@@ -686,3 +693,30 @@ Summary's unresolved failures match attention: only Tasks still `in_progress`
 with an ERROR or CANCELLED execution result appear under Failed Tasks. Moving
 work on or archiving it removes that unresolved failure without deleting its
 execution history.
+
+## Routine controls and on-demand work
+
+`GET /company/routines/{id}` returns the same Routine shape as the list.
+Create, read, update, pause, and resume responses include `schedule_type`
+(`scheduled` or `on_demand`) and `last_run`. The latter is null before the first
+run, then contains `status`, `triggered_at`, `completed_at`, `run_id`,
+`session_id`, and `error`. List pages fetch the latest runs together in one
+query. Run history remains at `GET /company/routines/{id}/runs`.
+
+Omit `cron_expr` (or use null) to create an on-demand Routine in code, YAML,
+setup, or `POST /company/routines`. It stays enabled with `next_run_at: null`
+and is never claimed by the poller. `PATCH /company/routines/{id}` with a cron
+makes it scheduled; `{"cron_expr": null}` removes the schedule and keeps history.
+Pause and resume also apply to on-demand Routines.
+
+With the scheduler enabled, `POST /company/routines/{id}/trigger` starts one
+execution and returns its schedule-run record when it finishes. It uses the
+same owner and executor permission checks as the other Routine controls;
+paused Routines return 409. Automation and non-Company schedule IDs return 404.
+A concurrent GET exposes the live `last_run.run_id` and `session_id` while
+execution is running. Stop uses the existing executor cancel route, such as
+`POST /agents/{executor_id}/runs/{run_id}/cancel` (or the equivalent Team or
+Workflow route). There is no separate Routine stop operation.
+
+`08_custom_routines.py` demonstrates on-demand declaration, single read, pause,
+resume, and adding/removing a cron without calling a model.

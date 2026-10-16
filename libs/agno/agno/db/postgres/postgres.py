@@ -7348,8 +7348,12 @@ class PostgresDb(BaseDb):
             if table is None:
                 return False
             updates: Dict[str, Any] = {"locked_by": None, "locked_at": None, "updated_at": int(time.time())}
-            if next_run_at is not None:
-                updates["next_run_at"] = next_run_at
+            # A cron may be cleared while this claim is running. Never re-arm
+            # an on-demand Routine using the executor's older schedule snapshot.
+            updates["next_run_at"] = case(
+                ((table.c.managed_by == "company") & (table.c.cron_expr == ""), None),
+                else_=next_run_at if next_run_at is not None else table.c.next_run_at,
+            )
             statement = table.update().where(table.c.id == schedule_id)
             if worker_id is not None:
                 statement = statement.where(table.c.locked_by == worker_id)
@@ -7400,6 +7404,31 @@ class PostgresDb(BaseDb):
         except Exception as e:
             log_debug(f"Error getting schedule run: {e}")
             return None
+
+    def get_latest_schedule_runs(self, schedule_ids: List[str]) -> Dict[str, Dict[str, Any]]:
+        """Fetch one most recent run per schedule, without per-schedule queries."""
+        if not schedule_ids:
+            return {}
+        table = self._get_table(table_type="schedule_runs")
+        if table is None:
+            return {}
+        ranked = (
+            select(
+                table,
+                func.row_number()
+                .over(
+                    partition_by=table.c.schedule_id,
+                    order_by=(table.c.triggered_at.desc(), table.c.created_at.desc(), table.c.id.desc()),
+                )
+                .label("position"),
+            )
+            .where(table.c.schedule_id.in_(schedule_ids))
+            .subquery()
+        )
+        stmt = select(*(ranked.c[column.name] for column in table.columns)).where(ranked.c.position == 1)
+        with self.Session() as sess:
+            result = sess.execute(stmt)
+            return {row._mapping["schedule_id"]: dict(row._mapping) for row in result.fetchall()}
 
     def get_schedule_runs(
         self,

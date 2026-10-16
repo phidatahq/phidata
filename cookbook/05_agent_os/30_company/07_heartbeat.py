@@ -70,7 +70,10 @@ if __name__ == "__main__":
                 evidence_links=[evidence[0]["link"]],
                 evidence_hashes={evidence[0]["link"]: evidence[0]["content_hash"]},
             )
-            first = manager.intake(source["id"], "first-scan", proposal)
+            project = manager.create_project(product_id, "Review the release")
+            first = manager.intake(
+                source["id"], "first-scan", proposal, project_id=project["id"]
+            )
             release.write_text("# Release\nDocument the new API and its options.\n")
             evidence = [
                 manager.browse_source(source["id"], "repeat-scan", path=selected_path)
@@ -78,12 +81,12 @@ if __name__ == "__main__":
             proposal["evidence_hashes"] = {
                 item["link"]: item["content_hash"] for item in evidence
             }
-            again = manager.intake(source["id"], "repeat-scan", proposal)
+            again = manager.intake(
+                source["id"], "repeat-scan", proposal, project_id=project["id"]
+            )
             assert first["id"] == again["id"]
             assert first["status"] == "backlog"
-            project = manager.create_project(product_id, "Review the release")
             manager.transition_project(project["id"], "active", "Human accepted scope")
-            manager.update_task(first["id"], project_id=project["id"])
             manager.transition_task(
                 first["id"], "cancelled", "Replaced by the release guide"
             )
@@ -98,6 +101,7 @@ if __name__ == "__main__":
                 dict(
                     id="old-terminal",
                     product_id=product_id,
+                    project_id=project["id"],
                     title="Old completed work",
                     status="done",
                     created_at=int(time()) - 15 * 86400,

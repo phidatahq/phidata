@@ -29,7 +29,6 @@ if __name__ == "__main__":
                     name="watch",
                     executor_type="agent",
                     executor_id="researcher",
-                    cron_expr="0 9 * * *",
                     instructions="Find relevant release pages. Save useful website Sources. Read selected pages and "
                     "propose evidence-backed Tasks only for actionable changes. A quiet check needs no Task.",
                 )
@@ -44,6 +43,22 @@ if __name__ == "__main__":
         with TestClient(agent_os.get_app()) as client:
             routine = client.get("/company/routines").json()["data"][0]
             assert routine["payload"]["metadata"]["template"] is None
+            path = "/company/routines/" + routine["id"]
+            assert client.get(path).json() == routine
+            assert routine["schedule_type"] == "on_demand"
+            assert routine["enabled"] and routine["next_run_at"] is None
+            assert routine["last_run"] is None
+            client.post(path + "/pause").raise_for_status()
+            assert client.post(path + "/trigger").status_code == 409
+            assert client.post(path + "/resume").json()["next_run_at"] is None
+            scheduled = client.patch(path, json={"cron_expr": "0 9 * * *"}).json()
+            assert (
+                scheduled["schedule_type"] == "scheduled" and scheduled["next_run_at"]
+            )
+            manual = client.patch(path, json={"cron_expr": None}).json()
+            assert (
+                manual["schedule_type"] == "on_demand" and manual["next_run_at"] is None
+            )
             assert client.get("/company/sources").json()["data"] == []
             # The runtime injects these identities during a real agent run.
             context = RunContext(

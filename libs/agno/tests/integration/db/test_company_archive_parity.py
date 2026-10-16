@@ -73,7 +73,17 @@ async def test_product_cascade_exact_restore_and_repeated_cycles(db, monkeypatch
     await call(m.delete_task, old_task["id"])
     tasks = [
         await call(m.create_task, product["id"], "Release notes", project_id=project["id"], user_id="other"),
-        await call(m.create_task, product["id"], "Independent"),
+        await call(
+            db.create_task,
+            dict(
+                id="legacy-independent",
+                product_id=product["id"],
+                title="Independent",
+                status="backlog",
+                created_at=1,
+                transitions=[],
+            ),
+        ),
     ]
     for _ in range(2):
         assert not await call(m.delete, product["id"], user_id="wrong")
@@ -120,7 +130,17 @@ async def test_project_cascade_and_parent_visibility_before_pagination(db):
     old = await call(m.create_task, product["id"], "Old", project_id=project["id"])
     await call(m.delete_task, old["id"])
     task = await call(m.create_task, product["id"], "New", project_id=project["id"])
-    independent = await call(m.create_task, product["id"], "Independent")
+    independent = await call(
+        db.create_task,
+        dict(
+            id="legacy-independent",
+            product_id=product["id"],
+            title="Independent",
+            status="backlog",
+            created_at=1,
+            transitions=[],
+        ),
+    )
     await call(m.delete_project, project["id"])
     assert (await call(m.get_task, task["id"], include_deleted=True))["transitions"][-1]["archived_by"] == {
         "type": "project",
@@ -159,9 +179,19 @@ async def test_http_refuses_all_active_work_then_cascades_and_restores(db, paren
                 break
         active.append(task)
     backlog = await call(m.create_task, product["id"], "Backlog", project_id=project["id"])
-    # Product refusal also includes active Tasks outside Projects.
+    # Legacy Task rows without a Project remain readable and participate in cascades.
     if parent_type == "product":
-        independent = await call(m.create_task, product["id"], "Independent")
+        independent = await call(
+            db.create_task,
+            dict(
+                id="legacy-independent",
+                product_id=product["id"],
+                title="Independent",
+                status="backlog",
+                created_at=1,
+                transitions=[],
+            ),
+        )
         await call(m.transition_task, independent["id"], "ready", "Accept", executor_type="agent", executor_id="writer")
         active.append(independent)
     parent = product if parent_type == "product" else project

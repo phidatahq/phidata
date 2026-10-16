@@ -137,7 +137,7 @@ def get_schedule_router(
         _check_scheduler_deps()
         from agno.scheduler.cron import compute_next_run, validate_cron_expr, validate_timezone
 
-        if not validate_cron_expr(body.cron_expr):
+        if not (managed_by == "company" and body.cron_expr == "") and not validate_cron_expr(body.cron_expr):
             raise HTTPException(status_code=422, detail=f"Invalid cron expression: {body.cron_expr}")
         if not validate_timezone(body.timezone):
             raise HTTPException(status_code=422, detail=f"Invalid timezone: {body.timezone}")
@@ -226,7 +226,7 @@ def get_schedule_router(
                 return result
             raise HTTPException(status_code=409, detail=f"Schedule with name '{body.name}' already exists")
 
-        next_run_at = compute_next_run(body.cron_expr, body.timezone)
+        next_run_at = compute_next_run(body.cron_expr, body.timezone) if body.cron_expr else None
         now = int(time.time())
 
         schedule_dict: Dict[str, Any] = {
@@ -356,12 +356,12 @@ def get_schedule_router(
 
             new_cron = updates.get("cron_expr", existing["cron_expr"])
             new_tz = updates.get("timezone", existing["timezone"])
-            if not validate_cron_expr(new_cron):
+            if not (managed_by == "company" and new_cron == "") and not validate_cron_expr(new_cron):
                 raise HTTPException(status_code=422, detail=f"Invalid cron expression: {new_cron}")
             if not validate_timezone(new_tz):
                 raise HTTPException(status_code=422, detail=f"Invalid timezone: {new_tz}")
-            if existing.get("enabled", True):
-                updates["next_run_at"] = compute_next_run(new_cron, new_tz)
+            if existing.get("enabled", True) or new_cron == "":
+                updates["next_run_at"] = compute_next_run(new_cron, new_tz) if new_cron else None
 
         # Validate name uniqueness within the caller's scope if name is changing.
         # The pre-check scopes to the caller, but the row was stamped with the
@@ -478,7 +478,11 @@ def get_schedule_router(
         _check_scheduler_deps()
         from agno.scheduler.cron import compute_next_run
 
-        next_run_at = compute_next_run(existing["cron_expr"], existing.get("timezone", "UTC"))
+        next_run_at = (
+            None
+            if existing.get("managed_by") == "company" and existing["cron_expr"] == ""
+            else compute_next_run(existing["cron_expr"], existing.get("timezone", "UTC"))
+        )
         updates: Dict[str, Any] = {"enabled": True, "next_run_at": next_run_at}
         if defer_activation and pending_key in (existing.get("payload") or {}):
             # Activation and completion of creation are one scheduler storage update.

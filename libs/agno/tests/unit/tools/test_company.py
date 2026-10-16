@@ -43,7 +43,8 @@ async def test_empty_optionals_equal_omission(tmp_path, use_async, processed, na
     db = SqliteDb(db_file=str(tmp_path / "tools.db"))
     manager = CompanyManager(db)
     product = manager.create("SDK", user_id="alice")
-    manager.create_task(product["id"], "Existing task")
+    project = manager.create_project(product["id"], "Release")
+    manager.create_task(product["id"], "Existing task", project_id=project["id"])
     manager.log_decision("Review before shipping", agent_id="planner", session_id="prior")
     tools = CompanyTools(db)
     context = RunContext(run_id="run", session_id="session", user_id="alice")
@@ -51,7 +52,9 @@ async def test_empty_optionals_equal_omission(tmp_path, use_async, processed, na
     optional = [
         key
         for key, param in inspect.signature(raw).parameters.items()
-        if param.default is not inspect.Parameter.empty and key != "_agno_run_context"
+        if param.default is not inspect.Parameter.empty
+        and key != "_agno_run_context"
+        and not (name == "propose_company_task" and key == "project_id")
     ]
     if processed:
         function = (tools.get_async_functions() if use_async else tools.functions)[name]
@@ -59,7 +62,11 @@ async def test_empty_optionals_equal_omission(tmp_path, use_async, processed, na
         fn = function.entrypoint
     else:
         fn = raw
-    required = {"product_id": product["id"], "title": "Proposed"} if name == "propose_company_task" else {}
+    required = (
+        {"product_id": product["id"], "project_id": project["id"], "title": "Proposed"}
+        if name == "propose_company_task"
+        else {}
+    )
 
     async def invoke(options):
         result = fn(**required, **options, _agno_run_context=context)
@@ -87,7 +94,7 @@ async def test_empty_optionals_do_not_weaken_required_validation(tmp_path, use_a
     product = manager.create("SDK")
     fn = tools.apropose_company_task if use_async else tools.propose_company_task
     with pytest.raises(ValueError, match="title"):
-        result = fn(product["id"], "", project_id="")
+        result = fn(product["id"], "", project_id="project")
         if inspect.isawaitable(result):
             await result
     with pytest.raises(ValueError):
@@ -114,7 +121,9 @@ async def test_source_optionals_equal_omission(tmp_path, use_async, processed, n
     optional = [
         key
         for key, param in inspect.signature(raw).parameters.items()
-        if param.default is not inspect.Parameter.empty and key != "_agno_run_context"
+        if param.default is not inspect.Parameter.empty
+        and key != "_agno_run_context"
+        and not (name == "propose_company_task" and key == "project_id")
     ]
     fn = raw
     if processed:

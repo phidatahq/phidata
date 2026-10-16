@@ -73,7 +73,12 @@ def create(client, user):
     parent = client.post("/company/products", json={"name": user}, headers=headers(user, ["products:write"])).json()[
         "id"
     ]
-    response = client.post("/company/tasks", json={"title": user, "product_id": parent}, headers=headers(user))
+    project = client.post(
+        "/company/projects", json={"product_id": parent, "name": "Release"}, headers=headers(user, ["projects:write"])
+    ).json()
+    response = client.post(
+        "/company/tasks", json={"title": user, "product_id": parent, "project_id": project["id"]}, headers=headers(user)
+    )
     assert response.status_code == 201, response.text
     assert response.json()["user_id"] == user
     return response.json()["id"]
@@ -134,7 +139,10 @@ def test_admin_bypass_and_creator_attribution(make_client):
     assert c.delete(path, headers=admin).status_code == 204
     assert c.post(path + "/restore", headers=admin).status_code == 200
     parent = c.post("/company/products", json={"name": "Admin product"}, headers=admin).json()["id"]
-    response = c.post("/company/tasks", json={"title": "Admin work", "product_id": parent}, headers=admin)
+    project = c.post("/company/projects", json={"name": "Admin project", "product_id": parent}, headers=admin).json()
+    response = c.post(
+        "/company/tasks", json={"title": "Admin work", "product_id": parent, "project_id": project["id"]}, headers=admin
+    )
     assert response.status_code == 201
     assert response.json()["user_id"] == "admin"
 
@@ -166,7 +174,8 @@ def test_service_account_scopes_on_company_routes(tmp_path, authorization):
     db = SqliteDb(db_file=str(tmp_path / "service-accounts.db"))
     manager = CompanyManager(db)
     product = manager.create("Shared product", user_id="alice")
-    shared = manager.create_task(product["id"], "Shared work", user_id="alice")
+    project = manager.create_project(product["id"], "Release", user_id="alice")
+    shared = manager.create_task(product["id"], "Shared work", project_id=project["id"], user_id="alice")
     token, token_hash, token_prefix = generate_token()
     db.create_service_account(
         {
@@ -330,7 +339,7 @@ async def test_run_target_permission_with_async_managed_roles(tmp_path, resource
 
     db = AsyncSqliteDb(db_file=str(tmp_path / "managed.db"))
     engine = NativePolicyEngine(db=db)
-    scopes = ["products:write", "tasks:read", "tasks:write", "schedules:write", "agents:writer:run"]
+    scopes = ["projects:write", "products:write", "tasks:read", "tasks:write", "schedules:write", "agents:writer:run"]
     await engine.aset_role_scopes("editor", [(scope, "allow") for scope in scopes])
     await engine.aassign("alice", "editor")
     app = AgentOS(
@@ -352,8 +361,14 @@ async def test_run_target_permission_with_async_managed_roles(tmp_path, resource
             if resource == "tasks":
                 product = await client.post("/company/products", json={"name": "SDK"}, headers=auth)
                 assert product.status_code == 201, product.text
+                project = await client.post(
+                    "/company/projects", json={"product_id": product.json()["id"], "name": "Release"}, headers=auth
+                )
+                assert project.status_code == 201, project.text
                 task = await client.post(
-                    "/company/tasks", json={"product_id": product.json()["id"], "title": "Work"}, headers=auth
+                    "/company/tasks",
+                    json={"product_id": product.json()["id"], "project_id": project.json()["id"], "title": "Work"},
+                    headers=auth,
                 )
                 assert task.status_code == 201, task.text
                 path = "/company/tasks/" + task.json()["id"]

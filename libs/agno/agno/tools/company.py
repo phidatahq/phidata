@@ -260,12 +260,14 @@ class CompanyTools(Toolkit):
             executor_type: Suggested executor kind; null leaves selection to acceptance.
             executor_id: Suggested executor ID; null leaves selection to acceptance.
             brief: Task brief; null leaves it unspecified.
-            project_id: Project ID within the Product; null proposes work without a Project.
+            project_id: Required Project ID within the Product. Propose a Project first when none fits.
         """
         executor_type = _empty_to_none(executor_type)
         executor_id = _empty_to_none(executor_id)
         brief = _empty_to_none(brief)
         project_id = _empty_to_none(project_id)
+        if not project_id:
+            raise ValueError("A Task requires a Project")
         _require_plain_proposal(_agno_run_context)
         _permission("tasks", "write", _agno_run_context)
         self._scoped_user(_agno_run_context)
@@ -542,12 +544,14 @@ class CompanyTools(Toolkit):
             executor_type: Suggested executor kind; null leaves selection to acceptance.
             executor_id: Suggested executor ID; null leaves selection to acceptance.
             brief: Task brief; null leaves it unspecified.
-            project_id: Project ID within the Product; null proposes work without a Project.
+            project_id: Required Project ID within the Product. Propose a Project first when none fits.
         """
         executor_type = _empty_to_none(executor_type)
         executor_id = _empty_to_none(executor_id)
         brief = _empty_to_none(brief)
         project_id = _empty_to_none(project_id)
+        if not project_id:
+            raise ValueError("A Task requires a Project")
         _require_plain_proposal(_agno_run_context)
         await _apermission("tasks", "write", _agno_run_context)
         self._scoped_user(_agno_run_context)
@@ -846,11 +850,13 @@ class CompanyTools(Toolkit):
         Args:
             executor_type: Suggested executor kind; null leaves selection to acceptance.
             executor_id: Suggested executor ID; null leaves selection to acceptance.
-            project_id: Project ID within the Product; null proposes work without a Project.
+            project_id: Required Project ID within the Product. Propose a Project first when none fits.
         """
         executor_type = _empty_to_none(executor_type)
         executor_id = _empty_to_none(executor_id)
         project_id = _empty_to_none(project_id)
+        if not project_id:
+            raise ValueError("A Task requires a Project")
         _permission("sources", "read", _agno_run_context)
         _permission("tasks", "write", _agno_run_context)
         self._scoped_user(_agno_run_context)
@@ -1033,11 +1039,13 @@ class CompanyTools(Toolkit):
         Args:
             executor_type: Suggested executor kind; null leaves selection to acceptance.
             executor_id: Suggested executor ID; null leaves selection to acceptance.
-            project_id: Project ID within the Product; null proposes work without a Project.
+            project_id: Required Project ID within the Product. Propose a Project first when none fits.
         """
         executor_type = _empty_to_none(executor_type)
         executor_id = _empty_to_none(executor_id)
         project_id = _empty_to_none(project_id)
+        if not project_id:
+            raise ValueError("A Task requires a Project")
         await _apermission("sources", "read", _agno_run_context)
         await _apermission("tasks", "write", _agno_run_context)
         self._scoped_user(_agno_run_context)

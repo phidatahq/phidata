@@ -77,6 +77,8 @@ def test_routine_routes_hide_automation_and_report_missing_product(system):
         path = "/company/routines/" + identifier
         responses = [
             client.patch(path, json={"instructions": "Updated"}),
+            client.get(path),
+            client.post(path + "/trigger"),
             client.post(path + "/pause"),
             client.post(path + "/resume"),
             client.get(path + "/runs"),
@@ -183,7 +185,9 @@ def test_routine_cannot_accept(system):
     _, _, db = system
     manager = CompanyManager(db)
     product = manager.create("Docs")
-    task = manager.create_task(product["id"], "Draft")
+    project = manager.create_project(product["id"], "Documentation")
+    project = manager.create_project(product["id"], "Release")
+    task = manager.create_task(product["id"], "Draft", project_id=project["id"])
     with authorization_scope(lambda: _RoutineAuthorization(None)):
         with pytest.raises(PermissionError, match="cannot accept"):
             manager.transition_task(task["id"], "ready", "self approval", executor_type="agent", executor_id="reader")
@@ -297,18 +301,28 @@ def test_sources_and_routines_scopes_and_ownership(tmp_path, isolation):
             row["id"] for row in client.get("/company/routines", headers=headers("bob")).json()["data"]
         }
         path = "/company/routines/" + routine_id
+        assert client.get(path, headers=headers("bob")).status_code == 200
         assert client.get(path + "/runs", headers=headers("bob")).status_code == 200
+        for missing_scope in ("routines:write", "schedules:write", "agents:reader:run"):
+            assert (
+                client.post(
+                    path + "/trigger", headers=headers("alice", [s for s in scopes if s != missing_scope])
+                ).status_code
+                == 403
+            )
         if isolation:
             assert client.patch(path, headers=headers("bob"), json={"instructions": "Change"}).status_code == 403
             assert client.post(path + "/pause", headers=headers("bob")).status_code == 403
             assert client.post(path + "/resume", headers=headers("bob")).status_code == 403
+            assert client.post(path + "/trigger", headers=headers("bob")).status_code == 403
         assert "private-claim-alice" in json.dumps(db.get_schedule(routine_id)["payload"])
         actor = "alice" if isolation else "bob"
         for action, enabled in (("pause", False), ("resume", True)):
             response = client.post(path + "/" + action, headers=headers(actor))
             assert response.status_code == 200, response.text
             assert response.json()["enabled"] is enabled
-            assert "payload" not in response.json()
+            assert response.json()["last_run"] is None
+            assert response.json()["schedule_type"] == "scheduled"
             assert "_agno_authorization" not in response.text
             assert "private-claim-alice" not in response.text
         assert "private-claim-alice" in json.dumps(db.get_schedule(routine_id)["payload"])
@@ -372,6 +386,7 @@ async def test_source_tools_only_require_source_and_proposal_scopes(tmp_path, as
     db = SqliteDb(db_file=str(tmp_path / "permissions.db"))
     manager = CompanyManager(db)
     product = manager.create("Docs")
+    project = manager.create_project(product["id"], "Documentation")
     path = tmp_path / "page.md"
     path.write_text("Document the released API")
     source = manager.create_source(product["id"], "markdown", str(path))
@@ -383,6 +398,7 @@ async def test_source_tools_only_require_source_and_proposal_scopes(tmp_path, as
     context = RunContext(run_id="source-run", session_id="session", user_id="reader")
     args = dict(
         source_id=source["id"],
+        project_id=project["id"],
         title="Document API",
         brief="Write API guide",
         proposal_key="api-guide",
@@ -474,10 +490,17 @@ def test_custom_company_tools_resolve_os_interfaces_and_human_origin(tmp_path, m
             "/company/products",
             json={"name": "Summary", "metadata": {"summary": {"interface": "slack", "destination": "configured"}}},
         ).json()
-        task = client.post("/company/tasks", json={"product_id": product["id"], "title": "Human work"}).json()
+        project = client.post("/company/projects", json={"product_id": product["id"], "name": "Release"}).json()
+        task = client.post(
+            "/company/tasks", json={"product_id": product["id"], "project_id": project["id"], "title": "Human work"}
+        ).json()
         assert task["origin"] == "human" and task["routine_id"] is None and task["dedupe_key"] is None
         context = RunContext(run_id="report", session_id="session", user_id="alice")
-        proposed = json.loads(toolkit.propose_company_task(product["id"], "Proposed work", _agno_run_context=context))
+        proposed = json.loads(
+            toolkit.propose_company_task(
+                product["id"], "Proposed work", project_id=project["id"], _agno_run_context=context
+            )
+        )
         assert proposed["origin"] == "product_manager"
         result = json.loads(
             toolkit.summarize_company_product(
@@ -541,20 +564,29 @@ async def test_routine_cannot_use_plain_task_proposals(tmp_path, async_tools, ro
     db = SqliteDb(db_file=str(tmp_path / "routine-proposals.db"))
     manager = CompanyManager(db)
     product = manager.create("Docs")
+    project = manager.create_project(product["id"], "Documentation")
     tools = CompanyTools(db)
     context = RunContext(run_id="run", session_id="session", authorization=_RoutineAuthorization(None, routine_id))
     for _ in range(3):
         with pytest.raises(PermissionError, match="intake_company_source"):
             if async_tools:
-                await tools.apropose_company_task(product["id"], "Repeated", _agno_run_context=context)
+                await tools.apropose_company_task(
+                    product["id"], "Repeated", project_id=project["id"], _agno_run_context=context
+                )
             else:
-                tools.propose_company_task(product["id"], "Repeated", _agno_run_context=context)
+                tools.propose_company_task(
+                    product["id"], "Repeated", project_id=project["id"], _agno_run_context=context
+                )
     assert manager.list_tasks()[1] == 0
     context.authorization = None
     if async_tools:
-        result = await tools.apropose_company_task(product["id"], "Human-directed", _agno_run_context=context)
+        result = await tools.apropose_company_task(
+            product["id"], "Human-directed", project_id=project["id"], _agno_run_context=context
+        )
     else:
-        result = tools.propose_company_task(product["id"], "Human-directed", _agno_run_context=context)
+        result = tools.propose_company_task(
+            product["id"], "Human-directed", project_id=project["id"], _agno_run_context=context
+        )
     assert json.loads(result)["origin"] == "product_manager"
     db.close()
 

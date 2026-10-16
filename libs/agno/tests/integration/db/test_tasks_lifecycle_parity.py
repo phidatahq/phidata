@@ -64,7 +64,10 @@ async def test_lifecycle_and_owner_guards(db):
     m = manager(db)
     assert await call(m.list_tasks) == ([], 0)
     parent = await call(m.create, "SDK", user_id="alice")
-    record = await call(m.create_task, parent["id"], "Ship", user_id="alice", scoped_user_id="alice")
+    project = await call(m.create_project, parent["id"], "Release", user_id="alice")
+    record = await call(
+        m.create_task, parent["id"], "Ship", user_id="alice", scoped_user_id="alice", project_id=project["id"]
+    )
     rid = record["id"]
     assert record["status"] == "backlog"
     assert await call(m.get_task, rid, user_id="bob") is None
@@ -131,9 +134,11 @@ async def test_filters_and_stable_paging(db):
 async def test_validation_parent_visibility_and_immutable_fields(db):
     m = manager(db)
     parent = await call(m.create, "SDK", user_id="alice")
+    project = await call(m.create_project, parent["id"], "Release", user_id="alice")
     with pytest.raises(LookupError):
-        await call(m.create_task, parent["id"], "Hidden", user_id="bob", scoped_user_id="bob")
-    record = await call(m.create_task, parent["id"], "Work")
+        await call(m.create_task, parent["id"], "Hidden", user_id="bob", scoped_user_id="bob", project_id=project["id"])
+    project = await call(m.create_project, parent["id"], "Release", user_id="alice")
+    record = await call(m.create_task, parent["id"], "Work", project_id=project["id"])
     for fields in [
         {"status": "done"},
         {"id": "other"},
@@ -158,7 +163,8 @@ async def test_validation_parent_visibility_and_immutable_fields(db):
 async def test_custom_table_migrations_and_configuration_roundtrip(db):
     m = manager(db)
     parent = await call(m.create, "SDK")
-    record = await call(m.create_task, parent["id"], "Roundtrip", user_id="alice")
+    project = await call(m.create_project, parent["id"], "Release", user_id="alice")
+    record = await call(m.create_task, parent["id"], "Roundtrip", user_id="alice", project_id=project["id"])
     assert await call(db.table_exists, db.tasks_table_name)
     assert not await call(db.table_exists, "agno_company_tasks")
     assert await call(db.get_latest_schema_version, db.tasks_table_name)
@@ -180,7 +186,8 @@ async def test_task_acceptance_and_project_consistency(db):
     project = await call(m.create_project, b["id"], "Other")
     with pytest.raises(ValueError):
         await call(m.create_task, a["id"], "Wrong", project_id=project["id"])
-    task = await call(m.create_task, a["id"], "Work")
+    own_project = await call(m.create_project, a["id"], "Release")
+    task = await call(m.create_task, a["id"], "Work", project_id=own_project["id"])
     with pytest.raises(ValueError):
         await call(m.update_task, task["id"], project_id=project["id"])
     ready = await call(
@@ -208,7 +215,8 @@ async def test_stale_acceptance_cannot_overwrite_a_backlog_roundtrip(db, monkeyp
 
     m = manager(db)
     parent = await call(m.create, "SDK")
-    task = await call(m.create_task, parent["id"], "Work")
+    project = await call(m.create_project, parent["id"], "Release")
+    task = await call(m.create_task, parent["id"], "Work", project_id=project["id"])
     # Capture the observed row at the SQL validation boundary. The later writer
     # sees Backlog again, but must not overwrite the intervening history.
     original = task_schema.task_transition_fields
@@ -326,7 +334,7 @@ async def test_http_collaborative_work_and_owner_scoped_deletion(db, resource, i
         other = (
             project
             if resource == "projects"
-            else await call(m.create_task, product["id"], "Alice task", user_id="alice")
+            else await call(m.create_task, product["id"], "Alice task", user_id="alice", project_id=project["id"])
         )
         path = root + "/" + other["id"]
         assert (await client.get(path, headers=headers("bob"))).status_code == 200
@@ -344,7 +352,7 @@ async def test_http_collaborative_work_and_owner_scoped_deletion(db, resource, i
         if resource == "tasks":
             # Collaborators can assign another creator's Task to a shared Project.
             own_path = path
-            assert (await client.patch(own_path, json={"project_id": None}, headers=headers("bob"))).status_code == 200
+            assert (await client.patch(own_path, json={"project_id": None}, headers=headers("bob"))).status_code == 422
             assert (
                 await client.patch(own_path, json={"project_id": project["id"]}, headers=headers("bob"))
             ).status_code == 200

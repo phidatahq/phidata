@@ -6,7 +6,7 @@ from typing import Any, Dict, Literal, Optional, Union
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.routing import APIRoute
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from agno.company.declarations import AutoAccept, Product, Routine, Source
 from agno.company.manager import AsyncCompanyManager, CompanyManager
@@ -16,7 +16,7 @@ from agno.os.auth import get_authentication_dependency
 from agno.os.middleware.user_scope import get_scoped_user_id
 from agno.os.routers.company.products import _require_write_ownership
 from agno.os.routers.schedules.router import get_schedule_router
-from agno.os.routers.schedules.schema import ScheduleCreate, ScheduleResponse, ScheduleStateResponse, ScheduleUpdate
+from agno.os.routers.schedules.schema import ScheduleCreate, ScheduleResponse, ScheduleRunResponse, ScheduleUpdate
 from agno.os.schema import PaginatedResponse, PaginationInfo
 
 
@@ -27,6 +27,27 @@ class SourceCreate(Source):
 
 class RoutineCreate(Routine):
     product_id: str
+
+
+class RoutineLastRun(BaseModel):
+    status: str
+    triggered_at: Optional[int] = None
+    completed_at: Optional[int] = None
+    run_id: Optional[str] = None
+    session_id: Optional[str] = None
+    error: Optional[str] = None
+
+
+class RoutineResponse(ScheduleResponse):
+    cron_expr: Optional[str] = None  # type: ignore[assignment]
+    schedule_type: Literal["scheduled", "on_demand"]
+    last_run: Optional[RoutineLastRun] = None
+
+    @field_validator("cron_expr", mode="before")
+    @classmethod
+    def public_cron(cls, value):
+        # The legacy schedule column is non-null; only Company stores an empty cron.
+        return value or None
 
 
 class RoutineUpdate(BaseModel):
@@ -103,6 +124,20 @@ def get_heartbeat_router(agent_os: Any) -> APIRouter:
             _require_write_ownership(row, get_scoped_user_id(request))
         return row
 
+    async def routine_responses(rows):
+        latest = await call(schedule_db.get_latest_schedule_runs, [row["id"] for row in rows])
+        return [
+            {
+                **row,
+                "schedule_type": "scheduled" if row["cron_expr"] else "on_demand",
+                "last_run": latest.get(row["id"]),
+            }
+            for row in rows
+        ]
+
+    async def routine_response(row):
+        return (await routine_responses([row]))[0]
+
     def page_response(rows, total, limit, page):
         return PaginatedResponse(
             data=rows,
@@ -148,7 +183,7 @@ def get_heartbeat_router(agent_os: Any) -> APIRouter:
             raise HTTPException(409, "Source is not archived")
         return await call(manager.restore_source, source_id, user_id=get_scoped_user_id(request))
 
-    @router.get("/routines", response_model=PaginatedResponse[ScheduleResponse])
+    @router.get("/routines", response_model=PaginatedResponse[RoutineResponse])
     async def list_routines(
         request: Request,
         product_id: Optional[str] = None,
@@ -167,9 +202,22 @@ def get_heartbeat_router(agent_os: Any) -> APIRouter:
             and (row.payload or {}).get("metadata", {}).get("product_id")
             and (product_id is None or (row.payload or {}).get("metadata", {}).get("product_id") == product_id)
         ]
-        return page_response(selected[(page - 1) * limit : page * limit], len(selected), limit, page)
+        rows = await routine_responses(selected[(page - 1) * limit : page * limit])
+        return page_response(rows, len(selected), limit, page)
 
-    @router.post("/routines", status_code=201, response_model=ScheduleResponse)
+    @router.get("/routines/{routine_id}", response_model=RoutineResponse)
+    async def get_routine(routine_id: str, request: Request, _: bool = Depends(auth)):
+        return await routine_response(await routine(routine_id, request))
+
+    @router.post("/routines/{routine_id}/trigger", response_model=ScheduleRunResponse)
+    async def trigger_routine(routine_id: str, request: Request, _: bool = Depends(auth)):
+        row = await routine(routine_id, request)
+        await product(row["payload"]["metadata"]["product_id"], request)
+        if not row["enabled"]:
+            raise HTTPException(409, "Routine is paused")
+        return await call(handlers["trigger_schedule"], routine_id, request)
+
+    @router.post("/routines", status_code=201, response_model=RoutineResponse)
     async def create_routine(body: RoutineCreate, request: Request, _: bool = Depends(auth)):
         await product(body.product_id, request)
         fields = await call(_schedule_fields, body.product_id, body, agent_os.registry)
@@ -182,15 +230,20 @@ def get_heartbeat_router(agent_os: Any) -> APIRouter:
         schedule = await call(ScheduleCreate, **fields)
         row = await call(handlers["create_schedule"], schedule, request)
         await call(db.add_product_routine, body.product_id, row["id"])
-        return await call(handlers["enable_schedule"], row["id"], request)
+        return await routine_response(await call(handlers["enable_schedule"], row["id"], request))
 
-    @router.patch("/routines/{routine_id}", response_model=ScheduleResponse)
+    @router.patch("/routines/{routine_id}", response_model=RoutineResponse)
     async def update_routine(routine_id: str, body: RoutineUpdate, request: Request, _: bool = Depends(auth)):
         row = await routine(routine_id, request)
         await product(row["payload"]["metadata"]["product_id"], request)
         updates: Dict[str, Any] = body.model_dump(exclude_unset=True)
-        if any(value is None for value in updates.values()):
+        if any(value is None for key, value in updates.items() if key != "cron_expr"):
             raise HTTPException(422, "Routine fields cannot be null")
+        if "cron_expr" in updates:
+            if updates["cron_expr"] == "":
+                raise HTTPException(422, "Invalid cron expression")
+            if updates["cron_expr"] is None:
+                updates["cron_expr"] = ""
         from agno.company.routines import _authorize_auto_accept
 
         if "auto_accept" in updates:
@@ -219,21 +272,21 @@ def get_heartbeat_router(agent_os: Any) -> APIRouter:
                 "message": _routine_message(row["payload"]["metadata"]["product_id"], updates.pop("instructions")),
             }
         update = await call(ScheduleUpdate, **updates)
-        return await call(handlers["update_schedule"], routine_id, update, request)
+        return await routine_response(await call(handlers["update_schedule"], routine_id, update, request))
 
-    @router.post("/routines/{routine_id}/pause", response_model=ScheduleStateResponse)
+    @router.post("/routines/{routine_id}/pause", response_model=RoutineResponse)
     async def pause_routine(routine_id: str, request: Request, _: bool = Depends(auth)):
         row = await routine(routine_id, request)
         await product(row["payload"]["metadata"]["product_id"], request, include_deleted=True)
-        return await call(handlers["disable_schedule"], routine_id, request)
+        return await routine_response(await call(handlers["disable_schedule"], routine_id, request))
 
-    @router.post("/routines/{routine_id}/resume", response_model=ScheduleStateResponse)
+    @router.post("/routines/{routine_id}/resume", response_model=RoutineResponse)
     async def resume_routine(routine_id: str, request: Request, _: bool = Depends(auth)):
         row = await routine(routine_id, request)
         product_id = row["payload"]["metadata"]["product_id"]
         await product(product_id, request)
         await call(db.add_product_routine, product_id, routine_id)
-        return await call(handlers["enable_schedule"], routine_id, request)
+        return await routine_response(await call(handlers["enable_schedule"], routine_id, request))
 
     @router.get("/routines/{routine_id}/runs")
     async def routine_runs(

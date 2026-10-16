@@ -102,11 +102,13 @@ async def accepted(client, kind="agent", id="writer"):
     product = (
         await client.post("/company/products", json={"name": "SDK", "metadata": {"secret": "never-forward"}})
     ).json()
+    project = (await client.post("/company/projects", json={"product_id": product["id"], "name": "Release"})).json()
     task = (
         await client.post(
             "/company/tasks",
             json={
                 "product_id": product["id"],
+                "project_id": project["id"],
                 "title": "Draft",
                 "brief": "Write a draft",
                 "evidence": [{"url": "https://example.com/evidence", "hash": "abc"}],
@@ -414,6 +416,9 @@ async def test_routine_intake_through_scheduler_and_durable_queue(system, tmp_pa
     path = tmp_path / "release.md"
     path.write_text("A released capability")
     product = (await client.post("/company/products", json={"name": "Docs"})).json()
+    project = (
+        await client.post("/company/projects", json={"product_id": product["id"], "name": "Documentation"})
+    ).json()
     source = (
         await client.post(
             "/company/sources", json={"product_id": product["id"], "type": "markdown", "reference": str(path)}
@@ -438,11 +443,12 @@ async def test_routine_intake_through_scheduler_and_durable_queue(system, tmp_pa
     arguments = {"source_id": source["id"]}
     if failure == "plain_proposal":
         tool_name = "propose_company_task"
-        arguments = {"product_id": product["id"], "title": "Undeduplicated proposal"}
+        arguments = {"product_id": product["id"], "project_id": project["id"], "title": "Undeduplicated proposal"}
     if tool_name == "read_company_source":
         arguments["path"] = "https://docs.example.test" if failure == "website" else path.name
     if tool_name == "intake_company_source":
         arguments.update(
+            project_id=project["id"],
             title="Document release",
             brief="Explain the capability",
             proposal_key="release-docs",
@@ -1435,7 +1441,7 @@ async def test_authenticated_intake_without_executor_is_picked_up_once(system, t
                     # Model omission through empty or null arguments remains executor-less.
                     "executor_type": None,
                     "executor_id": "",
-                    "project_id": "",
+                    "project_id": selected["project_id"],
                 }
             else:
                 return ModelResponse(role="assistant", content="Proposal recorded", response_usage=MessageMetrics())
@@ -1465,7 +1471,7 @@ async def test_authenticated_intake_without_executor_is_picked_up_once(system, t
     secret = "authenticated-intake-secret-at-least-32-bytes"
     scopes = [
         f"{resource}:{action}"
-        for resource in ("products", "tasks", "sources", "routines", "schedules", "wiki")
+        for resource in ("products", "projects", "tasks", "sources", "routines", "schedules", "wiki")
         for action in ("read", "write")
     ] + ["agents:reader:run", "agents:writer:run", "agents:read"]
     token = jwt.encode(
@@ -1492,6 +1498,9 @@ async def test_authenticated_intake_without_executor_is_picked_up_once(system, t
         transport=ASGITransport(app=app), base_url="http://test", headers={"Authorization": "Bearer " + token}
     ) as client:
         product = (await client.post("/company/products", json={"name": "API"})).json()
+        selected["project_id"] = (
+            await client.post("/company/projects", json={"product_id": product["id"], "name": "Guide"})
+        ).json()["id"]
         selected["source_id"] = (
             await client.post(
                 "/company/sources", json={"product_id": product["id"], "type": "markdown", "reference": str(path)}
@@ -1780,7 +1789,10 @@ async def test_refresh_completion_requires_permission_and_never_completes_on_arc
             transitions=[],
         ),
     )
-    backlog = await _manager_call(manager, "create_task", task["product_id"], "Needs human review")
+    independent = await _manager_call(manager, "create_project", task["product_id"], "Human review")
+    backlog = await _manager_call(
+        manager, "create_task", task["product_id"], "Needs human review", project_id=independent["id"]
+    )
     refreshed = await _manager_call(manager, "refresh", task["product_id"])
     assert "old-terminal" in refreshed["archived_tasks"]
     assert (await _manager_call(manager, "get_task", backlog["id"]))["status"] == "backlog"
@@ -1808,9 +1820,12 @@ async def test_project_completion_and_task_acceptance_share_atomic_budget(system
     await _manager_call(manager, "transition_task", task["id"], "cancelled", "Finished")
     policy = routine["payload"]["metadata"]["auto_accept"]
     policy.update(complete_projects=True, required_checks=["has_source_evidence", "executor_registered"])
-    policy["work_scope"]["project_ids"].append(None)
+    independent = await _manager_call(manager, "create_project", task["product_id"], "Independent work")
+    policy["work_scope"]["project_ids"].append(independent["id"])
     assert (await client.patch("/company/routines/" + routine["id"], json={"auto_accept": policy})).status_code == 200
-    other = await intake_proposal(manager, "Independent task", task["evidence"], routine_id=routine["id"])
+    other = await intake_proposal(
+        manager, "Independent task", task["evidence"], project_id=independent["id"], routine_id=routine["id"]
+    )
     await _manager_call(manager, "refresh", task["product_id"])
     executor, _ = await automation(system)
     project = await _manager_call(manager, "get_project", task["project_id"])
@@ -1993,6 +2008,7 @@ async def test_all_task_and_project_writes_stamp_updated_at(system, monkeypatch)
     client, db, worker, os, _ = system
     product = (await client.post("/company/products", json={"name": "Timestamps"})).json()
     project = (await client.post("/company/projects", json={"product_id": product["id"], "name": "Project"})).json()
+    project = (await client.post("/company/projects", json={"product_id": product["id"], "name": "Release"})).json()
     task = (
         await client.post(
             "/company/tasks", json={"product_id": product["id"], "project_id": project["id"], "title": "Task"}
@@ -2106,7 +2122,12 @@ async def test_same_second_timestamp_keeps_status_guard(system, monkeypatch, aut
 
     client, db, worker, os, _ = system
     product = (await client.post("/company/products", json={"name": "Epoch seconds"})).json()
-    task = (await client.post("/company/tasks", json={"product_id": product["id"], "title": "First"})).json()
+    project = (await client.post("/company/projects", json={"product_id": product["id"], "name": "Release"})).json()
+    task = (
+        await client.post(
+            "/company/tasks", json={"product_id": product["id"], "project_id": project["id"], "title": "First"}
+        )
+    ).json()
     monkeypatch.setattr(time, "time", lambda: 100)
     observed = await _call(db, "update_task", task["id"], title="Observed")
     await _call(db, "update_task", task["id"], title="Edited in the same second")
@@ -2132,7 +2153,12 @@ async def test_automatic_task_timestamp_refuses_later_edit(system, monkeypatch, 
     client, db, _, _, _ = system
     product = (await client.post("/company/products", json={"name": "Scope guard"})).json()
     project = (await client.post("/company/projects", json={"product_id": product["id"], "name": "Other"})).json()
-    task = (await client.post("/company/tasks", json={"product_id": product["id"], "title": "Original"})).json()
+    initial = (await client.post("/company/projects", json={"product_id": product["id"], "name": "Initial"})).json()
+    task = (
+        await client.post(
+            "/company/tasks", json={"product_id": product["id"], "project_id": initial["id"], "title": "Original"}
+        )
+    ).json()
     monkeypatch.setattr(time, "time", lambda: 100)
     observed = await _call(db, "update_task", task["id"], brief="Checked")
     values = {
@@ -2259,12 +2285,18 @@ async def test_search_routine_adds_website_and_deduplicates_three_runs(system, m
             elif len(results) == 1:
                 name, arguments = "read_company_source", dict(source_id=results[0]["id"], path=url)
             elif len(results) == 2:
+                name, arguments = "list_company_projects", dict(product_id=product["id"])
+            elif len(results) == 3 and not results[2]["data"]:
+                name, arguments = "propose_company_project", dict(product_id=product["id"], name="Migration guide")
+            elif len(results) == 3 or (len(results) == 4 and not results[2]["data"]):
+                project = results[2]["data"][0] if results[2]["data"] else results[3]
                 observed = results[1]
                 assert "migration guide" in observed["content"]
                 name, arguments = (
                     "intake_company_source",
                     dict(
                         source_id=results[0]["id"],
+                        project_id=project["id"],
                         title="Write migration guide",
                         brief="Explain the released API migration",
                         proposal_key=observed["content_hash"],
@@ -2312,6 +2344,9 @@ async def test_search_routine_adds_website_and_deduplicates_three_runs(system, m
     assert tasks[0]["evidence"][0]["run_id"] == runs[0]
     assert tasks[0]["evidence"][0]["link"] == url and tasks[0]["evidence"][0]["content_hash"]
     assert tasks[0]["routine_id"] == routine["id"]
+    projects, project_count = await _call(db, "get_projects", product_id=product["id"])
+    assert project_count == 1 and tasks[0]["project_id"] == projects[0]["id"]
+    assert projects[0]["status"] == "proposed"
     listed = (await client.get("/company/sources", params={"product_id": product["id"]})).json()["data"]
     assert listed[0]["config"]["metadata"][executor_type + "_id"] == executor_id
     # Discovered websites use the same bounded acceptance checks as human-added Sources.
@@ -2778,8 +2813,8 @@ async def test_human_backlog_withdrawal_requires_fresh_human_acceptance(system, 
         assert saved["status"] == "backlog"
         assert saved["transitions"] == withdrawn["transitions"]
         assert await worker.store.claim_job(worker.worker_id, worker.config.lock_grace_seconds) is None
-    # A fresh human acceptance explicitly permits pickup again, without spending
-    # another automatic budget slot for the same Task.
+    # Human acceptance permits an unstarted Task to be picked up. A withdrawn
+    # attempt cannot restart from Ready: later attempts require In review.
     response = await client.post(
         "/company/tasks/" + task["id"] + "/transitions",
         json={
@@ -2791,11 +2826,17 @@ async def test_human_backlog_withdrawal_requires_fresh_human_acceptance(system, 
     )
     assert response.status_code == 200, response.text
     await _call(db, "update_schedule", schedule["id"], next_run_at=0)
-    await tick(executor, db)
-    assert (await execute(worker))["status"] == "completed"
+    outcome = await tick(executor, db)
+    if queued:
+        assert await worker.store.claim_job(worker.worker_id, worker.config.lock_grace_seconds) is None
+        assert outcome["output"]["tasks"][0]["status"] == "failed"
+        refused = await client.post("/company/tasks/" + task["id"] + "/runs", json={"attempt": 2})
+        assert refused.status_code == 409, refused.text
+    else:
+        assert (await execute(worker))["status"] == "completed"
     current = await _call(db, "get_task", task["id"])
     attempts = [entry["attempt"] for entry in current["transitions"] if entry.get("attempt")]
-    assert attempts == ([1, 2] if queued else [1])
+    assert attempts == [1]
     stored = await _call(db, "get_schedule", routine["id"])
     assert await _call(db, "count_company_acceptances", routine["id"], _policy_fingerprint(stored), "") == 1
 

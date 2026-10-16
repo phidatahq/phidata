@@ -21,8 +21,13 @@ if __name__ == "__main__":
         writer = Agent(id="writer", db=db)
         manager = CompanyManager(db, registry=Registry(agents=[writer]))
         product = manager.create("SDK", user_id="alice")
-        first = manager.create_task(product["id"], "Ship release", user_id="alice")
-        manager.create_task(product["id"], "Plan next release", user_id="bob")
+        project = manager.create_project(product["id"], "Release")
+        first = manager.create_task(
+            product["id"], "Ship release", project_id=project["id"], user_id="alice"
+        )
+        manager.create_task(
+            product["id"], "Plan next release", project_id=project["id"], user_id="bob"
+        )
         assert manager.list_tasks()[1] == 2
         assert manager.list_tasks(user_id="alice")[1] == 1
         # In HTTP, Ready also checks the accepting caller's executor run permission.

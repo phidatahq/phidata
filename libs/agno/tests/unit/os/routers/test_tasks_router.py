@@ -36,7 +36,10 @@ def client(request, tmp_path):
 
 def create(client):
     parent = client.post("/company/products", json={"name": "SDK"}).json()["id"]
-    response = client.post("/company/tasks", json={"product_id": parent, "title": "Ship", "brief": "Build"})
+    project = client.post("/company/projects", json={"product_id": parent, "name": "Release"}).json()
+    response = client.post(
+        "/company/tasks", json={"product_id": parent, "project_id": project["id"], "title": "Ship", "brief": "Build"}
+    )
     assert response.status_code == 201, response.text
     return response.json()
 
@@ -110,7 +113,12 @@ def test_no_lifecycle_or_identity_edits(client, body):
 
 
 def test_missing_parent_and_invalid_transitions(client):
-    assert client.post("/company/tasks", json={"product_id": "missing", "title": "Work"}).status_code == 404
+    assert (
+        client.post(
+            "/company/tasks", json={"product_id": "missing", "project_id": "missing", "title": "Work"}
+        ).status_code
+        == 404
+    )
     path = "/company/tasks/" + create(client)["id"]
     for body in [
         {"target": "cancelled"},
@@ -151,7 +159,7 @@ def test_unsupported_database(db):
         ("get", "/company/runs/missing", None),
         ("post", "/company/runs/missing/cancel", None),
         ("get", "/company/tasks/missing", None),
-        ("post", "/company/tasks", {"product_id": "p", "title": "Work"}),
+        ("post", "/company/tasks", {"product_id": "p", "project_id": "p", "title": "Work"}),
         ("patch", "/company/tasks/missing", {"title": "Work"}),
         ("delete", "/company/tasks/missing", None),
         ("post", "/company/tasks/missing/restore", None),
@@ -198,7 +206,7 @@ def test_task_project_must_belong_to_same_product(client):
     own = client.post("/company/projects", json={"product_id": task["product_id"], "name": "Own"}).json()
     assert client.patch(path, json={"project_id": own["id"]}).status_code == 200
     assert client.get("/company/tasks", params={"project_id": own["id"]}).json()["meta"]["total_count"] == 1
-    assert client.patch(path, json={"project_id": None}).status_code == 200
+    assert client.patch(path, json={"project_id": None}).status_code == 422
 
 
 @pytest.mark.parametrize(

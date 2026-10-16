@@ -62,6 +62,7 @@ async def test_evidence_repeat_failure_completion_and_product_scope(heartbeat, t
     path = tmp_path / "release.md"
     path.write_text("# Release\nA new feature.\n")
     product = await call("create", "Docs")
+    product_project = await call("create_project", product["id"], "Work")
     source = await call("create_source", product["id"], "markdown", str(path), credential_ref="DOCS_TOKEN")
     proposal = dict(
         title="Document the API",
@@ -72,39 +73,52 @@ async def test_evidence_repeat_failure_completion_and_product_scope(heartbeat, t
     proposal["evidence_hashes"] = {
         item["link"]: item["content_hash"] for item in await call("read_source", source["id"], "observe")
     }
-    first = await call("intake", source["id"], "first-run", proposal)
+    first = await call("intake", source["id"], "first-run", proposal, project_id=product_project["id"])
     assert first["title"] == proposal["title"] and first["brief"] == proposal["brief"]
     assert "content" not in first["evidence"][0]
     assert first["status"] == "backlog"
     assert first["evidence"][0]["run_id"] == "first-run"
     assert first["evidence"][0]["content_hash"]
-    repeat = await call("intake", source["id"], "repeat-run", proposal)
+    repeat = await call("intake", source["id"], "repeat-run", proposal, project_id=product_project["id"])
     assert repeat["id"] == first["id"]
     (tmp_path / "unrelated.md").write_text("A sibling is not the configured Source")
     path.unlink()
     with pytest.raises(ValueError, match="Source root is unavailable"):
-        await call("intake", source["id"], "failed-run", proposal)
+        await call("intake", source["id"], "failed-run", proposal, project_id=product_project["id"])
     assert (await call("list_tasks", product_id=product["id"]))[1] == 1
     path.write_text("# Release\nA new feature.\n")
     for target in ("ready", "in_progress", "in_review", "done"):
         kwargs = {"executor_type": "agent", "executor_id": "reader"} if target == "ready" else {}
         await call("transition_task", first["id"], target, "human review", **kwargs)
-    after = await call("intake", source["id"], "after-completion", proposal)
+    after = await call("intake", source["id"], "after-completion", proposal, project_id=product_project["id"])
     assert after["id"] == first["id"] and after["status"] == "done"
     await call("delete_task", first["id"])
-    assert (await call("intake", source["id"], "after-delete", proposal))["id"] == first["id"]
+    assert (await call("intake", source["id"], "after-delete", proposal, project_id=product_project["id"]))[
+        "id"
+    ] == first["id"]
     other = await call("create", "Other")
+    other_project = await call("create_project", other["id"], "Work")
     second_source = await call("create_source", other["id"], "markdown", str(path))
-    assert (await call("intake", second_source["id"], "other-product", proposal))["id"] != first["id"]
+    assert (await call("intake", second_source["id"], "other-product", proposal, project_id=other_project["id"]))[
+        "id"
+    ] != first["id"]
     path.write_text("Changed evidence")
     with pytest.raises(ValueError, match="evidence changed"):
-        await call("intake", source["id"], "stale", proposal)
+        await call("intake", source["id"], "stale", proposal, project_id=product_project["id"])
     proposal["evidence_hashes"] = {
         item["link"]: item["content_hash"] for item in await call("read_source", source["id"], "reread")
     }
-    assert (await call("intake", source["id"], "changed", proposal))["id"] == first["id"]
+    assert (await call("intake", source["id"], "changed", proposal, project_id=product_project["id"]))["id"] == first[
+        "id"
+    ]
     with pytest.raises(ValueError, match="Proposal evidence"):
-        await call("intake", source["id"], "forged", {**proposal, "evidence_links": ["https://unread.test"]})
+        await call(
+            "intake",
+            source["id"],
+            "forged",
+            {**proposal, "evidence_links": ["https://unread.test"]},
+            project_id=product_project["id"],
+        )
 
 
 @pytest.mark.asyncio
@@ -221,6 +235,7 @@ async def test_concurrent_evidence_and_routine_linking(heartbeat, tmp_path):
 
     db, manager, call = heartbeat
     product = await call("create", "Concurrent", metadata={"human": "keep"})
+    product_project = await call("create_project", product["id"], "Work")
     path = tmp_path / "race.md"
     path.write_text("Same evidence")
     source = await call("create_source", product["id"], "markdown", str(path))
@@ -229,13 +244,15 @@ async def test_concurrent_evidence_and_routine_linking(heartbeat, tmp_path):
     proposal["evidence_hashes"] = {
         item["link"]: item["content_hash"] for item in await call("read_source", source["id"], "observe")
     }
-    await call("intake", source["id"], "seed", proposal)
+    await call("intake", source["id"], "seed", proposal, project_id=product_project["id"])
     proposal["proposal_key"] = "another-issue"
     path.write_text("New evidence")
     proposal["evidence_hashes"] = {
         item["link"]: item["content_hash"] for item in await call("read_source", source["id"], "reread")
     }
-    results = await asyncio.gather(*(call("intake", source["id"], "run-" + str(i), proposal) for i in range(6)))
+    results = await asyncio.gather(
+        *(call("intake", source["id"], "run-" + str(i), proposal, project_id=product_project["id"]) for i in range(6))
+    )
     assert len({result["id"] for result in results}) == 1
     assert (await call("list_tasks", product_id=product["id"]))[1] == 2
     await asyncio.gather(*(_call(db, "add_product_routine", product["id"], "schedule-" + str(i)) for i in range(6)))
@@ -251,6 +268,7 @@ async def test_git_provider_exclusions_and_failed_batch(heartbeat, tmp_path):
     (root / "readme.md").write_text("Public content")
     (root / ".env").write_text("SECRET=never-in-evidence")
     product = await call("create", "Repository")
+    product_project = await call("create_project", product["id"], "Work")
     source = await call("create_source", product["id"], "git", str(root))
     evidence = await call("read_source", source["id"], "read")
     assert len(evidence) == 1 and "never-in-evidence" not in str(evidence)
@@ -275,6 +293,7 @@ async def test_git_provider_exclusions_and_failed_batch(heartbeat, tmp_path):
                 evidence_links=[(root / ".env").as_uri()],
                 evidence_hashes={(root / ".env").as_uri(): "unavailable"},
             ),
+            project_id=product_project["id"],
         )
     assert (await call("list_tasks"))[1] == 0
 
@@ -287,6 +306,7 @@ async def test_intake_requires_a_decision_and_only_stores_selected_evidence(hear
     for index in range(5):
         (root / (str(index) + ".md")).write_text("External business data " + str(index))
     product = await call("create", "Selective intake")
+    product_project = await call("create_project", product["id"], "Work")
     source = await call("create_source", product["id"], "git", str(root))
     evidence = await call("read_source", source["id"], "scan")
     assert len(evidence) == 5 and (await call("list_tasks", product_id=product["id"]))[1] == 0
@@ -297,14 +317,16 @@ async def test_intake_requires_a_decision_and_only_stores_selected_evidence(hear
         evidence_links=[evidence[0]["link"], evidence[1]["link"]],
         evidence_hashes={item["link"]: item["content_hash"] for item in evidence[:2]},
     )
-    task = await call("intake", source["id"], "proposal", proposal)
+    task = await call("intake", source["id"], "proposal", proposal, project_id=product_project["id"])
     assert len(task["evidence"]) == 2
     assert "External business data" not in str(task)
     (root / "0.md").write_text("Changed business data")
     evidence = await call("read_source", source["id"], "next-scan")
     proposal["evidence_hashes"] = {item["link"]: item["content_hash"] for item in evidence[:2]}
     assert (await call("list_tasks", product_id=product["id"]))[1] == 1
-    repeated = await call("intake", source["id"], "again", {**proposal, "title": "Clarify the guide"})
+    repeated = await call(
+        "intake", source["id"], "again", {**proposal, "title": "Clarify the guide"}, project_id=product_project["id"]
+    )
     assert repeated["id"] == task["id"]
 
 
@@ -316,7 +338,8 @@ async def test_summary_preserves_narrative_changes_and_failure_detail(heartbeat,
     delivery = AsyncMock()
     monkeypatch.setattr("agno.company.summary.adeliver_summary", delivery)
     product = await call("create", "Reports", metadata={"summary": {"interface": "slack", "destination": "reports"}})
-    task = await call("create_task", product["id"], "Release docs")
+    product_project = await call("create_project", product["id"], "Work")
+    task = await call("create_task", product["id"], "Release docs", project_id=product_project["id"])
     assert task["origin"] == "human"
     await call("summarize", product["id"], "before", [], narrative="The release guide is proposed.")
     await call("transition_task", task["id"], "ready", "Accepted", executor_type="agent", executor_id="reader")
@@ -356,6 +379,7 @@ async def test_intake_rejects_stale_and_incomplete_observed_hashes(heartbeat, tm
     path = tmp_path / "issue.md"
     path.write_text("Authentication example is broken")
     product = await call("create", "Observed evidence")
+    product_project = await call("create_project", product["id"], "Work")
     source = await call("create_source", product["id"], "markdown", str(path))
     observed = (await call("read_source", source["id"], "observation"))[0]
     proposal = dict(
@@ -367,14 +391,18 @@ async def test_intake_rejects_stale_and_incomplete_observed_hashes(heartbeat, tm
     )
     path.write_text("Authentication example was fixed")
     with pytest.raises(ValueError, match="evidence changed.*read the Source again"):
-        await call("intake", source["id"], "same-run", proposal)
+        await call("intake", source["id"], "same-run", proposal, project_id=product_project["id"])
     assert (await call("list_tasks", product_id=product["id"]))[1] == 0
     missing_hashes = {key: value for key, value in proposal.items() if key != "evidence_hashes"}
     with pytest.raises(ValueError, match="evidence_hashes"):
-        await call("intake", source["id"], "missing-hash", missing_hashes)
+        await call("intake", source["id"], "missing-hash", missing_hashes, project_id=product_project["id"])
     with pytest.raises(ValueError, match="observed content hash for every selected link"):
         await call(
-            "intake", source["id"], "wrong-link", {**proposal, "evidence_hashes": {"unread": observed["content_hash"]}}
+            "intake",
+            source["id"],
+            "wrong-link",
+            {**proposal, "evidence_hashes": {"unread": observed["content_hash"]}},
+            project_id=product_project["id"],
         )
     fresh = (await call("read_source", source["id"], "reconsider"))[0]
     revised = {
@@ -383,7 +411,7 @@ async def test_intake_rejects_stale_and_incomplete_observed_hashes(heartbeat, tm
         "brief": "Describe the corrected authentication flow",
         "evidence_hashes": {fresh["link"]: fresh["content_hash"]},
     }
-    task = await call("intake", source["id"], "reconsider", revised)
+    task = await call("intake", source["id"], "reconsider", revised, project_id=product_project["id"])
     assert task["evidence"][0]["content_hash"] == fresh["content_hash"]
     assert task["evidence"][0]["content_hash"] != observed["content_hash"]
     assert (await call("list_tasks", product_id=product["id"]))[1] == 1
@@ -398,10 +426,11 @@ async def test_summary_delivery_failure_keeps_last_delivered_baseline(heartbeat,
     product = await call(
         "create", "Reliable changes", metadata={"summary": {"interface": "slack", "destination": "docs"}}
     )
-    await call("create_task", product["id"], "Task A")
+    product_project = await call("create_project", product["id"], "Work")
+    await call("create_task", product["id"], "Task A", project_id=product_project["id"])
     if prior_delivery:
         await call("summarize", product["id"], "first", [], narrative="First report")
-    await call("create_task", product["id"], "Task B")
+    await call("create_task", product["id"], "Task B", project_id=product_project["id"])
     delivery.side_effect = RuntimeError("Transport unavailable")
     with pytest.raises(RuntimeError, match="Transport unavailable"):
         await call("summarize", product["id"], "failed", [], narrative="Pending report")
@@ -428,6 +457,7 @@ async def test_source_discovery_fragments_and_selected_intake(heartbeat, tmp_pat
         (root / (str(i).zfill(2) + ".md")).write_text(content)
     (root / "broken.png").write_bytes(b"\xff\xfe")
     product = await call("create", "Large checkout")
+    product_project = await call("create_project", product["id"], "Work")
     source = await call("create_source", product["id"], "git", str(root))
     original = WorkspaceTools._read_file
     reads = []
@@ -472,6 +502,7 @@ async def test_source_discovery_fragments_and_selected_intake(heartbeat, tmp_pat
             evidence_links=[first["link"]],
             evidence_hashes={first["link"]: first["content_hash"]},
         ),
+        project_id=product_project["id"],
     )
     assert reads == [selected] and task["evidence"][0]["content_hash"] == first["content_hash"]
     assert "content" not in task["evidence"][0]
@@ -484,9 +515,10 @@ async def test_routine_service_cannot_create_a_plain_task(heartbeat):
 
     _, _, call = heartbeat
     product = await call("create", "Bounded proposals")
+    product_project = await call("create_project", product["id"], "Work")
     with authorization_scope(lambda: _RoutineAuthorization(None, "routine")):
         with pytest.raises(PermissionError, match="intake_company_source"):
-            await call("create_task", product["id"], "Plain task")
+            await call("create_task", product["id"], "Plain task", project_id=product_project["id"])
     assert (await call("list_tasks", product_id=product["id"]))[1] == 0
 
 
@@ -542,7 +574,8 @@ async def test_summary_retention_preserves_delivery_state(heartbeat, monkeypatch
         "Durable reports",
         metadata={"archive_window_days": window, "summary": {"interface": "slack", "destination": "reports"}},
     )
-    await call("create_task", product["id"], "Task A")
+    product_project = await call("create_project", product["id"], "Work")
+    await call("create_task", product["id"], "Task A", project_id=product_project["id"])
     await call("summarize", product["id"], "first", [], narrative="Initial report")
     # Multiple receipts must all survive migration and adjacent-marker parsing.
     await call("summarize", product["id"], "second", [], narrative="Second report")
@@ -557,7 +590,7 @@ async def test_summary_retention_preserves_delivery_state(heartbeat, monkeypatch
     assert delivery.await_count == 2
     with pytest.raises(LookupError):
         await call("read_wiki", product["id"], "summary.md")
-    await call("create_task", product["id"], "Task B")
+    await call("create_task", product["id"], "Task B", project_id=product_project["id"])
     delivery.side_effect = RuntimeError("Transport unavailable")
     with pytest.raises(RuntimeError, match="Transport unavailable"):
         await call("summarize", product["id"], "failed", [], narrative="Not delivered")
@@ -696,7 +729,8 @@ async def test_summary_omits_acknowledged_failures(heartbeat, monkeypatch, ackno
     delivery = AsyncMock()
     monkeypatch.setattr("agno.company.summary.adeliver_summary", delivery)
     product = await call("create", "Reports", metadata={"summary": {"interface": "slack", "destination": "reports"}})
-    task = await call("create_task", product["id"], "Recovered work")
+    product_project = await call("create_project", product["id"], "Work")
+    task = await call("create_task", product["id"], "Recovered work", project_id=product_project["id"])
     await call("transition_task", task["id"], "ready", "Accepted", executor_type="agent", executor_id="reader")
     task = await call("get_task", task["id"])
     started = await _call(db, "start_task_run", task["id"], 1, task["transitions"])
@@ -738,7 +772,8 @@ async def test_concurrent_summary_does_not_redeliver_the_same_delta(heartbeat, m
 
     monkeypatch.setattr("agno.company.summary.adeliver_summary", send)
     product = await call("create", "Reports", metadata={"summary": {"interface": "slack", "destination": "reports"}})
-    await call("create_task", product["id"], "One change")
+    product_project = await call("create_project", product["id"], "Work")
+    await call("create_task", product["id"], "One change", project_id=product_project["id"])
     first = asyncio.create_task(call("summarize", product["id"], "first", [], narrative="Changed"))
     try:
         assert await asyncio.to_thread(entered.wait, 10)

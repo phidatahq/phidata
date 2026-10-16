@@ -267,6 +267,8 @@ class CompanyManager:
             "executor_id": executor_id,
         }
         validate_task_fields(fields)
+        if not project_id:
+            raise ValueError("A Task requires a Project")
         if self.db.get_product(product_id, user_id=scoped_user_id) is None:
             raise LookupError("Product not found")
         if project_id is not None:
@@ -340,6 +342,8 @@ class CompanyManager:
             return None
         if existing["status"] != "backlog":
             raise ValueError("Accepted task scope requires a return to Backlog")
+        if "project_id" in fields and not fields["project_id"]:
+            raise ValueError("A Task requires a Project")
         if fields.get("project_id") is not None:
             project = self.db.get_project(fields["project_id"], user_id=None)
             if project is None:
@@ -679,6 +683,8 @@ class CompanyManager:
         from agno.company.sources import _proposal_fields
         from agno.db.schemas.tasks import validate_task_fields
 
+        if not project_id:
+            raise ValueError("A Task requires a Project")
         validate_task_fields({"executor_type": executor_type, "executor_id": executor_id, "project_id": project_id})
 
         source = self.get_source(source_id)
@@ -1025,6 +1031,8 @@ class AsyncCompanyManager:
             "executor_id": executor_id,
         }
         validate_task_fields(fields)
+        if not project_id:
+            raise ValueError("A Task requires a Project")
         if await self.db.get_product(product_id, user_id=scoped_user_id) is None:
             raise LookupError("Product not found")
         if project_id is not None:
@@ -1098,6 +1106,8 @@ class AsyncCompanyManager:
             return None
         if existing["status"] != "backlog":
             raise ValueError("Accepted task scope requires a return to Backlog")
+        if "project_id" in fields and not fields["project_id"]:
+            raise ValueError("A Task requires a Project")
         if fields.get("project_id") is not None:
             project = await self.db.get_project(fields["project_id"], user_id=None)
             if project is None:
@@ -1439,6 +1449,8 @@ class AsyncCompanyManager:
         from agno.company.sources import _proposal_fields
         from agno.db.schemas.tasks import validate_task_fields
 
+        if not project_id:
+            raise ValueError("A Task requires a Project")
         validate_task_fields({"executor_type": executor_type, "executor_id": executor_id, "project_id": project_id})
 
         source = await self.get_source(source_id)

@@ -2129,6 +2129,10 @@ class BaseDb(ABC):
         """Get a schedule run by ID."""
         raise NotImplementedError
 
+    def get_latest_schedule_runs(self, schedule_ids: List[str]) -> Dict[str, Dict[str, Any]]:
+        """Return the latest run for each requested schedule in one query."""
+        raise NotImplementedError
+
     def get_schedule_runs(
         self,
         schedule_id: str,
@@ -4063,6 +4067,10 @@ class AsyncBaseDb(ABC):
 
     async def get_schedule_run(self, run_id: str, user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """Get a schedule run by ID."""
+        raise NotImplementedError
+
+    async def get_latest_schedule_runs(self, schedule_ids: List[str]) -> Dict[str, Dict[str, Any]]:
+        """Return the latest run for each requested schedule in one query."""
         raise NotImplementedError
 
     async def get_schedule_runs(

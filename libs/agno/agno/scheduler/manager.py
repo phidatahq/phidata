@@ -189,7 +189,7 @@ class ScheduleManager:
         if user_id is not None and (not user_id.strip() or user_id == INTERNAL_SCHEDULER_USER_ID):
             raise ValueError(f"'{user_id}' is not a usable schedule owner")
 
-        if not validate_cron_expr(cron):
+        if not ((provenance or {}).get("managed_by") == "company" and cron == "") and not validate_cron_expr(cron):
             raise ValueError(f"Invalid cron expression: {cron}")
         if not validate_timezone(timezone):
             raise ValueError(f"Invalid timezone: {timezone}")
@@ -202,7 +202,7 @@ class ScheduleManager:
             if if_exists == "update":
                 _require_mutable_schedule(existing.id)
                 log_debug(f"Schedule '{name}' already exists, updating")
-                next_run_at = compute_next_run(cron, timezone)
+                next_run_at = compute_next_run(cron, timezone) if cron else None
                 updated = self._to_schedule(
                     self._call(
                         "update_schedule",
@@ -224,7 +224,7 @@ class ScheduleManager:
                 return updated or existing
             raise ValueError(f"Schedule with name '{name}' already exists")
 
-        next_run_at = compute_next_run(cron, timezone)
+        next_run_at = compute_next_run(cron, timezone) if cron else None
         now = int(time.time())
 
         schedule = Schedule(
@@ -347,7 +347,11 @@ class ScheduleManager:
             return None
         from agno.scheduler.cron import compute_next_run
 
-        next_run_at = compute_next_run(schedule.cron_expr, schedule.timezone)
+        next_run_at = (
+            None
+            if schedule.managed_by == "company" and schedule.cron_expr == ""
+            else compute_next_run(schedule.cron_expr, schedule.timezone)
+        )
         return self._to_schedule(
             self._call("update_schedule", schedule_id, user_id=user_id, enabled=True, next_run_at=next_run_at)
         )
@@ -430,7 +434,7 @@ class ScheduleManager:
         if user_id is not None and (not user_id.strip() or user_id == INTERNAL_SCHEDULER_USER_ID):
             raise ValueError(f"'{user_id}' is not a usable schedule owner")
 
-        if not validate_cron_expr(cron):
+        if not ((provenance or {}).get("managed_by") == "company" and cron == "") and not validate_cron_expr(cron):
             raise ValueError(f"Invalid cron expression: {cron}")
         if not validate_timezone(timezone):
             raise ValueError(f"Invalid timezone: {timezone}")
@@ -443,7 +447,7 @@ class ScheduleManager:
             if if_exists == "update":
                 _require_mutable_schedule(existing.id)
                 log_debug(f"Schedule '{name}' already exists, updating")
-                next_run_at = compute_next_run(cron, timezone)
+                next_run_at = compute_next_run(cron, timezone) if cron else None
                 updated = self._to_schedule(
                     await self._acall(
                         "update_schedule",
@@ -465,7 +469,7 @@ class ScheduleManager:
                 return updated or existing
             raise ValueError(f"Schedule with name '{name}' already exists")
 
-        next_run_at = compute_next_run(cron, timezone)
+        next_run_at = compute_next_run(cron, timezone) if cron else None
         now = int(time.time())
 
         schedule = Schedule(
@@ -567,7 +571,9 @@ class ScheduleManager:
         if "endpoint" in kwargs:
             kwargs.update(_schedule_endpoint_targets(existing.managed_by, kwargs["endpoint"]))
         if current_authorization() is not None or {"payload", "method"}.intersection(kwargs):
-            await arequire_schedule_target(kwargs.get("endpoint", existing.endpoint), kwargs.get("method", existing.method))
+            await arequire_schedule_target(
+                kwargs.get("endpoint", existing.endpoint), kwargs.get("method", existing.method)
+            )
             # Caller payloads cannot mint acceptance grants. Metadata-only changes
             # retain the trusted stored grant while refreshing ordinary run authority.
             kwargs["payload"] = (
@@ -588,7 +594,11 @@ class ScheduleManager:
             return None
         from agno.scheduler.cron import compute_next_run
 
-        next_run_at = compute_next_run(schedule.cron_expr, schedule.timezone)
+        next_run_at = (
+            None
+            if schedule.managed_by == "company" and schedule.cron_expr == ""
+            else compute_next_run(schedule.cron_expr, schedule.timezone)
+        )
         return self._to_schedule(
             await self._acall("update_schedule", schedule_id, user_id=user_id, enabled=True, next_run_at=next_run_at)
         )

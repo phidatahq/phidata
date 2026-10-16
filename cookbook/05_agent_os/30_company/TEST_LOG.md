@@ -2794,3 +2794,37 @@ formatter-only changes are excluded. No live model calls are involved.
 Validation used the clean Python 3.10 environment and checked 1,178 framework
 and 21 CLI files. `git diff --check` passed. Full runtime suites use development
 Python 3.12 and will be recorded after completion.
+
+
+### PR 6.5 completed verification after publication — October 16, 2026
+
+**Status:** PASS; no unresolved failures.
+
+**Description:** Continued testing after publishing `ea6ba085a6` for review.
+The full scheduler, AgentOS/Manager, database and Company/SchedulerTools unit
+selection finished with 6,642 passes, five conditional skips and two failures.
+The full Company and Product/Project/Task/schedule lifecycle integrations finished
+with 1,173 passes, four optional MongoDB skips and twelve failures. All fourteen
+failures were inherited test fixtures using the old Source-tool/manager signature
+or the old agent metadata key for Team discovery. No production code changed
+after the initial publication.
+
+**Result:** Corrected those fixtures and reran the entire heartbeat unit file
+(84 passed), all Source-discovery execution cases (eight passed across four SQL
+adapters), and the entire retention integration file (92 passed). Excluding
+repeated cases, final coverage is **6,644 unit + 1,185 integration = 7,829 passed**,
+with nine skips and no remaining failures. The skip set is four optional MongoDB
+lifecycle cases, three live-model credential cases, one optional asyncpg case
+and one root-only ownership case. PostgreSQL scheduler parity was explicitly
+enabled; SQLite/PostgreSQL sync/async revision and run-start coverage all ran.
+
+All thirteen offline Company cookbook invocations passed: the nine numbered
+examples, additional PostgreSQL manual Task execution, SQLite/PostgreSQL automatic
+Task execution, and PostgreSQL cascading archive. The code reviewed at publication
+is unchanged; this follow-up updates three test fixtures and the verification log.
+
+Full `./scripts/format.sh` and `./scripts/validate.sh` passed on the final source,
+with clean Python 3.10 mypy checking 1,178 framework and 21 CLI files. Runtime tests
+used development Python 3.12. Unrelated formatter-only changes were excluded and
+`git diff --check` passed. No live-model, hosted or outbound-delivery validation
+is claimed; GitHub CI and automated review are separate from these local results.

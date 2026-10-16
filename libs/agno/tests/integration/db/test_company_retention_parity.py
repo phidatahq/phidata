@@ -473,7 +473,7 @@ async def test_routine_mutations_are_bound_and_project_proposals_reuse(archive, 
             ("refresh", (other["id"],)),
             ("write_wiki", (other["id"], "status.md", "Intrusion", 0)),
             ("read_source", (source["id"], "scan")),
-            ("add_source", (other["id"], "website", "https://example.org", "finder", "scan")),
+            ("add_source", (other["id"], "website", "https://example.org", "finder", "agent", "scan")),
         ]:
             with pytest.raises(PermissionError, match="configured Product"):
                 await call(manager, method, *args)

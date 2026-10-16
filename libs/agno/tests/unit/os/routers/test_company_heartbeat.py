@@ -1113,7 +1113,6 @@ async def test_team_source_uses_injected_team_identity(tmp_path, async_tools):
     fn = toolkit.aadd_company_source if async_tools else toolkit.add_company_source
     kwargs = dict(
         product_id=product["id"],
-        type="website",
         reference="https://example.com",
         _agno_team=SimpleNamespace(id="team-finder"),
         _agno_run_context=RunContext(run_id="team-run", session_id="session"),
@@ -1121,7 +1120,7 @@ async def test_team_source_uses_injected_team_identity(tmp_path, async_tools):
     first = json.loads(await fn(**kwargs) if async_tools else fn(**kwargs))
     again = json.loads(await fn(**kwargs) if async_tools else fn(**kwargs))
     assert again["id"] == first["id"]
-    assert first["config"]["metadata"] == {"agent_id": "team-finder", "run_id": "team-run"}
+    assert first["config"]["metadata"] == {"team_id": "team-finder", "run_id": "team-run"}
     db.close()
 
 

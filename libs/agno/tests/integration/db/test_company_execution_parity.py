@@ -2255,7 +2255,7 @@ async def test_search_routine_adds_website_and_deduplicates_three_runs(system, m
         def invoke(self, messages, *args, **kwargs):
             results = [json.loads(message.content) for message in messages if message.role == "tool"]
             if not results:
-                name, arguments = "add_company_source", dict(product_id=product["id"], type="website", reference=url)
+                name, arguments = "add_company_source", dict(product_id=product["id"], reference=url)
             elif len(results) == 1:
                 name, arguments = "read_company_source", dict(source_id=results[0]["id"], path=url)
             elif len(results) == 2:
